@@ -4,12 +4,7 @@ ini_set('display_errors', 1);
 
 require_once '../config/database.php';
 
-require '../vendor/phpmailer/src/PHPMailer.php';
-require '../vendor/phpmailer/src/SMTP.php';
-require '../vendor/phpmailer/src/Exception.php';
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+require_once '../includes/mailer.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
@@ -22,6 +17,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $subject    = $_POST['subject'] ?? '';
     $category   = $_POST['category'] ?? '';
     $priority   = $_POST['priority'] ?? '';
+    $company = $_SESSION['company'] ?? '';
+    if (empty($company)) {
+        $c_stmt = $conn->prepare("SELECT company FROM users WHERE id = ?");
+        if ($c_stmt) {
+            $c_stmt->bind_param("i", $user_id);
+            $c_stmt->execute();
+            $c_res = $c_stmt->get_result();
+            if ($c_row = $c_res->fetch_assoc()) {
+                $company = $c_row['company'] ?? $company;
+                if (!empty($company)) {
+                    $_SESSION['company'] = $company;
+                }
+            }
+            $c_stmt->close();
+        }
+    }
     $department = $_SESSION['department'] ?? '';
     if (empty($department)) {
         $dept_stmt = $conn->prepare("SELECT department FROM users WHERE id = ?");
@@ -71,8 +82,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $stmt = $conn->prepare("
         INSERT INTO employee_tickets
-        (user_id, subject, category, priority, department, assigned_department, assigned_company, description, attachment)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (user_id, subject, category, priority, company, department, assigned_department, assigned_company, description, attachment)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
 
     if(!$stmt){
@@ -80,11 +91,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     $stmt->bind_param(
-        "issssssss",
+        "isssssssss",
         $user_id,
         $subject,
         $category,
         $priority,
+        $company,
         $department,
         $assigned_department,
         $assigned_company,
@@ -152,86 +164,70 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $notif_stmt->close();
     }
 
-    /* ================= SEND EMAIL ================= */
-
-    $mail = new PHPMailer(true);
-
-    try {
-
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'matthewpascua052203@gmail.com';
-        $mail->Password   = 'tmwtjqjvadsmgzje'; // App Password
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-
-        $mail->SMTPOptions = [
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-                'allow_self_signed' => true
-            ]
-        ];
-
-        $mail->setFrom('matthewpascua052203@gmail.com', 'Leads Agri Helpdesk'); // Changed name
-
-        /* Add all admin emails */
-        $admins = $conn->query("SELECT email FROM users WHERE role='admin'");
-        if ($admins->num_rows > 0) {
-            while($admin = $admins->fetch_assoc()){
-                $mail->addAddress($admin['email']);
+    $adminEmails = [];
+    if ($assigned_department !== '') {
+        $adminStmt = $conn->prepare("SELECT email FROM users WHERE role = 'admin' AND email <> '' AND (department = ? OR department IS NULL OR department = '')");
+        if ($adminStmt) {
+            $adminStmt->bind_param("s", $assigned_department);
+            $adminStmt->execute();
+            $adminRes = $adminStmt->get_result();
+            if ($adminRes) {
+                while ($admin = $adminRes->fetch_assoc()) {
+                    $adminEmails[] = $admin['email'];
+                }
             }
-        } else {
-             // Fallback if no admin found in DB (unlikely but good safety)
-             $mail->addAddress('matthewpascua052203@gmail.com');
+            $adminStmt->close();
         }
-        
-        // Also add the user's email if not set in session
-        $user_email = $_SESSION['email'] ?? '';
-        if (empty($user_email)) {
-             $u_stmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
-             $u_stmt->bind_param("i", $user_id);
-             $u_stmt->execute();
-             $u_res = $u_stmt->get_result();
-             if ($u_row = $u_res->fetch_assoc()) {
-                 $user_email = $u_row['email'];
-                 $_SESSION['email'] = $user_email; // Update session
-             }
-        }
-
-        /* Attach file if exists */
-        if (!empty($attachmentName)) {
-            $mail->addAttachment('../uploads/' . $attachmentName);
-        }
-
-        $mail->isHTML(true);
-        $mail->Subject = "New Ticket Submitted - $subject";
-
-        $mail->Body = "
-            <div style='font-family:Segoe UI; padding:15px'>
-                <h2 style='color:#1B5E20'>New Ticket Submitted</h2>
-                <hr>
-                <p><strong>Employee:</strong> {$_SESSION['name']}</p>
-                <p><strong>Email:</strong> $user_email</p>
-                <p><strong>Subject:</strong> $subject</p>
-                <p><strong>Category:</strong> $category</p>
-                <p><strong>Priority:</strong> $priority</p>
-                <p><strong>Department:</strong> $department</p>
-                <p><strong>Description:</strong><br>" . nl2br(htmlspecialchars($description ?? 'None')) . "</p>
-                <p><strong>Attachment:</strong> " . ($attachmentName ? "Included in this email" : "None") . "</p>
-                <hr>
-                <p style='font-size:12px;color:#64748B'>
-                    This is an automated message from Leads Agri Helpdesk.
-                </p>
-            </div>
-        ";
-
-        $mail->send();
-
-    } catch (Exception $e) {
-        // Log error instead of crashing user experience
     }
+    if (count($adminEmails) === 0) {
+        $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
+        if ($admins) {
+            while ($admin = $admins->fetch_assoc()) {
+                $adminEmails[] = $admin['email'];
+            }
+        }
+    }
+
+    $ticketNumber = str_pad((string) $ticket_id, 6, '0', STR_PAD_LEFT);
+    $subjectLine = "New Ticket Assigned (#$ticketNumber)";
+    $requesterName = $user_name ?? ($_SESSION['name'] ?? 'Unknown');
+    $assignedDeptSafe = htmlspecialchars($assigned_department);
+    $assignedCompanySafe = htmlspecialchars($assigned_company);
+    $prioritySafe = htmlspecialchars($priority);
+    $ticketSubjectSafe = htmlspecialchars($subject);
+    $requesterNameSafe = htmlspecialchars($requesterName);
+
+    $bodyHtml = "
+        <div style='font-family:Arial, sans-serif; color:#333; line-height:1.5'>
+            <h2 style='margin:0 0 12px 0'>A new support ticket has been assigned to your department.</h2>
+            <p style='margin:0 0 16px 0'>
+                Ticket ID: <strong>#$ticketNumber</strong><br>
+                Subject: <strong>$ticketSubjectSafe</strong><br>
+                Priority: <strong>$prioritySafe</strong><br>
+                Requested by: <strong>$requesterNameSafe</strong><br>
+                Assigned to: <strong>$assignedDeptSafe</strong>" . ($assigned_company !== '' ? " (<strong>$assignedCompanySafe</strong>)" : "") . "
+            </p>
+            <p style='margin:0'>Login to the system to view the ticket.</p>
+        </div>
+    ";
+
+    $bodyText = "A new support ticket has been assigned to your department.\n\n"
+        . "Ticket ID: #$ticketNumber\n"
+        . "Subject: $subject\n"
+        . "Priority: $priority\n"
+        . "Requested by: $requesterName\n"
+        . "Assigned to: $assigned_department" . ($assigned_company !== '' ? " ($assigned_company)" : "") . "\n\n"
+        . "Login to the system to view the ticket.\n";
+
+    $attachments = [];
+    if (!empty($attachmentName)) {
+        $path = realpath(__DIR__ . '/../uploads/' . $attachmentName);
+        if ($path) {
+            $attachments[] = ['path' => $path];
+        }
+    }
+
+    sendSmtpEmail($adminEmails, $subjectLine, $bodyHtml, $bodyText, $attachments);
 
     /* ================= SUCCESS MESSAGE ================= */
 
@@ -249,6 +245,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <title>Request Ticket | Leads Agri Helpdesk</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -277,7 +274,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 <option value="" disabled selected hidden>Select Company</option>
                                 <option value="FARMEX">FARMEX</option>
                                 <option value="Malveda Holdings Corporation - MHC">Malveda Holdings Corporation - MHC</option>
-                                <option value="FARMESSE">FARMESSE</option>
+                                <option value="FARMASEE">FARMASEE</option>
                                 <option value="Golden Primestocks Chemical Inc - GPSCI">Golden Primestocks Chemical Inc - GPSCI</option>
                                 <option value="LEADS Animal Health - LAH">LEADS Animal Health - LAH</option>
                                 <option value="Leads Tech Corporation - LTC">Leads Tech Corporation - LTC</option>
@@ -316,16 +313,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 <option>Software Issue</option>
                                 <option>Email Problem</option>
                                 <option>Account Access</option>
-                            </select>
-                            <i class="fas fa-chevron-down select-icon"></i>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="sub_category">Sub-Category / Issue Type *</label>
-                        <div class="select-wrapper">
-                            <select name="sub_category" id="sub_category" class="form-control" required>
-                                <option value="" disabled selected hidden>Select sub-category</option>
+                                <option>Technical Support</option>
+                                <option>Other</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>
                         </div>

@@ -15,6 +15,35 @@ if (!isset($_GET['id'])) {
 
 $id = (int)$_GET['id'];
 
+function parseLegacyRequesterInfo($text) {
+    if (!is_string($text) || $text === '') {
+        return [null, null, $text];
+    }
+
+    $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+
+    $name = null;
+    $email = null;
+    $desc = $normalized;
+
+    if (preg_match('/REQUESTER NAME:\s*(.+)$/im', $normalized, $m)) {
+        $name = trim($m[1]);
+    }
+    if (preg_match('/REQUESTER EMAIL:\s*(.+)$/im', $normalized, $m)) {
+        $email = trim($m[1]);
+    }
+    if (preg_match('/DESCRIPTION:\s*(.*)$/is', $normalized, $m)) {
+        $desc = trim($m[1]);
+    } else {
+        $desc = preg_replace('/^REQUESTER NAME:.*(\n)?/im', '', $normalized);
+        $desc = preg_replace('/^REQUESTER EMAIL:.*(\n)?/im', '', $desc);
+        $desc = preg_replace('/^DESCRIPTION:\s*/im', '', $desc);
+        $desc = trim($desc);
+    }
+
+    return [$name, $email, $desc];
+}
+
 /* Mark notifications as read for this ticket */
 $user_id = $_SESSION['user_id'];
 $conn->query("UPDATE notifications SET is_read = 1 WHERE ticket_id = $id AND user_id = $user_id");
@@ -50,7 +79,12 @@ if ($checkResult->num_rows > 0) {
 }
 
 $stmt = $conn->prepare("
-    SELECT t.*, u.name as created_by_name, u.email as created_by_email, u.company as user_company 
+    SELECT 
+        t.*, 
+        u.name as created_by_name, 
+        u.email as created_by_email, 
+        u.company as user_company,
+        u.department as user_department
     FROM employee_tickets t 
     JOIN users u ON t.user_id = u.id 
     WHERE t.id = ? AND ((t.assigned_department = ? AND t.assigned_company = ?) OR t.user_id = ?)
@@ -62,6 +96,25 @@ $result = $stmt->get_result();
 if ($row = $result->fetch_assoc()) {
     // Use ticket company if set, otherwise user company
     $row['company'] = !empty($row['company']) ? $row['company'] : $row['user_company'];
+    $row['department'] = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
+    if (empty($row['department'])) {
+        $row['department'] = 'Unknown';
+    }
+
+    $requester_name = trim((string)($row['requester_name'] ?? ''));
+    $requester_email = trim((string)($row['requester_email'] ?? ''));
+
+    $clean_desc = $row['description'] ?? '';
+    if ($requester_name === '' && $requester_email === '') {
+        [$parsed_name, $parsed_email, $parsed_desc] = parseLegacyRequesterInfo($clean_desc);
+        if (!empty($parsed_name)) $requester_name = $parsed_name;
+        if (!empty($parsed_email)) $requester_email = $parsed_email;
+        $clean_desc = $parsed_desc;
+    }
+
+    if ($requester_name !== '') $row['created_by_name'] = $requester_name;
+    if ($requester_email !== '') $row['created_by_email'] = $requester_email;
+    $row['description'] = $clean_desc;
 
     // Calculate Duration
     $duration = "Not Started";

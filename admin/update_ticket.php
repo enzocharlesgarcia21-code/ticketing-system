@@ -1,14 +1,6 @@
 <?php
 require_once '../config/database.php';
-
-// Import PHPMailer classes into the global namespace
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
-
-require '../vendor/phpmailer/src/Exception.php';
-require '../vendor/phpmailer/src/PHPMailer.php';
-require '../vendor/phpmailer/src/SMTP.php';
+require_once '../includes/mailer.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -159,76 +151,136 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
 
-        // --- SEND EMAIL NOTIFICATION ---
-        // 1. Get user details for this ticket
         $stmt = $conn->prepare("
-            SELECT t.subject, t.priority, t.category, u.name, u.email 
+            SELECT t.subject, t.priority, t.category, t.assigned_department, u.name, u.email
             FROM employee_tickets t
             JOIN users u ON t.user_id = u.id
             WHERE t.id = ?
         ");
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        
-        if ($ticket = $res->fetch_assoc()) {
-            $mail = new PHPMailer(true);
+        if ($stmt) {
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $ticket = $res ? $res->fetch_assoc() : null;
+            $stmt->close();
+        } else {
+            $ticket = null;
+        }
 
-            try {
-                //Server settings
-                $mail->isSMTP();
-                $mail->Host       = 'smtp.gmail.com';
-                $mail->SMTPAuth   = true;
-                $mail->Username   = 'matthewpascua052203@gmail.com'; 
-                $mail->Password   = 'tmwtjqjvadsmgzje'; 
-                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                $mail->Port       = 587;
+        if ($ticket) {
+            $ticketNumber = str_pad((string) $id, 6, '0', STR_PAD_LEFT);
+            $ticketSubjectSafe = htmlspecialchars((string) $ticket['subject']);
+            $prioritySafe = htmlspecialchars((string) $ticket['priority']);
+            $requesterNameSafe = htmlspecialchars((string) $ticket['name']);
 
-                // Disable SSL verification for XAMPP/Localhost
-                $mail->SMTPOptions = array(
-                    'ssl' => array(
-                        'verify_peer' => false,
-                        'verify_peer_name' => false,
-                        'allow_self_signed' => true
-                    )
-                );
+            $adminNoteHtml = '';
+            if (!empty($admin_note)) {
+                $adminNoteHtml = "<div style='background-color:#f0fdf4;border-left:4px solid #16a34a;padding:15px;margin:15px 0;color:#14532d'><strong style='color:#166534'>Admin Note:</strong><br>" . nl2br(htmlspecialchars($admin_note)) . "</div>";
+            }
 
-                //Recipients
-                $mail->setFrom('matthewpascua052203@gmail.com', 'Leads Agri Helpdesk');
-                $mail->addAddress($ticket['email'], $ticket['name']);
+            $employeeSubject = "Ticket Update (#$ticketNumber)";
+            $employeeBodyHtml = "
+                <div style='font-family:Arial, sans-serif; color:#333; line-height:1.5'>
+                    <h2 style='margin:0 0 12px 0'>Ticket Updated</h2>
+                    <p style='margin:0 0 16px 0'>Hello <strong>{$requesterNameSafe}</strong>,</p>
+                    <p style='margin:0 0 16px 0'>Your ticket <strong>#$ticketNumber</strong> has been updated.</p>
+                    <p style='margin:0 0 16px 0'>
+                        Subject: <strong>{$ticketSubjectSafe}</strong><br>
+                        Priority: <strong>{$prioritySafe}</strong><br>
+                        Status: <strong>" . htmlspecialchars($new_status) . "</strong><br>
+                        Assigned Department: <strong>" . htmlspecialchars($new_department) . "</strong>
+                    </p>
+                    $adminNoteHtml
+                    <p style='margin:0'>Login to the system to view the ticket.</p>
+                </div>
+            ";
+            $employeeBodyText = "Ticket Updated\n\n"
+                . "Ticket ID: #$ticketNumber\n"
+                . "Subject: " . (string) $ticket['subject'] . "\n"
+                . "Priority: " . (string) $ticket['priority'] . "\n"
+                . "Status: $new_status\n"
+                . "Assigned Department: $new_department\n\n"
+                . "Login to the system to view the ticket.\n";
 
-                //Content
-                $mail->isHTML(true);
-                $mail->Subject = "Ticket Update: #$id - " . $ticket['subject'];
-                
-                $adminNoteHtml = '';
-                if (!empty($admin_note)) {
-                    $adminNoteHtml = "
-                        <div style='background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 15px; margin: 15px 0; color: #14532d;'>
-                            <strong style='color: #166534;'>Admin Note:</strong><br>
-                            " . nl2br(htmlspecialchars($admin_note)) . "
-                        </div>
-                    ";
+            sendSmtpEmail([(string) $ticket['email']], $employeeSubject, $employeeBodyHtml, $employeeBodyText);
+
+            $adminEmails = [];
+            if ($new_department !== '') {
+                $adminStmt = $conn->prepare("SELECT email FROM users WHERE role = 'admin' AND email <> '' AND (department = ? OR department IS NULL OR department = '')");
+                if ($adminStmt) {
+                    $adminStmt->bind_param("s", $new_department);
+                    $adminStmt->execute();
+                    $adminRes = $adminStmt->get_result();
+                    if ($adminRes) {
+                        while ($a = $adminRes->fetch_assoc()) {
+                            $adminEmails[] = $a['email'];
+                        }
+                    }
+                    $adminStmt->close();
                 }
+            }
+            if (count($adminEmails) === 0) {
+                $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
+                if ($admins) {
+                    while ($a = $admins->fetch_assoc()) {
+                        $adminEmails[] = $a['email'];
+                    }
+                }
+            }
 
-                $mail->Body    = "
-                    <div style='font-family: Arial, sans-serif; color: #333;'>
-                        <h2>Ticket Updated</h2>
-                        <p>Hello <strong>{$ticket['name']}</strong>,</p>
-                        <p>Your ticket <strong>#$id</strong> has been updated by the admin.</p>
-                        <hr>
-                        <p><strong>Status:</strong> <span style='color: #1B5E20; font-weight: bold;'>$new_status</span></p>
-                        <p><strong>Assigned To:</strong> $new_department</p>
-                        $adminNoteHtml
-                        <hr>
-                        <p>You can view the full details by logging into your dashboard.</p>
-                        <p>Best regards,<br>Leads Agri Helpdesk Team</p>
+            $statusChanged = $old_data && isset($old_data['status']) && $old_data['status'] !== $new_status;
+            $deptChanged = $old_data && isset($old_data['assigned_department']) && $old_data['assigned_department'] !== $new_department;
+
+            if ($deptChanged) {
+                $adminSubject = "New Ticket Assigned (#$ticketNumber)";
+                $adminBodyHtml = "
+                    <div style='font-family:Arial, sans-serif; color:#333; line-height:1.5'>
+                        <h2 style='margin:0 0 12px 0'>A support ticket has been assigned to your department.</h2>
+                        <p style='margin:0 0 16px 0'>
+                            Ticket ID: <strong>#$ticketNumber</strong><br>
+                            Subject: <strong>{$ticketSubjectSafe}</strong><br>
+                            Priority: <strong>{$prioritySafe}</strong><br>
+                            Requested by: <strong>{$requesterNameSafe}</strong><br>
+                            Assigned to: <strong>" . htmlspecialchars($new_department) . "</strong>
+                        </p>
+                        <p style='margin:0'>Login to the system to view the ticket.</p>
                     </div>
                 ";
+                $adminBodyText = "A support ticket has been assigned to your department.\n\n"
+                    . "Ticket ID: #$ticketNumber\n"
+                    . "Subject: " . (string) $ticket['subject'] . "\n"
+                    . "Priority: " . (string) $ticket['priority'] . "\n"
+                    . "Requested by: " . (string) $ticket['name'] . "\n"
+                    . "Assigned to: $new_department\n\n"
+                    . "Login to the system to view the ticket.\n";
 
-                $mail->send();
-            } catch (Exception $e) {
-                // Log error or ignore
+                sendSmtpEmail($adminEmails, $adminSubject, $adminBodyHtml, $adminBodyText);
+            }
+
+            if ($statusChanged) {
+                $adminSubject = "Ticket Status Updated (#$ticketNumber)";
+                $adminBodyHtml = "
+                    <div style='font-family:Arial, sans-serif; color:#333; line-height:1.5'>
+                        <h2 style='margin:0 0 12px 0'>A ticket status has changed.</h2>
+                        <p style='margin:0 0 16px 0'>
+                            Ticket ID: <strong>#$ticketNumber</strong><br>
+                            Subject: <strong>{$ticketSubjectSafe}</strong><br>
+                            Priority: <strong>{$prioritySafe}</strong><br>
+                            Requested by: <strong>{$requesterNameSafe}</strong><br>
+                            Status: <strong>" . htmlspecialchars($old_data['status']) . "</strong> → <strong>" . htmlspecialchars($new_status) . "</strong>
+                        </p>
+                        <p style='margin:0'>Login to the system to view the ticket.</p>
+                    </div>
+                ";
+                $adminBodyText = "A ticket status has changed.\n\n"
+                    . "Ticket ID: #$ticketNumber\n"
+                    . "Subject: " . (string) $ticket['subject'] . "\n"
+                    . "Priority: " . (string) $ticket['priority'] . "\n"
+                    . "Requested by: " . (string) $ticket['name'] . "\n"
+                    . "Status: " . (string) $old_data['status'] . " -> $new_status\n\n"
+                    . "Login to the system to view the ticket.\n";
+
+                sendSmtpEmail($adminEmails, $adminSubject, $adminBodyHtml, $adminBodyText);
             }
         }
     }

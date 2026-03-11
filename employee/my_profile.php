@@ -101,6 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-color: #fecaca;
         }
     </style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -197,3 +198,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="../js/employee-dashboard.js"></script>
 </body>
 </html>
+

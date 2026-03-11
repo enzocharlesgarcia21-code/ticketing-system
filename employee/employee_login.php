@@ -33,6 +33,7 @@ $error = "Please verify your email first.";
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['name'] = $user['name'];
                 $_SESSION['email'] = $user['email'];
+                $_SESSION['company'] = $user['company'];
                 $_SESSION['department'] = $user['department'];
                 $_SESSION['role'] = $user['role'];
 
@@ -60,6 +61,7 @@ $error = "Please verify your email first.";
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Employee Login</title>
     <link rel="stylesheet" href="../css/employee-login.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -107,3 +109,4 @@ $error = "Please verify your email first.";
 
 </body>
 </html>
+

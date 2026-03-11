@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 require_once '../config/database.php';
 
 // Access Control
@@ -18,28 +22,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $content = trim($_POST['content']);
 
     if (!empty($title) && !empty($category) && !empty($content)) {
-        $image_path = null;
         
         // Handle Image Upload
+        $image_path = null;
         if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-            $upload_dir = '../uploads/kb_images/';
-            if (!file_exists($upload_dir)) {
-                mkdir($upload_dir, 0777, true);
-            }
-            
-            $file_extension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-            $new_filename = uniqid('kb_', true) . '.' . $file_extension;
-            $target_file = $upload_dir . $new_filename;
-            
-            if (move_uploaded_file($_FILES['image']['tmp_name'], $target_file)) {
-                $image_path = 'uploads/kb_images/' . $new_filename;
+            $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+            $filename = $_FILES['image']['name'];
+            $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            if (in_array($ext, $allowed)) {
+                $new_filename = uniqid() . '.' . $ext;
+                $upload_path = '../uploads/kb_images/' . $new_filename;
+                
+                if (!is_dir('../uploads/kb_images')) {
+                    mkdir('../uploads/kb_images', 0777, true);
+                }
+
+                if (move_uploaded_file($_FILES['image']['tmp_name'], $upload_path)) {
+                    $image_path = 'uploads/kb_images/' . $new_filename;
+                }
             }
         }
 
-        $stmt = $conn->prepare("INSERT INTO knowledge_base (title, category, content, image_path, created_at) VALUES (?, ?, ?, ?, NOW())");
-        $stmt->bind_param("ssss", $title, $category, $content, $image_path);
+        // Handle Reference Links
+        $links_json = null;
+        if (isset($_POST['link_labels']) && isset($_POST['link_urls'])) {
+            $links = [];
+            foreach ($_POST['link_labels'] as $index => $label) {
+                if (!empty($label) && !empty($_POST['link_urls'][$index])) {
+                    $links[] = [
+                        'label' => trim($label),
+                        'url' => trim($_POST['link_urls'][$index])
+                    ];
+                }
+            }
+            if (!empty($links)) {
+                $links_json = json_encode($links);
+            }
+        }
+
+        // Handle Presentation Upload
+        $presentation_path = null;
+        if (isset($_FILES['presentation']) && $_FILES['presentation']['error'] === UPLOAD_ERR_OK) {
+            $allowed = ['ppt', 'pptx'];
+            $filename = $_FILES['presentation']['name'];
+            $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            if (in_array($ext, $allowed)) {
+                $new_filename = uniqid() . '_ppt.' . $ext;
+                $upload_path = '../uploads/kb_resources/' . $new_filename;
+                
+                if (!is_dir('../uploads/kb_resources')) {
+                    mkdir('../uploads/kb_resources', 0777, true);
+                }
+
+                if (move_uploaded_file($_FILES['presentation']['tmp_name'], $upload_path)) {
+                    $presentation_path = 'uploads/kb_resources/' . $new_filename;
+                }
+            }
+        }
+
+        // Handle Video (URL or Upload)
+        $video_content = null;
+        $video_type = $_POST['video_type'] ?? 'none';
+        
+        if ($video_type === 'url' && !empty($_POST['video_url'])) {
+            $video_content = trim($_POST['video_url']);
+        } elseif ($video_type === 'upload' && isset($_FILES['video_file']) && $_FILES['video_file']['error'] === UPLOAD_ERR_OK) {
+            $allowed = ['mp4'];
+            $filename = $_FILES['video_file']['name'];
+            $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            if (in_array($ext, $allowed)) {
+                $new_filename = uniqid() . '_video.' . $ext;
+                $upload_path = '../uploads/kb_resources/' . $new_filename;
+                
+                if (!is_dir('../uploads/kb_resources')) {
+                    mkdir('../uploads/kb_resources', 0777, true);
+                }
+
+                if (move_uploaded_file($_FILES['video_file']['tmp_name'], $upload_path)) {
+                    $video_content = 'uploads/kb_resources/' . $new_filename;
+                }
+            }
+        }
+
+        $stmt = $conn->prepare("INSERT INTO knowledge_base (title, category, content, image_path, article_links, article_presentation, article_video, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param("sssssss", $title, $category, $content, $image_path, $links_json, $presentation_path, $video_content);
         
         if ($stmt->execute()) {
+            $new_article_id = $conn->insert_id;
+            
+            // Handle Related Articles
+            if (isset($_POST['related_articles']) && is_array($_POST['related_articles'])) {
+                $rel_stmt = $conn->prepare("INSERT INTO kb_related_articles (article_id, related_article_id) VALUES (?, ?)");
+                foreach ($_POST['related_articles'] as $rel_id) {
+                    $rel_id = (int)$rel_id;
+                    if ($rel_id > 0) {
+                        $rel_stmt->bind_param("ii", $new_article_id, $rel_id);
+                        $rel_stmt->execute();
+                    }
+                }
+            }
+
             $success_msg = "Article added successfully!";
         } else {
             $error_msg = "Error adding article: " . $conn->error;
@@ -50,21 +132,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // 2. Delete Article
-if (isset($_GET['delete_id'])) {
-    $delete_id = (int)$_GET['delete_id'];
-    $stmt = $conn->prepare("DELETE FROM knowledge_base WHERE id = ?");
-    $stmt->bind_param("i", $delete_id);
-    
-    if ($stmt->execute()) {
-        $success_msg = "Article deleted successfully!";
-    } else {
-        $error_msg = "Error deleting article.";
-    }
-}
+// Deletion is now handled by delete_kb.php
 
 // 2.5 Check for Update Success Message
 if (isset($_GET['msg']) && $_GET['msg'] === 'updated') {
     $success_msg = "Article updated successfully!";
+}
+if (isset($_GET['error'])) {
+    $error_msg = htmlspecialchars($_GET['error']);
 }
 
 // 3. Fetch Articles & Calculate Stats
@@ -87,7 +162,7 @@ $total_articles = count($articles);
 $categories_count = count($unique_categories);
 
 // Pre-defined categories
-$categories = ['General', 'Technical Support', 'HR Policies', 'Software Guides', 'Hardware Troubleshooting', 'Network', 'Security'];
+$categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Problem', 'Account Access', 'Technical Support', 'Other'];
 ?>
 
 <!DOCTYPE html>
@@ -97,6 +172,8 @@ $categories = ['General', 'Technical Support', 'HR Policies', 'Software Guides',
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
     <!-- Using Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body {
             background-color: #F3F4F6; /* Ensure background is light gray */
@@ -281,6 +358,13 @@ $categories = ['General', 'Technical Support', 'HR Policies', 'Software Guides',
             font-size: 14px;
         }
 
+        .actions-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
         .action-btn {
             padding: 8px 12px;
             border-radius: 8px;
@@ -292,6 +376,7 @@ $categories = ['General', 'Technical Support', 'HR Policies', 'Software Guides',
             justify-content: center;
             gap: 6px;
             transition: all 0.2s;
+            flex: 1;
         }
 
         .btn-delete {
@@ -303,6 +388,17 @@ $categories = ['General', 'Technical Support', 'HR Policies', 'Software Guides',
         .btn-delete:hover {
             background-color: #FEE2E2;
             border-color: #FECACA;
+        }
+
+        .btn-edit {
+            background-color: #EFF6FF;
+            color: #2563EB;
+            border: 1px solid #DBEAFE;
+        }
+
+        .btn-edit:hover {
+            background-color: #DBEAFE;
+            border-color: #BFDBFE;
         }
 
         .alert {
@@ -543,7 +639,165 @@ $categories = ['General', 'Technical Support', 'HR Policies', 'Software Guides',
                 max-width: calc(100% - 40px);
             }
         }
+
+        /* Resources Styles */
+        .resources-wrapper {
+            background-color: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            padding: 25px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        .resources-title {
+            grid-column: 1 / -1; /* Make title span full width */
+            font-size: 16px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #E5E7EB;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .resource-item {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #F3F4F6;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s;
+            margin-bottom: 0; /* Override previous margin */
+        }
+        .resource-item:hover {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border-color: #E5E7EB;
+        }
+        .resource-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .video-toggles {
+            display: flex;
+            background: #F3F4F6;
+            padding: 4px;
+            border-radius: 8px;
+            width: fit-content;
+            margin-bottom: 15px;
+        }
+        .video-toggle-btn {
+            padding: 6px 14px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            color: #6B7280;
+            transition: all 0.2s;
+        }
+        .video-toggle-btn.active {
+            background-color: white;
+            color: #10B981;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            font-weight: 600;
+        }
+        .link-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .btn-add-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #10B981;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 500;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-add-link:hover {
+            background: rgba(16, 185, 129, 0.2);
+        }
+        .btn-remove-link {
+            background: none; 
+            border: none; 
+            color: #EF4444; 
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        /* Related Articles Styles */
+        .search-results-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #D1D5DB;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .search-result-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #F3F4F6;
+            color: #374151;
+            font-size: 14px;
+        }
+        .search-result-item:hover {
+            background-color: #F9FAFB;
+            color: #10B981;
+        }
+        .selected-articles-list {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .selected-article-item {
+            background: #EFF6FF;
+            border: 1px solid #DBEAFE;
+            color: #1E40AF;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .remove-related-btn {
+            background: none;
+            border: none;
+            color: #EF4444;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0;
+            display: flex;
+            align-items: center;
+        }
     </style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -620,13 +874,13 @@ $categories = ['General', 'Technical Support', 'HR Policies', 'Software Guides',
                         <th width="20%">Category</th>
                         <th width="15%">Views</th>
                         <th width="15%">Created Date</th>
-                        <th width="10%" style="text-align: right;">Actions</th>
+                        <th width="15%" style="text-align: center;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (count($articles) > 0): ?>
                         <?php foreach($articles as $row): ?>
-                            <tr onclick="openEditModal(<?= $row['id'] ?>)">
+                            <tr>
                                 <td>
                                     <div class="article-title"><?= htmlspecialchars($row['title']) ?></div>
                                 </td>
@@ -642,12 +896,17 @@ $categories = ['General', 'Technical Support', 'HR Policies', 'Software Guides',
                                 <td class="meta-text">
                                     <?= date('M d, Y', strtotime($row['created_at'])) ?>
                                 </td>
-                                <td style="text-align: right;">
-                                    <a href="?delete_id=<?= $row['id'] ?>" 
-                                       class="action-btn btn-delete"
-                                       onclick="event.stopPropagation(); return confirm('Are you sure you want to delete this article?');">
-                                        <i class="fas fa-trash-alt"></i> Delete
-                                    </a>
+                                <td>
+                                    <div class="actions-cell">
+                                        <a href="edit_kb.php?id=<?= $row['id'] ?>" class="action-btn btn-edit">
+                                            <i class="fas fa-pencil-alt"></i> Edit
+                                        </a>
+                                        <a href="javascript:void(0)" 
+                                           class="action-btn btn-delete"
+                                           onclick="confirmDelete(<?= $row['id'] ?>)">
+                                            <i class="fas fa-trash-alt"></i> Delete
+                                        </a>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -689,7 +948,7 @@ $categories = ['General', 'Technical Support', 'HR Policies', 'Software Guides',
             <div class="form-group">
                 <label class="form-label">Category</label>
                 <select name="category" class="form-control" required>
-                    <option value="">Select Category</option>
+                    <option value=""disabled selected hidden>Select Category</option>
                     <?php foreach ($categories as $cat): ?>
                         <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
                     <?php endforeach; ?>
@@ -709,84 +968,196 @@ $categories = ['General', 'Technical Support', 'HR Policies', 'Software Guides',
                 <textarea name="content" class="form-control" required placeholder="Write article content here..."></textarea>
             </div>
 
-            <button type="submit" class="btn-submit">Publish Article</button>
-        </form>
-    </div>
-</div>
-
-
-<!-- Edit Article Modal -->
-<div id="editArticleModal" class="modal-overlay">
-    <div class="modal-content">
-        <div class="modal-header">
-            <div class="modal-title">
-                <i class="fas fa-edit" style="color: #3B82F6;"></i>
-                Edit Article
-            </div>
-            <button class="close-modal" onclick="closeEditModal()">&times;</button>
-        </div>
-
-        <div class="modal-tabs">
-            <div class="modal-tab active" onclick="switchTab('edit')">Edit</div>
-            <div class="modal-tab" onclick="switchTab('preview')">Preview</div>
-        </div>
-        
-        <form id="editArticleForm" onsubmit="event.preventDefault(); saveArticle();">
-            <input type="hidden" id="edit_id" name="id">
-            
-            <div id="edit-mode">
-                <div class="form-group">
-                    <label class="form-label">Article Title</label>
-                    <input type="text" id="edit_title" name="title" class="form-control" required>
+            <!-- New Resources Section -->
+            <div class="resources-wrapper">
+                <div class="resources-title">
+                    <i class="fas fa-paperclip" style="color: #10B981;"></i> Additional Resources
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Category</label>
-                    <select id="edit_category" name="category" class="form-control" required>
-                        <option value="">Select Category</option>
-                        <?php foreach ($categories as $cat): ?>
-                            <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Current Image</label>
-                    <div id="current-image-container" style="margin-bottom: 15px;">
-                        <div id="image-wrapper" style="position: relative; display: inline-block;">
-                            <img id="current-image" src="" alt="Article Image" style="max-width: 100%; max-height: 200px; border-radius: 8px; display: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                            <button type="button" id="remove-image-btn" onclick="removeImage()" title="Remove Image" 
-                                    style="position: absolute; top: -10px; right: -10px; background: #EF4444; color: white; border: 2px solid white; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: none; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.2s;">
-                                <i class="fas fa-times" style="font-size: 14px;"></i>
-                            </button>
+                <div class="resource-item">
+                    <label class="resource-label">Reference Links</label>
+                    <div id="link-container">
+                        <div class="link-row">
+                            <input type="text" name="link_labels[]" class="form-control" placeholder="Link Label" style="flex: 1;">
+                            <input type="url" name="link_urls[]" class="form-control" placeholder="URL" style="flex: 2;">
+                            <button type="button" class="btn-remove-link" onclick="removeLink(this)"><i class="fas fa-times"></i></button>
                         </div>
-                        <p id="no-image-text" style="color: #6B7280; font-style: italic; display: none; padding: 10px; background: #F9FAFB; border-radius: 8px; border: 1px dashed #D1D5DB;">No image uploaded</p>
-                        <input type="hidden" id="remove_image_flag" name="remove_image" value="0">
+                    </div>
+                    <button type="button" class="btn-add-link" onclick="addLink()"><i class="fas fa-plus"></i> Add Link</button>
+                </div>
+
+                <div class="resource-item">
+                    <label class="resource-label">Presentation (PPT/PPTX)</label>
+                    <input type="file" name="presentation" class="form-control" accept=".ppt, .pptx">
+                    <small style="color: #6B7280; display: block; margin-top: 5px;">Supported formats: .ppt, .pptx</small>
+                </div>
+
+                <div class="resource-item">
+                    <label class="resource-label">Video </label>
+                    <input type="hidden" name="video_type" id="video_type_input" value="upload">
+                    
+                    <div class="video-toggles-wrapper" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                        <div class="video-toggles">
+                            <button type="button" class="video-toggle-btn active" onclick="setVideoType('upload', this)">Upload Video</button>
+                            <button type="button" class="video-toggle-btn" onclick="setVideoType('url', this)">YouTube URL</button>
+                        </div>
+                        <button type="button" id="btn-remove-video" onclick="removeVideo()" style="background:none; border:none; color: #EF4444; font-size: 13px; font-weight: 500; cursor: pointer; display: none; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px; transition: background 0.2s;">
+                            <i class="fas fa-trash-alt"></i> Remove Video
+                        </button>
                     </div>
                     
-                    <label class="form-label">Update Image (Optional)</label>
-                    <input type="file" id="edit_image_input" name="image" class="form-control" accept="image/*" onchange="previewNewImage(this)">
+                    <div id="video-upload-input">
+                        <input type="file" name="video_file" class="form-control" accept=".mp4" onchange="updateRemoveButtonVisibility()">
+                        <small style="color: #6B7280; display: block; margin-top: 5px;">Supported format: .mp4</small>
+                    </div>
+                    
+                    <div id="video-url-input" style="display: none;">
+                        <input type="url" name="video_url" class="form-control" placeholder="https://www.youtube.com/watch?v=..." oninput="updateRemoveButtonVisibility()">
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Content</label>
-                    <textarea id="edit_content" name="content" class="form-control" required></textarea>
-                </div>
+
             </div>
 
-            <div id="preview-mode" class="preview-content">
-                <!-- Preview content will be injected here -->
-            </div>
-
-            <div style="margin-top: 20px; text-align: right;">
-                <button type="button" onclick="closeEditModal()" style="background: #E5E7EB; color: #374151; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; margin-right: 10px; cursor: pointer;">Cancel</button>
-                <button type="submit" class="btn-submit" style="width: auto; display: inline-flex; align-items: center; justify-content: center;">
-                    <span id="save-text">Save Changes</span>
-                </button>
-            </div>
+            <button type="submit" name="add_article" class="btn-submit">Publish Article</button>
         </form>
     </div>
 </div>
+
+<script>
+function addLink() {
+    const container = document.getElementById('link-container');
+    const div = document.createElement('div');
+    div.className = 'link-row';
+    div.innerHTML = `
+        <input type="text" name="link_labels[]" class="form-control" placeholder="Link Label" style="flex: 1;">
+        <input type="url" name="link_urls[]" class="form-control" placeholder="URL" style="flex: 2;">
+        <button type="button" class="btn-remove-link" onclick="removeLink(this)"><i class="fas fa-times"></i></button>
+    `;
+    container.appendChild(div);
+}
+
+function removeLink(btn) {
+    btn.closest('.link-row').remove();
+}
+
+function setVideoType(type, btn) {
+    document.getElementById('video_type_input').value = type;
+    document.querySelectorAll('.video-toggle-btn').forEach(b => b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    
+    document.getElementById('video-url-input').style.display = (type === 'url') ? 'block' : 'none';
+    document.getElementById('video-upload-input').style.display = (type === 'upload') ? 'block' : 'none';
+    
+    updateRemoveButtonVisibility();
+}
+
+function updateRemoveButtonVisibility() {
+    const type = document.getElementById('video_type_input').value;
+    const removeBtn = document.getElementById('btn-remove-video');
+    if (!removeBtn) return;
+
+    let hasContent = false;
+    let btnText = 'Remove Video';
+
+    if (type === 'upload') {
+        btnText = 'Remove Video';
+        const fileInput = document.querySelector('input[name="video_file"]');
+        if (fileInput && fileInput.files.length > 0) {
+            hasContent = true;
+        }
+    } else if (type === 'url') {
+        btnText = 'Remove Link';
+        const urlInput = document.querySelector('input[name="video_url"]');
+        if (urlInput && urlInput.value.trim() !== '') {
+            hasContent = true;
+        }
+    }
+
+    removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i> ' + btnText;
+    removeBtn.style.display = hasContent ? 'inline-flex' : 'none';
+}
+
+function removeVideo() {
+    const type = document.getElementById('video_type_input').value;
+    
+    if (type === 'upload') {
+        const fileInput = document.querySelector('input[name="video_file"]');
+        if (fileInput) fileInput.value = '';
+    } else if (type === 'url') {
+        const urlInput = document.querySelector('input[name="video_url"]');
+        if (urlInput) urlInput.value = '';
+    }
+    
+    updateRemoveButtonVisibility();
+}
+
+let searchTimeout;
+
+function searchRelatedArticles(input) {
+    clearTimeout(searchTimeout);
+    const resultsDiv = document.getElementById('related-search-results');
+    const query = input.value.trim();
+    
+    if (query.length < 2) {
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    searchTimeout = setTimeout(() => {
+        fetch('search_kb_articles.php?q=' + encodeURIComponent(query))
+            .then(response => response.json())
+            .then(data => {
+                resultsDiv.innerHTML = '';
+                if (data.length > 0) {
+                    data.forEach(article => {
+                        // Check if already selected
+                        if (!document.querySelector(`input[name="related_articles[]"][value="${article.id}"]`)) {
+                            const div = document.createElement('div');
+                            div.className = 'search-result-item';
+                            div.textContent = article.title;
+                            div.onclick = () => addRelatedArticle(article.id, article.title);
+                            resultsDiv.appendChild(div);
+                        }
+                    });
+                    resultsDiv.style.display = resultsDiv.children.length > 0 ? 'block' : 'none';
+                } else {
+                    resultsDiv.style.display = 'none';
+                }
+            })
+            .catch(err => {
+                console.error('Error fetching articles:', err);
+                resultsDiv.style.display = 'none';
+            });
+    }, 300);
+}
+
+function addRelatedArticle(id, title) {
+    const container = document.getElementById('selected-related-articles');
+    // Check if already exists (double check)
+    if (document.querySelector(`input[name="related_articles[]"][value="${id}"]`)) return;
+
+    const div = document.createElement('div');
+    div.className = 'selected-article-item';
+    div.innerHTML = `
+        <input type="hidden" name="related_articles[]" value="${id}">
+        <span>${title}</span>
+        <button type="button" class="remove-related-btn" onclick="this.parentElement.remove()">&times;</button>
+    `;
+    container.appendChild(div);
+    
+    document.getElementById('related-search-input').value = '';
+    document.getElementById('related-search-results').style.display = 'none';
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.search-results-dropdown') && !e.target.closest('#related-search-input')) {
+        const dropdown = document.getElementById('related-search-results');
+        if (dropdown) dropdown.style.display = 'none';
+    }
+});
+</script>
 
 <script src="../js/admin.js"></script>
 <script>
@@ -822,197 +1193,58 @@ $categories = ['General', 'Technical Support', 'HR Policies', 'Software Guides',
         document.querySelector('#addArticleModal form').reset();
     }
 
-    // Edit Modal Logic
-    const editModal = document.getElementById('editArticleModal');
-    const editForm = document.getElementById('editArticleForm');
-
-    function openEditModal(id) {
-        // Show loading state or reset form
-        document.getElementById('edit_id').value = id;
-        document.getElementById('edit_title').value = 'Loading...';
-        document.getElementById('edit_content').value = 'Loading...';
-        document.getElementById('current-image').style.display = 'none';
-        document.getElementById('remove-image-btn').style.display = 'none';
-        document.getElementById('no-image-text').style.display = 'none';
-        document.getElementById('remove_image_flag').value = '0';
-        document.getElementById('edit_image_input').value = ''; // Reset file input
-        
-        editModal.style.display = 'flex';
-        document.body.style.overflow = 'hidden';
-        switchTab('edit'); // Reset to edit tab
-
-        // Fetch data
-        const formData = new FormData();
-        formData.append('action', 'fetch');
-        formData.append('id', id);
-
-        fetch('kb_ajax.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const article = data.data;
-                document.getElementById('edit_title').value = article.title;
-                document.getElementById('edit_category').value = article.category;
-                document.getElementById('edit_content').value = article.content;
-                
-                const img = document.getElementById('current-image');
-                const removeBtn = document.getElementById('remove-image-btn');
-                const noImgText = document.getElementById('no-image-text');
-
-                if (article.image_path) {
-                    img.src = '../' + article.image_path;
-                    img.style.display = 'block';
-                    removeBtn.style.display = 'flex';
-                    noImgText.style.display = 'none';
-                } else {
-                    img.style.display = 'none';
-                    removeBtn.style.display = 'none';
-                    noImgText.style.display = 'block';
-                }
-            } else {
-                alert('Error fetching article: ' + data.message);
-                closeEditModal();
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while fetching the article.');
-            closeEditModal();
-        });
-    }
-
-    function removeImage() {
-        if (confirm('Are you sure you want to remove the image? This will take effect when you save changes.')) {
-            document.getElementById('current-image').style.display = 'none';
-            document.getElementById('remove-image-btn').style.display = 'none';
-            document.getElementById('no-image-text').style.display = 'block';
-            document.getElementById('remove_image_flag').value = '1';
-            document.getElementById('edit_image_input').value = ''; // Clear any new upload
-        }
-    }
-
-    function previewNewImage(input) {
-        if (input.files && input.files[0]) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = document.getElementById('current-image');
-                const removeBtn = document.getElementById('remove-image-btn');
-                const noImgText = document.getElementById('no-image-text');
-                
-                img.src = e.target.result;
-                img.style.display = 'block';
-                removeBtn.style.display = 'flex';
-                noImgText.style.display = 'none';
-                
-                // Reset remove flag since we are uploading a new one
-                document.getElementById('remove_image_flag').value = '0';
-            }
-            reader.readAsDataURL(input.files[0]);
-        }
-    }
-
-    function closeEditModal() {
-        editModal.style.display = 'none';
-        document.body.style.overflow = '';
-    }
-
-    function switchTab(mode) {
-        const editMode = document.getElementById('edit-mode');
-        const previewMode = document.getElementById('preview-mode');
-        const tabs = document.querySelectorAll('.modal-tab');
-        
-        tabs.forEach(tab => tab.classList.remove('active'));
-
-        if (mode === 'edit') {
-            editMode.style.display = 'block';
-            previewMode.style.display = 'none';
-            tabs[0].classList.add('active');
-        } else {
-            editMode.style.display = 'none';
-            previewMode.style.display = 'block';
-            tabs[1].classList.add('active');
-            renderPreview();
-        }
-    }
-
-    function renderPreview() {
-        const content = document.getElementById('edit_content').value;
-        const previewDiv = document.getElementById('preview-mode');
-        const currentImage = document.getElementById('current-image');
-        
-        let html = '';
-        
-        // Add image to preview if exists
-        if (currentImage.style.display !== 'none') {
-            html += `<img src="${currentImage.src}" style="max-width: 100%; border-radius: 8px; margin-bottom: 20px;">`;
-        }
-
-        // Simple Markdown-like parsing
-        html += content
-            .replace(/\n/g, '<br>')
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
-            .replace(/## (.*?)(<br>|$)/g, '<h2>$1</h2>') // H2
-            .replace(/# (.*?)(<br>|$)/g, '<h1>$1</h1>') // H1
-            .replace(/- (.*?)(<br>|$)/g, '<li>$1</li>'); // List items
-            
-        // Wrap lists (simple heuristic)
-        if (html.includes('<li>')) {
-            html = html.replace(/((<li>.*<\/li>)+)/g, '<ul>$1</ul>');
-        }
-
-        previewDiv.innerHTML = html || '<p style="color: #9CA3AF; font-style: italic;">No content to preview</p>';
-    }
-
-    function saveArticle() {
-        const saveBtn = document.querySelector('#editArticleForm .btn-submit');
-        const saveText = document.getElementById('save-text');
-        const originalText = saveText.innerText;
-        
-        saveBtn.disabled = true;
-        saveText.innerHTML = '<span class="spinner"></span> Saving...';
-
-        const formData = new FormData(editForm);
-        formData.append('action', 'update');
-
-        fetch('kb_ajax.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Show success feedback
-                saveText.innerText = 'Saved!';
-                setTimeout(() => {
-                    closeEditModal();
-                    // Reload page to show changes
-                    window.location.href = window.location.pathname + '?msg=updated'; 
-                }, 1000);
-            } else {
-                alert('Error updating article: ' + data.message);
-                saveBtn.disabled = false;
-                saveText.innerText = originalText;
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while saving.');
-            saveBtn.disabled = false;
-            saveText.innerText = originalText;
-        });
-    }
-
     // Close modals when clicking outside
     window.onclick = function(event) {
         if (event.target == addModal) {
             closeModal();
         }
-        if (event.target == editModal) {
-            closeEditModal();
-        }
+    }
+
+    // SweetAlert2 Delete Confirmation
+    function confirmDelete(id) {
+        Swal.fire({
+            title: 'Delete this article?',
+            text: "This action cannot be undone.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Delete',
+            cancelButtonText: 'Cancel',
+            reverseButtons: true, // Typically better UX to have primary action on right or distinct
+            customClass: {
+                popup: 'swal2-rounded'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = 'delete_kb.php?id=' + id;
+            }
+        });
+    }
+
+    // Check for success message in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('msg') === 'deleted') {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top',
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: false,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer)
+                toast.addEventListener('mouseleave', Swal.resumeTimer)
+            }
+        });
+
+        Toast.fire({
+            icon: 'success',
+            title: 'Article deleted'
+        });
+        
+        // Clean URL to prevent showing toast again on refresh
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({path: newUrl}, '', newUrl);
     }
 </script>
 

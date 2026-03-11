@@ -29,22 +29,14 @@ function formatHandlingTime($seconds) {
     return "{$hours}h";
 }
 
-// 1. Get Available Months for Dropdown
-$monthsQuery = "SELECT DISTINCT DATE_FORMAT(created_at, '%Y-%m') AS month FROM employee_tickets ORDER BY month DESC";
-$monthsResult = $conn->query($monthsQuery);
-$available_months = [];
-while ($row = $monthsResult->fetch_assoc()) {
-    $available_months[] = $row['month'];
-}
+// Determine selected date range (default to current month)
+$start_date = $_GET['start_date'] ?? date('Y-m-01');
+$end_date = $_GET['end_date'] ?? date('Y-m-d');
 
-// Determine selected month (default to latest)
-$selected_month = $_GET['month'] ?? ($available_months[0] ?? date('Y-m'));
-
-// 2. Metrics for Selected Month (Based on created_at)
-// Received: Created in this month
-// Resolved: Created in this month AND status is Resolved (Cohort analysis)
-// Closed: Created in this month AND status is Closed (Cohort analysis)
-// User instruction: "Filter using: WHERE DATE_FORMAT(created_at, '%Y-%m') = selected_month"
+// 2. Metrics for Selected Range (Based on created_at)
+// Received: Created in this range
+// Resolved: Created in this range AND status is Resolved (Cohort analysis)
+// Closed: Created in this range AND status is Closed (Cohort analysis)
 
 $metricsQuery = $conn->prepare("
     SELECT 
@@ -52,14 +44,14 @@ $metricsQuery = $conn->prepare("
         SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
         SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END) as closed
     FROM employee_tickets 
-    WHERE DATE_FORMAT(created_at, '%Y-%m') = ?
+    WHERE DATE(created_at) BETWEEN ? AND ?
 ");
-$metricsQuery->bind_param("s", $selected_month);
+$metricsQuery->bind_param("ss", $start_date, $end_date);
 $metricsQuery->execute();
 $metrics = $metricsQuery->get_result()->fetch_assoc();
 
 // 3. Weekly Average Handling Time (Based on resolved_at)
-// User instruction: "Filter using resolved_at month."
+// Filter using resolved_at date range.
 
 $handlingQuery = $conn->prepare("
     SELECT 
@@ -69,11 +61,11 @@ $handlingQuery = $conn->prepare("
     WHERE status = 'Resolved' 
     AND started_at IS NOT NULL 
     AND resolved_at IS NOT NULL 
-    AND DATE_FORMAT(resolved_at, '%Y-%m') = ?
+    AND DATE(resolved_at) BETWEEN ? AND ?
     GROUP BY week 
     ORDER BY week ASC
 ");
-$handlingQuery->bind_param("s", $selected_month);
+$handlingQuery->bind_param("ss", $start_date, $end_date);
 $handlingQuery->execute();
 $handlingResult = $handlingQuery->get_result();
 
@@ -103,21 +95,154 @@ while ($row = $handlingResult->fetch_assoc()) {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="../js/admin.js"></script>
     <style>
-        .analytics-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-        }
-        .month-selector {
-            padding: 8px 12px;
-            border-radius: 6px;
-            border: 1px solid #cbd5e1;
+        /* Analytics Toolbar */
+        .analytics-toolbar {
             background: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: flex-start; /* Changed from space-between to flex-start to group items */
+            align-items: center;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+            gap: 20px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .filter-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap; /* Allow wrapping on small screens */
+        }
+
+        .filter-label {
             font-size: 14px;
-            color: #1e293b;
+            font-weight: 600;
+            color: #64748b;
+            white-space: nowrap;
+        }
+
+        .date-inputs {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8fafc;
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            transition: border-color 0.2s;
+        }
+
+        .date-inputs:focus-within {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        .date-inputs input[type="date"] {
+            border: none;
+            background: transparent;
+            font-size: 14px;
+            color: #334155;
+            outline: none;
+            padding: 4px 0;
+            font-family: inherit;
             cursor: pointer;
         }
+
+        .date-separator {
+            color: #94a3b8;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-apply {
+            padding: 10px 20px;
+            background-color: #1B5E20;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(27, 94, 32, 0.1);
+        }
+
+        .btn-apply:hover {
+            background-color: #144a1e;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(27, 94, 32, 0.2);
+        }
+
+        .export-section {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-export {
+            display: inline-flex;
+            align-items: center;
+            padding: 10px 16px;
+            background-color: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            color: #475569;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-export:hover {
+            background-color: #f8fafc;
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .btn-export-pdf { color: #dc2626; border-color: #fca5a5; background-color: #fef2f2; }
+        .btn-export-pdf:hover { background-color: #fee2e2; border-color: #f87171; }
+        
+        .btn-export-excel { color: #059669; border-color: #6ee7b7; background-color: #ecfdf5; }
+        .btn-export-excel:hover { background-color: #d1fae5; border-color: #34d399; }
+
+        /* Dark Mode Support */
+        body.dark-mode .analytics-toolbar {
+            background: #1e293b;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+        
+        body.dark-mode .filter-label { color: #cbd5e1; }
+        
+        body.dark-mode .date-inputs {
+            background: #0f172a;
+            border-color: #334155;
+        }
+        
+        body.dark-mode .date-inputs input[type="date"] {
+            color: #e2e8f0;
+            color-scheme: dark;
+        }
+        
+        body.dark-mode .btn-export {
+            background-color: #1e293b;
+            border-color: #334155;
+            color: #cbd5e1;
+        }
+        
+        body.dark-mode .btn-export:hover {
+            background-color: #334155;
+        }
+
+        body.dark-mode .btn-export-pdf { background-color: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
+        body.dark-mode .btn-export-pdf:hover { background-color: #7f1d1d; }
+
+        body.dark-mode .btn-export-excel { background-color: #064e3b; border-color: #065f46; color: #6ee7b7; }
+        body.dark-mode .btn-export-excel:hover { background-color: #065f46; }
+
         .analytics-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -182,12 +307,7 @@ while ($row = $handlingResult->fetch_assoc()) {
             width: 100%;
         }
 
-        /* Dark Mode Support */
-        body.dark-mode .month-selector {
-            background: #1e293b;
-            border-color: #334155;
-            color: #cbd5e1;
-        }
+
         body.dark-mode .stat-card,
         body.dark-mode .chart-section {
             background: #1e293b;
@@ -204,69 +324,9 @@ while ($row = $handlingResult->fetch_assoc()) {
         body.dark-mode .stat-resolved .stat-icon { background: #064e3b; color: #34d399; }
         body.dark-mode .stat-closed .stat-icon { background: #374151; color: #9ca3af; }
 
-        /* Export Buttons */
-        .export-actions {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 24px;
-        }
-        .btn-export {
-            display: inline-flex;
-            align-items: center;
-            padding: 10px 16px;
-            background-color: white;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            color: #475569;
-            font-size: 14px;
-            font-weight: 500;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-        .btn-export:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .btn-export-pdf {
-            color: #dc2626;
-            border-color: #fca5a5;
-            background-color: #fef2f2;
-        }
-        .btn-export-pdf:hover {
-            background-color: #fee2e2;
-            border-color: #f87171;
-        }
-        .btn-export-excel {
-            color: #059669;
-            border-color: #6ee7b7;
-            background-color: #ecfdf5;
-        }
-        .btn-export-excel:hover {
-            background-color: #d1fae5;
-            border-color: #34d399;
-        }
-        body.dark-mode .btn-export {
-            background-color: #1e293b;
-            border-color: #334155;
-            color: #cbd5e1;
-        }
-        body.dark-mode .btn-export-pdf {
-            background-color: #450a0a;
-            border-color: #7f1d1d;
-            color: #fca5a5;
-        }
-        body.dark-mode .btn-export-pdf:hover {
-            background-color: #7f1d1d;
-        }
-        body.dark-mode .btn-export-excel {
-            background-color: #064e3b;
-            border-color: #065f46;
-            color: #6ee7b7;
-        }
-        body.dark-mode .btn-export-excel:hover {
-            background-color: #065f46;
-        }
+
     </style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -277,29 +337,29 @@ while ($row = $handlingResult->fetch_assoc()) {
     <div class="admin-container">
         <div class="admin-content">
             
-            <div class="analytics-header">
-                <div class="admin-page-header" style="margin-bottom:0;">
-                    <h1 class="admin-page-title">Analytics Dashboard</h1>
-                </div>
-                <form method="GET" action="analytics.php">
-                    <select name="month" class="month-selector" onchange="this.form.submit()">
-                        <?php foreach($available_months as $m): ?>
-                            <option value="<?= $m ?>" <?= $selected_month === $m ? 'selected' : '' ?>>
-                                <?= date('F Y', strtotime($m . '-01')) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </form>
+            <div class="admin-page-header">
+                <h1 class="admin-page-title">Analytics Dashboard</h1>
             </div>
 
-            <!-- Export Buttons -->
-            <div class="export-actions">
-                <a href="export_analytics_pdf.php?month=<?= $selected_month ?>" class="btn-export btn-export-pdf" target="_blank">
-                    <span style="margin-right:6px">📄</span> Download PDF
-                </a>
-                <a href="export_analytics_excel.php?month=<?= $selected_month ?>" class="btn-export btn-export-excel" target="_blank">
-                    <span style="margin-right:6px">📊</span> Download Excel
-                </a>
+            <div class="analytics-toolbar">
+                <form method="GET" action="analytics.php" class="filter-section">
+                    <span class="filter-label">Date Range:</span>
+                    <div class="date-inputs">
+                        <input type="date" name="start_date" value="<?= htmlspecialchars($start_date) ?>" required>
+                        <span class="date-separator">to</span>
+                        <input type="date" name="end_date" value="<?= htmlspecialchars($end_date) ?>" required>
+                    </div>
+                    <button type="submit" class="btn-apply">Apply Filter</button>
+                </form>
+
+                <div class="export-section">
+                    <a href="export_analytics_pdf.php?start_date=<?= $start_date ?>&end_date=<?= $end_date ?>" class="btn-export btn-export-pdf" target="_blank">
+                        <span style="margin-right:8px">📄</span> PDF
+                    </a>
+                    <a href="export_analytics_excel.php?start_date=<?= $start_date ?>&end_date=<?= $end_date ?>" class="btn-export btn-export-excel" target="_blank">
+                        <span style="margin-right:8px">📊</span> Excel
+                    </a>
+                </div>
             </div>
 
             <!-- 1. Summary Cards -->
@@ -324,7 +384,7 @@ while ($row = $handlingResult->fetch_assoc()) {
             <!-- 2. Weekly Chart -->
             <div class="chart-section">
                 <div class="chart-header">
-                    <div class="chart-title">Weekly Average Handling Time (<?= date('F Y', strtotime($selected_month . '-01')) ?>)</div>
+                    <div class="chart-title">Weekly Average Handling Time (<?= $start_date . ' to ' . $end_date ?>)</div>
                 </div>
                 <div class="chart-container">
                     <canvas id="weeklyChart"></canvas>
@@ -392,3 +452,4 @@ while ($row = $handlingResult->fetch_assoc()) {
 
 </body>
 </html>
+

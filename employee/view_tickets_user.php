@@ -82,7 +82,7 @@ if (!empty($status)) {
 }
 
 // Construct SQL
-$sql = "SELECT t.*, u.name as user_name, u.email as user_email FROM employee_tickets t LEFT JOIN users u ON t.user_id = u.id";
+$sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department FROM employee_tickets t LEFT JOIN users u ON t.user_id = u.id";
 $countSql = "SELECT COUNT(*) as total FROM employee_tickets t LEFT JOIN users u ON t.user_id = u.id";
 
 if (!empty($where)) {
@@ -131,6 +131,7 @@ $result = $stmt->get_result();
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <link rel="stylesheet" href="../css/view-tickets.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -167,6 +168,9 @@ $result = $stmt->get_result();
                                 <option <?= $category=='Hardware Issue'?'selected':'' ?>>Hardware Issue</option>
                                 <option <?= $category=='Software Issue'?'selected':'' ?>>Software Issue</option>
                                 <option <?= $category=='Email Problem'?'selected':'' ?>>Email Problem</option>
+                                <option <?= $category=='Account Access'?'selected':'' ?>>Account Access</option>
+                                <option <?= $category=='Technical Support'?'selected':'' ?>>Technical Support</option>
+                                <option <?= $category=='Other'?'selected':'' ?>>Other</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>
                         </div>
@@ -222,8 +226,23 @@ $result = $stmt->get_result();
                                         <strong><?= htmlspecialchars($row['subject']); ?></strong>
                                     </td>
                                     <td>
-                                        <div style="font-weight: 500; color: #334155;"><?= htmlspecialchars($row['user_email']); ?></div>
-                                        <div style="font-size: 0.85em; color: #64748b;"><?= htmlspecialchars($row['user_name']); ?></div>
+                                        <?php
+                                            $dispName = isset($row['requester_name']) && $row['requester_name'] !== '' ? $row['requester_name'] : $row['user_name'];
+                                            $dispEmail = isset($row['requester_email']) && $row['requester_email'] !== '' ? $row['requester_email'] : $row['user_email'];
+                                            if ((!isset($row['requester_name']) || $row['requester_name'] === '') || (!isset($row['requester_email']) || $row['requester_email'] === '')) {
+                                                $descSrc = isset($row['description']) ? (string)$row['description'] : '';
+                                                if ($descSrc !== '') {
+                                                    if (preg_match('/REQUESTER NAME:\s*(.+)$/im', $descSrc, $m)) {
+                                                        $dispName = trim($m[1]);
+                                                    }
+                                                    if (preg_match('/REQUESTER EMAIL:\s*(.+)$/im', $descSrc, $m2)) {
+                                                        $dispEmail = trim($m2[1]);
+                                                    }
+                                                }
+                                            }
+                                        ?>
+                                        <div style="font-weight: 500; color: #334155;"><?= htmlspecialchars($dispName); ?></div>
+                                        <div style="font-size: 0.85em; color: #64748b;"><?= htmlspecialchars($dispEmail); ?></div>
                                     </td>
                                     <td><?= htmlspecialchars($row['category']); ?></td>
                                     
@@ -507,7 +526,7 @@ document.querySelectorAll('.ticket-row').forEach(row => {
     });
 });
 
-function openModal(id) {
+function openModal(id, mode = 'full') {
     modal.style.display = 'flex';
     modalBody.innerHTML = '<div style="text-align:center; padding: 20px;">Loading...</div>';
 
@@ -534,8 +553,12 @@ function openModal(id) {
                 </div>
             `;
 
-            // --- SECTION 2: DETAILS GRID ---
-            html += `<div class="modal-grid">`;
+            const showInfo = (mode === 'info' || mode === 'full');
+            const showActions = (mode === 'actions' || mode === 'full');
+
+            // --- SECTION 2: DETAILS GRID (Info) ---
+            if (showInfo) {
+                html += `<div class="modal-grid">`;
 
             // Row 1: Created By & Company
             html += `
@@ -615,10 +638,12 @@ function openModal(id) {
                 `;
             }
 
-            html += `</div>`; // End Grid
+                html += `</div>`; // End Grid
+            }
 
-            // --- SECTION 3: DESCRIPTION ---
-            html += `
+            // --- SECTION 3: DESCRIPTION (Actions) ---
+            if (showActions) {
+                html += `
                 <div class="modal-description-section">
                     <div class="modal-description-card">
                          <span class="modal-info-label" style="display:block; margin-bottom:12px;">Description</span>
@@ -626,9 +651,10 @@ function openModal(id) {
                     </div>
                 </div>
             `;
+            }
 
-            // --- SECTION 4: ADMIN NOTE (If exists) ---
-            if (data.admin_note) {
+            // --- SECTION 4: ADMIN NOTE (If exists, Actions) ---
+            if (showActions && data.admin_note) {
                 html += `
                     <div class="modal-description-section" style="margin-top: 16px;">
                         <div class="modal-description-card" style="background-color: #f0fdf4; border-left: 4px solid #16a34a;">
@@ -641,7 +667,8 @@ function openModal(id) {
                 `;
             }
 
-            // --- SECTION 5: CHAT ---
+            // --- SECTION 5: CHAT (only in full) ---
+            if (mode === 'full') {
                 html += `
                     <div class="modal-description-section" style="margin-top: 24px;">
                         <span class="tm-section-title">Ticket Chat</span>
@@ -650,6 +677,7 @@ function openModal(id) {
                         </div>
                     </div>
                 `;
+            }
 
                 modalBody.innerHTML = html;
 
@@ -751,8 +779,11 @@ chatModal.addEventListener('click', function(event) {
 const urlParams = new URLSearchParams(window.location.search);
 const ticketIdParam = urlParams.get('id');
 if (ticketIdParam) {
-    openModal(ticketIdParam);
+    openModal(ticketIdParam, 'info');
 }
 </script>
+
+
 </body>
 </html>
+

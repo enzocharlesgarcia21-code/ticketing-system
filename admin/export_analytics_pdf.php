@@ -9,7 +9,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     die("Access Denied");
 }
 
-$selected_month = $_GET['month'] ?? date('Y-m');
+$start_date = $_GET['start_date'] ?? date('Y-m-01');
+$end_date = $_GET['end_date'] ?? date('Y-m-d');
 
 // 1. Get Metrics
 $stmt = $conn->prepare("
@@ -18,14 +19,14 @@ $stmt = $conn->prepare("
         SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
         SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END) as closed
     FROM employee_tickets 
-    WHERE DATE_FORMAT(created_at, '%Y-%m') = ?
+    WHERE DATE(created_at) BETWEEN ? AND ?
 ");
 
 if (!$stmt) {
     die("Query preparation failed: " . $conn->error);
 }
 
-$stmt->bind_param("s", $selected_month);
+$stmt->bind_param("ss", $start_date, $end_date);
 $stmt->execute();
 $result = $stmt->get_result();
 $metrics = $result->fetch_assoc();
@@ -47,12 +48,12 @@ if (ob_get_level()) ob_end_clean();
 $pdf = new FPDF();
 $pdf->AddPage();
 $pdf->SetFont('Helvetica', 'B', 16);
-$pdf->Cell(0, 10, 'Monthly Ticket Analytics Report', 0, 1, 'C');
+$pdf->Cell(0, 10, 'Analytics Report', 0, 1, 'C');
 $pdf->Ln(10);
 
 $pdf->SetFont('Helvetica', '', 12);
-$pdf->Cell(50, 10, 'Selected Month:', 0, 0);
-$pdf->Cell(0, 10, $selected_month, 0, 1);
+$pdf->Cell(50, 10, 'Selected Range:', 0, 0);
+$pdf->Cell(0, 10, $start_date . ' to ' . $end_date, 0, 1);
 
 $pdf->Cell(50, 10, 'Generated Date:', 0, 0);
 $pdf->Cell(0, 10, date('Y-m-d H:i:s'), 0, 1);
@@ -73,4 +74,4 @@ $pdf->Cell(40, 10, $resolved, 1, 0, 'C');
 $pdf->Cell(40, 10, $closed, 1, 0, 'C');
 $pdf->Cell(50, 10, $resolution_rate . '%', 1, 1, 'C');
 
-$pdf->Output('D', 'analytics_' . $selected_month . '.pdf');
+$pdf->Output('D', 'analytics_' . $start_date . '_to_' . $end_date . '.pdf');

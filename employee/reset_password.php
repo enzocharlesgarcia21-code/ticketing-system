@@ -46,6 +46,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reset Password - Employee</title>
     <link rel="stylesheet" href="../css/employee-login.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -64,7 +65,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <form method="POST">
             <div class="form-group">
                 <label>New Password</label>
-                <input type="password" name="password" required placeholder="New Password">
+                <input type="password" name="password" id="password" required placeholder="New Password">
+                
+                <div id="password-validation" class="password-validation">
+                    <ul>
+                        <li id="rule-length">Minimum 8 characters</li>
+                        <li id="rule-uppercase">At least 1 uppercase letter</li>
+                        <li id="rule-lowercase">At least 1 lowercase letter</li>
+                        <li id="rule-number">At least 1 number</li>
+                        <li id="rule-special">At least 1 special character</li>
+                    </ul>
+                </div>
             </div>
 
             <div class="form-group">
@@ -78,5 +89,59 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 </div>
 
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const passwordInput = document.getElementById('password');
+    const validationBox = document.getElementById('password-validation');
+    
+    // Map rule IDs to regex patterns
+    const rules = {
+        'rule-length': val => val.length >= 8,
+        'rule-uppercase': val => /[A-Z]/.test(val),
+        'rule-lowercase': val => /[a-z]/.test(val),
+        'rule-number': val => /[0-9]/.test(val),
+        'rule-special': val => /[^A-Za-z0-9]/.test(val)
+    };
+
+    function validatePassword() {
+        const val = passwordInput.value;
+        let allValid = true;
+
+        // If empty, reset to neutral
+        if (val.length === 0) {
+            for (const id in rules) {
+                const el = document.getElementById(id);
+                el.classList.remove('valid', 'invalid');
+            }
+            return;
+        }
+
+        for (const id in rules) {
+            const el = document.getElementById(id);
+            const isValid = rules[id](val);
+            
+            if (isValid) {
+                el.classList.add('valid');
+                el.classList.remove('invalid');
+            } else {
+                el.classList.add('invalid');
+                el.classList.remove('valid');
+                allValid = false;
+            }
+        }
+    }
+
+    // Show validation on focus
+    passwordInput.addEventListener('focus', () => {
+        validationBox.style.display = 'block';
+        validatePassword(); // Run initial check in case value exists
+    });
+
+    // Update on input
+    passwordInput.addEventListener('input', validatePassword);
+});
+</script>
+
 </body>
 </html>
+

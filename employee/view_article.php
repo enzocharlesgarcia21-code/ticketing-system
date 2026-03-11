@@ -33,6 +33,21 @@ if ($result->num_rows === 0) {
 
 $article = $result->fetch_assoc();
 
+// Fetch Related Articles
+$relatedStmt = $conn->prepare("
+    SELECT k.id, k.title, k.category, k.views 
+    FROM kb_related_articles r 
+    JOIN knowledge_base k ON r.related_article_id = k.id 
+    WHERE r.article_id = ?
+");
+$relatedStmt->bind_param("i", $article_id);
+$relatedStmt->execute();
+$relatedResult = $relatedStmt->get_result();
+$relatedArticles = [];
+while ($row = $relatedResult->fetch_assoc()) {
+    $relatedArticles[] = $row;
+}
+
 function renderArticleContent($text) {
     // 1. Escape HTML for safety
     $text = htmlspecialchars($text);
@@ -252,6 +267,7 @@ function renderArticleContent($text) {
             }
         }
     </style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -291,6 +307,202 @@ function renderArticleContent($text) {
                 <?php endif; ?>
                 <?= renderArticleContent($article['content']) ?>
             </div>
+
+            <!-- Additional Resources -->
+            <?php 
+                $links = json_decode($article['article_links'] ?? '[]', true);
+                $has_resources = !empty($links) || !empty($article['article_presentation']) || !empty($article['article_video']);
+            ?>
+
+            <?php if ($has_resources): ?>
+                <div class="article-resources" style="padding: 30px; border-top: 1px solid #E5E7EB; background-color: #FAFAFA; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;">
+                    <h2 style="font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-paperclip" style="color: #10B981;"></i> Additional Resources
+                    </h2>
+
+                    <!-- Reference Links -->
+                    <?php if (!empty($links)): ?>
+                        <div style="margin-bottom: 25px;">
+                            <h3 style="font-size: 16px; font-weight: 600; color: #374151; margin-bottom: 12px;">Reference Links</h3>
+                            <ul style="list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px;">
+                                <?php foreach ($links as $link): ?>
+                                    <li>
+                                        <a href="<?= htmlspecialchars($link['url']) ?>" target="_blank" style="color: #059669; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: white; border: 1px solid #E5E7EB; border-radius: 8px; transition: all 0.2s;">
+                                            <i class="fas fa-external-link-alt" style="font-size: 14px;"></i>
+                                            <?= htmlspecialchars($link['label']) ?>
+                                        </a>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Presentation -->
+                    <?php if (!empty($article['article_presentation'])): ?>
+                        <?php
+                            $pres_path = $article['article_presentation'];
+                            $pres_ext = strtolower(pathinfo($pres_path, PATHINFO_EXTENSION));
+                            
+                            // Only allow preview for browser-supported formats
+                            $can_preview = in_array($pres_ext, ['pdf', 'jpg', 'jpeg', 'png', 'gif']);
+                            
+                            // Check for Office files to show appropriate icon/label
+                            $is_office = in_array($pres_ext, ['ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx']);
+                            $icon_class = 'fas fa-file-alt';
+                            $icon_color = '#6B7280';
+                            $bg_color = '#F3F4F6';
+                            $text_color = '#374151';
+                            
+                            if ($is_office) {
+                                if (in_array($pres_ext, ['ppt', 'pptx'])) {
+                                    $icon_class = 'fas fa-file-powerpoint';
+                                    $icon_color = '#EA580C'; // Orange
+                                    $bg_color = '#FFF7ED';
+                                    $text_color = '#9A3412';
+                                } elseif (in_array($pres_ext, ['doc', 'docx'])) {
+                                    $icon_class = 'fas fa-file-word';
+                                    $icon_color = '#2563EB'; // Blue
+                                    $bg_color = '#EFF6FF';
+                                    $text_color = '#1E40AF';
+                                } elseif (in_array($pres_ext, ['xls', 'xlsx'])) {
+                                    $icon_class = 'fas fa-file-excel';
+                                    $icon_color = '#16A34A'; // Green
+                                    $bg_color = '#F0FDF4';
+                                    $text_color = '#166534';
+                                }
+                            } elseif ($pres_ext === 'pdf') {
+                                $icon_class = 'fas fa-file-pdf';
+                                $icon_color = '#DC2626'; // Red
+                                $bg_color = '#FEF2F2';
+                                $text_color = '#991B1B';
+                            }
+                        ?>
+                        <div style="margin-bottom: 25px;">
+                            <h3 style="font-size: 16px; font-weight: 600; color: #374151; margin-bottom: 12px;">Presentation</h3>
+                            <div style="display: flex; align-items: center; justify-content: space-between; background-color: white; border: 1px solid #E5E7EB; padding: 12px 20px; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div style="width: 36px; height: 36px; background: <?= $bg_color ?>; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="<?= $icon_class ?>" style="font-size: 18px; color: <?= $icon_color ?>;"></i>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column;">
+                                        <span style="font-weight: 600; color: <?= $text_color ?>; font-size: 14px;">Presentation File</span>
+                                        <span style="font-size: 12px; color: #6B7280; text-transform: uppercase;"><?= htmlspecialchars($pres_ext) ?> File</span>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <?php if ($can_preview): ?>
+                                        <a href="../<?= htmlspecialchars($article['article_presentation']) ?>" target="_blank" rel="noopener" style="text-decoration: none; color: #4B5563; font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 6px; background: #F3F4F6; transition: all 0.2s;">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    <?php elseif (in_array($pres_ext, ['ppt', 'pptx'])): ?>
+                                        <?php 
+                                            $host = $_SERVER['HTTP_HOST'] ?? '';
+                                            $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+
+                                            $is_local_host = false;
+                                            if ($host === 'localhost' || strpos($host, 'localhost:') === 0 || strpos($host, '127.') === 0 || $host === '[::1]') {
+                                                $is_local_host = true;
+                                            } elseif (preg_match('/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/', $host)) {
+                                                $is_local_host = true;
+                                            }
+
+                                            $script_name = $_SERVER['SCRIPT_NAME'] ?? '';
+                                            $base_path = rtrim(dirname(dirname($script_name)), "/\\");
+                                            if ($base_path === '/' || $base_path === '\\') {
+                                                $base_path = '';
+                                            }
+
+                                            $absUrl = $scheme . '://' . $host . $base_path . '/' . ltrim($article['article_presentation'], '/');
+                                            $officeUrl = 'https://view.officeapps.live.com/op/view.aspx?src=' . rawurlencode($absUrl);
+                                        ?>
+                                        <?php if (!$is_local_host): ?>
+                                            <a href="<?= htmlspecialchars($officeUrl) ?>" target="_blank" rel="noopener" style="text-decoration: none; color: #4B5563; font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 6px; background: #F3F4F6; transition: all 0.2s;">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                        <?php else: ?>
+                                            <a href="../<?= htmlspecialchars($article['article_presentation']) ?>" target="_blank" rel="noopener" style="text-decoration: none; color: #4B5563; font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 6px; background: #F3F4F6; transition: all 0.2s;">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                    
+                                    <a href="../<?= htmlspecialchars($article['article_presentation']) ?>" download class="btn-download-file" style="text-decoration: none; color: <?= $icon_color ?>; font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 6px; background: <?= $bg_color ?>; transition: all 0.2s;">
+                                        <i class="fas fa-download"></i> 
+                                        <span>Download</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Video -->
+                    <?php if (!empty($article['article_video'])): ?>
+                        <div>
+                            <h3 style="font-size: 16px; font-weight: 600; color: #374151; margin-bottom: 12px;">Video </h3>
+                            <div style="border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); background: black;">
+                                <?php if (strpos($article['article_video'], 'uploads/') === 0): ?>
+                                    <video controls style="width: 100%; display: block;">
+                                        <source src="../<?= htmlspecialchars($article['article_video']) ?>" type="video/mp4">
+                                        Your browser does not support the video tag.
+                                    </video>
+                                <?php else: ?>
+                                    <?php
+                                        $url = $article['article_video'];
+                                        $video_id = '';
+                                        // Extract YouTube ID (simple regex)
+                                        if (preg_match('/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i', $url, $matches)) {
+                                            $video_id = $matches[1];
+                                        }
+                                    ?>
+                                    <?php if ($video_id): ?>
+                                        <div style="position: relative; padding-bottom: 56.25%; height: 0;">
+                                            <iframe src="https://www.youtube.com/embed/<?= htmlspecialchars($video_id) ?>" 
+                                                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" 
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                                    allowfullscreen>
+                                            </iframe>
+                                        </div>
+                                    <?php else: ?>
+                                        <div style="padding: 20px; text-align: center; color: white;">
+                                            <a href="<?= htmlspecialchars($url) ?>" target="_blank" style="color: #10B981;">Watch Video on External Site</a>
+                                        </div>
+                                    <?php endif; ?>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <!-- Related Articles -->
+            <?php if (!empty($relatedArticles)): ?>
+                <div class="related-articles-section" style="padding: 30px; border-top: 1px solid #E5E7EB; background-color: white; border-radius: 0 0 16px 16px;">
+                    <h3 style="font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 20px;">Related Articles</h3>
+                    <div class="related-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;">
+                        <?php foreach ($relatedArticles as $rel): ?>
+                            <a href="view_article.php?id=<?= $rel['id'] ?>" class="related-card" style="display: block; text-decoration: none; padding: 15px; border: 1px solid #E5E7EB; border-radius: 8px; transition: all 0.2s; background: #F9FAFB;">
+                                <div style="font-size: 12px; font-weight: 600; color: #059669; text-transform: uppercase; margin-bottom: 8px;">
+                                    <?= htmlspecialchars($rel['category']) ?>
+                                </div>
+                                <div style="font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 6px; line-height: 1.4;">
+                                    <?= htmlspecialchars($rel['title']) ?>
+                                </div>
+                                <div style="font-size: 13px; color: #6B7280;">
+                                    <i class="far fa-eye"></i> <?= number_format($rel['views']) ?> views
+                                </div>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <style>
+                    .related-card:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                        border-color: #D1FAE5;
+                        background: white;
+                    }
+                </style>
+            <?php endif; ?>
         </article>
 
     </div>
@@ -298,3 +510,4 @@ function renderArticleContent($text) {
     <script src="../js/employee-dashboard.js"></script>
 </body>
 </html>
+

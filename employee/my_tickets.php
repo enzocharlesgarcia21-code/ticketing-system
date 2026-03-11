@@ -28,6 +28,7 @@ $result = $stmt->get_result();
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <link rel="stylesheet" href="../css/view-tickets.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -65,22 +66,22 @@ $result = $stmt->get_result();
                             <?php if($result->num_rows > 0): ?>
                                 <?php while($row = $result->fetch_assoc()): ?>
                                 <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer;">
-                                    <td>#<?= $row['id']; ?></td>
-                                    <td class="subject-cell">
+                                    <td data-label="ID">#<?= $row['id']; ?></td>
+                                    <td data-label="Subject" class="subject-cell">
                                         <strong><?= htmlspecialchars($row['subject']); ?></strong>
                                     </td>
-                                    <td><?= htmlspecialchars($row['category']); ?></td>
-                                    <td>
+                                    <td data-label="Category"><?= htmlspecialchars($row['category']); ?></td>
+                                    <td data-label="Priority">
                                         <span class="priority-pill priority-<?= strtolower($row['priority']); ?>">
                                             <?= htmlspecialchars($row['priority']); ?>
                                         </span>
                                     </td>
-                                    <td>
+                                    <td data-label="Status">
                                         <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
                                             <?= htmlspecialchars($row['status']); ?>
                                         </span>
                                     </td>
-                                    <td>
+                                    <td data-label="Attachment">
                                         <?php if(!empty($row['attachment'])) { ?>
                                             <a href="../uploads/<?= $row['attachment']; ?>" target="_blank" class="attachment-link">
                                                 <i class="fas fa-paperclip"></i> View
@@ -89,7 +90,7 @@ $result = $stmt->get_result();
                                             <span class="no-file">-</span>
                                         <?php } ?>
                                     </td>
-                                    <td><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
+                                    <td data-label="Date"><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
                                 </tr>
                                 <?php endwhile; ?>
                             <?php else: ?>
@@ -114,436 +115,45 @@ $result = $stmt->get_result();
 
     <!-- Ticket Details Modal -->
     <div id="ticketModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title">Ticket Details</h2>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
-            </div>
-            <div class="modal-body" id="modalBody">
-                <!-- Content loaded via AJAX -->
-                <div style="text-align:center; padding: 20px;">Loading...</div>
-            </div>
+        <div class="modal-content" id="modalContent">
+            <!-- Content injected via JS -->
         </div>
     </div>
 
-    <div id="chatModal" class="modal-overlay">
-        <div class="modal-content" style="width: 560px; max-width: 95%;">
-            <div class="modal-header">
-                <div>
-                    <h2 class="modal-title" style="margin-bottom: 6px;">Ticket Chat</h2>
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <div id="empChatAvatar" style="width:32px; height:32px; border-radius:50%; background:#E5E7EB; color:#374151; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px;">--</div>
-                        <div>
-                            <div id="empChatPeerName" style="font-weight:700; color:#111827; font-size:14px;">Support</div>
-                            <div id="empChatPeerEmail" style="font-weight:500; color:#6B7280; font-size:12px;"></div>
-                        </div>
-                    </div>
-                </div>
-                <button class="modal-close" onclick="closeChatModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="chat-wrapper" style="margin-top: 0;">
-                    <div id="chatMessages" class="chat-messages">
-                        <div style="text-align:center; color:#999; margin-top:20px;">Loading chat...</div>
-                    </div>
-                    <div class="chat-input-area">
-                        <input type="hidden" id="chatTicketId" value="">
-                        <input type="text" id="chatInput" placeholder="Type a message..." autocomplete="off">
-                        <button id="chatSendBtn" type="button">➤</button>
-                    </div>
-                </div>
-            </div>
+    <!-- Image Preview Modal -->
+    <div id="imagePreviewModal" class="image-preview-modal" onclick="TMTicketModal.closeImagePreview(event)">
+        <div class="preview-content">
+            <button class="preview-close" onclick="TMTicketModal.closeImagePreview(event)">×</button>
+            <img id="previewImage" src="" alt="Preview" class="preview-image">
         </div>
     </div>
-
     <script>
-    // Chat Global Variables
-    const CURRENT_USER_ID = <?php echo isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0; ?>;
-    let chatInterval;
-    let chatUiBound = false;
-
-    // Chat Functions
-    function startChat(ticketId) {
-        stopChat(); // Clear any existing interval
-        loadMessages(ticketId, true); // Initial load with scroll
-        chatInterval = setInterval(() => {
-            loadMessages(ticketId, false); // Auto-refresh
-        }, 3000);
-    }
-
-    function stopChat() {
-        if (chatInterval) {
-            clearInterval(chatInterval);
-            chatInterval = null;
-        }
-    }
-
-    function loadMessages(ticketId, scrollBottom = false) {
-        const formData = new FormData();
-        formData.append('ticket_id', ticketId);
-
-        fetch('chat_fetch.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                console.error('Chat Error:', data.error);
-                return;
-            }
-            renderMessages(data, scrollBottom);
-        })
-        .catch(err => console.error('Chat Fetch Error:', err));
-    }
-
-    function renderMessages(messages, scrollBottom) {
-    const container = document.getElementById('chatMessages');
-    if (!container) return;
-
-    // Preserve scroll position if refreshing
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-    
-    // Clear and rebuild
-    container.innerHTML = '';
-
-    if (messages.length === 0) {
-        container.innerHTML = '<div style="text-align:center; color:#ccc; margin-top:20px;">No messages yet.</div>';
-        return;
-    }
-
-    messages.forEach(msg => {
-        const bubble = document.createElement("div");
-        bubble.classList.add("chat-bubble");
-        
-        if (msg.is_me) {
-            bubble.classList.add("me");
-        } else {
-            bubble.classList.add("other");
-        }
-        
-        // Message Content
-        const contentDiv = document.createElement("div");
-        contentDiv.textContent = msg.message;
-        
-        // Time
-        const timeDiv = document.createElement("div");
-        timeDiv.classList.add("chat-time");
-        timeDiv.textContent = msg.created_at; // Already formatted H:i from PHP
-        
-        bubble.appendChild(contentDiv);
-        bubble.appendChild(timeDiv);
-        
-        container.appendChild(bubble);
-    });
-
-    if (scrollBottom || isNearBottom) {
-        container.scrollTop = container.scrollHeight;
-    }
-}
-
-function sendMessage() {
-    const input = document.getElementById('chatInput');
-    const ticketId = document.getElementById('chatTicketId').value;
-    const message = input.value.trim();
-    const btn = document.getElementById('chatSendBtn');
-
-    if (!message) return;
-
-    if(btn.disabled) return;
-    
-    btn.disabled = true;
-    const originalText = btn.textContent;
-    btn.textContent = '...';
-
-    const formData = new FormData();
-    formData.append('ticket_id', ticketId);
-    formData.append('message', message);
-
-    fetch('chat_send.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        btn.disabled = false;
-        btn.textContent = originalText;
-        
-        if (data.success) {
-            input.value = '';
-            loadMessages(ticketId, true); 
-        } else {
-            alert('Error: ' + (data.error || 'Failed to send'));
-        }
-    })
-    .catch(err => {
-        btn.disabled = false;
-        btn.textContent = originalText;
-        console.error(err);
-        alert('Network error');
-    });
-}
-
-    // Modal Logic
-    const modal = document.getElementById('ticketModal');
-    const modalBody = document.getElementById('modalBody');
-    const chatModal = document.getElementById('chatModal');
-
-    document.querySelectorAll('.ticket-row').forEach(row => {
-        row.addEventListener('click', function() {
-            const ticketId = this.getAttribute('data-id');
-            openModal(ticketId);
+    window.TM_CURRENT_USER = <?php echo json_encode([
+        'id' => $_SESSION['user_id'] ?? null,
+        'name' => $_SESSION['name'] ?? null,
+        'email' => $_SESSION['email'] ?? null,
+        'department' => $_SESSION['department'] ?? null,
+        'company' => $_SESSION['company'] ?? null,
+        'role' => $_SESSION['role'] ?? null
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    </script>
+    <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
+    <script>
+    document.querySelectorAll('.ticket-row').forEach(function(row){
+        row.addEventListener('click', function(){
+            var id = this.getAttribute('data-id');
+            TMTicketModal.open(id);
         });
     });
-
-    function openModal(id) {
-        modal.style.display = 'flex';
-        modalBody.innerHTML = '<div style="text-align:center; padding: 20px;">Loading...</div>';
-
-        fetch(`get_ticket_details.php?id=${id}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    modalBody.innerHTML = `<p style="color:red; text-align:center;">${data.error}</p>`;
-                    return;
-                }
-
-                const statusClass = 'badge-' + (data.status ? data.status.toLowerCase().replace(' ', '-') : 'default');
-                const priorityClass = 'badge-' + (data.priority ? data.priority.toLowerCase() : 'default');
-
-                // --- SECTION 1: HEADER AREA ---
-                let html = `
-                    <div class="modal-section-header">
-                        <div class="modal-title-large">${escapeHtml(data.subject)}</div>
-                        <div class="modal-meta-row">
-                            <span class="modal-badge ${statusClass}">${data.status}</span>
-                            <span class="modal-badge ${priorityClass}">${data.priority}</span>
-                            <span class="modal-id-badge">#${data.id}</span>
-                        </div>
-                    </div>
-                `;
-
-                // --- SECTION 2: DETAILS GRID ---
-                html += `<div class="modal-grid">`;
-
-                // Row 1: Created By & Company
-                html += `
-                    <div class="modal-info-group">
-                        <span class="modal-info-label">Created By</span>
-                        <span class="modal-info-value">${escapeHtml(data.created_by_name)}</span>
-                    </div>
-                `;
-
-                html += `
-                    <div class="modal-info-group">
-                        <span class="modal-info-label">Company</span>
-                        <span class="modal-info-value">${data.company ? escapeHtml(data.company) : '-'}</span>
-                    </div>
-                `;
-
-                // Row 2: Department & Assigned To
-                html += `
-                    <div class="modal-info-group">
-                        <span class="modal-info-label">Department</span>
-                        <span class="modal-info-value">${escapeHtml(data.department)}</span>
-                    </div>
-                `;
-
-                // Assigned To (Show "-" if empty)
-                html += `
-                    <div class="modal-info-group">
-                        <span class="modal-info-label">Assigned To</span>
-                        <span class="modal-info-value">
-                            ${data.assigned_department ? escapeHtml(data.assigned_department) : '-'}
-                            ${data.assigned_company ? `<span style="font-size:0.85em; color:#6b7280;">(${escapeHtml(data.assigned_company)})</span>` : ''}
-                        </span>
-                    </div>
-                `;
-                
-                // Row 3: Created At & Last Updated
-                html += `
-                    <div class="modal-info-group">
-                        <span class="modal-info-label">Created At</span>
-                        <span class="modal-info-value">${new Date(data.created_at).toLocaleString()}</span>
-                    </div>
-                `;
-
-                html += `
-                    <div class="modal-info-group">
-                        <span class="modal-info-label">Last Updated</span>
-                        <span class="modal-info-value">${data.updated_at ? new Date(data.updated_at).toLocaleString() : '-'}</span>
-                    </div>
-                `;
-
-                // Extra Fields: Impact, Urgency, Attachment (Only render if NOT empty/null/-)
-                if (data.impact && data.impact !== '-') {
-                    html += `
-                        <div class="modal-info-group">
-                            <span class="modal-info-label">Impact</span>
-                            <span class="modal-info-value">${escapeHtml(data.impact)}</span>
-                        </div>
-                    `;
-                }
-
-                if (data.urgency && data.urgency !== '-') {
-                    html += `
-                        <div class="modal-info-group">
-                            <span class="modal-info-label">Urgency</span>
-                            <span class="modal-info-value">${escapeHtml(data.urgency)}</span>
-                        </div>
-                    `;
-                }
-
-                if (data.attachment) {
-                    html += `
-                        <div class="modal-info-group" style="grid-column: span 2;">
-                            <span class="modal-info-label">Attachment</span>
-                            <span class="modal-info-value">
-                                <a href="../uploads/${data.attachment}" target="_blank" style="color:#1B5E20; text-decoration:none; display:flex; align-items:center; gap:6px;">
-                                    <i class="fas fa-paperclip"></i> View Attachment
-                                </a>
-                            </span>
-                        </div>
-                    `;
-                }
-
-                html += `</div>`; // End Grid
-
-                // --- SECTION 3: DESCRIPTION ---
-                html += `
-                    <div class="modal-description-section">
-                        <div class="modal-description-card">
-                            <span class="modal-info-label" style="display:block; margin-bottom:12px;">Description</span>
-                            <div class="modal-description-text">${escapeHtml(data.description)}</div>
-                        </div>
-                    </div>
-                `;
-
-                // --- SECTION 4: ADMIN NOTE (If exists) ---
-                if (data.admin_note) {
-                    html += `
-                        <div class="modal-description-section" style="margin-top: 16px;">
-                            <div class="modal-description-card" style="background-color: #f0fdf4; border-left: 4px solid #16a34a;">
-                                <span class="modal-info-label" style="display:block; margin-bottom:12px; color: #166534;">
-                                    <i class="fas fa-user-shield" style="margin-right: 6px;"></i> Admin Note
-                                </span>
-                                <div class="modal-description-text" style="color: #14532d;">${escapeHtml(data.admin_note).replace(/\n/g, '<br>')}</div>
-                            </div>
-                        </div>
-                    `;
-                }
-
-                // --- SECTION 5: CHAT ---
-                html += `
-                    <div class="modal-description-section" style="margin-top: 24px;">
-                        <span class="tm-section-title">Ticket Chat</span>
-                        <div style="margin-top: 12px; display:flex; justify-content:flex-end;">
-                            <button type="button" onclick="openChatModal(${data.id})" style="background:#1B5E20; color:#fff; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600;">Open Chat</button>
-                        </div>
-                    </div>
-                `;
-
-                modalBody.innerHTML = html;
-
-                // Store peer info for chat header
-                window.empChatPeer = {
-                    name: (data.assigned_department ? data.assigned_department + ' Support' : 'Admin Support'),
-                    email: ''
-                };
-            })
-            .catch(err => {
-                console.error(err);
-                modalBody.innerHTML = '<p style="color:red; text-align:center;">Failed to load details.</p>';
-            });
-    }
-
-    function closeModal() {
-        modal.style.display = 'none';
-        closeChatModal();
-    }
-
-    function escapeHtml(text) {
-        if (!text) return '';
-        return text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    }
-
-    function bindChatUiOnce() {
-        if (chatUiBound) return;
-        chatUiBound = true;
-
-        const chatInput = document.getElementById('chatInput');
-        const chatSendBtn = document.getElementById('chatSendBtn');
-
-        if (chatInput) {
-            chatInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    sendMessage();
-                }
-            });
-        }
-
-        if (chatSendBtn) {
-            chatSendBtn.addEventListener('click', function() {
-                sendMessage();
-            });
-        }
-    }
-
-    function openChatModal(ticketId) {
-        if (!chatModal) return;
-        bindChatUiOnce();
-        document.getElementById('chatTicketId').value = ticketId;
-        document.getElementById('chatMessages').innerHTML = '<div style="text-align:center; color:#999; margin-top:20px;">Loading chat...</div>';
-
-        // Update chat header with peer info
-        const peer = window.empChatPeer || { name: 'Support', email: '' };
-        const nameEl = document.getElementById('empChatPeerName');
-        const emailEl = document.getElementById('empChatPeerEmail');
-        const avatarEl = document.getElementById('empChatAvatar');
-        if (nameEl) nameEl.textContent = peer.name || 'Support';
-        if (emailEl) emailEl.textContent = peer.email || '';
-        if (avatarEl) {
-            const initials = (peer.name || 'S').trim().split(' ').map(p => p[0]).join('').slice(0,2).toUpperCase();
-            avatarEl.textContent = initials;
-        }
-        chatModal.style.display = 'flex';
-        startChat(ticketId);
-        setTimeout(() => {
-            const input = document.getElementById('chatInput');
-            if (input) input.focus();
-        }, 0);
-    }
-
-    function closeChatModal() {
-        if (!chatModal) return;
-        chatModal.style.display = 'none';
-        stopChat();
-        const input = document.getElementById('chatInput');
-        if (input) input.value = '';
-    }
-
-    modal.addEventListener('click', function(event) {
-        if (event.target === modal) {
-            closeModal();
-        }
-    });
-
-    chatModal.addEventListener('click', function(event) {
-        if (event.target === chatModal) {
-            closeChatModal();
-        }
-    });
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const ticketIdParam = urlParams.get('id');
-    if (ticketIdParam) {
-        openModal(ticketIdParam);
+    var modal = document.getElementById('ticketModal');
+    modal.addEventListener('click', function(e){ if(e.target === modal) TMTicketModal.close(); });
+    var p = new URLSearchParams(window.location.search);
+    var tid = p.get('ticket_id') || p.get('id');
+    if (tid) {
+        TMTicketModal.open(tid);
     }
     </script>
+
+    
 </body>
 </html>

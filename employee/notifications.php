@@ -151,6 +151,7 @@ function time_elapsed_string($datetime, $full = false) {
             text-decoration: underline;
         }
     </style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -220,7 +221,7 @@ function time_elapsed_string($datetime, $full = false) {
                             </div>
                             <div class="notif-content">
                                 <div class="notif-text"><?= htmlspecialchars($row['message']) ?></div>
-                                <div class="notif-date"><?= time_elapsed_string($row['created_at']) ?></div>
+                                <div class="notif-date" data-timestamp="<?= htmlspecialchars($row['created_at']) ?>"><?= time_elapsed_string($row['created_at']) ?></div>
                             </div>
                             <?php if($row['is_read'] == 0): ?>
                                 <div style="width: 8px; height: 8px; background: #16a34a; border-radius: 50%;"></div>
@@ -246,5 +247,33 @@ function time_elapsed_string($datetime, $full = false) {
         </div>
     </div>
 
+<script>
+// Auto-update relative times every 60 seconds
+function toRelative(ts) {
+    const now = new Date();
+    const then = new Date(ts.replace(' ', 'T'));
+    const diff = Math.max(0, Math.floor((now - then) / 1000)); // seconds
+    if (diff < 10) return 'Just now';
+    if (diff < 60) return `${diff}s ago`;
+    const m = Math.floor(diff / 60);
+    if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`;
+    const h = Math.floor(diff / 3600);
+    if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
+    const d = Math.floor(diff / 86400);
+    return `${d} day${d === 1 ? '' : 's'} ago`;
+}
+function updateRelativeTimesList() {
+    document.querySelectorAll('.notif-date[data-timestamp]').forEach(el => {
+        const ts = el.getAttribute('data-timestamp');
+        el.textContent = toRelative(ts);
+    });
+}
+document.addEventListener('DOMContentLoaded', function() {
+    updateRelativeTimesList();
+    setInterval(updateRelativeTimesList, 60000);
+});
+</script>
+<script src="../js/employee-dashboard.js"></script>
 </body>
 </html>
+

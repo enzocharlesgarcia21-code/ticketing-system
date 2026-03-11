@@ -2,6 +2,7 @@
 // Get current page for active link
 $current_page = basename($_SERVER['PHP_SELF']);
 ?>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <header class="admin-navbar">
     <div class="admin-navbar-left">
         <img src="../assets/img/image.png" alt="Logo" class="admin-logo-img">
@@ -17,26 +18,31 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
     <nav class="admin-navbar-center" id="adminNavbarCenter">
         <a href="dashboard.php" class="admin-nav-link <?= $current_page == 'dashboard.php' ? 'active' : '' ?>">Dashboard</a>
-        <a href="all_tickets.php" class="admin-nav-link <?= $current_page == 'all_tickets.php' ? 'active' : '' ?>">All Tickets</a>
+        <a href="all_tickets.php" class="admin-nav-link <?= ($current_page == 'all_tickets.php' || $current_page == 'view_ticket.php') ? 'active' : '' ?>">All Tickets</a>
         <a href="analytics.php" class="admin-nav-link <?= $current_page == 'analytics.php' ? 'active' : '' ?>">Analytics</a>
-        <a href="create_admin.php" class="admin-nav-link <?= $current_page == 'create_admin.php' ? 'active' : '' ?>">Admin Management</a>
-        <a href="manage_kb.php" class="admin-nav-link <?= $current_page == 'manage_kb.php' ? 'active' : '' ?>">Knowledge Base</a>
+        <a href="create_admin.php" class="admin-nav-link <?= ($current_page == 'create_admin.php' || $current_page == 'manage_users.php') ? 'active' : '' ?>">Admin Management</a>
+        <a href="manage_kb.php" class="admin-nav-link <?= ($current_page == 'manage_kb.php' || $current_page == 'edit_kb.php' || $current_page == 'add_kb.php') ? 'active' : '' ?>">Knowledge Base</a>
     </nav>
 
     <div class="admin-navbar-right">
         <!-- Notification Bell -->
         <div class="notification-wrapper">
             <div class="notification-bell" id="notifBell" onclick="toggleNotifications()">
-                🔔
+                <i class="fas fa-bell"></i>
                 <span class="notification-dot" id="notifDot" style="display: none;"></span>
                 <span class="notification-badge" id="notifBadge" style="display: none;">0</span>
             </div>
             <div class="notification-dropdown" id="notifDropdown">
-                <div class="notif-header">Notifications</div>
+                <div class="notif-header">
+                    <i class="fas fa-bell" style="color: #16a34a;"></i>
+                    <span>Notifications</span>
+                </div>
                 <div class="notif-list" id="notifList">
                     <div class="notif-empty">No new notifications</div>
                 </div>
-                <a href="all_tickets.php" class="notif-footer">View All Tickets</a>
+                <div class="notif-footer">
+                    <a href="notifications.php">View All Notifications</a>
+                </div>
             </div>
         </div>
 
@@ -54,6 +60,19 @@ $current_page = basename($_SERVER['PHP_SELF']);
         </div>
     </div>
 </header>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleBtn = document.getElementById('adminNavbarToggle');
+    const navCenter = document.getElementById('adminNavbarCenter');
+
+    if (toggleBtn && navCenter) {
+        toggleBtn.addEventListener('click', function() {
+            navCenter.classList.toggle('show');
+        });
+    }
+});
+</script>
 
 <style>
 /* Notification Styles */
@@ -97,75 +116,158 @@ $current_page = basename($_SERVER['PHP_SELF']);
 .notification-dropdown {
     display: none;
     position: absolute;
-    top: 100%;
+    top: 50px;
     right: 0;
-    width: 320px;
+    width: 380px;
     background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
     z-index: 1000;
     overflow: hidden;
     color: #333;
     text-align: left;
+    border: none;
 }
 .notification-dropdown.show {
     display: block;
 }
 .notif-header {
-    padding: 12px 16px;
-    font-weight: bold;
-    border-bottom: 1px solid #eee;
-    background: #f8f9fa;
-    color: #333;
+    background: #fff;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 .notif-list {
-    max-height: 300px;
+    max-height: 400px;
     overflow-y: auto;
+    background: #fff;
 }
 .notif-item {
-    padding: 12px 16px;
-    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: flex-start;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s ease;
+    gap: 15px;
 }
 .notif-item:hover {
-    background: #f1f8e9;
+        background-color: #f8fafc;
+    }
+    .notif-item.unread {
+        background-color: #f0f9f3;
+    }
+
+    .notif-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #ffffff;
 }
-.notif-item.unread {
-    background: #e8f5e9;
+.notif-icon.priority-critical { background: #E53935; }
+.notif-icon.priority-high { background: #FB8C00; }
+.notif-icon.priority-medium { background: #FBC02D; }
+.notif-icon.priority-low { background: #43A047; }
+.notif-icon.priority-neutral { background: #94a3b8; }
+
+.priority-badge{
+    padding:4px 10px;
+    border-radius:6px;
+    font-size:12px;
+    font-weight:600;
+    color:white;
+    margin-right:6px;
+    display: inline-block;
+    vertical-align: middle;
 }
-.notif-item.unread:hover {
-    background: #dcedc8;
+.priority-badge.priority-critical { background:#E53935; }
+.priority-badge.priority-high { background:#FB8C00; }
+.priority-badge.priority-medium { background:#FBC02D; }
+.priority-badge.priority-low { background:#43A047; }
+.priority-badge.priority-neutral { background:#94a3b8; }
+.notif-content {
+    flex: 1;
+    min-width: 0;
 }
-.notif-text {
-    font-size: 0.9rem;
-    margin-bottom: 4px;
-    color: #333;
-    font-weight: 500;
+.notif-msg {
+    font-size: 0.95rem;
+    color: #334155;
+    line-height: 1.4;
+    margin-bottom: 6px;
 }
 .notif-time {
-    font-size: 0.75rem;
-    color: #888;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    display: block;
 }
 .notif-footer {
-    display: block;
-    padding: 10px;
+    padding: 12px;
+    background: #f8fafc;
+    border-top: 1px solid #f1f5f9;
     text-align: center;
-    background: #f8f9fa;
-    color: #1B5E20;
-    text-decoration: none;
+}
+.notif-footer a {
+    color: #16a34a;
+    font-weight: 600;
     font-size: 0.9rem;
-    border-top: 1px solid #eee;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+.notif-footer a:hover {
+    color: #15803d;
+    text-decoration: underline;
 }
 .notif-empty {
-    padding: 20px;
+    padding: 30px;
     text-align: center;
-    color: #999;
+    color: #94a3b8;
+    font-style: italic;
+}
+/* Scrollbar styling */
+.notif-list::-webkit-scrollbar {
+    width: 6px;
+}
+.notif-list::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+.notif-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
 }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Relative time helpers
+    function toRelative(ts) {
+        const now = new Date();
+        const then = new Date(ts.replace(' ', 'T'));
+        const diff = Math.max(0, Math.floor((now - then) / 1000)); // seconds
+        if (diff < 10) return 'Just now';
+        if (diff < 60) return `${diff}s ago`;
+        const m = Math.floor(diff / 60);
+        if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`;
+        const h = Math.floor(diff / 3600);
+        if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
+        const d = Math.floor(diff / 86400);
+        return `${d} day${d === 1 ? '' : 's'} ago`;
+    }
+    function updateRelativeTimes() {
+        document.querySelectorAll('.notif-time[data-timestamp]').forEach(el => {
+            const ts = el.getAttribute('data-timestamp');
+            el.textContent = toRelative(ts);
+        });
+    }
     // Mobile navbar toggle
     const adminToggle = document.getElementById('adminNavbarToggle');
     const adminCenter = document.getElementById('adminNavbarCenter');
@@ -182,6 +284,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     fetchAdminNotifications();
     setInterval(fetchAdminNotifications, 5000);
+    setInterval(updateRelativeTimes, 60000);
 
     // Close dropdown when clicking outside
     document.addEventListener('click', function(e) {
@@ -229,12 +332,43 @@ function fetchAdminNotifications() {
             if (data.notifications.length === 0) {
                 list.innerHTML = '<div class="notif-empty">No new notifications</div>';
             } else {
-                list.innerHTML = data.notifications.map(n => `
-                    <div class="notif-item ${n.is_read == 0 ? 'unread' : ''}" onclick="handleNotificationClick(${n.id}, ${n.ticket_id})">
-                        <div class="notif-text">${escapeHtml(n.message)}</div>
-                        <div class="notif-time">${n.time_ago}</div>
+                list.innerHTML = data.notifications.map(n => {
+                    const rawPriority = (n.priority || '').toString().toLowerCase();
+                    const allowed = ['critical', 'high', 'medium', 'low'];
+                    const priorityKey = allowed.includes(rawPriority) ? rawPriority : '';
+                    const priorityClass = priorityKey ? `priority-${priorityKey}` : 'priority-neutral';
+                    const priorityLabel = priorityKey ? `<span class="priority-badge ${priorityClass}">${escapeHtml(priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1))}</span>` : '';
+                    
+                    return `
+                    <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${priorityClass}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="handleNotificationClick(${n.id}, ${n.ticket_id})">
+                        <div class="notif-icon ${priorityClass}"><i class="fas fa-ticket"></i></div>
+                        <div class="notif-content">
+                            <div class="notif-msg">${priorityLabel}${escapeHtml(n.message)}</div>
+                            <time class="notif-time" data-timestamp="${n.created_at}">${n.time_ago || ''}</time>
+                        </div>
                     </div>
-                `).join('');
+                `}).join('');
+                // Update relative times immediately after rendering
+                document.querySelectorAll('.notif-time[data-timestamp]').forEach(el => {
+                    const ts = el.getAttribute('data-timestamp');
+                    const now = new Date();
+                    const then = new Date(ts.replace(' ', 'T'));
+                    const diff = Math.max(0, Math.floor((now - then) / 1000));
+                    if (diff < 10) el.textContent = 'Just now';
+                    else if (diff < 60) el.textContent = `${diff}s ago`;
+                    else {
+                        const m = Math.floor(diff / 60);
+                        if (m < 60) el.textContent = `${m} minute${m === 1 ? '' : 's'} ago`;
+                        else {
+                            const h = Math.floor(diff / 3600);
+                            if (h < 24) el.textContent = `${h} hour${h === 1 ? '' : 's'} ago`;
+                            else {
+                                const d = Math.floor(diff / 86400);
+                                el.textContent = `${d} day${d === 1 ? '' : 's'} ago`;
+                            }
+                        }
+                    }
+                });
             }
         })
         .catch(err => console.error('Error fetching notifications:', err));
@@ -250,7 +384,7 @@ function handleNotificationClick(notifId, ticketId) {
         body: formData
     }).then(() => {
         // Redirect to all_tickets.php with ticket ID to auto-open
-        window.location.href = `all_tickets.php?id=${ticketId}`;
+        window.location.href = `all_tickets.php?ticket_id=${ticketId}`;
     });
 }
 

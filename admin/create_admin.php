@@ -20,27 +20,10 @@ if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
 $message = '';
 
 // Handle Promotion Logic
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['promote_user_id'])) {
-    $promote_id = (int)$_POST['promote_user_id'];
-    
-    // Double check if the user is eligible (IT department, employee role)
-    // although the query only shows them, it's good to be safe
-    $check_stmt = $conn->prepare("SELECT id FROM users WHERE id = ? AND department = 'IT' AND role = 'employee'");
-    $check_stmt->bind_param("i", $promote_id);
-    $check_stmt->execute();
-    if ($check_stmt->get_result()->num_rows > 0) {
-        $update_stmt = $conn->prepare("UPDATE users SET role = 'admin' WHERE id = ?");
-        $update_stmt->bind_param("i", $promote_id);
-        
-        if ($update_stmt->execute()) {
-            $message = "User successfully promoted to Admin.";
-        } else {
-            $message = "Error promoting user.";
-        }
-    } else {
-        $message = "Invalid user selected or user is not eligible.";
-    }
-}
+    // Moved to add_admin.php
+
+    // 2. Remove Admin Logic
+    // Moved to remove_admin.php
 
 // Query IT Employees
 $query = "SELECT id, name, email, department FROM users WHERE department = 'IT' AND role = 'employee'";
@@ -199,8 +182,34 @@ $admins_result = $conn->query($admins_query);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border: 1px solid #bbf7d0;
+            margin-bottom: 15px;
+        }
+
+        .remove-admin-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .remove-admin-btn:hover {
+            background-color: #c82333;
+            transform: translateY(-1px);
         }
     </style>
+    <!-- Add FontAwesome for trash icon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -232,10 +241,7 @@ $admins_result = $conn->query($admins_query);
                             <td><?= htmlspecialchars($row['email']) ?></td>
                             <td><?= htmlspecialchars($row['department']) ?></td>
                             <td>
-                                <form method="POST" onsubmit="return confirm('Are you sure you want to add this user as Admin?');">
-                                    <input type="hidden" name="promote_user_id" value="<?= $row['id'] ?>">
-                                    <button type="submit" class="promote-btn">Add as Admin</button>
-                                </form>
+                                <button type="button" class="promote-btn" onclick="confirmAddition(<?= $row['id'] ?>)">Add as Admin</button>
                             </td>
                         </tr>
                     <?php endwhile; ?>
@@ -260,6 +266,12 @@ $admins_result = $conn->query($admins_query);
                         <div class="admin-name"><?= htmlspecialchars($admin['name']) ?></div>
                         <div class="admin-email"><?= htmlspecialchars($admin['email']) ?></div>
                         <span class="admin-badge">Admin</span>
+
+                        <?php if ($admin['id'] != $_SESSION['user_id']): ?>
+                            <button type="button" class="remove-admin-btn" style="width: 100%; justify-content: center; margin-top: 10px;" onclick="confirmRemoval(<?= $admin['id'] ?>)">
+                                <i class="fa-solid fa-trash"></i> Remove Admin
+                            </button>
+                        <?php endif; ?>
                     </div>
                 <?php endwhile; ?>
             <?php else: ?>
@@ -273,5 +285,113 @@ $admins_result = $conn->query($admins_query);
 
 <script src="../js/admin.js"></script>
 
+<script>
+    function confirmAddition(userId) {
+        Swal.fire({
+            title: 'Add this user as admin?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6B7280',
+            confirmButtonText: 'Add',
+            cancelButtonText: 'Cancel',
+            width: '400px',
+            background: '#fff',
+            customClass: {
+                popup: 'swal-rounded',
+                title: 'swal-title',
+                confirmButton: 'swal-confirm',
+                cancelButton: 'swal-cancel'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = 'add_admin.php?id=' + userId;
+            }
+        });
+    }
+
+    function confirmRemoval(adminId) {
+        Swal.fire({
+            title: 'Do you want to remove this admin?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6B7280',
+            confirmButtonText: 'Remove',
+            cancelButtonText: 'Cancel',
+            width: '400px',
+            background: '#fff',
+            customClass: {
+                popup: 'swal-rounded',
+                title: 'swal-title',
+                confirmButton: 'swal-confirm',
+                cancelButton: 'swal-cancel'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = 'remove_admin.php?id=' + adminId;
+            }
+        });
+    }
+
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: false,
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer)
+            toast.addEventListener('mouseleave', Swal.resumeTimer)
+        }
+    });
+
+    <?php if (isset($_SESSION['admin_added'])): ?>
+        Toast.fire({
+            icon: 'success',
+            title: 'Admin added',
+            background: '#dcfce7',
+            color: '#166534',
+            iconColor: '#166534'
+        });
+        <?php unset($_SESSION['admin_added']); ?>
+    <?php endif; ?>
+
+    <?php if (isset($_SESSION['admin_removed'])): ?>
+        Toast.fire({
+            icon: 'success',
+            title: 'Admin removed',
+            background: '#dcfce7',
+            color: '#166534',
+            iconColor: '#166534'
+        });
+        <?php unset($_SESSION['admin_removed']); ?>
+    <?php endif; ?>
+
+    <?php if (isset($_SESSION['error_message'])): ?>
+        Toast.fire({
+            icon: 'error',
+            title: '<?= addslashes($_SESSION['error_message']) ?>',
+            background: '#fee2e2',
+            color: '#991b1b',
+            iconColor: '#991b1b'
+        });
+        <?php unset($_SESSION['error_message']); ?>
+    <?php endif; ?>
+</script>
+
+<style>
+    .swal-rounded {
+        border-radius: 12px !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    .swal-title {
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        color: #1F2937 !important;
+    }
+</style>
+
 </body>
 </html>
+

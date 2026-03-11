@@ -55,6 +55,7 @@ $result = $stmt->get_result();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Closed Tickets</title>
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -379,7 +380,7 @@ function openModal(id) {
                     </div>
                     <div class="tm-actions">
                         ${viewBtn}
-                        <a href="../uploads/${filename}" target="_blank" class="tm-download-btn">Download</a>
+                        <a href="../uploads/${filename}" class="tm-download-btn" download>Download</a>
                     </div>
                 </div>
             `;
@@ -423,8 +424,10 @@ function openModal(id) {
                     <div class="tm-timeline">
                         ${events.map(e => `
                             <div class="tm-timeline-item">
-                                <div class="tm-timeline-title">${escapeHtml(e.title)}</div>
-                                <div class="tm-timeline-time">${formatTimelineTime(e.when)}</div>
+                                <div class="tm-timeline-content">
+                                    <div class="tm-timeline-title">${escapeHtml(e.title)}</div>
+                                    <div class="tm-timeline-time">${formatTimelineTime(e.when)}</div>
+                                </div>
                             </div>
                         `).join('')}
                     </div>
@@ -751,3 +754,4 @@ if (ticketIdParam) {
 
 </body>
 </html>
+

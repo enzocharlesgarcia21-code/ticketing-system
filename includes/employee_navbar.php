@@ -15,7 +15,19 @@ if ($user_id > 0 && isset($conn)) {
 
 // Helper to check active link
 function isActive($page) {
-    return basename($_SERVER['PHP_SELF']) == $page ? 'active' : '';
+    $current = basename($_SERVER['PHP_SELF']);
+    // Handle main pages
+    if ($current == $page) {
+        return 'active';
+    }
+    // Handle sub-pages
+    if ($page == 'my_tickets.php' && ($current == 'view_ticket.php' || $current == 'view_tickets_user.php')) {
+        return 'active';
+    }
+    if ($page == 'knowledge_base.php' && $current == 'view_article.php') {
+        return 'active';
+    }
+    return '';
 }
 ?>
 <nav class="navbar">
@@ -31,7 +43,7 @@ function isActive($page) {
         <div class="nav-center">
             <a href="dashboard.php" class="nav-link <?= isActive('dashboard.php') ?>">Dashboard</a>
             <a href="request_ticket.php" class="nav-link <?= isActive('request_ticket.php') ?>">Create Ticket</a>
-            <a href="my_task.php" class="nav-link <?= isActive('my_task.php') ?>">My Task</a>
+            <a href="my_task.php" class="nav-link <?= isActive('my_task.php') ?>">Task</a>
             <a href="my_tickets.php" class="nav-link <?= isActive('my_tickets.php') ?>">My Tickets</a>
             <a href="knowledge_base.php" class="nav-link <?= isActive('knowledge_base.php') ?>">Knowledge Base</a>
         </div>
@@ -46,6 +58,7 @@ function isActive($page) {
                 </div>
                 <div class="notification-dropdown" id="notifDropdown">
                     <div class="notif-header">
+                        <i class="fas fa-bell" style="color: #16a34a;"></i>
                         <span>Notifications</span>
                     </div>
                     <div class="notif-list" id="notifList">
@@ -118,90 +131,152 @@ function isActive($page) {
 
 .notification-dropdown {
     position: absolute;
-    top: 40px;
+    top: 50px;
     right: -10px;
-    width: 320px;
+    width: 380px;
     background: white;
     border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
     display: none;
     z-index: 1000;
     overflow: hidden;
     animation: slideDown 0.2s ease-out;
+    border: none;
 }
 
 .notification-dropdown.show {
     display: block;
 }
 
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
 .notif-header {
-    padding: 12px 15px;
-    border-bottom: 1px solid #eee;
-    font-weight: bold;
-    color: #333;
+    background: #fff;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #1e293b;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 10px;
 }
 
 .notif-list {
-    max-height: 350px;
+    max-height: 400px;
     overflow-y: auto;
+    background: #fff;
 }
 
 .notif-item {
-    padding: 12px 15px;
-    border-bottom: 1px solid #f5f5f5;
-    cursor: pointer;
-    transition: background 0.2s;
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: flex-start;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    gap: 15px;
 }
 
 .notif-item:hover {
-    background-color: #f9fafb;
+    background-color: #f8fafc;
 }
 
 .notif-item.unread {
-    background-color: #e8f5e9; /* Light green for unread */
+    background-color: #f0f9f3;
 }
 
-.notif-item .notif-msg {
-    font-size: 0.9rem;
-    color: #333;
+.notif-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #ffffff;
+}
+.notif-icon.priority-critical { background: #E53935; }
+.notif-icon.priority-high { background: #FB8C00; }
+.notif-icon.priority-medium { background: #FBC02D; }
+.notif-icon.priority-low { background: #43A047; }
+.notif-icon.priority-neutral { background: #94a3b8; }
+
+.priority-badge{
+    padding:4px 10px;
+    border-radius:6px;
+    font-size:12px;
+    font-weight:600;
+    color:white;
+    margin-right:6px;
+    display: inline-block;
+    vertical-align: middle;
+}
+.priority-badge.priority-critical { background:#E53935; }
+.priority-badge.priority-high { background:#FB8C00; }
+.priority-badge.priority-medium { background:#FBC02D; }
+.priority-badge.priority-low { background:#43A047; }
+.priority-badge.priority-neutral { background:#94a3b8; }
+
+.notif-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.notif-msg {
+    font-size: 0.95rem;
+    color: #334155;
     line-height: 1.4;
+    margin-bottom: 6px;
 }
 
-.notif-item .notif-time {
-    font-size: 0.75rem;
-    color: #888;
-}
-
-.notif-empty {
-    padding: 20px;
-    text-align: center;
-    color: #888;
-    font-size: 0.9rem;
+.notif-time {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    display: block;
 }
 
 .notif-footer {
-    padding: 10px;
+    padding: 12px;
+    background: #f8fafc;
+    border-top: 1px solid #f1f5f9;
     text-align: center;
-    border-top: 1px solid #eee;
-    background: #f9f9f9;
 }
 
 .notif-footer a {
-    color: #1B5E20;
-    text-decoration: none;
-    font-size: 0.9rem;
+    color: #16a34a;
     font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.notif-footer a:hover {
+    color: #15803d;
+    text-decoration: underline;
+}
+
+.notif-empty {
+    padding: 30px;
+    text-align: center;
+    color: #94a3b8;
+    font-style: italic;
+}
+
+/* Scrollbar styling */
+.notif-list::-webkit-scrollbar {
+    width: 6px;
+}
+.notif-list::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+.notif-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 </style>
 
@@ -226,11 +301,36 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Relative time helpers
+    function toRelative(ts) {
+        const now = new Date();
+        const then = new Date(ts.replace(' ', 'T'));
+        const diff = Math.max(0, Math.floor((now - then) / 1000)); // seconds
+        if (diff < 10) return 'Just now';
+        if (diff < 60) return `${diff}s ago`;
+        const m = Math.floor(diff / 60);
+        if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`;
+        const h = Math.floor(diff / 3600);
+        if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
+        const d = Math.floor(diff / 86400);
+        return `${d} day${d === 1 ? '' : 's'} ago`;
+    }
+    function updateRelativeTimes() {
+        document.querySelectorAll('.notif-time[data-timestamp]').forEach(el => {
+            const ts = el.getAttribute('data-timestamp');
+            el.textContent = toRelative(ts);
+        });
+    }
+
     // Fetch Notifications
     function fetchNotifications() {
         fetch('fetch_notifications.php')
             .then(response => response.json())
             .then(data => {
+                const badge = document.getElementById('notifBadge');
+                const dot = document.getElementById('notifDot');
+                const list = document.getElementById('notifList');
+
                 // Update Badge
                 if (data.unread_count > 0) {
                     badge.textContent = data.unread_count > 9 ? '9+' : data.unread_count;
@@ -242,18 +342,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 // Update List
-                if (data.notifications.length > 0) {
-                    list.innerHTML = data.notifications.map(n => `
-                        <div class="notif-item ${n.is_read == 0 ? 'unread' : ''}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${n.type || ''}')">
-                            <div class="notif-msg">${n.message}</div>
-                            <div class="notif-time">${n.time_ago}</div>
-                        </div>
-                    `).join('');
+                if (data.notifications && data.notifications.length > 0) {
+                    list.innerHTML = data.notifications.map(n => {
+                        const rawPriority = (n.priority || '').toString().toLowerCase();
+                        const allowed = ['critical', 'high', 'medium', 'low'];
+                        const priorityKey = allowed.includes(rawPriority) ? rawPriority : '';
+                        const priorityClass = priorityKey ? `priority-${priorityKey}` : 'priority-neutral';
+                        const priorityLabel = priorityKey ? `<span class="priority-badge ${priorityClass}">${escapeHtml(priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1))}</span>` : '';
+                        return `
+                            <div class="notif-item ${n.is_read == 0 ? 'unread' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${n.type || ''}')">
+                                <div class="notif-icon ${priorityClass}"><i class="fas fa-ticket"></i></div>
+                                <div class="notif-content">
+                                    <div class="notif-msg">${priorityLabel}${escapeHtml(n.message)}</div>
+                                    <time class="notif-time" data-timestamp="${n.created_at}">${n.time_ago || ''}</time>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    updateRelativeTimes();
                 } else {
                     list.innerHTML = '<div class="notif-empty">No notifications</div>';
                 }
             })
             .catch(err => console.error('Error fetching notifications:', err));
+    }
+    
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        return text.toString()
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 
     // Mark as Read & Redirect
@@ -265,9 +386,9 @@ document.addEventListener('DOMContentLoaded', function() {
             body: 'id=' + id
         }).then(() => {
             if (type === 'dept_assigned') {
-                window.location.href = `my_task.php?id=${ticketId}`;
+                window.location.href = `my_task.php?ticket_id=${ticketId}`;
             } else {
-                window.location.href = `my_tickets.php?id=${ticketId}`;
+                window.location.href = `my_tickets.php?ticket_id=${ticketId}`;
             }
         });
     };
@@ -275,5 +396,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial fetch and poll every 5 seconds
     fetchNotifications();
     setInterval(fetchNotifications, 5000);
+    // Also refresh relative timestamps every 60s
+    setInterval(updateRelativeTimes, 60000);
 });
 </script>

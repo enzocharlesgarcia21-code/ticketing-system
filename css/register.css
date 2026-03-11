@@ -141,3 +141,56 @@ body {
 @media (max-width: 480px) {
     .login-card { padding: 22px 16px; }
 }
+
+.password-validation {
+    margin-top: 10px;
+    padding: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    display: none;
+}
+
+.password-validation ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.password-validation li {
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    color: #64748b;
+    transition: color 0.2s;
+}
+
+.password-validation li:last-child {
+    margin-bottom: 0;
+}
+
+.password-validation li::before {
+    content: '•';
+    display: inline-block;
+    width: 20px;
+    text-align: center;
+    margin-right: 8px;
+    font-weight: bold;
+}
+
+.password-validation li.valid {
+    color: #16a34a;
+}
+
+.password-validation li.valid::before {
+    content: '✓';
+}
+
+.password-validation li.invalid {
+    color: #dc2626;
+}
+
+.password-validation li.invalid::before {
+    content: '✕';
+}

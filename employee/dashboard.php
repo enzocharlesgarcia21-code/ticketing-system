@@ -62,6 +62,7 @@ $recent = $conn->query("
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <!-- Optional: Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -143,7 +144,7 @@ $recent = $conn->query("
                         <tbody>
                             <?php if ($recent->num_rows > 0): ?>
                                 <?php while($row = $recent->fetch_assoc()) { ?>
-                                <tr>
+                                <tr class="ticket-row" data-id="<?= (int) $row['id']; ?>" style="cursor:pointer;">
                                     <td>#<?= $row['id']; ?></td>
                                     <td><?= htmlspecialchars($row['subject']); ?></td>
                                     <td><?= htmlspecialchars($row['category']); ?></td>
@@ -180,9 +181,19 @@ $recent = $conn->query("
 
     <!-- JS Script -->
     <script src="../js/employee-dashboard.js"></script>
+    <script>
+    document.querySelectorAll('.recent-section .ticket-row').forEach(function (row) {
+        row.addEventListener('click', function () {
+            var id = this.getAttribute('data-id');
+            if (!id) return;
+            window.location.href = 'my_tickets.php?ticket_id=' + encodeURIComponent(id);
+        });
+    });
+    </script>
 
    
 
 </body>
 </html>
+
 

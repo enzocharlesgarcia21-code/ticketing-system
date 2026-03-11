@@ -4,12 +4,7 @@ ini_set('display_errors', 1);
 
 require_once '../config/database.php';
 
-require '../vendor/phpmailer/src/PHPMailer.php';
-require '../vendor/phpmailer/src/SMTP.php';
-require '../vendor/phpmailer/src/Exception.php';
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+require_once '../includes/mailer.php';
 
 $success_msg = "";
 $error_msg = "";
@@ -24,6 +19,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $company    = $_POST['company'] ?? '';
     $department = "Sales"; // Fixed department
     $assigned_department = $_POST['assigned_department'] ?? '';
+    $assigned_company = $_POST['assigned_company'] ?? '';
     $description = !empty($_POST['description']) ? $_POST['description'] : '';
 
     $attachmentName = NULL;
@@ -108,94 +104,202 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error_msg = "Assigned Department is required.";
     }
 
+    $valid_companies = [
+        "FARMASEE",
+        "FARMEX",
+        "Golden Primestocks Chemical Inc - GPSCI",
+        "Leads Animal Health - LAH",
+        "Leads Environmental Health - LEH",
+        "Leads Tech Corporation - LTC",
+        "LINGAP LEADS FOUNDATION - Lingap",
+        "Malveda Holdings Corporation - MHC",
+        "Malveda Properties & Development Corporation - MPDC",
+        "Primestocks Chemical Corporation - PCC"
+    ];
+    if (empty($assigned_company) || !in_array($assigned_company, $valid_companies, true)) {
+        $error_msg = "Assigned Company is required.";
+    }
+
     /* ================= PREPARE DESCRIPTION ================= */
     
-    $full_description = "REQUESTER NAME: $name\nREQUESTER EMAIL: $email\n\nDESCRIPTION:\n$description";
+    $raw_description = $description;
+    $full_description = "REQUESTER NAME: $name\nREQUESTER EMAIL: $email\n\nDESCRIPTION:\n$raw_description";
 
     /* ================= INSERT INTO DATABASE ================= */
 
     if (empty($error_msg)) {
-        $stmt = $conn->prepare("
-            INSERT INTO employee_tickets
-            (user_id, subject, category, priority, company, department, assigned_department, description, attachment)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
+        $has_requester_cols = true;
+        $cols_to_ensure = [
+            'requester_name' => "VARCHAR(255) NULL",
+            'requester_email' => "VARCHAR(255) NULL"
+        ];
+
+        foreach ($cols_to_ensure as $col => $ddl) {
+            $colRes = $conn->query("SHOW COLUMNS FROM employee_tickets LIKE '$col'");
+            if (!$colRes || $colRes->num_rows === 0) {
+                $alterOk = $conn->query("ALTER TABLE employee_tickets ADD COLUMN $col $ddl");
+                if (!$alterOk) {
+                    $has_requester_cols = false;
+                    break;
+                }
+            }
+        }
+
+        if ($has_requester_cols) {
+            $stmt = $conn->prepare("
+                INSERT INTO employee_tickets
+                (user_id, subject, category, priority, company, department, assigned_department, assigned_company, requester_name, requester_email, description, attachment)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+        } else {
+            $stmt = $conn->prepare("
+                INSERT INTO employee_tickets
+                (user_id, subject, category, priority, company, department, assigned_department, assigned_company, description, attachment)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+        }
 
         if(!$stmt){
             $error_msg = "System error. Please try again later.";
         } else {
-            $stmt->bind_param(
-                "issssssss",
-                $user_id,
-                $subject,
-                $category,
-                $priority,
-                $company,
-                $department,
-                $assigned_department,
-                $full_description,
-                $attachmentName
-            );
+            if ($has_requester_cols) {
+                $stmt->bind_param(
+                    "isssssssssss",
+                    $user_id,
+                    $subject,
+                    $category,
+                    $priority,
+                    $company,
+                    $department,
+                    $assigned_department,
+                    $assigned_company,
+                    $name,
+                    $email,
+                    $raw_description,
+                    $attachmentName
+                );
+            } else {
+                $stmt->bind_param(
+                    "isssssssss",
+                    $user_id,
+                    $subject,
+                    $category,
+                    $priority,
+                    $company,
+                    $department,
+                    $assigned_department,
+                    $assigned_company,
+                    $full_description,
+                    $attachmentName
+                );
+            }
 
             if($stmt->execute()){
+                $ticket_id = (int) $stmt->insert_id;
                 $success_msg = "Ticket successfully submitted! An admin will review it shortly.";
-                
-                /* ================= SEND EMAIL ================= */
-                $mail = new PHPMailer(true);
-                try {
-                    $mail->isSMTP();
-                    $mail->Host       = 'smtp.gmail.com';
-                    $mail->SMTPAuth   = true;
-                    $mail->Username   = 'matthewpascua052203@gmail.com';
-                    $mail->Password   = 'tmwtjqjvadsmgzje';
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port       = 587;
-                    $mail->SMTPOptions = [
-                        'ssl' => [
-                            'verify_peer' => false,
-                            'verify_peer_name' => false,
-                            'allow_self_signed' => true
-                        ]
-                    ];
 
-                    $mail->setFrom('matthewpascua052203@gmail.com', 'Leads Agri Helpdesk');
+                $ticket_number = str_pad((string) $ticket_id, 6, '0', STR_PAD_LEFT);
 
-                    /* Add all admin emails */
-                    $admins = $conn->query("SELECT email FROM users WHERE role='admin'");
-                    if ($admins && $admins->num_rows > 0) {
-                        while($admin = $admins->fetch_assoc()){
-                            $mail->addAddress($admin['email']);
+                if (!empty($assigned_department) && !empty($assigned_company)) {
+                    $dept_users_stmt = $conn->prepare("SELECT id FROM users WHERE role = 'employee' AND department = ? AND company = ?");
+                    if ($dept_users_stmt) {
+                        $dept_users_stmt->bind_param("ss", $assigned_department, $assigned_company);
+                        $dept_users_stmt->execute();
+                        $dept_users_res = $dept_users_stmt->get_result();
+
+                        $dept_notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, ?)");
+                        if ($dept_notif_stmt) {
+                            $dept_type = 'dept_assigned';
+                            $dept_msg = "New ticket #$ticket_number from $name was assigned to your department.";
+                            while ($u = $dept_users_res->fetch_assoc()) {
+                                $target_user_id = (int) $u['id'];
+                                $dept_notif_stmt->bind_param("iiss", $target_user_id, $ticket_id, $dept_msg, $dept_type);
+                                $dept_notif_stmt->execute();
+                            }
+                            $dept_notif_stmt->close();
                         }
-                    } else {
-                        $mail->addAddress('matthewpascua052203@gmail.com');
-                    }
 
-                    /* Attach file if exists */
-                    if (!empty($attachmentName)) {
-                        $mail->addAttachment('../uploads/' . $attachmentName);
+                        $dept_users_stmt->close();
                     }
-
-                    $mail->isHTML(true);
-                    $mail->Subject = "New Sales Ticket - $subject";
-                    $mail->Body = "
-                        <div style='font-family:Segoe UI; padding:15px'>
-                            <h2 style='color:#1B5E20'>New Sales Ticket Submitted</h2>
-                            <hr>
-                            <p><strong>Requester:</strong> $name ($email)</p>
-                            <p><strong>Subject:</strong> $subject</p>
-                            <p><strong>Category:</strong> $category</p>
-                            <p><strong>Priority:</strong> $priority</p>
-                            <p><strong>Department:</strong> Sales</p>
-                            <p><strong>Description:</strong><br>" . nl2br(htmlspecialchars($description)) . "</p>
-                            <hr>
-                            <p style='font-size:12px;color:#64748B'>
-                                This is an automated message from Leads Agri Helpdesk.
-                            </p>
-                        </div>
-                    ";
-                    $mail->send();
-                } catch (Exception $e) {
                 }
+
+                $admin_result = $conn->query("SELECT id FROM users WHERE role = 'admin'");
+                if ($admin_result) {
+                    $notif_msg = "New $priority priority ticket #$ticket_number from $name - Sales";
+                    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, 'new_ticket')");
+                    if ($notif_stmt) {
+                        while ($admin = $admin_result->fetch_assoc()) {
+                            $admin_id = (int) $admin['id'];
+                            $notif_stmt->bind_param("iis", $admin_id, $ticket_id, $notif_msg);
+                            $notif_stmt->execute();
+                        }
+                        $notif_stmt->close();
+                    }
+                }
+                
+                $adminEmails = [];
+                if ($assigned_department !== '') {
+                    $adminStmt = $conn->prepare("SELECT email FROM users WHERE role = 'admin' AND email <> '' AND (department = ? OR department IS NULL OR department = '')");
+                    if ($adminStmt) {
+                        $adminStmt->bind_param("s", $assigned_department);
+                        $adminStmt->execute();
+                        $adminRes = $adminStmt->get_result();
+                        if ($adminRes) {
+                            while ($admin = $adminRes->fetch_assoc()) {
+                                $adminEmails[] = $admin['email'];
+                            }
+                        }
+                        $adminStmt->close();
+                    }
+                }
+                if (count($adminEmails) === 0) {
+                    $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
+                    if ($admins) {
+                        while ($admin = $admins->fetch_assoc()) {
+                            $adminEmails[] = $admin['email'];
+                        }
+                    }
+                }
+
+                $ticketNumber = str_pad((string) $ticket_id, 6, '0', STR_PAD_LEFT);
+                $subjectLine = "New Ticket Assigned (#$ticketNumber)";
+                $prioritySafe = htmlspecialchars($priority);
+                $ticketSubjectSafe = htmlspecialchars($subject);
+                $requesterNameSafe = htmlspecialchars($name);
+                $assignedDeptSafe = htmlspecialchars($assigned_department);
+                $assignedCompanySafe = htmlspecialchars($assigned_company);
+
+                $bodyHtml = "
+                    <div style='font-family:Arial, sans-serif; color:#333; line-height:1.5'>
+                        <h2 style='margin:0 0 12px 0'>A new support ticket has been assigned to your department.</h2>
+                        <p style='margin:0 0 16px 0'>
+                            Ticket ID: <strong>#$ticketNumber</strong><br>
+                            Subject: <strong>$ticketSubjectSafe</strong><br>
+                            Priority: <strong>$prioritySafe</strong><br>
+                            Requested by: <strong>$requesterNameSafe</strong><br>
+                            Assigned to: <strong>$assignedDeptSafe</strong>" . ($assigned_company !== '' ? " (<strong>$assignedCompanySafe</strong>)" : "") . "
+                        </p>
+                        <p style='margin:0'>Login to the system to view the ticket.</p>
+                    </div>
+                ";
+
+                $bodyText = "A new support ticket has been assigned to your department.\n\n"
+                    . "Ticket ID: #$ticketNumber\n"
+                    . "Subject: $subject\n"
+                    . "Priority: $priority\n"
+                    . "Requested by: $name\n"
+                    . "Assigned to: $assigned_department" . ($assigned_company !== '' ? " ($assigned_company)" : "") . "\n\n"
+                    . "Login to the system to view the ticket.\n";
+
+                $attachments = [];
+                if (!empty($attachmentName)) {
+                    $path = realpath(__DIR__ . '/../uploads/' . $attachmentName);
+                    if ($path) {
+                        $attachments[] = ['path' => $path];
+                    }
+                }
+
+                sendSmtpEmail($adminEmails, $subjectLine, $bodyHtml, $bodyText, $attachments);
 
             } else {
                 $error_msg = "Failed to submit ticket: " . $stmt->error;
@@ -401,7 +505,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <option value="Network Issue">Network Issue</option>
                     <option value="Hardware Issue">Hardware Issue</option>
                     <option value="Software Issue">Software Issue</option>
+                    <option value="Email Problem">Email Problem</option>
                     <option value="Account Access">Account Access</option>
+                    <option value="Technical Support">Technical Support</option>
                     <option value="Other">Other</option>
                 </select>
             </div>
@@ -445,6 +551,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <option value="IT">IT</option>
                     <option value="Marketing">Marketing</option>
                     <option value="Sales">Sales</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Assigned Company / Subsidiary *</label>
+                <select name="assigned_company" required>
+                    <option value=""disabled selected hidden>Select Company</option>
+                    <option value="FARMASEE">FARMASEE</option>
+                    <option value="FARMEX">FARMEX</option>
+                    <option value="Golden Primestocks Chemical Inc - GPSCI">Golden Primestocks Chemical Inc - GPSCI</option>
+                    <option value="Leads Animal Health - LAH">Leads Animal Health - LAH</option>
+                    <option value="Leads Environmental Health - LEH">Leads Environmental Health - LEH</option>
+                    <option value="Leads Tech Corporation - LTC">Leads Tech Corporation - LTC</option>
+                    <option value="LINGAP LEADS FOUNDATION - Lingap">LINGAP LEADS FOUNDATION - Lingap</option>
+                    <option value="Malveda Holdings Corporation - MHC">Malveda Holdings Corporation - MHC</option>
+                    <option value="Malveda Properties & Development Corporation - MPDC">Malveda Properties & Development Corporation - MPDC</option>
+                    <option value="Primestocks Chemical Corporation - PCC">Primestocks Chemical Corporation - PCC</option>
                 </select>
             </div>
 

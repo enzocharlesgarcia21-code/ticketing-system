@@ -143,6 +143,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Employee Account</title>
     <link rel="stylesheet" href="../css/register.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -203,8 +204,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             <div class="form-group">
                 <label>Password *</label>
-                <input type="password" name="password" required>
-                <div id="password-message" style="min-height:20px;font-size:13px;margin-top:6px;"></div>
+                <input type="password" name="password" id="password" required>
+                <div id="password-validation" class="password-validation">
+                    <ul>
+                        <li id="rule-length">Minimum 8 characters</li>
+                        <li id="rule-uppercase">At least 1 uppercase letter</li>
+                        <li id="rule-lowercase">At least 1 lowercase letter</li>
+                        <li id="rule-number">At least 1 number</li>
+                        <li id="rule-special">At least 1 special character</li>
+                    </ul>
+                </div>
             </div>
 
             <div class="form-group">
@@ -226,29 +235,57 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <script>
 const formEl = document.querySelector("form");
-const pwdEl = document.querySelector("input[name='password']");
-const pwdMsg = document.getElementById("password-message");
+const pwdEl = document.getElementById("password");
+const validationBox = document.getElementById("password-validation");
 const confirmEl = document.querySelector("input[name='confirm_password']");
 const confirmMsg = document.getElementById("confirm-message");
 
-const pwdPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+const rules = {
+    'rule-length': val => val.length >= 8,
+    'rule-uppercase': val => /[A-Z]/.test(val),
+    'rule-lowercase': val => /[a-z]/.test(val),
+    'rule-number': val => /[0-9]/.test(val),
+    'rule-special': val => /[^A-Za-z0-9]/.test(val)
+};
 
-pwdEl.addEventListener("input", function() {
-    const v = pwdEl.value;
+function isPasswordStrong(val) {
+    for (const id in rules) {
+        if (!rules[id](val)) return false;
+    }
+    return true;
+}
 
-    if (!v) {
-        pwdMsg.innerHTML = "";
+function validatePassword() {
+    const val = pwdEl.value;
+
+    if (val.length === 0) {
+        for (const id in rules) {
+            const el = document.getElementById(id);
+            el.classList.remove('valid', 'invalid');
+        }
         return;
     }
 
-    if (!pwdPattern.test(v)) {
-        pwdMsg.style.color = "#d93025";
-        pwdMsg.innerHTML = "⚠ Password must contain:<br>• 8 characters<br>• uppercase letter<br>• lowercase letter<br>• number<br>• special character";
-    } else {
-        pwdMsg.style.color = "#2e7d32";
-        pwdMsg.innerHTML = "Password meets all requirements ✓";
+    for (const id in rules) {
+        const el = document.getElementById(id);
+        const ok = rules[id](val);
+        if (ok) {
+            el.classList.add('valid');
+            el.classList.remove('invalid');
+        } else {
+            el.classList.add('invalid');
+            el.classList.remove('valid');
+        }
     }
-    
+}
+
+pwdEl.addEventListener("focus", function() {
+    validationBox.style.display = 'block';
+    validatePassword();
+});
+
+pwdEl.addEventListener("input", function() {
+    validatePassword();
     if (confirmEl.value) checkMatch();
 });
 
@@ -277,9 +314,10 @@ formEl.addEventListener("submit", function(e) {
     const c = confirmEl.value;
     let hasError = false;
 
-    if (!pwdPattern.test(v)) {
+    if (!isPasswordStrong(v)) {
         pwdEl.focus();
-        pwdEl.dispatchEvent(new Event('input')); 
+        validationBox.style.display = 'block';
+        validatePassword();
         hasError = true;
     }
 
@@ -296,3 +334,4 @@ formEl.addEventListener("submit", function(e) {
 </script>
 </body>
 </html>
+

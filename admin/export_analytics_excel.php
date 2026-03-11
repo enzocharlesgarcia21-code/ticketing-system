@@ -5,7 +5,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     die("Access Denied");
 }
 
-$selected_month = $_GET['month'] ?? date('Y-m');
+$start_date = $_GET['start_date'] ?? date('Y-m-01');
+$end_date = $_GET['end_date'] ?? date('Y-m-d');
 
 // 1. Get Metrics
 $stmt = $conn->prepare("
@@ -14,14 +15,14 @@ $stmt = $conn->prepare("
         SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
         SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END) as closed
     FROM employee_tickets 
-    WHERE DATE_FORMAT(created_at, '%Y-%m') = ?
+    WHERE DATE(created_at) BETWEEN ? AND ?
 ");
 
 if (!$stmt) {
     die("Query preparation failed: " . $conn->error);
 }
 
-$stmt->bind_param("s", $selected_month);
+$stmt->bind_param("ss", $start_date, $end_date);
 $stmt->execute();
 $result = $stmt->get_result();
 $metrics = $result->fetch_assoc();
@@ -41,7 +42,7 @@ $resolution_rate = $total_tickets > 0 ? round(($resolved_closed / $total_tickets
 if (ob_get_level()) ob_end_clean();
 
 header('Content-Type: application/vnd.ms-excel');
-header('Content-Disposition: attachment; filename="analytics_' . $selected_month . '.xls"');
+header('Content-Disposition: attachment; filename="analytics_' . $start_date . '_to_' . $end_date . '.xls"');
 header('Cache-Control: max-age=0');
 
 echo '<?xml version="1.0"?>';
@@ -52,17 +53,17 @@ echo '<?mso-application progid="Excel.Sheet"?>';
  xmlns:x="urn:schemas-microsoft-com:office:excel"
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
  xmlns:html="http://www.w3.org/TR/REC-html40">
- <Worksheet ss:Name="Analytics_<?= $selected_month ?>">
+ <Worksheet ss:Name="Analytics">
   <Table>
    <Row>
-    <Cell><Data ss:Type="String">Month</Data></Cell>
+    <Cell><Data ss:Type="String">Date Range</Data></Cell>
     <Cell><Data ss:Type="String">Received</Data></Cell>
     <Cell><Data ss:Type="String">Resolved</Data></Cell>
     <Cell><Data ss:Type="String">Closed</Data></Cell>
     <Cell><Data ss:Type="String">Resolution Rate (%)</Data></Cell>
    </Row>
    <Row>
-    <Cell><Data ss:Type="String"><?= $selected_month ?></Data></Cell>
+    <Cell><Data ss:Type="String"><?= $start_date . ' to ' . $end_date ?></Data></Cell>
     <Cell><Data ss:Type="Number"><?= $received ?></Data></Cell>
     <Cell><Data ss:Type="Number"><?= $resolved ?></Data></Cell>
     <Cell><Data ss:Type="Number"><?= $closed ?></Data></Cell>

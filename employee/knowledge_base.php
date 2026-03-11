@@ -42,9 +42,8 @@ if (!empty($params)) {
 $stmt->execute();
 $result = $stmt->get_result();
 
-// 6. Fetch Categories for Filter
-$catQuery = "SELECT DISTINCT category FROM knowledge_base ORDER BY category";
-$catResult = $conn->query($catQuery);
+// 6. Pre-defined Categories
+$categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Problem', 'Account Access', 'Technical Support', 'Other'];
 ?>
 
 <!DOCTYPE html>
@@ -305,6 +304,7 @@ $catResult = $conn->query($catQuery);
             }
         }
     </style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -326,13 +326,13 @@ $catResult = $conn->query($catQuery);
                 </div>
                 
                 <select name="category" class="category-select" onchange="this.form.submit()">
-                    <option value="">All Categories</option>
-                    <?php while($cat = $catResult->fetch_assoc()): ?>
-                        <option value="<?= htmlspecialchars($cat['category']) ?>" 
-                                <?= $category === $cat['category'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($cat['category']) ?>
+                    <option value=""disabled selected hidden>All Categories</option>
+                    <?php foreach($categories as $cat): ?>
+                        <option value="<?= htmlspecialchars($cat) ?>" 
+                                <?= $category === $cat ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($cat) ?>
                         </option>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                 </select>
             </form>
         </div>
@@ -384,3 +384,4 @@ $catResult = $conn->query($catQuery);
     <script src="../js/employee-dashboard.js"></script>
 </body>
 </html>
+
