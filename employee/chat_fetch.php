@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 header('Content-Type: application/json');
 
@@ -14,6 +15,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['error' => 'Method Not Allowed']);
     exit;
 }
+
+csrf_validate();
 
 if (!isset($_POST['ticket_id'])) {
     http_response_code(400);

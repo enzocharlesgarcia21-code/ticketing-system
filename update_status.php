@@ -1,11 +1,18 @@
 <?php
 require_once "config/database.php";
+require_once __DIR__ . "/includes/csrf.php";
 
 if(isset($_POST['id'])){
+    csrf_validate();
     $id = intval($_POST['id']);
-    $status = mysqli_real_escape_string($conn, $_POST['status']);
+    $status = (string) ($_POST['status'] ?? '');
 
-    mysqli_query($conn, "UPDATE tickets SET status='$status' WHERE id=$id");
+    $stmt = $conn->prepare("UPDATE tickets SET status = ? WHERE id = ?");
+    if ($stmt) {
+        $stmt->bind_param("si", $status, $id);
+        $stmt->execute();
+        $stmt->close();
+    }
 }
 
 header("Location: view_tickets.php");

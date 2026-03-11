@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 /* Protect page */
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
@@ -23,6 +24,7 @@ $result = $stmt->get_result();
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Tickets | Leads Agri Helpdesk</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
@@ -39,7 +41,7 @@ $result = $stmt->get_result();
 
             <?php if(isset($_SESSION['success'])): ?>
                 <div class="alert alert-success" style="background: #dcfce7; color: #166534; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #bbf7d0;">
-                    <?= $_SESSION['success']; ?>
+                    <?= htmlspecialchars($_SESSION['success'], ENT_QUOTES, 'UTF-8'); ?>
                 </div>
                 <?php unset($_SESSION['success']); ?>
             <?php endif; ?>
@@ -68,22 +70,22 @@ $result = $stmt->get_result();
                                 <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer;">
                                     <td data-label="ID">#<?= $row['id']; ?></td>
                                     <td data-label="Subject" class="subject-cell">
-                                        <strong><?= htmlspecialchars($row['subject']); ?></strong>
+                                        <strong><?= htmlspecialchars($row['subject'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                     </td>
-                                    <td data-label="Category"><?= htmlspecialchars($row['category']); ?></td>
+                                    <td data-label="Category"><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td data-label="Priority">
                                         <span class="priority-pill priority-<?= strtolower($row['priority']); ?>">
-                                            <?= htmlspecialchars($row['priority']); ?>
+                                            <?= htmlspecialchars($row['priority'], ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
                                     <td data-label="Status">
                                         <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                                            <?= htmlspecialchars($row['status']); ?>
+                                            <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
                                     <td data-label="Attachment">
                                         <?php if(!empty($row['attachment'])) { ?>
-                                            <a href="../uploads/<?= $row['attachment']; ?>" target="_blank" class="attachment-link">
+                                            <a href="../uploads/<?= rawurlencode($row['attachment']); ?>" target="_blank" class="attachment-link">
                                                 <i class="fas fa-paperclip"></i> View
                                             </a>
                                         <?php } else { ?>

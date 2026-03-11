@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leads Agri Helpdesk</title>
     <link rel="stylesheet" href="css/auth-select.css">
-    <!-- Google Fonts for Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -18,14 +17,8 @@
 
         <div class="auth-buttons">
             <a href="employee/employee_login.php" class="auth-btn">
-                <span class="btn-icon" aria-hidden="true"><i class="fa-solid fa-user"></i></span>
-                <span class="btn-label">Employee</span>
-                <span class="btn-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
-            </a>
-
-            <a href="admin/admin_login.php" class="auth-btn">
-                <span class="btn-icon" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></span>
-                <span class="btn-label">Admin</span>
+                <span class="btn-icon" aria-hidden="true"><i class="fa-solid fa-right-to-bracket"></i></span>
+                <span class="btn-label">Login</span>
                 <span class="btn-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
             </a>
 

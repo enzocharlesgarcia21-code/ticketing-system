@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -25,6 +26,7 @@ if (isset($_GET['error']) && $_GET['error'] == 'smtp_failed') {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    csrf_validate();
 
     $enteredOtp = trim($_POST['otp']);
 
@@ -77,6 +79,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <?php if(isset($error)) echo "<div class='error'>$error</div>"; ?>
 
 <form method="POST">
+    <?php echo csrf_field(); ?>
     <label>Enter OTP</label>
     <input type="text" name="otp" required>
     <button type="submit">Verify</button>

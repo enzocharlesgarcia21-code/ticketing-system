@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -109,6 +110,7 @@ $result = $stmt->get_result();
 <!DOCTYPE html>
 <html>
 <head>
+    <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All Tickets</title>
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
@@ -127,7 +129,7 @@ $result = $stmt->get_result();
 
             <?php if(isset($_SESSION['success'])): ?>
                 <div class="admin-notice">
-                    <?= $_SESSION['success']; ?>
+                    <?= htmlspecialchars($_SESSION['success'], ENT_QUOTES, 'UTF-8'); ?>
                 </div>
                 <?php unset($_SESSION['success']); ?>
             <?php endif; ?>
@@ -148,10 +150,10 @@ $result = $stmt->get_result();
                                id="searchInput"
                                class="filter-input"
                                placeholder="Search name, email or category..."
-                               value="<?= htmlspecialchars($search); ?>">
+                               value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
 
                         <select name="category" class="filter-select" onchange="submitForm()">
-                            <option value="">All Category</option>
+                            <option value="" disabled selected hidden>All Category</option>
                             <option value="Network Issue" <?= $category=='Network Issue'?'selected':'' ?>>Network Issue</option>
                             <option value="Hardware Issue" <?= $category=='Hardware Issue'?'selected':'' ?>>Hardware Issue</option>
                             <option value="Software Issue" <?= $category=='Software Issue'?'selected':'' ?>>Software Issue</option>
@@ -162,7 +164,7 @@ $result = $stmt->get_result();
                         </select>
 
                         <select name="department" class="filter-select" onchange="submitForm()">
-                            <option value="">All Department</option>
+                            <option value="" disabled selected hidden>All Department</option>
                             <option value="IT" <?= $department=='IT'?'selected':'' ?>>IT</option>
                             <option value="HR" <?= $department=='HR'?'selected':'' ?>>HR</option>
                             <option value="Marketing" <?= $department=='Marketing'?'selected':'' ?>>Marketing</option>
@@ -175,7 +177,7 @@ $result = $stmt->get_result();
                         </select>
 
                         <select name="priority" class="filter-select" onchange="submitForm()">
-                            <option value="">All Priority</option>
+                            <option value="" disabled selected hidden>All Priority</option>
                             <option value="Low" <?= $priority=='Low'?'selected':'' ?>>Low</option>
                             <option value="Medium" <?= $priority=='Medium'?'selected':'' ?>>Medium</option>
                             <option value="High" <?= $priority=='High'?'selected':'' ?>>High</option>
@@ -183,7 +185,7 @@ $result = $stmt->get_result();
                         </select>
 
                         <select name="status" class="filter-select" onchange="submitForm()">
-                            <option value="">All Status</option>
+                            <option value="" disabled selected hidden>All Status</option>
                             <option value="Open" <?= $status=='Open'?'selected':'' ?>>Open</option>
                             <option value="In Progress" <?= $status=='In Progress'?'selected':'' ?>>In Progress</option>
                             <option value="Resolved" <?= $status=='Resolved'?'selected':'' ?>>Resolved</option>
@@ -232,23 +234,23 @@ $result = $stmt->get_result();
                                                 }
                                             }
                                         ?>
-                                        <strong><?= htmlspecialchars($dispName); ?></strong><br>
-                                        <small><?= htmlspecialchars($dispEmail); ?></small>
+                                        <strong><?= htmlspecialchars($dispName, ENT_QUOTES, 'UTF-8'); ?></strong><br>
+                                        <small><?= htmlspecialchars($dispEmail, ENT_QUOTES, 'UTF-8'); ?></small>
                                     </div>
                                 </td>
                                 <td data-label="Original Dept"><?php 
                                     $origDept = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
                                     echo htmlspecialchars($origDept !== '' ? $origDept : 'Sales');
                                 ?></td>
-                                <td data-label="Assigned Dept"><?= htmlspecialchars($row['assigned_department']); ?></td>
+                                <td data-label="Assigned Dept"><?= htmlspecialchars($row['assigned_department'], ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td data-label="Priority">
                                     <span class="badge badge-<?= strtolower($row['priority']); ?>">
-                                        <?= htmlspecialchars($row['priority']); ?>
+                                        <?= htmlspecialchars($row['priority'], ENT_QUOTES, 'UTF-8'); ?>
                                     </span>
                                 </td>
                                 <td data-label="Status">
                                     <span class="status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                                        <?= htmlspecialchars($row['status']); ?>
+                                        <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
                                     </span>
                                     <?php if($row['is_read'] == 0): ?>
                                         <span class="new-badge">NEW</span>

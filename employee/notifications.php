@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 /* Protect page */
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
@@ -11,6 +12,7 @@ $user_id = (int) $_SESSION['user_id'];
 
 /* Mark all as read if requested */
 if (isset($_POST['mark_all_read'])) {
+    csrf_validate();
     $conn->query("UPDATE notifications SET is_read = 1 WHERE user_id = $user_id");
     $_SESSION['success'] = "All notifications marked as read.";
     header("Location: notifications.php");
@@ -162,7 +164,7 @@ function time_elapsed_string($datetime, $full = false) {
 
             <?php if(isset($_SESSION['success'])): ?>
                 <div class="alert alert-success" style="background: #dcfce7; color: #166534; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                    <?= $_SESSION['success']; ?>
+                    <?= htmlspecialchars($_SESSION['success'], ENT_QUOTES, 'UTF-8'); ?>
                 </div>
                 <?php unset($_SESSION['success']); ?>
             <?php endif; ?>
@@ -171,6 +173,7 @@ function time_elapsed_string($datetime, $full = false) {
                 <h1 class="page-title">Notifications</h1>
                 <?php if($total > 0): ?>
                 <form method="POST" style="display: inline;">
+                    <?php echo csrf_field(); ?>
                     <button type="submit" name="mark_all_read" class="mark-read-btn">
                         <i class="fas fa-check-double"></i> Mark all as read
                     </button>
@@ -185,8 +188,10 @@ function time_elapsed_string($datetime, $full = false) {
                             $iconClass = 'fa-info-circle';
                             $bgClass = '#e2e8f0';
                             $colorClass = '#64748b';
+                            $ticketIdJs = isset($row['ticket_id']) && $row['ticket_id'] !== null ? (int) $row['ticket_id'] : null;
+                            $typeJs = (string) ($row['type'] ?? '');
                             
-                            switch($row['type']) {
+                            switch($typeJs) {
                                 case 'status_update':
                                     $iconClass = 'fa-sync-alt';
                                     $bgClass = '#dbeafe';
@@ -215,13 +220,13 @@ function time_elapsed_string($datetime, $full = false) {
                             }
                         ?>
                         <div class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?>" 
-                             onclick="markAsRead(<?= $row['id'] ?>, <?= $row['ticket_id'] ?>, '<?= htmlspecialchars($row['type'], ENT_QUOTES) ?>')">
+                             onclick="markAsRead(<?= (int) $row['id'] ?>, <?= json_encode($ticketIdJs) ?>, <?= json_encode($typeJs) ?>)">
                             <div class="notif-icon" style="background-color: <?= $bgClass ?>; color: <?= $colorClass ?>;">
                                 <i class="fas <?= $iconClass ?>"></i>
                             </div>
                             <div class="notif-content">
-                                <div class="notif-text"><?= htmlspecialchars($row['message']) ?></div>
-                                <div class="notif-date" data-timestamp="<?= htmlspecialchars($row['created_at']) ?>"><?= time_elapsed_string($row['created_at']) ?></div>
+                                <div class="notif-text"><?= htmlspecialchars((string) $row['message'], ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
                             </div>
                             <?php if($row['is_read'] == 0): ?>
                                 <div style="width: 8px; height: 8px; background: #16a34a; border-radius: 50%;"></div>
@@ -276,4 +281,3 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="../js/employee-dashboard.js"></script>
 </body>
 </html>
-

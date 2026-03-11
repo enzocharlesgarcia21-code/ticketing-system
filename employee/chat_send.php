@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/mailer.php';
+require_once '../includes/csrf.php';
 
 header('Content-Type: application/json');
 
@@ -15,6 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['error' => 'Method Not Allowed']);
     exit;
 }
+
+csrf_validate();
 
 if (!isset($_POST['ticket_id']) || !isset($_POST['message'])) {
     http_response_code(400);
@@ -52,7 +55,7 @@ $stmt->bind_param("iis", $ticket_id, $sender_id, $message);
 if ($stmt->execute()) {
     $ticket = null;
     $ticketStmt = $conn->prepare("
-        SELECT t.subject, t.priority, t.assigned_department, u.name
+        SELECT t.user_id, t.subject, t.priority, t.assigned_department, u.name, u.email
         FROM employee_tickets t
         JOIN users u ON t.user_id = u.id
         WHERE t.id = ?
@@ -97,6 +100,8 @@ if ($stmt->execute()) {
         $prioritySafe = htmlspecialchars((string) $ticket['priority']);
         $senderNameSafe = htmlspecialchars((string) ($_SESSION['name'] ?? 'Employee'));
         $requesterSafe = htmlspecialchars((string) $ticket['name']);
+        $requesterEmail = (string) ($ticket['email'] ?? '');
+        $ticketOwnerId = (int) ($ticket['user_id'] ?? 0);
         $messagePreview = strlen($message) > 200 ? (substr($message, 0, 200) . '...') : $message;
         $messagePreviewSafe = htmlspecialchars($messagePreview);
 
@@ -125,7 +130,17 @@ if ($stmt->execute()) {
             . $messagePreview . "\n\n"
             . "Login to the system to view and reply.\n";
 
-        sendSmtpEmail($adminEmails, $subjectLine, $bodyHtml, $bodyText);
+        $to = [];
+        if ($sender_id === $ticketOwnerId) {
+            $to = $adminEmails;
+        } else {
+            $to = array_merge([$requesterEmail], $adminEmails);
+        }
+
+        $ok = sendSmtpEmail($to, $subjectLine, $bodyHtml, $bodyText);
+        if (!$ok) {
+            error_log('Chat email failed | ticketId=' . (string) $ticket_id);
+        }
     }
 
     echo json_encode(['success' => true]);

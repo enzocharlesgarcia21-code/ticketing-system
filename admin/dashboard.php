@@ -275,7 +275,6 @@ if ($recentRes) {
                 <div class="admin-card recent-tickets-card">
                     <div class="card-header">
                         <h3>Recent Tickets</h3>
-                        <div class="card-menu" title="Options"><i class="fas fa-ellipsis-h"></i></div>
                     </div>
                     <div class="card-body">
                         <div class="recent-tickets-table-wrap">
@@ -329,9 +328,6 @@ if ($recentRes) {
                                     <?php endif; ?>
                                 </tbody>
                             </table>
-                        </div>
-                        <div style="margin-top:12px; display:flex; justify-content:flex-end;">
-                            <a href="all_tickets.php" class="create-ticket-btn">+ Create Ticket</a>
                         </div>
                     </div>
                 </div>

@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 if (!isset($_SESSION['reset_email'])) {
     header("Location: forgot_password.php");
@@ -12,6 +13,7 @@ if (!isset($_SESSION['otp_verified']) || $_SESSION['otp_verified'] !== true) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    csrf_validate();
     $pass = $_POST['password'];
     $confirm = $_POST['confirm_password'];
 
@@ -28,10 +30,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $update->bind_param("ss", $hash, $email);
 
         if ($update->execute()) {
+            $role = (string) ($_SESSION['reset_role'] ?? 'employee');
             unset($_SESSION['reset_email']);
             unset($_SESSION['otp_verified']);
+            unset($_SESSION['reset_role']);
             // Redirect to login with success message
-            header("Location: employee_login.php?password_reset=1");
+            if ($role === 'admin') {
+                header("Location: ../admin/admin_login.php?password_reset=1");
+            } else {
+                header("Location: employee_login.php?password_reset=1");
+            }
             exit();
         } else {
             $error = "Error updating password.";
@@ -63,6 +71,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <?php endif; ?>
 
         <form method="POST">
+            <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label>New Password</label>
                 <input type="password" name="password" id="password" required placeholder="New Password">

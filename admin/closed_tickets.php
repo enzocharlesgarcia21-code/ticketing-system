@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -53,6 +54,7 @@ $result = $stmt->get_result();
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
     <title>Closed Tickets</title>
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -196,6 +198,7 @@ $result = $stmt->get_result();
 <script>
 // Chat Functions
 const CURRENT_USER_ID = <?php echo isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0; ?>;
+const CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
 let chatInterval;
 let chatUiBound = false;
 
@@ -217,6 +220,7 @@ function stopChat() {
 function loadMessages(ticketId, scrollBottom = false) {
     const formData = new FormData();
     formData.append('ticket_id', ticketId);
+    if (CSRF_TOKEN) formData.append('csrf_token', CSRF_TOKEN);
 
     fetch('chat_fetch.php', {
         method: 'POST',
@@ -295,6 +299,7 @@ function sendMessage() {
     const formData = new FormData();
     formData.append('ticket_id', ticketId);
     formData.append('message', message);
+    if (CSRF_TOKEN) formData.append('csrf_token', CSRF_TOKEN);
 
     fetch('chat_send.php', {
         method: 'POST',
@@ -549,6 +554,7 @@ function openModal(id) {
                         <span class="tm-action-title">Ticket Actions</span>
                         <form id="ticketUpdateForm" method="POST" action="update_ticket.php" class="tm-action-form">
                             <input type="hidden" name="id" value="${data.id}">
+                            <input type="hidden" name="csrf_token" value="${CSRF_TOKEN}">
                             
                             <div class="tm-action-controls">
                                 <div class="tm-action-left">
@@ -754,4 +760,3 @@ if (ticketIdParam) {
 
 </body>
 </html>
-

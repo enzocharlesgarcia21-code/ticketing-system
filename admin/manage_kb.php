@@ -4,6 +4,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 // Access Control
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
@@ -14,6 +15,10 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 // Handle Form Submission (Add/Delete)
 $success_msg = '';
 $error_msg = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_validate();
+}
 
 // 1. Add New Article
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
@@ -938,6 +943,7 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
         </div>
         
         <form method="POST" action="" enctype="multipart/form-data">
+            <?php echo csrf_field(); ?>
             <input type="hidden" name="action" value="add">
             
             <div class="form-group">

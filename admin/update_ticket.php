@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/mailer.php';
+require_once '../includes/csrf.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -8,6 +9,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    csrf_validate();
 
     if (!isset($_POST['id'])) {
         // Redirect if ID is missing
@@ -202,13 +204,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 . "Assigned Department: $new_department\n\n"
                 . "Login to the system to view the ticket.\n";
 
-            sendSmtpEmail([(string) $ticket['email']], $employeeSubject, $employeeBodyHtml, $employeeBodyText);
+            $employeeOk = sendSmtpEmail([(string) $ticket['email']], $employeeSubject, $employeeBodyHtml, $employeeBodyText);
+            if (!$employeeOk) {
+                error_log('Ticket update email failed (employee) | ticketId=' . (string) $id);
+            }
 
             $adminEmails = [];
-            if ($new_department !== '') {
+            $targetDept = $new_department !== '' ? $new_department : (string) ($ticket['assigned_department'] ?? '');
+            if ($targetDept !== '') {
                 $adminStmt = $conn->prepare("SELECT email FROM users WHERE role = 'admin' AND email <> '' AND (department = ? OR department IS NULL OR department = '')");
                 if ($adminStmt) {
-                    $adminStmt->bind_param("s", $new_department);
+                    $adminStmt->bind_param("s", $targetDept);
                     $adminStmt->execute();
                     $adminRes = $adminStmt->get_result();
                     if ($adminRes) {
@@ -230,6 +236,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             $statusChanged = $old_data && isset($old_data['status']) && $old_data['status'] !== $new_status;
             $deptChanged = $old_data && isset($old_data['assigned_department']) && $old_data['assigned_department'] !== $new_department;
+            $noteChanged = $old_data && array_key_exists('admin_note', $old_data) && ((string) ($old_data['admin_note'] ?? '') !== (string) ($admin_note ?? ''));
 
             if ($deptChanged) {
                 $adminSubject = "New Ticket Assigned (#$ticketNumber)";
@@ -254,7 +261,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     . "Assigned to: $new_department\n\n"
                     . "Login to the system to view the ticket.\n";
 
-                sendSmtpEmail($adminEmails, $adminSubject, $adminBodyHtml, $adminBodyText);
+                $adminOk = sendSmtpEmail($adminEmails, $adminSubject, $adminBodyHtml, $adminBodyText);
+                if (!$adminOk) {
+                    error_log('Ticket update email failed (admins dept reassignment) | ticketId=' . (string) $id);
+                }
             }
 
             if ($statusChanged) {
@@ -280,7 +290,47 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     . "Status: " . (string) $old_data['status'] . " -> $new_status\n\n"
                     . "Login to the system to view the ticket.\n";
 
-                sendSmtpEmail($adminEmails, $adminSubject, $adminBodyHtml, $adminBodyText);
+                $adminOk = sendSmtpEmail($adminEmails, $adminSubject, $adminBodyHtml, $adminBodyText);
+                if (!$adminOk) {
+                    error_log('Ticket update email failed (admins status change) | ticketId=' . (string) $id);
+                }
+            }
+
+            if ($noteChanged) {
+                $adminSubject = "Ticket Note Updated (#$ticketNumber)";
+                $notePreview = (string) ($admin_note ?? '');
+                $notePreview = strlen($notePreview) > 400 ? (substr($notePreview, 0, 400) . '...') : $notePreview;
+                $notePreviewSafe = nl2br(htmlspecialchars($notePreview));
+
+                $adminBodyHtml = "
+                    <div style='font-family:Arial, sans-serif; color:#333; line-height:1.5'>
+                        <h2 style='margin:0 0 12px 0'>Ticket Note Updated</h2>
+                        <p style='margin:0 0 16px 0'>
+                            Ticket ID: <strong>#$ticketNumber</strong><br>
+                            Subject: <strong>{$ticketSubjectSafe}</strong><br>
+                            Priority: <strong>{$prioritySafe}</strong><br>
+                            Requested by: <strong>{$requesterNameSafe}</strong><br>
+                            Assigned to: <strong>" . htmlspecialchars($targetDept) . "</strong>
+                        </p>
+                        <div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin:0 0 16px 0'>
+                            $notePreviewSafe
+                        </div>
+                        <p style='margin:0'>Login to the system to view and reply.</p>
+                    </div>
+                ";
+                $adminBodyText = "Ticket Note Updated\n\n"
+                    . "Ticket ID: #$ticketNumber\n"
+                    . "Subject: " . (string) $ticket['subject'] . "\n"
+                    . "Priority: " . (string) $ticket['priority'] . "\n"
+                    . "Requested by: " . (string) $ticket['name'] . "\n"
+                    . "Assigned to: $targetDept\n\n"
+                    . $notePreview . "\n\n"
+                    . "Login to the system to view and reply.\n";
+
+                $adminOk = sendSmtpEmail($adminEmails, $adminSubject, $adminBodyHtml, $adminBodyText);
+                if (!$adminOk) {
+                    error_log('Ticket update email failed (admins note change) | ticketId=' . (string) $id);
+                }
             }
         }
     }

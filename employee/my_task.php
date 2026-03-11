@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 /* Protect page */
 if (session_status() === PHP_SESSION_NONE) {
@@ -134,6 +135,7 @@ $result = $stmt->get_result();
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Tasks | Leads Agri Helpdesk</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
@@ -151,7 +153,7 @@ $result = $stmt->get_result();
 
             <div class="page-header">
                 <h1 class="page-title">My Tasks</h1>
-                <p class="page-subtitle">Tickets assigned to <strong><?= htmlspecialchars($user_department) ?></strong> department</p>
+                <p class="page-subtitle">Tickets assigned to <strong><?= htmlspecialchars($user_department, ENT_QUOTES, 'UTF-8') ?></strong> department</p>
             </div>
 
             <!-- FILTERS CARD -->
@@ -165,7 +167,7 @@ $result = $stmt->get_result();
                                id="searchInput"
                                class="search-input"
                                placeholder="Search tasks..."
-                               value="<?= htmlspecialchars($search); ?>">
+                               value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
 
                     <div class="filters-wrapper">
@@ -196,7 +198,7 @@ $result = $stmt->get_result();
                                 <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer;">
                                     <td>#<?= str_pad($row['id'], 6, '0', STR_PAD_LEFT); ?></td>
                                     <td class="subject-cell">
-                                        <strong><?= htmlspecialchars($row['subject']); ?></strong>
+                                        <strong><?= htmlspecialchars($row['subject'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                     </td>
                                     <td>
                                         <div class="user-info">
@@ -215,22 +217,22 @@ $result = $stmt->get_result();
                                                     }
                                                 }
                                             ?>
-                                            <strong><?= htmlspecialchars($dispName); ?></strong><br>
-                                            <small><?= htmlspecialchars($dispEmail); ?></small>
+                                            <strong><?= htmlspecialchars($dispName, ENT_QUOTES, 'UTF-8'); ?></strong><br>
+                                            <small><?= htmlspecialchars($dispEmail, ENT_QUOTES, 'UTF-8'); ?></small>
                                         </div>
                                     </td>
-                                    <td><?= htmlspecialchars(!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales')); ?></td>
-                                    <td><?= htmlspecialchars($row['assigned_department']); ?></td>
+                                    <td><?= htmlspecialchars(!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?= htmlspecialchars($row['assigned_department'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     
                                     <td>
                                         <span class="badge badge-<?= strtolower($row['priority']); ?>">
-                                            <?= htmlspecialchars($row['priority']); ?>
+                                            <?= htmlspecialchars($row['priority'], ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
 
                                     <td>
                                         <span class="status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                                            <?= htmlspecialchars($row['status']); ?>
+                                            <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
 

@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/mailer.php';
+require_once '../includes/csrf.php';
 
 header('Content-Type: application/json');
 
@@ -15,6 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['error' => 'Method Not Allowed']);
     exit;
 }
+
+csrf_validate();
 
 if (!isset($_POST['ticket_id']) || !isset($_POST['message'])) {
     http_response_code(400);
@@ -64,12 +67,12 @@ if ($stmt->execute()) {
         $ticketStmt->close();
     }
 
-    if ($ticket && ($_SESSION['role'] ?? '') !== 'admin') {
+    if ($ticket) {
         $ticketNumber = str_pad((string) $ticket_id, 6, '0', STR_PAD_LEFT);
         $subjectLine = "New Ticket Message (#$ticketNumber)";
         $ticketSubjectSafe = htmlspecialchars((string) $ticket['subject']);
         $prioritySafe = htmlspecialchars((string) $ticket['priority']);
-        $senderNameSafe = htmlspecialchars((string) ($_SESSION['email'] ?? 'Admin'));
+        $senderNameSafe = htmlspecialchars((string) ($_SESSION['name'] ?? ($_SESSION['email'] ?? 'User')));
         $requesterNameSafe = htmlspecialchars((string) $ticket['name']);
         $messagePreview = strlen($message) > 200 ? (substr($message, 0, 200) . '...') : $message;
         $messagePreviewSafe = htmlspecialchars($messagePreview);
@@ -95,36 +98,48 @@ if ($stmt->execute()) {
             . "Subject: " . (string) $ticket['subject'] . "\n"
             . "Priority: " . (string) $ticket['priority'] . "\n"
             . "Requested by: " . (string) $ticket['name'] . "\n"
-            . "From: " . (string) ($_SESSION['email'] ?? 'Admin') . "\n\n"
+            . "From: " . (string) ($_SESSION['name'] ?? ($_SESSION['email'] ?? 'User')) . "\n\n"
             . $messagePreview . "\n\n"
             . "Login to the system to view and reply.\n";
 
-        $adminEmails = [];
-        $dept = (string) ($ticket['assigned_department'] ?? '');
-        if ($dept !== '') {
-            $adminStmt = $conn->prepare("SELECT email FROM users WHERE role = 'admin' AND email <> '' AND (department = ? OR department IS NULL OR department = '')");
-            if ($adminStmt) {
-                $adminStmt->bind_param("s", $dept);
-                $adminStmt->execute();
-                $adminRes = $adminStmt->get_result();
-                if ($adminRes) {
-                    while ($a = $adminRes->fetch_assoc()) {
+        $role = (string) ($_SESSION['role'] ?? '');
+        if ($role === 'admin') {
+            $to = [(string) ($ticket['email'] ?? '')];
+            $ok = sendSmtpEmail($to, $subjectLine, $bodyHtml, $bodyText);
+            if (!$ok) {
+                error_log('Chat email failed (employee) | ticketId=' . (string) $ticket_id);
+            }
+        } else {
+            $adminEmails = [];
+            $dept = (string) ($ticket['assigned_department'] ?? '');
+            if ($dept !== '') {
+                $adminStmt = $conn->prepare("SELECT email FROM users WHERE role = 'admin' AND email <> '' AND (department = ? OR department IS NULL OR department = '')");
+                if ($adminStmt) {
+                    $adminStmt->bind_param("s", $dept);
+                    $adminStmt->execute();
+                    $adminRes = $adminStmt->get_result();
+                    if ($adminRes) {
+                        while ($a = $adminRes->fetch_assoc()) {
+                            $adminEmails[] = $a['email'];
+                        }
+                    }
+                    $adminStmt->close();
+                }
+            }
+            if (count($adminEmails) === 0) {
+                $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
+                if ($admins) {
+                    while ($a = $admins->fetch_assoc()) {
                         $adminEmails[] = $a['email'];
                     }
                 }
-                $adminStmt->close();
             }
-        }
-        if (count($adminEmails) === 0) {
-            $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
-            if ($admins) {
-                while ($a = $admins->fetch_assoc()) {
-                    $adminEmails[] = $a['email'];
-                }
-            }
-        }
 
-        sendSmtpEmail($adminEmails, $subjectLine, $bodyHtml, $bodyText);
+            $ok = sendSmtpEmail($adminEmails, $subjectLine, $bodyHtml, $bodyText);
+            if (!$ok) {
+                error_log('Chat email failed (admins) | ticketId=' . (string) $ticket_id);
+            }
+        }
     }
 
     echo json_encode(['success' => true]);

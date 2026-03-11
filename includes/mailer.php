@@ -62,13 +62,16 @@ function buildSmtpMailer(): PHPMailer
     $mail->Password = $password;
     $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
     $mail->Port = 587;
-    $mail->SMTPOptions = [
-        'ssl' => [
-            'verify_peer' => false,
-            'verify_peer_name' => false,
-            'allow_self_signed' => true
-        ]
-    ];
+    $insecureTls = readSmtpConfigValue('SMTP_INSECURE_TLS');
+    if ($insecureTls === '1' || strtolower($insecureTls) === 'true') {
+        $mail->SMTPOptions = [
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true
+            ]
+        ];
+    }
     $mail->setFrom($fromEmail, $fromName);
 
     return $mail;
@@ -81,6 +84,7 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
     })));
 
     if (count($toEmails) === 0) {
+        error_log('Email skipped: no recipients | subject=' . $subject . ' | uri=' . (string) ($_SERVER['REQUEST_URI'] ?? ''));
         return false;
     }
 
@@ -117,7 +121,7 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
         $mail->send();
         return true;
     } catch (\Throwable $e) {
-        error_log('Email send failed: ' . $e->getMessage());
+        error_log('Email send failed: ' . $e->getMessage() . ' | subject=' . $subject . ' | toCount=' . count($toEmails) . ' | uri=' . (string) ($_SERVER['REQUEST_URI'] ?? ''));
         return false;
     }
 }

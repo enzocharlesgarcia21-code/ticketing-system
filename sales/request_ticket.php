@@ -5,11 +5,13 @@ ini_set('display_errors', 1);
 require_once '../config/database.php';
 
 require_once '../includes/mailer.php';
+require_once '../includes/csrf.php';
 
 $success_msg = "";
 $error_msg = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    csrf_validate();
 
     $name       = trim($_POST['name']);
     $email      = trim($_POST['email']);
@@ -324,9 +326,49 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             background: #f3f4f6;
             font-family: 'Inter', sans-serif;
         }
+        .sales-topbar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: linear-gradient(90deg, #1B5E20, #14532d);
+            border-bottom: 3px solid #FBBF24;
+            min-height: 96px;
+        }
+        .sales-topbar-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 22px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 16px;
+        }
+        .sales-brand {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.1;
+        }
+        .sales-brand-title {
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            color: #ffffff;
+            font-size: 24px;
+        }
+        .sales-brand-subtitle {
+            font-size: 18px;
+            font-weight: 600;
+            color: #FDE68A;
+            margin-top: 3px;
+        }
+        @media (max-width: 640px) {
+            .sales-topbar { min-height: 80px; }
+            .sales-topbar-inner { padding: 18px 16px; }
+            .sales-brand-title { font-size: 20px; }
+            .sales-brand-subtitle { font-size: 14px; }
+        }
         .sales-container {
             max-width: 800px;
-            margin: 40px auto;
+            margin: 24px auto;
             background: white;
             padding: 40px;
             border-radius: 16px;
@@ -379,6 +421,68 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         button:hover {
             background: #144a1e;
+        }
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 12px;
+        }
+        .form-actions button {
+            width: auto;
+            padding: 12px 18px;
+        }
+        .btn-back {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 18px;
+            border-radius: 8px;
+            border: 2px solid #1B5E20;
+            background: #ffffff;
+            color: #111827;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .btn-back:hover {
+            background: #f3f4f6;
+            border-color: #14532d;
+        }
+        .file-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #f8faf9;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 10px 12px;
+        }
+        .file-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #ecfdf5;
+            color: #1B5E20;
+            border: 1px solid #bbf7d0;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .file-button:hover {
+            background: #d1fae5;
+            border-color: #86efac;
+        }
+        .file-name {
+            color: #6b7280;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .file-hidden {
+            display: none;
         }
         .back-link {
             display: block;
@@ -441,9 +545,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 gap: 14px 20px;
             }
 
-            form > .form-group:nth-of-type(7),
-            form > .form-group:nth-of-type(8),
-            form > button {
+            form > .form-group:nth-of-type(9),
+            form > .form-group:nth-of-type(10),
+            form > .form-actions {
                 grid-column: 1 / -1;
             }
 
@@ -466,6 +570,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </head>
 <body>
 
+<header class="sales-topbar">
+    <div class="sales-topbar-inner">
+        <div class="sales-brand">
+            <div class="sales-brand-title">Leads Agri Helpdesk</div>
+            <div class="sales-brand-subtitle">Sales Ticket Request</div>
+        </div>
+    </div>
+</header>
+
 <div class="sales-container">
     <div class="header">
         <h1>Submit a Ticket </h1>
@@ -474,7 +587,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <?php if($success_msg): ?>
         <div class="alert alert-success"><?= $success_msg ?></div>
-        <a href="../auth_select.php" class="back-link">Back to Home</a>
+        <a href="../index.php" class="back-link">Back</a>
     <?php else: ?>
 
         <?php if($error_msg): ?>
@@ -482,6 +595,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <?php endif; ?>
 
         <form method="POST" enctype="multipart/form-data">
+            <?php echo csrf_field(); ?>
             
             <div class="form-group">
                 <label> Name *</label>
@@ -578,15 +692,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             <div class="form-group">
                 <label>Attachment (Optional)</label>
-                <input type="file" name="attachment" class="form-control" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx">
-                <small style="display:block; margin-top:5px; color:#666;">Allowed: jpg, jpeg, png, pdf, doc, docx (Max 5MB)</small>
+                <div class="file-control">
+                    <button type="button" id="choose-file-btn" class="file-button" aria-label="Choose file">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M20 17.5A3.5 3.5 0 0 1 16.5 21H7a5 5 0 0 1-1-9.9V11a6 6 0 0 1 11.53-1.999.75.75 0 1 1-1.4.55A4.5 4.5 0 0 0 7.75 11v.77a.75.75 0 0 1-.63.74A3.5 3.5 0 0 0 7 19.5h9.5A2 2 0 0 0 18.5 15a.75.75 0 1 1 1.5 0zM12 7.5a.75.75 0 0 1 .75.75V12h1.94a.75.75 0 1 1 0 1.5H12.75v1.94a.75.75 0 0 1-1.5 0V13.5H9.31a.75.75 0 1 1 0-1.5h1.94V8.25A.75.75 0 0 1 12 7.5z"/>
+                        </svg>
+                        <span>Choose File</span>
+                    </button>
+                    <span id="file-name" class="file-name">No file chosen</span>
+                    <input type="file" name="attachment" id="attachment" class="file-hidden" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx">
+                </div>
+                <small style="display:block; margin-top:5px; color:#666;">Supported formats: JPG, PNG, PDF, DOCX (Max 5MB)</small>
                 <div id="attachment-preview" style="margin-top: 10px;"></div>
             </div>
 
-            <button type="submit" class="submit-btn">Submit Ticket</button>
+            <div class="form-actions">
+                <a href="../index.php" class="btn-back">Back</a>
+                <button type="submit" class="submit-btn">Submit Ticket</button>
+            </div>
         </form>
-
-        <a href="../auth_select.php" class="back-link">Back to Home</a>
 
     <?php endif; ?>
 </div>
@@ -594,11 +718,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <script>
 var attachmentInput = document.querySelector('input[name="attachment"]');
 var currentObjectUrl = null;
+var chooseBtn = document.getElementById('choose-file-btn');
+var fileNameEl = document.getElementById('file-name');
+
+if (chooseBtn) {
+    chooseBtn.addEventListener('click', function () {
+        if (attachmentInput) attachmentInput.click();
+    });
+}
 
 attachmentInput.addEventListener('change', function(e) {
     var preview = document.getElementById('attachment-preview');
     preview.innerHTML = '';
     var file = e.target.files[0];
+
+    if (fileNameEl) {
+        fileNameEl.textContent = file ? file.name : 'No file chosen';
+    }
 
     if (currentObjectUrl) {
         URL.revokeObjectURL(currentObjectUrl);

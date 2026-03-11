@@ -4,6 +4,15 @@ var TMTicketModal = (function () {
   var chatBadgeTicketId = null;
   var chatModalOpen = false;
   function qs(id) { return document.getElementById(id); }
+  function getCsrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta && meta.getAttribute) {
+      var v = meta.getAttribute('content');
+      if (v) return String(v);
+    }
+    if (typeof window !== 'undefined' && window.TM_CSRF_TOKEN) return String(window.TM_CSRF_TOKEN);
+    return '';
+  }
   function escapeHtml(text) {
     if (!text) return '';
     return String(text)
@@ -190,6 +199,7 @@ var TMTicketModal = (function () {
       '    <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Ticket Actions</span></div><div class="tm-card-body">' +
       '    <form id="ticketUpdateForm" method="POST" action="update_ticket.php" class="tm-actions-form">' +
       '      <input type="hidden" name="id" value="' + data.id + '">' +
+      '      <input type="hidden" name="csrf_token" value="' + escapeHtml(getCsrfToken()) + '">' +
       '      <div class="tm-actions-fields">' +
       '        <div class="tm-field">' +
       '          <label class="tm-control-label">Status</label>' +
@@ -253,6 +263,8 @@ var TMTicketModal = (function () {
   function loadMessages(ticketId, scrollBottom) {
     var formData = new FormData();
     formData.append('ticket_id', ticketId);
+    var t = getCsrfToken();
+    if (t) formData.append('csrf_token', t);
     fetch('chat_fetch.php', { method: 'POST', body: formData })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -298,6 +310,8 @@ var TMTicketModal = (function () {
     var formData = new FormData();
     formData.append('ticket_id', ticketIdEl.value);
     formData.append('message', message);
+    var t = getCsrfToken();
+    if (t) formData.append('csrf_token', t);
     fetch('chat_send.php', { method: 'POST', body: formData })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -402,6 +416,8 @@ var TMTicketModal = (function () {
     if (!ticketId) return;
     var formData = new FormData();
     formData.append('ticket_id', ticketId);
+    var t = getCsrfToken();
+    if (t) formData.append('csrf_token', t);
     fetch('chat_fetch.php', { method: 'POST', body: formData })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -512,6 +528,8 @@ var TMTicketModal = (function () {
   function loadTicketMessages(ticketId, scrollBottom) {
     var formData = new FormData();
     formData.append('ticket_id', ticketId);
+    var t = getCsrfToken();
+    if (t) formData.append('csrf_token', t);
     fetch('chat_fetch.php', { method: 'POST', body: formData })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -574,6 +592,8 @@ var TMTicketModal = (function () {
     var formData = new FormData();
     formData.append('ticket_id', ticketIdEl.value);
     formData.append('message', message);
+    var t = getCsrfToken();
+    if (t) formData.append('csrf_token', t);
     fetch('chat_send.php', { method: 'POST', body: formData })
       .then(function (r) { return r.json(); })
       .then(function (data) {

@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 if (!isset($_SESSION['reset_email'])) {
     header("Location: forgot_password.php");
@@ -20,6 +21,7 @@ if (isset($_GET['error']) && $_GET['error'] == 'smtp_failed') {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    csrf_validate();
     $otp = trim($_POST['otp']);
     $email = $_SESSION['reset_email'];
 
@@ -69,6 +71,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <?php endif; ?>
 
         <form method="POST">
+            <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label>OTP Code</label>
                 <input type="text" name="otp" required placeholder="123456" maxlength="6" style="text-align:center; letter-spacing: 5px; font-size: 1.2rem;">

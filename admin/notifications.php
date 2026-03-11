@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 /* Protect page */
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
@@ -11,6 +12,7 @@ $user_id = (int) $_SESSION['user_id'];
 
 /* Mark all as read if requested */
 if (isset($_POST['mark_all_read'])) {
+    csrf_validate();
     $conn->query("UPDATE notifications SET is_read = 1 WHERE user_id = $user_id");
     $_SESSION['success'] = "All notifications marked as read.";
     header("Location: notifications.php");
@@ -220,7 +222,7 @@ function time_elapsed_string($datetime, $full = false) {
 
                 <?php if(isset($_SESSION['success'])): ?>
                     <div class="alert alert-success" style="background: #dcfce7; color: #166534; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                        <?= $_SESSION['success']; ?>
+                        <?= htmlspecialchars($_SESSION['success'], ENT_QUOTES, 'UTF-8'); ?>
                     </div>
                     <?php unset($_SESSION['success']); ?>
                 <?php endif; ?>
@@ -229,6 +231,7 @@ function time_elapsed_string($datetime, $full = false) {
                     <h1 class="page-title">Notifications</h1>
                     <?php if($total > 0): ?>
                     <form method="POST" style="display: inline;">
+                        <?php echo csrf_field(); ?>
                         <button type="submit" name="mark_all_read" class="mark-read-btn">
                             <i class="fas fa-check-double"></i> Mark all as read
                         </button>
@@ -248,14 +251,15 @@ function time_elapsed_string($datetime, $full = false) {
                                     }
                                 }
                                 $priorityClass = $priorityKey !== '' ? 'priority-' . $priorityKey : 'priority-neutral';
-                                $priorityLabel = $priorityKey !== '' ? '<span class="priority-badge ' . $priorityClass . '">' . htmlspecialchars(ucfirst($priorityKey)) . '</span>' : '';
+                                $priorityLabel = $priorityKey !== '' ? '<span class="priority-badge ' . $priorityClass . '">' . htmlspecialchars(ucfirst($priorityKey), ENT_QUOTES, 'UTF-8') . '</span>' : '';
+                                $ticketIdJs = isset($row['ticket_id']) && $row['ticket_id'] !== null ? (int) $row['ticket_id'] : null;
                             ?>
                             <div class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?>" 
-                                 onclick="markAsRead(<?= $row['id'] ?>, <?= $row['ticket_id'] ?>)">
+                                 onclick="markAsRead(<?= (int) $row['id'] ?>, <?= json_encode($ticketIdJs) ?>)">
                                 <div class="notif-icon <?= $priorityClass ?>"><i class="fas fa-ticket"></i></div>
                                 <div class="notif-content">
-                                    <div class="notif-text"><?= $priorityLabel ?><?= htmlspecialchars($row['message']) ?></div>
-                                    <div class="notif-date" data-timestamp="<?= htmlspecialchars($row['created_at']) ?>"><?= time_elapsed_string($row['created_at']) ?></div>
+                                    <div class="notif-text"><?= $priorityLabel ?><?= htmlspecialchars((string) $row['message'], ENT_QUOTES, 'UTF-8') ?></div>
+                                    <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
                                 </div>
                                 <?php if($row['is_read'] == 0): ?>
                                     <div style="width: 8px; height: 8px; background: #1f6f3f; border-radius: 50%;"></div>
@@ -312,17 +316,21 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateRelativeTimesList, 60000);
 });
 
+const CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
+
 // Mark as Read & Redirect
 function markAsRead(id, ticketId) {
     // Send request to mark as read
     const formData = new FormData();
     formData.append('id', id);
+    if (CSRF_TOKEN) formData.append('csrf_token', CSRF_TOKEN);
 
     fetch('mark_notification_read.php', {
         method: 'POST',
         body: formData
     }).then(() => {
-        window.location.href = `all_tickets.php?ticket_id=${ticketId}`;
+        const dest = ticketId ? `all_tickets.php?ticket_id=${ticketId}` : 'notifications.php';
+        window.location.href = dest;
     });
 }
 </script>

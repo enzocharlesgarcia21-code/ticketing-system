@@ -2,6 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+require_once __DIR__ . '/csrf.php';
 
 $user_id = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
 $user_email = 'Account';
@@ -378,13 +379,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Mark as Read & Redirect
+    const CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
     window.markAsRead = function(id, ticketId, type) {
         // Send request to mark as read
+        const body = 'id=' + encodeURIComponent(String(id)) + (CSRF_TOKEN ? ('&csrf_token=' + encodeURIComponent(String(CSRF_TOKEN))) : '');
         fetch('mark_notification_read.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'id=' + id
+            body: body
         }).then(() => {
+            if (!ticketId) {
+                window.location.href = 'notifications.php';
+                return;
+            }
             if (type === 'dept_assigned') {
                 window.location.href = `my_task.php?ticket_id=${ticketId}`;
             } else {

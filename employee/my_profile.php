@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
@@ -42,6 +43,7 @@ if (($user['company'] ?? '') !== '' && !in_array($user['company'], $companies, t
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_validate();
     $company = trim($_POST['company'] ?? '');
     $department = trim($_POST['department'] ?? '');
 
@@ -131,6 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="form-card">
                 <form method="POST" autocomplete="off">
+                    <?php echo csrf_field(); ?>
                     <h3 class="form-section-title">Account Details</h3>
 
                     <div class="form-row">

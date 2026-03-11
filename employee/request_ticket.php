@@ -5,6 +5,7 @@ ini_set('display_errors', 1);
 require_once '../config/database.php';
 
 require_once '../includes/mailer.php';
+require_once '../includes/csrf.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
@@ -12,6 +13,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    csrf_validate();
 
     $user_id    = $_SESSION['user_id'];
     $subject    = $_POST['subject'] ?? '';
@@ -164,59 +166,68 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $notif_stmt->close();
     }
 
-    $adminEmails = [];
-    if ($assigned_department !== '') {
-        $adminStmt = $conn->prepare("SELECT email FROM users WHERE role = 'admin' AND email <> '' AND (department = ? OR department IS NULL OR department = '')");
-        if ($adminStmt) {
-            $adminStmt->bind_param("s", $assigned_department);
-            $adminStmt->execute();
-            $adminRes = $adminStmt->get_result();
-            if ($adminRes) {
-                while ($admin = $adminRes->fetch_assoc()) {
-                    $adminEmails[] = $admin['email'];
-                }
-            }
-            $adminStmt->close();
-        }
+    $ticketDetails = null;
+    $ticketStmt = $conn->prepare("
+        SELECT t.subject, t.description, t.assigned_department, t.created_at, u.email, u.name
+        FROM employee_tickets t
+        JOIN users u ON t.user_id = u.id
+        WHERE t.id = ?
+    ");
+    if ($ticketStmt) {
+        $ticketStmt->bind_param("i", $ticket_id);
+        $ticketStmt->execute();
+        $ticketRes = $ticketStmt->get_result();
+        $ticketDetails = $ticketRes ? $ticketRes->fetch_assoc() : null;
+        $ticketStmt->close();
     }
-    if (count($adminEmails) === 0) {
-        $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
-        if ($admins) {
-            while ($admin = $admins->fetch_assoc()) {
-                $adminEmails[] = $admin['email'];
-            }
+
+    $adminEmails = [];
+    $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
+    if ($admins) {
+        while ($admin = $admins->fetch_assoc()) {
+            $adminEmails[] = $admin['email'];
         }
     }
 
     $ticketNumber = str_pad((string) $ticket_id, 6, '0', STR_PAD_LEFT);
-    $subjectLine = "New Ticket Assigned (#$ticketNumber)";
-    $requesterName = $user_name ?? ($_SESSION['name'] ?? 'Unknown');
-    $assignedDeptSafe = htmlspecialchars($assigned_department);
-    $assignedCompanySafe = htmlspecialchars($assigned_company);
-    $prioritySafe = htmlspecialchars($priority);
-    $ticketSubjectSafe = htmlspecialchars($subject);
-    $requesterNameSafe = htmlspecialchars($requesterName);
+    $requesterName = (string) ($ticketDetails['name'] ?? ($user_name ?? ($_SESSION['name'] ?? 'Unknown')));
+    $employeeEmail = (string) ($ticketDetails['email'] ?? '');
+    $createdAt = (string) ($ticketDetails['created_at'] ?? '');
+    $ticketSubject = (string) ($ticketDetails['subject'] ?? $subject);
+    $ticketDescription = (string) ($ticketDetails['description'] ?? ($description ?? ''));
+    $ticketAssignedDept = (string) ($ticketDetails['assigned_department'] ?? $assigned_department);
 
-    $bodyHtml = "
+    $ticketNumberSafe = htmlspecialchars($ticketNumber);
+    $requesterNameSafe = htmlspecialchars($requesterName);
+    $ticketSubjectSafe = htmlspecialchars($ticketSubject);
+    $ticketDescriptionSafe = nl2br(htmlspecialchars($ticketDescription));
+    $ticketAssignedDeptSafe = htmlspecialchars($ticketAssignedDept);
+    $createdAtSafe = htmlspecialchars($createdAt);
+
+    $adminSubject = "New Ticket Submitted (#$ticketNumber)";
+    $adminBodyHtml = "
         <div style='font-family:Arial, sans-serif; color:#333; line-height:1.5'>
-            <h2 style='margin:0 0 12px 0'>A new support ticket has been assigned to your department.</h2>
+            <h2 style='margin:0 0 12px 0'>New Ticket Submitted</h2>
             <p style='margin:0 0 16px 0'>
-                Ticket ID: <strong>#$ticketNumber</strong><br>
+                Ticket ID: <strong>#$ticketNumberSafe</strong><br>
                 Subject: <strong>$ticketSubjectSafe</strong><br>
-                Priority: <strong>$prioritySafe</strong><br>
-                Requested by: <strong>$requesterNameSafe</strong><br>
-                Assigned to: <strong>$assignedDeptSafe</strong>" . ($assigned_company !== '' ? " (<strong>$assignedCompanySafe</strong>)" : "") . "
+                Department: <strong>$ticketAssignedDeptSafe</strong><br>
+                Date Created: <strong>$createdAtSafe</strong><br>
+                Requested by: <strong>$requesterNameSafe</strong>
             </p>
+            <div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin:0 0 16px 0'>
+                $ticketDescriptionSafe
+            </div>
             <p style='margin:0'>Login to the system to view the ticket.</p>
         </div>
     ";
-
-    $bodyText = "A new support ticket has been assigned to your department.\n\n"
+    $adminBodyText = "New Ticket Submitted\n\n"
         . "Ticket ID: #$ticketNumber\n"
-        . "Subject: $subject\n"
-        . "Priority: $priority\n"
-        . "Requested by: $requesterName\n"
-        . "Assigned to: $assigned_department" . ($assigned_company !== '' ? " ($assigned_company)" : "") . "\n\n"
+        . "Subject: $ticketSubject\n"
+        . "Department: $ticketAssignedDept\n"
+        . "Date Created: $createdAt\n"
+        . "Requested by: $requesterName\n\n"
+        . $ticketDescription . "\n\n"
         . "Login to the system to view the ticket.\n";
 
     $attachments = [];
@@ -227,7 +238,45 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    sendSmtpEmail($adminEmails, $subjectLine, $bodyHtml, $bodyText, $attachments);
+    $adminOk = sendSmtpEmail($adminEmails, $adminSubject, $adminBodyHtml, $adminBodyText, $attachments);
+    if (!$adminOk) {
+        error_log('Ticket email failed (admins) | ticketId=' . (string) $ticket_id);
+    }
+
+    if ($employeeEmail !== '') {
+        $employeeSubject = "Ticket Submitted (#$ticketNumber)";
+        $employeeBodyHtml = "
+            <div style='font-family:Arial, sans-serif; color:#333; line-height:1.5'>
+                <h2 style='margin:0 0 12px 0'>Ticket Submitted</h2>
+                <p style='margin:0 0 16px 0'>Hello <strong>$requesterNameSafe</strong>,</p>
+                <p style='margin:0 0 16px 0'>We received your ticket. Here are the details:</p>
+                <p style='margin:0 0 16px 0'>
+                    Ticket ID: <strong>#$ticketNumberSafe</strong><br>
+                    Subject: <strong>$ticketSubjectSafe</strong><br>
+                    Department: <strong>$ticketAssignedDeptSafe</strong><br>
+                    Date Created: <strong>$createdAtSafe</strong>
+                </p>
+                <div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin:0 0 16px 0'>
+                    $ticketDescriptionSafe
+                </div>
+                <p style='margin:0'>Login to the system to track updates.</p>
+            </div>
+        ";
+        $employeeBodyText = "Ticket Submitted\n\n"
+            . "Ticket ID: #$ticketNumber\n"
+            . "Subject: $ticketSubject\n"
+            . "Department: $ticketAssignedDept\n"
+            . "Date Created: $createdAt\n\n"
+            . $ticketDescription . "\n\n"
+            . "Login to the system to track updates.\n";
+
+        $employeeOk = sendSmtpEmail([$employeeEmail], $employeeSubject, $employeeBodyHtml, $employeeBodyText);
+        if (!$employeeOk) {
+            error_log('Ticket email failed (employee) | ticketId=' . (string) $ticket_id);
+        }
+    } else {
+        error_log('Ticket email skipped (employee email empty) | ticketId=' . (string) $ticket_id);
+    }
 
     /* ================= SUCCESS MESSAGE ================= */
 
@@ -263,6 +312,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             <div class="form-card">
                 <form method="POST" enctype="multipart/form-data">
+                    <?php echo csrf_field(); ?>
                     
                     <!-- 🔹 Request Information -->
                     <h3 class="form-section-title">Request Information</h3>

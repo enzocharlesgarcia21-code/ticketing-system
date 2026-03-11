@@ -3,12 +3,8 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 require_once '../config/database.php';
-require_once '../vendor/phpmailer/src/Exception.php';
-require_once '../vendor/phpmailer/src/PHPMailer.php';
-require_once '../vendor/phpmailer/src/SMTP.php';
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+require_once '../includes/mailer.php';
+require_once '../includes/csrf.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -24,6 +20,7 @@ if (isset($_SESSION['user_id'])) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    csrf_validate();
 
     $name       = trim($_POST['name']);
     $email      = trim($_POST['email']);
@@ -71,58 +68,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmt->bind_param("ssssss", $name, $email, $company, $department, $hashedPassword, $otp);
 
             if ($stmt->execute()) {
+                $nameSafe = htmlspecialchars($name);
+                $otpSafe = htmlspecialchars((string) $otp);
 
-                /* ===== SEND OTP EMAIL ===== */
+                $subjectLine = "Verify Your Email - OTP Code";
+                $bodyHtml = "
+                    <div style='font-family:Segoe UI, Arial, sans-serif; padding:20px; color:#111827; line-height:1.5'>
+                        <h2 style='color:#1B5E20; margin:0 0 12px 0'>Email Verification</h2>
+                        <p style='margin:0 0 12px 0'>Hello <strong>{$nameSafe}</strong>,</p>
+                        <p style='margin:0 0 8px 0'>Your OTP code is:</p>
+                        <div style='font-size:28px; letter-spacing:6px; font-weight:700; color:#1B5E20; margin:0 0 12px 0'>{$otpSafe}</div>
+                        <p style='margin:0'>Please enter this code to activate your account.</p>
+                    </div>
+                ";
+                $bodyText = "Email Verification\n\n"
+                    . "Hello $name,\n"
+                    . "Your OTP code is: $otp\n\n"
+                    . "Please enter this code to activate your account.\n";
 
-                $mail = new PHPMailer(true);
-
-                try {
-
-                    $mail->isSMTP();
-                    $mail->Host       = 'smtp.gmail.com';
-                    $mail->SMTPAuth   = true;
-                    $mail->Username   = 'matthewpascua052203@gmail.com';
-                    $mail->Password   = 'tmwtjqjvadsmgzje';
-                    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                    $mail->Port       = 587;
-
-                    $mail->SMTPOptions = [
-                        'ssl' => [
-                            'verify_peer' => false,
-                            'verify_peer_name' => false,
-                            'allow_self_signed' => true
-                        ]
-                    ];
-
-                    $mail->setFrom('matthewpascua052203@gmail.com', 'IT Helpdesk System');
-                    $mail->addAddress($email);
-
-                    $mail->isHTML(true);
-                    $mail->Subject = "Verify Your Email - OTP Code";
-
-                    $mail->Body = "
-                        <div style='font-family:Segoe UI;padding:20px'>
-                            <h2 style='color:#1B5E20'>Email Verification</h2>
-                            <p>Hello <strong>$name</strong>,</p>
-                            <p>Your OTP Code is:</p>
-                            <h1 style='color:#1B5E20'>$otp</h1>
-                            <p>Please enter this code to activate your account.</p>
-                        </div>
-                    ";
-
-                    $mail->send();
-
-                    $_SESSION['verify_email'] = $email;
-
+                $_SESSION['verify_email'] = $email;
+                $ok = sendSmtpEmail([$email], $subjectLine, $bodyHtml, $bodyText);
+                if ($ok) {
                     header("Location: verify_otp.php");
                     exit();
-
-                } catch (Exception $e) {
-                    // Fallback if email fails (e.g. localhost)
-                    $_SESSION['verify_email'] = $email;
-                    header("Location: verify_otp.php?error=smtp_failed");
-                    exit();
                 }
+
+                header("Location: verify_otp.php?error=smtp_failed");
+                exit();
 
             } else {
                 $error = "Registration failed.";
@@ -157,6 +129,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <?php endif; ?>
 
         <form method="POST">
+            <?php echo csrf_field(); ?>
 
             <div class="form-group">
                 <label>Full Name *</label>
@@ -334,4 +307,3 @@ formEl.addEventListener("submit", function(e) {
 </script>
 </body>
 </html>
-

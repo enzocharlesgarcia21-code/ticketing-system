@@ -1,12 +1,7 @@
 <?php
 require_once '../config/database.php';
-
- require '../vendor/phpmailer/src/PHPMailer.php';
-    require '../vendor/phpmailer/src/SMTP.php';
-    require '../vendor/phpmailer/src/Exception.php';
-
-    use PHPMailer\PHPMailer\PHPMailer;
-    use PHPMailer\PHPMailer\Exception;
+require_once '../includes/mailer.php';
+require_once '../includes/csrf.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -39,6 +34,7 @@ if (!$ticket) {
 
 /* Update status & department */
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    csrf_validate();
 
     $new_status = $_POST['status'];
     $new_department = $_POST['assigned_department'];
@@ -54,65 +50,54 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
    /* ================= SEND EMAIL TO EMPLOYEE ================= */
 
-    
+    $toEmail = (string) ($ticket['email'] ?? '');
+    $toName = (string) ($ticket['name'] ?? '');
+    $ticketId = (string) ($ticket['id'] ?? $id);
+    $subject = (string) ($ticket['subject'] ?? '');
 
-    $mail = new PHPMailer(true);
+    $subjectLine = "Ticket Update: #{$ticketId} - " . $subject;
 
-    try {
+    $nameSafe = htmlspecialchars($toName);
+    $ticketIdSafe = htmlspecialchars($ticketId);
+    $ticketSubjectSafe = htmlspecialchars($subject);
+    $categorySafe = htmlspecialchars((string) ($ticket['category'] ?? ''));
+    $prioritySafe = htmlspecialchars((string) ($ticket['priority'] ?? ''));
+    $statusSafe = htmlspecialchars((string) $new_status);
+    $deptSafe = htmlspecialchars((string) $new_department);
 
-        $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com';
-        $mail->SMTPAuth = true;
-        $mail->Username = 'matthewpascua052203@gmail.com'; // your gmail
-        $mail->Password = 'tmwtjqjvadsmgzje';               // your app password
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = 587;
-
-        $mail->SMTPOptions = [
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-                'allow_self_signed' => true
-            ]
-        ];
-
-        $mail->setFrom('matthewpascua052203@gmail.com', 'Leads Agri Helpdesk');
-        $mail->addAddress($ticket['email'], $ticket['name']);
-
-        $mail->isHTML(true);
-        $mail->Subject = "Ticket Update: #{$ticket['id']} - " . $ticket['subject'];
-
-        $mail->Body = "
-        <div style='font-family:Segoe UI;padding:15px'>
-            <h2 style='color:#1B5E20;'>Ticket Update Notification</h2>
-            <p>Hello <strong>{$ticket['name']}</strong>,</p>
-
-            <p>Your ticket has been updated by the Admin.</p>
-
+    $bodyHtml = "
+        <div style='font-family:Segoe UI, Arial, sans-serif; padding:15px; color:#111827; line-height:1.5'>
+            <h2 style='color:#1B5E20; margin:0 0 12px 0'>Ticket Update Notification</h2>
+            <p style='margin:0 0 12px 0'>Hello <strong>{$nameSafe}</strong>,</p>
+            <p style='margin:0 0 12px 0'>Your ticket has been updated by the Admin.</p>
             <hr>
-
-            <p><strong>Ticket ID:</strong> #{$ticket['id']}</p>
-            <p><strong>Subject:</strong> {$ticket['subject']}</p>
-            <p><strong>Category:</strong> {$ticket['category']}</p>
-            <p><strong>Priority:</strong> {$ticket['priority']}</p>
-            <p><strong>New Status:</strong> 
-                <span style='color:#1B5E20;font-weight:bold'>
-                    {$new_status}
-                </span>
-            </p>
-            <p><strong>Assigned Department:</strong> {$new_department}</p>
-
+            <p style='margin:0 0 6px 0'><strong>Ticket ID:</strong> #{$ticketIdSafe}</p>
+            <p style='margin:0 0 6px 0'><strong>Subject:</strong> {$ticketSubjectSafe}</p>
+            <p style='margin:0 0 6px 0'><strong>Category:</strong> {$categorySafe}</p>
+            <p style='margin:0 0 6px 0'><strong>Priority:</strong> {$prioritySafe}</p>
+            <p style='margin:0 0 6px 0'><strong>New Status:</strong> <span style='color:#1B5E20;font-weight:700'>{$statusSafe}</span></p>
+            <p style='margin:0 0 6px 0'><strong>Assigned Department:</strong> {$deptSafe}</p>
             <hr>
-            <p style='font-size:12px;color:#64748B'>
-                This is an automated message from Leads Agri Helpdesk.
-            </p>
+            <p style='font-size:12px;color:#64748B;margin:0'>This is an automated message from Leads Agri Helpdesk.</p>
         </div>
-        ";
+    ";
+    $bodyText = "Ticket Update Notification\n\n"
+        . "Hello $toName,\n\n"
+        . "Your ticket has been updated by the Admin.\n\n"
+        . "Ticket ID: #$ticketId\n"
+        . "Subject: $subject\n"
+        . "Category: " . (string) ($ticket['category'] ?? '') . "\n"
+        . "Priority: " . (string) ($ticket['priority'] ?? '') . "\n"
+        . "New Status: $new_status\n"
+        . "Assigned Department: $new_department\n";
 
-        $mail->send();
-
-    } catch (Exception $e) {
-        // Optional: ignore email error
+    if ($toEmail !== '') {
+        $ok = sendSmtpEmail([$toEmail], $subjectLine, $bodyHtml, $bodyText);
+        if (!$ok) {
+            error_log('Ticket update email failed (admin/view_ticket.php) | ticketId=' . (string) $ticketId);
+        }
+    } else {
+        error_log('Ticket update email skipped (empty recipient) | ticketId=' . (string) $ticketId);
     }
 
     $_SESSION['success'] = "Ticket #$id successfully updated.";
@@ -179,6 +164,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <h3>Update Ticket</h3>
 
 <form method="POST">
+    <?php echo csrf_field(); ?>
 
     <label>Status</label>
     <select name="status">

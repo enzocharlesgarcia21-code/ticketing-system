@@ -13,6 +13,6 @@ header("Pragma: no-cache");
 header("Expires: 0");
 
 /* Redirect to admin login */
-header("Location: ../auth_select.php");
+header("Location: ../index.php");
 exit();
 ?>

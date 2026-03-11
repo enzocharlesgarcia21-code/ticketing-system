@@ -4,6 +4,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 // Access Control
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
@@ -38,6 +39,7 @@ $article = $result->fetch_assoc();
 
 // Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_validate();
     $title = trim($_POST['title']);
     $category = trim($_POST['category']);
     $content = trim($_POST['content']);
@@ -544,6 +546,7 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
 
         <div class="edit-card">
             <form method="POST" enctype="multipart/form-data">
+                <?php echo csrf_field(); ?>
                 <div class="form-group">
                     <label class="form-label">Article Title</label>
                     <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($article['title']) ?>" required>
@@ -845,4 +848,3 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
 
 </body>
 </html>
-

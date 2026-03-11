@@ -1,6 +1,7 @@
 <?php
 // Get current page for active link
 $current_page = basename($_SERVER['PHP_SELF']);
+require_once __DIR__ . '/csrf.php';
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <header class="admin-navbar">
@@ -378,6 +379,7 @@ function handleNotificationClick(notifId, ticketId) {
     // Mark as read
     const formData = new FormData();
     formData.append('id', notifId);
+    formData.append('csrf_token', <?php echo json_encode(csrf_token()); ?>);
     
     fetch('mark_notification_read.php', {
         method: 'POST',
