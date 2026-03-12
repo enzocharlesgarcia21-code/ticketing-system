@@ -25,9 +25,19 @@ $message = '';
     // 2. Remove Admin Logic
     // Moved to remove_admin.php
 
-// Query IT Employees
-$query = "SELECT id, name, email, department FROM users WHERE department = 'IT' AND role = 'employee'";
-$result = $conn->query($query);
+// Query IT Employees (with optional search)
+$search = isset($_GET['search']) ? trim((string) $_GET['search']) : '';
+$queryBase = "SELECT id, name, email, department FROM users WHERE department = 'IT' AND role = 'employee'";
+if ($search !== '') {
+    $term = '%' . $search . '%';
+    $search_stmt = $conn->prepare($queryBase . " AND (name LIKE ? OR email LIKE ?) ORDER BY name ASC");
+    $search_stmt->bind_param("ss", $term, $term);
+    $search_stmt->execute();
+    $result = $search_stmt->get_result();
+    $search_stmt->close();
+} else {
+    $result = $conn->query($queryBase . " ORDER BY name ASC");
+}
 
 // Query Current IT Admins
 $admins_query = "SELECT id, name, email FROM users WHERE department = 'IT' AND role = 'admin'";
@@ -42,18 +52,19 @@ $admins_result = $conn->query($admins_query);
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
     <style>
         .create-admin-container {
-            padding: 20px;
-            max-width: 1000px;
+            padding: 28px 20px 40px;
+            max-width: 980px;
             margin: 0 auto;
         }
         .user-table {
             width: 100%;
             border-collapse: collapse;
             background: white;
-            border-radius: 8px;
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-top: 20px;
+            box-shadow: 0 10px 22px rgba(2, 6, 23, 0.08);
+            margin-top: 0;
+            border: 1px solid #e5e7eb;
         }
         .user-table th, .user-table td {
             padding: 12px 15px;
@@ -69,10 +80,16 @@ $admins_result = $conn->query($admins_query);
             background-color: #28a745;
             color: white;
             border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
+            padding: 10px 14px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
+            font-weight: 700;
+            min-width: 120px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
         .promote-btn:hover {
             background-color: #218838;
@@ -99,12 +116,7 @@ $admins_result = $conn->query($admins_query);
         }
         
         .section-title::before {
-            content: '';
-            display: block;
-            width: 4px;
-            height: 24px;
-            background: #F4C430; /* Accent Yellow */
-            border-radius: 2px;
+            display: none;
         }
 
         .admin-grid {
@@ -204,6 +216,102 @@ $admins_result = $conn->query($admins_query);
             background-color: #c82333;
             transform: translateY(-1px);
         }
+
+        .promote-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+        .promote-header-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: #ecfdf5;
+            border: 1px solid #bbf7d0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #16a34a;
+            flex: 0 0 auto;
+        }
+        .promote-header-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0;
+        }
+        .promote-header-subtitle {
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .search-row {
+            margin: 14px 0 14px;
+        }
+        .search-wrapper {
+            position: relative;
+            width: 100%;
+        }
+        .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px 14px 12px 42px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+            background: #ffffff;
+        }
+        .search-input:focus {
+            border-color: #22c55e;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+        }
+        .table-card {
+            background: transparent;
+        }
+        .employee-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .employee-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: #0f172a;
+            flex: 0 0 auto;
+        }
+        .dept-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px;
+            border-radius: 8px;
+            background: #e2e8f0;
+            color: #334155;
+            font-weight: 800;
+            font-size: 12px;
+        }
+        .section-title .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #16a34a;
+            display: inline-block;
+        }
     </style>
     <!-- Add FontAwesome for trash icon -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -218,43 +326,78 @@ $admins_result = $conn->query($admins_query);
     <?php include '../includes/admin_navbar.php'; ?>
 
     <div class="create-admin-container">
-        <h2>Promote IT Employees to Admin</h2>
+        <div class="promote-header">
+            <div class="promote-header-icon">
+                <i class="fas fa-user-shield"></i>
+            </div>
+            <div>
+                <h2 class="promote-header-title">Promote IT Employees to Admin</h2>
+                <div class="promote-header-subtitle">Manage which IT staff can be granted <strong>administrator</strong> access.</div>
+            </div>
+        </div>
         
         <?php if ($message): ?>
             <div class="alert-success"><?= htmlspecialchars($message) ?></div>
         <?php endif; ?>
 
-        <table class="user-table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Department</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if ($result->num_rows > 0): ?>
-                    <?php while($row = $result->fetch_assoc()): ?>
-                        <tr>
-                            <td><?= htmlspecialchars($row['name']) ?></td>
-                            <td><?= htmlspecialchars($row['email']) ?></td>
-                            <td><?= htmlspecialchars($row['department']) ?></td>
-                            <td>
-                                <button type="button" class="promote-btn" onclick="confirmAddition(<?= $row['id'] ?>)">Add as Admin</button>
-                            </td>
-                        </tr>
-                    <?php endwhile; ?>
-                <?php else: ?>
+        <form method="GET" class="search-row">
+            <div class="search-wrapper">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" name="search" class="search-input" value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Search IT employee...">
+            </div>
+        </form>
+        <script>
+        (function () {
+            var input = document.querySelector('input[name="search"]');
+            if (!input) return;
+            var t = null;
+            input.addEventListener('input', function () {
+                if (t) clearTimeout(t);
+                t = setTimeout(function () {
+                    if (input.form) input.form.submit();
+                }, 350);
+            });
+        })();
+        </script>
+
+        <div class="table-card">
+            <table class="user-table">
+                <thead>
                     <tr>
-                        <td colspan="4" style="text-align: center;">No eligible IT employees found.</td>
+                        <th>Employee</th>
+                        <th>Email</th>
+                        <th>Department</th>
+                        <th>Action</th>
                     </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    <?php if ($result->num_rows > 0): ?>
+                        <?php while($row = $result->fetch_assoc()): ?>
+                            <tr>
+                                <td>
+                                    <div class="employee-cell">
+                                        <span class="employee-avatar"><?= strtoupper(substr((string)$row['name'], 0, 1)) ?></span>
+                                        <span><?= htmlspecialchars($row['name']) ?></span>
+                                    </div>
+                                </td>
+                                <td><?= htmlspecialchars($row['email']) ?></td>
+                                <td><span class="dept-pill">IT</span></td>
+                                <td>
+                                    <button type="button" class="promote-btn" onclick="confirmAddition(<?= $row['id'] ?>)"><i class="fas fa-plus"></i> Promote</button>
+                                </td>
+                            </tr>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="4" style="text-align: center; color:#6B7280; padding: 22px 12px;">No eligible IT employees found.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
 
         <!-- New Section: Current IT Admins -->
-        <h3 class="section-title">Current IT Admins</h3>
+        <h3 class="section-title"><span class="status-dot"></span>Current IT Admins (<?= (int) $admins_result->num_rows ?>)</h3>
 
         <div class="admin-grid">
             <?php if ($admins_result->num_rows > 0): ?>
@@ -394,4 +537,3 @@ $admins_result = $conn->query($admins_query);
 
 </body>
 </html>
-

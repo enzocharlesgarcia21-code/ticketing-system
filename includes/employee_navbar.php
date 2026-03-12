@@ -72,9 +72,8 @@ function isActive($page) {
             </div>
 
             <div class="user-menu">
-                <button class="user-btn">
+                <button class="user-btn" aria-label="<?= htmlspecialchars($user_email, ENT_QUOTES, 'UTF-8'); ?>">
                     <i class="fas fa-user-circle"></i>
-                    <?= htmlspecialchars($user_email); ?>
                     <i class="fas fa-chevron-down" style="font-size: 10px;"></i>
                 </button>
                 <div class="user-dropdown">
@@ -85,6 +84,12 @@ function isActive($page) {
         </div>
     </div>
 </nav>
+
+<button type="button" id="globalChatFab" class="tm-global-chat-fab" onclick="window.TMGlobalChat && window.TMGlobalChat.open()">
+    <i class="fas fa-comments"></i>
+    <span class="tm-global-chat-label">Chat</span>
+    <span id="globalChatBadge" class="chat-badge"></span>
+</button>
 
 <style>
 /* Notification Styles */
@@ -279,6 +284,50 @@ function isActive($page) {
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+.tm-global-chat-fab {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 2500;
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 999px;
+    padding: 12px 16px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.25);
+    user-select: none;
+}
+.tm-global-chat-fab:hover { background: #1d4ed8; }
+.tm-global-chat-fab:active { transform: translateY(1px); }
+.tm-global-chat-fab .tm-global-chat-label { font-size: 14px; }
+.tm-global-chat-fab .chat-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 900;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+.tm-global-chat-fab .chat-badge.is-visible { display: inline-flex; }
+@media (max-width: 768px) {
+    .tm-global-chat-fab { right: 16px; bottom: 16px; padding: 12px 14px; }
+    .tm-global-chat-fab .tm-global-chat-label { display: none; }
+}
 </style>
 
 <script>
@@ -288,10 +337,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const badge = document.getElementById('notifBadge');
     const dot = document.getElementById('notifDot');
     const list = document.getElementById('notifList');
+    const userBtn = document.querySelector('.user-btn');
+    const userDropdown = document.querySelector('.user-dropdown');
     
     // Toggle dropdown
     bell.addEventListener('click', function(e) {
         e.stopPropagation();
+        if (userDropdown) userDropdown.classList.remove('show');
         dropdown.classList.toggle('show');
     });
 
@@ -405,5 +457,41 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(fetchNotifications, 5000);
     // Also refresh relative timestamps every 60s
     setInterval(updateRelativeTimes, 60000);
+
+    function ensureTicketModalScript() {
+        if (window.TMTicketModal) return;
+        if (document.getElementById('tmTicketModalScript')) return;
+        const s = document.createElement('script');
+        s.id = 'tmTicketModalScript';
+        s.src = '../js/ticket-modal.js';
+        document.body.appendChild(s);
+    }
+
+    window.TMGlobalChat = {
+        open: function() {
+            ensureTicketModalScript();
+            const getFromUrl = function() {
+                try {
+                    const p = new URLSearchParams(window.location.search);
+                    return p.get('ticket_id') || p.get('id');
+                } catch (e) {
+                    return null;
+                }
+            };
+            const last = (window.TMTicketModal && window.TMTicketModal.getCurrentTicketId) ? window.TMTicketModal.getCurrentTicketId() : null;
+            const ticketId = last || getFromUrl();
+            if (!ticketId) {
+                alert('Open a ticket first to start chat.');
+                return;
+            }
+            if (window.TMTicketModal && window.TMTicketModal.openChatModal) {
+                window.TMTicketModal.openChatModal(ticketId);
+                return;
+            }
+            if (typeof window.openChatModal === 'function') {
+                window.openChatModal(ticketId);
+            }
+        }
+    };
 });
 </script>

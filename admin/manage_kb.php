@@ -12,6 +12,12 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
+// Ensure sales visibility column exists
+$colRes = $conn->query("SHOW COLUMNS FROM knowledge_base LIKE 'visible_to_sales'");
+if ($colRes && $colRes->num_rows === 0) {
+    $conn->query("ALTER TABLE knowledge_base ADD COLUMN visible_to_sales TINYINT(1) NOT NULL DEFAULT 1");
+}
+
 // Handle Form Submission (Add/Delete)
 $success_msg = '';
 $error_msg = '';
@@ -25,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $title = trim($_POST['title']);
     $category = trim($_POST['category']);
     $content = trim($_POST['content']);
+    $visible_to_sales = isset($_POST['visible_to_sales']) ? 1 : 0;
 
     if (!empty($title) && !empty($category) && !empty($content)) {
         
@@ -109,8 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
 
-        $stmt = $conn->prepare("INSERT INTO knowledge_base (title, category, content, image_path, article_links, article_presentation, article_video, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param("sssssss", $title, $category, $content, $image_path, $links_json, $presentation_path, $video_content);
+        $stmt = $conn->prepare("INSERT INTO knowledge_base (title, category, content, image_path, article_links, article_presentation, article_video, visible_to_sales, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param("sssssssi", $title, $category, $content, $image_path, $links_json, $presentation_path, $video_content, $visible_to_sales);
         
         if ($stmt->execute()) {
             $new_article_id = $conn->insert_id;
@@ -959,6 +966,13 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
                         <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
                     <?php endforeach; ?>
                 </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" style="display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" name="visible_to_sales" value="1" checked>
+                    Visible to Sales users
+                </label>
             </div>
 
             <div class="form-group">

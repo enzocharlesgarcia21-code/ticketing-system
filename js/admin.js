@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (userBtn && dropdownMenu) {
         userBtn.addEventListener("click", function (e) {
             e.stopPropagation();
+            const notifDropdown = document.getElementById('notifDropdown');
+            if (notifDropdown) notifDropdown.classList.remove('show');
             if (dropdownMenu.style.display === "flex") {
                 dropdownMenu.style.display = "none";
             } else {
@@ -14,6 +16,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.addEventListener("click", function () {
             dropdownMenu.style.display = "none";
+            const notifDropdown = document.getElementById('notifDropdown');
+            if (notifDropdown) notifDropdown.classList.remove('show');
         });
 
         dropdownMenu.addEventListener("click", function(e) {

@@ -1,0 +1,10 @@
+# Disable PHP execution
+php_flag engine off
+
+# Prevent directory listing
+Options -Indexes
+
+# Block PHP files completely
+<FilesMatch "\.(php|php5|phtml)$">
+    Deny from all
+</FilesMatch>

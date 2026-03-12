@@ -593,10 +593,6 @@ function openModal(id) {
                                 </div>
 
                                 <div class="tm-btn-group">
-                                    <div class="tm-chat-action" onclick="openChatModal(${data.id})">
-                                        <span class="tm-chat-icon">💬</span>
-                                        <span>Chat</span>
-                                    </div>
                                     <button type="button" class="tm-btn tm-btn-secondary" onclick="closeModal()">Close</button>
                                     <button type="submit" class="tm-btn tm-btn-primary">Save Ticket</button>
                                 </div>
@@ -612,6 +608,7 @@ function openModal(id) {
             setTimeout(() => {
                 const statusSelect = modalContent.querySelector('.tm-status-select');
                 if(statusSelect) updateStatusColor(statusSelect);
+                try { localStorage.setItem('tm_current_ticket_id', String(data.id)); } catch (e) {}
                 window.tmChatPeer = {
                     name: data.created_by_name || '',
                     email: data.created_by_email || ''

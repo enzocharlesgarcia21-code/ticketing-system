@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if(userBtn && userDropdown) {
         userBtn.addEventListener('click', function(e) {
             e.stopPropagation();
+            const notifDropdown = document.getElementById('notifDropdown');
+            if (notifDropdown) notifDropdown.classList.remove('show');
             userDropdown.classList.toggle('show');
         });
 

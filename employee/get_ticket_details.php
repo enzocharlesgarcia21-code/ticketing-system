@@ -116,6 +116,28 @@ if ($row = $result->fetch_assoc()) {
     if ($requester_email !== '') $row['created_by_email'] = $requester_email;
     $row['description'] = $clean_desc;
 
+    $attachments = [];
+    if (!empty($row['attachment'])) {
+        $attachments[] = ['stored_name' => (string) $row['attachment'], 'original_name' => (string) $row['attachment']];
+    }
+    $attStmt = $conn->prepare("SELECT stored_name, original_name FROM ticket_attachments WHERE ticket_id = ? ORDER BY id ASC");
+    if ($attStmt) {
+        $attStmt->bind_param("i", $id);
+        $attStmt->execute();
+        $attRes = $attStmt->get_result();
+        $attachments = [];
+        while ($attRes && ($a = $attRes->fetch_assoc())) {
+            if (!empty($a['stored_name'])) {
+                $attachments[] = [
+                    'stored_name' => (string) $a['stored_name'],
+                    'original_name' => (string) ($a['original_name'] ?? $a['stored_name'])
+                ];
+            }
+        }
+        $attStmt->close();
+    }
+    $row['attachments'] = $attachments;
+
     // Calculate Duration
     $duration = "Not Started";
     if (!is_null($row['started_at'])) {

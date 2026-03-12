@@ -35,6 +35,23 @@ if ($user_department === '' || $user_company === '') {
 /* ================= GET VALUES ================= */
 
 $search = $_GET['search'] ?? '';
+$category = $_GET['category'] ?? '';
+$priority = $_GET['priority'] ?? '';
+$status = $_GET['status'] ?? '';
+
+$allowed_categories = ['Network Issue','Hardware Issue','Software Issue','Email Problem','Account Access','Technical Support','Other'];
+$allowed_priorities = ['Low','Medium','High','Critical'];
+$allowed_statuses = ['Open','In Progress','Resolved'];
+
+if (!in_array($category, $allowed_categories, true)) {
+    $category = '';
+}
+if (!in_array($priority, $allowed_priorities, true)) {
+    $priority = '';
+}
+if (!in_array($status, $allowed_statuses, true)) {
+    $status = '';
+}
 
 // --- PAGINATION LOGIC ---
 $limit = 10;
@@ -85,6 +102,25 @@ if (!empty($search)) {
         $params[] = $term;
         $types .= "sssss";
     }
+}
+
+// 2. Filters
+if ($category !== '') {
+    $where[] = "t.category = ?";
+    $params[] = $category;
+    $types .= "s";
+}
+
+if ($priority !== '') {
+    $where[] = "t.priority = ?";
+    $params[] = $priority;
+    $types .= "s";
+}
+
+if ($status !== '') {
+    $where[] = "t.status = ?";
+    $params[] = $status;
+    $types .= "s";
 }
 
 // Construct SQL
@@ -152,7 +188,7 @@ $result = $stmt->get_result();
         <div class="content-wrapper">
 
             <div class="page-header">
-                <h1 class="page-title">My Tasks</h1>
+                <h1 class="page-title"> My Tasks </h1>
                 <p class="page-subtitle">Tickets assigned to <strong><?= htmlspecialchars($user_department, ENT_QUOTES, 'UTF-8') ?></strong> department</p>
             </div>
 
@@ -160,18 +196,45 @@ $result = $stmt->get_result();
             <div class="filter-card">
                 <form method="GET" id="filterForm" class="filter-form">
                     
-                    <div class="search-wrapper" style="width: 100%; max-width: 400px;">
+                    <div class="search-wrapper">
                         <i class="fas fa-search search-icon"></i>
                         <input type="text"
                                name="search"
                                id="searchInput"
                                class="search-input"
-                               placeholder="Search tasks..."
+                               placeholder="Search name, email or category..."
                                value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
 
                     <div class="filters-wrapper">
-                        <a href="my_task.php" class="clear-btn">Clear Search</a>
+                        <div class="select-wrapper small">
+                            <select name="category" class="filter-select" id="filterCategory">
+                                <option value=""disabled selected hidden <?= $category === '' ? 'selected' : '' ?>>All Category</option>
+                                <?php foreach ($allowed_categories as $c): ?>
+                                    <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= $category === $c ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="select-wrapper small">
+                            <select name="priority" class="filter-select" id="filterPriority">
+                                <option value=""disabled selected hidden<?= $priority === '' ? 'selected' : '' ?>>All Priority</option>
+                                <?php foreach ($allowed_priorities as $p): ?>
+                                    <option value="<?= htmlspecialchars($p, ENT_QUOTES, 'UTF-8'); ?>" <?= $priority === $p ? 'selected' : '' ?>><?= htmlspecialchars($p, ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="select-wrapper small">
+                            <select name="status" class="filter-select" id="filterStatus">
+                                <option value=""disabled selected hidden <?= $status === '' ? 'selected' : '' ?>>All Status</option>
+                                <?php foreach ($allowed_statuses as $s): ?>
+                                    <option value="<?= htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>" <?= $status === $s ? 'selected' : '' ?>><?= htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <a href="my_task.php" class="clear-btn">Clear Filters</a>
                     </div>
                 </form>
             </div>
@@ -257,7 +320,7 @@ $result = $stmt->get_result();
                 <?php if ($total_pages > 1): ?>
                 <div class="pagination-glass">
                     <!-- Previous Link -->
-                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>" 
+                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&category=<?= urlencode($category); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
                         Previous
                     </a>
@@ -265,7 +328,7 @@ $result = $stmt->get_result();
                     <div class="page-numbers">
                         <!-- Page Numbers -->
                         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>" 
+                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&category=<?= urlencode($category); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
                                class="page-btn <?= ($i == $page) ? 'active' : ''; ?>">
                                 <?= $i; ?>
                             </a>
@@ -273,7 +336,7 @@ $result = $stmt->get_result();
                     </div>
 
                     <!-- Next Link -->
-                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>" 
+                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&category=<?= urlencode($category); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
                         Next
                     </a>
@@ -332,6 +395,15 @@ $result = $stmt->get_result();
         function doneTyping() {
             document.getElementById("filterForm").submit();
         }
+
+        ['filterCategory', 'filterPriority', 'filterStatus'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('change', function() {
+                    document.getElementById("filterForm").submit();
+                });
+            }
+        });
 
         document.querySelectorAll('.ticket-row').forEach(function(row){
             row.addEventListener('click', function(){

@@ -3,6 +3,7 @@ var TMTicketModal = (function () {
   var chatBadgeInterval = null;
   var chatBadgeTicketId = null;
   var chatModalOpen = false;
+  var currentTicketId = null;
   function qs(id) { return document.getElementById(id); }
   function getCsrfToken() {
     var meta = document.querySelector('meta[name="csrf-token"]');
@@ -12,6 +13,19 @@ var TMTicketModal = (function () {
     }
     if (typeof window !== 'undefined' && window.TM_CSRF_TOKEN) return String(window.TM_CSRF_TOKEN);
     return '';
+  }
+  function setCurrentTicketId(id) {
+    if (id === null || id === undefined || id === '') return;
+    currentTicketId = String(id);
+    try { localStorage.setItem('tm_current_ticket_id', currentTicketId); } catch (e) { }
+  }
+  function getCurrentTicketId() {
+    if (currentTicketId) return String(currentTicketId);
+    try {
+      var v = localStorage.getItem('tm_current_ticket_id');
+      if (v) return String(v);
+    } catch (e) { }
+    return null;
   }
   function escapeHtml(text) {
     if (!text) return '';
@@ -55,13 +69,23 @@ var TMTicketModal = (function () {
            '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>' +
            'View</button>';
   }
-  function renderAttachment(filename) {
+  function renderAttachment(att) {
+    var filename = '';
+    var displayName = '';
+    if (typeof att === 'string') {
+      filename = att;
+      displayName = att;
+    } else if (att && typeof att === 'object') {
+      filename = att.stored_name || att.filename || att.file || '';
+      displayName = att.original_name || att.display_name || filename;
+    }
+    if (!filename) return '';
     return '<div class="tm-attachment">' +
            '  <div class="tm-att-icon">' +
            '    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>' +
            '  </div>' +
            '  <div class="tm-att-details">' +
-           '    <div class="tm-att-name" title="' + escapeHtml(filename) + '">' + escapeHtml(filename) + '</div>' +
+           '    <div class="tm-att-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</div>' +
            '    <div class="tm-att-actions">' +
            viewButtonIfImage(filename) +
            '      <a href="../uploads/' + filename + '" class="tm-action-btn tm-download-btn" download>' +
@@ -166,7 +190,6 @@ var TMTicketModal = (function () {
       '<div class="tm-tabs">' +
       '  <div class="tm-tab active" data-tab="info" onclick="TMTicketModal.switchTab(\'info\')">Information</div>' +
       '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Actions</div>' +
-      '  <button type="button" class="chat-open-btn" onclick="TMTicketModal.openChatModal(' + data.id + ')">💬 Chat<span id="chatBtnBadge" class="chat-badge"></span></button>' +
       '</div>' +
       '<div class="tm-body">' +
       '  <div id="tab-info" class="tm-tab-content active">' +
@@ -183,7 +206,7 @@ var TMTicketModal = (function () {
       '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Ticket Activity</span></div><div class="tm-card-body">' + renderTimeline(data) + '</div></div>' +
       '    </div>' +
       '    <div class="tm-desc-col">' +
-      '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Description</span></div><div class="tm-card-body"><div class="tm-desc-text">' + escapeHtml(data.description).replace(/\n/g, '<br>') + '</div>' + (data.attachment ? renderAttachment(data.attachment) : '') + '</div></div>' +
+      '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Description</span></div><div class="tm-card-body"><div class="tm-desc-text">' + escapeHtml(data.description).replace(/\n/g, '<br>') + '</div>' + (Array.isArray(data.attachments) && data.attachments.length ? data.attachments.map(function (a) { return renderAttachment(a); }).join('') : (data.attachment ? renderAttachment(data.attachment) : '')) + '</div></div>' +
       '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
       '      ' + ((data.urgency && data.urgency !== '-') ? '<div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Urgency</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.urgency)) + '</div></div></div>' : '') +
       '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Resolution</span></div><div class="tm-card-body">' +
@@ -384,16 +407,17 @@ var TMTicketModal = (function () {
     } catch (e) { }
   }
   function setChatButtonBadge(count) {
-    var b = qs('chatBtnBadge');
-    if (!b) return;
     var n = parseInt(String(count || 0), 10) || 0;
-    if (n <= 0) {
-      b.classList.remove('is-visible');
-      b.textContent = '';
-      return;
-    }
-    b.classList.add('is-visible');
-    b.textContent = n > 99 ? '99+' : String(n);
+    [qs('chatBtnBadge'), qs('globalChatBadge')].forEach(function (b) {
+      if (!b) return;
+      if (n <= 0) {
+        b.classList.remove('is-visible');
+        b.textContent = '';
+        return;
+      }
+      b.classList.add('is-visible');
+      b.textContent = n > 99 ? '99+' : String(n);
+    });
   }
   function updateChatBadgeFromMessages(ticketId, messages) {
     if (!ticketId) return;
@@ -504,6 +528,7 @@ var TMTicketModal = (function () {
     var modal = qs('chatModal');
     var idEl = qs('chatModalTicketId');
     if (!modal || !idEl) return;
+    setCurrentTicketId(ticketId);
     idEl.value = String(ticketId);
     modal.style.display = 'flex';
     chatModalOpen = true;
@@ -620,6 +645,7 @@ var TMTicketModal = (function () {
           modalContent.innerHTML = '<div style="padding:40px; text-align:center; color:#ef4444;">' + escapeHtml(data.error) + '</div>';
           return;
         }
+        setCurrentTicketId(data && data.id != null ? data.id : id);
         modalContent.innerHTML = buildHtml(data);
         setTimeout(function () {
           var statusSelect = modalContent.querySelector('.tm-status-select');
@@ -670,6 +696,7 @@ var TMTicketModal = (function () {
     sendChatModalMessage: sendChatModalMessage,
     updateStatusColor: updateStatusColor,
     viewImage: viewImage,
-    closeImagePreview: closeImagePreview
+    closeImagePreview: closeImagePreview,
+    getCurrentTicketId: getCurrentTicketId
   };
 })(); 

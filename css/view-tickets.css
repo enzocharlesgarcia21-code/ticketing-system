@@ -52,6 +52,21 @@
 .select-wrapper.small {
     width: auto;
     min-width: 150px;
+    position: relative;
+}
+
+.select-wrapper.small::after {
+    content: "\f078";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: #94a3b8;
+    font-size: 12px;
+    line-height: 1;
 }
 
 .filter-form .filter-select {
@@ -67,15 +82,18 @@
 }
 
 .filter-form .clear-btn {
-    color: #ef4444;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #475569;
     font-size: 13px;
     font-weight: 600;
     text-decoration: none;
-    padding: 8px 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
 }
 
 .filter-form .clear-btn:hover {
-    text-decoration: underline;
+    background: #e2e8f0;
 }
 
 /* ================= TABLE CARD ================= */

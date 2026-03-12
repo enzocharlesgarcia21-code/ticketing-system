@@ -48,11 +48,8 @@ require_once __DIR__ . '/csrf.php';
         </div>
 
         <div class="admin-user-dropdown">
-            <button class="admin-user-pill">
+            <button class="admin-user-pill" aria-label="<?= htmlspecialchars($_SESSION['email'] ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?>">
                 <span class="admin-user-icon">👤</span>
-                <span class="admin-user-email">
-                    <?= htmlspecialchars($_SESSION['email'] ?? 'Admin'); ?>
-                </span>
                 <span class="admin-arrow">▾</span>
             </button>
             <div class="admin-dropdown-menu">
@@ -61,6 +58,12 @@ require_once __DIR__ . '/csrf.php';
         </div>
     </div>
 </header>
+
+<button type="button" id="globalChatFab" class="tm-global-chat-fab" onclick="window.TMGlobalChat && window.TMGlobalChat.open()">
+    <i class="fas fa-comments"></i>
+    <span class="tm-global-chat-label">Chat</span>
+    <span id="globalChatBadge" class="chat-badge"></span>
+</button>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -245,7 +248,92 @@ document.addEventListener('DOMContentLoaded', function() {
     background: #cbd5e1;
     border-radius: 3px;
 }
+
+.tm-global-chat-fab {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 2500;
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 999px;
+    padding: 12px 16px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.25);
+    user-select: none;
+}
+.tm-global-chat-fab:hover { background: #1d4ed8; }
+.tm-global-chat-fab:active { transform: translateY(1px); }
+.tm-global-chat-fab .tm-global-chat-label { font-size: 14px; }
+.tm-global-chat-fab .chat-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 900;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+.tm-global-chat-fab .chat-badge.is-visible { display: inline-flex; }
+@media (max-width: 768px) {
+    .tm-global-chat-fab { right: 16px; bottom: 16px; padding: 12px 14px; }
+    .tm-global-chat-fab .tm-global-chat-label { display: none; }
+}
 </style>
+
+<script>
+(function () {
+    function ensureTicketModalScript() {
+        if (window.TMTicketModal) return;
+        if (document.getElementById('tmTicketModalScript')) return;
+        const s = document.createElement('script');
+        s.id = 'tmTicketModalScript';
+        s.src = '../js/ticket-modal.js';
+        document.body.appendChild(s);
+    }
+
+    function getFromUrl() {
+        try {
+            const p = new URLSearchParams(window.location.search);
+            return p.get('ticket_id') || p.get('id');
+        } catch (e) {
+            return null;
+        }
+    }
+
+    window.TMGlobalChat = {
+        open: function() {
+            ensureTicketModalScript();
+            const last = (window.TMTicketModal && window.TMTicketModal.getCurrentTicketId) ? window.TMTicketModal.getCurrentTicketId() : null;
+            const ticketId = last || getFromUrl();
+            if (!ticketId) {
+                alert('Open a ticket first to start chat.');
+                return;
+            }
+            if (window.TMTicketModal && window.TMTicketModal.openChatModal) {
+                window.TMTicketModal.openChatModal(ticketId);
+                return;
+            }
+            if (typeof window.openChatModal === 'function') {
+                window.openChatModal(ticketId);
+            }
+        }
+    };
+})();
+</script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -298,6 +386,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function toggleNotifications() {
+    const userMenu = document.querySelector('.admin-dropdown-menu');
+    if (userMenu) userMenu.style.display = 'none';
     document.getElementById('notifDropdown').classList.toggle('show');
 }
 
