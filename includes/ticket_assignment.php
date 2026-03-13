@@ -164,14 +164,67 @@ function ticket_find_assignee_id(mysqli $conn, string $company, string $group): 
 
 function ticket_ensure_assignment_columns(mysqli $conn): void
 {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
     $cols = [
         'assigned_group' => "VARCHAR(255) NULL",
         'assigned_user_id' => "INT NULL",
     ];
+    $existing = [];
+    $res = $conn->query("SHOW COLUMNS FROM employee_tickets");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            if (isset($row['Field'])) $existing[(string) $row['Field']] = true;
+        }
+    }
     foreach ($cols as $col => $ddl) {
-        $colRes = $conn->query("SHOW COLUMNS FROM employee_tickets LIKE '$col'");
-        if (!$colRes || $colRes->num_rows === 0) {
+        if (!isset($existing[$col])) {
             $conn->query("ALTER TABLE employee_tickets ADD COLUMN $col $ddl");
+        }
+    }
+}
+
+function ticket_ensure_chat_tables(mysqli $conn): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    $tblRes = $conn->query("SHOW TABLES LIKE 'ticket_messages'");
+    if (!$tblRes || $tblRes->num_rows === 0) {
+        $conn->query("
+            CREATE TABLE IF NOT EXISTS ticket_messages (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                ticket_id INT NOT NULL,
+                sender_id INT NOT NULL,
+                message TEXT NOT NULL,
+                is_read TINYINT(1) NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                KEY idx_ticket_id (ticket_id),
+                KEY idx_sender_id (sender_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+    }
+
+    $cols = [
+        'ticket_id' => "INT NOT NULL",
+        'sender_id' => "INT NOT NULL",
+        'message' => "TEXT NOT NULL",
+        'is_read' => "TINYINT(1) NOT NULL DEFAULT 0",
+        'created_at' => "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    ];
+    $existing = [];
+    $res = $conn->query("SHOW COLUMNS FROM ticket_messages");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            if (isset($row['Field'])) $existing[(string) $row['Field']] = true;
+        }
+    }
+    foreach ($cols as $col => $ddl) {
+        if (!isset($existing[$col])) {
+            $conn->query("ALTER TABLE ticket_messages ADD COLUMN $col $ddl");
         }
     }
 }

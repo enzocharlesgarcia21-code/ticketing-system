@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 header('Content-Type: application/json');
 
@@ -18,12 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 csrf_validate();
 
-$current_user_id = $_SESSION['user_id'];
+ticket_ensure_assignment_columns($conn);
+ticket_ensure_chat_tables($conn);
 
-$col = $conn->query("SHOW COLUMNS FROM ticket_messages LIKE 'is_read'");
-if ($col && $col->num_rows === 0) {
-    $conn->query("ALTER TABLE ticket_messages ADD COLUMN is_read TINYINT(1) NOT NULL DEFAULT 0");
-}
+$current_user_id = $_SESSION['user_id'];
 
 if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $sql = "
@@ -50,18 +49,23 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
 
     $sql .= "
         GROUP BY t.id, t.subject
-        ORDER BY COALESCE(last_message_time, ticket_created_at) DESC
+        ORDER BY COALESCE(MAX(tm.created_at), MAX(t.created_at)) DESC
         LIMIT 50
     ";
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
         http_response_code(500);
-        echo json_encode(['error' => 'Failed to prepare query']);
+        echo json_encode(['error' => 'Failed to prepare query: ' . (string) $conn->error]);
         exit;
     }
     if ($types !== '') {
-        $stmt->bind_param($types, ...$params);
+        $bind = [];
+        $bind[] = $types;
+        foreach ($params as $k => $p) {
+            $bind[] = &$params[$k];
+        }
+        call_user_func_array([$stmt, 'bind_param'], $bind);
     }
     $stmt->execute();
     $res = $stmt->get_result();
@@ -71,6 +75,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             'id' => (int) $r['id'],
             'subject' => (string) $r['subject'],
             'last_message_time' => (string) $r['last_message_time'],
+            'ticket_created_at' => (string) $r['ticket_created_at'],
             'unread_count' => (int) $r['unread_count'],
             'last_message' => (string) $r['last_message'],
             'last_sender_name' => (string) $r['last_sender_name']

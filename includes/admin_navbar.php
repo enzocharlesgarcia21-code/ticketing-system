@@ -313,7 +313,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (document.getElementById('tmTicketModalScript')) return;
         const s = document.createElement('script');
         s.id = 'tmTicketModalScript';
-        s.src = '../js/ticket-modal.js';
+        s.src = '../js/ticket-modal.js?v=' + Date.now();
         document.body.appendChild(s);
     }
 
@@ -353,9 +353,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = new FormData();
         formData.append('action', 'conversations');
         if (window.TM_CSRF_TOKEN) formData.append('csrf_token', String(window.TM_CSRF_TOKEN));
-        fetch('chat_fetch.php', { method: 'POST', body: formData })
-            .then(r => r.json())
-            .then(data => {
+        const headers = { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' };
+        if (window.TM_CSRF_TOKEN) headers['X-CSRF-Token'] = String(window.TM_CSRF_TOKEN);
+        fetch('chat_fetch.php', { method: 'POST', body: formData, headers: headers })
+            .then(r => r.text())
+            .then(txt => {
+                let data = null;
+                try { data = JSON.parse(txt); } catch (e) { return; }
                 if (data && data.error) return;
                 const items = Array.isArray(data) ? data : [];
                 let total = 0;

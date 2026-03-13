@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 header('Content-Type: application/json');
 
@@ -18,6 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 csrf_validate();
+
+ticket_ensure_chat_tables($conn);
 
 if (!isset($_POST['ticket_id']) || !isset($_POST['message'])) {
     http_response_code(400);
@@ -56,16 +59,23 @@ if ($sender_id !== $requesterId && ($assigneeId <= 0 || $sender_id !== $assignee
     exit;
 }
 
-$col = $conn->query("SHOW COLUMNS FROM ticket_messages LIKE 'is_read'");
-if ($col && $col->num_rows === 0) {
-    $conn->query("ALTER TABLE ticket_messages ADD COLUMN is_read TINYINT(1) NOT NULL DEFAULT 0");
-}
-
 // Insert Message
 $stmt = $conn->prepare("INSERT INTO ticket_messages (ticket_id, sender_id, message, is_read) VALUES (?, ?, ?, 0)");
 $stmt->bind_param("iis", $ticket_id, $sender_id, $message);
 
 if ($stmt->execute()) {
+    $stmt->close();
+    echo json_encode(['success' => true]);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        @ob_flush();
+        @flush();
+    }
+
     $recipientId = 0;
     if ($sender_id === $requesterId) {
         $recipientId = $assigneeId;
@@ -133,8 +143,7 @@ if ($stmt->execute()) {
             }
         }
     }
-
-    echo json_encode(['success' => true]);
+    exit;
 } else {
     http_response_code(500);
     echo json_encode(['error' => 'Database Error']);

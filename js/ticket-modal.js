@@ -7,6 +7,7 @@ var TMTicketModal = (function () {
   var messengerInterval = null;
   var messengerTicketId = null;
   var currentTicketId = null;
+  var lastTicketMeta = null;
   function qs(id) { return document.getElementById(id); }
   function getCsrfToken() {
     var meta = document.querySelector('meta[name="csrf-token"]');
@@ -16,6 +17,23 @@ var TMTicketModal = (function () {
     }
     if (typeof window !== 'undefined' && window.TM_CSRF_TOKEN) return String(window.TM_CSRF_TOKEN);
     return '';
+  }
+  function postJson(url, formData) {
+    var token = getCsrfToken();
+    var headers = { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' };
+    if (token) headers['X-CSRF-Token'] = String(token);
+    return fetch(url, { method: 'POST', body: formData, headers: headers, credentials: 'same-origin' })
+      .then(function (r) {
+        return r.text().then(function (txt) {
+          var data = null;
+          try { data = JSON.parse(txt); } catch (e) { data = { error: 'Invalid server response.' }; }
+          if (data && typeof data === 'object') {
+            data._http_status = r.status;
+            data._http_ok = r.ok;
+          }
+          return data;
+        });
+      });
   }
   function setCurrentTicketId(id) {
     if (id === null || id === undefined || id === '') return;
@@ -370,8 +388,7 @@ var TMTicketModal = (function () {
     formData.append('ticket_id', ticketId);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_fetch.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
+    postJson('chat_fetch.php', formData)
       .then(function (data) {
         if (data && data.error) return;
         renderMessages(data || [], scrollBottom);
@@ -417,8 +434,7 @@ var TMTicketModal = (function () {
     formData.append('message', message);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_send.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
+    postJson('chat_send.php', formData)
       .then(function (data) {
         if (btn) btn.disabled = false;
         if (data && data.success) {
@@ -524,8 +540,7 @@ var TMTicketModal = (function () {
     formData.append('ticket_id', ticketId);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_fetch.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
+    postJson('chat_fetch.php', formData)
       .then(function (data) {
         if (data && data.error) {
           stopChatBadge();
@@ -640,8 +655,7 @@ var TMTicketModal = (function () {
     formData.append('ticket_id', ticketId);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_fetch.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
+    postJson('chat_fetch.php', formData)
       .then(function (data) {
         if (data && data.error) {
           stopChat();
@@ -709,31 +723,60 @@ var TMTicketModal = (function () {
     var btn = qs('chatModalSendBtn');
     if (!message) return;
     if (btn && btn.disabled) return;
+    var ticketId = String(ticketIdEl.value || '');
+    var senderName = (window.TM_CURRENT_USER && window.TM_CURRENT_USER.name) ? String(window.TM_CURRENT_USER.name) : 'You';
+    input.value = '';
+    var bubble = null;
+    var container = qs('chatModalMessages');
+    if (container) {
+      if (container.querySelector('.chat-empty')) container.innerHTML = '';
+      bubble = document.createElement('div');
+      bubble.classList.add('chat-bubble', 'me');
+      var sDiv = document.createElement('div');
+      sDiv.classList.add('chat-sender');
+      sDiv.textContent = senderName;
+      var contentDiv = document.createElement('div');
+      contentDiv.textContent = message;
+      var timeDiv = document.createElement('div');
+      timeDiv.classList.add('chat-time');
+      timeDiv.textContent = formatHHMM(new Date());
+      bubble.appendChild(sDiv);
+      bubble.appendChild(contentDiv);
+      bubble.appendChild(timeDiv);
+      container.appendChild(bubble);
+      container.scrollTop = container.scrollHeight;
+    }
+    updateConversationPreview(ticketId, message, senderName);
     if (btn) btn.disabled = true;
     var formData = new FormData();
-    formData.append('ticket_id', ticketIdEl.value);
+    formData.append('ticket_id', ticketId);
     formData.append('message', message);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_send.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
+    postJson('chat_send.php', formData)
       .then(function (data) {
         if (btn) btn.disabled = false;
         if (data && data.error) {
-          var container = qs('chatModalMessages');
-          if (container) {
-            container.innerHTML = '<div class="chat-empty">Chat is available only between the requester and assigned user.</div>';
+          if (bubble) {
+            bubble.style.border = '1px solid #ef4444';
+            bubble.style.opacity = '0.75';
           }
-          input.disabled = true;
-          if (btn) btn.disabled = true;
+          if (container) {
+            container.innerHTML = '<div class="chat-empty">' + escapeHtml(String(data.error || 'Failed to send message.')) + '</div>';
+          }
           return;
         }
         if (data && data.success) {
-          input.value = '';
-          loadTicketMessages(ticketIdEl.value, true);
+          setTimeout(function () { loadTicketMessages(ticketId, true); }, 0);
         }
       })
-      .catch(function () { if (btn) btn.disabled = false; });
+      .catch(function () {
+        if (btn) btn.disabled = false;
+        if (bubble) {
+          bubble.style.border = '1px solid #ef4444';
+          bubble.style.opacity = '0.75';
+        }
+      });
   }
   function stopMessenger() {
     if (messengerInterval) {
@@ -871,17 +914,27 @@ var TMTicketModal = (function () {
     formData.append('action', 'conversations');
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_fetch.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
+    postJson('chat_fetch.php', formData)
       .then(function (data) {
+        var searchEl = qs('tmMessengerSearch');
         if (data && data.error) {
+          if (Array.isArray(window.__tmConversations) && window.__tmConversations.length) {
+            renderConversations(searchEl ? searchEl.value : '');
+            return;
+          }
           var list = qs('tmMessengerList');
-          if (list) list.innerHTML = '<div class="tm-messenger-empty">No conversations.</div>';
-          window.__tmConversations = [];
+          if (list) list.innerHTML = '<div class="tm-messenger-empty">' + escapeHtml(String(data.error || 'Unable to load conversations.')) + '</div>';
           return;
         }
         window.__tmConversations = Array.isArray(data) ? data : [];
-        var searchEl = qs('tmMessengerSearch');
+
+        if (messengerTicketId) {
+          var has = window.__tmConversations.some(function (c) { return c && String(c.id) === String(messengerTicketId); });
+          if (!has) {
+            var subject = (lastTicketMeta && String(lastTicketMeta.id) === String(messengerTicketId) && lastTicketMeta.subject) ? String(lastTicketMeta.subject) : 'Ticket';
+            window.__tmConversations.unshift({ id: String(messengerTicketId), subject: subject, last_message_time: '', unread_count: 0, last_message: '', last_sender_name: '' });
+          }
+        }
         renderConversations(searchEl ? searchEl.value : '');
         if (!messengerTicketId && window.__tmConversations.length) {
           selectConversation(window.__tmConversations[0]);
@@ -890,7 +943,15 @@ var TMTicketModal = (function () {
           if (found) selectConversation(found, true);
         }
       })
-      .catch(function () { });
+      .catch(function () {
+        var searchEl = qs('tmMessengerSearch');
+        if (Array.isArray(window.__tmConversations) && window.__tmConversations.length) {
+          renderConversations(searchEl ? searchEl.value : '');
+          return;
+        }
+        var list = qs('tmMessengerList');
+        if (list) list.innerHTML = '<div class="tm-messenger-empty">Unable to load conversations.</div>';
+      });
   }
   function renderConversations(query) {
     var list = qs('tmMessengerList');
@@ -925,7 +986,7 @@ var TMTicketModal = (function () {
         '<div class="tm-messenger-item-top">' +
         '  <div class="tm-messenger-item-subject" title="' + escapeHtml(c.subject) + '">#' + String(c.id).padStart(6, '0') + ' • ' + escapeHtml(c.subject) + '</div>' +
         '  <div class="tm-messenger-item-right">' +
-        '    <div class="tm-messenger-item-time">' + escapeHtml(toRelative(c.last_message_time)) + '</div>' +
+        '    <div class="tm-messenger-item-time">' + escapeHtml(toRelative(c.last_message_time || c.ticket_created_at)) + '</div>' +
         (unread > 0 ? ('<span class="unread-badge">' + escapeHtml(String(unread)) + '</span>') : '') +
         '  </div>' +
         '</div>' +
@@ -968,8 +1029,7 @@ var TMTicketModal = (function () {
     formData.append('ticket_id', ticketId);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_fetch.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
+    postJson('chat_fetch.php', formData)
       .then(function (data) {
         if (data && data.error) return;
         renderMessengerMessages(data || [], scrollBottom);
@@ -1011,6 +1071,50 @@ var TMTicketModal = (function () {
     });
     if (scrollBottom || isNearBottom) container.scrollTop = container.scrollHeight;
   }
+  function formatHHMM(d) {
+    var dt = d instanceof Date ? d : new Date();
+    if (isNaN(dt.getTime())) dt = new Date();
+    var h = dt.getHours();
+    var m = dt.getMinutes();
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
+  function appendMessengerBubble(message, isMe, senderName, timeText) {
+    var container = qs('tmMessengerMessages');
+    if (!container) return null;
+    if (container.querySelector('.tm-messenger-empty')) container.innerHTML = '';
+    var bubble = document.createElement('div');
+    bubble.classList.add('chat-bubble', (isMe ? 'me' : 'other'));
+    if (senderName) {
+      var sDiv = document.createElement('div');
+      sDiv.classList.add('chat-sender');
+      sDiv.textContent = senderName;
+      bubble.appendChild(sDiv);
+    }
+    var contentDiv = document.createElement('div');
+    contentDiv.textContent = message;
+    var timeDiv = document.createElement('div');
+    timeDiv.classList.add('chat-time');
+    timeDiv.textContent = timeText || formatHHMM(new Date());
+    bubble.appendChild(contentDiv);
+    bubble.appendChild(timeDiv);
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+    return bubble;
+  }
+  function updateConversationPreview(ticketId, message, senderName) {
+    if (!ticketId) return;
+    if (!Array.isArray(window.__tmConversations)) window.__tmConversations = [];
+    var nowIso = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    var found = window.__tmConversations.find(function (c) { return c && String(c.id) === String(ticketId); });
+    if (!found) {
+      found = { id: String(ticketId), subject: (lastTicketMeta && String(lastTicketMeta.id) === String(ticketId) && lastTicketMeta.subject) ? String(lastTicketMeta.subject) : 'Ticket' };
+      window.__tmConversations.unshift(found);
+    }
+    found.last_message = String(message || '');
+    found.last_sender_name = String(senderName || '');
+    found.last_message_time = nowIso;
+    renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
+  }
   function sendMessengerMessage() {
     var input = qs('tmMessengerInput');
     var ticketIdEl = qs('tmMessengerTicketId');
@@ -1020,23 +1124,35 @@ var TMTicketModal = (function () {
     var message = input.value.trim();
     if (!ticketId || !message) return;
     if (btn && btn.disabled) return;
+    var senderName = (window.TM_CURRENT_USER && window.TM_CURRENT_USER.name) ? String(window.TM_CURRENT_USER.name) : 'You';
+    input.value = '';
+    var bubble = appendMessengerBubble(message, true, senderName, formatHHMM(new Date()));
+    updateConversationPreview(ticketId, message, senderName);
     if (btn) btn.disabled = true;
     var formData = new FormData();
     formData.append('ticket_id', ticketId);
     formData.append('message', message);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_send.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
+    postJson('chat_send.php', formData)
       .then(function (data) {
         if (btn) btn.disabled = false;
         if (data && data.success) {
-          input.value = '';
-          loadMessengerMessages(ticketId, true);
-          loadConversationsAndMaybeSelect();
+          setTimeout(function () { loadMessengerMessages(ticketId, true); }, 0);
+          return;
+        }
+        if (bubble) {
+          bubble.style.border = '1px solid #ef4444';
+          bubble.style.opacity = '0.75';
         }
       })
-      .catch(function () { if (btn) btn.disabled = false; });
+      .catch(function () {
+        if (btn) btn.disabled = false;
+        if (bubble) {
+          bubble.style.border = '1px solid #ef4444';
+          bubble.style.opacity = '0.75';
+        }
+      });
   }
   function openMessengerChat() {
     ensureMessengerModalExists();
@@ -1055,7 +1171,29 @@ var TMTicketModal = (function () {
     messengerTicketId = String(ticketId);
     setCurrentTicketId(messengerTicketId);
     close();
-    openMessengerChat();
+    ensureMessengerModalExists();
+    var modal = qs('tmMessengerModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    messengerOpen = true;
+    stopChat();
+    stopChatBadge();
+    var list = qs('tmMessengerList');
+    if (list && list.innerHTML.trim() === '') {
+      list.innerHTML = '<div class="tm-messenger-empty">Loading...</div>';
+    }
+
+    var subject = 'Ticket';
+    if (lastTicketMeta && String(lastTicketMeta.id) === String(ticketId) && lastTicketMeta.subject) {
+      subject = String(lastTicketMeta.subject);
+    }
+    var conv = { id: String(ticketId), subject: subject, last_message_time: '', unread_count: 0, last_message: '', last_sender_name: '' };
+    if (!Array.isArray(window.__tmConversations)) window.__tmConversations = [];
+    var existing = window.__tmConversations.find(function (c) { return c && String(c.id) === String(ticketId); });
+    if (!existing) window.__tmConversations.unshift(conv);
+    renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
+    selectConversation(existing || conv, true);
+    setTimeout(function () { loadConversationsAndMaybeSelect(); }, 0);
   }
   function closeMessengerChat() {
     var modal = qs('tmMessengerModal');
@@ -1079,6 +1217,7 @@ var TMTicketModal = (function () {
           return;
         }
         setCurrentTicketId(data && data.id != null ? data.id : id);
+        lastTicketMeta = { id: data && data.id != null ? data.id : id, subject: data && data.subject ? String(data.subject) : '' };
         modalContent.innerHTML = buildHtml(data);
         bindNoChangeGuard(modalContent, data);
         setTimeout(function () {
