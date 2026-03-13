@@ -12,9 +12,11 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
 $q = trim((string) ($_GET['q'] ?? ''));
 $department = trim((string) ($_GET['department'] ?? ''));
 $role = trim((string) ($_GET['role'] ?? ''));
+$company = trim((string) ($_GET['company'] ?? ''));
 $limit = (int) ($_GET['limit'] ?? 50);
 if ($limit < 1) $limit = 1;
 if ($limit > 200) $limit = 200;
+$currentUserId = (int) ($_SESSION['user_id'] ?? 0);
 
 $where = [];
 $params = [];
@@ -29,9 +31,25 @@ if ($q !== '') {
 }
 
 if ($department !== '' && $department !== 'all') {
-    $where[] = "department = ?";
-    $params[] = $department;
-    $types .= 's';
+    $deptKey = strtoupper($department);
+    $aliasMap = [
+        'ACCOUNTING' => ['ACCOUNTING'],
+        'ADMIN' => ['ADMIN', 'ADMINISTRATION'],
+        'E-COMM' => ['E-COMM', 'E-COMMERCE', 'ECOMM', 'E COMMERCE'],
+        'HR' => ['HR', 'HUMAN RESOURCE', 'HUMAN RESOURCES', 'HUMAN RESOURCE AND TRANSFORMATION'],
+        'IT' => ['IT'],
+        'LINGAP' => ['LINGAP', 'DIAGNOSTICS / LINGAP', 'DIAGNOSTICS/LINGAP'],
+        'MARKETING' => ['MARKETING'],
+        'SUPPLY CHAIN' => ['SUPPLY CHAIN', 'LOGISTICS'],
+        'TECHNICAL' => ['TECHNICAL'],
+    ];
+    $aliases = $aliasMap[$deptKey] ?? [$deptKey];
+    $placeholders = implode(',', array_fill(0, count($aliases), '?'));
+    $where[] = "UPPER(department) IN ($placeholders)";
+    foreach ($aliases as $a) {
+        $params[] = strtoupper($a);
+        $types .= 's';
+    }
 }
 
 if ($role !== '' && $role !== 'all') {
@@ -40,11 +58,23 @@ if ($role !== '' && $role !== 'all') {
     $types .= 's';
 }
 
-$sql = "SELECT id, name, department, role FROM users";
+if ($company !== '' && $company !== 'all') {
+    if (strpos($company, '@') === 0) {
+        $where[] = "LOWER(email) LIKE ?";
+        $params[] = '%' . strtolower($company);
+        $types .= 's';
+    } else {
+        $where[] = "company = ?";
+        $params[] = $company;
+        $types .= 's';
+    }
+}
+
+$sql = "SELECT id, name, email, department, role FROM users";
 if (count($where) > 0) {
     $sql .= " WHERE " . implode(" AND ", $where);
 }
-$sql .= " ORDER BY name ASC LIMIT ?";
+$sql .= " ORDER BY (id = ?) DESC, name ASC LIMIT ?";
 
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
@@ -53,6 +83,8 @@ if (!$stmt) {
     exit;
 }
 
+$params[] = $currentUserId;
+$types .= 'i';
 $params[] = $limit;
 $types .= 'i';
 
@@ -70,6 +102,7 @@ while ($row = $res->fetch_assoc()) {
     $users[] = [
         'id' => (int) ($row['id'] ?? 0),
         'name' => (string) ($row['name'] ?? ''),
+        'email' => (string) ($row['email'] ?? ''),
         'department' => (string) ($row['department'] ?? ''),
         'role' => (string) ($row['role'] ?? ''),
     ];
@@ -77,4 +110,3 @@ while ($row = $res->fetch_assoc()) {
 $stmt->close();
 
 echo json_encode(['ok' => true, 'users' => $users]);
-

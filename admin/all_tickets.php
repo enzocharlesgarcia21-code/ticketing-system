@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -20,11 +21,12 @@ if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
 
 /* ================= GET VALUES ================= */
 
-$category   = $_GET['category']   ?? '';
 $department = $_GET['department'] ?? '';
+$company_email = $_GET['company_email'] ?? '';
 $priority   = $_GET['priority']   ?? '';
 $status     = $_GET['status']     ?? '';
 $search     = $_GET['search']     ?? '';
+$department_key = $department !== '' ? ticket_department_key_from_value((string) $department) : '';
 
 $query = "
 SELECT employee_tickets.*, users.name, users.email, users.department AS user_department
@@ -35,14 +37,20 @@ WHERE 1
 
 /* ================= FILTERS ================= */
 
-if (!empty($category)) {
-    $category = $conn->real_escape_string($category);
-    $query .= " AND employee_tickets.category = '$category'";
-}
-
 if (!empty($department)) {
-    $department = $conn->real_escape_string($department);
-    $query .= " AND employee_tickets.department = '$department'";
+    $deptKey = $department_key !== '' ? $department_key : ticket_department_key_from_value((string) $department);
+    $deptAliases = ticket_department_aliases_for_key($deptKey);
+    $deptAliases[] = $deptKey;
+    $deptAliases = array_values(array_unique(array_filter(array_map('strtoupper', array_map('trim', $deptAliases)), static function ($v) { return is_string($v) && $v !== ''; })));
+
+    if (count($deptAliases) > 0) {
+        $deptConds = [];
+        foreach ($deptAliases as $a) {
+            $aEsc = $conn->real_escape_string($a);
+            $deptConds[] = "UPPER(COALESCE(NULLIF(employee_tickets.assigned_group,''), NULLIF(employee_tickets.assigned_department,''), NULLIF(employee_tickets.department,''), NULLIF(users.department,''))) = '$aEsc'";
+        }
+        $query .= " AND (" . implode(" OR ", $deptConds) . ")";
+    }
 }
 
 if (!empty($priority)) {
@@ -59,6 +67,15 @@ if (!empty($status)) {
     }
 }
 
+if (!empty($company_email)) {
+    $domain = strtolower(trim((string) $company_email));
+    if ($domain !== '') {
+        if ($domain[0] !== '@') $domain = '@' . $domain;
+        $domainEsc = $conn->real_escape_string($domain);
+        $query .= " AND LOWER(COALESCE(NULLIF(employee_tickets.requester_email,''), users.email)) LIKE '%$domainEsc'";
+    }
+}
+
 if (!empty($search)) {
     $searchSQL = $conn->real_escape_string($search);
     
@@ -70,7 +87,7 @@ if (!empty($search)) {
     $query .= " AND (
         users.name LIKE '%$searchSQL%' OR
         users.email LIKE '%$searchSQL%' OR
-        employee_tickets.category LIKE '%$searchSQL%' OR
+        employee_tickets.subject LIKE '%$searchSQL%' OR
         employee_tickets.id LIKE '%$searchSQL%'";
 
     if ($searchById) {
@@ -149,31 +166,33 @@ $result = $stmt->get_result();
                                name="search"
                                id="searchInput"
                                class="filter-input"
-                               placeholder="Search name, email or category..."
+                               placeholder="Search name, email or subject..."
                                value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
-
-                        <select name="category" class="filter-select" onchange="submitForm()">
-                            <option value="" disabled selected hidden>All Category</option>
-                            <option value="Network Issue" <?= $category=='Network Issue'?'selected':'' ?>>Network Issue</option>
-                            <option value="Hardware Issue" <?= $category=='Hardware Issue'?'selected':'' ?>>Hardware Issue</option>
-                            <option value="Software Issue" <?= $category=='Software Issue'?'selected':'' ?>>Software Issue</option>
-                            <option value="Email Problem" <?= $category=='Email Problem'?'selected':'' ?>>Email Problem</option>
-                            <option value="Account Access" <?= $category=='Account Access'?'selected':'' ?>>Account Access</option>
-                            <option value="Technical Support" <?= $category=='Technical Support'?'selected':'' ?>>Technical Support</option>
-                            <option value="Other" <?= $category=='Other'?'selected':'' ?>>Other</option>
-                        </select>
 
                         <select name="department" class="filter-select" onchange="submitForm()">
                             <option value="" disabled selected hidden>All Department</option>
-                            <option value="IT" <?= $department=='IT'?'selected':'' ?>>IT</option>
-                            <option value="HR" <?= $department=='HR'?'selected':'' ?>>HR</option>
-                            <option value="Marketing" <?= $department=='Marketing'?'selected':'' ?>>Marketing</option>
-                            <option value="Admin" <?= $department=='Admin'?'selected':'' ?>>Admin</option>
-                            <option value="Technical" <?= $department=='Technical'?'selected':'' ?>>Technical</option>
-                            <option value="Accounting" <?= $department=='Accounting'?'selected':'' ?>>Accounting</option>
-                            <option value="Supply Chain" <?= $department=='Supply Chain'?'selected':'' ?>>Supply Chain</option>
-                            <option value="MPDC" <?= $department=='MPDC'?'selected':'' ?>>MPDC</option>
-                            <option value="E-Comm" <?= $department=='E-Comm'?'selected':'' ?>>E-Comm</option>
+                            <option value="ACCOUNTING" <?= $department_key==='ACCOUNTING'?'selected':'' ?>>ACCOUNTING</option>
+                            <option value="ADMIN" <?= $department_key==='ADMIN'?'selected':'' ?>>ADMIN</option>
+                            <option value="E-COMM" <?= $department_key==='E-COMM'?'selected':'' ?>>E-COMM</option>
+                            <option value="HR" <?= $department_key==='HR'?'selected':'' ?>>HR</option>
+                            <option value="IT" <?= $department_key==='IT'?'selected':'' ?>>IT</option>
+                            <option value="LINGAP" <?= $department_key==='LINGAP'?'selected':'' ?>>LINGAP</option>
+                            <option value="MARKETING" <?= $department_key==='MARKETING'?'selected':'' ?>>MARKETING</option>
+                            <option value="SUPPLY CHAIN" <?= $department_key==='SUPPLY CHAIN'?'selected':'' ?>>SUPPLY CHAIN</option>
+                            <option value="TECHNICAL" <?= $department_key==='TECHNICAL'?'selected':'' ?>>TECHNICAL</option>
+                        </select>
+
+                        <select name="company_email" class="filter-select" onchange="submitForm()">
+                            <option value="" disabled selected hidden>All Company Email</option>
+                            <?php
+                                $domains = ['@gpsci.net','@farmasee.ph','@gmail.com','@leads-eh.com','@leads-farmex.com','@leadsagri.com','@leadsanimalhealth.com','@leadsav.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'];
+                                $selDomain = strtolower(trim((string) $company_email));
+                                if ($selDomain !== '' && $selDomain[0] !== '@') $selDomain = '@' . $selDomain;
+                                foreach ($domains as $d) {
+                                    $isSel = $selDomain !== '' && strtolower($d) === $selDomain;
+                                    echo '<option value="' . htmlspecialchars($d, ENT_QUOTES, 'UTF-8') . '" ' . ($isSel ? 'selected' : '') . '>' . htmlspecialchars($d, ENT_QUOTES, 'UTF-8') . '</option>';
+                                }
+                            ?>
                         </select>
 
                         <select name="priority" class="filter-select" onchange="submitForm()">
@@ -193,7 +212,7 @@ $result = $stmt->get_result();
                             <option value="unread" <?= $status=='unread'?'selected':'' ?>>Unread</option>
                         </select>
 
-                        <a href="all_tickets.php" class="clear-btn">Clear Filters</a>
+                        <a href="all_tickets.php" class="clear-btn" id="clearFiltersBtn">Clear Filters</a>
                     </div>
                 </form>
             </div>
@@ -210,10 +229,10 @@ $result = $stmt->get_result();
                                 <th>Assigned Dept</th>
                                 <th>Priority</th>
                                 <th>Status</th>
-                                <th>Date</th>
+                                <th>Date Created</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="ticketsTbody">
                             <?php while($row = $result->fetch_assoc()) { ?>
                             <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer; <?= $row['is_read'] == 0 ? 'background:rgba(27, 94, 32, 0.08);' : ''; ?>">
                                 <td data-label="ID">#<?= str_pad($row['id'], 6, '0', STR_PAD_LEFT); ?></td>
@@ -264,10 +283,11 @@ $result = $stmt->get_result();
                 </div>
 
                 <!-- PAGINATION UI -->
+                <div id="ticketsPagination">
                 <?php if ($total_pages > 1): ?>
                 <div class="pagination-glass">
                     <!-- Previous Link -->
-                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&category=<?= urlencode($category); ?>&department=<?= urlencode($department); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
                         Previous
                     </a>
@@ -275,7 +295,7 @@ $result = $stmt->get_result();
                     <!-- Page Numbers -->
                     <div class="page-numbers">
                         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&category=<?= urlencode($category); ?>&department=<?= urlencode($department); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
                                class="page-btn <?= ($i == $page) ? 'active' : ''; ?>">
                                 <?= $i; ?>
                             </a>
@@ -283,12 +303,13 @@ $result = $stmt->get_result();
                     </div>
 
                     <!-- Next Link -->
-                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&category=<?= urlencode($category); ?>&department=<?= urlencode($department); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
                         Next
                     </a>
                 </div>
                 <?php endif; ?>
+                </div>
 
             </div>
 
@@ -298,9 +319,12 @@ $result = $stmt->get_result();
 
 <script>
 let typingTimer;
-const doneTypingInterval = 600;
+const doneTypingInterval = 350;
 
 const searchInput = document.getElementById("searchInput");
+const filterForm = document.getElementById("filterForm");
+const tbodyEl = document.getElementById("ticketsTbody");
+const paginationEl = document.getElementById("ticketsPagination");
 
 searchInput.addEventListener("keyup", function () {
     clearTimeout(typingTimer);
@@ -312,11 +336,42 @@ searchInput.addEventListener("keydown", function () {
 });
 
 function doneTyping() {
-    document.getElementById("filterForm").submit();
+    submitForm(1);
 }
 
-function submitForm(){
-    document.getElementById("filterForm").submit();
+function serializeForm(page) {
+    var fd = new FormData(filterForm);
+    var params = new URLSearchParams();
+    fd.forEach(function (v, k) {
+        if (v === null || v === undefined) return;
+        var s = String(v);
+        if (s.trim() === '') return;
+        params.set(k, s);
+    });
+    params.set('page', String(page || 1));
+    params.set('limit', '5');
+    return params;
+}
+
+function refreshTickets(page) {
+    if (!filterForm || !tbodyEl || !paginationEl) return;
+    var params = serializeForm(page || 1);
+    fetch('ajax_all_tickets_list.php?' + params.toString(), { method: 'GET' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data || !data.ok) return;
+            tbodyEl.innerHTML = data.rows_html || '';
+            paginationEl.innerHTML = data.pagination_html || '';
+            var url = new URL(window.location.href);
+            url.search = '';
+            params.forEach(function (v, k) { url.searchParams.set(k, v); });
+            history.replaceState({}, '', url.toString());
+        })
+        .catch(function () {});
+}
+
+function submitForm(page){
+    refreshTickets(page || 1);
 }
 </script>
 <!-- Ticket Details Modal -->
@@ -346,14 +401,46 @@ window.TM_CURRENT_USER = <?php echo json_encode([
 </script>
 <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
 <script>
-document.querySelectorAll('.ticket-row').forEach(function(row){
-    row.addEventListener('click', function(){
-        var ticketId = this.getAttribute('data-id');
-        if (ticketId) {
+document.addEventListener('click', function (e) {
+    var target = e.target;
+    var row = target && target.closest ? target.closest('.ticket-row') : null;
+    if (row && row.getAttribute) {
+        var ticketId = row.getAttribute('data-id');
+        if (ticketId && typeof TMTicketModal !== 'undefined' && typeof TMTicketModal.open === 'function') {
             TMTicketModal.open(ticketId);
         }
-    });
+    }
+    var pageBtn = target && target.closest ? target.closest('#ticketsPagination a.page-btn') : null;
+    if (pageBtn) {
+        if (pageBtn.classList.contains('disabled')) {
+            e.preventDefault();
+            return;
+        }
+        var p = pageBtn.getAttribute('data-page');
+        if (p) {
+            e.preventDefault();
+            submitForm(parseInt(p, 10) || 1);
+        }
+    }
 });
+
+var clearBtn = document.getElementById('clearFiltersBtn');
+if (clearBtn) {
+    clearBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (!filterForm) return;
+        filterForm.reset();
+        if (searchInput) searchInput.value = '';
+        submitForm(1);
+    });
+}
+
+if (filterForm) {
+    filterForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        submitForm(1);
+    });
+}
 </script>
     <script src="../js/admin.js"></script>
 <script>

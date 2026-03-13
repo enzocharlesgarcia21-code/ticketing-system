@@ -278,8 +278,7 @@ $result = $stmt->get_result();
                                 <th>ID</th>
                                 <th>Subject</th>
                                 <th>Requested By</th>
-                                <th>Original Dept</th>
-                                <th>Assigned Dept</th>
+                                <th>Department</th>
                                 <th>Priority</th>
                                 <th>Status</th>
                                 <th>Date Created</th>
@@ -315,7 +314,6 @@ $result = $stmt->get_result();
                                         </div>
                                     </td>
                                     <td><?= htmlspecialchars(!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales'), ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td><?= htmlspecialchars($row['assigned_department'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     
                                     <td>
                                         <span class="badge badge-<?= strtolower($row['priority']); ?>">
@@ -334,7 +332,7 @@ $result = $stmt->get_result();
                                 <?php } ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="8" style="text-align:center; color: #94a3b8; padding: 40px;">
+                                    <td colspan="7" style="text-align:center; color: #94a3b8; padding: 40px;">
                                         <div class="empty-state">
                                             <i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i>
                                             <p>No tasks found for your department.</p>

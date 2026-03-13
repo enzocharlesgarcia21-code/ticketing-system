@@ -53,6 +53,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $new_department = isset($_POST['assigned_department']) ? trim($_POST['assigned_department']) : '';
     $new_company = isset($_POST['assigned_company']) ? trim($_POST['assigned_company']) : '';
     $admin_note = isset($_POST['admin_note']) ? trim($_POST['admin_note']) : null;
+    if ($new_department !== '') {
+        $new_department = ticket_department_key_from_value($new_department);
+    }
 
     // --- PERMISSION CHECK ---
     // Employee can only update tickets assigned to their department AND company
@@ -92,8 +95,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $new_company = ticket_normalize_company((string) $new_company);
     if (empty($new_department)) {
         $new_department = (string) ($old_data['assigned_group'] ?? ($old_data['assigned_department'] ?? ''));
+        if ($new_department !== '') {
+            $new_department = ticket_department_key_from_value($new_department);
+        }
     }
     $new_group = $new_department;
+
+    $oldStatus = (string) ($old_data['status'] ?? '');
+    $oldCompany = ticket_normalize_company((string) ($old_data['assigned_company'] ?? ''));
+    $oldDept = ticket_department_key_from_value((string) ($old_data['assigned_department'] ?? ($old_data['assigned_group'] ?? '')));
+    $oldNote = (string) ($old_data['admin_note'] ?? '');
+    $newNoteNorm = (string) ($admin_note ?? '');
+    if ($new_status === $oldStatus && $new_company === $oldCompany && $new_department === $oldDept && trim($newNoteNorm) === trim($oldNote)) {
+        $_SESSION['success'] = "No changes were made.";
+        header("Location: my_task.php");
+        exit();
+    }
 
     if ($new_company === '' || !ticket_is_valid_company($new_company) || !ticket_is_valid_group_for_company($new_company, $new_group)) {
         $_SESSION['error'] = 'Invalid company/group selection.';

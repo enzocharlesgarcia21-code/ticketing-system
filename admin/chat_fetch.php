@@ -31,25 +31,26 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             t.id,
             t.subject,
             MAX(tm.created_at) AS last_message_time,
-            SUM(CASE WHEN tm.is_read = 0 AND tm.sender_id <> ? THEN 1 ELSE 0 END) AS unread_count,
+            COALESCE(SUM(CASE WHEN tm.id IS NOT NULL AND tm.is_read = 0 AND tm.sender_id <> ? THEN 1 ELSE 0 END), 0) AS unread_count,
             SUBSTRING_INDEX(GROUP_CONCAT(tm.message ORDER BY tm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_message,
-            SUBSTRING_INDEX(GROUP_CONCAT(u.name ORDER BY tm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_sender_name
+            SUBSTRING_INDEX(GROUP_CONCAT(u.name ORDER BY tm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_sender_name,
+            MAX(t.created_at) AS ticket_created_at
         FROM employee_tickets t
-        JOIN ticket_messages tm ON t.id = tm.ticket_id
-        JOIN users u ON tm.sender_id = u.id
+        LEFT JOIN ticket_messages tm ON t.id = tm.ticket_id
+        LEFT JOIN users u ON tm.sender_id = u.id
     ";
     $params = [$current_user_id];
     $types = 'i';
 
-    if (($_SESSION['role'] ?? '') !== 'admin') {
-        $sql .= " WHERE t.user_id = ? ";
-        $params[] = $current_user_id;
-        $types .= 'i';
-    }
+    $sql .= " WHERE (t.user_id = ? OR t.assigned_user_id = ?) ";
+    $params[] = $current_user_id;
+    $types .= 'i';
+    $params[] = $current_user_id;
+    $types .= 'i';
 
     $sql .= "
         GROUP BY t.id, t.subject
-        ORDER BY last_message_time DESC
+        ORDER BY COALESCE(last_message_time, ticket_created_at) DESC
         LIMIT 50
     ";
 
@@ -87,19 +88,27 @@ if (!isset($_POST['ticket_id'])) {
 
 $ticket_id = (int)$_POST['ticket_id'];
 
-// Check if user has access to this ticket (Admin or Assigned User)
-// For Admin portal, we assume admins can see all tickets.
-// If strict checking is needed:
-if ($_SESSION['role'] !== 'admin') {
-     // Verify if the ticket belongs to the user
-     $check = $conn->prepare("SELECT id FROM employee_tickets WHERE id = ? AND user_id = ?");
-     $check->bind_param("ii", $ticket_id, $current_user_id);
-     $check->execute();
-     if ($check->get_result()->num_rows === 0) {
-         http_response_code(403);
-         echo json_encode(['error' => 'Access Denied']);
-         exit;
-     }
+// Access Control: only requester and assigned user
+$ticket = null;
+$check = $conn->prepare("SELECT user_id, assigned_user_id FROM employee_tickets WHERE id = ? LIMIT 1");
+if ($check) {
+    $check->bind_param("i", $ticket_id);
+    $check->execute();
+    $res = $check->get_result();
+    $ticket = $res ? $res->fetch_assoc() : null;
+    $check->close();
+}
+if (!$ticket) {
+    http_response_code(404);
+    echo json_encode(['error' => 'Ticket not found']);
+    exit;
+}
+$requesterId = (int) ($ticket['user_id'] ?? 0);
+$assigneeId = (int) ($ticket['assigned_user_id'] ?? 0);
+if ($current_user_id !== $requesterId && ($assigneeId <= 0 || $current_user_id !== $assigneeId)) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Access Denied']);
+    exit;
 }
 
 $mark = $conn->prepare("UPDATE ticket_messages SET is_read = 1 WHERE ticket_id = ? AND sender_id <> ? AND is_read = 0");

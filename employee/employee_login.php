@@ -14,11 +14,46 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role'])) {
     }
 }
 
+$email_domains = [
+    'gpsci.net',
+    'farmasee.ph',
+    'gmail.com',
+    'leads-eh.com',
+    'leads-farmex.com',
+    'leadsagri.com',
+    'leadsanimalhealth.com',
+    'leadsav.com',
+    'leadstech-corp.com',
+    'lingapleads.org',
+    'primestocks.ph'
+];
+$default_email_domain = '@leadsagri.com';
+$email_domain = $default_email_domain;
+$email_value = '';
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
 
-    $email = trim($_POST['email']);
+    $posted_email = trim($_POST['email'] ?? '');
+    $posted_domain = (string) ($_POST['email_domain'] ?? $email_domain);
+    $email_domain = $posted_domain !== '' ? $posted_domain : $email_domain;
+    $email = $posted_email;
+    if ($email !== '' && strpos($email, '@') === false) {
+        $email = $email . $email_domain;
+    }
     $password = trim($_POST['password']);
+
+    if ($email !== '') {
+        $atPos = strpos($email, '@');
+        if ($atPos !== false) {
+            $maybeDomain = substr($email, $atPos);
+            $allowed = array_map(function ($d) { return '@' . $d; }, $email_domains);
+            if (in_array($maybeDomain, $allowed, true)) {
+                $email_domain = $maybeDomain;
+            }
+        }
+        $email_value = $email;
+    }
 
     if (!empty($email) && !empty($password)) {
 
@@ -100,7 +135,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label>Email *</label>
-                <input type="email" name="email" required>
+                <div class="email-row">
+                    <input type="text" name="email" id="emailInput" value="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>" required title="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>">
+                    <select class="email-domain" name="email_domain" id="emailDomain" title="<?php echo htmlspecialchars($email_domain, ENT_QUOTES, 'UTF-8'); ?>">
+                        <?php foreach ($email_domains as $ed): ?>
+                            <?php $opt = '@' . $ed; ?>
+                            <option value="<?php echo htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>" <?php echo ($email_domain === $opt) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
 
             <div class="form-group">
@@ -113,7 +158,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         </form>
 
-        <div class="signup-link">
+        <div class="signup-link signup-link-hidden">
             Don’t have an account?
             <a href="register.php">Sign up</a>
         </div>
@@ -121,6 +166,63 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
 </div>
 
+<script>
+    (function () {
+        var emailEl = document.getElementById('emailInput');
+        var domainEl = document.getElementById('emailDomain');
+        if (!emailEl || !domainEl) return;
+
+        function normalizeEmail() {
+            var raw = (emailEl.value || '').trim();
+            if (!raw) {
+                return;
+            }
+            if (raw.indexOf('@') === -1) {
+                emailEl.value = raw + domainEl.value;
+            }
+            emailEl.title = emailEl.value || '';
+        }
+
+        function syncDomainFromEmail() {
+            var raw = (emailEl.value || '').trim();
+            var at = raw.indexOf('@');
+            if (at < 0) return;
+            var dom = raw.slice(at);
+            var options = Array.prototype.slice.call(domainEl.options).map(function (o) { return o.value; });
+            if (options.indexOf(dom) >= 0) {
+                domainEl.value = dom;
+                domainEl.title = dom;
+            }
+        }
+
+        function applyDomainToEmail() {
+            var raw = (emailEl.value || '').trim();
+            if (!raw) return;
+            var local = raw.split('@')[0];
+            if (!local) return;
+            emailEl.value = local + domainEl.value;
+            emailEl.title = emailEl.value || '';
+            domainEl.title = domainEl.value || '';
+        }
+
+        emailEl.addEventListener('input', function () {
+            syncDomainFromEmail();
+        });
+        domainEl.addEventListener('change', function () {
+            applyDomainToEmail();
+        });
+        emailEl.addEventListener('blur', function () {
+            normalizeEmail();
+        });
+
+        if (emailEl.form) {
+            emailEl.form.addEventListener('submit', function () {
+                normalizeEmail();
+            });
+        }
+
+        syncDomainFromEmail();
+    })();
+</script>
 </body>
 </html>
-

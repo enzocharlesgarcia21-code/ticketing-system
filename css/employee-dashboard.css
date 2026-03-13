@@ -977,6 +977,43 @@ tr:hover td {
     box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.1);
 }
 
+.login-card .otp-inputs {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 14px;
+}
+
+.login-card .otp-inputs .otp-digit {
+    width: 52px;
+    min-width: 52px;
+    max-width: 52px;
+    flex: 0 0 52px;
+    height: 52px;
+    padding: 0;
+    margin-bottom: 0 !important;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    border: 1px solid #dcdcdc;
+    border-radius: 12px;
+    background-color: #f9fafc;
+    color: #0f172a;
+}
+
+.login-card .otp-inputs .otp-digit:focus {
+    outline: none;
+    border-color: #1B5E20;
+    background-color: #ffffff;
+    box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.1);
+}
+
+@media (max-width: 480px) {
+    .login-card .otp-inputs { gap: 8px; }
+    .login-card .otp-inputs .otp-digit { width: 44px; min-width: 44px; max-width: 44px; flex-basis: 44px; height: 48px; font-size: 16px; }
+}
+
 .login-card button {
     width: 100%;
     background: linear-gradient(135deg, #1B5E20 0%, #144a1e 100%);

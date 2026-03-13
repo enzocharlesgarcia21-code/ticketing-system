@@ -57,23 +57,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $assigned_company = isset($_POST['assigned_company']) ? trim((string) $_POST['assigned_company']) : '';
     $assigned_group = isset($_POST['assigned_group']) ? trim((string) $_POST['assigned_group']) : '';
     $assigned_company = ticket_normalize_company($assigned_company);
+    $assigned_group = ticket_department_key_from_value($assigned_group);
     $assigned_department = $assigned_group;
     $description = !empty($_POST['description']) ? $_POST['description'] : NULL;
 
     if ($assigned_company === '' || !ticket_is_valid_company($assigned_company)) {
-        $_SESSION['error'] = 'Invalid company selected.';
+        $_SESSION['error'] = 'Invalid ticket recipient selected.';
         header("Location: request_ticket.php");
         exit();
     }
     if ($assigned_group === '' || !ticket_is_valid_group_for_company($assigned_company, $assigned_group)) {
-        $_SESSION['error'] = 'Invalid group selected for the chosen company.';
+        $_SESSION['error'] = 'Invalid assigned department selected for the chosen recipient.';
         header("Location: request_ticket.php");
         exit();
     }
 
     $assigned_user_id = ticket_find_assignee_id($conn, $assigned_company, $assigned_group);
     if (!$assigned_user_id) {
-        $_SESSION['error'] = 'No assignee available for the selected company and group.';
+        $_SESSION['error'] = 'No assignee available for the selected recipient and department.';
         header("Location: request_ticket.php");
         exit();
     }
@@ -376,28 +377,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <h3 class="form-section-title">Request Information</h3>
 
                     <div class="form-group">
-                        <label>Company / Subsidiary *</label>
+                        <label>Ticket Recipient (Company Email Domain) *</label>
                         <div class="select-wrapper">
                             <select name="assigned_company" id="assigned_company" class="form-control" required>
-                                <option value=""disabled selected hidden>Select Company</option>
-                                <option value="LAPC">LAPC</option>
-                                <option value="GPCI">GPCI</option>
-                                <option value="PCC">PCC</option>
-                                <option value="MHC">MHC</option>
-                                <option value="Farmex Corp">Farmex Corp</option>
-                                <option value="LTC">LTC</option>
-                                <option value="MPDC">MPDC</option>
-                                <option value="LINGAP">LINGAP</option>
+                                <option value=""disabled selected hidden>Select Recipient</option>
+                                <option value="@gpsci.net">@gpsci.net</option>
+                                <option value="@farmasee.ph">@farmasee.ph</option>
+                                <option value="@gmail.com">@gmail.com</option>
+                                <option value="@leads-eh.com">@leads-eh.com</option>
+                                <option value="@leads-farmex.com">@leads-farmex.com</option>
+                                <option value="@leadsagri.com">@leadsagri.com</option>
+                                <option value="@leadsanimalhealth.com">@leadsanimalhealth.com</option>
+                                <option value="@leadsav.com">@leadsav.com</option>
+                                <option value="@leadstech-corp.com">@leadstech-corp.com</option>
+                                <option value="@lingapleads.org">@lingapleads.org</option>
+                                <option value="@primestocks.ph">@primestocks.ph</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label>Group *</label>
+                        <label>Assigned Department *</label>
                         <div class="select-wrapper">
-                            <select name="assigned_group" id="assigned_group" class="form-control" required disabled>
-                                <option value="" disabled selected hidden>Select Company First</option>
+                            <select name="assigned_group" id="assigned_group" class="form-control" required>
+                                <option value="" disabled selected hidden>Select Department</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>
                         </div>
@@ -444,22 +448,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     document.addEventListener('DOMContentLoaded', function() {
         const companyEl = document.getElementById('assigned_company');
         const groupEl = document.getElementById('assigned_group');
-        const MAP = {
-            'LAPC': ["Banana Farm Operations","Seed Production","Supply Chain","Supply Chain Innovation","Admin & Legal","Diagnostics / Lingap","E-Commerce","Finance and Accounting","Human Resource and Transformation","Institutional Sales","Digital Agri Solutions and Innovations","Marketing","New Business Segment","Technical","Executive","Management"],
-            'GPCI': ["Accounting","Sales"],
-            'PCC': ["Management","Admin","Finance and Accounting","Maintenance","Production","Quality Control","Supply Chain","Technical"],
-            'MHC': ["Management","Admin & Legal","E-Commerce","Executive","Finance and Accounting","Institutional Sales","IT","Marketing"],
-            'Farmex Corp': ["Management","Finance and Admin","Logistics","Sales and Marketing","Special Project","Technical","Business Development"],
-            'LTC': ["Admin","Finance and Accounting","Logistics","Marketing","Sales","Services & Logistics (Luzon)"],
-            'MPDC': [],
-            'LINGAP': []
-        };
-        function keyForCompany(val) { return String(val || '').trim(); }
+        const DEPARTMENTS = ["ACCOUNTING","ADMIN","E-COMM","HR","IT","LINGAP","MARKETING","SUPPLY CHAIN","TECHNICAL"];
         function populateGroups(arr) {
             groupEl.innerHTML = '';
             const ph = document.createElement('option');
             ph.value = '';
-            ph.textContent = 'Select Group';
+            ph.textContent = 'Select Department';
             ph.disabled = true;
             ph.selected = true;
             groupEl.appendChild(ph);
@@ -470,42 +464,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 groupEl.appendChild(opt);
             });
         }
-        function resetGroupsToDisabled() {
-            groupEl.innerHTML = '';
-            const ph = document.createElement('option');
-            ph.value = '';
-            ph.textContent = 'Select Company First';
-            ph.selected = true;
-            groupEl.appendChild(ph);
-            groupEl.value = '';
-            groupEl.disabled = true;
-        }
-        function setNoGroupsDisabled() {
-            groupEl.innerHTML = '';
-            const ph = document.createElement('option');
-            ph.value = '';
-            ph.textContent = 'No groups available';
-            ph.selected = true;
-            groupEl.appendChild(ph);
-            groupEl.value = '';
-            groupEl.disabled = true;
-        }
-        if (groupEl) resetGroupsToDisabled();
-        if (companyEl) {
-            companyEl.addEventListener('change', function () {
-                const key = keyForCompany(companyEl.value);
-                if (!key) {
-                    resetGroupsToDisabled();
-                    return;
-                }
-                if (!MAP[key] || !Array.isArray(MAP[key]) || MAP[key].length === 0) {
-                    setNoGroupsDisabled();
-                    return;
-                }
-                populateGroups(MAP[key]);
-                groupEl.disabled = false;
-            });
-        }
+        if (groupEl) populateGroups(DEPARTMENTS);
         var attachmentInput = document.getElementById('attachments');
         var chooseBtn = document.getElementById('choose-file-btn');
         var fileNameEl = document.getElementById('file-name');

@@ -25,6 +25,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $new_department = isset($_POST['assigned_department']) ? trim($_POST['assigned_department']) : '';
     $new_company = isset($_POST['assigned_company']) ? trim($_POST['assigned_company']) : '';
     $admin_note = isset($_POST['admin_note']) ? trim($_POST['admin_note']) : null;
+    if ($new_department !== '') {
+        $new_department = ticket_department_key_from_value($new_department);
+    }
 
     if (isset($_GET['debug_status'])) {
         var_dump($_POST['status']);
@@ -53,6 +56,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $effective_company = ticket_normalize_company($effective_company);
 
     $effective_group = $new_department !== '' ? $new_department : (string) ($old_data['assigned_group'] ?? ($old_data['assigned_department'] ?? ''));
+    if ($effective_group !== '') {
+        $effective_group = ticket_department_key_from_value($effective_group);
+    }
     $assigned_user_id = $old_data['assigned_user_id'] ?? null;
     if ($effective_company !== '' && $effective_group !== '') {
         if (!ticket_is_valid_company($effective_company) || !ticket_is_valid_group_for_company($effective_company, $effective_group)) {
@@ -78,6 +84,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $new_department = $effective_group;
     }
 
+    $oldStatus = (string) ($old_data['status'] ?? '');
+    $oldCompany = ticket_normalize_company((string) ($old_data['assigned_company'] ?? ''));
+    $oldDept = ticket_department_key_from_value((string) ($old_data['assigned_department'] ?? ($old_data['assigned_group'] ?? '')));
+    $oldNote = (string) ($old_data['admin_note'] ?? '');
+    $newCompanyNorm = ticket_normalize_company((string) $effective_company);
+    $newDeptNorm = ticket_department_key_from_value((string) $new_department);
+    $newNoteNorm = (string) ($admin_note ?? '');
+    if ($new_status === $oldStatus && $newCompanyNorm === $oldCompany && $newDeptNorm === $oldDept && trim($newNoteNorm) === trim($oldNote)) {
+        $_SESSION['success'] = "No changes were made.";
+        header("Location: all_tickets.php");
+        exit();
+    }
+
     // Update status, department, admin_note and mark as read
     // Also update resolved_at if status is Resolved or Closed AND it hasn't been set yet
     $update = $conn->prepare("
@@ -98,7 +117,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         WHERE id = ?
     ");
     
-    $update->bind_param("ssssisssi", $new_status, $new_department, $effective_company, $effective_group, $assigned_user_id, $admin_note, $new_status, $new_status, $id);
+    $update->bind_param("ssssisssi", $new_status, $newDeptNorm, $newCompanyNorm, $effective_group, $assigned_user_id, $admin_note, $new_status, $new_status, $id);
     
     if ($update->execute()) {
         $_SESSION['success'] = "Ticket #$id successfully updated.";

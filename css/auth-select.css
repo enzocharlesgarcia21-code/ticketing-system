@@ -116,6 +116,10 @@ body {
     text-decoration: underline;
 }
 
+.auth-extra-hidden {
+    display: none;
+}
+
 /* Mobile tweaks */
 @media (max-width: 480px) {
     .auth-card { width: 92%; padding: 28px; }

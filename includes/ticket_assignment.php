@@ -2,77 +2,86 @@
 
 function ticket_company_group_map(): array
 {
+    $standard = ticket_standard_assigned_departments();
     return [
-        'LAPC' => [
-            'Banana Farm Operations',
-            'Seed Production',
-            'Supply Chain',
-            'Supply Chain Innovation',
-            'Admin & Legal',
-            'Diagnostics / Lingap',
-            'E-Commerce',
-            'Finance and Accounting',
-            'Human Resource and Transformation',
-            'Institutional Sales',
-            'Digital Agri Solutions and Innovations',
-            'Marketing',
-            'New Business Segment',
-            'Technical',
-            'Executive',
-            'Management',
-        ],
-        'GPCI' => [
-            'Accounting',
-            'Sales',
-        ],
-        'PCC' => [
-            'Management',
-            'Admin',
-            'Finance and Accounting',
-            'Maintenance',
-            'Production',
-            'Quality Control',
-            'Supply Chain',
-            'Technical',
-        ],
-        'MHC' => [
-            'Management',
-            'Admin & Legal',
-            'E-Commerce',
-            'Executive',
-            'Finance and Accounting',
-            'Institutional Sales',
-            'IT',
-            'Marketing',
-        ],
-        'Farmex Corp' => [
-            'Management',
-            'Finance and Admin',
-            'Logistics',
-            'Sales and Marketing',
-            'Special Project',
-            'Technical',
-            'Business Development',
-        ],
-        'LTC' => [
-            'Admin',
-            'Finance and Accounting',
-            'Logistics',
-            'Marketing',
-            'Sales',
-            'Services & Logistics (Luzon)',
-        ],
-        'MPDC' => [],
-        'LINGAP' => [],
+        'LAPC' => $standard,
+        'GPCI' => $standard,
+        'PCC' => $standard,
+        'MHC' => $standard,
+        'Farmex Corp' => $standard,
+        'LTC' => $standard,
+        'MPDC' => $standard,
+        'LINGAP' => $standard,
+        '@gpsci.net' => $standard,
+        '@farmasee.ph' => $standard,
+        '@gmail.com' => $standard,
+        '@leads-eh.com' => $standard,
+        '@leads-farmex.com' => $standard,
+        '@leadsagri.com' => $standard,
+        '@leadsanimalhealth.com' => $standard,
+        '@leadsav.com' => $standard,
+        '@leadstech-corp.com' => $standard,
+        '@lingapleads.org' => $standard,
+        '@primestocks.ph' => $standard,
     ];
+}
+
+function ticket_standard_assigned_departments(): array
+{
+    return [
+        'ACCOUNTING',
+        'ADMIN',
+        'E-COMM',
+        'HR',
+        'IT',
+        'LINGAP',
+        'MARKETING',
+        'SUPPLY CHAIN',
+        'TECHNICAL',
+    ];
+}
+
+function ticket_department_aliases_for_key(string $key): array
+{
+    $key = strtoupper(trim($key));
+    $map = [
+        'ACCOUNTING' => ['ACCOUNTING', 'FINANCE AND ACCOUNTING', 'FINANCE & ACCOUNTING'],
+        'ADMIN' => ['ADMIN', 'ADMINISTRATION', 'ADMIN & LEGAL', 'FINANCE AND ADMIN', 'FINANCE & ADMIN'],
+        'E-COMM' => ['E-COMM', 'E-COMMERCE', 'E-COMMERCE', 'E COMMERCE', 'ECOMM'],
+        'HR' => ['HR', 'HUMAN RESOURCE', 'HUMAN RESOURCES', 'HUMAN RESOURCE AND TRANSFORMATION'],
+        'IT' => ['IT'],
+        'LINGAP' => ['LINGAP', 'DIAGNOSTICS / LINGAP', 'DIAGNOSTICS/LINGAP'],
+        'MARKETING' => ['MARKETING', 'SALES AND MARKETING'],
+        'SUPPLY CHAIN' => ['SUPPLY CHAIN', 'SUPPLY CHAIN INNOVATION', 'LOGISTICS', 'SERVICES & LOGISTICS (LUZON)'],
+        'TECHNICAL' => ['TECHNICAL'],
+    ];
+    return $map[$key] ?? [$key];
+}
+
+function ticket_department_key_from_value(string $value): string
+{
+    $value = strtoupper(trim($value));
+    if ($value === '') return '';
+    $standard = ticket_standard_assigned_departments();
+    if (in_array($value, $standard, true)) return $value;
+    foreach ($standard as $key) {
+        $aliases = ticket_department_aliases_for_key($key);
+        foreach ($aliases as $a) {
+            if ($value === strtoupper(trim((string) $a))) return $key;
+        }
+    }
+    return $value;
 }
 
 function ticket_company_aliases(string $company): array
 {
     $company = trim($company);
-    $key = strtoupper($company);
-    if ($key === 'FARMEX CORP') $key = 'FARMEX CORP';
-    if ($key === 'FARMASEE') $key = 'PCC';
+    if ($company === '') return [];
+    if (strpos($company, '@') === 0) return [$company];
+
+    $key = strtoupper(trim($company));
+    if ($key === 'FARMEX') $company = 'Farmex Corp';
+    if ($key === 'FARMEX CORP') $company = 'Farmex Corp';
 
     $aliases = [$company];
     $map = [
@@ -85,23 +94,24 @@ function ticket_company_aliases(string $company): array
         'MPDC' => ['MPDC', 'Malveda Properties & Development Corporation - MPDC'],
         'LINGAP' => ['LINGAP', 'LINGAP LEADS FOUNDATION - Lingap'],
     ];
+    if ($key === 'FARMEX') $key = 'FARMEX CORP';
     if (isset($map[$key])) {
         $aliases = array_merge($aliases, $map[$key]);
     }
-    $aliases = array_values(array_unique(array_filter(array_map('trim', $aliases), static function ($v) { return $v !== ''; })));
-    return $aliases;
+    return array_values(array_unique(array_filter(array_map('trim', $aliases), static function ($v) { return $v !== ''; })));
 }
 
 function ticket_is_valid_company(string $company): bool
 {
+    $company = ticket_normalize_company($company);
     $map = ticket_company_group_map();
-    return array_key_exists(trim($company), $map);
+    return array_key_exists($company, $map);
 }
 
 function ticket_is_valid_group_for_company(string $company, string $group): bool
 {
-    $company = trim($company);
-    $group = trim($group);
+    $company = ticket_normalize_company($company);
+    $group = ticket_department_key_from_value($group);
     $map = ticket_company_group_map();
     if (!array_key_exists($company, $map)) return false;
     if (!is_array($map[$company]) || count($map[$company]) === 0) return false;
@@ -110,19 +120,34 @@ function ticket_is_valid_group_for_company(string $company, string $group): bool
 
 function ticket_find_assignee_id(mysqli $conn, string $company, string $group): ?int
 {
-    $company = trim($company);
-    $group = trim($group);
+    $company = ticket_normalize_company($company);
+    $groupKey = ticket_department_key_from_value($group);
+    $group = $groupKey;
     if ($company === '' || $group === '') return null;
-    $aliases = ticket_company_aliases($company);
-    if (count($aliases) === 0) return null;
+    $deptAliases = ticket_department_aliases_for_key($group);
+    $deptAliases = array_values(array_unique(array_filter(array_map('strtoupper', $deptAliases), static function ($v) { return is_string($v) && $v !== ''; })));
+    if (count($deptAliases) === 0) return null;
+    $deptPlaceholders = implode(',', array_fill(0, count($deptAliases), '?'));
+    $types = str_repeat('s', count($deptAliases));
+    $params = $deptAliases;
 
-    $placeholders = implode(',', array_fill(0, count($aliases), '?'));
-    $sql = "SELECT id FROM users WHERE role = 'employee' AND department = ? AND company IN ($placeholders) ORDER BY id ASC LIMIT 1";
-    $stmt = $conn->prepare($sql);
-    if (!$stmt) return null;
+    if (strpos($company, '@') === 0) {
+        $sql = "SELECT id FROM users WHERE role = 'employee' AND UPPER(department) IN ($deptPlaceholders) AND LOWER(email) LIKE ? ORDER BY id ASC LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) return null;
+        $types .= 's';
+        $params[] = '%' . strtolower($company);
+    } else {
+        $aliases = ticket_company_aliases($company);
+        if (count($aliases) === 0) return null;
+        $placeholders = implode(',', array_fill(0, count($aliases), '?'));
+        $sql = "SELECT id FROM users WHERE role = 'employee' AND UPPER(department) IN ($deptPlaceholders) AND company IN ($placeholders) ORDER BY id ASC LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) return null;
+        $types .= str_repeat('s', count($aliases));
+        $params = array_merge($params, $aliases);
+    }
 
-    $types = 's' . str_repeat('s', count($aliases));
-    $params = array_merge([$group], $aliases);
     $bind = [];
     $bind[] = $types;
     foreach ($params as $k => $p) {
@@ -154,11 +179,10 @@ function ticket_ensure_assignment_columns(mysqli $conn): void
 function ticket_normalize_company(string $company): string
 {
     $company = trim($company);
-    $map = ticket_company_group_map();
-    if (array_key_exists($company, $map)) return $company;
+    if ($company === '') return '';
+    if (strpos($company, '@') === 0) return strtolower($company);
     $u = strtoupper($company);
     if ($u === 'FARMEX') return 'Farmex Corp';
     if ($u === 'FARMEX CORP') return 'Farmex Corp';
     return $company;
 }
-

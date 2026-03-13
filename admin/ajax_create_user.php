@@ -1,8 +1,6 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
-require_once '../includes/mailer.php';
-
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
@@ -38,8 +36,6 @@ $fullName = trim((string) ($_POST['full_name'] ?? ''));
 $username = trim((string) ($_POST['username'] ?? ''));
 $domain = trim((string) ($_POST['domain'] ?? '@leadsagri.com'));
 $password = (string) ($_POST['password'] ?? '');
-$sendInitiation = (int) (($_POST['send_initiation'] ?? '0') === '1');
-$sendInvitation = (int) (($_POST['send_invitation'] ?? '0') === '1');
 
 if ($fullName === '') {
     json_error('Full name is required.');
@@ -54,7 +50,19 @@ if (!preg_match('/^[a-z0-9._-]{2,64}$/', $username)) {
     json_error('Username must be 2–64 characters and contain only letters, numbers, dot, underscore, or hyphen.');
 }
 
-$allowedDomains = ['@leadsagri.com'];
+$allowedDomains = [
+    '@gpsci.net',
+    '@farmasee.ph',
+    '@gmail.com',
+    '@leads-eh.com',
+    '@leads-farmex.com',
+    '@leadsagri.com',
+    '@leadsanimalhealth.com',
+    '@leadsav.com',
+    '@leadstech-corp.com',
+    '@lingapleads.org',
+    '@primestocks.ph'
+];
 if (!in_array($domain, $allowedDomains, true)) {
     json_error('Invalid domain selected.');
 }
@@ -87,7 +95,7 @@ $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
 $role = 'employee';
 $company = '';
-$department = '';
+$department = trim((string) ($_POST['department'] ?? ''));
 $otp = '000000';
 $verified = 1;
 
@@ -119,31 +127,6 @@ if (!$insert->execute()) {
 $newUserId = (int) $insert->insert_id;
 $insert->close();
 
-if ($sendInitiation || $sendInvitation) {
-    $loginUrl = (isset($_SERVER['HTTP_HOST']) ? ('http://' . $_SERVER['HTTP_HOST'] . '/ticketing/employee/employee_login.php') : 'employee_login.php');
-    $subject = 'Leads Agri Helpdesk Account';
-    $safeName = htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8');
-    $safeEmail = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
-    $safePassword = htmlspecialchars($password, ENT_QUOTES, 'UTF-8');
-    $safeUrl = htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8');
-
-    $html = "
-        <div style='font-family:Inter,Arial,sans-serif; color:#111827; line-height:1.5'>
-            <h2 style='margin:0 0 12px 0; color:#1B5E20'>Welcome to Leads Agri Helpdesk</h2>
-            <p style='margin:0 0 12px 0'>Hello <strong>$safeName</strong>,</p>
-            <p style='margin:0 0 12px 0'>Your account has been created.</p>
-            <div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin:0 0 12px 0'>
-                <div><strong>Email:</strong> $safeEmail</div>
-                <div><strong>Password:</strong> $safePassword</div>
-            </div>
-            <p style='margin:0 0 12px 0'>Login here: <a href='$safeUrl' style='color:#1B5E20; font-weight:700'>$safeUrl</a></p>
-            <p style='margin:0'>Please change your password after logging in.</p>
-        </div>
-    ";
-    $text = "Welcome to Leads Agri Helpdesk\n\nEmail: $email\nPassword: $password\nLogin: $loginUrl\n\nPlease change your password after logging in.\n";
-    sendSmtpEmail([$email], $subject, $html, $text);
-}
-
 echo json_encode([
     'ok' => true,
     'message' => 'User created successfully',
@@ -154,4 +137,3 @@ echo json_encode([
         'role' => $role
     ]
 ]);
-

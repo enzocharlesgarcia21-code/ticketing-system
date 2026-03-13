@@ -104,19 +104,21 @@ var TMTicketModal = (function () {
     var u = new Date(updatedAt);
     if (isNaN(c.getTime()) || isNaN(u.getTime())) return null;
     var diffMs = u.getTime() - c.getTime();
-    if (diffMs <= 0) return null;
+    if (diffMs <= 0) return 0;
     return Math.round(diffMs / 60000);
   }
   function formatResolutionString(minutes) {
     if (minutes == null) return null;
     if (minutes < 60) {
       var m = Math.max(0, Math.round(minutes));
-      return m === 1 ? '1 min' : (m + ' mins');
+      if (m === 0) return '0 min';
+      if (m === 1) return '1 min';
+      return m + ' mins';
     }
     var hrs = Math.floor(minutes / 60);
     var mins = minutes % 60;
     if (mins === 0) return hrs + ' ' + (hrs === 1 ? 'hr' : 'hrs');
-    return hrs + ' ' + (hrs === 1 ? 'hr' : 'hrs') + ' ' + mins + ' mins';
+    return hrs + ' ' + (hrs === 1 ? 'hr' : 'hrs') + ' ' + mins + ' ' + (mins === 1 ? 'min' : 'mins');
   }
   function getDurationClass(durationStr, minutes) {
     if (typeof minutes === 'number') {
@@ -146,6 +148,46 @@ var TMTicketModal = (function () {
     else if (status === 'In Progress') select.classList.add('status-progress');
     else if (status === 'Resolved') select.classList.add('status-resolved');
     else if (status === 'Closed') select.classList.add('status-closed');
+  }
+  function bindNoChangeGuard(container, data) {
+    if (!container) return;
+    var form = container.querySelector('#ticketUpdateForm');
+    if (!form || form.dataset.nochangeBound === '1') return;
+    form.dataset.nochangeBound = '1';
+
+    var statusEl = form.querySelector('select[name="status"]');
+    var deptEl = form.querySelector('select[name="assigned_department"]');
+    var companyEl = form.querySelector('select[name="assigned_company"]');
+    var noticeEl = form.querySelector('#tmNoChangeNotice');
+
+    var initialStatus = statusEl ? String(statusEl.value || '') : String((data && data.status) || '');
+    var initialDept = deptEl ? String(deptEl.value || '') : '';
+    var initialCompany = companyEl ? String(companyEl.value || '') : '';
+
+    function hideNotice() {
+      if (!noticeEl) return;
+      noticeEl.classList.remove('show');
+      noticeEl.textContent = '';
+    }
+
+    [statusEl, deptEl, companyEl].forEach(function (el) {
+      if (!el) return;
+      el.addEventListener('change', hideNotice);
+      el.addEventListener('input', hideNotice);
+    });
+
+    form.addEventListener('submit', function (e) {
+      var currentStatus = statusEl ? String(statusEl.value || '') : initialStatus;
+      var currentDept = deptEl ? String(deptEl.value || '') : initialDept;
+      var currentCompany = companyEl ? String(companyEl.value || '') : initialCompany;
+      if (currentStatus === initialStatus && currentDept === initialDept && currentCompany === initialCompany) {
+        e.preventDefault();
+        if (noticeEl) {
+          noticeEl.textContent = 'No changes were made.';
+          noticeEl.classList.add('show');
+        }
+      }
+    });
   }
   function buildHtml(data) {
     var statusSlug = data.status ? data.status.toLowerCase().replace(/\s+/g, '') : 'default';
@@ -181,42 +223,40 @@ var TMTicketModal = (function () {
         '            </select>' +
         '          </div>';
     }
-    var groups = [
-      'Banana Farm Operations',
-      'Seed Production',
-      'Supply Chain',
-      'Supply Chain Innovation',
-      'Admin & Legal',
-      'Diagnostics / Lingap',
-      'E-Commerce',
-      'Finance and Accounting',
-      'Human Resource and Transformation',
-      'Institutional Sales',
-      'Digital Agri Solutions and Innovations',
-      'Marketing',
-      'New Business Segment',
-      'Technical',
-      'Executive',
-      'Management',
-      'Accounting',
-      'Sales',
-      'Admin',
-      'Maintenance',
-      'Production',
-      'Quality Control',
-      'IT',
-      'Finance and Admin',
-      'Logistics',
-      'Sales and Marketing',
-      'Special Project',
-      'Business Development',
-      'Services & Logistics (Luzon)'
-    ];
-    var uniqueGroups = [];
-    groups.forEach(function (g) { if (uniqueGroups.indexOf(g) === -1) uniqueGroups.push(g); });
-    uniqueGroups.sort(function (a, b) { return String(a).localeCompare(String(b)); });
-    var deptOptionsHtml = uniqueGroups.map(function (g) {
-      return '                  <option value="' + escapeHtml(g) + '" ' + (String(data.assigned_department || '') === String(g) ? 'selected' : '') + '>' + escapeHtml(g) + '</option>';
+    function deptKeyFromValue(val) {
+      var v = (val == null ? '' : String(val)).trim();
+      if (!v) return '';
+      var u = v.toUpperCase();
+      var map = {
+        'ACCOUNTING': ['ACCOUNTING', 'FINANCE AND ACCOUNTING', 'FINANCE & ACCOUNTING'],
+        'ADMIN': ['ADMIN', 'ADMINISTRATION', 'ADMIN & LEGAL', 'FINANCE AND ADMIN', 'FINANCE & ADMIN'],
+        'E-COMM': ['E-COMM', 'E-COMMERCE', 'E COMMERCE', 'ECOMM'],
+        'HR': ['HR', 'HUMAN RESOURCE', 'HUMAN RESOURCES', 'HUMAN RESOURCE AND TRANSFORMATION'],
+        'IT': ['IT'],
+        'LINGAP': ['LINGAP', 'DIAGNOSTICS / LINGAP', 'DIAGNOSTICS/LINGAP'],
+        'MARKETING': ['MARKETING', 'SALES AND MARKETING'],
+        'SUPPLY CHAIN': ['SUPPLY CHAIN', 'SUPPLY CHAIN INNOVATION', 'LOGISTICS', 'SERVICES & LOGISTICS (LUZON)'],
+        'TECHNICAL': ['TECHNICAL']
+      };
+      var keys = Object.keys(map);
+      for (var i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        if (u === k) return k;
+        var aliases = map[k] || [];
+        for (var j = 0; j < aliases.length; j++) {
+          if (u === String(aliases[j]).toUpperCase()) return k;
+        }
+      }
+      return u;
+    }
+    var deptKeys = ['ACCOUNTING','ADMIN','E-COMM','HR','IT','LINGAP','MARKETING','SUPPLY CHAIN','TECHNICAL'];
+    var selectedDeptKey = deptKeyFromValue(data.assigned_department || '');
+    var deptOptionsHtml = '';
+    if (selectedDeptKey && deptKeys.indexOf(selectedDeptKey) === -1) {
+      deptOptionsHtml += '                  <option value="' + escapeHtml(selectedDeptKey) + '" selected>' + escapeHtml(selectedDeptKey) + '</option>';
+    }
+    deptOptionsHtml += deptKeys.map(function (k) {
+      return '                  <option value="' + escapeHtml(k) + '" ' + (String(selectedDeptKey || '') === String(k) ? 'selected' : '') + '>' + escapeHtml(k) + '</option>';
     }).join('');
     return '' +
       '<div class="tm-header">' +
@@ -232,7 +272,8 @@ var TMTicketModal = (function () {
       '</div>' +
       '<div class="tm-tabs">' +
       '  <div class="tm-tab active" data-tab="info" onclick="TMTicketModal.switchTab(\'info\')">Information</div>' +
-      '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Actions</div>' +
+      '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Update</div>' +
+      '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Conversation</div>' +
       '</div>' +
       '<div class="tm-body">' +
       '  <div id="tab-info" class="tm-tab-content active">' +
@@ -262,7 +303,7 @@ var TMTicketModal = (function () {
       '    </div>' +
       '  </div>' +
       '  <div id="tab-actions" class="tm-tab-content">' +
-      '    <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Ticket Actions</span></div><div class="tm-card-body">' +
+      '    <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Ticket Update</span></div><div class="tm-card-body">' +
       '    <form id="ticketUpdateForm" method="POST" action="update_ticket.php" class="tm-actions-form">' +
       '      <input type="hidden" name="id" value="' + data.id + '">' +
       '      <input type="hidden" name="csrf_token" value="' + escapeHtml(getCsrfToken()) + '">' +
@@ -272,7 +313,7 @@ var TMTicketModal = (function () {
       statusControlHtml +
       '        </div>' +
       '        <div class="tm-field">' +
-      '          <label class="tm-control-label">Assign Dept</label>' +
+      '          <label class="tm-control-label">Assigned Department</label>' +
       '          <div class="tm-select-wrapper">' +
       '            <select class="tm-select tm-dept-select" name="assigned_department">' +
       ( !data.assigned_department ? '                  <option value="" disabled selected hidden>Assign Department</option>' : '' ) +
@@ -281,25 +322,29 @@ var TMTicketModal = (function () {
       '          </div>' +
       '        </div>' +
       '        <div class="tm-field">' +
-      '          <label class="tm-control-label">Assign Company</label>' +
+      '          <label class="tm-control-label">Ticket Recipient</label>' +
       '          <div class="tm-select-wrapper">' +
       '            <select class="tm-select tm-dept-select" name="assigned_company">' +
-      ( !data.assigned_company ? '                  <option value="" disabled selected hidden>Select Company</option>' : '' ) +
-      ( data.assigned_company && ['LAPC','GPCI','PCC','MHC','Farmex Corp','LTC','MPDC','LINGAP'].indexOf(data.assigned_company) === -1
+      ( !data.assigned_company ? '                  <option value="" disabled selected hidden>Select Recipient</option>' : '' ) +
+      ( data.assigned_company && ['@gpsci.net','@farmasee.ph','@gmail.com','@leads-eh.com','@leads-farmex.com','@leadsagri.com','@leadsanimalhealth.com','@leadsav.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'].indexOf(String(data.assigned_company).toLowerCase()) === -1
           ? ('                  <option value="' + escapeHtml(data.assigned_company) + '" selected>' + escapeHtml(data.assigned_company) + '</option>')
           : '' ) +
-      '                  <option value="LAPC" ' + (data.assigned_company === 'LAPC' ? 'selected' : '') + '>LAPC</option>' +
-      '                  <option value="GPCI" ' + (data.assigned_company === 'GPCI' ? 'selected' : '') + '>GPCI</option>' +
-      '                  <option value="PCC" ' + (data.assigned_company === 'PCC' ? 'selected' : '') + '>PCC</option>' +
-      '                  <option value="MHC" ' + (data.assigned_company === 'MHC' ? 'selected' : '') + '>MHC</option>' +
-      '                  <option value="Farmex Corp" ' + (data.assigned_company === 'Farmex Corp' ? 'selected' : '') + '>Farmex Corp</option>' +
-      '                  <option value="LTC" ' + (data.assigned_company === 'LTC' ? 'selected' : '') + '>LTC</option>' +
-      '                  <option value="MPDC" ' + (data.assigned_company === 'MPDC' ? 'selected' : '') + '>MPDC</option>' +
-      '                  <option value="LINGAP" ' + (data.assigned_company === 'LINGAP' ? 'selected' : '') + '>LINGAP</option>' +
+      '                  <option value="@gpsci.net" ' + (String(data.assigned_company || '').toLowerCase() === '@gpsci.net' ? 'selected' : '') + '>@gpsci.net</option>' +
+      '                  <option value="@farmasee.ph" ' + (String(data.assigned_company || '').toLowerCase() === '@farmasee.ph' ? 'selected' : '') + '>@farmasee.ph</option>' +
+      '                  <option value="@gmail.com" ' + (String(data.assigned_company || '').toLowerCase() === '@gmail.com' ? 'selected' : '') + '>@gmail.com</option>' +
+      '                  <option value="@leads-eh.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leads-eh.com' ? 'selected' : '') + '>@leads-eh.com</option>' +
+      '                  <option value="@leads-farmex.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leads-farmex.com' ? 'selected' : '') + '>@leads-farmex.com</option>' +
+      '                  <option value="@leadsagri.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsagri.com' ? 'selected' : '') + '>@leadsagri.com</option>' +
+      '                  <option value="@leadsanimalhealth.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsanimalhealth.com' ? 'selected' : '') + '>@leadsanimalhealth.com</option>' +
+      '                  <option value="@leadsav.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsav.com' ? 'selected' : '') + '>@leadsav.com</option>' +
+      '                  <option value="@leadstech-corp.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadstech-corp.com' ? 'selected' : '') + '>@leadstech-corp.com</option>' +
+      '                  <option value="@lingapleads.org" ' + (String(data.assigned_company || '').toLowerCase() === '@lingapleads.org' ? 'selected' : '') + '>@lingapleads.org</option>' +
+      '                  <option value="@primestocks.ph" ' + (String(data.assigned_company || '').toLowerCase() === '@primestocks.ph' ? 'selected' : '') + '>@primestocks.ph</option>' +
       '            </select>' +
       '          </div>' +
       '        </div>' +
       '      </div>' +
+      '      <div class="tm-nochange" id="tmNoChangeNotice"></div>' +
       '      <div class="tm-actions-buttons">' +
       '        <button type="button" class="tm-btn tm-btn-secondary" onclick="TMTicketModal.close()">Close</button>' +
       '        <button type="submit" class="tm-btn tm-btn-primary">Save Ticket</button>' +
@@ -325,7 +370,7 @@ var TMTicketModal = (function () {
     formData.append('ticket_id', ticketId);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_fetch.php', { method: 'POST', body: formData })
+    fetch('chat_fetch.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data && data.error) return;
@@ -372,7 +417,7 @@ var TMTicketModal = (function () {
     formData.append('message', message);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_send.php', { method: 'POST', body: formData })
+    fetch('chat_send.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (btn) btn.disabled = false;
@@ -479,10 +524,13 @@ var TMTicketModal = (function () {
     formData.append('ticket_id', ticketId);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_fetch.php', { method: 'POST', body: formData })
+    fetch('chat_fetch.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (data && data.error) return;
+        if (data && data.error) {
+          stopChatBadge();
+          return;
+        }
         updateChatBadgeFromMessages(ticketId, data || []);
       })
       .catch(function () { });
@@ -592,10 +640,21 @@ var TMTicketModal = (function () {
     formData.append('ticket_id', ticketId);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_fetch.php', { method: 'POST', body: formData })
+    fetch('chat_fetch.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (data && data.error) return;
+        if (data && data.error) {
+          stopChat();
+          var container = qs('chatModalMessages');
+          if (container) {
+            container.innerHTML = '<div class="chat-empty">Chat is available only between the requester and assigned user.</div>';
+          }
+          var input = qs('chatModalInput');
+          var btn = qs('chatModalSendBtn');
+          if (input) input.disabled = true;
+          if (btn) btn.disabled = true;
+          return;
+        }
         var msgs = data || [];
         renderChatModalMessages(msgs, scrollBottom);
         var lastId = 0;
@@ -656,10 +715,19 @@ var TMTicketModal = (function () {
     formData.append('message', message);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_send.php', { method: 'POST', body: formData })
+    fetch('chat_send.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (btn) btn.disabled = false;
+        if (data && data.error) {
+          var container = qs('chatModalMessages');
+          if (container) {
+            container.innerHTML = '<div class="chat-empty">Chat is available only between the requester and assigned user.</div>';
+          }
+          input.disabled = true;
+          if (btn) btn.disabled = true;
+          return;
+        }
         if (data && data.success) {
           input.value = '';
           loadTicketMessages(ticketIdEl.value, true);
@@ -803,10 +871,15 @@ var TMTicketModal = (function () {
     formData.append('action', 'conversations');
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_fetch.php', { method: 'POST', body: formData })
+    fetch('chat_fetch.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        if (data && data.error) return;
+        if (data && data.error) {
+          var list = qs('tmMessengerList');
+          if (list) list.innerHTML = '<div class="tm-messenger-empty">No conversations.</div>';
+          window.__tmConversations = [];
+          return;
+        }
         window.__tmConversations = Array.isArray(data) ? data : [];
         var searchEl = qs('tmMessengerSearch');
         renderConversations(searchEl ? searchEl.value : '');
@@ -856,7 +929,7 @@ var TMTicketModal = (function () {
         (unread > 0 ? ('<span class="unread-badge">' + escapeHtml(String(unread)) + '</span>') : '') +
         '  </div>' +
         '</div>' +
-        '<div class="tm-messenger-item-preview">' + escapeHtml((c.last_sender_name ? (String(c.last_sender_name) + ': ') : '') + (c.last_message || '')) + '</div>';
+        '<div class="tm-messenger-item-preview">' + escapeHtml((c.last_message ? ((c.last_sender_name ? (String(c.last_sender_name) + ': ') : '') + String(c.last_message)) : 'No messages yet.')) + '</div>';
       btn.addEventListener('click', function () {
         selectConversation(c);
       });
@@ -895,7 +968,7 @@ var TMTicketModal = (function () {
     formData.append('ticket_id', ticketId);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_fetch.php', { method: 'POST', body: formData })
+    fetch('chat_fetch.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data && data.error) return;
@@ -953,7 +1026,7 @@ var TMTicketModal = (function () {
     formData.append('message', message);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
-    fetch('chat_send.php', { method: 'POST', body: formData })
+    fetch('chat_send.php', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (btn) btn.disabled = false;
@@ -976,6 +1049,13 @@ var TMTicketModal = (function () {
     loadConversationsAndMaybeSelect();
     var input = qs('tmMessengerInput');
     if (input) setTimeout(function () { input.focus(); }, 0);
+  }
+  function openConversation(ticketId) {
+    if (ticketId == null || ticketId === '') return;
+    messengerTicketId = String(ticketId);
+    setCurrentTicketId(messengerTicketId);
+    close();
+    openMessengerChat();
   }
   function closeMessengerChat() {
     var modal = qs('tmMessengerModal');
@@ -1000,6 +1080,7 @@ var TMTicketModal = (function () {
         }
         setCurrentTicketId(data && data.id != null ? data.id : id);
         modalContent.innerHTML = buildHtml(data);
+        bindNoChangeGuard(modalContent, data);
         setTimeout(function () {
           var statusSelect = modalContent.querySelector('.tm-status-select');
           if (statusSelect) updateStatusColor(statusSelect);
@@ -1047,6 +1128,7 @@ var TMTicketModal = (function () {
     openChatModal: openChatModal,
     closeChatModal: closeChatModal,
     sendChatModalMessage: sendChatModalMessage,
+    openConversation: openConversation,
     openMessengerChat: openMessengerChat,
     closeMessengerChat: closeMessengerChat,
     updateStatusColor: updateStatusColor,

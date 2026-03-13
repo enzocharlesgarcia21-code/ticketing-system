@@ -11,7 +11,7 @@ $user_id = (int) $_SESSION['user_id'];
 $success_msg = '';
 $error_msg = '';
 
-$stmt = $conn->prepare("SELECT id, name, email, company, department, role, created_at FROM users WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, name, email, department, created_at FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -103,19 +103,8 @@ if (!$user) {
 
                     <div class="form-row">
                         <div class="form-group half">
-                            <label>Company / Subsidiary</label>
-                            <input type="text" class="form-control readonly" value="<?= htmlspecialchars($user['company'] ?? '') ?>" readonly>
-                        </div>
-                        <div class="form-group half">
                             <label>Department</label>
                             <input type="text" class="form-control readonly" value="<?= htmlspecialchars($user['department'] ?? '') ?>" readonly>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group half">
-                            <label>Role</label>
-                            <input type="text" class="form-control readonly" value="<?= htmlspecialchars($user['role'] ?? '') ?>" readonly>
                         </div>
                         <div class="form-group half">
                             <label>Account Created Date</label>
@@ -132,4 +121,3 @@ if (!$user) {
     <script src="../js/employee-dashboard.js"></script>
 </body>
 </html>
-

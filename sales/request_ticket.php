@@ -167,7 +167,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error_msg = "A valid email is required.";
     } elseif ($company_id === '' || !in_array($company_id, $companies, true)) {
-        $error_msg = "Company / Subsidiary is required.";
+        $error_msg = "Ticket Recipient (Company Email Domain) is required.";
     } elseif ($subject === '') {
         $error_msg = "Subject is required.";
     } elseif ($description === '') {
@@ -679,9 +679,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
 
             <div class="form-group">
-                <label>Company / Subsidiary *</label>
+                <label>Ticket Recipient (Company Email Domain) *</label>
                 <select name="company_id" required>
-                    <option value="" disabled selected hidden>Select Company</option>
+                    <option value="" disabled selected hidden>Select Recipient</option>
                     <?php foreach ($companies as $c): ?>
                         <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= (isset($company_id) && $company_id === $c) ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
                     <?php endforeach; ?>

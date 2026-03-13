@@ -53,6 +53,41 @@ if ($users_departments_res) {
     }
 }
 
+$users_companies_res = $conn->query("SELECT DISTINCT company FROM users WHERE company IS NOT NULL AND company <> '' ORDER BY company ASC");
+$user_companies = [];
+if ($users_companies_res) {
+    while ($c = $users_companies_res->fetch_assoc()) {
+        $val = (string) ($c['company'] ?? '');
+        if ($val !== '') $user_companies[] = $val;
+    }
+}
+
+$email_domains = [
+    'gpsci.net',
+    'farmasee.ph',
+    'gmail.com',
+    'leads-eh.com',
+    'leads-farmex.com',
+    'leadsagri.com',
+    'leadsanimalhealth.com',
+    'leadsav.com',
+    'leadstech-corp.com',
+    'lingapleads.org',
+    'primestocks.ph'
+];
+
+$department_options = [
+    'ACCOUNTING',
+    'ADMIN',
+    'E-COMM',
+    'HR',
+    'IT',
+    'LINGAP',
+    'MARKETING',
+    'SUPPLY CHAIN',
+    'TECHNICAL'
+];
+
 ?>
 
 <!DOCTYPE html>
@@ -62,9 +97,10 @@ if ($users_departments_res) {
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
     <style>
         .create-admin-container {
-            padding: 28px 20px 40px;
-            max-width: 1240px;
-            margin: 0 auto;
+            padding: 20px 30px;
+            max-width: 1380px;
+            width: 95%;
+            margin: 0 auto 40px;
         }
         .user-table {
             width: 100%;
@@ -229,7 +265,7 @@ if ($users_departments_res) {
 
         .promote-header {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             gap: 14px;
             margin-bottom: 14px;
         }
@@ -257,12 +293,16 @@ if ($users_departments_res) {
             font-size: 14px;
             font-weight: 500;
         }
+        .promote-header-subtitle:empty { display: none; }
         .search-row {
             margin: 14px 0 14px;
+            display: flex;
+            justify-content: flex-start;
         }
         .search-wrapper {
             position: relative;
             width: 100%;
+            max-width: 520px;
         }
         .search-icon {
             position: absolute;
@@ -338,10 +378,11 @@ if ($users_departments_res) {
         }
         .admin-mgmt-grid {
             display: grid;
-            grid-template-columns: 2fr 1fr;
+            grid-template-columns: 1fr;
             gap: 18px;
             margin-bottom: 22px;
         }
+        #usersListCard { width: 100%; }
         .mgmt-card {
             background: #ffffff;
             border-radius: 16px;
@@ -406,16 +447,65 @@ if ($users_departments_res) {
             gap: 10px;
             align-items: center;
         }
+        .fullname-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .fullname-row > .form-control { flex: 1 1 auto; min-width: 0; }
+        .fullname-row > .domain-select { flex: 0 0 280px; min-width: 0; }
+        .password-field {
+            position: relative;
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+        .password-field .form-control {
+            padding-right: 38px;
+        }
+        .password-eye {
+            position: absolute;
+            top: 50%;
+            right: 8px;
+            transform: translateY(-50%);
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            color: #64748b;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+        }
+        .password-eye i { font-size: 13px; }
+        .password-eye:hover {
+            background: #f8fafc;
+            color: #0f172a;
+        }
         .domain-select {
             min-width: 170px;
-            padding: 10px 12px;
+            width: 100%;
+            padding: 10px 44px 10px 12px;
             border: 1px solid #e5e7eb;
             border-radius: 10px;
-            background: #ffffff;
+            background-color: #ffffff;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            background-size: 12px 12px;
             font-weight: 700;
             color: #0f172a;
             cursor: pointer;
+            box-sizing: border-box;
+            font-size: 13px;
         }
+        .username-row > .form-control { flex: 1 1 auto; min-width: 0; }
+        .username-row > .domain-select { flex: 0 0 280px; min-width: 0; }
         .btn {
             border: 1px solid transparent;
             border-radius: 10px;
@@ -449,22 +539,6 @@ if ($users_departments_res) {
             white-space: nowrap;
         }
         .btn-auto:hover { background: #f1f5f9; }
-        .checks {
-            grid-column: 1 / -1;
-            display: flex;
-            gap: 14px;
-            align-items: center;
-            margin-top: 6px;
-        }
-        .checks label {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 700;
-            color: #334155;
-            font-size: 13px;
-        }
-        .checks input { accent-color: #1B5E20; }
         .form-actions {
             display: flex;
             justify-content: flex-end;
@@ -473,19 +547,82 @@ if ($users_departments_res) {
         }
         .users-list-controls {
             display: flex;
-            flex-direction: column;
+            align-items: center;
             gap: 10px;
             margin-bottom: 12px;
+            flex-wrap: wrap;
         }
+        .users-list-controls .search-wrapper { flex: 1 1 480px; }
         .users-filters {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+            display: flex;
             gap: 10px;
+            flex: 0 0 auto;
         }
         .users-table {
             width: 100%;
             border-collapse: collapse;
             border-top: 1px solid #eef2f7;
+        }
+        .users-table-wrap {
+            max-height: 420px;
+            overflow: auto;
+            border: 1px solid #eef2f7;
+            border-radius: 12px;
+        }
+        .users-table { border-top: none; }
+        .users-table { table-layout: fixed; }
+        .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 28%; text-align: center; }
+        .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 34%; text-align: center; }
+        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 28%; text-align: center; }
+        .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 10%; text-align: right; }
+        .users-table td { vertical-align: middle; }
+        .users-cell {
+            display: inline-block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+        .users-name-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            max-width: 100%;
+        }
+        .users-name-wrap .users-cell { min-width: 0; }
+        .users-badge-current {
+            flex: 0 0 auto;
+            font-size: 11px;
+            font-weight: 900;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+            line-height: 1;
+            white-space: nowrap;
+        }
+        .users-actions {
+            display: inline-flex;
+            justify-content: flex-end;
+            width: 100%;
+        }
+        .btn-icon-danger {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            color: #ef4444;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-icon-danger:hover {
+            background: #fef2f2;
+            border-color: #fecaca;
         }
         .users-table th, .users-table td {
             padding: 10px 12px;
@@ -506,9 +643,57 @@ if ($users_departments_res) {
             text-align: center;
             font-weight: 700;
         }
+        .add-user-trigger {
+            background: #1B5E20;
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-weight: 900;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+        .add-user-trigger:hover { background: #144a1e; }
+
+        .modal-overlay-lite {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 22px;
+            z-index: 3000;
+        }
+        .modal-overlay-lite.show { display: flex; }
+        .modal-card {
+            width: 100%;
+            max-width: 860px;
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 22px 60px rgba(2, 6, 23, 0.25);
+            overflow: hidden;
+        }
+        .modal-card .mgmt-card-body { padding: 18px; }
         @media (max-width: 980px) {
             .admin-mgmt-grid { grid-template-columns: 1fr; }
             .form-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 1200px) {
+            .create-admin-container { width: 95%; }
+        }
+        @media (max-width: 900px) {
+            .users-list-controls { flex-direction: column; }
+            .users-list-controls .search-wrapper { flex: 1 1 auto; }
+            .users-filters { width: 100%; }
+        }
+        @media (max-width: 720px) {
+            .fullname-row { flex-direction: column; align-items: stretch; }
+            .fullname-row > .domain-select { flex: 1 1 auto; width: 100%; }
         }
     </style>
     <!-- Add FontAwesome for trash icon -->
@@ -529,7 +714,61 @@ if ($users_departments_res) {
         </div>
 
         <div class="admin-mgmt-grid">
-            <div class="mgmt-card" id="addUserCard">
+            <div class="mgmt-card" id="usersListCard">
+                <div class="mgmt-card-header">
+                    <div class="title">
+                        <span class="icon"><i class="fas fa-users"></i></span>
+                        <span>Users List</span>
+                    </div>
+                    <button type="button" class="add-user-trigger" id="openAddUser">
+                        <i class="fas fa-plus"></i>
+                        Add User
+                    </button>
+                </div>
+                <div class="mgmt-card-body">
+                    <div class="users-list-controls">
+                        <div class="search-wrapper" style="margin:0;">
+                            <i class="fas fa-search search-icon"></i>
+                            <input type="text" class="search-input" id="usersSearch" placeholder="Search user...">
+                        </div>
+                        <div class="users-filters">
+                            <select class="domain-select" id="usersDept">
+                                <option value="all" selected>All Departments</option>
+                                <?php foreach ($department_options as $d): ?>
+                                    <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select class="domain-select" id="usersCompany">
+                                <option value="all" selected>All Companies</option>
+                                <?php foreach ($email_domains as $ed): ?>
+                                    <?php $opt = '@' . $ed; ?>
+                                    <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="users-table-wrap">
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Department</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersListBody">
+                                <tr><td class="users-empty" colspan="4">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay-lite" id="addUserModal" aria-hidden="true">
+            <div class="modal-card">
                 <div class="mgmt-card-header">
                     <div class="title">
                         <span class="icon"><i class="fas fa-user-plus"></i></span>
@@ -541,25 +780,38 @@ if ($users_departments_res) {
                         <?php echo csrf_field(); ?>
                         <div class="form-grid">
                             <div class="form-label">Full Name:</div>
-                            <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required>
+                            <div class="fullname-row">
+                                <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required>
+                                <select class="domain-select" name="department" id="newDept" aria-label="Department">
+                                    <option value="">Select Department</option>
+                                    <?php foreach ($department_options as $d): ?>
+                                        <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
 
-                            <div class="form-label">Username:</div>
+                            <div class="form-label">Email:</div>
                             <div class="username-row">
                                 <input type="text" class="form-control" name="username" id="username" placeholder="juan.delacruz" required>
                                 <select class="domain-select" name="domain" id="domain">
-                                    <option value="@leadsagri.com" selected>@leadsagri.com</option>
+                                    <?php foreach ($email_domains as $ed): ?>
+                                        <?php $opt = '@' . $ed; ?>
+                                        <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>" <?= $ed === 'leadsagri.com' ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>
+                                        </option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
 
                             <div class="form-label">New Password:</div>
                             <div class="password-row">
-                                <input type="password" class="form-control" name="password" id="newPassword" required>
+                                <div class="password-field">
+                                    <input type="password" class="form-control" name="password" id="newPassword" required>
+                                    <button type="button" class="password-eye" id="togglePassword" aria-label="View password">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
                                 <button type="button" class="btn btn-auto" id="autoGenerateBtn">Auto Generate</button>
-                            </div>
-
-                            <div class="checks">
-                                <label><input type="checkbox" id="sendInitiation" checked> Send Account Initiation</label>
-                                <label><input type="checkbox" id="sendInvitation" checked> Send Email Invitation</label>
                             </div>
                         </div>
 
@@ -570,48 +822,6 @@ if ($users_departments_res) {
                     </form>
                 </div>
             </div>
-
-            <div class="mgmt-card" id="usersListCard">
-                <div class="mgmt-card-header">
-                    <div class="title">
-                        <span class="icon"><i class="fas fa-users"></i></span>
-                        <span>Users List</span>
-                    </div>
-                </div>
-                <div class="mgmt-card-body">
-                    <div class="users-list-controls">
-                        <div class="search-wrapper" style="margin:0;">
-                            <i class="fas fa-search search-icon"></i>
-                            <input type="text" class="search-input" id="usersSearch" placeholder="Search user...">
-                        </div>
-                        <div class="users-filters">
-                            <select class="domain-select" id="usersDept">
-                                <option value="all" selected>All Departments</option>
-                                <?php foreach ($user_departments as $d): ?>
-                                    <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <select class="domain-select" id="usersRole">
-                                <option value="all" selected>All Roles</option>
-                                <option value="employee">Employee</option>
-                                <option value="admin">Admin</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <table class="users-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Department</th>
-                            </tr>
-                        </thead>
-                        <tbody id="usersListBody">
-                            <tr><td class="users-empty" colspan="2">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
         </div>
 
         <div class="promote-header">
@@ -620,7 +830,7 @@ if ($users_departments_res) {
             </div>
             <div>
                 <h2 class="promote-header-title">Promote IT Employees to Admin</h2>
-                <div class="promote-header-subtitle">Manage which IT staff can be granted <strong>administrator</strong> access.</div>
+                <div class="promote-header-subtitle"></div>
             </div>
         </div>
         
@@ -628,25 +838,12 @@ if ($users_departments_res) {
             <div class="alert-success"><?= htmlspecialchars($message) ?></div>
         <?php endif; ?>
 
-        <form method="GET" class="search-row">
+        <form method="GET" class="search-row" id="itSearchForm">
             <div class="search-wrapper">
                 <i class="fas fa-search search-icon"></i>
-                <input type="text" name="search" class="search-input" value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Search IT employee...">
+                <input type="text" name="search" class="search-input" id="itSearchInput" value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Search IT employee...">
             </div>
         </form>
-        <script>
-        (function () {
-            var input = document.querySelector('input[name="search"]');
-            if (!input) return;
-            var t = null;
-            input.addEventListener('input', function () {
-                if (t) clearTimeout(t);
-                t = setTimeout(function () {
-                    if (input.form) input.form.submit();
-                }, 350);
-            });
-        })();
-        </script>
 
         <div class="table-card">
             <table class="user-table">
@@ -658,7 +855,7 @@ if ($users_departments_res) {
                         <th>Action</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="itEmployeesBody">
                     <?php if ($result->num_rows > 0): ?>
                         <?php while($row = $result->fetch_assoc()): ?>
                             <tr>
@@ -717,15 +914,16 @@ if ($users_departments_res) {
 <script src="../js/admin.js"></script>
 
 <script>
+    window.TM_ADMIN_CURRENT_USER_ID = <?php echo (int) ($_SESSION['user_id'] ?? 0); ?>;
+
     function randomPassword(len) {
-        var length = typeof len === 'number' && len > 0 ? len : 14;
-        var lower = 'abcdefghijklmnopqrstuvwxyz';
-        var upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        var nums = '0123456789';
-        var syms = '!@#$%^&*()-_=+[]{};:,.?';
-        var all = lower + upper + nums + syms;
+        var length = typeof len === 'number' && len > 0 ? len : 12;
+        var lower = 'abcdefghjkmnpqrstuvwxyz';
+        var upper = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+        var nums = '23456789';
+        var all = lower + upper + nums;
         function pick(set) { return set[Math.floor(Math.random() * set.length)]; }
-        var out = [pick(lower), pick(upper), pick(nums), pick(syms)];
+        var out = [pick(lower), pick(upper), pick(nums)];
         for (var i = out.length; i < length; i++) out.push(pick(all));
         for (var j = out.length - 1; j > 0; j--) {
             var k = Math.floor(Math.random() * (j + 1));
@@ -738,23 +936,38 @@ if ($users_departments_res) {
         var body = document.getElementById('usersListBody');
         if (!body) return;
         if (!users || users.length === 0) {
-            body.innerHTML = '<tr><td class="users-empty" colspan="2">No users found.</td></tr>';
+            body.innerHTML = '<tr><td class="users-empty" colspan="4">No users found.</td></tr>';
             return;
         }
         body.innerHTML = users.map(function (u) {
             var dept = u.department ? String(u.department) : '-';
-            return '<tr><td>' + escapeHtml(String(u.name || '')) + '</td><td>' + escapeHtml(dept) + '</td></tr>';
+            var email = u.email ? String(u.email) : '-';
+            var id = u.id != null ? String(u.id) : '';
+            var name = String(u.name || '');
+            var isCurrent = (Number(u.id) === Number(window.TM_ADMIN_CURRENT_USER_ID));
+            var isAdmin = (String(u.role || '') === 'admin');
+            var badge = isCurrent ? '<span class="users-badge-current">Current</span>' : '';
+            var action = (!isCurrent && !isAdmin)
+                ? '<span class="users-actions"><button type="button" class="btn-icon-danger users-del" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '" aria-label="Delete user"><i class="fas fa-trash"></i></button></span>'
+                : '<span class="users-actions"></span>';
+            return '' +
+                '<tr>' +
+                '  <td><span class="users-name-wrap"><span class="users-cell" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</span>' + badge + '</span></td>' +
+                '  <td><span class="users-cell" title="' + escapeHtml(email) + '">' + escapeHtml(email) + '</span></td>' +
+                '  <td><span class="users-cell" title="' + escapeHtml(dept) + '">' + escapeHtml(dept) + '</span></td>' +
+                '  <td>' + action + '</td>' +
+                '</tr>';
         }).join('');
     }
 
     function loadUsersList() {
         var qEl = document.getElementById('usersSearch');
         var deptEl = document.getElementById('usersDept');
-        var roleEl = document.getElementById('usersRole');
+        var companyEl = document.getElementById('usersCompany');
         var q = qEl ? qEl.value.trim() : '';
         var dept = deptEl ? deptEl.value : 'all';
-        var role = roleEl ? roleEl.value : 'all';
-        var url = 'ajax_users_list.php?q=' + encodeURIComponent(q) + '&department=' + encodeURIComponent(dept) + '&role=' + encodeURIComponent(role) + '&limit=80';
+        var company = companyEl ? companyEl.value : 'all';
+        var url = 'ajax_users_list.php?q=' + encodeURIComponent(q) + '&department=' + encodeURIComponent(dept) + '&company=' + encodeURIComponent(company) + '&limit=200';
         fetch(url, { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
@@ -767,6 +980,48 @@ if ($users_departments_res) {
             .catch(function () { renderUsers([]); });
     }
 
+    function renderItEmployees(list) {
+        var body = document.getElementById('itEmployeesBody');
+        if (!body) return;
+        if (!list || list.length === 0) {
+            body.innerHTML = '<tr><td colspan="4" style="text-align: center; color:#6B7280; padding: 22px 12px;">No eligible IT employees found.</td></tr>';
+            return;
+        }
+        body.innerHTML = list.map(function (e) {
+            var id = e.id != null ? String(e.id) : '';
+            var name = String(e.name || '');
+            var email = String(e.email || '');
+            var initial = name ? name.trim().charAt(0).toUpperCase() : '?';
+            return '' +
+                '<tr>' +
+                '  <td>' +
+                '    <div class="employee-cell">' +
+                '      <span class="employee-avatar">' + escapeHtml(initial) + '</span>' +
+                '      <span>' + escapeHtml(name) + '</span>' +
+                '    </div>' +
+                '  </td>' +
+                '  <td>' + escapeHtml(email) + '</td>' +
+                '  <td><span class="dept-pill">IT</span></td>' +
+                '  <td><button type="button" class="promote-btn" onclick="confirmAddition(' + escapeHtml(id) + ')"><i class="fas fa-plus"></i> Promote</button></td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    function loadItEmployees() {
+        var input = document.getElementById('itSearchInput');
+        var q = input ? input.value.trim() : '';
+        fetch('ajax_it_employees.php?q=' + encodeURIComponent(q) + '&limit=60', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.ok) {
+                    renderItEmployees([]);
+                    return;
+                }
+                renderItEmployees(data.employees || []);
+            })
+            .catch(function () { renderItEmployees([]); });
+    }
+
     function escapeHtml(str) {
         return String(str)
             .replace(/&/g, '&amp;')
@@ -777,12 +1032,42 @@ if ($users_departments_res) {
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        var modal = document.getElementById('addUserModal');
+        var openBtn = document.getElementById('openAddUser');
+        function openModal() {
+            if (!modal) return;
+            modal.classList.add('show');
+            modal.setAttribute('aria-hidden', 'false');
+            var fullName = document.getElementById('fullName');
+            if (fullName) fullName.focus();
+        }
+        function closeModal() {
+            if (!modal) return;
+            modal.classList.remove('show');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+        if (openBtn) openBtn.addEventListener('click', openModal);
+        if (modal) {
+            modal.addEventListener('click', function (e) {
+                if (e.target === modal) closeModal();
+            });
+        }
+
         var autoBtn = document.getElementById('autoGenerateBtn');
         var passEl = document.getElementById('newPassword');
         if (autoBtn && passEl) {
             autoBtn.addEventListener('click', function () {
-                passEl.value = randomPassword(14);
+                passEl.value = randomPassword(12);
                 passEl.focus();
+            });
+        }
+
+        var toggleBtn = document.getElementById('togglePassword');
+        if (toggleBtn && passEl) {
+            toggleBtn.addEventListener('click', function () {
+                var isHidden = passEl.getAttribute('type') === 'password';
+                passEl.setAttribute('type', isHidden ? 'text' : 'password');
+                toggleBtn.innerHTML = isHidden ? '<i class="fas fa-eye-slash"></i>' : '<i class="fas fa-eye"></i>';
             });
         }
 
@@ -791,6 +1076,7 @@ if ($users_departments_res) {
         if (cancelBtn && form) {
             cancelBtn.addEventListener('click', function () {
                 form.reset();
+                closeModal();
             });
         }
 
@@ -809,8 +1095,8 @@ if ($users_departments_res) {
                 fd.set('username', username.value || '');
                 fd.set('domain', domain.value || '@leadsagri.com');
                 fd.set('password', password.value || '');
-                fd.set('send_initiation', (document.getElementById('sendInitiation') && document.getElementById('sendInitiation').checked) ? '1' : '0');
-                fd.set('send_invitation', (document.getElementById('sendInvitation') && document.getElementById('sendInvitation').checked) ? '1' : '0');
+                var deptEl = document.getElementById('newDept');
+                if (deptEl) fd.set('department', deptEl.value || '');
 
                 var btn = document.getElementById('createUserBtn');
                 if (btn) btn.disabled = true;
@@ -831,6 +1117,7 @@ if ($users_departments_res) {
                         Swal.fire({ icon: 'success', title: 'Success', text: data.message || 'User created successfully', confirmButtonColor: '#1B5E20' });
                         addUserForm.reset();
                         loadUsersList();
+                        closeModal();
                     })
                     .catch(function () {
                         Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to create user.', confirmButtonColor: '#1B5E20' });
@@ -838,6 +1125,53 @@ if ($users_departments_res) {
                     .finally(function () {
                         if (btn) btn.disabled = false;
                     });
+            });
+        }
+
+        var usersBody = document.getElementById('usersListBody');
+        if (usersBody) {
+            usersBody.addEventListener('click', function (e) {
+                var btn = e.target && e.target.closest ? e.target.closest('.users-del') : null;
+                if (!btn) return;
+                var id = btn.getAttribute('data-id');
+                var name = btn.getAttribute('data-name') || 'this user';
+                if (!id) return;
+                Swal.fire({
+                    title: 'Delete user?',
+                    text: 'This will permanently delete ' + name + '.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc3545',
+                    cancelButtonColor: '#6B7280',
+                    confirmButtonText: 'Delete',
+                    cancelButtonText: 'Cancel',
+                    width: '420px'
+                }).then(function (result) {
+                    if (!result.isConfirmed) return;
+                    var csrfEl = document.querySelector('#addUserForm input[name="csrf_token"]') || document.querySelector('input[name="csrf_token"]');
+                    var csrf = csrfEl ? csrfEl.value : '';
+                    fetch('ajax_delete_user.php', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: new URLSearchParams({ id: id, csrf_token: csrf })
+                    })
+                        .then(function (r) { return r.json(); })
+                        .then(function (data) {
+                            if (!data || !data.ok) {
+                                var msg = (data && data.error) ? data.error : 'Failed to delete user.';
+                                Swal.fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#1B5E20' });
+                                return;
+                            }
+                            Swal.fire({ icon: 'success', title: 'Deleted', text: data.message || 'User deleted', confirmButtonColor: '#1B5E20' });
+                            loadUsersList();
+                        })
+                        .catch(function () {
+                            Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to delete user.', confirmButtonColor: '#1B5E20' });
+                        });
+                });
             });
         }
 
@@ -849,12 +1183,28 @@ if ($users_departments_res) {
                 debounceT = setTimeout(loadUsersList, 250);
             });
         }
-        ['usersDept', 'usersRole'].forEach(function (id) {
+        ['usersDept', 'usersCompany'].forEach(function (id) {
             var el = document.getElementById(id);
             if (el) el.addEventListener('change', loadUsersList);
         });
 
         loadUsersList();
+
+        var itForm = document.getElementById('itSearchForm');
+        var itInput = document.getElementById('itSearchInput');
+        var itDebounce = null;
+        if (itForm) {
+            itForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                loadItEmployees();
+            });
+        }
+        if (itInput) {
+            itInput.addEventListener('input', function () {
+                if (itDebounce) clearTimeout(itDebounce);
+                itDebounce = setTimeout(loadItEmployees, 250);
+            });
+        }
     });
 
     function confirmAddition(userId) {

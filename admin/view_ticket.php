@@ -175,15 +175,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <label>Assign To Department</label>
 <select name="assigned_department">
-    <option <?= $ticket['assigned_department']=='IT'?'selected':'' ?>>IT</option>
-    <option <?= $ticket['assigned_department']=='HR'?'selected':'' ?>>HR</option>
-    <option <?= $ticket['assigned_department']=='Marketing'?'selected':'' ?>>Marketing</option>
-    <option <?= $ticket['assigned_department']=='Admin'?'selected':'' ?>>Admin</option>
-    <option <?= $ticket['assigned_department']=='Technical'?'selected':'' ?>>Technical</option>
-    <option <?= $ticket['assigned_department']=='Accounting'?'selected':'' ?>>Accounting</option>
-    <option <?= $ticket['assigned_department']=='Supply Chain'?'selected':'' ?>>Supply Chain</option>
-    <option <?= $ticket['assigned_department']=='MPDC'?'selected':'' ?>>MPDC</option>
-    <option <?= $ticket['assigned_department']=='E-Comm'?'selected':'' ?>>E-Comm</option>
+    <option <?= strtoupper((string)$ticket['assigned_department'])=='ACCOUNTING'?'selected':'' ?>>ACCOUNTING</option>
+    <option <?= strtoupper((string)$ticket['assigned_department'])=='ADMIN'?'selected':'' ?>>ADMIN</option>
+    <option <?= strtoupper((string)$ticket['assigned_department'])=='E-COMM'?'selected':'' ?>>E-COMM</option>
+    <option <?= strtoupper((string)$ticket['assigned_department'])=='HR'?'selected':'' ?>>HR</option>
+    <option <?= strtoupper((string)$ticket['assigned_department'])=='IT'?'selected':'' ?>>IT</option>
+    <option <?= strtoupper((string)$ticket['assigned_department'])=='LINGAP'?'selected':'' ?>>LINGAP</option>
+    <option <?= strtoupper((string)$ticket['assigned_department'])=='MARKETING'?'selected':'' ?>>MARKETING</option>
+    <option <?= strtoupper((string)$ticket['assigned_department'])=='SUPPLY CHAIN'?'selected':'' ?>>SUPPLY CHAIN</option>
+    <option <?= strtoupper((string)$ticket['assigned_department'])=='TECHNICAL'?'selected':'' ?>>TECHNICAL</option>
 </select>
 
     <br><br>

@@ -60,7 +60,7 @@ $result = $stmt->get_result();
                                 <th>Priority</th>
                                 <th>Status</th>
                                 <th>Attachment</th>
-                                <th>Date</th>
+                                <th>Date Created</th>
                             </tr>
                         </thead>
                         <tbody>

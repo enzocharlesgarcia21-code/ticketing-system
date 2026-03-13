@@ -2,6 +2,7 @@
 // Get current page for active link
 $current_page = basename($_SERVER['PHP_SELF']);
 require_once __DIR__ . '/csrf.php';
+$csrfToken = csrf_token();
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <header class="admin-navbar">
@@ -58,6 +59,10 @@ require_once __DIR__ . '/csrf.php';
         </div>
     </div>
 </header>
+
+<script>
+window.TM_CSRF_TOKEN = <?php echo json_encode($csrfToken, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+</script>
 
 <button type="button" id="globalChatFab" class="tm-global-chat-fab" onclick="window.TMGlobalChat && window.TMGlobalChat.open()">
     <i class="fas fa-comments"></i>

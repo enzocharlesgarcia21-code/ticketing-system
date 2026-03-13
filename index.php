@@ -29,7 +29,7 @@
             </a>
         </div>
 
-        <div class="auth-extra">
+        <div class="auth-extra auth-extra-hidden">
             <span>Don't have an account? </span>
             <a href="employee/register.php">Register here</a>
         </div>

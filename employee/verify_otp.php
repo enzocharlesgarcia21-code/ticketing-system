@@ -121,7 +121,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <form method="POST">
     <?php echo csrf_field(); ?>
     <label>Enter OTP</label>
-    <input type="text" name="otp" required>
+    <div class="otp-inputs" id="otpInputs">
+        <input class="otp-digit" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="OTP digit 1">
+        <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 2">
+        <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 3">
+        <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 4">
+        <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 5">
+        <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="OTP digit 6">
+    </div>
+    <input type="hidden" name="otp" id="otpFull" required>
+    <div class="error" id="otpClientError" style="display:none;">Please enter the 6-digit OTP.</div>
     <button type="submit">Verify</button>
 </form>
 
@@ -134,5 +143,98 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 </div>
 
+<script>
+    (function () {
+        var wrap = document.getElementById('otpInputs');
+        var full = document.getElementById('otpFull');
+        var err = document.getElementById('otpClientError');
+        if (!wrap || !full) return;
+        var inputs = Array.prototype.slice.call(wrap.querySelectorAll('input.otp-digit'));
+        if (inputs.length !== 6) return;
+
+        function setError(show) {
+            if (!err) return;
+            err.style.display = show ? '' : 'none';
+        }
+
+        function readCode() {
+            return inputs.map(function (i) { return (i.value || '').replace(/\D/g, '').slice(0, 1); }).join('');
+        }
+
+        function writeCode(code) {
+            var digits = String(code || '').replace(/\D/g, '').slice(0, 6).split('');
+            for (var i = 0; i < inputs.length; i++) {
+                inputs[i].value = digits[i] || '';
+            }
+            full.value = digits.join('');
+        }
+
+        function sync() {
+            full.value = readCode();
+            setError(false);
+        }
+
+        inputs.forEach(function (input, idx) {
+            input.addEventListener('input', function (e) {
+                var v = (input.value || '').replace(/\D/g, '');
+                if (v.length > 1) {
+                    writeCode(v);
+                    var next = inputs[Math.min(5, v.length - 1)];
+                    if (next) next.focus();
+                    return;
+                }
+                input.value = v.slice(0, 1);
+                sync();
+                if (input.value && idx < inputs.length - 1) {
+                    inputs[idx + 1].focus();
+                }
+            });
+
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Backspace' && !input.value && idx > 0) {
+                    inputs[idx - 1].focus();
+                }
+                if (e.key === 'ArrowLeft' && idx > 0) {
+                    e.preventDefault();
+                    inputs[idx - 1].focus();
+                }
+                if (e.key === 'ArrowRight' && idx < inputs.length - 1) {
+                    e.preventDefault();
+                    inputs[idx + 1].focus();
+                }
+            });
+
+            input.addEventListener('paste', function (e) {
+                var text = (e.clipboardData || window.clipboardData).getData('text');
+                if (!text) return;
+                var digits = text.replace(/\D/g, '').slice(0, 6);
+                if (!digits) return;
+                e.preventDefault();
+                writeCode(digits);
+                var target = inputs[Math.min(inputs.length - 1, digits.length - 1)];
+                if (target) target.focus();
+            });
+
+            input.addEventListener('focus', function () {
+                input.select();
+            });
+        });
+
+        var form = wrap.closest('form');
+        if (form) {
+            form.addEventListener('submit', function (e) {
+                sync();
+                if (!/^\d{6}$/.test(full.value || '')) {
+                    e.preventDefault();
+                    setError(true);
+                    var firstEmpty = inputs.find(function (i) { return !(i.value || '').trim(); }) || inputs[0];
+                    if (firstEmpty) firstEmpty.focus();
+                }
+            });
+        }
+
+        inputs[0].focus();
+    })();
+</script>
 </body>
 </html>

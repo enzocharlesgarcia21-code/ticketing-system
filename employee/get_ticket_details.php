@@ -214,11 +214,11 @@ if ($row = $result->fetch_assoc()) {
             $diff = $start->diff($end);
             
             $parts = [];
-            if ($diff->d > 0) $parts[] = $diff->d . " days";
-            if ($diff->h > 0) $parts[] = $diff->h . " hrs";
-            if ($diff->i > 0) $parts[] = $diff->i . " mins";
+            if ($diff->d > 0) $parts[] = $diff->d . ($diff->d === 1 ? " day" : " days");
+            if ($diff->h > 0) $parts[] = $diff->h . ($diff->h === 1 ? " hr" : " hrs");
+            if ($diff->i > 0) $parts[] = $diff->i . ($diff->i === 1 ? " min" : " mins");
             
-            $duration = empty($parts) ? "< 1 min" : implode(" ", $parts);
+            $duration = empty($parts) ? "0 min" : implode(" ", $parts);
         }
     }
     $row['duration'] = $duration;

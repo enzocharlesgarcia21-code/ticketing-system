@@ -1035,6 +1035,20 @@
     min-height: 0;
 }
 
+.tm-nochange {
+    display: none;
+    margin-top: -8px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #fef2f2;
+    color: #991b1b;
+    font-weight: 600;
+}
+
+.tm-nochange.show {
+    display: block;
+}
+
 .tm-action-title {
     font-weight: 700;
     color: #0f172a;

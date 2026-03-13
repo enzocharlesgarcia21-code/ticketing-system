@@ -20,7 +20,7 @@ body {
 }
 
 .login-card {
-    width: 420px;
+    width: 640px;
     background: white;
     padding: 45px;
     border-radius: 18px;
@@ -73,6 +73,81 @@ body {
     box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.15);
 }
 
+.login-card .form-group .email-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.login-card .form-group .email-row input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.login-card .form-group .email-domain {
+    flex: 0 0 230px;
+    max-width: 260px;
+    height: 52px;
+    padding: 0 44px 0 16px;
+    border-radius: 14px;
+    border: 1px solid #d1d5db;
+    background-color: #f9fafb;
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+    cursor: pointer;
+    transition: 0.2s ease;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    background-size: 12px 12px;
+}
+
+.login-card .form-group .email-domain:focus {
+    outline: none;
+    border: 1px solid #1B5E20;
+    background-color: #ffffff;
+    box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.15);
+}
+
+.login-card .otp-inputs {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 14px;
+}
+
+.login-card .otp-inputs .otp-digit {
+    width: 52px;
+    min-width: 52px;
+    max-width: 52px;
+    flex: 0 0 52px;
+    height: 52px;
+    padding: 0;
+    margin-bottom: 0 !important;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    background-color: #f9fafb;
+    color: #111827;
+}
+
+.login-card .otp-inputs .otp-digit:focus {
+    outline: none;
+    border: 1px solid #1B5E20;
+    background-color: #ffffff;
+    box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.15);
+}
+
 .login-card button {
     width: 100%;
     background: linear-gradient(135deg, #1B5E20 0%, #144a1e 100%);
@@ -109,6 +184,20 @@ body {
     }
     .login-card h2 { font-size: 22px; }
     .login-card .form-group input { height: 48px; }
+    .login-card .form-group .email-domain { height: 48px; }
+    .login-card .otp-inputs { gap: 8px; }
+    .login-card .otp-inputs .otp-digit { width: 44px; min-width: 44px; max-width: 44px; flex-basis: 44px; height: 48px; font-size: 16px; }
+}
+
+@media (max-width: 540px) {
+    .login-card .form-group .email-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .login-card .form-group .email-domain {
+        flex: 1 1 auto;
+        width: 100%;
+    }
 }
 
 .error {
@@ -146,6 +235,10 @@ body {
 
 .signup-link a:hover {
     text-decoration: underline;
+}
+
+.signup-link-hidden {
+    display: none;
 }
 
 .back-btn {
