@@ -11,21 +11,6 @@ $user_id = (int) $_SESSION['user_id'];
 $success_msg = '';
 $error_msg = '';
 
-$companies = [
-    'FARMEX',
-    'FARMASEE',
-    'Golden Primestocks Chemical Inc - GPSCI',
-    'Leads Animal Health - LAH',
-    'Leads Environmental Health - LEH',
-    'Leads Tech Corporation - LTC',
-    'LINGAP LEADS FOUNDATION - Lingap',
-    'Malveda Holdings Corporation - MHC',
-    'Malveda Properties & Development Corporation - MPDC',
-    'Primestocks Chemical Corporation - PCC',
-];
-
-$departments = ['Accounting', 'Admin', 'Bidding', 'E-Comm', 'HR', 'IT', 'Marketing', 'Sales'];
-
 $stmt = $conn->prepare("SELECT id, name, email, company, department, role, created_at FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -36,36 +21,6 @@ $stmt->close();
 if (!$user) {
     header("Location: logout.php");
     exit();
-}
-
-if (($user['company'] ?? '') !== '' && !in_array($user['company'], $companies, true)) {
-    $companies[] = $user['company'];
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    csrf_validate();
-    $company = trim($_POST['company'] ?? '');
-    $department = trim($_POST['department'] ?? '');
-
-    if ($company === '' || $department === '') {
-        $error_msg = 'Company and Department are required.';
-    } elseif (!in_array($company, $companies, true)) {
-        $error_msg = 'Invalid company selected.';
-    } elseif (!in_array($department, $departments, true)) {
-        $error_msg = 'Invalid department selected.';
-    } else {
-        $update = $conn->prepare("UPDATE users SET company = ?, department = ? WHERE id = ?");
-        $update->bind_param("ssi", $company, $department, $user_id);
-        if ($update->execute()) {
-            $success_msg = 'Profile updated successfully.';
-            $_SESSION['department'] = $department;
-            $user['company'] = $company;
-            $user['department'] = $department;
-        } else {
-            $error_msg = 'Unable to update profile. Please try again.';
-        }
-        $update->close();
-    }
 }
 ?>
 
@@ -114,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="page-header" style="text-align: center; margin-bottom: 40px;">
                 <h1 class="page-title">My Profile</h1>
-                <p class="page-subtitle">View your account information and update your company/department.</p>
+                <p class="page-subtitle">View your account information.</p>
             </div>
 
             <?php if ($success_msg): ?>
@@ -132,8 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endif; ?>
 
             <div class="form-card">
-                <form method="POST" autocomplete="off">
-                    <?php echo csrf_field(); ?>
+                <form autocomplete="off">
                     <h3 class="form-section-title">Account Details</h3>
 
                     <div class="form-row">
@@ -150,31 +104,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-row">
                         <div class="form-group half">
                             <label>Company / Subsidiary</label>
-                            <div class="select-wrapper">
-                                <select name="company" class="form-control" required>
-                                    <option value=""disabled selected hidden>Select company</option>
-                                    <?php foreach ($companies as $co): ?>
-                                        <option value="<?= htmlspecialchars($co) ?>" <?= ($user['company'] ?? '') === $co ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($co) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <i class="fas fa-chevron-down select-icon"></i>
-                            </div>
+                            <input type="text" class="form-control readonly" value="<?= htmlspecialchars($user['company'] ?? '') ?>" readonly>
                         </div>
                         <div class="form-group half">
                             <label>Department</label>
-                            <div class="select-wrapper">
-                                <select name="department" class="form-control" required>
-                                    <option value=""disabled selected hidden>Select Department</option>
-                                    <?php foreach ($departments as $dept): ?>
-                                        <option value="<?= htmlspecialchars($dept) ?>" <?= ($user['department'] ?? '') === $dept ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($dept) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <i class="fas fa-chevron-down select-icon"></i>
-                            </div>
+                            <input type="text" class="form-control readonly" value="<?= htmlspecialchars($user['department'] ?? '') ?>" readonly>
                         </div>
                     </div>
 
@@ -189,9 +123,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
-                    <div class="form-actions">
-                        <button type="submit" class="btn-submit">Save Changes</button>
-                    </div>
                 </form>
             </div>
 

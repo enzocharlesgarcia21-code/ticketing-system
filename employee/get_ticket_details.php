@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/ticket_assignment.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     http_response_code(403);
@@ -14,6 +15,48 @@ if (!isset($_GET['id'])) {
 }
 
 $id = (int)$_GET['id'];
+
+ticket_ensure_assignment_columns($conn);
+
+function company_code(string $value): string
+{
+    $s = strtoupper(trim($value));
+    if ($s === '') return '';
+    if ($s === 'FARMASEE') return 'PCC';
+    if (strpos($s, 'MHC') !== false) return 'MHC';
+    if (strpos($s, 'GPCI') !== false || strpos($s, 'GPSCI') !== false) return 'GPCI';
+    if (strpos($s, 'LAPC') !== false || strpos($s, 'LAH') !== false) return 'LAPC';
+    if (strpos($s, 'PCC') !== false) return 'PCC';
+    if (strpos($s, 'MPDC') !== false) return 'MPDC';
+    if (strpos($s, 'LINGAP') !== false) return 'LINGAP';
+    if (strpos($s, 'LTC') !== false) return 'LTC';
+    if (strpos($s, 'FARMEX') !== false) return 'FARMEX';
+    if (strpos($s, 'FARMEX CORP') !== false) return 'FARMEX';
+    return '';
+}
+
+function company_aliases(string $value): array
+{
+    $v = trim($value);
+    $code = company_code($v);
+    $map = [
+        'MHC' => ['MHC', 'Malveda Holdings Corporation - MHC'],
+        'GPCI' => ['GPCI', 'GPSCI', 'Golden Primestocks Chemical Inc - GPSCI', 'Golden Primestocks Chemical Inc - GPCI'],
+        'LAPC' => ['LAPC', 'Leads Animal Health - LAH', 'LEADS Animal Health - LAH'],
+        'PCC' => ['PCC', 'Primestocks Chemical Corporation - PCC', 'FARMASEE'],
+        'MPDC' => ['MPDC', 'Malveda Properties & Development Corporation - MPDC'],
+        'LINGAP' => ['LINGAP', 'LINGAP LEADS FOUNDATION - Lingap'],
+        'LTC' => ['LTC', 'Leads Tech Corporation - LTC', 'Leads Tech Corporation - LTC'],
+        'FARMEX' => ['FARMEX', 'Farmex Corp'],
+    ];
+    $aliases = [];
+    if ($v !== '') $aliases[] = $v;
+    if ($code !== '' && isset($map[$code])) {
+        $aliases = array_merge($aliases, $map[$code]);
+    }
+    $aliases = array_values(array_unique(array_filter(array_map('trim', $aliases), static function ($x) { return $x !== ''; })));
+    return $aliases;
+}
 
 function parseLegacyRequesterInfo($text) {
     if (!is_string($text) || $text === '') {
@@ -63,22 +106,32 @@ if (!isset($_SESSION['company'])) {
 }
 $company = $_SESSION['company'];
 
-$checkStmt = $conn->prepare("SELECT started_at, assigned_department, assigned_company FROM employee_tickets WHERE id = ?");
+$checkStmt = $conn->prepare("SELECT started_at, assigned_department, assigned_group, assigned_company, assigned_user_id FROM employee_tickets WHERE id = ?");
 $checkStmt->bind_param("i", $id);
 $checkStmt->execute();
 $checkResult = $checkStmt->get_result();
 
 if ($checkResult->num_rows > 0) {
     $ticketData = $checkResult->fetch_assoc();
-    // Only start timer if it's assigned to their department AND company and hasn't started
-    if ($ticketData['assigned_department'] === $dept && $ticketData['assigned_company'] === $company && is_null($ticketData['started_at'])) {
+    $assigneeOk = isset($ticketData['assigned_user_id']) && (int) $ticketData['assigned_user_id'] === (int) $_SESSION['user_id'];
+    $ticketCompanyCode = company_code((string) ($ticketData['assigned_company'] ?? ''));
+    $userCompanyCode = company_code((string) $company);
+    $companyOk = ($ticketCompanyCode !== '' && $userCompanyCode !== '' && $ticketCompanyCode === $userCompanyCode) || ((string) ($ticketData['assigned_company'] ?? '') === (string) $company);
+    $ticketGroup = (string) ($ticketData['assigned_group'] ?? ($ticketData['assigned_department'] ?? ''));
+    $groupOk = $ticketGroup !== '' && $ticketGroup === $dept;
+    if (($assigneeOk || ($groupOk && $companyOk)) && is_null($ticketData['started_at'])) {
         $updateStart = $conn->prepare("UPDATE employee_tickets SET started_at = NOW() WHERE id = ?");
         $updateStart->bind_param("i", $id);
         $updateStart->execute();
     }
 }
 
-$stmt = $conn->prepare("
+$companyAliases = company_aliases((string) $company);
+$companyCond = implode(' OR ', array_fill(0, max(1, count($companyAliases)), "COALESCE(NULLIF(t.assigned_company, ''), t.company) = ?"));
+if (count($companyAliases) === 0) {
+    $companyAliases = [''];
+}
+$sql = "
     SELECT 
         t.*, 
         u.name as created_by_name, 
@@ -87,9 +140,21 @@ $stmt = $conn->prepare("
         u.department as user_department
     FROM employee_tickets t 
     JOIN users u ON t.user_id = u.id 
-    WHERE t.id = ? AND ((t.assigned_department = ? AND t.assigned_company = ?) OR t.user_id = ?)
-");
-$stmt->bind_param("issi", $id, $dept, $company, $_SESSION['user_id']);
+    WHERE t.id = ? AND (
+        t.user_id = ?
+        OR t.assigned_user_id = ?
+        OR (COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department) = ? AND ($companyCond))
+    )
+";
+$stmt = $conn->prepare($sql);
+$types = 'iiis' . str_repeat('s', count($companyAliases));
+$params = array_merge([$id, (int) $_SESSION['user_id'], (int) $_SESSION['user_id'], $dept], $companyAliases);
+$bind = [];
+$bind[] = $types;
+foreach ($params as $k => $p) {
+    $bind[] = &$params[$k];
+}
+call_user_func_array([$stmt, 'bind_param'], $bind);
 $stmt->execute();
 $result = $stmt->get_result();
 

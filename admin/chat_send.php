@@ -47,8 +47,13 @@ if ($_SESSION['role'] !== 'admin') {
      }
 }
 
+$col = $conn->query("SHOW COLUMNS FROM ticket_messages LIKE 'is_read'");
+if ($col && $col->num_rows === 0) {
+    $conn->query("ALTER TABLE ticket_messages ADD COLUMN is_read TINYINT(1) NOT NULL DEFAULT 0");
+}
+
 // Insert Message
-$stmt = $conn->prepare("INSERT INTO ticket_messages (ticket_id, sender_id, message) VALUES (?, ?, ?)");
+$stmt = $conn->prepare("INSERT INTO ticket_messages (ticket_id, sender_id, message, is_read) VALUES (?, ?, ?, 0)");
 $stmt->bind_param("iis", $ticket_id, $sender_id, $message);
 
 if ($stmt->execute()) {

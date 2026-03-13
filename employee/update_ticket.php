@@ -2,10 +2,28 @@
 require_once '../config/database.php';
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
     exit();
+}
+
+function company_code(string $value): string
+{
+    $s = strtoupper(trim($value));
+    if ($s === '') return '';
+    if ($s === 'FARMASEE') return 'PCC';
+    if (strpos($s, 'MHC') !== false) return 'MHC';
+    if (strpos($s, 'GPCI') !== false || strpos($s, 'GPSCI') !== false) return 'GPCI';
+    if (strpos($s, 'LAPC') !== false || strpos($s, 'LAH') !== false) return 'LAPC';
+    if (strpos($s, 'PCC') !== false) return 'PCC';
+    if (strpos($s, 'MPDC') !== false) return 'MPDC';
+    if (strpos($s, 'LINGAP') !== false) return 'LINGAP';
+    if (strpos($s, 'LTC') !== false) return 'LTC';
+    if (strpos($s, 'FARMEX') !== false) return 'FARMEX';
+    if (strpos($s, 'FARMEX CORP') !== false) return 'FARMEX';
+    return '';
 }
 
 // Ensure department and company are in session
@@ -23,6 +41,8 @@ if (!isset($_SESSION['department']) || !isset($_SESSION['company'])) {
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
 
+    ticket_ensure_assignment_columns($conn);
+
     if (!isset($_POST['id'])) {
         header("Location: my_task.php");
         exit();
@@ -36,7 +56,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // --- PERMISSION CHECK ---
     // Employee can only update tickets assigned to their department AND company
-    $check_stmt = $conn->prepare("SELECT user_id, status, assigned_department, assigned_company, admin_note FROM employee_tickets WHERE id = ?");
+    $check_stmt = $conn->prepare("SELECT user_id, status, assigned_department, assigned_group, assigned_company, assigned_user_id, admin_note FROM employee_tickets WHERE id = ?");
     $check_stmt->bind_param("i", $id);
     $check_stmt->execute();
     $check_res = $check_stmt->get_result();
@@ -48,7 +68,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    if ($old_data['assigned_department'] !== $_SESSION['department'] || $old_data['assigned_company'] !== $_SESSION['company']) {
+    $assigneeOk = isset($old_data['assigned_user_id']) && (int) $old_data['assigned_user_id'] === (int) $_SESSION['user_id'];
+    $ticketCompanyCode = company_code((string) ($old_data['assigned_company'] ?? ''));
+    $userCompanyCode = company_code((string) ($_SESSION['company'] ?? ''));
+    $companyOk = ($ticketCompanyCode !== '' && $userCompanyCode !== '' && $ticketCompanyCode === $userCompanyCode) || ((string) ($old_data['assigned_company'] ?? '') === (string) ($_SESSION['company'] ?? ''));
+    $ticketGroup = (string) ($old_data['assigned_group'] ?? ($old_data['assigned_department'] ?? ''));
+    $groupOk = $ticketGroup !== '' && $ticketGroup === (string) ($_SESSION['department'] ?? '');
+    if (!$assigneeOk && (!$groupOk || !$companyOk)) {
         header("Location: my_task.php?error=unauthorized");
         exit();
     }
@@ -63,6 +89,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (empty($new_company)) {
         $new_company = $old_data['assigned_company'];
     }
+    $new_company = ticket_normalize_company((string) $new_company);
+    if (empty($new_department)) {
+        $new_department = (string) ($old_data['assigned_group'] ?? ($old_data['assigned_department'] ?? ''));
+    }
+    $new_group = $new_department;
+
+    if ($new_company === '' || !ticket_is_valid_company($new_company) || !ticket_is_valid_group_for_company($new_company, $new_group)) {
+        $_SESSION['error'] = 'Invalid company/group selection.';
+        header("Location: my_task.php");
+        exit();
+    }
+
+    $assigned_user_id = ticket_find_assignee_id($conn, $new_company, $new_group);
+    if (!$assigned_user_id) {
+        $_SESSION['error'] = 'No assignee available for the selected company and group.';
+        header("Location: my_task.php");
+        exit();
+    }
 
     // Update ticket
     $update = $conn->prepare("
@@ -71,6 +115,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             status = ?, 
             assigned_department = ?, 
             assigned_company = ?,
+            assigned_group = ?,
+            assigned_user_id = ?,
             admin_note = ?,
             is_read = 1, 
             updated_at = NOW(),
@@ -81,7 +127,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         WHERE id = ?
     ");
     
-    $update->bind_param("ssssssi", $new_status, $new_department, $new_company, $admin_note, $new_status, $new_status, $id);
+    $update->bind_param("ssssisssi", $new_status, $new_department, $new_company, $new_group, $assigned_user_id, $admin_note, $new_status, $new_status, $id);
     
     if ($update->execute()) {
         $_SESSION['success'] = "Ticket #$id successfully updated.";
@@ -157,26 +203,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 'type' => 'reassigned'
             ];
 
-            if ($new_department !== '' && $new_company !== '') {
-                $dept_users_stmt = $conn->prepare("SELECT id FROM users WHERE role = 'employee' AND department = ? AND company = ?");
-                if ($dept_users_stmt) {
-                    $dept_users_stmt->bind_param("ss", $new_department, $new_company);
-                    $dept_users_stmt->execute();
-                    $dept_users_res = $dept_users_stmt->get_result();
-
-                    $dept_notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, ?)");
-                    if ($dept_notif_stmt) {
-                        $dept_type = 'dept_assigned';
-                        $dept_msg = "New ticket #$id was assigned to your department by " . $_SESSION['department'] . " (" . $_SESSION['company'] . ").";
-                        while ($u = $dept_users_res->fetch_assoc()) {
-                            $target_user_id = (int)$u['id'];
-                            $dept_notif_stmt->bind_param("iiss", $target_user_id, $id, $dept_msg, $dept_type);
-                            $dept_notif_stmt->execute();
-                        }
-                        $dept_notif_stmt->close();
-                    }
-
-                    $dept_users_stmt->close();
+            if (!empty($assigned_user_id)) {
+                $dept_notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, ?)");
+                if ($dept_notif_stmt) {
+                    $dept_type = 'dept_assigned';
+                    $dept_msg = "New ticket #$id was assigned to your group by " . $_SESSION['department'] . " (" . $_SESSION['company'] . ").";
+                    $assigneeIdInt = (int) $assigned_user_id;
+                    $dept_notif_stmt->bind_param("iiss", $assigneeIdInt, $id, $dept_msg, $dept_type);
+                    $dept_notif_stmt->execute();
+                    $dept_notif_stmt->close();
                 }
             }
         }

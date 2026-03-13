@@ -18,6 +18,67 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 csrf_validate();
 
+$current_user_id = $_SESSION['user_id'];
+
+$col = $conn->query("SHOW COLUMNS FROM ticket_messages LIKE 'is_read'");
+if ($col && $col->num_rows === 0) {
+    $conn->query("ALTER TABLE ticket_messages ADD COLUMN is_read TINYINT(1) NOT NULL DEFAULT 0");
+}
+
+if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
+    $sql = "
+        SELECT
+            t.id,
+            t.subject,
+            MAX(tm.created_at) AS last_message_time,
+            SUM(CASE WHEN tm.is_read = 0 AND tm.sender_id <> ? THEN 1 ELSE 0 END) AS unread_count,
+            SUBSTRING_INDEX(GROUP_CONCAT(tm.message ORDER BY tm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_message,
+            SUBSTRING_INDEX(GROUP_CONCAT(u.name ORDER BY tm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_sender_name
+        FROM employee_tickets t
+        JOIN ticket_messages tm ON t.id = tm.ticket_id
+        JOIN users u ON tm.sender_id = u.id
+    ";
+    $params = [$current_user_id];
+    $types = 'i';
+
+    if (($_SESSION['role'] ?? '') !== 'admin') {
+        $sql .= " WHERE t.assigned_department = ? ";
+        $params[] = (string) ($_SESSION['department'] ?? '');
+        $types .= 's';
+    }
+
+    $sql .= "
+        GROUP BY t.id, t.subject
+        ORDER BY last_message_time DESC
+        LIMIT 50
+    ";
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to prepare query']);
+        exit;
+    }
+    if ($types !== '') {
+        $stmt->bind_param($types, ...$params);
+    }
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $rows = [];
+    while ($r = $res->fetch_assoc()) {
+        $rows[] = [
+            'id' => (int) $r['id'],
+            'subject' => (string) $r['subject'],
+            'last_message_time' => (string) $r['last_message_time'],
+            'unread_count' => (int) $r['unread_count'],
+            'last_message' => (string) $r['last_message'],
+            'last_sender_name' => (string) $r['last_sender_name']
+        ];
+    }
+    echo json_encode($rows);
+    exit;
+}
+
 if (!isset($_POST['ticket_id'])) {
     http_response_code(400);
     echo json_encode(['error' => 'Missing Ticket ID']);
@@ -25,7 +86,6 @@ if (!isset($_POST['ticket_id'])) {
 }
 
 $ticket_id = (int)$_POST['ticket_id'];
-$current_user_id = $_SESSION['user_id'];
 
 // Check Access: Employee can only access tickets assigned to their department
 if ($_SESSION['role'] !== 'admin') {
@@ -38,6 +98,13 @@ if ($_SESSION['role'] !== 'admin') {
          echo json_encode(['error' => 'Access Denied']);
          exit;
      }
+}
+
+$mark = $conn->prepare("UPDATE ticket_messages SET is_read = 1 WHERE ticket_id = ? AND sender_id <> ? AND is_read = 0");
+if ($mark) {
+    $mark->bind_param("ii", $ticket_id, $current_user_id);
+    $mark->execute();
+    $mark->close();
 }
 
 // Fetch messages

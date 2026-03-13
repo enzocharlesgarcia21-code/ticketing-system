@@ -39,13 +39,12 @@ body {
     z-index: 20;
     display: flex;
     align-items: center;
-    /* justify-content: space-between; -- Removed for left alignment */
-    padding: 0 24px;
-    height: 64px;
+    padding: 15px 40px;
+    height: auto;
     background: linear-gradient(90deg, #1B5E20, #144a1e);
     color: white;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    gap: 40px; /* Space between logo and nav links */
+    gap: 40px;
 }
 
 .admin-navbar-left {
@@ -55,12 +54,13 @@ body {
 }
 
 .admin-logo-img {
-    height: 50px;
-    width: 50px; /* Force square */
+    height: 56px;
+    width: 56px;
     object-fit: contain;
-    background-color: white; /* Ensure visibility against dark background */
-    padding: 2px;
-    border-radius: 50%; /* Make it circular */
+    background-color: #ffffff;
+    padding: 6px;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
 }
 
 .admin-logo-text-main {
@@ -2108,6 +2108,128 @@ body.dark-mode .tm-btn-secondary:hover {
     background-color: #334155;
 }
 
+/* ================ TABS ================ */
+.tm-tabs {
+    display: flex;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+    padding: 0 24px;
+    gap: 24px;
+}
+.tm-tab {
+    padding: 16px 4px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #64748b;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s;
+}
+.tm-tab:hover { color: #0f172a; }
+.tm-tab.active {
+    color: #16a34a;
+    font-weight: 600;
+}
+.tm-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: #16a34a;
+    border-radius: 2px 2px 0 0;
+}
+.tm-tab-content {
+    display: none;
+    padding: 24px;
+    animation: fadeInContent 0.2s ease-out;
+}
+.tm-tab-content.active { display: block; }
+@keyframes fadeInContent {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Chat Integration within Tab */
+.chat-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 500px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f8fafc;
+}
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.chat-input-area {
+    padding: 16px;
+    background: white;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.chat-input-area input {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 24px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.chat-input-area input:focus { border-color: #16a34a; }
+.chat-input-area button {
+    background: #16a34a;
+    color: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+.chat-input-area button:hover { background: #15803d; }
+.chat-bubble {
+    max-width: 80%;
+    padding: 10px 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    position: relative;
+    word-wrap: break-word;
+}
+.chat-bubble.me {
+    align-self: flex-end;
+    background: #16a34a;
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+.chat-bubble.other {
+    align-self: flex-start;
+    background: white;
+    border: 1px solid #e2e8f0;
+    color: #1e293b;
+    border-bottom-left-radius: 4px;
+}
+.chat-time {
+    font-size: 10px;
+    margin-top: 4px;
+    opacity: 0.8;
+    text-align: right;
+}
+*** End of File
  
  / *   = = = = = = = = = = = = = = = = =   T A B S   = = = = = = = = = = = = = = = = =   * / 
  

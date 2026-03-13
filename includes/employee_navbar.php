@@ -31,9 +31,10 @@ function isActive($page) {
     return '';
 }
 ?>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <nav class="navbar">
     <div class="nav-left">
-        <img src="../assets/img/image.png" alt="Leads Agri Logo" class="logo-icon">
+        <img src="../assets/img/logo.png" alt="Leads Agri Logo" class="logo-icon">
         <div class="brand-name">Leads Agri Helpdesk</div>
         <button class="navbar-toggler" id="navbarToggler">
             <i class="fas fa-bars"></i>
@@ -73,7 +74,7 @@ function isActive($page) {
 
             <div class="user-menu">
                 <button class="user-btn" aria-label="<?= htmlspecialchars($user_email, ENT_QUOTES, 'UTF-8'); ?>">
-                    <i class="fas fa-user-circle"></i>
+                    <i class="fas fa-user"></i>
                     <i class="fas fa-chevron-down" style="font-size: 10px;"></i>
                 </button>
                 <div class="user-dropdown">
@@ -290,7 +291,7 @@ function isActive($page) {
     right: 24px;
     bottom: 24px;
     z-index: 2500;
-    background: #2563eb;
+    background: #1B5E20;
     color: #ffffff;
     border: none;
     border-radius: 999px;
@@ -303,7 +304,7 @@ function isActive($page) {
     box-shadow: 0 12px 28px rgba(2, 6, 23, 0.25);
     user-select: none;
 }
-.tm-global-chat-fab:hover { background: #1d4ed8; }
+.tm-global-chat-fab:hover { background: #144a1e; }
 .tm-global-chat-fab:active { transform: translateY(1px); }
 .tm-global-chat-fab .tm-global-chat-label { font-size: 14px; }
 .tm-global-chat-fab .chat-badge {
@@ -327,6 +328,52 @@ function isActive($page) {
 @media (max-width: 768px) {
     .tm-global-chat-fab { right: 16px; bottom: 16px; padding: 12px 14px; }
     .tm-global-chat-fab .tm-global-chat-label { display: none; }
+}
+
+/* Employee user pill (match admin style) */
+.user-menu { position: relative; display: inline-block; }
+.user-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #ffffff;
+    padding: 8px 16px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+.user-btn:hover { background: rgba(255,255,255,0.25); }
+.user-dropdown {
+    position: absolute;
+    right: 0;
+    top: 50px;
+    background: #ffffff;
+    min-width: 200px;
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 999;
+    border: 1px solid #e5e7eb;
+}
+.user-dropdown.show { display: flex; }
+.user-dropdown .dropdown-item {
+    padding: 12px 16px;
+    text-decoration: none;
+    color: #1f2937;
+    font-size: 14px;
+    transition: background 0.2s;
+    display: block;
+    font-weight: 500;
+}
+.user-dropdown .dropdown-item:hover {
+    background: #f9fafb;
+    color: #1B5E20;
 }
 </style>
 
@@ -432,6 +479,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Mark as Read & Redirect
     const CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
+    window.TM_CSRF_TOKEN = CSRF_TOKEN;
     window.markAsRead = function(id, ticketId, type) {
         // Send request to mark as read
         const body = 'id=' + encodeURIComponent(String(id)) + (CSRF_TOKEN ? ('&csrf_token=' + encodeURIComponent(String(CSRF_TOKEN))) : '');
@@ -458,6 +506,38 @@ document.addEventListener('DOMContentLoaded', function() {
     // Also refresh relative timestamps every 60s
     setInterval(updateRelativeTimes, 60000);
 
+    function setGlobalChatBadge(n) {
+        const badge = document.getElementById('globalChatBadge');
+        if (!badge) return;
+        const count = Math.max(0, parseInt(String(n || 0), 10) || 0);
+        if (count <= 0) {
+            badge.classList.remove('is-visible');
+            badge.textContent = '';
+            return;
+        }
+        badge.classList.add('is-visible');
+        badge.textContent = count > 99 ? '99+' : String(count);
+    }
+
+    function fetchChatUnreadTotal() {
+        const formData = new FormData();
+        formData.append('action', 'conversations');
+        if (window.TM_CSRF_TOKEN) formData.append('csrf_token', String(window.TM_CSRF_TOKEN));
+        fetch('chat_fetch.php', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.error) return;
+                const items = Array.isArray(data) ? data : [];
+                let total = 0;
+                items.forEach(c => {
+                    const u = parseInt(String((c && c.unread_count != null) ? c.unread_count : 0), 10) || 0;
+                    total += Math.max(0, u);
+                });
+                setGlobalChatBadge(total);
+            })
+            .catch(() => {});
+    }
+
     function ensureTicketModalScript() {
         if (window.TMTicketModal) return;
         if (document.getElementById('tmTicketModalScript')) return;
@@ -470,28 +550,19 @@ document.addEventListener('DOMContentLoaded', function() {
     window.TMGlobalChat = {
         open: function() {
             ensureTicketModalScript();
-            const getFromUrl = function() {
-                try {
-                    const p = new URLSearchParams(window.location.search);
-                    return p.get('ticket_id') || p.get('id');
-                } catch (e) {
-                    return null;
+            const tryOpen = function(attempt) {
+                if (window.TMTicketModal && typeof window.TMTicketModal.openMessengerChat === 'function') {
+                    window.TMTicketModal.openMessengerChat();
+                    return;
                 }
+                if (attempt >= 20) return;
+                setTimeout(function() { tryOpen(attempt + 1); }, 50);
             };
-            const last = (window.TMTicketModal && window.TMTicketModal.getCurrentTicketId) ? window.TMTicketModal.getCurrentTicketId() : null;
-            const ticketId = last || getFromUrl();
-            if (!ticketId) {
-                alert('Open a ticket first to start chat.');
-                return;
-            }
-            if (window.TMTicketModal && window.TMTicketModal.openChatModal) {
-                window.TMTicketModal.openChatModal(ticketId);
-                return;
-            }
-            if (typeof window.openChatModal === 'function') {
-                window.openChatModal(ticketId);
-            }
+            tryOpen(0);
         }
     };
+
+    fetchChatUnreadTotal();
+    setInterval(fetchChatUnreadTotal, 7000);
 });
 </script>

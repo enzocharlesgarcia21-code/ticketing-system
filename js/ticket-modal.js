@@ -3,6 +3,9 @@ var TMTicketModal = (function () {
   var chatBadgeInterval = null;
   var chatBadgeTicketId = null;
   var chatModalOpen = false;
+  var messengerOpen = false;
+  var messengerInterval = null;
+  var messengerTicketId = null;
   var currentTicketId = null;
   function qs(id) { return document.getElementById(id); }
   function getCsrfToken() {
@@ -106,7 +109,10 @@ var TMTicketModal = (function () {
   }
   function formatResolutionString(minutes) {
     if (minutes == null) return null;
-    if (minutes < 60) return minutes + ' mins';
+    if (minutes < 60) {
+      var m = Math.max(0, Math.round(minutes));
+      return m === 1 ? '1 min' : (m + ' mins');
+    }
     var hrs = Math.floor(minutes / 60);
     var mins = minutes % 60;
     if (mins === 0) return hrs + ' ' + (hrs === 1 ? 'hr' : 'hrs');
@@ -150,7 +156,7 @@ var TMTicketModal = (function () {
     var displayStr = backendStr || formatResolutionString(resMinutesAll);
     var cls = getDurationClass(backendStr, resMinutesAll);
     var isRunning = (endForTotal instanceof Date);
-    var resBadge = displayStr ? '<span class="tm-duration-badge ' + cls + (isRunning ? ' running' : '') + '">' + escapeHtml(displayStr + (isRunning ? ' (so far)' : '')) + '</span>' : '<span class="tm-duration-badge neutral">-</span>';
+    var resBadge = displayStr ? '<span class="tm-duration-badge ' + cls + (isRunning ? ' running' : '') + '">' + escapeHtml(displayStr) + '</span>' : '<span class="tm-duration-badge neutral">-</span>';
     var current = (typeof window !== 'undefined' && window.TM_CURRENT_USER) ? window.TM_CURRENT_USER : null;
     var isRequesterPOV = false;
     if (current && current.id != null && data && data.user_id != null) {
@@ -175,6 +181,43 @@ var TMTicketModal = (function () {
         '            </select>' +
         '          </div>';
     }
+    var groups = [
+      'Banana Farm Operations',
+      'Seed Production',
+      'Supply Chain',
+      'Supply Chain Innovation',
+      'Admin & Legal',
+      'Diagnostics / Lingap',
+      'E-Commerce',
+      'Finance and Accounting',
+      'Human Resource and Transformation',
+      'Institutional Sales',
+      'Digital Agri Solutions and Innovations',
+      'Marketing',
+      'New Business Segment',
+      'Technical',
+      'Executive',
+      'Management',
+      'Accounting',
+      'Sales',
+      'Admin',
+      'Maintenance',
+      'Production',
+      'Quality Control',
+      'IT',
+      'Finance and Admin',
+      'Logistics',
+      'Sales and Marketing',
+      'Special Project',
+      'Business Development',
+      'Services & Logistics (Luzon)'
+    ];
+    var uniqueGroups = [];
+    groups.forEach(function (g) { if (uniqueGroups.indexOf(g) === -1) uniqueGroups.push(g); });
+    uniqueGroups.sort(function (a, b) { return String(a).localeCompare(String(b)); });
+    var deptOptionsHtml = uniqueGroups.map(function (g) {
+      return '                  <option value="' + escapeHtml(g) + '" ' + (String(data.assigned_department || '') === String(g) ? 'selected' : '') + '>' + escapeHtml(g) + '</option>';
+    }).join('');
     return '' +
       '<div class="tm-header">' +
       '  <div class="tm-header-left">' +
@@ -213,7 +256,7 @@ var TMTicketModal = (function () {
       '        <div class="tm-resolution-row">' +
       '          <div class="tm-res-item"><div class="tm-res-label">Start</div><div class="tm-res-value">' + (data.created_at ? formatTimelineTime(data.created_at) : '-') + '</div></div>' +
       '          <div class="tm-res-item"><div class="tm-res-label">End</div><div class="tm-res-value">' + ((data.status && (/^(Resolved|Closed)$/i).test(String(data.status)) && data.updated_at) ? formatTimelineTime(data.updated_at) : 'Pending') + '</div></div>' +
-      '          <div class="tm-res-item"><div class="tm-res-label">Duration</div><div class="tm-res-value"><span class="tm-duration-dot"></span>' + (displayStr ? escapeHtml(displayStr + (isRunning ? ' (so far)' : '')) : '-') + '</div></div>' +
+      '          <div class="tm-res-item"><div class="tm-res-label">Duration</div><div class="tm-res-value"><span class="tm-duration-dot"></span>' + (displayStr ? escapeHtml(displayStr) : '-') + '</div></div>' +
       '        </div>' +
       '      </div></div>' +
       '    </div>' +
@@ -233,14 +276,7 @@ var TMTicketModal = (function () {
       '          <div class="tm-select-wrapper">' +
       '            <select class="tm-select tm-dept-select" name="assigned_department">' +
       ( !data.assigned_department ? '                  <option value="" disabled selected hidden>Assign Department</option>' : '' ) +
-      '                  <option value="Accounting" ' + (data.assigned_department === 'Accounting' ? 'selected' : '') + '>Accounting</option>' +
-'                  <option value="Admin" ' + (data.assigned_department === 'Admin' ? 'selected' : '') + '>Admin</option>' +
-'                  <option value="Bidding" ' + (data.assigned_department === 'Bidding' ? 'selected' : '') + '>Bidding</option>' +
-'                  <option value="E-Comm" ' + (data.assigned_department === 'E-Comm' ? 'selected' : '') + '>E-Comm</option>' +
-'                  <option value="HR" ' + (data.assigned_department === 'HR' ? 'selected' : '') + '>HR</option>' +
-'                  <option value="IT" ' + (data.assigned_department === 'IT' ? 'selected' : '') + '>IT</option>' +
-'                  <option value="Marketing" ' + (data.assigned_department === 'Marketing' ? 'selected' : '') + '>Marketing</option>' +
-'                  <option value="Sales" ' + (data.assigned_department === 'Sales' ? 'selected' : '') + '>Sales</option>' +
+      deptOptionsHtml +
       '            </select>' +
       '          </div>' +
       '        </div>' +
@@ -249,16 +285,17 @@ var TMTicketModal = (function () {
       '          <div class="tm-select-wrapper">' +
       '            <select class="tm-select tm-dept-select" name="assigned_company">' +
       ( !data.assigned_company ? '                  <option value="" disabled selected hidden>Select Company</option>' : '' ) +
-      '                  <option value="FARMEX" ' + (data.assigned_company === 'FARMEX' ? 'selected' : '') + '>FARMEX</option>' +
-      '                  <option value="FARMASEE" ' + (data.assigned_company === 'FARMASEE' ? 'selected' : '') + '>FARMASEE</option>' +
-      '                  <option value="Golden Primestocks Chemical Inc - GPSCI" ' + (data.assigned_company === 'Golden Primestocks Chemical Inc - GPSCI' ? 'selected' : '') + '>Golden Primestocks Chemical Inc - GPSCI</option>' +
-      '                  <option value="Leads Animal Health - LAH" ' + (data.assigned_company === 'Leads Animal Health - LAH' ? 'selected' : '') + '>Leads Animal Health - LAH</option>' +
-      '                  <option value="Leads Environmental Health - LEH" ' + (data.assigned_company === 'Leads Environmental Health - LEH' ? 'selected' : '') + '>Leads Environmental Health - LEH</option>' +
-      '                  <option value="Leads Tech Corporation - LTC" ' + (data.assigned_company === 'Leads Tech Corporation - LTC' ? 'selected' : '') + '>Leads Tech Corporation - LTC</option>' +
-      '                  <option value="LINGAP LEADS FOUNDATION - Lingap" ' + (data.assigned_company === 'LINGAP LEADS FOUNDATION - Lingap' ? 'selected' : '') + '>LINGAP LEADS FOUNDATION - Lingap</option>' +
-      '                  <option value="Malveda Holdings Corporation - MHC" ' + (data.assigned_company === 'Malveda Holdings Corporation - MHC' ? 'selected' : '') + '>Malveda Holdings Corporation - MHC</option>' +
-      '                  <option value="Malveda Properties & Development Corporation - MPDC" ' + (data.assigned_company === 'Malveda Properties & Development Corporation - MPDC' ? 'selected' : '') + '>Malveda Properties & Development Corporation - MPDC</option>' +
-      '                  <option value="Primestocks Chemical Corporation - PCC" ' + (data.assigned_company === 'Primestocks Chemical Corporation - PCC' ? 'selected' : '') + '>Primestocks Chemical Corporation - PCC</option>' +
+      ( data.assigned_company && ['LAPC','GPCI','PCC','MHC','Farmex Corp','LTC','MPDC','LINGAP'].indexOf(data.assigned_company) === -1
+          ? ('                  <option value="' + escapeHtml(data.assigned_company) + '" selected>' + escapeHtml(data.assigned_company) + '</option>')
+          : '' ) +
+      '                  <option value="LAPC" ' + (data.assigned_company === 'LAPC' ? 'selected' : '') + '>LAPC</option>' +
+      '                  <option value="GPCI" ' + (data.assigned_company === 'GPCI' ? 'selected' : '') + '>GPCI</option>' +
+      '                  <option value="PCC" ' + (data.assigned_company === 'PCC' ? 'selected' : '') + '>PCC</option>' +
+      '                  <option value="MHC" ' + (data.assigned_company === 'MHC' ? 'selected' : '') + '>MHC</option>' +
+      '                  <option value="Farmex Corp" ' + (data.assigned_company === 'Farmex Corp' ? 'selected' : '') + '>Farmex Corp</option>' +
+      '                  <option value="LTC" ' + (data.assigned_company === 'LTC' ? 'selected' : '') + '>LTC</option>' +
+      '                  <option value="MPDC" ' + (data.assigned_company === 'MPDC' ? 'selected' : '') + '>MPDC</option>' +
+      '                  <option value="LINGAP" ' + (data.assigned_company === 'LINGAP' ? 'selected' : '') + '>LINGAP</option>' +
       '            </select>' +
       '          </div>' +
       '        </div>' +
@@ -408,7 +445,7 @@ var TMTicketModal = (function () {
   }
   function setChatButtonBadge(count) {
     var n = parseInt(String(count || 0), 10) || 0;
-    [qs('chatBtnBadge'), qs('globalChatBadge')].forEach(function (b) {
+    [qs('chatBtnBadge')].forEach(function (b) {
       if (!b) return;
       if (n <= 0) {
         b.classList.remove('is-visible');
@@ -630,6 +667,322 @@ var TMTicketModal = (function () {
       })
       .catch(function () { if (btn) btn.disabled = false; });
   }
+  function stopMessenger() {
+    if (messengerInterval) {
+      clearInterval(messengerInterval);
+      messengerInterval = null;
+    }
+  }
+  function ensureMessengerModalExists() {
+    if (qs('tmMessengerModal')) return;
+
+    if (!document.getElementById('tmMessengerStyles')) {
+      var style = document.createElement('style');
+      style.id = 'tmMessengerStyles';
+      style.textContent =
+        '.tm-messenger-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:9999;padding:18px;}' +
+        '.tm-messenger-panel{width:min(1100px,96vw);height:min(78vh,720px);background:#fff;border-radius:16px;box-shadow:0 30px 80px rgba(2,6,23,.25);overflow:hidden;display:flex;border:1px solid rgba(226,232,240,.9);}' +
+        '.tm-messenger-left{width:300px;min-width:300px;max-width:300px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;background:#fbfbfc;}' +
+        '.tm-messenger-left-header{padding:14px 14px 10px;display:flex;align-items:center;justify-content:flex-start;gap:10px;border-bottom:1px solid #eef2f7;}' +
+        '.tm-messenger-left-title{font-size:14px;font-weight:800;color:#0f172a;}' +
+        '.tm-messenger-search{padding:0 14px 12px;border-bottom:1px solid #eef2f7;}' +
+        '.tm-messenger-search input{width:100%;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:13px;outline:none;background:#fff;}' +
+        '.tm-messenger-search input:focus{border-color:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.12);}' +
+        '.tm-messenger-list{flex:1;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:6px;}' +
+        '.tm-messenger-item{width:100%;border:1px solid #e5e7eb;border-radius:12px;background:#fff;padding:10px 10px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:transform .12s,box-shadow .12s,border-color .12s;}' +
+        '.tm-messenger-item:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(2,6,23,.08);border-color:#bbf7d0;}' +
+        '.tm-messenger-item.active{border-color:#22c55e;box-shadow:0 10px 22px rgba(34,197,94,.12);}' +
+        '.tm-messenger-item.unread-chat{background:#e8f8ee;border-left:4px solid #22c55e;}' +
+        '.tm-messenger-item.unread-chat .tm-messenger-item-subject{font-weight:900;}' +
+        '.tm-messenger-item-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}' +
+        '.tm-messenger-item-subject{font-size:13px;font-weight:800;color:#0f172a;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+        '.tm-messenger-item-right{display:flex;align-items:center;gap:8px;flex:0 0 auto;}' +
+        '.tm-messenger-item-time{font-size:11px;font-weight:700;color:#64748b;flex:0 0 auto;}' +
+        '.unread-badge{background:#22c55e;color:#ffffff;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:900;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:20px;}' +
+        '.tm-messenger-item-preview{font-size:12px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+        '.tm-messenger-right{flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;}' +
+        '.tm-messenger-right-header{padding:14px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:12px;}' +
+        '.tm-messenger-right-title{display:flex;flex-direction:column;gap:3px;min-width:0;}' +
+        '.tm-messenger-title-main{font-size:14px;font-weight:900;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+        '.tm-messenger-title-sub{font-size:12px;font-weight:700;color:#64748b;}' +
+        '.tm-messenger-close{border:none;background:#f1f5f9;color:#0f172a;border-radius:10px;padding:8px 10px;cursor:pointer;font-weight:900;display:inline-flex;align-items:center;justify-content:center;}' +
+        '.tm-messenger-close:hover{background:#e2e8f0;}' +
+        '.tm-messenger-messages{flex:1;overflow:auto;padding:16px;background:#f9fafb;display:flex;flex-direction:column;gap:12px;}' +
+        '.tm-messenger-empty{color:#94a3b8;font-weight:700;text-align:center;margin-top:26px;}' +
+        '.tm-messenger-compose{border-top:1px solid #e5e7eb;padding:12px;background:#fff;display:flex;gap:10px;align-items:center;}' +
+        '.tm-messenger-compose input{flex:1;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;font-size:14px;outline:none;background:#fff;}' +
+        '.tm-messenger-compose input:focus{border-color:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.12);}' +
+        '.tm-messenger-send{border:none;background:#1B5E20;color:#fff;border-radius:12px;padding:12px 14px;font-weight:900;cursor:pointer;min-width:86px;}' +
+        '.tm-messenger-send:disabled{opacity:.6;cursor:not-allowed;}' +
+        '.tm-messenger-overlay .chat-bubble{max-width:80%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;display:flex;flex-direction:column;gap:4px;box-shadow:0 1px 2px rgba(0,0,0,.04);}' +
+        '.tm-messenger-overlay .chat-bubble.me{align-self:flex-end;background:#1B5E20;color:#fff;border-bottom-right-radius:4px;}' +
+        '.tm-messenger-overlay .chat-bubble.other{align-self:flex-start;background:#f1f5f9;color:#0f172a;border-bottom-left-radius:4px;}' +
+        '.tm-messenger-overlay .chat-sender{font-size:12px;font-weight:800;opacity:.9;}' +
+        '.tm-messenger-overlay .chat-time{font-size:11px;font-weight:700;opacity:.75;margin-top:2px;align-self:flex-end;}' +
+        '@media (max-width: 820px){.tm-messenger-panel{width:96vw;height:86vh}.tm-messenger-left{width:260px;min-width:260px;max-width:260px}}' +
+        '@media (max-width: 640px){.tm-messenger-panel{flex-direction:column}.tm-messenger-left{width:100%;min-width:0;max-width:none;height:44%}.tm-messenger-right{height:56%}}';
+      document.head.appendChild(style);
+    }
+
+    var overlay = document.createElement('div');
+    overlay.id = 'tmMessengerModal';
+    overlay.className = 'tm-messenger-overlay';
+    overlay.innerHTML =
+      '<div class="tm-messenger-panel" role="dialog" aria-modal="true" aria-label="Ticket Conversations">' +
+      '  <div class="tm-messenger-left">' +
+      '    <div class="tm-messenger-left-header">' +
+      '      <div class="tm-messenger-left-title">Conversations</div>' +
+      '    </div>' +
+      '    <div class="tm-messenger-search"><input type="text" id="tmMessengerSearch" placeholder="Search tickets..."></div>' +
+      '    <div class="tm-messenger-list" id="tmMessengerList"><div class="tm-messenger-empty">Loading...</div></div>' +
+      '  </div>' +
+      '  <div class="tm-messenger-right">' +
+      '    <div class="tm-messenger-right-header">' +
+      '      <div class="tm-messenger-right-title">' +
+      '        <div class="tm-messenger-title-main" id="tmMessengerHeaderTitle">Select a conversation</div>' +
+      '        <div class="tm-messenger-title-sub" id="tmMessengerHeaderSub"> </div>' +
+      '      </div>' +
+      '      <button type="button" class="tm-messenger-close" id="tmMessengerCloseBtn" aria-label="Close">×</button>' +
+      '    </div>' +
+      '    <div class="tm-messenger-messages" id="tmMessengerMessages"><div class="tm-messenger-empty">Select a ticket on the left.</div></div>' +
+      '    <div class="tm-messenger-compose">' +
+      '      <input type="hidden" id="tmMessengerTicketId" value="">' +
+      '      <input type="text" id="tmMessengerInput" placeholder="Type a message..." autocomplete="off" disabled>' +
+      '      <button type="button" class="tm-messenger-send" id="tmMessengerSendBtn" disabled>Send</button>' +
+      '    </div>' +
+      '  </div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) closeMessengerChat();
+    });
+    var closeBtn = qs('tmMessengerCloseBtn');
+    if (closeBtn) closeBtn.addEventListener('click', closeMessengerChat);
+    document.addEventListener('keydown', function (e) {
+      if (!messengerOpen) return;
+      if (e.key === 'Escape') closeMessengerChat();
+    });
+
+    var sendBtn = qs('tmMessengerSendBtn');
+    var input = qs('tmMessengerInput');
+    if (sendBtn) sendBtn.addEventListener('click', sendMessengerMessage);
+    if (input) {
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          sendMessengerMessage();
+        }
+      });
+    }
+
+    var search = qs('tmMessengerSearch');
+    if (search) {
+      search.addEventListener('input', function () {
+        renderConversations(search.value);
+      });
+    }
+  }
+  function toRelative(ts) {
+    if (!ts) return '';
+    var then = new Date(String(ts).replace(' ', 'T'));
+    if (isNaN(then.getTime())) return '';
+    var now = new Date();
+    var diff = Math.max(0, Math.floor((now.getTime() - then.getTime()) / 1000));
+    if (diff < 10) return 'Just now';
+    if (diff < 60) return diff + 's ago';
+    var m = Math.floor(diff / 60);
+    if (m < 60) return m + 'm ago';
+    var h = Math.floor(diff / 3600);
+    if (h < 24) return h + 'h ago';
+    var d = Math.floor(diff / 86400);
+    return d + 'd ago';
+  }
+  function loadConversationsAndMaybeSelect() {
+    var formData = new FormData();
+    formData.append('action', 'conversations');
+    var t = getCsrfToken();
+    if (t) formData.append('csrf_token', t);
+    fetch('chat_fetch.php', { method: 'POST', body: formData })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.error) return;
+        window.__tmConversations = Array.isArray(data) ? data : [];
+        var searchEl = qs('tmMessengerSearch');
+        renderConversations(searchEl ? searchEl.value : '');
+        if (!messengerTicketId && window.__tmConversations.length) {
+          selectConversation(window.__tmConversations[0]);
+        } else if (messengerTicketId) {
+          var found = window.__tmConversations.find(function (c) { return String(c.id) === String(messengerTicketId); });
+          if (found) selectConversation(found, true);
+        }
+      })
+      .catch(function () { });
+  }
+  function renderConversations(query) {
+    var list = qs('tmMessengerList');
+    if (!list) return;
+    var convs = Array.isArray(window.__tmConversations) ? window.__tmConversations : [];
+    var q = (query || '').trim().toLowerCase();
+    if (q) {
+      convs = convs.filter(function (c) {
+        var s = (c && c.subject) ? String(c.subject) : '';
+        var id = (c && c.id != null) ? String(c.id) : '';
+        return s.toLowerCase().includes(q) || id.includes(q);
+      });
+    }
+    if (!convs.length) {
+      list.innerHTML = '<div class="tm-messenger-empty">No conversations.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    convs.forEach(function (c) {
+      var unread = 0;
+      if (c && c.unread_count != null) {
+        unread = parseInt(String(c.unread_count), 10);
+        if (isNaN(unread) || unread < 0) unread = 0;
+      }
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tm-messenger-item' +
+        (unread > 0 ? ' unread-chat' : '') +
+        (messengerTicketId && String(c.id) === String(messengerTicketId) ? ' active' : '');
+      btn.dataset.ticketId = String(c.id);
+      btn.innerHTML =
+        '<div class="tm-messenger-item-top">' +
+        '  <div class="tm-messenger-item-subject" title="' + escapeHtml(c.subject) + '">#' + String(c.id).padStart(6, '0') + ' • ' + escapeHtml(c.subject) + '</div>' +
+        '  <div class="tm-messenger-item-right">' +
+        '    <div class="tm-messenger-item-time">' + escapeHtml(toRelative(c.last_message_time)) + '</div>' +
+        (unread > 0 ? ('<span class="unread-badge">' + escapeHtml(String(unread)) + '</span>') : '') +
+        '  </div>' +
+        '</div>' +
+        '<div class="tm-messenger-item-preview">' + escapeHtml((c.last_sender_name ? (String(c.last_sender_name) + ': ') : '') + (c.last_message || '')) + '</div>';
+      btn.addEventListener('click', function () {
+        selectConversation(c);
+      });
+      list.appendChild(btn);
+    });
+  }
+  function setMessengerHeader(conv) {
+    var title = qs('tmMessengerHeaderTitle');
+    var sub = qs('tmMessengerHeaderSub');
+    if (title) title.textContent = conv ? ('#' + String(conv.id).padStart(6, '0') + ' • ' + String(conv.subject || '')) : 'Select a conversation';
+    if (sub) sub.textContent = conv && conv.last_message_time ? ('Last message: ' + String(conv.last_message_time)) : '';
+  }
+  function selectConversation(conv, noReloadConversations) {
+    if (!conv || conv.id == null) return;
+    messengerTicketId = String(conv.id);
+    setCurrentTicketId(messengerTicketId);
+    var idEl = qs('tmMessengerTicketId');
+    if (idEl) idEl.value = messengerTicketId;
+    setMessengerHeader(conv);
+
+    var input = qs('tmMessengerInput');
+    var sendBtn = qs('tmMessengerSendBtn');
+    if (input) input.disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
+
+    renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
+    stopMessenger();
+    loadMessengerMessages(messengerTicketId, true);
+    messengerInterval = setInterval(function () { loadMessengerMessages(messengerTicketId, false); }, 3000);
+    if (!noReloadConversations) {
+      setTimeout(function () { loadConversationsAndMaybeSelect(); }, 0);
+    }
+  }
+  function loadMessengerMessages(ticketId, scrollBottom) {
+    var formData = new FormData();
+    formData.append('ticket_id', ticketId);
+    var t = getCsrfToken();
+    if (t) formData.append('csrf_token', t);
+    fetch('chat_fetch.php', { method: 'POST', body: formData })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.error) return;
+        renderMessengerMessages(data || [], scrollBottom);
+      })
+      .catch(function () { });
+  }
+  function renderMessengerMessages(messages, scrollBottom) {
+    var container = qs('tmMessengerMessages');
+    if (!container) return;
+    var isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+    container.innerHTML = '';
+    if (!messages || messages.length === 0) {
+      container.innerHTML = '<div class="tm-messenger-empty">No messages yet.</div>';
+      return;
+    }
+    messages.forEach(function (msg) {
+      var bubble = document.createElement('div');
+      bubble.classList.add('chat-bubble', (msg.is_me ? 'me' : 'other'));
+      var senderLabel = '';
+      if (msg && msg.sender_name && String(msg.sender_name).trim() !== '') {
+        senderLabel = String(msg.sender_name);
+      } else if (msg && msg.is_me) {
+        senderLabel = (window.TM_CURRENT_USER && window.TM_CURRENT_USER.name) ? String(window.TM_CURRENT_USER.name) : 'You';
+      }
+      if (senderLabel) {
+        var sDiv = document.createElement('div');
+        sDiv.classList.add('chat-sender');
+        sDiv.textContent = senderLabel;
+        bubble.appendChild(sDiv);
+      }
+      var contentDiv = document.createElement('div');
+      contentDiv.textContent = msg.message;
+      var timeDiv = document.createElement('div');
+      timeDiv.classList.add('chat-time');
+      timeDiv.textContent = msg.created_at;
+      bubble.appendChild(contentDiv);
+      bubble.appendChild(timeDiv);
+      container.appendChild(bubble);
+    });
+    if (scrollBottom || isNearBottom) container.scrollTop = container.scrollHeight;
+  }
+  function sendMessengerMessage() {
+    var input = qs('tmMessengerInput');
+    var ticketIdEl = qs('tmMessengerTicketId');
+    var btn = qs('tmMessengerSendBtn');
+    if (!input || !ticketIdEl) return;
+    var ticketId = String(ticketIdEl.value || '');
+    var message = input.value.trim();
+    if (!ticketId || !message) return;
+    if (btn && btn.disabled) return;
+    if (btn) btn.disabled = true;
+    var formData = new FormData();
+    formData.append('ticket_id', ticketId);
+    formData.append('message', message);
+    var t = getCsrfToken();
+    if (t) formData.append('csrf_token', t);
+    fetch('chat_send.php', { method: 'POST', body: formData })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (btn) btn.disabled = false;
+        if (data && data.success) {
+          input.value = '';
+          loadMessengerMessages(ticketId, true);
+          loadConversationsAndMaybeSelect();
+        }
+      })
+      .catch(function () { if (btn) btn.disabled = false; });
+  }
+  function openMessengerChat() {
+    ensureMessengerModalExists();
+    var modal = qs('tmMessengerModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    messengerOpen = true;
+    stopChat();
+    stopChatBadge();
+    loadConversationsAndMaybeSelect();
+    var input = qs('tmMessengerInput');
+    if (input) setTimeout(function () { input.focus(); }, 0);
+  }
+  function closeMessengerChat() {
+    var modal = qs('tmMessengerModal');
+    if (modal) modal.style.display = 'none';
+    messengerOpen = false;
+    stopMessenger();
+  }
   function open(id, options) {
     var modal = qs('ticketModal');
     var modalContent = qs('modalContent');
@@ -694,6 +1047,8 @@ var TMTicketModal = (function () {
     openChatModal: openChatModal,
     closeChatModal: closeChatModal,
     sendChatModalMessage: sendChatModalMessage,
+    openMessengerChat: openMessengerChat,
+    closeMessengerChat: closeMessengerChat,
     updateStatusColor: updateStatusColor,
     viewImage: viewImage,
     closeImagePreview: closeImagePreview,

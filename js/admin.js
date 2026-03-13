@@ -14,10 +14,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        document.addEventListener("click", function () {
+        document.addEventListener("click", function (e) {
+            const wrapper = document.querySelector('.admin-user-dropdown');
+            if (wrapper && wrapper.contains(e.target)) {
+                return;
+            }
             dropdownMenu.style.display = "none";
-            const notifDropdown = document.getElementById('notifDropdown');
-            if (notifDropdown) notifDropdown.classList.remove('show');
         });
 
         dropdownMenu.addEventListener("click", function(e) {

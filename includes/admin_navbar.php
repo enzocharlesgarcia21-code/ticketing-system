@@ -6,7 +6,7 @@ require_once __DIR__ . '/csrf.php';
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <header class="admin-navbar">
     <div class="admin-navbar-left">
-        <img src="../assets/img/image.png" alt="Logo" class="admin-logo-img">
+        <img src="../assets/img/logo.png" alt="Logo" class="admin-logo-img">
         <div>
             <div class="admin-logo-text-main">Leads Agri Helpdesk</div>
             <div class="admin-logo-text-sub">Admin</div>
@@ -49,8 +49,8 @@ require_once __DIR__ . '/csrf.php';
 
         <div class="admin-user-dropdown">
             <button class="admin-user-pill" aria-label="<?= htmlspecialchars($_SESSION['email'] ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?>">
-                <span class="admin-user-icon">👤</span>
-                <span class="admin-arrow">▾</span>
+                <span class="admin-user-icon"><i class="fas fa-user"></i></span>
+                <span class="admin-arrow"><i class="fas fa-chevron-down" style="font-size: 10px;"></i></span>
             </button>
             <div class="admin-dropdown-menu">
                 <a href="logout.php" class="logout-link">Logout</a>
@@ -83,6 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
 .notification-wrapper {
     position: relative;
     margin-right: 15px;
+    z-index: 2605;
 }
 .notification-bell {
     position: relative;
@@ -91,6 +92,11 @@ document.addEventListener('DOMContentLoaded', function() {
     color: white; /* Assuming admin navbar has dark background */
     padding: 8px;
     transition: transform 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    z-index: 2606;
 }
 .notification-bell:hover {
     transform: scale(1.1);
@@ -254,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
     right: 24px;
     bottom: 24px;
     z-index: 2500;
-    background: #2563eb;
+    background: #1B5E20;
     color: #ffffff;
     border: none;
     border-radius: 999px;
@@ -267,7 +273,7 @@ document.addEventListener('DOMContentLoaded', function() {
     box-shadow: 0 12px 28px rgba(2, 6, 23, 0.25);
     user-select: none;
 }
-.tm-global-chat-fab:hover { background: #1d4ed8; }
+.tm-global-chat-fab:hover { background: #144a1e; }
 .tm-global-chat-fab:active { transform: translateY(1px); }
 .tm-global-chat-fab .tm-global-chat-label { font-size: 14px; }
 .tm-global-chat-fab .chat-badge {
@@ -296,6 +302,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script>
 (function () {
+    window.TM_CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
     function ensureTicketModalScript() {
         if (window.TMTicketModal) return;
         if (document.getElementById('tmTicketModalScript')) return;
@@ -305,31 +312,18 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.appendChild(s);
     }
 
-    function getFromUrl() {
-        try {
-            const p = new URLSearchParams(window.location.search);
-            return p.get('ticket_id') || p.get('id');
-        } catch (e) {
-            return null;
-        }
-    }
-
     window.TMGlobalChat = {
         open: function() {
             ensureTicketModalScript();
-            const last = (window.TMTicketModal && window.TMTicketModal.getCurrentTicketId) ? window.TMTicketModal.getCurrentTicketId() : null;
-            const ticketId = last || getFromUrl();
-            if (!ticketId) {
-                alert('Open a ticket first to start chat.');
-                return;
-            }
-            if (window.TMTicketModal && window.TMTicketModal.openChatModal) {
-                window.TMTicketModal.openChatModal(ticketId);
-                return;
-            }
-            if (typeof window.openChatModal === 'function') {
-                window.openChatModal(ticketId);
-            }
+            const tryOpen = function(attempt) {
+                if (window.TMTicketModal && typeof window.TMTicketModal.openMessengerChat === 'function') {
+                    window.TMTicketModal.openMessengerChat();
+                    return;
+                }
+                if (attempt >= 20) return;
+                setTimeout(function() { tryOpen(attempt + 1); }, 50);
+            };
+            tryOpen(0);
         }
     };
 })();
@@ -337,6 +331,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    function setGlobalChatBadge(n) {
+        const badge = document.getElementById('globalChatBadge');
+        if (!badge) return;
+        const count = Math.max(0, parseInt(String(n || 0), 10) || 0);
+        if (count <= 0) {
+            badge.classList.remove('is-visible');
+            badge.textContent = '';
+            return;
+        }
+        badge.classList.add('is-visible');
+        badge.textContent = count > 99 ? '99+' : String(count);
+    }
+
+    function fetchChatUnreadTotal() {
+        const formData = new FormData();
+        formData.append('action', 'conversations');
+        if (window.TM_CSRF_TOKEN) formData.append('csrf_token', String(window.TM_CSRF_TOKEN));
+        fetch('chat_fetch.php', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.error) return;
+                const items = Array.isArray(data) ? data : [];
+                let total = 0;
+                items.forEach(c => {
+                    const u = parseInt(String((c && c.unread_count != null) ? c.unread_count : 0), 10) || 0;
+                    total += Math.max(0, u);
+                });
+                setGlobalChatBadge(total);
+            })
+            .catch(() => {});
+    }
+
     // Relative time helpers
     function toRelative(ts) {
         const now = new Date();
@@ -374,6 +400,9 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchAdminNotifications();
     setInterval(fetchAdminNotifications, 5000);
     setInterval(updateRelativeTimes, 60000);
+
+    fetchChatUnreadTotal();
+    setInterval(fetchChatUnreadTotal, 7000);
 
     // Close dropdown when clicking outside
     document.addEventListener('click', function(e) {

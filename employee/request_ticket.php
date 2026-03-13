@@ -6,6 +6,7 @@ require_once '../config/database.php';
 
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
@@ -15,10 +16,15 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
 
+    ticket_ensure_assignment_columns($conn);
+
     $user_id    = $_SESSION['user_id'];
     $subject    = $_POST['subject'] ?? '';
-    $category   = $_POST['category'] ?? '';
-    $priority   = $_POST['priority'] ?? '';
+    $category   = 'Technical Support';
+    $priority   = $_POST['priority'] ?? 'Medium';
+    if ($priority === '') {
+        $priority = 'Medium';
+    }
     $company = $_SESSION['company'] ?? '';
     if (empty($company)) {
         $c_stmt = $conn->prepare("SELECT company FROM users WHERE id = ?");
@@ -48,34 +54,90 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $dept_stmt->close();
         }
     }
-    $assigned_department = $_POST['assigned_department'] ?? '';
-    $assigned_company = $_POST['assigned_company'] ?? '';
+    $assigned_company = isset($_POST['assigned_company']) ? trim((string) $_POST['assigned_company']) : '';
+    $assigned_group = isset($_POST['assigned_group']) ? trim((string) $_POST['assigned_group']) : '';
+    $assigned_company = ticket_normalize_company($assigned_company);
+    $assigned_department = $assigned_group;
     $description = !empty($_POST['description']) ? $_POST['description'] : NULL;
+
+    if ($assigned_company === '' || !ticket_is_valid_company($assigned_company)) {
+        $_SESSION['error'] = 'Invalid company selected.';
+        header("Location: request_ticket.php");
+        exit();
+    }
+    if ($assigned_group === '' || !ticket_is_valid_group_for_company($assigned_company, $assigned_group)) {
+        $_SESSION['error'] = 'Invalid group selected for the chosen company.';
+        header("Location: request_ticket.php");
+        exit();
+    }
+
+    $assigned_user_id = ticket_find_assignee_id($conn, $assigned_company, $assigned_group);
+    if (!$assigned_user_id) {
+        $_SESSION['error'] = 'No assignee available for the selected company and group.';
+        header("Location: request_ticket.php");
+        exit();
+    }
+
+    $companyAliasesMap = [
+        'MHC' => ['MHC', 'Malveda Holdings Corporation - MHC'],
+        'GPCI' => ['GPCI', 'GPSCI', 'Golden Primestocks Chemical Inc - GPSCI', 'Golden Primestocks Chemical Inc - GPCI'],
+        'LAPC' => ['LAPC', 'Leads Animal Health - LAH', 'LEADS Animal Health - LAH'],
+        'PCC' => ['PCC', 'Primestocks Chemical Corporation - PCC', 'FARMASEE'],
+        'MPDC' => ['MPDC', 'Malveda Properties & Development Corporation - MPDC'],
+        'LINGAP' => ['LINGAP', 'LINGAP LEADS FOUNDATION - Lingap'],
+        'LTC' => ['LTC', 'Leads Tech Corporation - LTC'],
+        'FARMEX' => ['FARMEX', 'Farmex Corp'],
+    ];
+    $assigned_company_key = strtoupper(trim((string) $assigned_company));
+    $companyAliases = [$assigned_company];
+    if ($assigned_company_key === 'FARMEX CORP') $assigned_company_key = 'FARMEX';
+    if ($assigned_company_key === 'FARMASEE') $assigned_company_key = 'PCC';
+    if (isset($companyAliasesMap[$assigned_company_key])) {
+        $companyAliases = array_merge($companyAliases, $companyAliasesMap[$assigned_company_key]);
+    }
+    $companyAliases = array_values(array_unique(array_filter(array_map('trim', $companyAliases), static function($v){ return $v !== ''; })));
 
     $attachmentName = NULL;
 
     /* ================= FILE UPLOAD ================= */
 
-    if(isset($_FILES['attachment']) && $_FILES['attachment']['error'] == 0) {
+    if (isset($_FILES['attachments']) && isset($_FILES['attachments']['name']) && is_array($_FILES['attachments']['name'])) {
+        $allowedTypes = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
+        $movedPaths = [];
+        $count = count($_FILES['attachments']['name']);
+        for ($i = 0; $i < $count; $i++) {
+            $err = $_FILES['attachments']['error'][$i] ?? UPLOAD_ERR_NO_FILE;
+            if ($err === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            if ($err !== UPLOAD_ERR_OK) {
+                break;
+            }
 
-        $allowedTypes = ['jpg','jpeg','png','pdf','doc','docx'];
-        $fileName = $_FILES['attachment']['name'];
-        $fileTmp  = $_FILES['attachment']['tmp_name'];
-        $fileSize = $_FILES['attachment']['size'];
+            $fileName = (string)($_FILES['attachments']['name'][$i] ?? '');
+            $fileTmp = (string)($_FILES['attachments']['tmp_name'][$i] ?? '');
+            $fileSize = (int)($_FILES['attachments']['size'][$i] ?? 0);
+            $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
 
-        $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            if (!in_array($fileExt, $allowedTypes, true)) {
+                continue;
+            }
+            if ($fileSize <= 0 || $fileSize > 5 * 1024 * 1024) {
+                continue;
+            }
 
-        if(in_array($fileExt, $allowedTypes) && $fileSize <= 5 * 1024 * 1024) {
-
-            if(!is_dir("../uploads")){
+            if (!is_dir("../uploads")) {
                 mkdir("../uploads", 0777, true);
             }
 
             $newFileName = time() . "_" . uniqid() . "." . $fileExt;
             $uploadPath  = "../uploads/" . $newFileName;
 
-            if(move_uploaded_file($fileTmp, $uploadPath)) {
-                $attachmentName = $newFileName;
+            if (move_uploaded_file($fileTmp, $uploadPath)) {
+                $movedPaths[] = $uploadPath;
+                if ($attachmentName === NULL) {
+                    $attachmentName = $newFileName;
+                }
             }
         }
     }
@@ -84,8 +146,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $stmt = $conn->prepare("
         INSERT INTO employee_tickets
-        (user_id, subject, category, priority, company, department, assigned_department, assigned_company, description, attachment)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (user_id, subject, category, priority, company, department, assigned_department, assigned_company, assigned_group, assigned_user_id, description, attachment)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
 
     if(!$stmt){
@@ -93,7 +155,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     $stmt->bind_param(
-        "isssssssss",
+        "issssssssiss",
         $user_id,
         $subject,
         $category,
@@ -102,6 +164,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $department,
         $assigned_department,
         $assigned_company,
+        $assigned_group,
+        $assigned_user_id,
         $description,
         $attachmentName
     );
@@ -129,26 +193,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $ticket_number = str_pad($ticket_id, 6, '0', STR_PAD_LEFT);
     $notif_msg = "New $priority priority ticket #$ticket_number from $user_name - $department";
 
-    if (!empty($assigned_department) && !empty($assigned_company)) {
-        $dept_users_stmt = $conn->prepare("SELECT id FROM users WHERE role = 'employee' AND department = ? AND company = ?");
-        if ($dept_users_stmt) {
-            $dept_users_stmt->bind_param("ss", $assigned_department, $assigned_company);
-            $dept_users_stmt->execute();
-            $dept_users_res = $dept_users_stmt->get_result();
-
-            $dept_notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, ?)");
-            if ($dept_notif_stmt) {
-                $dept_type = 'dept_assigned';
-                $dept_msg = "New ticket #$ticket_number from $user_name was assigned to your department.";
-                while ($u = $dept_users_res->fetch_assoc()) {
-                    $target_user_id = (int)$u['id'];
-                    $dept_notif_stmt->bind_param("iiss", $target_user_id, $ticket_id, $dept_msg, $dept_type);
-                    $dept_notif_stmt->execute();
-                }
-                $dept_notif_stmt->close();
-            }
-
-            $dept_users_stmt->close();
+    if ($assigned_user_id) {
+        $dept_notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, ?)");
+        if ($dept_notif_stmt) {
+            $dept_type = 'dept_assigned';
+            $dept_msg = "New ticket #$ticket_number from $user_name was assigned to your group.";
+            $dept_notif_stmt->bind_param("iiss", $assigned_user_id, $ticket_id, $dept_msg, $dept_type);
+            $dept_notif_stmt->execute();
+            $dept_notif_stmt->close();
         }
     }
 
@@ -303,11 +355,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <div class="dashboard-container">
         <div class="content-wrapper">
+            <?php if(isset($_SESSION['error'])): ?>
+                <div class="alert alert-error" style="background:#fee2e2;color:#991b1b;padding:15px;border-radius:8px;margin-bottom:20px;border:1px solid #fecaca;font-weight:700;">
+                    <?= htmlspecialchars($_SESSION['error'], ENT_QUOTES, 'UTF-8'); ?>
+                </div>
+                <?php unset($_SESSION['error']); ?>
+            <?php endif; ?>
 
             <!-- 4️⃣ REQUEST TICKET PAGE – REDESIGN -->
             <div class="page-header" style="text-align: center; margin-bottom: 40px;">
-                <h1 class="page-title">Submit Ticket</h1>
-                <p class="page-subtitle">Please provide detailed information to help us resolve your issue as quickly as possible.</p>
+                <h1 class="page-title">Create a Ticket</h1>
+                <p class="page-subtitle">Please fill out the form below.</p>
             </div>
 
             <div class="form-card">
@@ -318,101 +376,57 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <h3 class="form-section-title">Request Information</h3>
 
                     <div class="form-group">
-                        <label>Assign Company</label>
+                        <label>Company / Subsidiary *</label>
                         <div class="select-wrapper">
-                            <select name="assigned_company" class="form-control" required>
-                                <option value="" disabled selected hidden>Select Company</option>
-                                <option value="FARMEX">FARMEX</option>
-                                <option value="Malveda Holdings Corporation - MHC">Malveda Holdings Corporation - MHC</option>
-                                <option value="FARMASEE">FARMASEE</option>
-                                <option value="Golden Primestocks Chemical Inc - GPSCI">Golden Primestocks Chemical Inc - GPSCI</option>
-                                <option value="LEADS Animal Health - LAH">LEADS Animal Health - LAH</option>
-                                <option value="Leads Tech Corporation - LTC">Leads Tech Corporation - LTC</option>
-                                <option value="LINGAP LEADS FOUNDATION - Lingap">LINGAP LEADS FOUNDATION - Lingap</option>
-                                <option value="Malveda Properties & Development Corporation - MPDC">Malveda Properties & Development Corporation - MPDC</option>
+                            <select name="assigned_company" id="assigned_company" class="form-control" required>
+                                <option value=""disabled selected hidden>Select Company</option>
+                                <option value="LAPC">LAPC</option>
+                                <option value="GPCI">GPCI</option>
+                                <option value="PCC">PCC</option>
+                                <option value="MHC">MHC</option>
+                                <option value="Farmex Corp">Farmex Corp</option>
+                                <option value="LTC">LTC</option>
+                                <option value="MPDC">MPDC</option>
+                                <option value="LINGAP">LINGAP</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label>Assign Department</label>
+                        <label>Group *</label>
                         <div class="select-wrapper">
-                            <select name="assigned_department" class="form-control" required>
-                                <option value=""disabled selected hidden>Assign Department</option>
-                                <option>Accounting</option>
-                                <option>Admin</option>
-                                <option>Bidding</option>
-                                <option>E-Comm</option>
-                                <option>HR</option>
-                                <option>IT</option>
-                                <option>Marketing</option>
-                                <option>Sales</option>
+                            <select name="assigned_group" id="assigned_group" class="form-control" required disabled>
+                                <option value="" disabled selected hidden>Select Company First</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label>Category</label>
-                        <div class="select-wrapper">
-                            <select name="category" id="category" class="form-control" required>
-                                <option value=""disabled selected hidden>Select Category</option>
-                                <option>Network Issue</option>
-                                <option>Hardware Issue</option>
-                                <option>Software Issue</option>
-                                <option>Email Problem</option>
-                                <option>Account Access</option>
-                                <option>Technical Support</option>
-                                <option>Other</option>
-                            </select>
-                            <i class="fas fa-chevron-down select-icon"></i>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Subject</label>
+                        <label>Subject *</label>
                         <input type="text" name="subject" class="form-control" placeholder="Enter a brief title for the issue" required>
                     </div>
 
-                    <!-- 🔹 Impact & Urgency -->
-                    <h3 class="form-section-title">Impact & Urgency</h3>
+                    
 
                     <div class="form-group">
-                        <label>Priority / Urgency</label>
-                        <div class="select-wrapper">
-                            <select name="priority" class="form-control" required>
-                                <option value=""disabled selected hidden>Select Priority</option>
-                                <option>Low</option>
-                                <option>Medium</option>
-                                <option>High</option>
-                                <option>Critical</option>
-                            </select>
-                            <i class="fas fa-chevron-down select-icon"></i>
-                        </div>
-                    </div>
-
-                    <!-- 🔹 Ticket Details -->
-                    <h3 class="form-section-title">Ticket Details</h3>
-
-                    <div class="form-group">
-                        <label>Detailed Description</label>
+                        <label>Description *</label>
                         <textarea name="description" class="form-control" placeholder="Describe your issue in detail..."></textarea>
                     </div>
 
                     <div class="form-group">
-                        <label>Attachment</label>
-                        <div class="file-upload-wrapper">
-                            <label for="attachment" class="file-label">
-                                <i class="fas fa-cloud-upload-alt"></i> Choose File
-                            </label>
-                            <input type="file" name="attachment" id="attachment" class="file-input">
-                            <span class="file-name">No file chosen</span>
-                        </div>
-                        <div id="attachment-preview" style="margin-top: 10px; display: none;">
-                            <!-- Preview content will be injected here -->
+                        <label>Attachment (Optional)</label>
+                        <div class="file-control" style="display:flex;align-items:center;gap:12px;background:#f8faf9;border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;">
+                            <button type="button" id="choose-file-btn" class="file-button" style="display:inline-flex;align-items:center;gap:8px;background:#ecfdf5;color:#1B5E20;border:1px solid #bbf7d0;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer;">
+                                <i class="fas fa-paperclip"></i>
+                                <span>Choose File</span>
+                            </button>
+                            <span id="file-name" class="file-name" style="color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">No file chosen</span>
+                            <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" style="display:none;">
                         </div>
                         <small class="form-text">Supported formats: JPG, PNG, PDF, DOCX (Max 5MB)</small>
+                        <div id="attachment-preview" style="margin-top: 10px;"></div>
                     </div>
 
                     <div class="form-actions">
@@ -428,78 +442,218 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const fileInput = document.getElementById('attachment');
-        const fileNameSpan = document.querySelector('.file-name');
-        const previewContainer = document.getElementById('attachment-preview');
-        let currentObjectUrl = null;
-
-        if(fileInput) {
-            fileInput.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                
-                if (currentObjectUrl) {
-                    URL.revokeObjectURL(currentObjectUrl);
-                    currentObjectUrl = null;
+        const companyEl = document.getElementById('assigned_company');
+        const groupEl = document.getElementById('assigned_group');
+        const MAP = {
+            'LAPC': ["Banana Farm Operations","Seed Production","Supply Chain","Supply Chain Innovation","Admin & Legal","Diagnostics / Lingap","E-Commerce","Finance and Accounting","Human Resource and Transformation","Institutional Sales","Digital Agri Solutions and Innovations","Marketing","New Business Segment","Technical","Executive","Management"],
+            'GPCI': ["Accounting","Sales"],
+            'PCC': ["Management","Admin","Finance and Accounting","Maintenance","Production","Quality Control","Supply Chain","Technical"],
+            'MHC': ["Management","Admin & Legal","E-Commerce","Executive","Finance and Accounting","Institutional Sales","IT","Marketing"],
+            'Farmex Corp': ["Management","Finance and Admin","Logistics","Sales and Marketing","Special Project","Technical","Business Development"],
+            'LTC': ["Admin","Finance and Accounting","Logistics","Marketing","Sales","Services & Logistics (Luzon)"],
+            'MPDC': [],
+            'LINGAP': []
+        };
+        function keyForCompany(val) { return String(val || '').trim(); }
+        function populateGroups(arr) {
+            groupEl.innerHTML = '';
+            const ph = document.createElement('option');
+            ph.value = '';
+            ph.textContent = 'Select Group';
+            ph.disabled = true;
+            ph.selected = true;
+            groupEl.appendChild(ph);
+            arr.forEach(function (g) {
+                const opt = document.createElement('option');
+                opt.value = g;
+                opt.textContent = g;
+                groupEl.appendChild(opt);
+            });
+        }
+        function resetGroupsToDisabled() {
+            groupEl.innerHTML = '';
+            const ph = document.createElement('option');
+            ph.value = '';
+            ph.textContent = 'Select Company First';
+            ph.selected = true;
+            groupEl.appendChild(ph);
+            groupEl.value = '';
+            groupEl.disabled = true;
+        }
+        function setNoGroupsDisabled() {
+            groupEl.innerHTML = '';
+            const ph = document.createElement('option');
+            ph.value = '';
+            ph.textContent = 'No groups available';
+            ph.selected = true;
+            groupEl.appendChild(ph);
+            groupEl.value = '';
+            groupEl.disabled = true;
+        }
+        if (groupEl) resetGroupsToDisabled();
+        if (companyEl) {
+            companyEl.addEventListener('change', function () {
+                const key = keyForCompany(companyEl.value);
+                if (!key) {
+                    resetGroupsToDisabled();
+                    return;
                 }
+                if (!MAP[key] || !Array.isArray(MAP[key]) || MAP[key].length === 0) {
+                    setNoGroupsDisabled();
+                    return;
+                }
+                populateGroups(MAP[key]);
+                groupEl.disabled = false;
+            });
+        }
+        var attachmentInput = document.getElementById('attachments');
+        var chooseBtn = document.getElementById('choose-file-btn');
+        var fileNameEl = document.getElementById('file-name');
+        var preview = document.getElementById('attachment-preview');
+        var dt = new DataTransfer();
+        var objectUrls = [];
 
-                previewContainer.innerHTML = '';
-                previewContainer.style.display = 'none';
+        if (chooseBtn) {
+            chooseBtn.addEventListener('click', function () {
+                if (attachmentInput) attachmentInput.click();
+            });
+        }
 
-                if (file) {
-                    fileNameSpan.textContent = file.name;
-                    previewContainer.style.display = 'block';
+        function clearObjectUrls() {
+            while (objectUrls.length) {
+                try { URL.revokeObjectURL(objectUrls.pop()); } catch (e) {}
+            }
+        }
 
-                    currentObjectUrl = URL.createObjectURL(file);
+        function syncFiles() {
+            if (!attachmentInput) return;
+            attachmentInput.files = dt.files;
+            if (fileNameEl) {
+                var n = dt.files.length;
+                fileNameEl.textContent = n === 0 ? 'No file chosen' : (n === 1 ? dt.files[0].name : (n + ' files selected'));
+            }
+            if (!preview) return;
+            clearObjectUrls();
+            preview.innerHTML = '';
+            Array.from(dt.files).forEach(function (file, idx) {
+                var url = URL.createObjectURL(file);
+                objectUrls.push(url);
 
-                    if (file.type.startsWith('image/')) {
-                        const link = document.createElement('a');
-                        link.href = currentObjectUrl;
-                        link.target = '_blank';
-                        link.rel = 'noopener';
-                        link.style.display = 'inline-block';
+                var row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.alignItems = 'center';
+                row.style.justifyContent = 'space-between';
+                row.style.gap = '12px';
+                row.style.padding = '10px 12px';
+                row.style.border = '1px solid #e5e7eb';
+                row.style.borderRadius = '10px';
+                row.style.background = '#f8fafc';
+                row.style.marginBottom = '10px';
 
-                        const img = document.createElement('img');
-                        img.src = currentObjectUrl;
-                        img.style.maxWidth = '100%';
-                        img.style.maxHeight = '200px';
-                        img.style.borderRadius = '8px';
-                        img.style.border = '1px solid #e2e8f0';
-                        img.style.cursor = 'pointer';
+                var left = document.createElement('a');
+                left.href = url;
+                left.target = '_blank';
+                left.rel = 'noopener';
+                left.style.display = 'flex';
+                left.style.alignItems = 'center';
+                left.style.gap = '10px';
+                left.style.minWidth = '0';
+                left.style.flex = '1 1 auto';
+                left.style.textDecoration = 'none';
+                left.style.cursor = 'pointer';
 
-                        link.appendChild(img);
-                        previewContainer.appendChild(link);
-                    } 
-                    else {
-                        const link = document.createElement('a');
-                        link.href = currentObjectUrl;
-                        link.target = '_blank';
-                        link.rel = 'noopener';
-                        link.style.display = 'inline-block';
-                        link.style.textDecoration = 'none';
+                var icon = document.createElement('div');
+                icon.style.width = '36px';
+                icon.style.height = '36px';
+                icon.style.borderRadius = '10px';
+                icon.style.display = 'flex';
+                icon.style.alignItems = 'center';
+                icon.style.justifyContent = 'center';
+                icon.style.background = '#ecfdf5';
+                icon.style.color = '#16a34a';
+                icon.style.fontWeight = '900';
 
-                        const fileInfo = document.createElement('div');
-                        fileInfo.style.display = 'flex';
-                        fileInfo.style.alignItems = 'center';
-                        fileInfo.style.padding = '12px';
-                        fileInfo.style.background = '#f8fafc';
-                        fileInfo.style.border = '1px solid #e2e8f0';
-                        fileInfo.style.borderRadius = '8px';
-                        fileInfo.style.cursor = 'pointer';
-                        
-                        fileInfo.innerHTML = `
-                            <i class="fas fa-file-alt" style="font-size: 24px; color: #64748b; margin-right: 12px;"></i>
-                            <div>
-                                <div style="font-weight: 600; color: #334155;">${file.name}</div>
-                                <div style="font-size: 12px; color: #94a3b8;">${(file.size / 1024).toFixed(2)} KB</div>
-                            </div>
-                        `;
-
-                        link.appendChild(fileInfo);
-                        previewContainer.appendChild(link);
-                    }
+                if (file.type && file.type.startsWith('image/')) {
+                    var img = document.createElement('img');
+                    img.src = url;
+                    img.alt = '';
+                    img.style.width = '28px';
+                    img.style.height = '28px';
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '8px';
+                    icon.style.background = '#ffffff';
+                    icon.appendChild(img);
                 } else {
-                    fileNameSpan.textContent = 'No file chosen';
+                    icon.textContent = 'FILE';
                 }
+
+                var meta = document.createElement('div');
+                meta.style.display = 'flex';
+                meta.style.flexDirection = 'column';
+                meta.style.minWidth = '0';
+
+                var name = document.createElement('div');
+                name.textContent = file.name;
+                name.style.fontWeight = '700';
+                name.style.color = '#0f172a';
+                name.style.fontSize = '13px';
+                name.style.overflow = 'hidden';
+                name.style.textOverflow = 'ellipsis';
+                name.style.whiteSpace = 'nowrap';
+
+                var size = document.createElement('div');
+                var kb = Math.round((file.size || 0) / 1024);
+                size.textContent = kb + ' KB';
+                size.style.color = '#64748b';
+                size.style.fontSize = '12px';
+                size.style.fontWeight = '600';
+
+                meta.appendChild(name);
+                meta.appendChild(size);
+
+                var removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.textContent = '×';
+                removeBtn.style.border = '1px solid #e2e8f0';
+                removeBtn.style.background = '#ffffff';
+                removeBtn.style.color = '#ef4444';
+                removeBtn.style.fontWeight = '900';
+                removeBtn.style.width = '40px';
+                removeBtn.style.height = '40px';
+                removeBtn.style.padding = '0';
+                removeBtn.style.borderRadius = '10px';
+                removeBtn.style.cursor = 'pointer';
+                removeBtn.style.fontSize = '18px';
+                removeBtn.style.lineHeight = '1';
+                removeBtn.addEventListener('click', function () {
+                    try { URL.revokeObjectURL(url); } catch (e) {}
+                    var ndt = new DataTransfer();
+                    Array.from(dt.files).forEach(function (f, i) {
+                        if (i !== idx) ndt.items.add(f);
+                    });
+                    dt = ndt;
+                    syncFiles();
+                });
+
+                left.appendChild(icon);
+                left.appendChild(meta);
+
+                row.appendChild(left);
+                row.appendChild(removeBtn);
+                preview.appendChild(row);
+            });
+        }
+
+        if (attachmentInput) {
+            attachmentInput.addEventListener('change', function (e) {
+                Array.from(e.target.files || []).forEach(function (file) {
+                    var exists = Array.from(dt.files).some(function (f) {
+                        return f.name === file.name && f.size === file.size && f.lastModified === file.lastModified;
+                    });
+                    if (!exists) dt.items.add(file);
+                });
+                attachmentInput.value = '';
+                syncFiles();
             });
         }
     });

@@ -66,9 +66,18 @@ $priorityCounts = [
 
 $recentTickets = [];
 $recentRes = $conn->query("
-    SELECT id, assigned_department AS department, priority, status
-    FROM employee_tickets
-    ORDER BY created_at DESC
+    SELECT
+        t.id,
+        u.name AS requester_name,
+        u.email AS requester_email,
+        t.department AS original_dept,
+        t.assigned_department AS assigned_dept,
+        t.priority,
+        t.status,
+        t.created_at
+    FROM employee_tickets t
+    JOIN users u ON t.user_id = u.id
+    ORDER BY t.created_at DESC
     LIMIT 5
 ");
 if ($recentRes) {
@@ -86,6 +95,10 @@ if ($recentRes) {
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
+        .admin-content{
+            max-width: 1460px;
+        }
+
         .recent-tickets-card .card-header{
             display:flex;
             align-items:center;
@@ -119,14 +132,15 @@ if ($recentRes) {
         .recent-ticket-table th, .recent-tickets-table th{
             text-align:left;
             font-size:12px;
-            letter-spacing:.02em;
-            color:#64748b;
-            padding:8px 10px;
-            border-bottom:1px solid #e2e8f0;
+            letter-spacing:.08em;
+            color:#166534;
+            padding:12px 14px;
+            border-bottom:2px solid #166534;
             white-space:nowrap;
+            text-transform:uppercase;
         }
         .recent-ticket-table td, .recent-tickets-table td{
-            padding:10px;
+            padding:16px 14px;
             border-bottom:1px solid #f1f5f9;
             color:#0f172a;
             vertical-align:middle;
@@ -173,41 +187,77 @@ if ($recentRes) {
             line-height:1;
             white-space:nowrap;
         }
-        .rt-priority-critical{ background:#E53935; color:#fff; }
-        .rt-priority-high{ background:#FB8C00; color:#fff; }
-        .rt-priority-medium{ background:#FBC02D; color:#111827; }
-        .rt-priority-low{ background:#43A047; color:#fff; }
+        .rt-priority-critical{ background:#fee2e2; color:#b91c1c; }
+        .rt-priority-high{ background:#ffe4e6; color:#be123c; }
+        .rt-priority-medium{ background:#ffedd5; color:#c2410c; }
+        .rt-priority-low{ background:#e2e8f0; color:#0f172a; }
         .rt-priority-default{ background:#e2e8f0; color:#0f172a; }
-        .rt-status-open{ background:#dcfce7; color:#166534; }
+        .rt-status-open{ background:#fef9c3; color:#a16207; }
         .rt-status-in-progress{ background:#dbeafe; color:#1d4ed8; }
-        .rt-status-resolved{ background:#e2e8f0; color:#334155; }
+        .rt-status-resolved{ background:#dcfce7; color:#166534; }
         .rt-status-closed{ background:#e2e8f0; color:#334155; }
         .recent-tickets-table-wrap{
             width:100%;
             overflow-x:auto;
         }
+        .rt-requester{
+            display:flex;
+            flex-direction:column;
+            gap:2px;
+            min-width: 260px;
+        }
+        .rt-requester-name{
+            font-weight:800;
+            color:#0f172a;
+            line-height:1.2;
+        }
+        .rt-requester-email{
+            font-size:13px;
+            font-weight:600;
+            color:#64748b;
+            line-height:1.2;
+        }
+        .rt-new{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            padding:4px 10px;
+            border-radius:999px;
+            background:#14532d;
+            color:#ffffff;
+            font-size:11px;
+            font-weight:900;
+            margin-left:8px;
+            line-height:1;
+        }
         .recent-ticket-table, .recent-tickets-table{
-            min-width:520px;
+            min-width: 1100px;
         }
         @media (max-width: 600px){
             .recent-ticket-table, .recent-tickets-table{
-                min-width:480px;
+                min-width: 980px;
             }
         }
 
-        .priority-chart-card .chart-container{
-            position: relative;
-            width: 100%;
-            max-width: 420px;
-            height: auto;
-            min-height: 350px;
-            margin: auto;
-            padding-bottom: 20px;
+        .admin-analytics-section {
+            align-items: stretch;
         }
-        .priority-chart-card canvas{
-            max-width: 100%;
-            height: auto !important;
-            max-height: 400px;
+        .admin-analytics-section .admin-card {
+            display: flex;
+            flex-direction: column;
+        }
+        .admin-analytics-section .chart-container {
+            height: 360px;
+        }
+        .admin-analytics-section .admin-card canvas {
+            height: 100% !important;
+        }
+        .priority-chart-card .chart-container{
+            max-width: 420px;
+            margin: 0 auto;
+        }
+        .admin-analytics-section.admin-analytics-full{
+            grid-template-columns: 1fr;
         }
     </style>
 </head>
@@ -255,7 +305,7 @@ if ($recentRes) {
                 </div>
             </section>
 
-            <section class="admin-analytics-section" style="margin-top: 18px;">
+            <section class="admin-analytics-section" style="margin-top: 32px;">
                 <div class="admin-card">
                     <h3>Tickets by Department</h3>
                     <div class="chart-container">
@@ -266,12 +316,12 @@ if ($recentRes) {
                 <div class="admin-card priority-chart-card">
                     <h3>Tickets by Priority</h3>
                     <div class="chart-container">
-                        <canvas id="priorityChart" width="400" height="400"></canvas>
+                        <canvas id="priorityChart"></canvas>
                     </div>
                 </div>
             </section>
 
-            <section class="admin-analytics-section">
+            <section class="admin-analytics-section admin-analytics-full">
                 <div class="admin-card recent-tickets-card">
                     <div class="card-header">
                         <h3>Recent Tickets</h3>
@@ -281,10 +331,13 @@ if ($recentRes) {
                             <table class="recent-ticket-table">
                                 <thead>
                                     <tr>
-                                        <th>Ticket ID</th>
-                                        <th>Department</th>
+                                        <th>ID</th>
+                                        <th>Requested By</th>
+                                        <th>Original Dept</th>
+                                        <th>Assigned Dept</th>
                                         <th>Priority</th>
                                         <th>Status</th>
+                                        <th>Date</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -301,6 +354,8 @@ if ($recentRes) {
                                                 if (!in_array($statusSlug, ['open', 'in-progress', 'resolved', 'closed'], true)) {
                                                     $statusSlug = 'resolved';
                                                 }
+                                                $createdAt = (string) ($t['created_at'] ?? '');
+                                                $dateLabel = $createdAt ? date('M j, Y', strtotime($createdAt)) : '-';
                                             ?>
                                             <tr>
                                                 <td>
@@ -308,7 +363,14 @@ if ($recentRes) {
                                                         #<?= str_pad((string) $t['id'], 6, '0', STR_PAD_LEFT) ?>
                                                     </a>
                                                 </td>
-                                                <td><?= htmlspecialchars((string) ($t['department'] ?? '-')) ?></td>
+                                                <td>
+                                                    <div class="rt-requester">
+                                                        <div class="rt-requester-name"><?= htmlspecialchars((string) ($t['requester_name'] ?? '-')) ?></div>
+                                                        <div class="rt-requester-email"><?= htmlspecialchars((string) ($t['requester_email'] ?? '')) ?></div>
+                                                    </div>
+                                                </td>
+                                                <td><?= htmlspecialchars((string) ($t['original_dept'] ?? '-')) ?></td>
+                                                <td><?= htmlspecialchars((string) ($t['assigned_dept'] ?? '-')) ?></td>
                                                 <td>
                                                     <span class="rt-priority rt-priority-<?= htmlspecialchars($prioritySlug) ?>">
                                                         <?= htmlspecialchars((string) ($t['priority'] ?? '-')) ?>
@@ -318,12 +380,16 @@ if ($recentRes) {
                                                     <span class="rt-status rt-status-<?= htmlspecialchars($statusSlug) ?>">
                                                         <?= htmlspecialchars((string) ($t['status'] ?? '-')) ?>
                                                     </span>
+                                                    <?php if ($statusSlug === 'open'): ?>
+                                                        <span class="rt-new">NEW</span>
+                                                    <?php endif; ?>
                                                 </td>
+                                                <td><?= htmlspecialchars($dateLabel) ?></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="4" style="color:#64748b; padding:16px;">No recent tickets found.</td>
+                                            <td colspan="7" style="color:#64748b; padding:16px;">No recent tickets found.</td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>
@@ -357,6 +423,8 @@ new Chart(document.getElementById('deptChart'), {
         datasets: [{
             data: <?= json_encode($deptCounts); ?>,
             backgroundColor: '#1B5E20',
+            borderColor: '#144a1e',
+            borderWidth: 1,
             borderRadius: 6
         }]
     },
@@ -364,7 +432,22 @@ new Chart(document.getElementById('deptChart'), {
         responsive: true,
         maintainAspectRatio: false,
         devicePixelRatio: 2,
-        plugins: { legend: { display: false } },
+        plugins: { 
+            legend: { display: false },
+            datalabels: {
+                anchor: 'end',
+                align: 'end',
+                color: '#ffffff',
+                backgroundColor: function(ctx){ return 'rgba(0,0,0,0)'; },
+                textStrokeColor: '#0b3d12',
+                textStrokeWidth: 0,
+                font: { weight: 'bold', size: 12 },
+                offset: 4,
+                formatter: function(value) {
+                    return value > 0 ? value : '';
+                }
+            }
+        },
         scales: { y: { beginAtZero: true } }
     }
 });

@@ -12,7 +12,6 @@ $error_msg = "";
 
 $email = '';
 $company_id = '';
-$type_id = '';
 $subject = '';
 $description = '';
 
@@ -22,8 +21,6 @@ $companies = [
     "Leads Agricultural products corporation - LAPC",
     "Leads Tech Corporation - LTC",
 ];
-
-$types = ['Network Issue','Hardware Issue','Software Issue','Email Problem','Account Access','Technical Support','Other'];
 
 function derive_name_from_email(string $email): string
 {
@@ -42,14 +39,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $email      = trim((string)($_POST['email'] ?? ''));
     $company_id = trim((string)($_POST['company_id'] ?? ''));
-    $type_id    = trim((string)($_POST['type_id'] ?? ''));
     $subject    = trim((string)($_POST['subject'] ?? ''));
     $description = trim((string)($_POST['description'] ?? ''));
 
     $name = derive_name_from_email($email);
     $company = $company_id;
     $department = 'Sales';
-    $category = $type_id;
+    $category = 'Technical Support';
     $priority = 'Low';
     $assigned_department = 'IT';
     $assigned_company = '';
@@ -172,8 +168,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error_msg = "A valid email is required.";
     } elseif ($company_id === '' || !in_array($company_id, $companies, true)) {
         $error_msg = "Company / Subsidiary is required.";
-    } elseif ($type_id === '' || !in_array($type_id, $types, true)) {
-        $error_msg = "Type is required.";
     } elseif ($subject === '') {
         $error_msg = "Subject is required.";
     } elseif ($description === '') {
@@ -182,8 +176,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     /* ================= PREPARE DESCRIPTION ================= */
     
-    $raw_description = "COMPANY: $company\nTYPE: $category\n\n$description";
-    $full_description = "REQUESTER NAME: $name\nREQUESTER EMAIL: $email\nCOMPANY: $company\nTYPE: $category\n\nDESCRIPTION:\n$description";
+    $raw_description = "COMPANY: $company\n\n$description";
+    $full_description = "REQUESTER NAME: $name\nREQUESTER EMAIL: $email\nCOMPANY: $company\n\nDESCRIPTION:\n$description";
 
     /* ================= INSERT INTO DATABASE ================= */
 
@@ -662,7 +656,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <div class="sales-container">
     <div class="header">
-        <h1>Submit a Ticket </h1>
+        <h1>Create a Ticket </h1>
         <p>Please fill out the form below.</p>
     </div>
 
@@ -690,16 +684,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <option value="" disabled selected hidden>Select Company</option>
                     <?php foreach ($companies as $c): ?>
                         <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= (isset($company_id) && $company_id === $c) ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Type *</label>
-                <select name="type_id" required>
-                    <option value="" <?= empty($type_id) ? 'selected' : '' ?>>Select Type</option>
-                    <?php foreach ($types as $t): ?>
-                        <option value="<?= htmlspecialchars($t, ENT_QUOTES, 'UTF-8'); ?>" <?= (isset($type_id) && $type_id === $t) ? 'selected' : '' ?>><?= htmlspecialchars($t, ENT_QUOTES, 'UTF-8'); ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -771,6 +755,9 @@ function syncFiles() {
     clearObjectUrls();
     preview.innerHTML = '';
     Array.from(dt.files).forEach(function (file, idx) {
+        var url = URL.createObjectURL(file);
+        objectUrls.push(url);
+
         var row = document.createElement('div');
         row.style.display = 'flex';
         row.style.alignItems = 'center';
@@ -782,11 +769,17 @@ function syncFiles() {
         row.style.background = '#f8fafc';
         row.style.marginBottom = '10px';
 
-        var left = document.createElement('div');
+        var left = document.createElement('a');
+        left.href = url;
+        left.target = '_blank';
+        left.rel = 'noopener';
         left.style.display = 'flex';
         left.style.alignItems = 'center';
         left.style.gap = '10px';
         left.style.minWidth = '0';
+        left.style.flex = '1 1 auto';
+        left.style.textDecoration = 'none';
+        left.style.cursor = 'pointer';
 
         var icon = document.createElement('div');
         icon.style.width = '36px';
@@ -800,8 +793,6 @@ function syncFiles() {
         icon.style.fontWeight = '900';
 
         if (file.type && file.type.startsWith('image/')) {
-            var url = URL.createObjectURL(file);
-            objectUrls.push(url);
             var img = document.createElement('img');
             img.src = url;
             img.alt = '';
@@ -842,15 +833,20 @@ function syncFiles() {
         var right = document.createElement('div');
         var removeBtn = document.createElement('button');
         removeBtn.type = 'button';
-        removeBtn.textContent = 'Remove';
+        removeBtn.textContent = '×';
         removeBtn.style.border = '1px solid #e2e8f0';
         removeBtn.style.background = '#ffffff';
         removeBtn.style.color = '#ef4444';
         removeBtn.style.fontWeight = '800';
-        removeBtn.style.padding = '8px 10px';
+        removeBtn.style.width = '40px';
+        removeBtn.style.height = '40px';
+        removeBtn.style.padding = '0';
         removeBtn.style.borderRadius = '10px';
         removeBtn.style.cursor = 'pointer';
+        removeBtn.style.fontSize = '18px';
+        removeBtn.style.lineHeight = '1';
         removeBtn.addEventListener('click', function () {
+            try { URL.revokeObjectURL(url); } catch (e) {}
             var ndt = new DataTransfer();
             Array.from(dt.files).forEach(function (f, i) {
                 if (i !== idx) ndt.items.add(f);

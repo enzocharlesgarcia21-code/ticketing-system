@@ -57,7 +57,6 @@ $result = $stmt->get_result();
                             <tr>
                                 <th>ID</th>
                                 <th>Subject</th>
-                                <th>Category</th>
                                 <th>Priority</th>
                                 <th>Status</th>
                                 <th>Attachment</th>
@@ -72,7 +71,6 @@ $result = $stmt->get_result();
                                     <td data-label="Subject" class="subject-cell">
                                         <strong><?= htmlspecialchars($row['subject'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                     </td>
-                                    <td data-label="Category"><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td data-label="Priority">
                                         <span class="priority-pill priority-<?= strtolower($row['priority']); ?>">
                                             <?= htmlspecialchars($row['priority'], ENT_QUOTES, 'UTF-8'); ?>
@@ -97,7 +95,7 @@ $result = $stmt->get_result();
                                 <?php endwhile; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="7" style="text-align: center; color: #94a3b8; padding: 40px;">
+                                    <td colspan="6" style="text-align: center; color: #94a3b8; padding: 40px;">
                                         <div class="empty-state">
                                             <i class="fas fa-ticket-alt" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i>
                                             <p>No tickets submitted yet.</p>

@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -10,6 +11,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
+
+    ticket_ensure_assignment_columns($conn);
 
     if (!isset($_POST['id'])) {
         // Redirect if ID is missing
@@ -20,6 +23,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $id = (int) $_POST['id'];
     $new_status = isset($_POST['status']) ? trim($_POST['status']) : '';
     $new_department = isset($_POST['assigned_department']) ? trim($_POST['assigned_department']) : '';
+    $new_company = isset($_POST['assigned_company']) ? trim($_POST['assigned_company']) : '';
     $admin_note = isset($_POST['admin_note']) ? trim($_POST['admin_note']) : null;
 
     if (isset($_GET['debug_status'])) {
@@ -28,17 +32,50 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // --- FETCH OLD DATA FOR COMPARISON & NOTIFICATIONS ---
-    $old_stmt = $conn->prepare("SELECT user_id, status, assigned_department, admin_note FROM employee_tickets WHERE id = ?");
+    $old_stmt = $conn->prepare("SELECT user_id, status, assigned_department, assigned_company, assigned_group, assigned_user_id, company, admin_note FROM employee_tickets WHERE id = ?");
     $old_stmt->bind_param("i", $id);
     $old_stmt->execute();
     $old_res = $old_stmt->get_result();
     $old_data = $old_res->fetch_assoc();
     $old_stmt->close();
+    if (!$old_data) {
+        header("Location: all_tickets.php");
+        exit();
+    }
+
+    $effective_company = $new_company;
+    if ($effective_company === '') {
+        $effective_company = (string) ($old_data['assigned_company'] ?? '');
+        if ($effective_company === '') {
+            $effective_company = (string) ($old_data['company'] ?? '');
+        }
+    }
+    $effective_company = ticket_normalize_company($effective_company);
+
+    $effective_group = $new_department !== '' ? $new_department : (string) ($old_data['assigned_group'] ?? ($old_data['assigned_department'] ?? ''));
+    $assigned_user_id = $old_data['assigned_user_id'] ?? null;
+    if ($effective_company !== '' && $effective_group !== '') {
+        if (!ticket_is_valid_company($effective_company) || !ticket_is_valid_group_for_company($effective_company, $effective_group)) {
+            $_SESSION['error'] = 'Invalid company/group selection.';
+            header("Location: all_tickets.php");
+            exit();
+        }
+        $assignee = ticket_find_assignee_id($conn, $effective_company, $effective_group);
+        if (!$assignee) {
+            $_SESSION['error'] = 'No assignee available for the selected company and group.';
+            header("Location: all_tickets.php");
+            exit();
+        }
+        $assigned_user_id = $assignee;
+    }
 
     // Normalize and validate status, prevent blank status
     $allowed_statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
     if ($new_status === '' || !in_array($new_status, $allowed_statuses, true)) {
         $new_status = $old_data && isset($old_data['status']) ? $old_data['status'] : 'Open';
+    }
+    if ($new_department === '') {
+        $new_department = $effective_group;
     }
 
     // Update status, department, admin_note and mark as read
@@ -48,6 +85,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         SET 
             status = ?, 
             assigned_department = ?, 
+            assigned_company = ?,
+            assigned_group = ?,
+            assigned_user_id = ?,
             admin_note = ?,
             is_read = 1, 
             updated_at = NOW(),
@@ -58,7 +98,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         WHERE id = ?
     ");
     
-    $update->bind_param("sssssi", $new_status, $new_department, $admin_note, $new_status, $new_status, $id);
+    $update->bind_param("ssssisssi", $new_status, $new_department, $effective_company, $effective_group, $assigned_user_id, $admin_note, $new_status, $new_status, $id);
     
     if ($update->execute()) {
         $_SESSION['success'] = "Ticket #$id successfully updated.";
@@ -103,33 +143,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
             }
 
-            // 2. Department Change
-            if ($old_data['assigned_department'] !== $new_department) {
+            // 2. Department/Company Change
+            $deptChanged = (string) ($old_data['assigned_department'] ?? '') !== (string) $new_department;
+            $companyChanged = (string) ($old_data['assigned_company'] ?? '') !== (string) $effective_company;
+            if ($deptChanged || $companyChanged) {
                 $notifications[] = [
-                    'msg' => "Your ticket #$id was reassigned to $new_department.",
+                    'msg' => "Your ticket #$id was reassigned to $new_department" . ($effective_company !== '' ? (" at $effective_company") : "") . ".",
                     'type' => 'reassigned'
                 ];
 
-                if ($new_department !== '') {
-                    $dept_users_stmt = $conn->prepare("SELECT id FROM users WHERE role = 'employee' AND department = ?");
-                    if ($dept_users_stmt) {
-                        $dept_users_stmt->bind_param("s", $new_department);
-                        $dept_users_stmt->execute();
-                        $dept_users_res = $dept_users_stmt->get_result();
-
-                        $dept_notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, ?)");
-                        if ($dept_notif_stmt) {
-                            $dept_type = 'dept_assigned';
-                            $dept_msg = "New ticket #$id was assigned to your department.";
-                            while ($u = $dept_users_res->fetch_assoc()) {
-                                $target_user_id = (int)$u['id'];
-                                $dept_notif_stmt->bind_param("iiss", $target_user_id, $id, $dept_msg, $dept_type);
-                                $dept_notif_stmt->execute();
-                            }
-                            $dept_notif_stmt->close();
-                        }
-
-                        $dept_users_stmt->close();
+                if (!empty($assigned_user_id)) {
+                    $dept_notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, ?)");
+                    if ($dept_notif_stmt) {
+                        $dept_type = 'dept_assigned';
+                        $dept_msg = "New ticket #$id was assigned to your group" . ($effective_company !== '' ? (" ($effective_company)") : "") . ".";
+                        $assigneeIdInt = (int) $assigned_user_id;
+                        $dept_notif_stmt->bind_param("iiss", $assigneeIdInt, $id, $dept_msg, $dept_type);
+                        $dept_notif_stmt->execute();
+                        $dept_notif_stmt->close();
                     }
                 }
             }
@@ -190,7 +221,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         Subject: <strong>{$ticketSubjectSafe}</strong><br>
                         Priority: <strong>{$prioritySafe}</strong><br>
                         Status: <strong>" . htmlspecialchars($new_status) . "</strong><br>
-                        Assigned Department: <strong>" . htmlspecialchars($new_department) . "</strong>
+                        Assigned Department: <strong>" . htmlspecialchars($new_department) . "</strong><br>
+                        Assigned Company: <strong>" . htmlspecialchars($effective_company) . "</strong>
                     </p>
                     $adminNoteHtml
                     <p style='margin:0'>Login to the system to view the ticket.</p>
@@ -201,7 +233,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 . "Subject: " . (string) $ticket['subject'] . "\n"
                 . "Priority: " . (string) $ticket['priority'] . "\n"
                 . "Status: $new_status\n"
-                . "Assigned Department: $new_department\n\n"
+                . "Assigned Department: $new_department\n"
+                . "Assigned Company: $effective_company\n\n"
                 . "Login to the system to view the ticket.\n";
 
             $employeeOk = sendSmtpEmail([(string) $ticket['email']], $employeeSubject, $employeeBodyHtml, $employeeBodyText);
@@ -235,7 +268,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
 
             $statusChanged = $old_data && isset($old_data['status']) && $old_data['status'] !== $new_status;
-            $deptChanged = $old_data && isset($old_data['assigned_department']) && $old_data['assigned_department'] !== $new_department;
+            $deptChanged = $old_data && isset($old_data['assigned_department']) && (string) $old_data['assigned_department'] !== (string) $new_department;
             $noteChanged = $old_data && array_key_exists('admin_note', $old_data) && ((string) ($old_data['admin_note'] ?? '') !== (string) ($admin_note ?? ''));
 
             if ($deptChanged) {

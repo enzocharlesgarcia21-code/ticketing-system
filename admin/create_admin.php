@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: dashboard.php");
@@ -43,6 +44,15 @@ if ($search !== '') {
 $admins_query = "SELECT id, name, email FROM users WHERE department = 'IT' AND role = 'admin'";
 $admins_result = $conn->query($admins_query);
 
+$users_departments_res = $conn->query("SELECT DISTINCT department FROM users WHERE department IS NOT NULL AND department <> '' ORDER BY department ASC");
+$user_departments = [];
+if ($users_departments_res) {
+    while ($d = $users_departments_res->fetch_assoc()) {
+        $val = (string) ($d['department'] ?? '');
+        if ($val !== '') $user_departments[] = $val;
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -53,7 +63,7 @@ $admins_result = $conn->query($admins_query);
     <style>
         .create-admin-container {
             padding: 28px 20px 40px;
-            max-width: 980px;
+            max-width: 1240px;
             margin: 0 auto;
         }
         .user-table {
@@ -312,6 +322,194 @@ $admins_result = $conn->query($admins_query);
             background: #16a34a;
             display: inline-block;
         }
+
+        .admin-mgmt-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        .admin-mgmt-header h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .admin-mgmt-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 18px;
+            margin-bottom: 22px;
+        }
+        .mgmt-card {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 10px 22px rgba(2, 6, 23, 0.08);
+            overflow: hidden;
+        }
+        .mgmt-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: #f8fafc;
+            border-bottom: 1px solid #eef2f7;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .mgmt-card-header .title {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .mgmt-card-header .title .icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 12px;
+            background: #ecfdf5;
+            border: 1px solid #bbf7d0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #16a34a;
+            flex: 0 0 auto;
+        }
+        .mgmt-card-body { padding: 16px; }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 160px 1fr;
+            gap: 12px 14px;
+            align-items: center;
+        }
+        .form-label {
+            font-weight: 700;
+            color: #334155;
+            font-size: 13px;
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            outline: none;
+            font-size: 14px;
+            background: #ffffff;
+        }
+        .form-control:focus {
+            border-color: #22c55e;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+        }
+        .username-row, .password-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .domain-select {
+            min-width: 170px;
+            padding: 10px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            background: #ffffff;
+            font-weight: 700;
+            color: #0f172a;
+            cursor: pointer;
+        }
+        .btn {
+            border: 1px solid transparent;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: transform 0.08s ease, background 0.2s ease, border-color 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 13px;
+            user-select: none;
+        }
+        .btn:active { transform: translateY(1px); }
+        .btn-primary {
+            background: #1B5E20;
+            color: #ffffff;
+        }
+        .btn-primary:hover { background: #144a1e; }
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+            border-color: #e5e7eb;
+        }
+        .btn-secondary:hover { background: #e5e7eb; }
+        .btn-auto {
+            background: #f8fafc;
+            color: #334155;
+            border-color: #e2e8f0;
+            white-space: nowrap;
+        }
+        .btn-auto:hover { background: #f1f5f9; }
+        .checks {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            margin-top: 6px;
+        }
+        .checks label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            color: #334155;
+            font-size: 13px;
+        }
+        .checks input { accent-color: #1B5E20; }
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 14px;
+        }
+        .users-list-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .users-filters {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-top: 1px solid #eef2f7;
+        }
+        .users-table th, .users-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eef2f7;
+            font-size: 13px;
+            color: #0f172a;
+        }
+        .users-table th {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #1B5E20;
+            background: #ffffff;
+        }
+        .users-empty {
+            padding: 16px 12px;
+            color: #64748b;
+            text-align: center;
+            font-weight: 700;
+        }
+        @media (max-width: 980px) {
+            .admin-mgmt-grid { grid-template-columns: 1fr; }
+            .form-grid { grid-template-columns: 1fr; }
+        }
     </style>
     <!-- Add FontAwesome for trash icon -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -326,6 +524,96 @@ $admins_result = $conn->query($admins_query);
     <?php include '../includes/admin_navbar.php'; ?>
 
     <div class="create-admin-container">
+        <div class="admin-mgmt-header">
+            <h1>Admin Management</h1>
+        </div>
+
+        <div class="admin-mgmt-grid">
+            <div class="mgmt-card" id="addUserCard">
+                <div class="mgmt-card-header">
+                    <div class="title">
+                        <span class="icon"><i class="fas fa-user-plus"></i></span>
+                        <span>Add New User</span>
+                    </div>
+                </div>
+                <div class="mgmt-card-body">
+                    <form id="addUserForm" autocomplete="off">
+                        <?php echo csrf_field(); ?>
+                        <div class="form-grid">
+                            <div class="form-label">Full Name:</div>
+                            <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required>
+
+                            <div class="form-label">Username:</div>
+                            <div class="username-row">
+                                <input type="text" class="form-control" name="username" id="username" placeholder="juan.delacruz" required>
+                                <select class="domain-select" name="domain" id="domain">
+                                    <option value="@leadsagri.com" selected>@leadsagri.com</option>
+                                </select>
+                            </div>
+
+                            <div class="form-label">New Password:</div>
+                            <div class="password-row">
+                                <input type="password" class="form-control" name="password" id="newPassword" required>
+                                <button type="button" class="btn btn-auto" id="autoGenerateBtn">Auto Generate</button>
+                            </div>
+
+                            <div class="checks">
+                                <label><input type="checkbox" id="sendInitiation" checked> Send Account Initiation</label>
+                                <label><input type="checkbox" id="sendInvitation" checked> Send Email Invitation</label>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" id="cancelAddUser">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="createUserBtn">Create User</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="mgmt-card" id="usersListCard">
+                <div class="mgmt-card-header">
+                    <div class="title">
+                        <span class="icon"><i class="fas fa-users"></i></span>
+                        <span>Users List</span>
+                    </div>
+                </div>
+                <div class="mgmt-card-body">
+                    <div class="users-list-controls">
+                        <div class="search-wrapper" style="margin:0;">
+                            <i class="fas fa-search search-icon"></i>
+                            <input type="text" class="search-input" id="usersSearch" placeholder="Search user...">
+                        </div>
+                        <div class="users-filters">
+                            <select class="domain-select" id="usersDept">
+                                <option value="all" selected>All Departments</option>
+                                <?php foreach ($user_departments as $d): ?>
+                                    <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select class="domain-select" id="usersRole">
+                                <option value="all" selected>All Roles</option>
+                                <option value="employee">Employee</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <table class="users-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Department</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersListBody">
+                            <tr><td class="users-empty" colspan="2">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <div class="promote-header">
             <div class="promote-header-icon">
                 <i class="fas fa-user-shield"></i>
@@ -429,6 +717,146 @@ $admins_result = $conn->query($admins_query);
 <script src="../js/admin.js"></script>
 
 <script>
+    function randomPassword(len) {
+        var length = typeof len === 'number' && len > 0 ? len : 14;
+        var lower = 'abcdefghijklmnopqrstuvwxyz';
+        var upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        var nums = '0123456789';
+        var syms = '!@#$%^&*()-_=+[]{};:,.?';
+        var all = lower + upper + nums + syms;
+        function pick(set) { return set[Math.floor(Math.random() * set.length)]; }
+        var out = [pick(lower), pick(upper), pick(nums), pick(syms)];
+        for (var i = out.length; i < length; i++) out.push(pick(all));
+        for (var j = out.length - 1; j > 0; j--) {
+            var k = Math.floor(Math.random() * (j + 1));
+            var tmp = out[j]; out[j] = out[k]; out[k] = tmp;
+        }
+        return out.join('');
+    }
+
+    function renderUsers(users) {
+        var body = document.getElementById('usersListBody');
+        if (!body) return;
+        if (!users || users.length === 0) {
+            body.innerHTML = '<tr><td class="users-empty" colspan="2">No users found.</td></tr>';
+            return;
+        }
+        body.innerHTML = users.map(function (u) {
+            var dept = u.department ? String(u.department) : '-';
+            return '<tr><td>' + escapeHtml(String(u.name || '')) + '</td><td>' + escapeHtml(dept) + '</td></tr>';
+        }).join('');
+    }
+
+    function loadUsersList() {
+        var qEl = document.getElementById('usersSearch');
+        var deptEl = document.getElementById('usersDept');
+        var roleEl = document.getElementById('usersRole');
+        var q = qEl ? qEl.value.trim() : '';
+        var dept = deptEl ? deptEl.value : 'all';
+        var role = roleEl ? roleEl.value : 'all';
+        var url = 'ajax_users_list.php?q=' + encodeURIComponent(q) + '&department=' + encodeURIComponent(dept) + '&role=' + encodeURIComponent(role) + '&limit=80';
+        fetch(url, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.ok) {
+                    renderUsers([]);
+                    return;
+                }
+                renderUsers(data.users || []);
+            })
+            .catch(function () { renderUsers([]); });
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var autoBtn = document.getElementById('autoGenerateBtn');
+        var passEl = document.getElementById('newPassword');
+        if (autoBtn && passEl) {
+            autoBtn.addEventListener('click', function () {
+                passEl.value = randomPassword(14);
+                passEl.focus();
+            });
+        }
+
+        var cancelBtn = document.getElementById('cancelAddUser');
+        var form = document.getElementById('addUserForm');
+        if (cancelBtn && form) {
+            cancelBtn.addEventListener('click', function () {
+                form.reset();
+            });
+        }
+
+        var addUserForm = document.getElementById('addUserForm');
+        if (addUserForm) {
+            addUserForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var fullName = document.getElementById('fullName');
+                var username = document.getElementById('username');
+                var domain = document.getElementById('domain');
+                var password = document.getElementById('newPassword');
+                if (!fullName || !username || !domain || !password) return;
+
+                var fd = new FormData(addUserForm);
+                fd.set('full_name', fullName.value || '');
+                fd.set('username', username.value || '');
+                fd.set('domain', domain.value || '@leadsagri.com');
+                fd.set('password', password.value || '');
+                fd.set('send_initiation', (document.getElementById('sendInitiation') && document.getElementById('sendInitiation').checked) ? '1' : '0');
+                fd.set('send_invitation', (document.getElementById('sendInvitation') && document.getElementById('sendInvitation').checked) ? '1' : '0');
+
+                var btn = document.getElementById('createUserBtn');
+                if (btn) btn.disabled = true;
+
+                fetch('ajax_create_user.php', {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || !data.ok) {
+                            var msg = (data && data.error) ? data.error : 'Failed to create user.';
+                            Swal.fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#1B5E20' });
+                            return;
+                        }
+                        Swal.fire({ icon: 'success', title: 'Success', text: data.message || 'User created successfully', confirmButtonColor: '#1B5E20' });
+                        addUserForm.reset();
+                        loadUsersList();
+                    })
+                    .catch(function () {
+                        Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to create user.', confirmButtonColor: '#1B5E20' });
+                    })
+                    .finally(function () {
+                        if (btn) btn.disabled = false;
+                    });
+            });
+        }
+
+        var debounceT = null;
+        var usersSearch = document.getElementById('usersSearch');
+        if (usersSearch) {
+            usersSearch.addEventListener('input', function () {
+                if (debounceT) clearTimeout(debounceT);
+                debounceT = setTimeout(loadUsersList, 250);
+            });
+        }
+        ['usersDept', 'usersRole'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('change', loadUsersList);
+        });
+
+        loadUsersList();
+    });
+
     function confirmAddition(userId) {
         Swal.fire({
             title: 'Add this user as admin?',

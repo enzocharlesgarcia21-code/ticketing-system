@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 /* Protect page */
 if (session_status() === PHP_SESSION_NONE) {
@@ -16,6 +17,47 @@ $user_id = $_SESSION['user_id'];
 
 $user_department = $_SESSION['department'] ?? '';
 $user_company = $_SESSION['company'] ?? '';
+
+ticket_ensure_assignment_columns($conn);
+
+function company_code(string $value): string
+{
+    $s = strtoupper(trim($value));
+    if ($s === '') return '';
+    if ($s === 'FARMASEE') return 'PCC';
+    if (strpos($s, 'MHC') !== false) return 'MHC';
+    if (strpos($s, 'GPCI') !== false || strpos($s, 'GPSCI') !== false) return 'GPCI';
+    if (strpos($s, 'LAPC') !== false || strpos($s, 'LAH') !== false) return 'LAPC';
+    if (strpos($s, 'PCC') !== false) return 'PCC';
+    if (strpos($s, 'MPDC') !== false) return 'MPDC';
+    if (strpos($s, 'LINGAP') !== false) return 'LINGAP';
+    if (strpos($s, 'LTC') !== false) return 'LTC';
+    if (strpos($s, 'FARMEX') !== false) return 'FARMEX';
+    if (strpos($s, 'FARMEX CORP') !== false) return 'FARMEX';
+    return '';
+}
+
+function company_aliases(string $value): array
+{
+    $v = trim($value);
+    $code = company_code($v);
+    $map = [
+        'MHC' => ['MHC', 'Malveda Holdings Corporation - MHC'],
+        'GPCI' => ['GPCI', 'GPSCI', 'Golden Primestocks Chemical Inc - GPSCI', 'Golden Primestocks Chemical Inc - GPCI'],
+        'LAPC' => ['LAPC', 'Leads Animal Health - LAH', 'LEADS Animal Health - LAH'],
+        'PCC' => ['PCC', 'Primestocks Chemical Corporation - PCC', 'FARMASEE'],
+        'MPDC' => ['MPDC', 'Malveda Properties & Development Corporation - MPDC'],
+        'LINGAP' => ['LINGAP', 'LINGAP LEADS FOUNDATION - Lingap'],
+        'LTC' => ['LTC', 'Leads Tech Corporation - LTC'],
+        'FARMEX' => ['FARMEX', 'Farmex Corp'],
+    ];
+    $aliases = [];
+    if ($v !== '') $aliases[] = $v;
+    if ($code !== '' && isset($map[$code])) {
+        $aliases = array_merge($aliases, $map[$code]);
+    }
+    return array_values(array_unique(array_filter(array_map('trim', $aliases), static function ($x) { return $x !== ''; })));
+}
 
 if ($user_department === '' || $user_company === '') {
     $user_dept_stmt = $conn->prepare("SELECT department, company FROM users WHERE id = ?");
@@ -35,17 +77,12 @@ if ($user_department === '' || $user_company === '') {
 /* ================= GET VALUES ================= */
 
 $search = $_GET['search'] ?? '';
-$category = $_GET['category'] ?? '';
 $priority = $_GET['priority'] ?? '';
 $status = $_GET['status'] ?? '';
 
-$allowed_categories = ['Network Issue','Hardware Issue','Software Issue','Email Problem','Account Access','Technical Support','Other'];
 $allowed_priorities = ['Low','Medium','High','Critical'];
 $allowed_statuses = ['Open','In Progress','Resolved'];
 
-if (!in_array($category, $allowed_categories, true)) {
-    $category = '';
-}
 if (!in_array($priority, $allowed_priorities, true)) {
     $priority = '';
 }
@@ -64,14 +101,23 @@ $where = [];
 $params = [];
 $types = "";
 
-// 🎯 MAIN FILTER: Assigned to user's department AND Company AND Not Closed
-$where[] = "COALESCE(NULLIF(NULLIF(t.assigned_department, 'Unassigned'), ''), t.department) = ?";
+// 🎯 MAIN FILTER: Assigned to employee OR assigned to user's group+company
+$companyAliases = company_aliases((string) $user_company);
+if (count($companyAliases) === 0) {
+    $companyAliases = [(string) $user_company];
+}
+$companyCond = "(" . implode(" OR ", array_fill(0, count($companyAliases), "COALESCE(NULLIF(t.assigned_company, ''), t.company) = ?")) . ")";
+$groupCond = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), t.department) = ?";
+
+$where[] = "(t.assigned_user_id = ? OR ($groupCond AND $companyCond))";
+$params[] = (int) $user_id;
+$types .= "i";
 $params[] = $user_department;
 $types .= "s";
-
-$where[] = "COALESCE(NULLIF(t.assigned_company, ''), t.company) = ?";
-$params[] = $user_company;
-$types .= "s";
+foreach ($companyAliases as $co) {
+    $params[] = $co;
+    $types .= "s";
+}
 
 $where[] = "t.status != 'Closed'";
 
@@ -102,13 +148,6 @@ if (!empty($search)) {
         $params[] = $term;
         $types .= "sssss";
     }
-}
-
-// 2. Filters
-if ($category !== '') {
-    $where[] = "t.category = ?";
-    $params[] = $category;
-    $types .= "s";
 }
 
 if ($priority !== '') {
@@ -202,20 +241,11 @@ $result = $stmt->get_result();
                                name="search"
                                id="searchInput"
                                class="search-input"
-                               placeholder="Search name, email or category..."
+                               placeholder="Search name, email or subject..."
                                value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
 
                     <div class="filters-wrapper">
-                        <div class="select-wrapper small">
-                            <select name="category" class="filter-select" id="filterCategory">
-                                <option value=""disabled selected hidden <?= $category === '' ? 'selected' : '' ?>>All Category</option>
-                                <?php foreach ($allowed_categories as $c): ?>
-                                    <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= $category === $c ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
                         <div class="select-wrapper small">
                             <select name="priority" class="filter-select" id="filterPriority">
                                 <option value=""disabled selected hidden<?= $priority === '' ? 'selected' : '' ?>>All Priority</option>
@@ -320,7 +350,7 @@ $result = $stmt->get_result();
                 <?php if ($total_pages > 1): ?>
                 <div class="pagination-glass">
                     <!-- Previous Link -->
-                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&category=<?= urlencode($category); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
                         Previous
                     </a>
@@ -328,7 +358,7 @@ $result = $stmt->get_result();
                     <div class="page-numbers">
                         <!-- Page Numbers -->
                         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&category=<?= urlencode($category); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
                                class="page-btn <?= ($i == $page) ? 'active' : ''; ?>">
                                 <?= $i; ?>
                             </a>
@@ -336,7 +366,7 @@ $result = $stmt->get_result();
                     </div>
 
                     <!-- Next Link -->
-                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&category=<?= urlencode($category); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
                         Next
                     </a>
@@ -396,7 +426,7 @@ $result = $stmt->get_result();
             document.getElementById("filterForm").submit();
         }
 
-        ['filterCategory', 'filterPriority', 'filterStatus'].forEach(function(id) {
+        ['filterPriority', 'filterStatus'].forEach(function(id) {
             var el = document.getElementById(id);
             if (el) {
                 el.addEventListener('change', function() {

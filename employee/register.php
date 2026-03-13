@@ -143,35 +143,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             <div class="form-group">
                 <label>Company / Subsidiary *</label>
-                <select name="company" required>
-                    <option value="" disabled selected hidden>Select company</option>
-                    <?php 
-                    $companies = [
-                        "FARMEX", "FARMASEE", "Golden Primestocks Chemical Inc - GPSCI", 
-                        "Leads Animal Health - LAH", "Leads Environmental Health - LEH", 
-                        "Leads Tech Corporation - LTC", "LINGAP LEADS FOUNDATION - Lingap", 
-                        "Malveda Holdings Corporation - MHC", "Malveda Properties & Development Corporation - MPDC", 
-                        "Primestocks Chemical Corporation - PCC"
-                    ];
-                    foreach ($companies as $comp) {
-                        $selected = (isset($_POST['company']) && $_POST['company'] === $comp) ? 'selected' : '';
-                        echo "<option value=\"$comp\" $selected>$comp</option>";
-                    }
-                    ?>
+                <select name="company" id="reg_company" required>
+                    <option value=""disabled selected hidden>Select Company</option>
+                    <option value="LAPC" <?= (isset($_POST['company']) && $_POST['company']==='LAPC') ? 'selected' : '' ?>>LAPC</option>
+                    <option value="GPCI" <?= (isset($_POST['company']) && $_POST['company']==='GPCI') ? 'selected' : '' ?>>GPCI</option>
+                    <option value="PCC" <?= (isset($_POST['company']) && $_POST['company']==='PCC') ? 'selected' : '' ?>>PCC</option>
+                    <option value="MHC" <?= (isset($_POST['company']) && $_POST['company']==='MHC') ? 'selected' : '' ?>>MHC</option>
+                    <option value="Farmex Corp" <?= (isset($_POST['company']) && $_POST['company']==='Farmex Corp') ? 'selected' : '' ?>>Farmex Corp</option>
+                    <option value="LTC" <?= (isset($_POST['company']) && $_POST['company']==='LTC') ? 'selected' : '' ?>>LTC</option>
+                    <option value="MPDC" <?= (isset($_POST['company']) && $_POST['company']==='MPDC') ? 'selected' : '' ?>>MPDC</option>
+                    <option value="LINGAP" <?= (isset($_POST['company']) && $_POST['company']==='LINGAP') ? 'selected' : '' ?>>LINGAP</option>
                 </select>
             </div>
 
             <div class="form-group">
-                <label>Department *</label>
-                <select name="department" required>
-                    <option value="" disabled selected hidden>Select Department</option>
-                    <?php 
-                    $depts = ["Accounting", "Admin", "Bidding", "E-Comm", "HR", "IT", "Marketing", "Sales"];
-                    foreach ($depts as $dept) {
-                        $selected = (isset($_POST['department']) && $_POST['department'] === $dept) ? 'selected' : '';
-                        echo "<option value=\"$dept\" $selected>$dept</option>";
-                    }
-                    ?>
+                <label>Group *</label>
+                <select name="department" id="reg_group" required disabled>
+                    <option value="">Select Company First</option>
                 </select>
             </div>
 
@@ -207,6 +195,75 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script>
+const regCompanyEl = document.getElementById('reg_company');
+const regGroupEl = document.getElementById('reg_group');
+const REG_MAP = {
+  'LAPC': ["Banana Farm Operations","Seed Production","Supply Chain","Supply Chain Innovation","Admin & Legal","Diagnostics / Lingap","E-Commerce","Finance and Accounting","Human Resource and Transformation","Institutional Sales","Digital Agri Solutions and Innovations","Marketing","New Business Segment","Technical","Executive","Management"],
+  'GPCI': ["Accounting","Sales"],
+  'PCC': ["Management","Admin","Finance and Accounting","Maintenance","Production","Quality Control","Supply Chain","Technical"],
+  'MHC': ["Management","Admin & Legal","E-Commerce","Executive","Finance and Accounting","Institutional Sales","IT","Marketing"],
+  'Farmex Corp': ["Management","Finance and Admin","Logistics","Sales and Marketing","Special Project","Technical","Business Development"],
+  'LTC': ["Admin","Finance and Accounting","Logistics","Marketing","Sales","Services & Logistics (Luzon)"],
+  'MPDC': [],
+  'LINGAP': []
+};
+function regResetGroupsDisabled() {
+  regGroupEl.innerHTML = '';
+  const ph = document.createElement('option');
+  ph.value = '';
+  ph.textContent = 'Select Company First';
+  ph.selected = true;
+  regGroupEl.appendChild(ph);
+  regGroupEl.value = '';
+  regGroupEl.disabled = true;
+}
+function regSetNoGroupsDisabled() {
+  regGroupEl.innerHTML = '';
+  const ph = document.createElement('option');
+  ph.value = '';
+  ph.textContent = 'No groups available';
+  ph.selected = true;
+  regGroupEl.appendChild(ph);
+  regGroupEl.value = '';
+  regGroupEl.disabled = true;
+}
+function regPopulateGroups(arr, preselect) {
+  regGroupEl.innerHTML = '';
+  const ph = document.createElement('option');
+  ph.value = '';
+  ph.textContent = 'Select Group';
+  ph.disabled = true;
+  ph.selected = true;
+  regGroupEl.appendChild(ph);
+  arr.forEach(function(g){
+    const opt = document.createElement('option');
+    opt.value = g;
+    opt.textContent = g;
+    if (preselect && preselect === g) opt.selected = true;
+    regGroupEl.appendChild(opt);
+  });
+  regGroupEl.disabled = false;
+}
+regResetGroupsDisabled();
+if (regCompanyEl) {
+  regCompanyEl.addEventListener('change', function(){
+    const key = String(regCompanyEl.value || '').trim();
+    if (!key) { regResetGroupsDisabled(); return; }
+    const arr = REG_MAP[key];
+    if (!arr || !arr.length) { regSetNoGroupsDisabled(); return; }
+    regPopulateGroups(arr);
+  });
+  if (regCompanyEl.value) {
+    const key = String(regCompanyEl.value || '').trim();
+    const arr = REG_MAP[key];
+    if (arr && arr.length) {
+      const pre = "<?= isset($_POST['department']) ? htmlspecialchars($_POST['department']) : '' ?>";
+      regPopulateGroups(arr, pre);
+    } else if (key) {
+      regSetNoGroupsDisabled();
+    }
+  }
+}
 const formEl = document.querySelector("form");
 const pwdEl = document.getElementById("password");
 const validationBox = document.getElementById("password-validation");

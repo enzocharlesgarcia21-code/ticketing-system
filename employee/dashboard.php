@@ -16,41 +16,44 @@ if ($userQuery && $row = $userQuery->fetch_assoc()) {
     $company = $row['company'];
 }
 
-/* Ticket Counts (ONLY this employee AND their department) */
-$dept = $conn->real_escape_string($_SESSION['department']);
+/* Ticket Counts (tickets created by this employee) */
+$dept = (string) ($_SESSION['department'] ?? '');
 
-$total = $conn->query("
-    SELECT COUNT(*) AS count 
-    FROM employee_tickets 
-    WHERE user_id = $user_id AND assigned_department = '$dept'
-")->fetch_assoc()['count'];
+$countStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ?");
+$countStmt->bind_param("i", $user_id);
+$countStmt->execute();
+$total = (int) (($countStmt->get_result()->fetch_assoc()['count'] ?? 0));
+$countStmt->close();
 
-$open = $conn->query("
-    SELECT COUNT(*) AS count 
-    FROM employee_tickets 
-    WHERE user_id = $user_id AND status='Open' AND assigned_department = '$dept'
-")->fetch_assoc()['count'];
+$openStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status = 'Open'");
+$openStmt->bind_param("i", $user_id);
+$openStmt->execute();
+$open = (int) (($openStmt->get_result()->fetch_assoc()['count'] ?? 0));
+$openStmt->close();
 
-$progress = $conn->query("
-    SELECT COUNT(*) AS count 
-    FROM employee_tickets 
-    WHERE user_id = $user_id AND status='In Progress' AND assigned_department = '$dept'
-")->fetch_assoc()['count'];
+$progressStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status = 'In Progress'");
+$progressStmt->bind_param("i", $user_id);
+$progressStmt->execute();
+$progress = (int) (($progressStmt->get_result()->fetch_assoc()['count'] ?? 0));
+$progressStmt->close();
 
-$resolved = $conn->query("
-    SELECT COUNT(*) AS count 
-    FROM employee_tickets 
-    WHERE user_id = $user_id AND status='Resolved' AND assigned_department = '$dept'
-")->fetch_assoc()['count'];
+$resolvedStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status = 'Resolved'");
+$resolvedStmt->bind_param("i", $user_id);
+$resolvedStmt->execute();
+$resolved = (int) (($resolvedStmt->get_result()->fetch_assoc()['count'] ?? 0));
+$resolvedStmt->close();
 
-/* Recent Tickets */
-$recent = $conn->query("
-    SELECT * 
-    FROM employee_tickets 
-    WHERE user_id = $user_id AND assigned_department = '$dept'
-    ORDER BY created_at DESC 
+/* Recent Tickets (created by this employee) */
+$recentStmt = $conn->prepare("
+    SELECT id, subject, category, priority, status, created_at
+    FROM employee_tickets
+    WHERE user_id = ?
+    ORDER BY created_at DESC
     LIMIT 5
 ");
+$recentStmt->bind_param("i", $user_id);
+$recentStmt->execute();
+$recent = $recentStmt->get_result();
 ?>
 
 <!DOCTYPE html>

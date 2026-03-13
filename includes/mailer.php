@@ -31,6 +31,9 @@ function buildSmtpMailer(): PHPMailer
     $password = readSmtpConfigValue('SMTP_PASSWORD');
     $fromEmail = readSmtpConfigValue('SMTP_FROM_EMAIL');
     $fromName = readSmtpConfigValue('SMTP_FROM_NAME');
+    $host = readSmtpConfigValue('SMTP_HOST');
+    $portRaw = readSmtpConfigValue('SMTP_PORT');
+    $secureRaw = strtolower(readSmtpConfigValue('SMTP_SECURE'));
 
     if ($username === '') {
         $username = readSmtpConfigValue('GMAIL_USERNAME');
@@ -56,12 +59,23 @@ function buildSmtpMailer(): PHPMailer
     $mail = new PHPMailer(true);
     $mail->CharSet = 'UTF-8';
     $mail->isSMTP();
-    $mail->Host = 'smtp.gmail.com';
+    $mail->Host = $host !== '' ? $host : 'smtp.gmail.com';
     $mail->SMTPAuth = true;
     $mail->Username = $username;
     $mail->Password = $password;
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port = 587;
+    $port = 587;
+    if ($portRaw !== '' && ctype_digit($portRaw)) {
+        $port = (int) $portRaw;
+    } elseif ($secureRaw === 'ssl' || $secureRaw === 'smtps') {
+        $port = 465;
+    }
+
+    if ($secureRaw === 'ssl' || $secureRaw === 'smtps') {
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+    } else {
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+    }
+    $mail->Port = $port;
     $insecureTls = readSmtpConfigValue('SMTP_INSECURE_TLS');
     if ($insecureTls === '1' || strtolower($insecureTls) === 'true') {
         $mail->SMTPOptions = [
