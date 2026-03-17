@@ -184,6 +184,7 @@ $department_options = [
             transition: transform 0.2s, box-shadow 0.2s;
             position: relative;
             overflow: hidden;
+            pointer-events: none;
         }
 
         .admin-card:hover {
@@ -256,6 +257,7 @@ $department_options = [
             align-items: center;
             gap: 6px;
             transition: all 0.2s;
+            pointer-events: auto;
         }
 
         .remove-admin-btn:hover {
@@ -387,7 +389,7 @@ $department_options = [
             background: #ffffff;
             border-radius: 16px;
             border: 1px solid #e5e7eb;
-            box-shadow: 0 10px 22px rgba(2, 6, 23, 0.08);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
             overflow: hidden;
         }
         .mgmt-card-header {
@@ -558,6 +560,11 @@ $department_options = [
             gap: 10px;
             flex: 0 0 auto;
         }
+        .users-company-inline {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
         .users-table {
             width: 100%;
             border-collapse: collapse;
@@ -643,6 +650,44 @@ $department_options = [
             text-align: center;
             font-weight: 700;
         }
+        .users-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .pagination-info {
+            color: #64748b;
+            font-weight: 700;
+            font-size: 12px;
+        }
+        .pagination-controls {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        .page-btn {
+            min-width: 34px;
+            height: 34px;
+            padding: 0 10px;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            cursor: pointer;
+            background: #ffffff;
+            color: #0f172a;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            user-select: none;
+        }
+        .page-btn:hover { background: #f8fafc; }
+        .page-btn.active { background: #1B5E20; color: #ffffff; border-color: #1B5E20; }
+        .page-btn.disabled { opacity: 0.45; pointer-events: none; }
         .add-user-trigger {
             background: #1B5E20;
             color: #ffffff;
@@ -657,6 +702,20 @@ $department_options = [
             font-size: 13px;
         }
         .add-user-trigger:hover { background: #144a1e; }
+
+        .user-table {
+            box-shadow: none;
+            border-radius: 12px;
+            border: 1px solid #eef2f7;
+        }
+        .user-table thead th {
+            background: #ffffff;
+            color: #1B5E20;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-size: 12px;
+        }
+        .user-table tbody tr:hover td { background: #f8fafc; }
 
         .modal-overlay-lite {
             position: fixed;
@@ -695,6 +754,88 @@ $department_options = [
             .fullname-row { flex-direction: column; align-items: stretch; }
             .fullname-row > .domain-select { flex: 1 1 auto; width: 100%; }
         }
+
+        .admin-dashboard {
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+        }
+        .admin-bottom-grid {
+            display: grid;
+            grid-template-columns: 1.45fr 0.95fr;
+            gap: 18px;
+            align-items: start;
+        }
+        .admin-card-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+        .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 34%; text-align: left; }
+        .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 36%; text-align: left; }
+        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 22%; text-align: left; }
+        .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 8%; text-align: right; }
+        .users-table tbody tr:hover td { background: #f8fafc; }
+        .users-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            background: #ecfdf5;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            flex: 0 0 auto;
+        }
+        .users-name-block {
+            display: inline-flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .users-name {
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.15;
+        }
+        .users-subtle {
+            color: #64748b;
+            font-weight: 600;
+            font-size: 12px;
+            line-height: 1.1;
+        }
+        .dept-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 900;
+            border: 1px solid #e5e7eb;
+            background: #f1f5f9;
+            color: #334155;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+        .dept-it { background: #dbeafe; border-color: #bfdbfe; color: #1d4ed8; }
+        .dept-hr { background: #fef9c3; border-color: #fde68a; color: #854d0e; }
+        .dept-admin { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
+        .dept-marketing { background: #ede9fe; border-color: #ddd6fe; color: #6d28d9; }
+        .dept-accounting { background: #e0f2fe; border-color: #bae6fd; color: #0369a1; }
+        .dept-supply-chain { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+        .dept-technical { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
+        .dept-e-comm { background: #e0e7ff; border-color: #c7d2fe; color: #3730a3; }
+        .dept-lingap { background: #cffafe; border-color: #a5f3fc; color: #0e7490; }
+
+        @media (max-width: 1100px) {
+            .admin-bottom-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 640px) {
+            .admin-card-grid { grid-template-columns: 1fr; }
+        }
     </style>
     <!-- Add FontAwesome for trash icon -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -713,12 +854,13 @@ $department_options = [
             <h1>Admin Management</h1>
         </div>
 
+        <div class="admin-dashboard">
         <div class="admin-mgmt-grid">
             <div class="mgmt-card" id="usersListCard">
                 <div class="mgmt-card-header">
                     <div class="title">
                         <span class="icon"><i class="fas fa-users"></i></span>
-                        <span>Users List</span>
+                        <span>Users Management</span>
                     </div>
                     <button type="button" class="add-user-trigger" id="openAddUser">
                         <i class="fas fa-plus"></i>
@@ -738,13 +880,16 @@ $department_options = [
                                     <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <select class="domain-select" id="usersCompany">
-                                <option value="all" selected>All Companies</option>
-                                <?php foreach ($email_domains as $ed): ?>
-                                    <?php $opt = '@' . $ed; ?>
-                                    <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <div class="users-company-inline">
+                                <select class="domain-select" id="usersCompany">
+                                    <option value="all" selected>All Companies</option>
+                                    <?php foreach ($email_domains as $ed): ?>
+                                        <?php $opt = '@' . $ed; ?>
+                                        <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <button type="button" class="btn btn-auto" id="clearUsersFilters">Clear</button>
+                            </div>
                         </div>
                     </div>
 
@@ -755,13 +900,17 @@ $department_options = [
                                     <th>Name</th>
                                     <th>Email</th>
                                     <th>Department</th>
-                                    <th></th>
+                                    <th style="text-align:right;">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="usersListBody">
                                 <tr><td class="users-empty" colspan="4">Loading...</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                    <div class="users-pagination" id="usersPagination" style="display:none;">
+                        <div class="pagination-info" id="usersPaginationInfo"></div>
+                        <div class="pagination-controls" id="usersPaginationControls"></div>
                     </div>
                 </div>
             </div>
@@ -779,10 +928,10 @@ $department_options = [
                     <form id="addUserForm" autocomplete="off">
                         <?php echo csrf_field(); ?>
                         <div class="form-grid">
-                            <div class="form-label">Full Name:</div>
+                            <div class="form-label">Full Name *</div>
                             <div class="fullname-row">
                                 <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required>
-                                <select class="domain-select" name="department" id="newDept" aria-label="Department">
+                                <select class="domain-select" name="department" id="newDept" aria-label="Department" required>
                                     <option value="">Select Department</option>
                                     <?php foreach ($department_options as $d): ?>
                                         <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
@@ -790,10 +939,10 @@ $department_options = [
                                 </select>
                             </div>
 
-                            <div class="form-label">Email:</div>
+                            <div class="form-label">Email *</div>
                             <div class="username-row">
                                 <input type="text" class="form-control" name="username" id="username" placeholder="juan.delacruz" required>
-                                <select class="domain-select" name="domain" id="domain">
+                                <select class="domain-select" name="domain" id="domain" required>
                                     <?php foreach ($email_domains as $ed): ?>
                                         <?php $opt = '@' . $ed; ?>
                                         <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>" <?= $ed === 'leadsagri.com' ? 'selected' : '' ?>>
@@ -803,7 +952,7 @@ $department_options = [
                                 </select>
                             </div>
 
-                            <div class="form-label">New Password:</div>
+                            <div class="form-label">New Password *</div>
                             <div class="password-row">
                                 <div class="password-field">
                                     <input type="password" class="form-control" name="password" id="newPassword" required>
@@ -824,87 +973,104 @@ $department_options = [
             </div>
         </div>
 
-        <div class="promote-header">
-            <div class="promote-header-icon">
-                <i class="fas fa-user-shield"></i>
-            </div>
-            <div>
-                <h2 class="promote-header-title">Promote IT Employees to Admin</h2>
-                <div class="promote-header-subtitle"></div>
-            </div>
-        </div>
-        
-        <?php if ($message): ?>
-            <div class="alert-success"><?= htmlspecialchars($message) ?></div>
-        <?php endif; ?>
-
-        <form method="GET" class="search-row" id="itSearchForm">
-            <div class="search-wrapper">
-                <i class="fas fa-search search-icon"></i>
-                <input type="text" name="search" class="search-input" id="itSearchInput" value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Search IT employee...">
-            </div>
-        </form>
-
-        <div class="table-card">
-            <table class="user-table">
-                <thead>
-                    <tr>
-                        <th>Employee</th>
-                        <th>Email</th>
-                        <th>Department</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody id="itEmployeesBody">
-                    <?php if ($result->num_rows > 0): ?>
-                        <?php while($row = $result->fetch_assoc()): ?>
-                            <tr>
-                                <td>
-                                    <div class="employee-cell">
-                                        <span class="employee-avatar"><?= strtoupper(substr((string)$row['name'], 0, 1)) ?></span>
-                                        <span><?= htmlspecialchars($row['name']) ?></span>
-                                    </div>
-                                </td>
-                                <td><?= htmlspecialchars($row['email']) ?></td>
-                                <td><span class="dept-pill">IT</span></td>
-                                <td>
-                                    <button type="button" class="promote-btn" onclick="confirmAddition(<?= $row['id'] ?>)"><i class="fas fa-plus"></i> Promote</button>
-                                </td>
-                            </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="4" style="text-align: center; color:#6B7280; padding: 22px 12px;">No eligible IT employees found.</td>
-                        </tr>
+        <div class="admin-bottom-grid">
+            <div class="mgmt-card">
+                <div class="mgmt-card-header">
+                    <div class="title">
+                        <span class="icon"><i class="fas fa-user-shield"></i></span>
+                        <span>Promote IT Employees</span>
+                    </div>
+                </div>
+                <div class="mgmt-card-body">
+                    <?php if ($message): ?>
+                        <div class="alert-success"><?= htmlspecialchars($message) ?></div>
                     <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
 
-        <!-- New Section: Current IT Admins -->
-        <h3 class="section-title"><span class="status-dot"></span>Current IT Admins (<?= (int) $admins_result->num_rows ?>)</h3>
-
-        <div class="admin-grid">
-            <?php if ($admins_result->num_rows > 0): ?>
-                <?php while($admin = $admins_result->fetch_assoc()): ?>
-                    <div class="admin-card">
-                        <div class="admin-avatar">
-                            <?= strtoupper(substr($admin['name'], 0, 1)) ?>
+                    <form method="GET" class="search-row" id="itSearchForm" style="margin-top:0;">
+                        <div class="search-wrapper" style="max-width: 100%;">
+                            <i class="fas fa-search search-icon"></i>
+                            <input type="text" name="search" class="search-input" id="itSearchInput" value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Search IT employee...">
                         </div>
-                        <div class="admin-name"><?= htmlspecialchars($admin['name']) ?></div>
-                        <div class="admin-email"><?= htmlspecialchars($admin['email']) ?></div>
-                        <span class="admin-badge">Admin</span>
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <button type="button" class="btn btn-auto" id="clearItSearch">Clear</button>
+                        </div>
+                    </form>
 
-                        <?php if ($admin['id'] != $_SESSION['user_id']): ?>
-                            <button type="button" class="remove-admin-btn" style="width: 100%; justify-content: center; margin-top: 10px;" onclick="confirmRemoval(<?= $admin['id'] ?>)">
-                                <i class="fa-solid fa-trash"></i> Remove Admin
-                            </button>
+                    <div class="table-card">
+                        <table class="user-table">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Email</th>
+                                    <th>Department</th>
+                                    <th style="text-align:right;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="itEmployeesBody">
+                                <?php if ($result->num_rows > 0): ?>
+                                    <?php while($row = $result->fetch_assoc()): ?>
+                                        <tr>
+                                            <td>
+                                                <div class="employee-cell">
+                                                    <span class="employee-avatar"><?= strtoupper(substr((string)$row['name'], 0, 1)) ?></span>
+                                                    <span><?= htmlspecialchars($row['name']) ?></span>
+                                                </div>
+                                            </td>
+                                            <td><?= htmlspecialchars($row['email']) ?></td>
+                                            <td><span class="dept-badge dept-it">IT</span></td>
+                                            <td style="text-align:right;">
+                                                <button type="button" class="promote-btn" onclick="confirmAddition(<?= $row['id'] ?>)"><i class="fas fa-plus"></i> Promote</button>
+                                            </td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="4" style="text-align: center; color:#6B7280; padding: 22px 12px;">No eligible IT employees found.</td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mgmt-card">
+                <div class="mgmt-card-header">
+                    <div class="title">
+                        <span class="icon"><i class="fas fa-shield-halved"></i></span>
+                        <span>Current IT Administrators</span>
+                    </div>
+                </div>
+                <div class="mgmt-card-body">
+                    <div class="admin-card-grid">
+                        <?php if ($admins_result->num_rows > 0): ?>
+                            <?php while($admin = $admins_result->fetch_assoc()): ?>
+                                <div class="admin-card">
+                                    <div class="admin-avatar">
+                                        <?= strtoupper(substr($admin['name'], 0, 1)) ?>
+                                    </div>
+                                    <div class="admin-name"><?= htmlspecialchars($admin['name']) ?></div>
+                                    <div class="admin-email"><?= htmlspecialchars($admin['email']) ?></div>
+                                    <span class="admin-badge">ADMIN</span>
+
+                                    <?php if ($admin['id'] != $_SESSION['user_id']): ?>
+                                        <button type="button" class="remove-admin-btn" style="width: 100%; justify-content: center; margin-top: 10px;" onclick="confirmRemoval(<?= $admin['id'] ?>)">
+                                            <i class="fa-solid fa-trash"></i> Remove Admin
+                                        </button>
+                                    <?php else: ?>
+                                        <button type="button" class="remove-admin-btn" style="width: 100%; justify-content: center; margin-top: 10px; opacity: 0.5; cursor: not-allowed;" disabled>
+                                            <i class="fa-solid fa-lock"></i> Current Admin
+                                        </button>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <div style="color: #6B7280; font-weight: 700;">No IT Admins found.</div>
                         <?php endif; ?>
                     </div>
-                <?php endwhile; ?>
-            <?php else: ?>
-                <p style="color: #6B7280;">No IT Admins found.</p>
-            <?php endif; ?>
+                </div>
+            </div>
+        </div>
         </div>
 
     </div>
@@ -915,6 +1081,8 @@ $department_options = [
 
 <script>
     window.TM_ADMIN_CURRENT_USER_ID = <?php echo (int) ($_SESSION['user_id'] ?? 0); ?>;
+    window.TM_USERS_PAGE_SIZE = 5;
+    var tmUsersState = { page: 1, limit: window.TM_USERS_PAGE_SIZE, total: 0, totalPages: 1 };
 
     function randomPassword(len) {
         var length = typeof len === 'number' && len > 0 ? len : 12;
@@ -939,6 +1107,20 @@ $department_options = [
             body.innerHTML = '<tr><td class="users-empty" colspan="4">No users found.</td></tr>';
             return;
         }
+        function deptClass(dept) {
+            var d = String(dept || '').trim().toLowerCase();
+            if (!d) return '';
+            if (d === 'it') return 'dept-it';
+            if (d === 'hr') return 'dept-hr';
+            if (d === 'admin') return 'dept-admin';
+            if (d === 'marketing') return 'dept-marketing';
+            if (d === 'accounting') return 'dept-accounting';
+            if (d === 'supply chain') return 'dept-supply-chain';
+            if (d === 'technical') return 'dept-technical';
+            if (d === 'e-comm' || d === 'e-comm ') return 'dept-e-comm';
+            if (d === 'lingap') return 'dept-lingap';
+            return '';
+        }
         body.innerHTML = users.map(function (u) {
             var dept = u.department ? String(u.department) : '-';
             var email = u.email ? String(u.email) : '-';
@@ -950,34 +1132,99 @@ $department_options = [
             var action = (!isCurrent && !isAdmin)
                 ? '<span class="users-actions"><button type="button" class="btn-icon-danger users-del" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '" aria-label="Delete user"><i class="fas fa-trash"></i></button></span>'
                 : '<span class="users-actions"></span>';
+            var initial = name ? name.trim().charAt(0).toUpperCase() : '?';
+            var deptCls = deptClass(dept);
+            var deptBadge = '<span class="dept-badge ' + deptCls + '" title="' + escapeHtml(dept) + '">' + escapeHtml(dept) + '</span>';
             return '' +
                 '<tr>' +
-                '  <td><span class="users-name-wrap"><span class="users-cell" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</span>' + badge + '</span></td>' +
+                '  <td>' +
+                '    <span class="users-name-wrap">' +
+                '      <span class="users-avatar">' + escapeHtml(initial) + '</span>' +
+                '      <span class="users-name-block">' +
+                '        <span class="users-name users-cell" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</span>' +
+                '      </span>' +
+                '      ' + badge +
+                '    </span>' +
+                '  </td>' +
                 '  <td><span class="users-cell" title="' + escapeHtml(email) + '">' + escapeHtml(email) + '</span></td>' +
-                '  <td><span class="users-cell" title="' + escapeHtml(dept) + '">' + escapeHtml(dept) + '</span></td>' +
+                '  <td>' + deptBadge + '</td>' +
                 '  <td>' + action + '</td>' +
                 '</tr>';
         }).join('');
     }
 
-    function loadUsersList() {
+    function renderUsersPagination() {
+        var wrap = document.getElementById('usersPagination');
+        var info = document.getElementById('usersPaginationInfo');
+        var controls = document.getElementById('usersPaginationControls');
+        if (!wrap || !info || !controls) return;
+
+        var total = Number(tmUsersState.total || 0);
+        var page = Number(tmUsersState.page || 1);
+        var limit = Number(tmUsersState.limit || window.TM_USERS_PAGE_SIZE);
+        var totalPages = Number(tmUsersState.totalPages || 1);
+        if (total <= 0) {
+            wrap.style.display = 'none';
+            info.textContent = '';
+            controls.innerHTML = '';
+            return;
+        }
+
+        var start = (page - 1) * limit + 1;
+        var end = Math.min(total, page * limit);
+        info.textContent = 'Showing ' + start + ' \u2013 ' + end + ' of ' + total + ' users';
+
+        var btns = [];
+        var prevDisabled = page <= 1;
+        var nextDisabled = page >= totalPages;
+        btns.push('<a href=\"#\" class=\"page-btn' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">\u2039</a>');
+
+        var startPage = Math.max(1, page - 2);
+        var endPage = Math.min(totalPages, startPage + 4);
+        startPage = Math.max(1, endPage - 4);
+        for (var p = startPage; p <= endPage; p++) {
+            btns.push('<a href=\"#\" class=\"page-btn' + (p === page ? ' active' : '') + '\" data-page=\"' + p + '\">' + p + '</a>');
+        }
+        btns.push('<a href=\"#\" class=\"page-btn' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">\u203a</a>');
+
+        controls.innerHTML = btns.join('');
+        wrap.style.display = 'flex';
+    }
+
+    function loadUsersList(page) {
         var qEl = document.getElementById('usersSearch');
         var deptEl = document.getElementById('usersDept');
         var companyEl = document.getElementById('usersCompany');
         var q = qEl ? qEl.value.trim() : '';
         var dept = deptEl ? deptEl.value : 'all';
         var company = companyEl ? companyEl.value : 'all';
-        var url = 'ajax_users_list.php?q=' + encodeURIComponent(q) + '&department=' + encodeURIComponent(dept) + '&company=' + encodeURIComponent(company) + '&limit=200';
+        var p = typeof page === 'number' && page > 0 ? page : (tmUsersState.page || 1);
+        tmUsersState.page = p;
+        tmUsersState.limit = Number(window.TM_USERS_PAGE_SIZE) || 5;
+        var url = 'ajax_users_list.php?q=' + encodeURIComponent(q) + '&department=' + encodeURIComponent(dept) + '&company=' + encodeURIComponent(company) + '&limit=' + encodeURIComponent(String(tmUsersState.limit)) + '&page=' + encodeURIComponent(String(tmUsersState.page));
         fetch(url, { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.ok) {
                     renderUsers([]);
+                    tmUsersState.total = 0;
+                    tmUsersState.totalPages = 1;
+                    renderUsersPagination();
                     return;
                 }
                 renderUsers(data.users || []);
+                tmUsersState.total = Number(data.total_users || 0);
+                tmUsersState.page = Number(data.page || tmUsersState.page || 1);
+                tmUsersState.limit = Number(data.limit || tmUsersState.limit || window.TM_USERS_PAGE_SIZE);
+                tmUsersState.totalPages = Number(data.total_pages || Math.max(1, Math.ceil((tmUsersState.total || 0) / (tmUsersState.limit || 1))));
+                renderUsersPagination();
             })
-            .catch(function () { renderUsers([]); });
+            .catch(function () {
+                renderUsers([]);
+                tmUsersState.total = 0;
+                tmUsersState.totalPages = 1;
+                renderUsersPagination();
+            });
     }
 
     function renderItEmployees(list) {
@@ -1001,8 +1248,8 @@ $department_options = [
                 '    </div>' +
                 '  </td>' +
                 '  <td>' + escapeHtml(email) + '</td>' +
-                '  <td><span class="dept-pill">IT</span></td>' +
-                '  <td><button type="button" class="promote-btn" onclick="confirmAddition(' + escapeHtml(id) + ')"><i class="fas fa-plus"></i> Promote</button></td>' +
+                '  <td><span class="dept-badge dept-it">IT</span></td>' +
+                '  <td style="text-align:right;"><button type="button" class="promote-btn" onclick="confirmAddition(' + escapeHtml(id) + ')"><i class="fas fa-plus"></i> Promote</button></td>' +
                 '</tr>';
         }).join('');
     }
@@ -1114,7 +1361,81 @@ $department_options = [
                             Swal.fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#1B5E20' });
                             return;
                         }
-                        Swal.fire({ icon: 'success', title: 'Success', text: data.message || 'User created successfully', confirmButtonColor: '#1B5E20' });
+                        var emailAddress = (String(username.value || '').trim()) + (String(domain.value || ''));
+                        var plainPassword = String(password.value || '');
+                        Swal.fire({
+                            title: '',
+                            html:
+                                '<div class="cred-wrap">' +
+                                '  <div class="cred-check"><i class="fa-solid fa-check"></i></div>' +
+                                '  <div class="cred-title">User created successfully</div>' +
+                                '  <div class="cred-subtitle">New Credentials</div>' +
+                                '  <div class="cred-box">' +
+                                '    <div class="cred-row">' +
+                                '      <div class="cred-label">Email Address</div>' +
+                                '      <div class="cred-value">' +
+                                '        <span class="cred-text" id="credEmail">' + escapeHtml(emailAddress) + '</span>' +
+                                '        <button type="button" class="cred-icon-btn" data-action="copy-email" aria-label="Copy email"><i class="fa-regular fa-copy"></i></button>' +
+                                '      </div>' +
+                                '    </div>' +
+                                '    <div class="cred-row">' +
+                                '      <div class="cred-label">Password</div>' +
+                                '      <div class="cred-value">' +
+                                '        <span class="cred-text" id="credPass" data-plain="' + escapeHtml(plainPassword) + '">••••••••••</span>' +
+                                '        <button type="button" class="cred-icon-btn" data-action="toggle-pass" aria-label="Show password"><i class="fa-regular fa-eye"></i></button>' +
+                                '        <button type="button" class="cred-icon-btn" data-action="copy-pass" aria-label="Copy password"><i class="fa-regular fa-copy"></i></button>' +
+                                '      </div>' +
+                                '    </div>' +
+                                '  </div>' +
+                                '</div>',
+                            showConfirmButton: true,
+                            confirmButtonText: 'Done',
+                            buttonsStyling: false,
+                            customClass: {
+                                popup: 'swal-cred-popup',
+                                confirmButton: 'swal-cred-btn'
+                            },
+                            didOpen: function (el) {
+                                var popup = el;
+                                function copyText(text) {
+                                    var t = String(text || '');
+                                    if (!t) return;
+                                    if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                                        navigator.clipboard.writeText(t).catch(function () {});
+                                        return;
+                                    }
+                                    var ta = document.createElement('textarea');
+                                    ta.value = t;
+                                    ta.setAttribute('readonly', 'readonly');
+                                    ta.style.position = 'fixed';
+                                    ta.style.left = '-9999px';
+                                    document.body.appendChild(ta);
+                                    ta.select();
+                                    try { document.execCommand('copy'); } catch (e) {}
+                                    document.body.removeChild(ta);
+                                }
+                                popup.addEventListener('click', function (e) {
+                                    var btn = e.target && e.target.closest ? e.target.closest('button[data-action]') : null;
+                                    if (!btn) return;
+                                    var act = btn.getAttribute('data-action') || '';
+                                    var emailEl = document.getElementById('credEmail');
+                                    var passEl = document.getElementById('credPass');
+                                    if (act === 'copy-email' && emailEl) {
+                                        copyText(emailEl.textContent || '');
+                                    }
+                                    if (act === 'copy-pass' && passEl) {
+                                        copyText(passEl.getAttribute('data-plain') || '');
+                                    }
+                                    if (act === 'toggle-pass' && passEl) {
+                                        var shown = passEl.getAttribute('data-shown') === '1';
+                                        var nextShown = !shown;
+                                        passEl.setAttribute('data-shown', nextShown ? '1' : '0');
+                                        passEl.textContent = nextShown ? (passEl.getAttribute('data-plain') || '') : '••••••••••';
+                                        btn.innerHTML = nextShown ? '<i class="fa-regular fa-eye-slash"></i>' : '<i class="fa-regular fa-eye"></i>';
+                                    }
+                                });
+                            }
+                        });
                         addUserForm.reset();
                         loadUsersList();
                         closeModal();
@@ -1180,15 +1501,39 @@ $department_options = [
         if (usersSearch) {
             usersSearch.addEventListener('input', function () {
                 if (debounceT) clearTimeout(debounceT);
-                debounceT = setTimeout(loadUsersList, 250);
+                debounceT = setTimeout(function () { loadUsersList(1); }, 250);
             });
         }
         ['usersDept', 'usersCompany'].forEach(function (id) {
             var el = document.getElementById(id);
-            if (el) el.addEventListener('change', loadUsersList);
+            if (el) el.addEventListener('change', function () { loadUsersList(1); });
         });
+        var clearUsersBtn = document.getElementById('clearUsersFilters');
+        if (clearUsersBtn) {
+            clearUsersBtn.addEventListener('click', function () {
+                if (usersSearch) usersSearch.value = '';
+                var deptEl = document.getElementById('usersDept');
+                var companyEl = document.getElementById('usersCompany');
+                if (deptEl) deptEl.value = 'all';
+                if (companyEl) companyEl.value = 'all';
+                loadUsersList(1);
+            });
+        }
 
-        loadUsersList();
+        var usersPagination = document.getElementById('usersPaginationControls');
+        if (usersPagination) {
+            usersPagination.addEventListener('click', function (e) {
+                var target = e.target && e.target.closest ? e.target.closest('.page-btn') : null;
+                if (!target) return;
+                e.preventDefault();
+                if (target.classList.contains('disabled') || target.classList.contains('active')) return;
+                var nextPage = parseInt(target.getAttribute('data-page') || '', 10);
+                if (!nextPage || nextPage < 1) return;
+                loadUsersList(nextPage);
+            });
+        }
+
+        loadUsersList(1);
 
         var itForm = document.getElementById('itSearchForm');
         var itInput = document.getElementById('itSearchInput');
@@ -1203,6 +1548,13 @@ $department_options = [
             itInput.addEventListener('input', function () {
                 if (itDebounce) clearTimeout(itDebounce);
                 itDebounce = setTimeout(loadItEmployees, 250);
+            });
+        }
+        var clearItBtn = document.getElementById('clearItSearch');
+        if (clearItBtn) {
+            clearItBtn.addEventListener('click', function () {
+                if (itInput) itInput.value = '';
+                loadItEmployees();
             });
         }
     });
@@ -1311,6 +1663,75 @@ $department_options = [
         font-weight: 600 !important;
         color: #1F2937 !important;
     }
+    .swal-cred-popup {
+        border-radius: 18px !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        font-family: 'Inter', sans-serif !important;
+        padding: 26px 22px 18px !important;
+        width: min(520px, calc(100vw - 32px)) !important;
+        box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22) !important;
+        border: 1px solid rgba(27, 94, 32, 0.18) !important;
+    }
+    .swal-cred-btn {
+        margin-top: 18px !important;
+        background: #1B5E20 !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(20, 74, 30, 0.35) !important;
+        border-radius: 12px !important;
+        padding: 10px 18px !important;
+        font-weight: 900 !important;
+        cursor: pointer !important;
+    }
+    .swal-cred-btn:hover { background: #144a1e !important; }
+    .cred-wrap { text-align: center; }
+    .cred-check {
+        width: 72px;
+        height: 72px;
+        border-radius: 999px;
+        background: #ecfdf5;
+        border: 1px solid #bbf7d0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 14px;
+        color: #1B5E20;
+        font-size: 34px;
+    }
+    .cred-title { font-size: 22px; font-weight: 900; color: #0f172a; margin-bottom: 6px; }
+    .cred-subtitle { font-size: 13px; font-weight: 800; color: #64748b; margin-bottom: 14px; letter-spacing: 0.02em; }
+    .cred-box {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 16px 14px;
+        text-align: left;
+    }
+    .cred-row + .cred-row { margin-top: 12px; }
+    .cred-label { font-size: 12px; font-weight: 900; color: #334155; margin-bottom: 6px; }
+    .cred-value { display: flex; align-items: center; gap: 10px; }
+    .cred-text {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-weight: 900;
+        color: #0f172a;
+        font-size: 14px;
+        word-break: break-all;
+    }
+    .cred-icon-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        color: #1B5E20;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex: 0 0 auto;
+    }
+    .cred-icon-btn:hover { background: #ecfdf5; border-color: #bbf7d0; }
 </style>
 
 </body>

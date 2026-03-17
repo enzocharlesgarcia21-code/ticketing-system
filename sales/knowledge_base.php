@@ -84,6 +84,7 @@ if ($article === null) {
             background-size: cover;
             font-family: 'Inter', sans-serif;
             min-height: 100vh;
+            margin: 0;
         }
         .sales-topbar {
             position: sticky;
@@ -94,18 +95,40 @@ if ($article === null) {
             min-height: 96px;
         }
         .sales-topbar-inner {
-            max-width: 1100px;
+            max-width: 100%;
+            width: 100%;
             margin: 0 auto;
             padding: 22px 24px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
             gap: 16px;
+            position: relative;
+            box-sizing: border-box;
+        }
+        .sales-logo {
+            position: absolute;
+            left: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sales-logo img {
+            height: 56px;
+            width: 56px;
+            object-fit: contain;
+            background-color: #ffffff;
+            padding: 6px;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+            display: block;
         }
         .sales-brand {
             display: flex;
             flex-direction: column;
             line-height: 1.1;
+            align-items: center;
+            text-align: center;
         }
         .sales-brand-title {
             font-weight: 800;
@@ -123,6 +146,8 @@ if ($article === null) {
             display: flex;
             align-items: center;
             gap: 14px;
+            position: absolute;
+            right: 24px;
         }
         .sales-nav-link {
             color: rgba(255, 255, 255, 0.92);
@@ -316,6 +341,9 @@ if ($article === null) {
         @media (max-width: 768px) {
             .sales-topbar { min-height: 80px; }
             .sales-topbar-inner { padding: 18px 16px; }
+            .sales-logo { left: 20px; }
+            .sales-logo img { height: 44px; width: 44px; padding: 4px; }
+            .sales-nav-right { right: 16px; }
             .sales-brand-title { font-size: 20px; }
             .sales-brand-subtitle { font-size: 14px; }
             .kb-container { padding: 0 16px 30px; }
@@ -328,13 +356,15 @@ if ($article === null) {
 <body>
     <header class="sales-topbar">
         <div class="sales-topbar-inner">
+            <div class="sales-logo">
+                <img src="../assets/img/logo.png" alt="Leads Agri Logo">
+            </div>
             <div class="sales-brand">
                 <div class="sales-brand-title">Leads Agri Helpdesk</div>
                 <div class="sales-brand-subtitle">Knowledge Base</div>
             </div>
             <div class="sales-nav-right">
                 <a class="sales-nav-link" href="/ticketing/sales/request_ticket.php">Submit Ticket</a>
-                <a class="sales-nav-link" href="/ticketing/sales/knowledge_base.php">Knowledge Base</a>
             </div>
         </div>
     </header>

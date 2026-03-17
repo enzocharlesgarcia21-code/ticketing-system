@@ -208,9 +208,9 @@ $result = $stmt->get_result();
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Subject</th>
-                                <th>Requested By</th>
                                 <th>Category</th>
+                                <th>Requested By</th>
+                                <th>Reported Concern</th>
                                 <th>Priority</th>
                                 <th>Status</th>
                                 <th>Attachment</th>
@@ -223,7 +223,7 @@ $result = $stmt->get_result();
                                 <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer;">
                                     <td>#<?= str_pad($row['id'], 6, '0', STR_PAD_LEFT); ?></td>
                                     <td class="subject-cell">
-                                        <strong><?= htmlspecialchars($row['subject']); ?></strong>
+                                        <strong><?= htmlspecialchars($row['category']); ?></strong>
                                     </td>
                                     <td>
                                         <?php
@@ -244,7 +244,7 @@ $result = $stmt->get_result();
                                         <div style="font-weight: 500; color: #334155;"><?= htmlspecialchars($dispName); ?></div>
                                         <div style="font-size: 0.85em; color: #64748b;"><?= htmlspecialchars($dispEmail); ?></div>
                                     </td>
-                                    <td><?= htmlspecialchars($row['category']); ?></td>
+                                    <td><?= htmlspecialchars($row['subject']); ?></td>
                                     
                                     <td>
                                         <span class="priority-pill priority-<?= strtolower($row['priority']); ?>">
@@ -568,13 +568,6 @@ function openModal(id, mode = 'full') {
                 </div>
             `;
 
-            html += `
-                <div class="modal-info-group">
-                    <span class="modal-info-label">Company</span>
-                    <span class="modal-info-value">${data.company ? escapeHtml(data.company) : '-'}</span>
-                </div>
-            `;
-
             // Row 2: Department & Assigned To
             html += `
                 <div class="modal-info-group">
@@ -625,14 +618,21 @@ function openModal(id, mode = 'full') {
                 `;
             }
 
-             if (data.attachment) {
+            var attList = Array.isArray(data.attachments) && data.attachments.length ? data.attachments : (data.attachment ? [{ stored_name: data.attachment, original_name: data.attachment }] : []);
+            if (attList.length) {
                 html += `
                     <div class="modal-info-group" style="grid-column: span 2;">
-                        <span class="modal-info-label">Attachment</span>
-                        <span class="modal-info-value">
-                            <a href="../uploads/${data.attachment}" target="_blank" style="color:#1B5E20; text-decoration:none; display:flex; align-items:center; gap:6px;">
-                                <i class="fas fa-paperclip"></i> View Attachment
-                            </a>
+                        <span class="modal-info-label">Attachments</span>
+                        <span class="modal-info-value" style="display:flex; flex-wrap:wrap; gap:10px;">
+                            ${attList.map(function (a) {
+                                var filename = a && a.stored_name ? String(a.stored_name) : '';
+                                if (!filename) return '';
+                                return `
+                                    <a href="../uploads/${filename}" target="_blank" style="color:#1B5E20; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                                        <i class="fas fa-paperclip"></i> ${escapeHtml((a.original_name || filename))}
+                                    </a>
+                                `;
+                            }).join('')}
                         </span>
                     </div>
                 `;
@@ -786,4 +786,3 @@ if (ticketIdParam) {
 
 </body>
 </html>
-

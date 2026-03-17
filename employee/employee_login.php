@@ -117,6 +117,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <div class="login-card">
 
         <a href="../index.php" class="back-btn">← Back</a>
+        <div class="login-logo-wrap">
+            <img src="../assets/img/LOGO21.png" alt="Leads Agri Helpdesk" class="login-logo">
+        </div>
         <h2>Login</h2>
 
         <?php if(isset($_GET['registered'])) : ?>
@@ -137,14 +140,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <label>Email *</label>
                 <div class="email-row">
                     <input type="text" name="email" id="emailInput" value="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>" required title="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>">
-                    <select class="email-domain" name="email_domain" id="emailDomain" title="<?php echo htmlspecialchars($email_domain, ENT_QUOTES, 'UTF-8'); ?>">
-                        <?php foreach ($email_domains as $ed): ?>
-                            <?php $opt = '@' . $ed; ?>
-                            <option value="<?php echo htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>" <?php echo ($email_domain === $opt) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                    <input type="hidden" name="email_domain" id="emailDomain" value="<?php echo htmlspecialchars($email_domain, ENT_QUOTES, 'UTF-8'); ?>">
                 </div>
             </div>
 
@@ -182,35 +178,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
             emailEl.title = emailEl.value || '';
         }
-
-        function syncDomainFromEmail() {
-            var raw = (emailEl.value || '').trim();
-            var at = raw.indexOf('@');
-            if (at < 0) return;
-            var dom = raw.slice(at);
-            var options = Array.prototype.slice.call(domainEl.options).map(function (o) { return o.value; });
-            if (options.indexOf(dom) >= 0) {
-                domainEl.value = dom;
-                domainEl.title = dom;
-            }
-        }
-
-        function applyDomainToEmail() {
-            var raw = (emailEl.value || '').trim();
-            if (!raw) return;
-            var local = raw.split('@')[0];
-            if (!local) return;
-            emailEl.value = local + domainEl.value;
-            emailEl.title = emailEl.value || '';
-            domainEl.title = domainEl.value || '';
-        }
-
-        emailEl.addEventListener('input', function () {
-            syncDomainFromEmail();
-        });
-        domainEl.addEventListener('change', function () {
-            applyDomainToEmail();
-        });
         emailEl.addEventListener('blur', function () {
             normalizeEmail();
         });
@@ -220,8 +187,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 normalizeEmail();
             });
         }
-
-        syncDomainFromEmail();
     })();
 </script>
 </body>

@@ -808,6 +808,21 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             display: flex;
             align-items: center;
         }
+        .kb-visible-toggle{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            margin:0;
+        }
+        .kb-visible-toggle input[type="checkbox"]{
+            width:18px !important;
+            height:18px !important;
+            min-height:0 !important;
+            padding:0 !important;
+            margin:0 !important;
+            accent-color:#10B981;
+            flex:0 0 auto;
+        }
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
@@ -969,7 +984,7 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             </div>
 
             <div class="form-group">
-                <label class="form-label" style="display:flex; align-items:center; gap:10px;">
+                <label class="form-label kb-visible-toggle">
                     <input type="checkbox" name="visible_to_sales" value="1" checked>
                     Visible to Sales users
                 </label>

@@ -116,6 +116,54 @@ var TMTicketModal = (function () {
            '  </div>' +
            '</div>';
   }
+  function normalizeAttachment(att) {
+    var filename = '';
+    var displayName = '';
+    if (typeof att === 'string') {
+      filename = att;
+      displayName = att;
+    } else if (att && typeof att === 'object') {
+      filename = att.stored_name || att.filename || att.file || '';
+      displayName = att.original_name || att.display_name || filename;
+    }
+    return { filename: filename, displayName: displayName };
+  }
+  function isImageFile(filename) {
+    var ext = String(filename || '').split('.').pop().toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+  }
+  function renderAttachmentsBlock(data) {
+    var list = [];
+    if (data && Array.isArray(data.attachments) && data.attachments.length) {
+      list = data.attachments.slice();
+    } else if (data && data.attachment) {
+      list = [data.attachment];
+    }
+    if (!list.length) return '';
+    var images = [];
+    var others = [];
+    list.forEach(function (att) {
+      var n = normalizeAttachment(att);
+      if (!n.filename) return;
+      if (isImageFile(n.filename)) images.push(n);
+      else others.push(att);
+    });
+    var html = '';
+    if (images.length) {
+      html += '<div class="tm-attachment-gallery">';
+      html += images.map(function (n) {
+        var src = '../uploads/' + escapeHtml(n.filename);
+        return '<button type="button" class="tm-attachment-thumb" data-src="' + src + '" onclick="TMTicketModal.viewImage(this.dataset.src)">' +
+               '<img class="tm-attachment-img" src="' + src + '" alt="' + escapeHtml(n.displayName || '') + '">' +
+               '</button>';
+      }).join('');
+      html += '</div>';
+    }
+    if (others.length) {
+      html += others.map(function (a) { return renderAttachment(a); }).join('');
+    }
+    return html;
+  }
   function computeResolutionMinutes(createdAt, updatedAt) {
     if (!createdAt || !updatedAt) return null;
     var c = new Date(createdAt);
@@ -267,7 +315,7 @@ var TMTicketModal = (function () {
       }
       return u;
     }
-    var deptKeys = ['ACCOUNTING','ADMIN','E-COMM','HR','IT','LINGAP','MARKETING','SUPPLY CHAIN','TECHNICAL'];
+    var deptKeys = ['ACCOUNTING','ADMIN','BIDDING','E-COMM','HR','IT','LINGAP','MARKETING','SUPPLY CHAIN','TECHNICAL'];
     var selectedDeptKey = deptKeyFromValue(data.assigned_department || '');
     var deptOptionsHtml = '';
     if (selectedDeptKey && deptKeys.indexOf(selectedDeptKey) === -1) {
@@ -300,7 +348,6 @@ var TMTicketModal = (function () {
       '        <div class="tm-info-label">CREATED BY</div><div class="tm-info-value">' + (data.created_by_name ? escapeHtml(String(data.created_by_name)) : '-') + '</div>' +
       '        <div class="tm-info-label">EMAIL</div><div class="tm-info-value">' + (data.created_by_email ? escapeHtml(String(data.created_by_email)) : '-') + '</div>' +
       '        <div class="tm-info-label">DEPARTMENT</div><div class="tm-info-value">' + (data.department ? escapeHtml(String(data.department)) : '-') + '</div>' +
-      '        <div class="tm-info-label">COMPANY</div><div class="tm-info-value">' + (data.company ? escapeHtml(String(data.company)) : '-') + '</div>' +
       '        <div class="tm-info-label">CREATED AT</div><div class="tm-info-value">' + (data.created_at ? formatTimelineTime(data.created_at) : '-') + '</div>' +
       '        <div class="tm-info-label">LAST UPDATED</div><div class="tm-info-value">' + (data.updated_at ? formatTimelineTime(data.updated_at) : '-') + '</div>' +
       '        <div class="tm-info-label">ASSIGNED TO</div><div class="tm-info-value">' + (data.assigned_department ? escapeHtml(String(data.assigned_department)) : '-') + (data.assigned_company ? '<br><small class="text-muted">(' + escapeHtml(String(data.assigned_company)) + ')</small>' : '') + '</div>' +
@@ -308,7 +355,7 @@ var TMTicketModal = (function () {
       '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Ticket Activity</span></div><div class="tm-card-body">' + renderTimeline(data) + '</div></div>' +
       '    </div>' +
       '    <div class="tm-desc-col">' +
-      '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Description</span></div><div class="tm-card-body"><div class="tm-desc-text">' + escapeHtml(data.description).replace(/\n/g, '<br>') + '</div>' + (Array.isArray(data.attachments) && data.attachments.length ? data.attachments.map(function (a) { return renderAttachment(a); }).join('') : (data.attachment ? renderAttachment(data.attachment) : '')) + '</div></div>' +
+      '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Description</span></div><div class="tm-card-body"><div class="tm-desc-text">' + escapeHtml(data.description).replace(/\n/g, '<br>') + '</div>' + renderAttachmentsBlock(data) + '</div></div>' +
       '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
       '      ' + ((data.urgency && data.urgency !== '-') ? '<div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Urgency</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.urgency)) + '</div></div></div>' : '') +
       '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Resolution</span></div><div class="tm-card-body">' +

@@ -1,11 +1,14 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/ticket_assignment.php';
 
 /* Protect page */
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
     exit();
 }
+
+ticket_apply_sla_priority($conn);
 
 $user_id = (int) $_SESSION['user_id'];
 
@@ -45,7 +48,7 @@ $resolvedStmt->close();
 
 /* Recent Tickets (created by this employee) */
 $recentStmt = $conn->prepare("
-    SELECT id, subject, category, priority, status, created_at
+    SELECT id, subject, category, status, created_at
     FROM employee_tickets
     WHERE user_id = ?
     ORDER BY created_at DESC
@@ -137,9 +140,8 @@ $recent = $recentStmt->get_result();
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Subject</th>
                                 <th>Category</th>
-                                <th>Priority</th>
+                                <th>Reported Concern</th>
                                 <th>Status</th>
                                 <th>Date</th>
                             </tr>
@@ -149,15 +151,8 @@ $recent = $recentStmt->get_result();
                                 <?php while($row = $recent->fetch_assoc()) { ?>
                                 <tr class="ticket-row" data-id="<?= (int) $row['id']; ?>" style="cursor:pointer;">
                                     <td>#<?= $row['id']; ?></td>
-                                    <td><?= htmlspecialchars($row['subject']); ?></td>
                                     <td><?= htmlspecialchars($row['category']); ?></td>
-                                    
-                                    <td>
-                                        <span class="priority-pill priority-<?= strtolower($row['priority']); ?>">
-                                            <?= htmlspecialchars($row['priority']); ?>
-                                        </span>
-                                    </td>
-
+                                    <td><?= htmlspecialchars($row['subject']); ?></td>
                                     <td>
                                         <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
                                             <?= htmlspecialchars($row['status']); ?>
@@ -169,7 +164,7 @@ $recent = $recentStmt->get_result();
                                 <?php } ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="6" style="text-align:center; color: #94a3b8; padding: 30px;">
+                                    <td colspan="5" style="text-align:center; color: #94a3b8; padding: 30px;">
                                         No recent tickets found.
                                     </td>
                                 </tr>
@@ -198,5 +193,4 @@ $recent = $recentStmt->get_result();
 
 </body>
 </html>
-
 

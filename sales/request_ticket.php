@@ -6,20 +6,22 @@ require_once '../config/database.php';
 
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 $success_msg = "";
 $error_msg = "";
 
 $email = '';
 $company_id = '';
-$subject = '';
+$category = '';
 $description = '';
+$assigned_department_selected = '';
 
 $companies = [
-    "FARMEX",
-    "Golden Primestocks Chemical Inc - GPCI",
-    "Leads Agricultural products corporation - LAPC",
-    "Leads Tech Corporation - LTC",
+    "@leadstech-corp.com",
+    "@gpsci.net",
+    "@leadsagri.com",
+    "@leads-farmex.com",
 ];
 
 function derive_name_from_email(string $email): string
@@ -34,21 +36,44 @@ function derive_name_from_email(string $email): string
     return ucwords(strtolower($local));
 }
 
+$isAjax = (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string) $_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
+    || (isset($_SERVER['HTTP_ACCEPT']) && strpos((string) $_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
+    ticket_ensure_assignment_columns($conn);
 
     $email      = trim((string)($_POST['email'] ?? ''));
     $company_id = trim((string)($_POST['company_id'] ?? ''));
-    $subject    = trim((string)($_POST['subject'] ?? ''));
+    $assigned_department_selected = ticket_department_key_from_value(trim((string)($_POST['assigned_department'] ?? '')));
+    $allowed_categories = ['Hardware', 'Software', 'Documentation', 'Email', 'Internet Concerns', 'Procurement'];
+    $category   = trim((string)($_POST['category'] ?? ''));
     $description = trim((string)($_POST['description'] ?? ''));
 
     $name = derive_name_from_email($email);
     $company = $company_id;
     $department = 'Sales';
-    $category = 'Technical Support';
     $priority = 'Low';
-    $assigned_department = 'IT';
-    $assigned_company = '';
+    $subject = $category !== '' ? ($category . ' Concern') : 'Sales Ticket';
+    $assigned_department = $assigned_department_selected;
+    $assigned_company = ticket_normalize_company($company_id);
+    $assigned_group = $assigned_department;
+    $assigned_user_id = ticket_find_assignee_id($conn, $assigned_company, $assigned_group);
+    $allowedDepartments = ticket_standard_assigned_departments();
+    if ($assigned_department === '') {
+        $error_msg = "Please select a department.";
+    } elseif (!in_array($assigned_department, $allowedDepartments, true)) {
+        $error_msg = "Invalid department selected.";
+    }
+    if ($error_msg === '') {
+        if ($assigned_company === '' || !ticket_is_valid_company($assigned_company)) {
+            $error_msg = "Ticket Recipient (Company Email Domain) is required.";
+        } elseif ($assigned_group === '' || !ticket_is_valid_group_for_company($assigned_company, $assigned_group)) {
+            $error_msg = "Invalid department selected for the chosen recipient.";
+        } elseif (!$assigned_user_id) {
+            $error_msg = "No assignee available for the selected recipient and department.";
+        }
+    }
 
     $attachmentName = null;
     $uploadedFiles = [];
@@ -56,13 +81,42 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     /* ================= FILE UPLOAD ================= */
 
     if (isset($_FILES['attachments']) && isset($_FILES['attachments']['name']) && is_array($_FILES['attachments']['name'])) {
+        $maxBytes = 5 * 1024 * 1024;
+        $maxFiles = 5;
+        $selectedFiles = 0;
+        $totalBytes = 0;
         $allowedTypes = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
+        $allowedMimes = [
+            'jpg' => ['image/jpeg'],
+            'jpeg' => ['image/jpeg'],
+            'png' => ['image/png'],
+            'pdf' => ['application/pdf'],
+            'doc' => ['application/msword', 'application/vnd.ms-word', 'application/octet-stream'],
+            'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
+        ];
+        $finfo = null;
+        if (class_exists('finfo')) {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+        }
         $movedPaths = [];
         $count = count($_FILES['attachments']['name']);
         for ($i = 0; $i < $count; $i++) {
             $err = $_FILES['attachments']['error'][$i] ?? UPLOAD_ERR_NO_FILE;
+            if ($err === UPLOAD_ERR_NO_FILE) continue;
+            $selectedFiles++;
+        }
+        if ($selectedFiles > $maxFiles) {
+            $error_msg = "Maximum 5 attachments allowed.";
+        }
+        for ($i = 0; $i < $count; $i++) {
+            if ($error_msg !== '') break;
+            $err = $_FILES['attachments']['error'][$i] ?? UPLOAD_ERR_NO_FILE;
             if ($err === UPLOAD_ERR_NO_FILE) {
                 continue;
+            }
+            if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
+                $error_msg = "Attachment too large. Max 5MB per file.";
+                break;
             }
             if ($err !== UPLOAD_ERR_OK) {
                 $error_msg = "Attachment upload failed. Please try again.";
@@ -78,9 +132,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $error_msg = "Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.";
                 break;
             }
-            if ($fileSize <= 0 || $fileSize > 5 * 1024 * 1024) {
-                $error_msg = "Attachment too large. Max 5MB per file.";
+            if ($fileSize <= 0 || $fileSize > $maxBytes) {
+                $error_msg = "Attachment too large. Max 5MB total.";
                 break;
+            }
+            if (($totalBytes + $fileSize) > $maxBytes) {
+                $error_msg = "Attachment too large. Max 5MB total.";
+                break;
+            }
+            if ($finfo && $fileTmp !== '' && is_file($fileTmp)) {
+                $mime = (string) $finfo->file($fileTmp);
+                $allowed = $allowedMimes[$fileExt] ?? [];
+                if ($mime !== '' && count($allowed) > 0 && !in_array($mime, $allowed, true)) {
+                    $error_msg = "Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.";
+                    break;
+                }
             }
 
             if (!is_dir("../uploads")) {
@@ -93,6 +159,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 break;
             }
             $movedPaths[] = $uploadPath;
+            $totalBytes += $fileSize;
             $uploadedFiles[] = ['stored_name' => $newFileName, 'original_name' => $origName];
         }
 
@@ -168,16 +235,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error_msg = "A valid email is required.";
     } elseif ($company_id === '' || !in_array($company_id, $companies, true)) {
         $error_msg = "Ticket Recipient (Company Email Domain) is required.";
-    } elseif ($subject === '') {
-        $error_msg = "Subject is required.";
+    } elseif ($category === '' || !in_array($category, $allowed_categories, true)) {
+        $error_msg = "Category is required.";
     } elseif ($description === '') {
         $error_msg = "Description is required.";
     }
 
     /* ================= PREPARE DESCRIPTION ================= */
     
-    $raw_description = "COMPANY: $company\n\n$description";
-    $full_description = "REQUESTER NAME: $name\nREQUESTER EMAIL: $email\nCOMPANY: $company\n\nDESCRIPTION:\n$description";
+    $raw_description = $description;
+    $full_description = "REQUESTER NAME: $name\nREQUESTER EMAIL: $email\n\nDESCRIPTION:\n$description";
 
     /* ================= INSERT INTO DATABASE ================= */
 
@@ -202,14 +269,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($has_requester_cols) {
             $stmt = $conn->prepare("
                 INSERT INTO employee_tickets
-                (user_id, subject, category, priority, company, department, assigned_department, assigned_company, requester_name, requester_email, description, attachment)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (user_id, subject, category, priority, company, department, assigned_department, assigned_company, assigned_group, assigned_user_id, requester_name, requester_email, description, attachment)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
         } else {
             $stmt = $conn->prepare("
                 INSERT INTO employee_tickets
-                (user_id, subject, category, priority, company, department, assigned_department, assigned_company, description, attachment)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (user_id, subject, category, priority, company, department, assigned_department, assigned_company, assigned_group, assigned_user_id, description, attachment)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
         }
 
@@ -218,7 +285,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } else {
             if ($has_requester_cols) {
                 $stmt->bind_param(
-                    "isssssssssss",
+                    "issssssssissss",
                     $user_id,
                     $subject,
                     $category,
@@ -227,6 +294,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $department,
                     $assigned_department,
                     $assigned_company,
+                    $assigned_group,
+                    $assigned_user_id,
                     $name,
                     $email,
                     $raw_description,
@@ -234,7 +303,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 );
             } else {
                 $stmt->bind_param(
-                    "isssssssss",
+                    "issssssssiss",
                     $user_id,
                     $subject,
                     $category,
@@ -243,6 +312,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $department,
                     $assigned_department,
                     $assigned_company,
+                    $assigned_group,
+                    $assigned_user_id,
                     $full_description,
                     $attachmentName
                 );
@@ -314,10 +385,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <h2 style='margin:0 0 12px 0'>A new Sales ticket has been submitted.</h2>
                         <p style='margin:0 0 16px 0'>
                             Ticket ID: <strong>#$ticketNumber</strong><br>
-                            Subject: <strong>$ticketSubjectSafe</strong><br>
+                            Category: <strong>$typeSafe</strong><br>
                             Requested by: <strong>$requesterEmailSafe</strong><br>
                             Company: <strong>$companySafe</strong><br>
-                            Type: <strong>$typeSafe</strong>
+                            Department: <strong>Sales</strong>
                         </p>
                         <p style='margin:0'>Login to the system to view the ticket.</p>
                     </div>
@@ -325,10 +396,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 $bodyText = "A new Sales ticket has been submitted.\n\n"
                     . "Ticket ID: #$ticketNumber\n"
-                    . "Subject: $subject\n"
+                    . "Category: $category\n"
                     . "Requested by: $email\n"
                     . "Company: $company\n"
-                    . "Type: $category\n\n"
+                    . "Department: Sales\n\n"
                     . "Login to the system to view the ticket.\n";
 
                 $attachments = [];
@@ -350,6 +421,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 }
+
+if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
+    header('Content-Type: application/json; charset=utf-8');
+    if ($success_msg !== '') {
+        echo json_encode(['ok' => true, 'message' => $success_msg], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    http_response_code(400);
+    echo json_encode(['ok' => false, 'error' => $error_msg !== '' ? $error_msg : 'Failed to submit ticket.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 ?>
 
 <!DOCTYPE html>
@@ -366,6 +448,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             background: #f3f4f6 url('../assets/img/leadss.jpg') no-repeat center center fixed;
             background-size: cover;
             font-family: 'Inter', sans-serif;
+            margin: 0;
         }
         .sales-topbar {
             position: sticky;
@@ -376,18 +459,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             min-height: 96px;
         }
         .sales-topbar-inner {
-            max-width: 1100px;
+            max-width: 100%;
+            width: 100%;
             margin: 0 auto;
             padding: 22px 24px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
             gap: 16px;
+            position: relative;
+            box-sizing: border-box;
+        }
+        .sales-logo {
+            position: absolute;
+            left: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sales-logo img {
+            height: 56px;
+            width: 56px;
+            object-fit: contain;
+            background-color: #ffffff;
+            padding: 6px;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+            display: block;
         }
         .sales-nav-right {
             display: flex;
             align-items: center;
             gap: 14px;
+            position: absolute;
+            right: 24px;
         }
         .sales-nav-link {
             color: rgba(255, 255, 255, 0.92);
@@ -409,6 +514,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             display: flex;
             flex-direction: column;
             line-height: 1.1;
+            align-items: center;
+            text-align: center;
         }
         .sales-brand-title {
             font-weight: 700;
@@ -425,6 +532,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         @media (max-width: 640px) {
             .sales-topbar { min-height: 80px; }
             .sales-topbar-inner { padding: 18px 16px; }
+            .sales-logo { left: 20px; }
+            .sales-logo img { height: 44px; width: 44px; padding: 4px; }
+            .sales-nav-right { right: 16px; }
             .sales-brand-title { font-size: 20px; }
             .sales-brand-subtitle { font-size: 14px; }
         }
@@ -590,6 +700,75 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             color: #991b1b;
             border: 1px solid #fecaca;
         }
+        .ticket-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(2, 6, 23, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 9999;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .ticket-modal.show { opacity: 1; pointer-events: all; }
+        .ticket-modal-content {
+            background: white;
+            padding: 26px 22px;
+            border-radius: 14px;
+            text-align: center;
+            width: 320px;
+            max-width: calc(100vw - 40px);
+            animation: popIn 0.3s ease;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 22px 60px rgba(2, 6, 23, 0.18);
+        }
+        .check-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 999px;
+            background: #ecfdf5;
+            border: 1px solid #bbf7d0;
+            color: #1B5E20;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 900;
+            margin: 0 auto 12px;
+        }
+        .ticket-modal-content h3 {
+            margin: 0 0 8px;
+            font-size: 18px;
+            color: #0f172a;
+        }
+        .ticket-modal-content p {
+            margin: 0 0 16px;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+        .ticket-modal-content button {
+            width: auto;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            color: #0f172a;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .ticket-modal-content button:hover { background: #f8fafc; }
+        @keyframes popIn {
+            from { transform: scale(0.92); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
 
         @media (min-width: 900px) and (orientation: landscape) {
             .sales-container {
@@ -644,6 +823,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <header class="sales-topbar">
     <div class="sales-topbar-inner">
+        <div class="sales-logo">
+            <img src="../assets/img/logo.png" alt="Leads Agri Logo">
+        </div>
         <div class="sales-brand">
             <div class="sales-brand-title">Leads Agri Helpdesk</div>
             <div class="sales-brand-subtitle">Sales Ticket Request</div>
@@ -668,8 +850,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <?php if($error_msg): ?>
             <div class="alert alert-error"><?= htmlspecialchars($error_msg, ENT_QUOTES, 'UTF-8'); ?></div>
         <?php endif; ?>
+        <div class="alert alert-error" id="ajaxError" style="display:none;"></div>
 
-        <form method="POST" enctype="multipart/form-data">
+        <form id="ticketForm" method="POST" enctype="multipart/form-data">
             <?php echo csrf_field(); ?>
 
             <div class="form-grid">
@@ -679,7 +862,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
 
             <div class="form-group">
-                <label>Ticket Recipient (Company Email Domain) *</label>
+                <label>Ticket Recipient *</label>
                 <select name="company_id" required>
                     <option value="" disabled selected hidden>Select Recipient</option>
                     <?php foreach ($companies as $c): ?>
@@ -689,8 +872,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
 
             <div class="form-group">
-                <label>Subject *</label>
-                <input type="text" name="subject" required placeholder="Brief summary of the issue" value="<?= htmlspecialchars($subject ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                <label>Department *</label>
+                <select name="assigned_department" required>
+                    <option value="" disabled <?= $assigned_department_selected === '' ? 'selected' : '' ?> hidden>Select Department</option>
+                    <?php foreach (ticket_standard_assigned_departments() as $d): ?>
+                        <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $assigned_department_selected === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Category *</label>
+                <select name="category" required>
+                    <option value="" disabled <?= ($category ?? '') === '' ? 'selected' : '' ?> hidden>Select Category</option>
+                    <option value="Hardware" <?= ($category ?? '') === 'Hardware' ? 'selected' : '' ?>>Hardware</option>
+                    <option value="Software" <?= ($category ?? '') === 'Software' ? 'selected' : '' ?>>Software</option>
+                    <option value="Documentation" <?= ($category ?? '') === 'Documentation' ? 'selected' : '' ?>>Documentation</option>
+                    <option value="Email" <?= ($category ?? '') === 'Email' ? 'selected' : '' ?>>Email</option>
+                    <option value="Internet Concerns" <?= ($category ?? '') === 'Internet Concerns' ? 'selected' : '' ?>>Internet Concerns</option>
+                    <option value="Procurement" <?= ($category ?? '') === 'Procurement' ? 'selected' : '' ?>>Procurement</option>
+                </select>
             </div>
 
             <div class="form-group">
@@ -710,7 +911,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <span id="file-name" class="file-name">No file chosen</span>
                     <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx">
                 </div>
-                <small style="display:block; margin-top:5px; color:#666;">Supported formats: JPG, PNG, PDF, DOCX (Max 5MB)</small>
+                <small style="display:block; margin-top:5px; color:#666;">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files, 5MB total)</small>
+                <div id="attachment-error" style="display:none;margin-top:10px;background:#fee2e2;color:#991b1b;padding:10px 12px;border-radius:10px;border:1px solid #fecaca;font-weight:700;"></div>
+                <div id="attachment-total" style="margin-top:10px;color:#475569;font-weight:800;font-size:12px;white-space:nowrap;"></div>
+                <div id="attachment-toast" role="alert" aria-live="assertive" style="position:fixed;top:18px;right:18px;z-index:9999;display:none;max-width:min(420px, calc(100vw - 36px));background:#991b1b;color:#ffffff;padding:12px 14px;border-radius:12px;box-shadow:0 16px 40px rgba(2,6,23,0.22);font-weight:800;font-size:13px;"></div>
                 <div id="attachment-preview" style="margin-top: 10px;"></div>
             </div>
             </div>
@@ -724,13 +928,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <?php endif; ?>
 </div>
 
+<div id="successModal" class="ticket-modal" aria-hidden="true">
+    <div class="ticket-modal-content" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
+        <div class="check-icon">✓</div>
+        <h3 id="successModalTitle">Ticket Submitted</h3>
+        <p>Your ticket has been successfully created.</p>
+        <button type="button" onclick="closeModal()">Close</button>
+    </div>
+</div>
+
 <script>
 var attachmentInput = document.getElementById('attachments');
 var chooseBtn = document.getElementById('choose-file-btn');
 var fileNameEl = document.getElementById('file-name');
 var preview = document.getElementById('attachment-preview');
+var errorEl = document.getElementById('attachment-error');
+var totalEl = document.getElementById('attachment-total');
+var toastEl = document.getElementById('attachment-toast');
 var dt = new DataTransfer();
 var objectUrls = [];
+var MAX_BYTES = 5 * 1024 * 1024;
+var MAX_FILES = 5;
+var ALLOWED_EXT = ['jpg','jpeg','png','pdf','doc','docx'];
+var toastTimer = null;
 
 if (chooseBtn) {
     chooseBtn.addEventListener('click', function () {
@@ -742,6 +962,23 @@ function clearObjectUrls() {
     while (objectUrls.length) {
         try { URL.revokeObjectURL(objectUrls.pop()); } catch (e) {}
     }
+}
+
+function formatSize(bytes) {
+    var b = Number(bytes || 0);
+    if (!isFinite(b) || b < 0) b = 0;
+    if (b < 1024) return b + ' B';
+    var kb = b / 1024;
+    if (kb < 1024) return (Math.round(kb * 10) / 10) + ' KB';
+    var mb = kb / 1024;
+    return (Math.round(mb * 10) / 10) + ' MB';
+}
+
+function setTotal() {
+    if (!totalEl) return;
+    var total = 0;
+    Array.from(dt.files).forEach(function (f) { total += (f && f.size) ? f.size : 0; });
+    totalEl.textContent = 'Total: ' + formatSize(total) + ' / 5 MB';
 }
 
 function syncFiles() {
@@ -863,20 +1100,163 @@ function syncFiles() {
         row.appendChild(right);
         preview.appendChild(row);
     });
+    setTotal();
+}
+
+function showToast(msg) {
+    if (!toastEl) return;
+    if (!msg) {
+        toastEl.style.display = 'none';
+        toastEl.textContent = '';
+        if (toastTimer) window.clearTimeout(toastTimer);
+        toastTimer = null;
+        return;
+    }
+    toastEl.textContent = msg;
+    toastEl.style.display = 'block';
+    if (toastTimer) window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(function () {
+        if (!toastEl) return;
+        toastEl.style.display = 'none';
+        toastEl.textContent = '';
+        toastTimer = null;
+    }, 4000);
+}
+
+function showError(msg) {
+    if (!errorEl) return;
+    if (!msg) {
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+        showToast('');
+        return;
+    }
+    errorEl.textContent = msg;
+    errorEl.style.display = 'block';
+    showToast(msg);
+}
+
+function getExt(name) {
+    var parts = String(name || '').toLowerCase().split('.');
+    return parts.length > 1 ? parts.pop() : '';
 }
 
 if (attachmentInput) {
     attachmentInput.addEventListener('change', function (e) {
+        var blockedMax = false;
         Array.from(e.target.files || []).forEach(function (file) {
+            if (dt.files.length >= MAX_FILES) {
+                blockedMax = true;
+                return;
+            }
+            var ext = getExt(file && file.name);
+            if (ALLOWED_EXT.indexOf(ext) === -1) {
+                showError('Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.');
+                return;
+            }
+            var nextTotal = (file && file.size || 0);
+            Array.from(dt.files).forEach(function (f) { nextTotal += (f && f.size) ? f.size : 0; });
+            if (nextTotal > MAX_BYTES) {
+                showError('Attachment too large. Max 5MB total.');
+                return;
+            }
             var exists = Array.from(dt.files).some(function (f) {
                 return f.name === file.name && f.size === file.size && f.lastModified === file.lastModified;
             });
             if (!exists) dt.items.add(file);
         });
         attachmentInput.value = '';
+        if (blockedMax) {
+            showError('Maximum 5 attachments allowed. Extra files were not added.');
+        } else {
+            showError('');
+        }
         syncFiles();
     });
 }
+
+var formEl = attachmentInput ? attachmentInput.closest('form') : null;
+if (formEl) {
+    formEl.addEventListener('submit', function (e) {
+        var badType = Array.from(dt.files).find(function (file) {
+            var ext = getExt(file && file.name);
+            return ALLOWED_EXT.indexOf(ext) === -1;
+        });
+        var total = 0;
+        Array.from(dt.files).forEach(function (f) { total += (f && f.size) ? f.size : 0; });
+        if (dt.files.length > MAX_FILES || badType || total > MAX_BYTES) {
+            e.preventDefault();
+            showError(dt.files.length > MAX_FILES ? 'Maximum 5 attachments allowed.' : (badType ? 'Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.' : 'Attachment too large. Max 5MB total.'));
+            return;
+        }
+        showError('');
+    });
+}
+</script>
+
+<script>
+function closeModal(){
+    var m = document.getElementById('successModal');
+    if (m) m.classList.remove('show');
+}
+
+(function () {
+    var form = document.getElementById('ticketForm');
+    var modal = document.getElementById('successModal');
+    var ajaxError = document.getElementById('ajaxError');
+    if (!form) return;
+
+    if (modal) {
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) closeModal();
+        });
+    }
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (ajaxError) ajaxError.style.display = 'none';
+
+        var submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+
+        var formData = new FormData(form);
+
+        fetch("request_ticket.php", {
+            method: "POST",
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            body: formData
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (!data || !data.ok) {
+                var msg = (data && data.error) ? data.error : 'Failed to submit ticket.';
+                if (ajaxError) {
+                    ajaxError.textContent = msg;
+                    ajaxError.style.display = 'block';
+                }
+                return;
+            }
+
+            if (modal) modal.classList.add("show");
+            form.reset();
+            if (typeof dt !== 'undefined') {
+                dt = new DataTransfer();
+                if (typeof syncFiles === 'function') syncFiles();
+                if (typeof setTotal === 'function') setTotal();
+                if (typeof showError === 'function') showError('');
+            }
+        })
+        .catch(function () {
+            if (ajaxError) {
+                ajaxError.textContent = 'Failed to submit ticket.';
+                ajaxError.style.display = 'block';
+            }
+        })
+        .finally(function () {
+            if (submitBtn) submitBtn.disabled = false;
+        });
+    });
+})();
 </script>
 
 </body>

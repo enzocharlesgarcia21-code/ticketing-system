@@ -17,6 +17,7 @@ $user_id = $_SESSION['user_id'];
 
 $user_department = $_SESSION['department'] ?? '';
 $user_company = $_SESSION['company'] ?? '';
+$user_email = $_SESSION['email'] ?? '';
 
 ticket_ensure_assignment_columns($conn);
 
@@ -73,6 +74,19 @@ if ($user_department === '' || $user_company === '') {
     if ($user_department !== '') $_SESSION['department'] = $user_department;
     if ($user_company !== '') $_SESSION['company'] = $user_company;
 }
+if ($user_email === '') {
+    $ue = $conn->prepare("SELECT email FROM users WHERE id = ?");
+    if ($ue) {
+        $ue->bind_param("i", $user_id);
+        $ue->execute();
+        $ueRes = $ue->get_result();
+        if ($ueRow = $ueRes->fetch_assoc()) {
+            $user_email = (string) ($ueRow['email'] ?? '');
+        }
+        $ue->close();
+    }
+    if ($user_email !== '') $_SESSION['email'] = $user_email;
+}
 
 /* ================= GET VALUES ================= */
 
@@ -106,13 +120,20 @@ $companyAliases = company_aliases((string) $user_company);
 if (count($companyAliases) === 0) {
     $companyAliases = [(string) $user_company];
 }
-$companyCond = "(" . implode(" OR ", array_fill(0, count($companyAliases), "COALESCE(NULLIF(t.assigned_company, ''), t.company) = ?")) . ")";
+$companyCol = "COALESCE(NULLIF(t.assigned_company, ''), t.company)";
+$companyAliases = array_values(array_filter(array_map('trim', $companyAliases), static function ($v) { return $v !== ''; }));
+$companyAliasCond = count($companyAliases) > 0
+    ? ("(" . implode(" OR ", array_fill(0, count($companyAliases), "$companyCol = ?")) . ")")
+    : "(1=0)";
+$companyCond = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND $companyAliasCond))";
 $groupCond = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), t.department) = ?";
 
 $where[] = "(t.assigned_user_id = ? OR ($groupCond AND $companyCond))";
 $params[] = (int) $user_id;
 $types .= "i";
 $params[] = $user_department;
+$types .= "s";
+$params[] = strtolower((string) $user_email);
 $types .= "s";
 foreach ($companyAliases as $co) {
     $params[] = $co;
@@ -214,7 +235,7 @@ $result = $stmt->get_result();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Tasks | Leads Agri Helpdesk</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
-    <link rel="stylesheet" href="../css/view-tickets.css">
+    <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
@@ -248,7 +269,7 @@ $result = $stmt->get_result();
                     <div class="filters-wrapper">
                         <div class="select-wrapper small">
                             <select name="priority" class="filter-select" id="filterPriority">
-                                <option value=""disabled selected hidden<?= $priority === '' ? 'selected' : '' ?>>All Priority</option>
+                                <option value=""disabled selected hidden<?= $priority === '' ? 'selected' : '' ?>>All Department</option>
                                 <?php foreach ($allowed_priorities as $p): ?>
                                     <option value="<?= htmlspecialchars($p, ENT_QUOTES, 'UTF-8'); ?>" <?= $priority === $p ? 'selected' : '' ?>><?= htmlspecialchars($p, ENT_QUOTES, 'UTF-8'); ?></option>
                                 <?php endforeach; ?>
@@ -276,10 +297,9 @@ $result = $stmt->get_result();
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Subject</th>
+                                <th>Category</th>
                                 <th>Requested By</th>
                                 <th>Department</th>
-                                <th>Priority</th>
                                 <th>Status</th>
                                 <th>Date Created</th>
                             </tr>
@@ -290,7 +310,7 @@ $result = $stmt->get_result();
                                 <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer;">
                                     <td>#<?= str_pad($row['id'], 6, '0', STR_PAD_LEFT); ?></td>
                                     <td class="subject-cell">
-                                        <strong><?= htmlspecialchars($row['subject'], ENT_QUOTES, 'UTF-8'); ?></strong>
+                                        <strong><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                     </td>
                                     <td>
                                         <div class="user-info">
@@ -314,12 +334,6 @@ $result = $stmt->get_result();
                                         </div>
                                     </td>
                                     <td><?= htmlspecialchars(!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales'), ENT_QUOTES, 'UTF-8'); ?></td>
-                                    
-                                    <td>
-                                        <span class="badge badge-<?= strtolower($row['priority']); ?>">
-                                            <?= htmlspecialchars($row['priority'], ENT_QUOTES, 'UTF-8'); ?>
-                                        </span>
-                                    </td>
 
                                     <td>
                                         <span class="status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
@@ -332,7 +346,7 @@ $result = $stmt->get_result();
                                 <?php } ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="7" style="text-align:center; color: #94a3b8; padding: 40px;">
+                                    <td colspan="6" style="text-align:center; color: #94a3b8; padding: 40px;">
                                         <div class="empty-state">
                                             <i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i>
                                             <p>No tasks found for your department.</p>

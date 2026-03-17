@@ -1,12 +1,15 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 /* Protect page */
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
     exit();
 }
+
+ticket_apply_sla_priority($conn);
 
 $user_id = (int) $_SESSION['user_id'];
 
@@ -56,8 +59,7 @@ $result = $stmt->get_result();
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Subject</th>
-                                <th>Priority</th>
+                                <th>Category</th>
                                 <th>Status</th>
                                 <th>Attachment</th>
                                 <th>Date Created</th>
@@ -68,13 +70,8 @@ $result = $stmt->get_result();
                                 <?php while($row = $result->fetch_assoc()): ?>
                                 <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer;">
                                     <td data-label="ID">#<?= $row['id']; ?></td>
-                                    <td data-label="Subject" class="subject-cell">
-                                        <strong><?= htmlspecialchars($row['subject'], ENT_QUOTES, 'UTF-8'); ?></strong>
-                                    </td>
-                                    <td data-label="Priority">
-                                        <span class="priority-pill priority-<?= strtolower($row['priority']); ?>">
-                                            <?= htmlspecialchars($row['priority'], ENT_QUOTES, 'UTF-8'); ?>
-                                        </span>
+                                    <td data-label="Category" class="subject-cell">
+                                        <strong><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                     </td>
                                     <td data-label="Status">
                                         <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
@@ -95,7 +92,7 @@ $result = $stmt->get_result();
                                 <?php endwhile; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="6" style="text-align: center; color: #94a3b8; padding: 40px;">
+                                    <td colspan="5" style="text-align: center; color: #94a3b8; padding: 40px;">
                                         <div class="empty-state">
                                             <i class="fas fa-ticket-alt" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i>
                                             <p>No tickets submitted yet.</p>

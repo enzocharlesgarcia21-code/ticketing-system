@@ -1,10 +1,13 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/ticket_assignment.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
     exit();
 }
+
+ticket_apply_sla_priority($conn);
 
 // Ensure email is in session (fix for existing sessions)
 if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
@@ -49,17 +52,15 @@ while($row = $deptQuery->fetch_assoc()) {
 
 $priorityAgg = $conn->query("
     SELECT 
-        SUM(LOWER(priority) = 'low') AS low_count,
-        SUM(LOWER(priority) = 'medium') AS medium_count,
+        SUM(LOWER(priority) IN ('low','medium')) AS low_count,
         SUM(LOWER(priority) = 'high') AS high_count,
         SUM(LOWER(priority) = 'critical') AS critical_count
     FROM employee_tickets
 ")->fetch_assoc();
 
-$priorities = ['Low', 'Medium', 'High', 'Critical'];
+$priorities = ['Low', 'High', 'Critical'];
 $priorityCounts = [
     (int) ($priorityAgg['low_count'] ?? 0),
-    (int) ($priorityAgg['medium_count'] ?? 0),
     (int) ($priorityAgg['high_count'] ?? 0),
     (int) ($priorityAgg['critical_count'] ?? 0),
 ];
@@ -460,7 +461,6 @@ new Chart(document.getElementById('priorityChart'), {
             data: <?= json_encode($priorityCounts); ?>,
             backgroundColor: [
                 '#43A047',
-                '#FBC02D',
                 '#FB8C00',
                 '#E53935'
             ],

@@ -31,6 +31,7 @@ function ticket_standard_assigned_departments(): array
     return [
         'ACCOUNTING',
         'ADMIN',
+        'BIDDING',
         'E-COMM',
         'HR',
         'IT',
@@ -47,6 +48,7 @@ function ticket_department_aliases_for_key(string $key): array
     $map = [
         'ACCOUNTING' => ['ACCOUNTING', 'FINANCE AND ACCOUNTING', 'FINANCE & ACCOUNTING'],
         'ADMIN' => ['ADMIN', 'ADMINISTRATION', 'ADMIN & LEGAL', 'FINANCE AND ADMIN', 'FINANCE & ADMIN'],
+        'BIDDING' => ['BIDDING'],
         'E-COMM' => ['E-COMM', 'E-COMMERCE', 'E-COMMERCE', 'E COMMERCE', 'ECOMM'],
         'HR' => ['HR', 'HUMAN RESOURCE', 'HUMAN RESOURCES', 'HUMAN RESOURCE AND TRANSFORMATION'],
         'IT' => ['IT'],
@@ -238,4 +240,26 @@ function ticket_normalize_company(string $company): string
     if ($u === 'FARMEX') return 'Farmex Corp';
     if ($u === 'FARMEX CORP') return 'Farmex Corp';
     return $company;
+}
+
+function ticket_apply_sla_priority(mysqli $conn): void
+{
+    $sql = "
+        UPDATE employee_tickets
+        SET priority = CASE
+            WHEN TIMESTAMPDIFF(DAY, created_at, NOW()) >= 7 THEN 'Critical'
+            WHEN TIMESTAMPDIFF(DAY, created_at, NOW()) >= 4 THEN 'High'
+            ELSE 'Low'
+        END
+        WHERE created_at IS NOT NULL
+          AND status NOT IN ('Resolved', 'Closed')
+          AND (
+            priority IS NULL OR priority = '' OR priority <> CASE
+                WHEN TIMESTAMPDIFF(DAY, created_at, NOW()) >= 7 THEN 'Critical'
+                WHEN TIMESTAMPDIFF(DAY, created_at, NOW()) >= 4 THEN 'High'
+                ELSE 'Low'
+            END
+          )
+    ";
+    $conn->query($sql);
 }

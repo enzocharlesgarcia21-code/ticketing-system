@@ -11,6 +11,9 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
     exit;
 }
 
+ticket_ensure_assignment_columns($conn);
+ticket_apply_sla_priority($conn);
+
 function h(string $v): string
 {
     return htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
@@ -39,11 +42,56 @@ function parseLegacyRequester(string $desc): array
     return [$name, $email];
 }
 
+function time_ago_days(string $dateTime): string
+{
+    $dateTime = trim($dateTime);
+    if ($dateTime === '') return '';
+    try {
+        $created = new DateTimeImmutable($dateTime);
+    } catch (Throwable $e) {
+        return '';
+    }
+    $now = new DateTimeImmutable('now');
+    $diff = $now->diff($created);
+    $days = (int) ($diff->days ?? 0);
+    if ($diff->invert !== 1) $days = 0;
+    if ($days <= 0) return 'Today';
+    if ($days === 1) return '1 day ago';
+    return $days . ' days ago';
+}
+
+function sla_badge_html(string $createdAt, string $status): string
+{
+    $statusKey = strtolower(trim($status));
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
+    $createdAt = trim($createdAt);
+    if ($createdAt === '') return '-';
+    try {
+        $created = new DateTimeImmutable($createdAt);
+    } catch (Throwable $e) {
+        return '-';
+    }
+    $now = new DateTimeImmutable('now');
+    $diff = $now->diff($created);
+    $days = (int) ($diff->days ?? 0);
+    if ($diff->invert !== 1) $days = 0;
+
+    if ($days >= 7) {
+        return '<span class="badge badge-critical">Breached</span>';
+    }
+    if ($days >= 4) {
+        return '<span class="badge badge-high">At Risk</span>';
+    }
+    return '<span class="badge badge-low">On Track</span>';
+}
+
 $search = trim((string) ($_GET['search'] ?? ''));
 $department = trim((string) ($_GET['department'] ?? ''));
 $priority = trim((string) ($_GET['priority'] ?? ''));
 $status = trim((string) ($_GET['status'] ?? ''));
 $companyEmail = trim((string) ($_GET['company_email'] ?? ''));
+$view = trim((string) ($_GET['view'] ?? ''));
+$view = $view === 'trash' ? 'closed' : $view;
 $page = (int) ($_GET['page'] ?? 1);
 $limit = (int) ($_GET['limit'] ?? 5);
 
@@ -55,6 +103,25 @@ $offset = ($page - 1) * $limit;
 $where = [];
 $params = [];
 $types = '';
+
+$allowedViews = ['all', 'my_open', 'unresolved', 'resolved', 'closed'];
+if (!in_array($view, $allowedViews, true)) $view = '';
+if ($view === 'closed') {
+    $where[] = "t.status IN ('Closed','Trash')";
+} else {
+    $where[] = "COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')";
+}
+if ($view !== '') {
+    if ($view === 'my_open') {
+        $where[] = "t.status IN ('Open','In Progress')";
+    } elseif ($view === 'unresolved') {
+        $where[] = "t.status IN ('Open','In Progress')";
+    } elseif ($view === 'resolved') {
+        $where[] = "t.status = 'Resolved'";
+    } elseif ($view === 'closed') {
+        // already applied
+    }
+}
 
 if ($department !== '') {
     $deptKey = ticket_department_key_from_value($department);
@@ -77,7 +144,7 @@ if ($priority !== '') {
     $types .= 's';
 }
 
-if ($status !== '') {
+if ($status !== '' && $view !== 'closed') {
     if ($status === 'unread') {
         $where[] = "t.is_read = 0";
     } else {
@@ -186,16 +253,17 @@ while ($res && ($row = $res->fetch_assoc())) {
     $priorityVal = (string) ($row['priority'] ?? '');
     $statusVal = (string) ($row['status'] ?? '');
     $createdAt = (string) ($row['created_at'] ?? '');
-    $dateStr = $createdAt !== '' ? date("M d, Y", strtotime($createdAt)) : '';
-
+    $dateStr = $createdAt !== '' ? time_ago_days($createdAt) : '';
+    $slaHtml = sla_badge_html($createdAt, $statusVal);
     $rowsHtml .= '<tr class="ticket-row" data-id="' . (string) $id . '" style="cursor:pointer;' . ($isUnread ? 'background:rgba(27, 94, 32, 0.08);' : '') . '">';
     $rowsHtml .= '<td data-label="ID">#' . str_pad((string) $id, 6, '0', STR_PAD_LEFT) . '</td>';
     $rowsHtml .= '<td data-label="Requested By"><div class="user-info"><strong>' . h($dispName) . '</strong><br><small>' . h($dispEmail) . '</small></div></td>';
-    $rowsHtml .= '<td data-label="Original Dept">' . h($origDept) . '</td>';
-    $rowsHtml .= '<td data-label="Assigned Dept">' . h((string) $assignedDept) . '</td>';
     $rowsHtml .= '<td data-label="Priority"><span class="badge badge-' . h(strtolower($priorityVal)) . '">' . h($priorityVal) . '</span></td>';
     $rowsHtml .= '<td data-label="Status"><span class="status-' . h(strtolower(str_replace(' ', '-', $statusVal))) . '">' . h($statusVal) . '</span>' . ($isUnread ? '<span class="new-badge">NEW</span>' : '') . '</td>';
+    $rowsHtml .= '<td data-label="Original Dept">' . h($origDept) . '</td>';
     $rowsHtml .= '<td data-label="Date">' . h($dateStr) . '</td>';
+    $rowsHtml .= '<td data-label="SLA">' . $slaHtml . '</td>';
+    $rowsHtml .= '<td data-label="Assign To">' . h((string) $assignedDept) . '</td>';
     $rowsHtml .= '</tr>';
 }
 $stmt->close();
@@ -206,6 +274,7 @@ $queryBase = [
     'company_email' => $companyEmail,
     'priority' => $priority,
     'status' => $status,
+    'view' => $view,
 ];
 $paginationHtml = '';
 if ($totalPages > 1) {

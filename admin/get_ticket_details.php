@@ -21,6 +21,8 @@ function parseLegacyRequesterInfo($text) {
     }
 
     $normalized = str_replace(["\r\n", "\r"], "\n", $text);
+    $normalized = preg_replace('/^COMPANY:\s*@.*(\n)?/im', '', $normalized);
+    $normalized = preg_replace('/^\s*\n/', '', $normalized);
 
     $name = null;
     $email = null;
@@ -37,6 +39,7 @@ function parseLegacyRequesterInfo($text) {
     } else {
         $desc = preg_replace('/^REQUESTER NAME:.*(\n)?/im', '', $normalized);
         $desc = preg_replace('/^REQUESTER EMAIL:.*(\n)?/im', '', $desc);
+        $desc = preg_replace('/^COMPANY:\s*@.*(\n)?/im', '', $desc);
         $desc = preg_replace('/^DESCRIPTION:\s*/im', '', $desc);
         $desc = trim($desc);
     }
@@ -93,6 +96,10 @@ if ($row = $result->fetch_assoc()) {
         if (!empty($parsed_email)) $requester_email = $parsed_email;
         $clean_desc = $parsed_desc;
     }
+    if (is_string($clean_desc) && $clean_desc !== '') {
+        $clean_desc = preg_replace('/^\s*COMPANY:\s*.*(\r?\n)+/i', '', $clean_desc);
+        $clean_desc = ltrim((string) $clean_desc, "\r\n");
+    }
 
     if ($requester_name !== '') $row['created_by_name'] = $requester_name;
     if ($requester_email !== '') $row['created_by_email'] = $requester_email;
@@ -107,14 +114,20 @@ if ($row = $result->fetch_assoc()) {
         $attStmt->bind_param("i", $id);
         $attStmt->execute();
         $attRes = $attStmt->get_result();
-        $attachments = [];
+        $seen = [];
+        foreach ($attachments as $a0) {
+            $sn0 = (string) ($a0['stored_name'] ?? '');
+            if ($sn0 !== '') $seen[$sn0] = true;
+        }
         while ($attRes && ($a = $attRes->fetch_assoc())) {
-            if (!empty($a['stored_name'])) {
-                $attachments[] = [
-                    'stored_name' => (string) $a['stored_name'],
-                    'original_name' => (string) ($a['original_name'] ?? $a['stored_name'])
-                ];
-            }
+            $sn = (string) ($a['stored_name'] ?? '');
+            if ($sn === '') continue;
+            if (isset($seen[$sn])) continue;
+            $seen[$sn] = true;
+            $attachments[] = [
+                'stored_name' => $sn,
+                'original_name' => (string) ($a['original_name'] ?? $sn)
+            ];
         }
         $attStmt->close();
     }

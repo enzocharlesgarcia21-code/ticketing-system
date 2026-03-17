@@ -28,6 +28,26 @@ body {
     text-align: center;
 }
 
+.login-logo-wrap {
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 18px;
+    overflow: hidden;
+}
+
+.login-logo {
+    display: block;
+    max-height: 86px;
+    width: auto;
+    max-width: 320px;
+    height: auto;
+    object-fit: contain;
+    transform: scale(3.0);
+    transform-origin: center;
+}
+
 .login-card h2 {
     margin-bottom: 30px;
     font-size: 28px;

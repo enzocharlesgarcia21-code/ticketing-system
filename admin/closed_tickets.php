@@ -57,6 +57,7 @@ $result = $stmt->get_result();
     <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
     <title>Closed Tickets</title>
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -391,6 +392,36 @@ function openModal(id) {
             `;
             };
 
+            const renderAttachments = (data) => {
+                const list = Array.isArray(data.attachments) && data.attachments.length
+                    ? data.attachments
+                    : (data.attachment ? [{ stored_name: data.attachment, original_name: data.attachment }] : []);
+
+                if (!list.length) return '';
+
+                const images = [];
+                const others = [];
+                list.forEach(att => {
+                    const filename = String(att && att.stored_name ? att.stored_name : '').trim();
+                    if (!filename) return;
+                    const ext = filename.split('.').pop().toLowerCase();
+                    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+                    if (isImage) images.push({ filename });
+                    else others.push(filename);
+                });
+
+                let html = '';
+                if (images.length) {
+                    html += '<div class="tm-attachment-gallery">';
+                    html += images.map(i => `<button type="button" class="tm-attachment-thumb" data-src="../uploads/${escapeHtml(i.filename)}" onclick="viewImage(this.dataset.src)"><img class="tm-attachment-img" src="../uploads/${escapeHtml(i.filename)}" alt=""></button>`).join('');
+                    html += '</div>';
+                }
+                if (others.length) {
+                    html += others.map(f => renderAttachment(f)).join('');
+                }
+                return html;
+            };
+
             const formatTimelineTime = (dateLike) => {
                 if (!dateLike) return '-';
                 const d = dateLike instanceof Date ? dateLike : new Date(dateLike);
@@ -472,9 +503,6 @@ function openModal(id) {
                                     <div class="tm-info-label">DEPARTMENT</div>
                                     <div class="tm-info-value">${data.department ? escapeHtml(String(data.department)) : '-'}</div>
 
-                                    <div class="tm-info-label">COMPANY</div>
-                                    <div class="tm-info-value">${data.company ? escapeHtml(String(data.company)) : '-'}</div>
-
                                     <div class="tm-info-label">CREATED AT</div>
                                     <div class="tm-info-value">${data.created_at ? formatTimelineTime(data.created_at) : '-'}</div>
 
@@ -507,7 +535,7 @@ function openModal(id) {
                             </div>
                             <div class="tm-card-body">
                                 <div class="tm-desc-text">${escapeHtml(data.description)}</div>
-                                ${data.attachment ? renderAttachment(data.attachment) : ''}
+                                ${renderAttachments(data)}
                             </div>
                         </div>
 

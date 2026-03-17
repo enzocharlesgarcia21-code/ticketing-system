@@ -8,6 +8,51 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
+ticket_ensure_assignment_columns($conn);
+ticket_apply_sla_priority($conn);
+
+function time_ago_days(string $dateTime): string
+{
+    $dateTime = trim($dateTime);
+    if ($dateTime === '') return '-';
+    try {
+        $created = new DateTimeImmutable($dateTime);
+    } catch (Throwable $e) {
+        return '-';
+    }
+    $now = new DateTimeImmutable('now');
+    $diff = $now->diff($created);
+    $days = (int) ($diff->days ?? 0);
+    if ($diff->invert !== 1) $days = 0;
+    if ($days <= 0) return 'Today';
+    if ($days === 1) return '1 day ago';
+    return $days . ' days ago';
+}
+
+function sla_badge_html(string $createdAt, string $status): string
+{
+    $statusKey = strtolower(trim($status));
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
+    if ($createdAt === '') return '-';
+    try {
+        $created = new DateTimeImmutable($createdAt);
+    } catch (Throwable $e) {
+        return '-';
+    }
+    $now = new DateTimeImmutable('now');
+    $diff = $now->diff($created);
+    $days = (int) ($diff->days ?? 0);
+    if ($diff->invert !== 1) $days = 0;
+
+    if ($days >= 7) {
+        return '<span class="badge badge-critical">Breached</span>';
+    }
+    if ($days >= 4) {
+        return '<span class="badge badge-high">At Risk</span>';
+    }
+    return '<span class="badge badge-low">On Track</span>';
+}
+
 // Ensure email is in session (fix for existing sessions)
 if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
     $u_stmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
@@ -26,7 +71,40 @@ $company_email = $_GET['company_email'] ?? '';
 $priority   = $_GET['priority']   ?? '';
 $status     = $_GET['status']     ?? '';
 $search     = $_GET['search']     ?? '';
+$view       = (string) ($_GET['view'] ?? '');
+$view = $view === 'trash' ? 'closed' : $view;
 $department_key = $department !== '' ? ticket_department_key_from_value((string) $department) : '';
+$adminId = (int) ($_SESSION['user_id'] ?? 0);
+$allowedViews = ['all', 'my_open', 'unresolved', 'resolved', 'closed'];
+if (!in_array($view, $allowedViews, true)) $view = '';
+
+$sidebarCounts = [
+    'all' => 0,
+    'my_open' => 0,
+    'unresolved' => 0,
+    'resolved' => 0,
+    'closed' => 0,
+];
+$cntStmt = $conn->prepare("
+    SELECT
+        SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') THEN 1 ELSE 0 END) AS all_total,
+        SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND status IN ('Open','In Progress') THEN 1 ELSE 0 END) AS unresolved_total,
+        SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_total,
+        SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND status IN ('Open','In Progress') THEN 1 ELSE 0 END) AS my_open_total,
+        SUM(CASE WHEN status IN ('Closed','Trash') THEN 1 ELSE 0 END) AS closed_total
+    FROM employee_tickets
+");
+if ($cntStmt) {
+    $cntStmt->execute();
+    $cntRes = $cntStmt->get_result();
+    $cntRow = $cntRes ? $cntRes->fetch_assoc() : null;
+    $cntStmt->close();
+    $sidebarCounts['all'] = (int) ($cntRow['all_total'] ?? 0);
+    $sidebarCounts['unresolved'] = (int) ($cntRow['unresolved_total'] ?? 0);
+    $sidebarCounts['resolved'] = (int) ($cntRow['resolved_total'] ?? 0);
+    $sidebarCounts['my_open'] = (int) ($cntRow['my_open_total'] ?? 0);
+    $sidebarCounts['closed'] = (int) ($cntRow['closed_total'] ?? 0);
+}
 
 $query = "
 SELECT employee_tickets.*, users.name, users.email, users.department AS user_department
@@ -36,6 +114,21 @@ WHERE 1
 ";
 
 /* ================= FILTERS ================= */
+
+if ($view !== '') {
+    if ($view === 'my_open') {
+        $query .= " AND employee_tickets.status IN ('Open','In Progress')";
+    } elseif ($view === 'unresolved') {
+        $query .= " AND employee_tickets.status IN ('Open','In Progress')";
+    } elseif ($view === 'resolved') {
+        $query .= " AND employee_tickets.status = 'Resolved'";
+    } elseif ($view === 'closed') {
+        $query .= " AND employee_tickets.status IN ('Closed','Trash')";
+    }
+}
+if ($view !== 'closed') {
+    $query .= " AND COALESCE(NULLIF(employee_tickets.status,''),'') NOT IN ('Closed','Trash')";
+}
 
 if (!empty($department)) {
     $deptKey = $department_key !== '' ? $department_key : ticket_department_key_from_value((string) $department);
@@ -58,7 +151,7 @@ if (!empty($priority)) {
     $query .= " AND employee_tickets.priority = '$priority'";
 }
 
-if (!empty($status)) {
+if (!empty($status) && $view !== 'closed') {
     if ($status === 'unread') {
         $query .= " AND employee_tickets.is_read = 0";
     } else {
@@ -133,6 +226,30 @@ $result = $stmt->get_result();
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        .at-layout { width: 100%; max-width: 1400px; display: flex; gap: 18px; align-items: flex-start; }
+        .at-sidebar { width: 260px; flex: 0 0 260px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; box-shadow: 0 4px 10px rgba(2,6,23,0.04); position: sticky; top: 96px; }
+        .at-sidebar-section + .at-sidebar-section { margin-top: 16px; }
+        .at-sidebar-title { font-size: 12px; font-weight: 800; color: #475569; display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 8px; text-transform: none; }
+        .at-sidebar-add { width: 28px; height: 28px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: #f1f5f9; color: #1b5e20; border: 1px solid #e2e8f0; cursor: pointer; }
+        .at-sidebar-add:active { transform: translateY(1px); }
+        .at-sidebar-link { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px; border-radius: 12px; text-decoration: none; color: #0f172a; font-size: 13px; font-weight: 600; border: 1px solid transparent; }
+        .at-sidebar-link:hover { background: #f8fafc; border-color: #e2e8f0; }
+        .at-sidebar-link.active { background: rgba(27, 94, 32, 0.10); border-color: rgba(27, 94, 32, 0.25); }
+        .at-sidebar-left { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+        .at-sidebar-icon { width: 28px; height: 28px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: #f1f5f9; color: #1b5e20; flex: 0 0 28px; }
+        .at-sidebar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .at-sidebar-count { min-width: 28px; height: 22px; padding: 0 8px; border-radius: 999px; background: #f1f5f9; color: #334155; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+        .at-sidebar-link.active .at-sidebar-count { background: #1b5e20; color: #ffffff; }
+        .at-sidebar-link.disabled { opacity: 0.45; pointer-events: none; }
+        .at-main { flex: 1 1 auto; min-width: 0; }
+        .at-main .admin-content { max-width: none; }
+
+        @media (max-width: 1100px) {
+            .at-sidebar { display: none; }
+            .at-layout { max-width: 1200px; }
+        }
+    </style>
 </head>
 <body>
 
@@ -142,13 +259,64 @@ $result = $stmt->get_result();
     <?php include '../includes/admin_navbar.php'; ?>
 
     <div class="admin-container">
-        <div class="admin-content">
+        <div class="at-layout">
+            <aside class="at-sidebar" aria-label="Views">
+                <div class="at-sidebar-section">
+                    <div class="at-sidebar-title">Views</div>
+                    <a class="at-sidebar-link <?php echo $view === '' ? 'active' : ''; ?>" href="all_tickets.php">
+                        <span class="at-sidebar-left">
+                            <span class="at-sidebar-icon"><i class="fa-regular fa-rectangle-list"></i></span>
+                            <span class="at-sidebar-label">All Tickets</span>
+                        </span>
+                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['all'] ?? 0); ?></span>
+                    </a>
+                    <a class="at-sidebar-link <?php echo $view === 'my_open' ? 'active' : ''; ?>" href="all_tickets.php?view=my_open">
+                        <span class="at-sidebar-left">
+                            <span class="at-sidebar-icon"><i class="fa-regular fa-circle-check"></i></span>
+                            <span class="at-sidebar-label">Open &amp; Pending </span>
+                        </span>
+                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['my_open'] ?? 0); ?></span>
+                    </a>
+                    <a class="at-sidebar-link <?php echo $view === 'unresolved' ? 'active' : ''; ?>" href="all_tickets.php?view=unresolved">
+                        <span class="at-sidebar-left">
+                            <span class="at-sidebar-icon"><i class="fa-regular fa-circle-dot"></i></span>
+                            <span class="at-sidebar-label">All Unresolved</span>
+                        </span>
+                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['unresolved'] ?? 0); ?></span>
+                    </a>
+                    <a class="at-sidebar-link <?php echo $view === 'closed' ? 'active' : ''; ?>" href="all_tickets.php?view=closed">
+                        <span class="at-sidebar-left">
+                            <span class="at-sidebar-icon"><i class="fa-regular fa-circle-xmark"></i></span>
+                            <span class="at-sidebar-label">Closed Tickets</span>
+                        </span>
+                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['closed'] ?? 0); ?></span>
+                    </a>
+                </div>
+
+                <div class="at-sidebar-section">
+                    <a class="at-sidebar-link <?php echo $view === 'resolved' ? 'active' : ''; ?>" href="all_tickets.php?view=resolved">
+                        <span class="at-sidebar-left">
+                            <span class="at-sidebar-icon"><i class="fa-solid fa-check"></i></span>
+                            <span class="at-sidebar-label">All Resolved Tickets</span>
+                        </span>
+                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['resolved'] ?? 0); ?></span>
+                    </a>
+                </div>
+            </aside>
+
+            <div class="at-main">
+                <div class="admin-content">
 
             <?php if(isset($_SESSION['success'])): ?>
                 <div class="admin-notice">
                     <?= htmlspecialchars($_SESSION['success'], ENT_QUOTES, 'UTF-8'); ?>
                 </div>
                 <?php unset($_SESSION['success']); ?>
+            <?php endif; ?>
+            <?php if(isset($_GET['closed']) && (string)$_GET['closed'] === '1'): ?>
+                <div class="admin-notice">
+                    Ticket moved to Closed Tickets.
+                </div>
             <?php endif; ?>
 
             <div class="admin-page-header">
@@ -161,6 +329,7 @@ $result = $stmt->get_result();
             <!-- FILTERS -->
             <div class="admin-card filter-card">
                 <form method="GET" id="filterForm">
+                    <input type="hidden" name="view" value="<?= htmlspecialchars($view, ENT_QUOTES, 'UTF-8'); ?>">
                     <div class="filter-row">
                         <input type="text"
                                name="search"
@@ -173,6 +342,7 @@ $result = $stmt->get_result();
                             <option value="" disabled selected hidden>All Department</option>
                             <option value="ACCOUNTING" <?= $department_key==='ACCOUNTING'?'selected':'' ?>>ACCOUNTING</option>
                             <option value="ADMIN" <?= $department_key==='ADMIN'?'selected':'' ?>>ADMIN</option>
+                            <option value="BIDDING" <?= $department_key==='BIDDING'?'selected':'' ?>>BIDDING</option>
                             <option value="E-COMM" <?= $department_key==='E-COMM'?'selected':'' ?>>E-COMM</option>
                             <option value="HR" <?= $department_key==='HR'?'selected':'' ?>>HR</option>
                             <option value="IT" <?= $department_key==='IT'?'selected':'' ?>>IT</option>
@@ -225,11 +395,12 @@ $result = $stmt->get_result();
                             <tr>
                                 <th>ID</th>
                                 <th>Requested By</th>
-                                <th>Original Dept</th>
-                                <th>Assigned Dept</th>
                                 <th>Priority</th>
                                 <th>Status</th>
-                                <th>Date Created</th>
+                                <th>Department</th>
+                                <th>Created</th>
+                                <th>SLA</th>
+                                <th>Assign To</th>
                             </tr>
                         </thead>
                         <tbody id="ticketsTbody">
@@ -257,11 +428,6 @@ $result = $stmt->get_result();
                                         <small><?= htmlspecialchars($dispEmail, ENT_QUOTES, 'UTF-8'); ?></small>
                                     </div>
                                 </td>
-                                <td data-label="Original Dept"><?php 
-                                    $origDept = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
-                                    echo htmlspecialchars($origDept !== '' ? $origDept : 'Sales');
-                                ?></td>
-                                <td data-label="Assigned Dept"><?= htmlspecialchars($row['assigned_department'], ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td data-label="Priority">
                                     <span class="badge badge-<?= strtolower($row['priority']); ?>">
                                         <?= htmlspecialchars($row['priority'], ENT_QUOTES, 'UTF-8'); ?>
@@ -275,7 +441,13 @@ $result = $stmt->get_result();
                                         <span class="new-badge">NEW</span>
                                     <?php endif; ?>
                                 </td>
-                                <td data-label="Date"><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
+                                <td data-label="Original Dept"><?php 
+                                    $origDept = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
+                                    echo htmlspecialchars($origDept !== '' ? $origDept : 'Sales');
+                                ?></td>
+                                <td data-label="Date"><?= htmlspecialchars(time_ago_days((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td data-label="SLA"><?= sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? '')); ?></td>
+                                <td data-label="Assign To"><?= htmlspecialchars($row['assigned_department'], ENT_QUOTES, 'UTF-8'); ?></td>
                             </tr>
                             <?php } ?>
                         </tbody>
@@ -287,7 +459,7 @@ $result = $stmt->get_result();
                 <?php if ($total_pages > 1): ?>
                 <div class="pagination-glass">
                     <!-- Previous Link -->
-                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
                         Previous
                     </a>
@@ -295,7 +467,7 @@ $result = $stmt->get_result();
                     <!-- Page Numbers -->
                     <div class="page-numbers">
                         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
                                class="page-btn <?= ($i == $page) ? 'active' : ''; ?>">
                                 <?= $i; ?>
                             </a>
@@ -303,7 +475,7 @@ $result = $stmt->get_result();
                     </div>
 
                     <!-- Next Link -->
-                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
                         Next
                     </a>
@@ -313,7 +485,8 @@ $result = $stmt->get_result();
 
             </div>
 
-        </div>
+                </div>
+            </div>
     </div>
 </div>
 
