@@ -23,6 +23,7 @@ ticket_ensure_assignment_columns($conn);
 ticket_ensure_chat_tables($conn);
 
 $current_user_id = $_SESSION['user_id'];
+$is_admin = (($_SESSION['role'] ?? '') === 'admin');
 
 if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $sql = "
@@ -41,11 +42,15 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $params = [$current_user_id];
     $types = 'i';
 
-    $sql .= " WHERE (t.user_id = ? OR t.assigned_user_id = ?) ";
-    $params[] = $current_user_id;
-    $types .= 'i';
-    $params[] = $current_user_id;
-    $types .= 'i';
+    if ($is_admin) {
+        $sql .= " WHERE EXISTS (SELECT 1 FROM ticket_messages tm2 WHERE tm2.ticket_id = t.id) ";
+    } else {
+        $sql .= " WHERE (t.user_id = ? OR t.assigned_user_id = ?) ";
+        $params[] = $current_user_id;
+        $types .= 'i';
+        $params[] = $current_user_id;
+        $types .= 'i';
+    }
 
     $sql .= "
         GROUP BY t.id, t.subject
@@ -110,7 +115,7 @@ if (!$ticket) {
 }
 $requesterId = (int) ($ticket['user_id'] ?? 0);
 $assigneeId = (int) ($ticket['assigned_user_id'] ?? 0);
-if ($current_user_id !== $requesterId && ($assigneeId <= 0 || $current_user_id !== $assigneeId)) {
+if (!$is_admin && $current_user_id !== $requesterId && ($assigneeId <= 0 || $current_user_id !== $assigneeId)) {
     http_response_code(403);
     echo json_encode(['error' => 'Access Denied']);
     exit;

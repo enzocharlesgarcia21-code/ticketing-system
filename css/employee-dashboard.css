@@ -785,22 +785,96 @@ tr:hover td {
 /* Mobile (Below 768px) */
 @media (max-width: 768px) {
     .navbar {
-        padding: 15px 16px;
+        padding: 12px 4px 12px 12px;
     }
     
+    .logo-icon {
+        width: 36px;
+        height: 36px;
+        padding: 4px;
+        object-fit: contain;
+    }
+
     .nav-left {
         width: 100%;
         display: flex;
-        justify-content: space-between;
         align-items: center;
+        gap: 10px;
     }
-    
-    .stats-grid {
-        grid-template-columns: 1fr;
+
+    .navbar-toggler {
+        margin-left: auto;
+        margin-right: -8px;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+    }
+
+    .navbar-toggler i,
+    .navbar-toggler svg {
+        width: 20px;
+        height: 20px;
+        font-size: 20px;
     }
     
     .dashboard-container {
         padding: 16px;
+    }
+
+    .content-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .hero-section,
+    .stats-grid,
+    .recent-section {
+        margin-bottom: 0;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .stat-card {
+        width: 100%;
+        min-height: auto;
+        padding: 12px 16px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .stat-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+        margin-bottom: 0;
+    }
+
+    .stat-label {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 0;
+        flex: 1 1 auto;
+    }
+
+    .stat-value {
+        font-size: 20px;
+        font-weight: 700;
+        flex: 0 0 auto;
     }
 
     .form-row {
@@ -825,6 +899,15 @@ tr:hover td {
     .select-wrapper.small {
         width: 100%;
     }
+
+    .section-header {
+        margin-bottom: 16px;
+    }
+
+    .recent-section {
+        padding: 18px;
+        border-radius: 14px;
+    }
     
     /* Full width modals if any */
     .modal-content {
@@ -835,6 +918,15 @@ tr:hover td {
     }
 
     /* Stacked Table Layout */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table-responsive table {
+        min-width: 600px;
+    }
+
     .table-responsive table thead {
         display: none;
     }
@@ -876,10 +968,14 @@ tr:hover td {
     .form-group textarea,
     .form-control,
     .btn,
-    .btn-submit {
+    .btn-submit,
+    button,
+    .action-btn {
         width: 100% !important;
         max-width: 100%;
         min-height: 44px; /* Touch target */
+        padding: 10px 16px;
+        border-radius: 10px;
     }
     
     .form-actions {

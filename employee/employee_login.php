@@ -2,7 +2,6 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 
-/* If already logged in, redirect */
 if (isset($_SESSION['user_id']) && isset($_SESSION['role'])) {
     if ($_SESSION['role'] === 'admin') {
         header("Location: ../admin/dashboard.php");
@@ -44,19 +43,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $password = trim($_POST['password']);
 
     if ($email !== '') {
-        $atPos = strpos($email, '@');
-        if ($atPos !== false) {
-            $maybeDomain = substr($email, $atPos);
+        $at_pos = strpos($email, '@');
+        if ($at_pos !== false) {
+            $maybe_domain = substr($email, $at_pos);
             $allowed = array_map(function ($d) { return '@' . $d; }, $email_domains);
-            if (in_array($maybeDomain, $allowed, true)) {
-                $email_domain = $maybeDomain;
+            if (in_array($maybe_domain, $allowed, true)) {
+                $email_domain = $maybe_domain;
             }
         }
         $email_value = $email;
     }
 
     if (!empty($email) && !empty($password)) {
-
         $stmt = $conn->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
         if (!$stmt) {
             $error = "System error. Please try again.";
@@ -79,9 +77,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $_SESSION['company'] = $user['company'];
                     $_SESSION['department'] = $user['department'];
                     $_SESSION['role'] = $role;
+                    $_SESSION['force_password_change'] = (int) ($user['force_password_change'] ?? 0);
 
                     if ($role === 'admin') {
                         header("Location: ../admin/dashboard.php");
+                        exit();
+                    }
+
+                    if ((int) ($_SESSION['force_password_change'] ?? 0) === 1) {
+                        header("Location: force_password_change.php");
                         exit();
                     }
 
@@ -96,7 +100,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             $stmt->close();
         }
-
     } else {
         $error = "Please fill in all fields.";
     }
@@ -108,57 +111,70 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Employee Login</title>
-    <link rel="stylesheet" href="../css/employee-login.css">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/employee-login.css?v=<?php echo time(); ?>">
+<link rel="stylesheet" href="../css/password-toggle.css?v=<?php echo time(); ?>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
 <div class="login-container">
     <div class="login-card">
+        <a href="../index.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
 
-        <a href="../index.php" class="back-btn">← Back</a>
-        <div class="login-logo-wrap">
-            <img src="../assets/img/LOGO21.png" alt="Leads Agri Helpdesk" class="login-logo">
-        </div>
         <h2>Login</h2>
 
-        <?php if(isset($_GET['registered'])) : ?>
+        <?php if (isset($_GET['registered'])) : ?>
             <div class="success">Account created successfully! Please login.</div>
         <?php endif; ?>
 
-        <?php if(isset($_GET['password_reset'])) : ?>
+        <?php if (isset($_GET['password_reset'])) : ?>
             <div class="success">Password reset successfully! Please login with your new password.</div>
         <?php endif; ?>
 
-        <?php if(isset($error)) : ?>
+        <?php if (isset($error)) : ?>
             <div class="error"><?php echo $error; ?></div>
         <?php endif; ?>
 
         <form method="POST">
             <?php echo csrf_field(); ?>
+
             <div class="form-group">
                 <label>Email *</label>
-                <div class="email-row">
-                    <input type="text" name="email" id="emailInput" value="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>" required title="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>">
+                <div class="input-shell">
+                    <span class="input-icon"><i class="fas fa-envelope"></i></span>
+                    <input
+                        type="text"
+                        name="email"
+                        id="emailInput"
+                        placeholder="Email"
+                        value="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>"
+                        required
+                        title="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>"
+                    >
                     <input type="hidden" name="email_domain" id="emailDomain" value="<?php echo htmlspecialchars($email_domain, ENT_QUOTES, 'UTF-8'); ?>">
                 </div>
             </div>
 
             <div class="form-group">
                 <label>Password *</label>
-                <input type="password" name="password" required>
-                <a href="forgot_password.php" class="forgot-link" style="display: block; margin-top: 5px; font-size: 0.85rem; color: #1B5E20; text-decoration: none;">Forgot Password?</a>
+                <div class="input-shell password-wrapper">
+                    <span class="input-icon"><i class="fas fa-lock"></i></span>
+                    <input type="password" name="password" class="password-input" placeholder="Password" required>
+                    <button type="button" class="toggle-password" aria-label="Show or hide password">
+                        <span class="eye-icon" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <a href="forgot_password.php" class="forgot-link">Forgot Password?</a>
             </div>
 
             <button type="submit">Login</button>
-
         </form>
 
         <div class="signup-link signup-link-hidden">
-            Don’t have an account?
+            Don&rsquo;t have an account?
             <a href="register.php">Sign up</a>
         </div>
-
     </div>
 </div>
 
@@ -178,6 +194,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
             emailEl.title = emailEl.value || '';
         }
+
         emailEl.addEventListener('blur', function () {
             normalizeEmail();
         });
@@ -189,5 +206,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     })();
 </script>
+<script src="../js/password-toggle.js"></script>
 </body>
 </html>

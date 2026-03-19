@@ -5,6 +5,7 @@ error_reporting(E_ALL);
 
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/kb_media.php';
 
 // Access Control
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
@@ -35,24 +36,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     if (!empty($title) && !empty($category) && !empty($content)) {
         
-        // Handle Image Upload
         $image_path = null;
-        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-            $allowed = ['jpg', 'jpeg', 'png', 'gif'];
-            $filename = $_FILES['image']['name'];
-            $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-            if (in_array($ext, $allowed)) {
-                $new_filename = uniqid() . '.' . $ext;
-                $upload_path = '../uploads/kb_images/' . $new_filename;
-                
-                if (!is_dir('../uploads/kb_images')) {
-                    mkdir('../uploads/kb_images', 0777, true);
-                }
+        $image_upload_error = '';
+        $stored_image_path = kb_store_uploaded_image($_FILES['image'] ?? null, $image_upload_error);
 
-                if (move_uploaded_file($_FILES['image']['tmp_name'], $upload_path)) {
-                    $image_path = 'uploads/kb_images/' . $new_filename;
-                }
-            }
+        if ($stored_image_path === false) {
+            $error_msg = $image_upload_error;
+        } elseif (is_string($stored_image_path)) {
+            $image_path = $stored_image_path;
         }
 
         // Handle Reference Links
@@ -118,8 +109,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         $stmt = $conn->prepare("INSERT INTO knowledge_base (title, category, content, image_path, article_links, article_presentation, article_video, visible_to_sales, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
         $stmt->bind_param("sssssssi", $title, $category, $content, $image_path, $links_json, $presentation_path, $video_content, $visible_to_sales);
-        
-        if ($stmt->execute()) {
+
+        if ($error_msg !== '') {
+            // Preserve the upload error already set above.
+        } elseif ($stmt->execute()) {
             $new_article_id = $conn->insert_id;
             
             // Handle Related Articles
@@ -174,7 +167,70 @@ $total_articles = count($articles);
 $categories_count = count($unique_categories);
 
 // Pre-defined categories
-$categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Problem', 'Account Access', 'Technical Support', 'Other'];
+$categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
+$category_meta = [
+    'Documentation' => ['icon' => 'fa-file-lines', 'tone' => 'teal'],
+    'Email' => ['icon' => 'fa-envelope', 'tone' => 'sand'],
+    'Hardware' => ['icon' => 'fa-screwdriver-wrench', 'tone' => 'violet'],
+    'Internet Concerns' => ['icon' => 'fa-globe', 'tone' => 'blue'],
+    'Procurement' => ['icon' => 'fa-cart-shopping', 'tone' => 'emerald'],
+    'Software' => ['icon' => 'fa-desktop', 'tone' => 'sky'],
+    'Technical Support' => ['icon' => 'fa-headset', 'tone' => 'mint'],
+    'Uncategorized' => ['icon' => 'fa-folder-open', 'tone' => 'slate'],
+];
+$category_aliases = [
+    'network issue' => 'Internet Concerns',
+    'hardware issue' => 'Hardware',
+    'software issue' => 'Software',
+    'email problem' => 'Email',
+    'account access' => 'Technical Support',
+    'other' => 'Technical Support',
+];
+$articles_by_category = [];
+foreach ($categories as $category_name) {
+    $articles_by_category[$category_name] = [];
+}
+foreach ($articles as $article_row) {
+    $category_name = trim((string) ($article_row['category'] ?? ''));
+    if ($category_name === '') {
+        $category_name = 'Uncategorized';
+    }
+    $category_lookup_key = strtolower($category_name);
+    if (isset($category_aliases[$category_lookup_key])) {
+        $category_name = $category_aliases[$category_lookup_key];
+        $article_row['category'] = $category_name;
+    }
+    if (!isset($articles_by_category[$category_name])) {
+        $articles_by_category[$category_name] = [];
+    }
+    $articles_by_category[$category_name][] = $article_row;
+}
+$category_order = $categories;
+if (!empty($articles_by_category['Uncategorized'])) {
+    $category_order[] = 'Uncategorized';
+}
+$default_open_category = '';
+foreach ($category_order as $category_name) {
+    if (!empty($articles_by_category[$category_name])) {
+        $default_open_category = $category_name;
+        break;
+    }
+}
+$recent_articles = $articles;
+$recent_articles_per_page = 4;
+$recent_articles_total = count($recent_articles);
+$recent_articles_total_pages = max(1, (int) ceil($recent_articles_total / $recent_articles_per_page));
+$recent_articles_page = isset($_GET['recent_page']) ? (int) $_GET['recent_page'] : 1;
+if ($recent_articles_page < 1) {
+    $recent_articles_page = 1;
+}
+if ($recent_articles_page > $recent_articles_total_pages) {
+    $recent_articles_page = $recent_articles_total_pages;
+}
+$recent_articles_offset = ($recent_articles_page - 1) * $recent_articles_per_page;
+$recent_articles_page_items = array_slice($recent_articles, $recent_articles_offset, $recent_articles_per_page);
+$recent_articles_query = $_GET;
+unset($recent_articles_query['recent_page']);
 ?>
 
 <!DOCTYPE html>
@@ -188,52 +244,98 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body {
-            background-color: #F3F4F6; /* Ensure background is light gray */
+            background-image:
+                linear-gradient(rgba(246, 242, 255, 0.78), rgba(245, 249, 255, 0.88)),
+                url('../assets/img/kbkb.jpg');
+            background-repeat: no-repeat;
+            background-position: center top;
+            background-attachment: fixed;
+            background-size: cover;
         }
 
         .kb-wrapper {
-            padding: 20px 40px 40px; /* Reduced top padding */
-            max-width: 1250px; /* Adjusted width */
+            padding: 28px 36px 48px;
+            max-width: 1160px;
             margin: 0 auto;
         }
 
-        /* Stats Grid */
+        .kb-page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: #172033;
+            letter-spacing: -0.03em;
+            margin: 0;
+        }
+
+        .btn-add-article {
+            background: linear-gradient(135deg, #1ec9a1 0%, #16a085 100%);
+            color: white;
+            border: none;
+            padding: 15px 28px;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+            box-shadow: 0 12px 28px rgba(22, 160, 133, 0.24);
+        }
+
+        .btn-add-article:hover {
+            transform: translateY(-2px);
+            filter: brightness(0.98);
+            box-shadow: 0 16px 32px rgba(22, 160, 133, 0.3);
+        }
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-bottom: 25px;
+            gap: 18px;
+            margin-bottom: 18px;
         }
 
         .stat-card {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 18px 20px;
+            border-radius: 20px;
+            border: 1px solid rgba(216, 221, 241, 0.9);
+            box-shadow: 0 14px 30px rgba(80, 71, 123, 0.08);
             display: flex;
             align-items: center;
-            gap: 15px;
-            border-bottom: 3px solid transparent;
+            gap: 16px;
             transition: transform 0.2s, box-shadow 0.2s;
         }
 
         .stat-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 18px 36px rgba(80, 71, 123, 0.12);
         }
 
-        .stat-card.green-accent { border-bottom-color: #10B981; }
-        .stat-card.blue-accent { border-bottom-color: #3B82F6; }
-        .stat-card.purple-accent { border-bottom-color: #8B5CF6; }
+        .stat-card.green-accent { box-shadow: inset 0 -3px 0 #18b48f, 0 14px 30px rgba(80, 71, 123, 0.08); }
+        .stat-card.blue-accent { box-shadow: inset 0 -3px 0 #5793ff, 0 14px 30px rgba(80, 71, 123, 0.08); }
+        .stat-card.purple-accent { box-shadow: inset 0 -3px 0 #a370ff, 0 14px 30px rgba(80, 71, 123, 0.08); }
 
         .stat-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 10px;
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            font-size: 22px;
         }
 
         .stat-icon.green { background: #ECFDF5; color: #059669; }
@@ -242,131 +344,368 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
 
         .stat-info h3 {
             margin: 0;
-            font-size: 24px;
+            font-size: 22px;
             font-weight: 700;
             color: #111827;
         }
 
         .stat-info p {
-            margin: 0;
-            font-size: 13px;
-            color: #6B7280;
+            margin: 2px 0 0;
+            font-size: 14px;
+            color: #5f6980;
             font-weight: 500;
         }
 
-        /* Page Header */
-        .kb-page-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .page-title {
-            font-size: 26px; /* Increased size */
-            font-weight: 800;
-            color: #111827;
-            letter-spacing: -0.5px;
-        }
-
-        .btn-add-article {
-            background-color: #10B981;
-            color: white;
-            border: none;
-            padding: 14px 28px; /* Larger button */
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: 15px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: all 0.2s;
-            box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);
-        }
-
-        .btn-add-article:hover {
-            background-color: #059669;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px -1px rgba(16, 185, 129, 0.4);
-        }
-
-        /* Table Card */
-        .kb-table-card {
-            background: white;
-            border-radius: 16px; /* More rounded */
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 10px 15px -3px rgba(0, 0, 0, 0.05); /* Stronger shadow */
-            border: 1px solid #E5E7EB;
+        .kb-section-card {
+            background: rgba(255, 255, 255, 0.74);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(225, 227, 245, 0.95);
+            border-radius: 22px;
+            box-shadow: 0 18px 42px rgba(92, 84, 132, 0.1);
             overflow: hidden;
-            margin-bottom: 40px; /* Spacing at bottom */
         }
 
+        .kb-table-card {
+            margin-bottom: 26px;
+            min-height: 520px;
+        }
+
+        .kb-section-header,
         .kb-table-header {
-            padding: 20px 30px;
-            border-bottom: 1px solid #E5E7EB;
+            padding: 22px 28px;
+            border-bottom: 1px solid rgba(228, 231, 245, 0.95);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background-color: #FFFFFF;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .kb-section-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .kb-section-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #607089 0%, #4d5970 100%);
+            color: #fff;
+            font-size: 17px;
         }
 
         .kb-table-title {
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 700;
-            color: #111827;
+            color: #1f2937;
         }
 
-        .kb-table {
-            width: 100%;
-            border-collapse: collapse;
+        .kb-section-pill {
+            font-size: 13px;
+            color: #6B7280;
+            background: rgba(243, 244, 246, 0.92);
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-weight: 500;
         }
 
-        .kb-table th, .kb-table td {
-            padding: 20px 30px; /* Increased padding */
-            text-align: left;
-            border-bottom: 1px solid #F3F4F6;
-        }
-
-        .kb-table th {
-            background-color: #F0FDF4; /* Green tint */
+        .kb-list-head {
+            display: grid;
+            grid-template-columns: minmax(0, 2.2fr) minmax(150px, 1fr) 120px 150px 190px;
+            gap: 18px;
+            padding: 16px 28px;
+            background: rgba(249, 250, 253, 0.95);
             font-weight: 600;
-            color: #065F46; /* Darker green text */
+            color: #667085;
             font-size: 13px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.04em;
         }
 
-        .kb-table tr:last-child td {
-            border-bottom: none;
+        .kb-list-body,
+        .kb-article-stack {
+            padding: 18px;
         }
 
-        .kb-table tr:hover {
-            background-color: #F9FAFB;
+        .kb-pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 0 18px 18px;
+            flex-wrap: wrap;
         }
 
-        .kb-table tr {
+        .kb-pagination-summary {
+            font-size: 14px;
+            color: #667085;
+            font-weight: 500;
+        }
+
+        .kb-pagination-links {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .kb-page-link {
+            min-width: 42px;
+            height: 42px;
+            padding: 0 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(210, 218, 235, 0.95);
+            background: rgba(255, 255, 255, 0.88);
+            color: #475467;
+            font-size: 14px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            box-shadow: 0 8px 20px rgba(77, 89, 112, 0.08);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .kb-page-link:hover {
+            transform: translateY(-1px);
+            border-color: rgba(92, 132, 255, 0.34);
+            box-shadow: 0 12px 22px rgba(77, 89, 112, 0.12);
+        }
+
+        .kb-page-link.is-active {
+            background: linear-gradient(135deg, #4d6bff 0%, #6d8cff 100%);
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 12px 24px rgba(77, 107, 255, 0.22);
+        }
+
+        .kb-page-link.is-disabled {
+            opacity: 0.45;
+            pointer-events: none;
+            box-shadow: none;
+        }
+
+        .kb-categories-card {
+            margin-top: 8px;
+        }
+
+        .kb-category-grid-admin {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+            padding: 18px;
+        }
+
+        .kb-category-tile {
+            width: 100%;
+            text-align: left;
+            border: 1px solid rgba(224, 228, 241, 0.95);
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.76);
+            padding: 18px 20px;
             cursor: pointer;
+            box-shadow: 0 10px 26px rgba(66, 58, 99, 0.07);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+            display: grid;
+            grid-template-columns: 54px minmax(0, 1fr);
+            gap: 14px;
+            align-items: center;
+        }
+
+        .kb-category-tile:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 30px rgba(66, 58, 99, 0.11);
+            border-color: rgba(120, 140, 210, 0.45);
+        }
+
+        .kb-category-tile.is-active {
+            border-color: rgba(92, 132, 255, 0.36);
+            background: rgba(245, 247, 255, 0.92);
+            box-shadow: 0 16px 32px rgba(88, 105, 182, 0.14);
+        }
+
+        .kb-category-tile-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+        }
+
+        .tone-teal .kb-category-tile-icon,
+        .tone-teal.badge-category {
+            background: linear-gradient(135deg, #6fd0c3 0%, #4099a0 100%);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .tone-sand .kb-category-tile-icon,
+        .tone-sand.badge-category {
+            background: linear-gradient(135deg, #f0d48f 0%, #d9b764 100%);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .tone-violet .kb-category-tile-icon,
+        .tone-violet.badge-category {
+            background: linear-gradient(135deg, #b895ff 0%, #8668f1 100%);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .tone-blue .kb-category-tile-icon,
+        .tone-blue.badge-category {
+            background: linear-gradient(135deg, #74b7ff 0%, #4f86ff 100%);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .tone-emerald .kb-category-tile-icon,
+        .tone-emerald.badge-category {
+            background: linear-gradient(135deg, #5fd1b4 0%, #1ca57d 100%);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .tone-sky .kb-category-tile-icon,
+        .tone-sky.badge-category {
+            background: linear-gradient(135deg, #7eb9ff 0%, #5d8fff 100%);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .tone-mint .kb-category-tile-icon,
+        .tone-mint.badge-category {
+            background: linear-gradient(135deg, #6fd8da 0%, #43b4c5 100%);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .tone-slate .kb-category-tile-icon,
+        .tone-slate.badge-category {
+            background: linear-gradient(135deg, #b5bfd0 0%, #7d8ca5 100%);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .kb-category-tile-name {
+            margin: 0 0 4px;
+            font-size: 19px;
+            font-weight: 700;
+            color: #1f2937;
+            line-height: 1.25;
+        }
+
+        .kb-category-tile-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #68738a;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .kb-category-panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 22px 28px;
+            border-bottom: 1px solid rgba(228, 231, 245, 0.95);
+            flex-wrap: wrap;
+        }
+
+        .kb-category-panel-title {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 700;
+            color: #1f2937;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .kb-category-panel-title i {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #65748d 0%, #465267 100%);
+            color: #fff;
+            font-size: 17px;
+        }
+
+        .kb-view-panel {
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .kb-view-panel.is-hidden {
+            display: none;
+        }
+
+        .kb-item {
+            display: grid;
+            grid-template-columns: minmax(0, 2.2fr) minmax(150px, 1fr) 120px 150px 190px;
+            gap: 18px;
+            align-items: center;
+            padding: 16px 20px;
+            margin-bottom: 0;
+            background: rgba(255, 255, 255, 0.55);
+            border-top: 1px solid rgba(231, 233, 244, 0.95);
+        }
+
+        .kb-item:hover {
+            background: rgba(255, 255, 255, 0.78);
+        }
+
+        .kb-col-label {
+            display: none;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #6B7280;
+            margin-bottom: 6px;
         }
 
         .article-title {
             font-weight: 600;
-            color: #111827;
+            color: #1f2937;
             font-size: 15px;
+            line-height: 1.45;
         }
 
         .badge-category {
-            background-color: #ECFDF5;
-            color: #059669;
             padding: 6px 12px;
-            border-radius: 6px; /* Slightly less rounded */
+            border-radius: 10px;
             font-size: 13px;
             font-weight: 600;
             display: inline-block;
-            border: 1px solid #D1FAE5;
+        }
+
+        .kb-item .badge-category {
+            background: rgba(243, 244, 246, 0.96);
+            color: #475467;
+            border: 1px solid rgba(217, 222, 231, 0.95);
+            box-shadow: none;
         }
 
         .meta-text {
-            color: #6B7280;
+            color: #667085;
             font-size: 14px;
         }
 
@@ -374,12 +713,12 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 10px;
         }
 
         .action-btn {
-            padding: 8px 12px;
-            border-radius: 8px;
+            padding: 10px 14px;
+            border-radius: 12px;
             font-size: 14px;
             font-weight: 500;
             text-decoration: none;
@@ -388,7 +727,14 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             justify-content: center;
             gap: 6px;
             transition: all 0.2s;
-            flex: 1;
+            min-width: 92px;
+            box-shadow: 0 10px 18px rgba(76, 86, 120, 0.08);
+        }
+
+        .kb-empty-state {
+            text-align: center;
+            padding: 80px 40px;
+            color: #9CA3AF;
         }
 
         .btn-delete {
@@ -646,6 +992,9 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             .kb-wrapper {
                 padding: 20px;
             }
+            .kb-category-grid-admin {
+                grid-template-columns: 1fr;
+            }
             .modal-content {
                 margin: 20px;
                 max-width: calc(100% - 40px);
@@ -823,6 +1172,39 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             accent-color:#10B981;
             flex:0 0 auto;
         }
+
+        @media (max-width: 1080px) {
+            .kb-table-card {
+                min-height: auto;
+            }
+
+            .kb-list-head {
+                display: none;
+            }
+
+            .kb-item {
+                grid-template-columns: 1fr;
+                gap: 14px;
+                align-items: start;
+            }
+
+            .kb-col-label {
+                display: block;
+            }
+
+            .actions-cell {
+                justify-content: flex-start;
+            }
+
+            .kb-pagination {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .kb-pagination-links {
+                justify-content: center;
+            }
+        }
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
@@ -885,70 +1267,212 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             </div>
         </div>
 
-        <!-- LIST TABLE -->
-        <div class="kb-table-card">
-            <div class="kb-table-header">
-                <div class="kb-table-title">Published Articles</div>
-                <div style="font-size: 13px; color: #6B7280; background: #F3F4F6; padding: 4px 10px; border-radius: 20px;">
-                    Showing <strong><?= $total_articles ?></strong> articles
-                </div>
-            </div>
+        <div class="kb-table-card kb-section-card">
+            <?php if (count($articles) > 0): ?>
+                <div class="kb-view-panel" data-articles-view="recent">
+                    <div class="kb-category-panel-head">
+                        <h3 class="kb-category-panel-title">
+                            <i class="fas fa-file-lines"></i>
+                            Recent Articles
+                        </h3>
+                    </div>
 
-            <table class="kb-table">
-                <thead>
-                    <tr>
-                        <th width="40%">Article Title</th>
-                        <th width="20%">Category</th>
-                        <th width="15%">Views</th>
-                        <th width="15%">Created Date</th>
-                        <th width="15%" style="text-align: center;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (count($articles) > 0): ?>
-                        <?php foreach($articles as $row): ?>
-                            <tr>
-                                <td>
+                    <div class="kb-list-head">
+                        <div>Article Title</div>
+                        <div>Category</div>
+                        <div>Views</div>
+                        <div>Created Date</div>
+                        <div style="text-align:center;">Actions</div>
+                    </div>
+
+                    <div class="kb-article-stack">
+                        <?php foreach ($recent_articles_page_items as $row): ?>
+                            <?php $row_meta = $category_meta[$row['category']] ?? $category_meta['Uncategorized']; ?>
+                            <div class="kb-item">
+                                <div>
+                                    <div class="kb-col-label">Article Title</div>
                                     <div class="article-title"><?= htmlspecialchars($row['title']) ?></div>
-                                </td>
-                                <td>
-                                    <span class="badge-category">
+                                </div>
+                                <div>
+                                    <div class="kb-col-label">Category</div>
+                                    <span class="badge-category tone-<?= htmlspecialchars($row_meta['tone']) ?>">
                                         <?= htmlspecialchars($row['category']) ?>
                                     </span>
-                                </td>
-                                <td class="meta-text">
-                                    <i class="far fa-eye" style="margin-right: 5px;"></i> 
+                                </div>
+                                <div class="meta-text">
+                                    <div class="kb-col-label">Views</div>
+                                    <i class="far fa-eye" style="margin-right: 5px;"></i>
                                     <?= isset($row['views']) ? number_format($row['views']) : '0' ?>
-                                </td>
-                                <td class="meta-text">
+                                </div>
+                                <div class="meta-text">
+                                    <div class="kb-col-label">Created Date</div>
                                     <?= date('M d, Y', strtotime($row['created_at'])) ?>
-                                </td>
-                                <td>
+                                </div>
+                                <div>
+                                    <div class="kb-col-label">Actions</div>
                                     <div class="actions-cell">
                                         <a href="edit_kb.php?id=<?= $row['id'] ?>" class="action-btn btn-edit">
                                             <i class="fas fa-pencil-alt"></i> Edit
                                         </a>
-                                        <a href="javascript:void(0)" 
+                                        <a href="javascript:void(0)"
                                            class="action-btn btn-delete"
                                            onclick="confirmDelete(<?= $row['id'] ?>)">
                                             <i class="fas fa-trash-alt"></i> Delete
                                         </a>
                                     </div>
-                                </td>
-                            </tr>
+                                </div>
+                            </div>
                         <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="5" style="text-align: center; padding: 80px 40px; color: #9CA3AF;">
-                                <div style="font-size: 56px; margin-bottom: 20px; color: #E5E7EB;"><i class="fas fa-book-open"></i></div>
-                                <div style="font-size: 18px; font-weight: 700; color: #374151;">No articles found</div>
-                                <div style="font-size: 15px; margin-top: 8px;">Get started by creating your first article.</div>
-                            </td>
-                        </tr>
+                    </div>
+
+                    <?php if ($recent_articles_total_pages > 1): ?>
+                        <?php
+                        $recent_articles_start = $recent_articles_offset + 1;
+                        $recent_articles_end = min($recent_articles_offset + $recent_articles_per_page, $recent_articles_total);
+                        $recent_prev_query = $recent_articles_query;
+                        $recent_prev_query['recent_page'] = max(1, $recent_articles_page - 1);
+                        $recent_next_query = $recent_articles_query;
+                        $recent_next_query['recent_page'] = min($recent_articles_total_pages, $recent_articles_page + 1);
+                        ?>
+                        <div class="kb-pagination">
+                            <div class="kb-pagination-summary">
+                                Showing <?= $recent_articles_start ?>-<?= $recent_articles_end ?> of <?= $recent_articles_total ?> recent articles
+                            </div>
+                            <div class="kb-pagination-links">
+                                <a
+                                    href="?<?= htmlspecialchars(http_build_query($recent_prev_query), ENT_QUOTES, 'UTF-8') ?>"
+                                    class="kb-page-link<?= $recent_articles_page <= 1 ? ' is-disabled' : '' ?>"
+                                >
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                                <?php for ($page = 1; $page <= $recent_articles_total_pages; $page++): ?>
+                                    <?php $recent_page_query = $recent_articles_query; ?>
+                                    <?php $recent_page_query['recent_page'] = $page; ?>
+                                    <a
+                                        href="?<?= htmlspecialchars(http_build_query($recent_page_query), ENT_QUOTES, 'UTF-8') ?>"
+                                        class="kb-page-link<?= $page === $recent_articles_page ? ' is-active' : '' ?>"
+                                    >
+                                        <?= $page ?>
+                                    </a>
+                                <?php endfor; ?>
+                                <a
+                                    href="?<?= htmlspecialchars(http_build_query($recent_next_query), ENT_QUOTES, 'UTF-8') ?>"
+                                    class="kb-page-link<?= $recent_articles_page >= $recent_articles_total_pages ? ' is-disabled' : '' ?>"
+                                >
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </div>
+                        </div>
                     <?php endif; ?>
-                </tbody>
-            </table>
+                </div>
+
+                <?php foreach ($category_order as $category_name): ?>
+                    <?php $category_articles = $articles_by_category[$category_name] ?? []; ?>
+                    <?php if (empty($category_articles)) continue; ?>
+                    <?php $panel_meta = $category_meta[$category_name] ?? $category_meta['Uncategorized']; ?>
+                    <div class="kb-view-panel is-hidden" data-articles-view="<?= htmlspecialchars($category_name, ENT_QUOTES, 'UTF-8') ?>">
+                        <div class="kb-category-panel-head">
+                            <h3 class="kb-category-panel-title">
+                                <i class="fas <?= htmlspecialchars($panel_meta['icon']) ?>"></i>
+                                <?= htmlspecialchars($category_name) ?>
+                            </h3>
+                        </div>
+
+                        <div class="kb-list-head">
+                            <div>Article Title</div>
+                            <div>Category</div>
+                            <div>Views</div>
+                            <div>Created Date</div>
+                            <div style="text-align:center;">Actions</div>
+                        </div>
+
+                        <div class="kb-article-stack">
+                            <?php foreach ($category_articles as $row): ?>
+                                <?php $row_meta = $category_meta[$row['category']] ?? $category_meta['Uncategorized']; ?>
+                                <div class="kb-item">
+                                    <div>
+                                        <div class="kb-col-label">Article Title</div>
+                                        <div class="article-title"><?= htmlspecialchars($row['title']) ?></div>
+                                    </div>
+                                    <div>
+                                        <div class="kb-col-label">Category</div>
+                                        <span class="badge-category tone-<?= htmlspecialchars($row_meta['tone']) ?>">
+                                            <?= htmlspecialchars($row['category']) ?>
+                                        </span>
+                                    </div>
+                                    <div class="meta-text">
+                                        <div class="kb-col-label">Views</div>
+                                        <i class="far fa-eye" style="margin-right: 5px;"></i>
+                                        <?= isset($row['views']) ? number_format($row['views']) : '0' ?>
+                                    </div>
+                                    <div class="meta-text">
+                                        <div class="kb-col-label">Created Date</div>
+                                        <?= date('M d, Y', strtotime($row['created_at'])) ?>
+                                    </div>
+                                    <div>
+                                        <div class="kb-col-label">Actions</div>
+                                        <div class="actions-cell">
+                                            <a href="edit_kb.php?id=<?= $row['id'] ?>" class="action-btn btn-edit">
+                                                <i class="fas fa-pencil-alt"></i> Edit
+                                            </a>
+                                            <a href="javascript:void(0)"
+                                               class="action-btn btn-delete"
+                                               onclick="confirmDelete(<?= $row['id'] ?>)">
+                                                <i class="fas fa-trash-alt"></i> Delete
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="kb-list-body">
+                    <div class="kb-empty-state">
+                        <div style="font-size: 56px; margin-bottom: 20px; color: #E5E7EB;"><i class="fas fa-book-open"></i></div>
+                        <div style="font-size: 18px; font-weight: 700; color: #374151;">No articles found</div>
+                        <div style="font-size: 15px; margin-top: 8px;">Get started by creating your first article.</div>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
+
+        <?php if (count($articles) > 0): ?>
+            <div class="kb-section-card kb-categories-card">
+                <div class="kb-section-header">
+                    <div class="kb-section-title-wrap">
+                        <span class="kb-section-icon" style="background: linear-gradient(135deg, #4aa99b 0%, #3f8d86 100%);">
+                            <i class="fas fa-folder"></i>
+                        </span>
+                        <div class="kb-table-title">Categories</div>
+                    </div>
+                </div>
+
+                <div class="kb-category-grid-admin">
+                    <?php foreach ($category_order as $category_name): ?>
+                        <?php $category_articles = $articles_by_category[$category_name] ?? []; ?>
+                        <?php if (empty($category_articles)) continue; ?>
+                        <?php $meta = $category_meta[$category_name] ?? $category_meta['Uncategorized']; ?>
+                        <button
+                            type="button"
+                            class="kb-category-tile tone-<?= htmlspecialchars($meta['tone']) ?>"
+                            data-category-target="<?= htmlspecialchars($category_name, ENT_QUOTES, 'UTF-8') ?>"
+                        >
+                            <span class="kb-category-tile-icon">
+                                <i class="fas <?= htmlspecialchars($meta['icon']) ?>"></i>
+                            </span>
+                            <div>
+                                <div class="kb-category-tile-name"><?= htmlspecialchars($category_name) ?></div>
+                                <div class="kb-category-tile-meta">
+                                    <span><?= count($category_articles) ?> Article<?= count($category_articles) === 1 ? '' : 's' ?></span>
+                                </div>
+                            </div>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
     </div>
 </div>
@@ -1071,6 +1595,41 @@ function addLink() {
     `;
     container.appendChild(div);
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    const tiles = document.querySelectorAll('[data-category-target]');
+    const panels = document.querySelectorAll('[data-articles-view]');
+    const recentPanel = document.querySelector('[data-articles-view="recent"]');
+    if (!tiles.length || !panels.length || !recentPanel) return;
+
+    function showArticlesView(target) {
+        panels.forEach(function (panel) {
+            panel.classList.toggle('is-hidden', panel.getAttribute('data-articles-view') !== target);
+        });
+    }
+
+    showArticlesView('recent');
+
+    tiles.forEach(function (tile) {
+        tile.addEventListener('click', function () {
+            const wasActive = tile.classList.contains('is-active');
+            const target = tile.getAttribute('data-category-target');
+
+            if (wasActive) {
+                tiles.forEach(function (item) {
+                    item.classList.remove('is-active');
+                });
+                showArticlesView('recent');
+                return;
+            }
+
+            tiles.forEach(function (item) {
+                item.classList.toggle('is-active', item === tile);
+            });
+            showArticlesView(target);
+        });
+    });
+});
 
 function removeLink(btn) {
     btn.closest('.link-row').remove();

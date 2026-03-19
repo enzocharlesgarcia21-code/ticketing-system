@@ -1,5 +1,8 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/notification_service.php';
+
+notif_ensure_action_type_column($conn);
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     http_response_code(403);

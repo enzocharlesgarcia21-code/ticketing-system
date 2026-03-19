@@ -3,6 +3,7 @@ require_once '../config/database.php';
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/notification_service.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -13,6 +14,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
 
     ticket_ensure_assignment_columns($conn);
+    notif_ensure_action_type_column($conn);
 
     if (!isset($_POST['id'])) {
         // Redirect if ID is missing
@@ -66,7 +68,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             header("Location: all_tickets.php");
             exit();
         }
-        $assignee = ticket_find_assignee_id($conn, $effective_company, $effective_group);
+        $assigneeIds = ticket_find_assignee_ids($conn, $effective_company, $effective_group);
+        $assignee = count($assigneeIds) > 0 ? (int) $assigneeIds[0] : null;
         if (!$assignee) {
             $_SESSION['error'] = 'No assignee available for the selected company and group.';
             header("Location: all_tickets.php");
@@ -88,6 +91,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $oldCompany = ticket_normalize_company((string) ($old_data['assigned_company'] ?? ''));
     $oldDept = ticket_department_key_from_value((string) ($old_data['assigned_department'] ?? ($old_data['assigned_group'] ?? '')));
     $oldNote = (string) ($old_data['admin_note'] ?? '');
+    $oldAssignedUserId = isset($old_data['assigned_user_id']) ? (int) $old_data['assigned_user_id'] : 0;
     $newCompanyNorm = ticket_normalize_company((string) $effective_company);
     $newDeptNorm = ticket_department_key_from_value((string) $new_department);
     $newNoteNorm = (string) ($admin_note ?? '');
@@ -149,15 +153,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             // 1. Status Change
             if ($old_data['status'] !== $new_status) {
-                if ($new_status === 'Resolved' || $new_status === 'Closed') {
+                if ($new_status === 'Closed') {
                      $notifications[] = [
                         'msg' => "Your ticket #$id has been closed.",
-                        'type' => 'ticket_closed'
+                        'type' => 'ticket_closed',
+                        'action_type' => 'close'
                     ];
                 } else {
                     $notifications[] = [
                         'msg' => "Your ticket #$id status was updated to $new_status.",
-                        'type' => 'status_update'
+                        'type' => 'status_update',
+                        'action_type' => 'update'
                     ];
                 }
             }
@@ -166,21 +172,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $deptChanged = (string) ($old_data['assigned_department'] ?? '') !== (string) $new_department;
             $companyChanged = (string) ($old_data['assigned_company'] ?? '') !== (string) $effective_company;
             if ($deptChanged || $companyChanged) {
+                $assignmentActionType = $oldAssignedUserId === 0 ? 'assign' : 'reassign';
+                $requesterAssignmentMsg = $assignmentActionType === 'assign'
+                    ? "Your ticket #$id was assigned to $new_department" . ($effective_company !== '' ? (" at $effective_company") : "") . "."
+                    : "Your ticket #$id was reassigned to $new_department" . ($effective_company !== '' ? (" at $effective_company") : "") . ".";
                 $notifications[] = [
-                    'msg' => "Your ticket #$id was reassigned to $new_department" . ($effective_company !== '' ? (" at $effective_company") : "") . ".",
-                    'type' => 'reassigned'
+                    'msg' => $requesterAssignmentMsg,
+                    'type' => 'reassigned',
+                    'action_type' => $assignmentActionType
                 ];
 
-                if (!empty($assigned_user_id)) {
-                    $dept_notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, ?)");
-                    if ($dept_notif_stmt) {
-                        $dept_type = 'dept_assigned';
-                        $dept_msg = "New ticket #$id was assigned to your group" . ($effective_company !== '' ? (" ($effective_company)") : "") . ".";
-                        $assigneeIdInt = (int) $assigned_user_id;
-                        $dept_notif_stmt->bind_param("iiss", $assigneeIdInt, $id, $dept_msg, $dept_type);
-                        $dept_notif_stmt->execute();
-                        $dept_notif_stmt->close();
-                    }
+                foreach (($assigneeIds ?? []) as $notifyUserId) {
+                    $notifyUserId = (int) $notifyUserId;
+                    if ($notifyUserId <= 0) continue;
+                    notif_insert_system($conn, $notifyUserId, (int) $id, "New ticket #$id was assigned to your group" . ($effective_company !== '' ? (" ($effective_company)") : "") . ".", 'dept_assigned', 10, $assignmentActionType);
                 }
             }
 
@@ -189,14 +194,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                  $preview = strlen($admin_note) > 50 ? substr($admin_note, 0, 50) . '...' : $admin_note;
                  $notifications[] = [
                     'msg' => "Admin added a note to ticket #$id: '$preview'",
-                    'type' => 'note_added'
+                    'type' => 'note_added',
+                    'action_type' => 'update'
                 ];
             }
 
             if (!empty($notifications)) {
-                $ins_notif = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, ?)");
+                $ins_notif = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type, action_type) VALUES (?, ?, ?, ?, ?)");
                 foreach ($notifications as $n) {
-                    $ins_notif->bind_param("iiss", $notif_user_id, $id, $n['msg'], $n['type']);
+                    $actionType = (string) ($n['action_type'] ?? notif_normalize_action_type('', (string) ($n['type'] ?? '')));
+                    $ins_notif->bind_param("iisss", $notif_user_id, $id, $n['msg'], $n['type'], $actionType);
                     $ins_notif->execute();
                 }
                 $ins_notif->close();

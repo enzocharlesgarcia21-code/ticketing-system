@@ -1,6 +1,9 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/notification_service.php';
 header('Content-Type: application/json');
+
+notif_ensure_action_type_column($conn);
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
     http_response_code(403);
@@ -53,6 +56,7 @@ while ($row = $result->fetch_assoc()) {
         'ticket_id' => (int) $row['ticket_id'],
         'message' => (string) $row['message'],
         'type' => (string) $row['type'],
+        'action_type' => (string) ($row['action_type'] ?? ''),
         'priority' => $row['priority'] ?? null,
         'is_read' => (int) $row['is_read'],
         'created_at' => (string) $row['created_at'],

@@ -21,9 +21,17 @@ $page = $page < 1 ? 1 : $page;
 $offset = ($page - 1) * $limit;
 $currentUserId = (int) ($_SESSION['user_id'] ?? 0);
 
+$hasSuperAdminCol = false;
+$colRes = $conn->query("SHOW COLUMNS FROM users LIKE 'is_super_admin'");
+if ($colRes && $colRes->num_rows > 0) {
+    $hasSuperAdminCol = true;
+}
+
 $where = [];
 $params = [];
 $types = '';
+
+$where[] = "NOT (company = 'Sales' AND UPPER(COALESCE(department,'')) = 'SALES' AND role = 'employee')";
 
 if ($q !== '') {
     $term = '%' . $q . '%';
@@ -74,7 +82,11 @@ if ($company !== '' && $company !== 'all') {
 }
 
 $countSql = "SELECT COUNT(*) AS total FROM users";
-$sql = "SELECT id, name, email, department, role FROM users";
+$sql = "SELECT id, name, email, department, role";
+if ($hasSuperAdminCol) {
+    $sql .= ", COALESCE(is_super_admin, 0) AS is_super_admin";
+}
+$sql .= " FROM users";
 if (count($where) > 0) {
     $whereSql = " WHERE " . implode(" AND ", $where);
     $countSql .= $whereSql;
@@ -124,12 +136,20 @@ $stmt->execute();
 $res = $stmt->get_result();
 $users = [];
 while ($row = $res->fetch_assoc()) {
+    $isSuper = false;
+    if ($hasSuperAdminCol) {
+        $isSuper = (int) ($row['is_super_admin'] ?? 0) === 1;
+    } else {
+        $roleVal = strtolower(trim((string) ($row['role'] ?? '')));
+        $isSuper = $roleVal === 'admin';
+    }
     $users[] = [
         'id' => (int) ($row['id'] ?? 0),
         'name' => (string) ($row['name'] ?? ''),
         'email' => (string) ($row['email'] ?? ''),
         'department' => (string) ($row['department'] ?? ''),
         'role' => (string) ($row['role'] ?? ''),
+        'is_super_admin' => $isSuper ? 1 : 0,
     ];
 }
 $stmt->close();

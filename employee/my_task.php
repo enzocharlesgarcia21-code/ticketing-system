@@ -91,14 +91,14 @@ if ($user_email === '') {
 /* ================= GET VALUES ================= */
 
 $search = $_GET['search'] ?? '';
-$priority = $_GET['priority'] ?? '';
+$department = $_GET['department'] ?? '';
 $status = $_GET['status'] ?? '';
 
-$allowed_priorities = ['Low','Medium','High','Critical'];
+$allowed_departments = ticket_standard_assigned_departments();
 $allowed_statuses = ['Open','In Progress','Resolved'];
 
-if (!in_array($priority, $allowed_priorities, true)) {
-    $priority = '';
+if (!in_array($department, $allowed_departments, true)) {
+    $department = '';
 }
 if (!in_array($status, $allowed_statuses, true)) {
     $status = '';
@@ -128,7 +128,11 @@ $companyAliasCond = count($companyAliases) > 0
 $companyCond = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND $companyAliasCond))";
 $groupCond = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), t.department) = ?";
 
-$where[] = "(t.assigned_user_id = ? OR ($groupCond AND $companyCond))";
+$where[] = "((t.assigned_user_id = ? AND t.user_id <> ?) OR (t.user_id <> ? AND $groupCond AND $companyCond))";
+$params[] = (int) $user_id;
+$types .= "i";
+$params[] = (int) $user_id;
+$types .= "i";
 $params[] = (int) $user_id;
 $types .= "i";
 $params[] = $user_department;
@@ -171,9 +175,9 @@ if (!empty($search)) {
     }
 }
 
-if ($priority !== '') {
-    $where[] = "t.priority = ?";
-    $params[] = $priority;
+if ($department !== '') {
+    $where[] = "COALESCE(NULLIF(t.department, ''), NULLIF(u.department, '')) = ?";
+    $params[] = $department;
     $types .= "s";
 }
 
@@ -238,8 +242,184 @@ $result = $stmt->get_result();
     <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        @media (max-width: 768px) {
+            body.employee-my-task-page .filter-card {
+                padding: 16px;
+                border-radius: 14px;
+            }
+
+            body.employee-my-task-page .filter-form {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+
+            body.employee-my-task-page .search-wrapper {
+                width: 100%;
+                min-width: 0;
+            }
+
+            body.employee-my-task-page .search-input {
+                width: 100%;
+                height: 46px;
+                padding: 0 14px 0 40px;
+                border-radius: 12px;
+                font-size: 14px;
+            }
+
+            body.employee-my-task-page .filters-wrapper {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+                width: 100%;
+            }
+
+            body.employee-my-task-page .select-wrapper.small {
+                width: 100%;
+                min-width: 0;
+            }
+
+            body.employee-my-task-page .filter-form .filter-select {
+                width: 100%;
+                height: 46px;
+                padding: 0 36px 0 12px;
+                border-radius: 12px;
+                font-size: 14px;
+            }
+
+            body.employee-my-task-page .filter-form .clear-btn {
+                width: 100%;
+                min-height: 46px;
+                padding: 10px 14px;
+                border-radius: 12px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            body.employee-my-task-page .tm-global-chat-fab {
+                right: 12px;
+                bottom: 12px;
+                width: 42px !important;
+                max-width: 42px !important;
+                min-width: 42px;
+                height: 42px;
+                min-height: 42px;
+                padding: 0 !important;
+                border-radius: 999px;
+                justify-content: center;
+                gap: 0;
+            }
+
+            body.employee-my-task-page .tm-global-chat-fab .tm-global-chat-label {
+                display: none;
+            }
+
+            body.employee-my-task-page .tm-global-chat-fab i {
+                font-size: 16px;
+            }
+
+            body.employee-my-task-page .table-responsive table thead {
+                display: none;
+            }
+
+            body.employee-my-task-page .table-responsive table tbody {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 6px;
+            }
+
+            body.employee-my-task-page .table-responsive table tbody tr.ticket-row {
+                display: grid;
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "id"
+                    "category"
+                    "title"
+                    "date"
+                    "arrow";
+                gap: 1px;
+                padding: 8px;
+                border-radius: 8px;
+                background: #ffffff;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+                border: 1px solid #dbe4ee;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                min-height: 104px;
+                align-content: start;
+            }
+
+            body.employee-my-task-page .table-responsive table tbody tr.ticket-row:hover {
+                border-color: #1B5E20;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            }
+
+            body.employee-my-task-page .table-responsive table tbody tr.ticket-row:active {
+                transform: scale(0.98);
+            }
+
+            body.employee-my-task-page .table-responsive table tbody tr.ticket-row td {
+                display: block;
+                padding: 0;
+                border: none;
+                text-align: left;
+            }
+
+            body.employee-my-task-page .table-responsive table tbody tr.ticket-row td::before {
+                display: none;
+            }
+
+            body.employee-my-task-page .task-ticket-id {
+                grid-area: id;
+                font-size: 10px;
+                font-weight: 700;
+                color: #0f172a;
+            }
+
+            body.employee-my-task-page .task-ticket-category {
+                grid-area: category;
+                font-size: 10px;
+                color: #6b7280;
+                font-weight: 600;
+            }
+
+            body.employee-my-task-page .task-ticket-requester {
+                grid-area: title;
+                font-size: 10px;
+                color: #1f2937;
+                line-height: 1.15;
+            }
+
+            body.employee-my-task-page .task-ticket-date {
+                grid-area: date;
+                font-size: 9px;
+                color: #9ca3af;
+                margin-top: 1px;
+            }
+
+            body.employee-my-task-page .task-ticket-arrow {
+                display: block;
+                grid-area: arrow;
+                justify-self: end;
+                align-self: end;
+                font-size: 18px;
+                font-weight: 700;
+                color: #64748b;
+                line-height: 1;
+            }
+
+            body.employee-my-task-page .task-ticket-status,
+            body.employee-my-task-page .task-ticket-department {
+                display: none;
+            }
+        }
+    </style>
 </head>
-<body>
+<body class="employee-my-task-page">
 
     <!-- TOP NAVIGATION BAR -->
     <?php include '../includes/employee_navbar.php'; ?>
@@ -268,10 +448,10 @@ $result = $stmt->get_result();
 
                     <div class="filters-wrapper">
                         <div class="select-wrapper small">
-                            <select name="priority" class="filter-select" id="filterPriority">
-                                <option value=""disabled selected hidden<?= $priority === '' ? 'selected' : '' ?>>All Department</option>
-                                <?php foreach ($allowed_priorities as $p): ?>
-                                    <option value="<?= htmlspecialchars($p, ENT_QUOTES, 'UTF-8'); ?>" <?= $priority === $p ? 'selected' : '' ?>><?= htmlspecialchars($p, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <select name="department" class="filter-select" id="filterDepartment">
+                                <option value="" disabled selected hidden<?= $department === '' ? 'selected' : '' ?>> All Department</option>
+                                <?php foreach ($allowed_departments as $d): ?>
+                                    <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $department === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -304,15 +484,15 @@ $result = $stmt->get_result();
                                 <th>Date Created</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="tasksTbody">
                             <?php if ($result && $result->num_rows > 0): ?>
                                 <?php while($row = $result->fetch_assoc()) { ?>
                                 <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer;">
-                                    <td>#<?= str_pad($row['id'], 6, '0', STR_PAD_LEFT); ?></td>
-                                    <td class="subject-cell">
+                                    <td class="task-ticket-id">#<?= str_pad($row['id'], 6, '0', STR_PAD_LEFT); ?></td>
+                                    <td class="subject-cell task-ticket-category">
                                         <strong><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                     </td>
-                                    <td>
+                                    <td class="task-ticket-requester">
                                         <div class="user-info">
                                             <?php
                                                 $dispName = isset($row['requester_name']) && $row['requester_name'] !== '' ? $row['requester_name'] : $row['user_name'];
@@ -333,15 +513,16 @@ $result = $stmt->get_result();
                                             <small><?= htmlspecialchars($dispEmail, ENT_QUOTES, 'UTF-8'); ?></small>
                                         </div>
                                     </td>
-                                    <td><?= htmlspecialchars(!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td class="task-ticket-department"><?= htmlspecialchars(!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales'), ENT_QUOTES, 'UTF-8'); ?></td>
 
-                                    <td>
+                                    <td class="task-ticket-status">
                                         <span class="status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
                                             <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
 
-                                    <td><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
+                                    <td class="task-ticket-date"><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
+                                    <td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>
                                 </tr>
                                 <?php } ?>
                             <?php else: ?>
@@ -359,10 +540,11 @@ $result = $stmt->get_result();
                 </div>
 
                 <!-- PAGINATION UI -->
+                <div id="tasksPagination">
                 <?php if ($total_pages > 1): ?>
                 <div class="pagination-glass">
                     <!-- Previous Link -->
-                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
                         Previous
                     </a>
@@ -370,7 +552,7 @@ $result = $stmt->get_result();
                     <div class="page-numbers">
                         <!-- Page Numbers -->
                         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
                                class="page-btn <?= ($i == $page) ? 'active' : ''; ?>">
                                 <?= $i; ?>
                             </a>
@@ -378,12 +560,13 @@ $result = $stmt->get_result();
                     </div>
 
                     <!-- Next Link -->
-                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
                         Next
                     </a>
                 </div>
                 <?php endif; ?>
+                </div>
 
             </div>
 
@@ -418,40 +601,64 @@ $result = $stmt->get_result();
     </script>
     <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
     <script>
-        let typingTimer;
-        const doneTypingInterval = 600;
+        var typingTimer = null;
+        var doneTypingInterval = 300;
+        var filterForm = document.getElementById("filterForm");
+        var searchInput = document.getElementById("searchInput");
+        var tbodyEl = document.getElementById("tasksTbody");
+        var paginationEl = document.getElementById("tasksPagination");
 
-        const searchInput = document.getElementById("searchInput");
+        function refreshTasks(page) {
+            if (!filterForm || !tbodyEl || !paginationEl) return;
+            var params = new URLSearchParams(new FormData(filterForm));
+            params.set('page', String(page || 1));
+            params.set('limit', '10');
+            fetch('ajax_my_task_list.php?' + params.toString(), { method: 'GET', credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data || !data.ok) return;
+                    tbodyEl.innerHTML = data.rows_html || '';
+                    paginationEl.innerHTML = data.pagination_html || '';
+                    var url = new URL(window.location.href);
+                    url.search = '';
+                    params.forEach(function (v, k) { url.searchParams.set(k, v); });
+                    history.replaceState({}, '', url.toString());
+                })
+                .catch(function () {});
+        }
 
-        if(searchInput){
-            searchInput.addEventListener("keyup", function () {
+        if (searchInput) {
+            searchInput.addEventListener("input", function () {
                 clearTimeout(typingTimer);
-                typingTimer = setTimeout(doneTyping, doneTypingInterval);
-            });
-
-            searchInput.addEventListener("keydown", function () {
-                clearTimeout(typingTimer);
+                typingTimer = setTimeout(function () {
+                    refreshTasks(1);
+                }, doneTypingInterval);
             });
         }
 
-        function doneTyping() {
-            document.getElementById("filterForm").submit();
-        }
-
-        ['filterPriority', 'filterStatus'].forEach(function(id) {
+        ['filterDepartment', 'filterStatus'].forEach(function(id) {
             var el = document.getElementById(id);
             if (el) {
                 el.addEventListener('change', function() {
-                    document.getElementById("filterForm").submit();
+                    refreshTasks(1);
                 });
             }
         });
 
-        document.querySelectorAll('.ticket-row').forEach(function(row){
-            row.addEventListener('click', function(){
-                var ticketId = this.dataset.id;
+        document.addEventListener('click', function (e) {
+            var row = e.target && e.target.closest ? e.target.closest('.ticket-row') : null;
+            if (row && row.dataset && row.dataset.id) {
+                var ticketId = row.dataset.id;
                 TMTicketModal.open(ticketId);
-            });
+            }
+            var pageBtn = e.target && e.target.closest ? e.target.closest('#tasksPagination a.page-btn') : null;
+            if (pageBtn) {
+                e.preventDefault();
+                if (pageBtn.classList.contains('disabled')) return;
+                var nextPage = parseInt(pageBtn.getAttribute('data-page') || '', 10);
+                if (!nextPage || nextPage < 1) return;
+                refreshTasks(nextPage);
+            }
         });
         
         var params = new URLSearchParams(window.location.search);

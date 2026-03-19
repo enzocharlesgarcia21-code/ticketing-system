@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/kb_media.php';
 
 // Protect page
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
@@ -32,6 +33,11 @@ if ($result->num_rows === 0) {
 }
 
 $article = $result->fetch_assoc();
+$article_image_url = kb_resolve_asset_url($article['image_path'] ?? '');
+$back_category = trim((string) ($article['category'] ?? ''));
+if ($back_category === '') {
+    $back_category = 'Documentation';
+}
 
 // Fetch Related Articles
 $relatedStmt = $conn->prepare("
@@ -129,16 +135,23 @@ function renderArticleContent($text) {
         .back-link {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
+            width: 46px;
+            height: 46px;
             color: #6B7280;
             text-decoration: none;
             font-weight: 500;
             margin-bottom: 30px;
-            transition: color 0.2s;
+            border: 1px solid #D1E7D3;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+            transition: background 0.2s, color 0.2s;
         }
 
         .back-link:hover {
             color: #1B5E20;
+            background: #F0FDF4;
         }
 
         .article-card {
@@ -275,8 +288,8 @@ function renderArticleContent($text) {
 
     <div class="article-container">
         
-        <a href="knowledge_base.php" class="back-link">
-            <i class="fas fa-arrow-left"></i> Back to Knowledge Base
+        <a href="category_articles.php?category=<?= urlencode($back_category) ?>" class="back-link" aria-label="Back to Category Articles">
+            <i class="fas fa-arrow-left"></i>
         </a>
 
         <article class="article-card">
@@ -300,9 +313,9 @@ function renderArticleContent($text) {
             </div>
 
             <div class="article-content">
-                <?php if (!empty($article['image_path'])): ?>
+                <?php if (!empty($article_image_url)): ?>
                     <div style="margin-bottom: 30px;">
-                        <img src="../<?= htmlspecialchars($article['image_path']) ?>" alt="<?= htmlspecialchars($article['title']) ?>" style="width: 100%; max-height: 500px; object-fit: cover; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                        <img src="<?= htmlspecialchars($article_image_url) ?>" alt="<?= htmlspecialchars($article['title']) ?>" style="width: 100%; max-height: 500px; object-fit: cover; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
                     </div>
                 <?php endif; ?>
                 <?= renderArticleContent($article['content']) ?>

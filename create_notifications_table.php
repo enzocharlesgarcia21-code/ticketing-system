@@ -10,6 +10,7 @@ $sql = "CREATE TABLE IF NOT EXISTS notifications (
     ticket_id INT NOT NULL,
     message TEXT NOT NULL,
     type VARCHAR(50) NOT NULL,
+    action_type VARCHAR(20) NULL,
     is_read TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )";

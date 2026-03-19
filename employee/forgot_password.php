@@ -26,7 +26,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         if ($user = $res->fetch_assoc()) {
             $otp = rand(100000, 999999);
-            // Expire in 5 minutes
             $expiry = date("Y-m-d H:i:s", strtotime("+5 minutes"));
 
             $update = $conn->prepare("UPDATE users SET reset_otp = ?, reset_otp_expiry = ? WHERE id = ?");
@@ -79,37 +78,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Forgot Password - Employee</title>
-    <link rel="stylesheet" href="../css/employee-login.css">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/employee-login.css?v=<?php echo time(); ?>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
 <div class="login-container">
     <div class="login-card">
+        <a href="employee_login.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
 
-        <a href="employee_login.php" class="back-btn">← Back</a>
         <h2>Forgot Password</h2>
-        <p style="text-align:center; color:#666; font-size:0.9rem; margin-bottom:20px;">
-            Enter your email to receive a password reset OTP.
-        </p>
+        <p class="auth-note">Enter your email address and we&rsquo;ll send a 6-digit OTP to reset your password.</p>
 
-        <?php if(isset($error)) : ?>
-            <div class="error"><?php echo $error; ?></div>
+        <?php if (isset($error)) : ?>
+            <div class="error"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
         <?php endif; ?>
 
         <form method="POST">
             <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label>Email Address</label>
-                <input type="email" name="email" required placeholder="Enter your registered email">
+                <div class="input-shell">
+                    <span class="input-icon"><i class="fas fa-envelope"></i></span>
+                    <input type="email" name="email" required placeholder="Enter your registered email">
+                </div>
             </div>
 
             <button type="submit">Send OTP</button>
         </form>
-
     </div>
 </div>
 
 </body>
 </html>
-

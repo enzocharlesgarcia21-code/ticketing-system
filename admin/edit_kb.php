@@ -5,6 +5,7 @@ error_reporting(E_ALL);
 
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/kb_media.php';
 
 // Access Control
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
@@ -57,30 +58,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Handle Image Removal
         if ($remove_image) {
-            if ($image_path && file_exists('../' . $image_path)) {
-                unlink('../' . $image_path);
-            }
+            kb_delete_uploaded_file($image_path);
             $image_path = null;
         }
 
         // Handle New Image Upload
-        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-            $upload_dir = '../uploads/kb_images/';
-            if (!file_exists($upload_dir)) {
-                mkdir($upload_dir, 0777, true);
+        $image_upload_error = '';
+        $stored_image_path = kb_store_uploaded_image($_FILES['image'] ?? null, $image_upload_error);
+        if ($stored_image_path === false) {
+            $error_msg = $image_upload_error;
+        } elseif (is_string($stored_image_path)) {
+            if (!$remove_image) {
+                kb_delete_uploaded_file($article['image_path']);
             }
-            
-            $file_extension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
-            $new_filename = uniqid('kb_', true) . '.' . $file_extension;
-            $target_file = $upload_dir . $new_filename;
-            
-            if (move_uploaded_file($_FILES['image']['tmp_name'], $target_file)) {
-                // Delete old image if exists and not already removed
-                if (!$remove_image && $article['image_path'] && file_exists('../' . $article['image_path'])) {
-                    unlink('../' . $article['image_path']);
-                }
-                $image_path = 'uploads/kb_images/' . $new_filename;
-            }
+            $image_path = $stored_image_path;
         }
 
         // Handle Reference Links
@@ -168,7 +159,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $update_stmt = $conn->prepare("UPDATE knowledge_base SET title = ?, category = ?, content = ?, image_path = ?, article_links = ?, article_presentation = ?, article_video = ?, visible_to_sales = ? WHERE id = ?");
         $update_stmt->bind_param("sssssssii", $title, $category, $content, $image_path, $links_json, $presentation_path, $video_content, $visible_to_sales, $article_id);
         
-        if ($update_stmt->execute()) {
+        if ($error_msg !== '') {
+            // Preserve the upload error already set above.
+        } elseif ($update_stmt->execute()) {
             
             header("Location: manage_kb.php?msg=updated");
             exit();

@@ -21,12 +21,13 @@ function time_ago_days(string $dateTime): string
         return '-';
     }
     $now = new DateTimeImmutable('now');
-    $diff = $now->diff($created);
+    $createdDay = $created->setTime(0, 0, 0);
+    $nowDay = $now->setTime(0, 0, 0);
+    $diff = $nowDay->diff($createdDay);
     $days = (int) ($diff->days ?? 0);
     if ($diff->invert !== 1) $days = 0;
     if ($days <= 0) return 'Today';
-    if ($days === 1) return '1 day ago';
-    return $days . ' days ago';
+    return $created->format('M d, Y');
 }
 
 function sla_badge_html(string $createdAt, string $status): string
@@ -40,7 +41,9 @@ function sla_badge_html(string $createdAt, string $status): string
         return '-';
     }
     $now = new DateTimeImmutable('now');
-    $diff = $now->diff($created);
+    $createdDay = $created->setTime(0, 0, 0);
+    $nowDay = $now->setTime(0, 0, 0);
+    $diff = $nowDay->diff($createdDay);
     $days = (int) ($diff->days ?? 0);
     if ($diff->invert !== 1) $days = 0;
 
@@ -75,20 +78,18 @@ $view       = (string) ($_GET['view'] ?? '');
 $view = $view === 'trash' ? 'closed' : $view;
 $department_key = $department !== '' ? ticket_department_key_from_value((string) $department) : '';
 $adminId = (int) ($_SESSION['user_id'] ?? 0);
-$allowedViews = ['all', 'my_open', 'unresolved', 'resolved', 'closed'];
+$allowedViews = ['all', 'my_open', 'resolved', 'closed'];
 if (!in_array($view, $allowedViews, true)) $view = '';
 
 $sidebarCounts = [
     'all' => 0,
     'my_open' => 0,
-    'unresolved' => 0,
     'resolved' => 0,
     'closed' => 0,
 ];
 $cntStmt = $conn->prepare("
     SELECT
         SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') THEN 1 ELSE 0 END) AS all_total,
-        SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND status IN ('Open','In Progress') THEN 1 ELSE 0 END) AS unresolved_total,
         SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_total,
         SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND status IN ('Open','In Progress') THEN 1 ELSE 0 END) AS my_open_total,
         SUM(CASE WHEN status IN ('Closed','Trash') THEN 1 ELSE 0 END) AS closed_total
@@ -100,7 +101,6 @@ if ($cntStmt) {
     $cntRow = $cntRes ? $cntRes->fetch_assoc() : null;
     $cntStmt->close();
     $sidebarCounts['all'] = (int) ($cntRow['all_total'] ?? 0);
-    $sidebarCounts['unresolved'] = (int) ($cntRow['unresolved_total'] ?? 0);
     $sidebarCounts['resolved'] = (int) ($cntRow['resolved_total'] ?? 0);
     $sidebarCounts['my_open'] = (int) ($cntRow['my_open_total'] ?? 0);
     $sidebarCounts['closed'] = (int) ($cntRow['closed_total'] ?? 0);
@@ -117,8 +117,6 @@ WHERE 1
 
 if ($view !== '') {
     if ($view === 'my_open') {
-        $query .= " AND employee_tickets.status IN ('Open','In Progress')";
-    } elseif ($view === 'unresolved') {
         $query .= " AND employee_tickets.status IN ('Open','In Progress')";
     } elseif ($view === 'resolved') {
         $query .= " AND employee_tickets.status = 'Resolved'";
@@ -179,7 +177,7 @@ if (!empty($search)) {
 
     $query .= " AND (
         users.name LIKE '%$searchSQL%' OR
-        users.email LIKE '%$searchSQL%' OR
+        LOWER(COALESCE(NULLIF(employee_tickets.requester_email,''), users.email)) LIKE LOWER('%$searchSQL%') OR
         employee_tickets.subject LIKE '%$searchSQL%' OR
         employee_tickets.id LIKE '%$searchSQL%'";
 
@@ -228,7 +226,7 @@ $result = $stmt->get_result();
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         .at-layout { width: 100%; max-width: 1400px; display: flex; gap: 18px; align-items: flex-start; }
-        .at-sidebar { width: 260px; flex: 0 0 260px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; box-shadow: 0 4px 10px rgba(2,6,23,0.04); position: sticky; top: 96px; }
+        .at-sidebar { width: 260px; flex: 0 0 260px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; box-shadow: 0 4px 10px rgba(2,6,23,0.04); position: sticky; top: 96px; min-height: calc(100vh - 120px); display: flex; flex-direction: column; }
         .at-sidebar-section + .at-sidebar-section { margin-top: 16px; }
         .at-sidebar-title { font-size: 12px; font-weight: 800; color: #475569; display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 8px; text-transform: none; }
         .at-sidebar-add { width: 28px; height: 28px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: #f1f5f9; color: #1b5e20; border: 1px solid #e2e8f0; cursor: pointer; }
@@ -244,7 +242,6 @@ $result = $stmt->get_result();
         .at-sidebar-link.disabled { opacity: 0.45; pointer-events: none; }
         .at-main { flex: 1 1 auto; min-width: 0; }
         .at-main .admin-content { max-width: none; }
-
         @media (max-width: 1100px) {
             .at-sidebar { display: none; }
             .at-layout { max-width: 1200px; }
@@ -277,20 +274,6 @@ $result = $stmt->get_result();
                         </span>
                         <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['my_open'] ?? 0); ?></span>
                     </a>
-                    <a class="at-sidebar-link <?php echo $view === 'unresolved' ? 'active' : ''; ?>" href="all_tickets.php?view=unresolved">
-                        <span class="at-sidebar-left">
-                            <span class="at-sidebar-icon"><i class="fa-regular fa-circle-dot"></i></span>
-                            <span class="at-sidebar-label">All Unresolved</span>
-                        </span>
-                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['unresolved'] ?? 0); ?></span>
-                    </a>
-                    <a class="at-sidebar-link <?php echo $view === 'closed' ? 'active' : ''; ?>" href="all_tickets.php?view=closed">
-                        <span class="at-sidebar-left">
-                            <span class="at-sidebar-icon"><i class="fa-regular fa-circle-xmark"></i></span>
-                            <span class="at-sidebar-label">Closed Tickets</span>
-                        </span>
-                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['closed'] ?? 0); ?></span>
-                    </a>
                 </div>
 
                 <div class="at-sidebar-section">
@@ -300,6 +283,13 @@ $result = $stmt->get_result();
                             <span class="at-sidebar-label">All Resolved Tickets</span>
                         </span>
                         <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['resolved'] ?? 0); ?></span>
+                    </a>
+                    <a class="at-sidebar-link <?php echo $view === 'closed' ? 'active' : ''; ?>" href="all_tickets.php?view=closed">
+                        <span class="at-sidebar-left">
+                            <span class="at-sidebar-icon"><i class="fa-regular fa-circle-xmark"></i></span>
+                            <span class="at-sidebar-label">Closed Tickets</span>
+                        </span>
+                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['closed'] ?? 0); ?></span>
                     </a>
                 </div>
             </aside>
@@ -368,7 +358,6 @@ $result = $stmt->get_result();
                         <select name="priority" class="filter-select" onchange="submitForm()">
                             <option value="" disabled selected hidden>All Priority</option>
                             <option value="Low" <?= $priority=='Low'?'selected':'' ?>>Low</option>
-                            <option value="Medium" <?= $priority=='Medium'?'selected':'' ?>>Medium</option>
                             <option value="High" <?= $priority=='High'?'selected':'' ?>>High</option>
                             <option value="Critical" <?= $priority=='Critical'?'selected':'' ?>>Critical</option>
                         </select>
@@ -379,7 +368,6 @@ $result = $stmt->get_result();
                             <option value="In Progress" <?= $status=='In Progress'?'selected':'' ?>>In Progress</option>
                             <option value="Resolved" <?= $status=='Resolved'?'selected':'' ?>>Resolved</option>
                             <option value="Closed" <?= $status=='Closed'?'selected':'' ?>>Closed</option>
-                            <option value="unread" <?= $status=='unread'?'selected':'' ?>>Unread</option>
                         </select>
 
                         <a href="all_tickets.php" class="clear-btn" id="clearFiltersBtn">Clear Filters</a>

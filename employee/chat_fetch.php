@@ -41,7 +41,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $params = [$current_user_id];
     $types = 'i';
 
-    $sql .= " WHERE (t.user_id = ? OR t.assigned_user_id = ?) ";
+    $sql .= " WHERE (t.user_id = ? OR t.assigned_user_id = ?) AND EXISTS (SELECT 1 FROM ticket_messages tm2 WHERE tm2.ticket_id = t.id) ";
     $params[] = $current_user_id;
     $types .= 'i';
     $params[] = $current_user_id;
