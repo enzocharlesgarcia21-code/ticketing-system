@@ -31,13 +31,13 @@ $search = isset($_GET['search']) ? trim((string) $_GET['search']) : '';
 $queryBase = "SELECT id, name, email, department FROM users WHERE department = 'IT' AND role = 'employee'";
 if ($search !== '') {
     $term = '%' . $search . '%';
-    $search_stmt = $conn->prepare($queryBase . " AND (name LIKE ? OR email LIKE ?) ORDER BY name ASC");
+    $search_stmt = $conn->prepare($queryBase . " AND (name LIKE ? OR email LIKE ?) ORDER BY name ASC LIMIT 3");
     $search_stmt->bind_param("ss", $term, $term);
     $search_stmt->execute();
     $result = $search_stmt->get_result();
     $search_stmt->close();
 } else {
-    $result = $conn->query($queryBase . " ORDER BY name ASC");
+    $result = $conn->query($queryBase . " ORDER BY name ASC LIMIT 3");
 }
 
 // Query Current IT Admins
@@ -71,9 +71,12 @@ $email_domains = [
     'leadsagri.com',
     'leadsanimalhealth.com',
     'leadsav.com',
+    'malvedaproperties.com',
+    'malvedaholdings.com',
     'leadstech-corp.com',
     'lingapleads.org',
     'primestocks.ph'
+
 ];
 
 $department_options = [
@@ -444,22 +447,30 @@ $department_options = [
             border-color: #22c55e;
             box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
         }
-        .username-row, .password-row {
-            display: flex;
+        .fullname-row,
+        .username-row,
+        .password-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 280px;
             gap: 10px;
             align-items: center;
         }
-        .fullname-row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
+        .fullname-row > .form-control,
+        .fullname-row > .domain-select,
+        .username-row > .form-control,
+        .username-row > .domain-select,
+        .password-row > .password-field,
+        .password-row > .btn.btn-auto {
+            width: 100%;
+            min-width: 0;
         }
-        .fullname-row > .form-control { flex: 1 1 auto; min-width: 0; }
-        .fullname-row > .domain-select { flex: 0 0 280px; min-width: 0; }
+        .password-row > .btn.btn-auto {
+            width: auto;
+            min-width: 148px;
+            justify-self: start;
+        }
         .password-field {
             position: relative;
-            flex: 1 1 auto;
-            min-width: 0;
         }
         .password-field .form-control {
             padding-right: 38px;
@@ -486,6 +497,39 @@ $department_options = [
             background: #f8fafc;
             color: #0f172a;
         }
+        .form-options {
+            margin-top: 2px;
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .checkbox-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #374151;
+        }
+        .checkbox-option input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: #16a34a;
+        }
+        .info-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #E5E7EB;
+            font-size: 12px;
+            cursor: help;
+            color: #475569;
+            font-weight: 800;
+        }
         .domain-select {
             min-width: 170px;
             width: 100%;
@@ -506,8 +550,6 @@ $department_options = [
             box-sizing: border-box;
             font-size: 13px;
         }
-        .username-row > .form-control { flex: 1 1 auto; min-width: 0; }
-        .username-row > .domain-select { flex: 0 0 280px; min-width: 0; }
         .btn {
             border: 1px solid transparent;
             border-radius: 10px;
@@ -575,6 +617,19 @@ $department_options = [
             overflow: auto;
             border: 1px solid #eef2f7;
             border-radius: 12px;
+        }
+        #usersListCard .users-table-container {
+            min-height: 320px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        #usersListCard .users-table-wrap {
+            min-height: 320px;
+            flex: 1 1 auto;
+        }
+        #usersListCard .users-table-footer {
+            margin-top: auto;
         }
         .users-table { border-top: none; }
         .users-table { table-layout: fixed; }
@@ -736,6 +791,8 @@ $department_options = [
             border: 1px solid #e5e7eb;
             box-shadow: 0 22px 60px rgba(2, 6, 23, 0.25);
             overflow: hidden;
+            position: relative;
+            z-index: 3001;
         }
         .modal-card .mgmt-card-body { padding: 18px; }
         @media (max-width: 980px) {
@@ -764,8 +821,21 @@ $department_options = [
             display: grid;
             grid-template-columns: 1.45fr 0.95fr;
             gap: 18px;
-            align-items: start;
+            align-items: stretch;
         }
+        .admin-bottom-grid > .mgmt-card {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .admin-bottom-grid > .mgmt-card > .mgmt-card-body {
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .admin-bottom-grid > .mgmt-card .table-card { flex: 1 1 auto; }
+        .admin-bottom-grid > .mgmt-card .admin-card-grid { flex: 1 1 auto; align-content: start; }
+        .admin-bottom-grid > .mgmt-card .users-pagination { margin-top: auto; }
         .admin-card-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -893,24 +963,26 @@ $department_options = [
                         </div>
                     </div>
 
-                    <div class="users-table-wrap">
-                        <table class="users-table">
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Email</th>
-                                    <th>Department</th>
-                                    <th style="text-align:right;">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="usersListBody">
-                                <tr><td class="users-empty" colspan="4">Loading...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="users-pagination" id="usersPagination" style="display:none;">
-                        <div class="pagination-info" id="usersPaginationInfo"></div>
-                        <div class="pagination-controls" id="usersPaginationControls"></div>
+                    <div class="users-table-container">
+                        <div class="users-table-wrap">
+                            <table class="users-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Department</th>
+                                        <th style="text-align:right;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersListBody">
+                                    <tr><td class="users-empty" colspan="4">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="users-pagination users-table-footer" id="usersPagination" style="display:none;">
+                            <div class="pagination-info" id="usersPaginationInfo"></div>
+                            <div class="pagination-controls" id="usersPaginationControls"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -961,6 +1033,20 @@ $department_options = [
                                     </button>
                                 </div>
                                 <button type="button" class="btn btn-auto" id="autoGenerateBtn">Auto Generate</button>
+                            </div>
+
+                            <div class="form-options">
+                                <label class="checkbox-option">
+                                    <input type="checkbox" name="send_credentials" value="1">
+                                    <span>Send credentials via email</span>
+                                    <span class="info-icon" title="Automatically email the user's login credentials after account creation.">?</span>
+                                </label>
+
+                                <label class="checkbox-option">
+                                    <input type="checkbox" name="force_password_change" value="1" checked>
+                                    <span>Force user to change password on first login</span>
+                                    <span class="info-icon" title="User will be required to change their password the first time they log in.">?</span>
+                                </label>
                             </div>
                         </div>
 
@@ -1031,6 +1117,10 @@ $department_options = [
                             </tbody>
                         </table>
                     </div>
+                    <div class="users-pagination" id="itPagination" style="display:none;">
+                        <div class="pagination-info" id="itPaginationInfo"></div>
+                        <div class="pagination-controls" id="itPaginationControls"></div>
+                    </div>
                 </div>
             </div>
 
@@ -1042,7 +1132,7 @@ $department_options = [
                     </div>
                 </div>
                 <div class="mgmt-card-body">
-                    <div class="admin-card-grid">
+                    <div class="admin-card-grid" id="itAdminsGrid">
                         <?php if ($admins_result->num_rows > 0): ?>
                             <?php while($admin = $admins_result->fetch_assoc()): ?>
                                 <div class="admin-card">
@@ -1068,6 +1158,10 @@ $department_options = [
                             <div style="color: #6B7280; font-weight: 700;">No IT Admins found.</div>
                         <?php endif; ?>
                     </div>
+                    <div class="users-pagination" id="itAdminsPagination" style="display:none;">
+                        <div class="pagination-info" id="itAdminsPaginationInfo"></div>
+                        <div class="pagination-controls" id="itAdminsPaginationControls"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1082,7 +1176,11 @@ $department_options = [
 <script>
     window.TM_ADMIN_CURRENT_USER_ID = <?php echo (int) ($_SESSION['user_id'] ?? 0); ?>;
     window.TM_USERS_PAGE_SIZE = 5;
+    window.TM_IT_PAGE_SIZE = 3;
+    window.TM_IT_ADMINS_PAGE_SIZE = 2;
     var tmUsersState = { page: 1, limit: window.TM_USERS_PAGE_SIZE, total: 0, totalPages: 1 };
+    var tmItState = { page: 1, limit: window.TM_IT_PAGE_SIZE, total: 0, totalPages: 1 };
+    var tmItAdminsState = { page: 1, limit: window.TM_IT_ADMINS_PAGE_SIZE, total: 0, totalPages: 1 };
 
     function randomPassword(len) {
         var length = typeof len === 'number' && len > 0 ? len : 12;
@@ -1128,7 +1226,11 @@ $department_options = [
             var name = String(u.name || '');
             var isCurrent = (Number(u.id) === Number(window.TM_ADMIN_CURRENT_USER_ID));
             var isAdmin = (String(u.role || '') === 'admin');
-            var badge = isCurrent ? '<span class="users-badge-current">Current</span>' : '';
+            var isSuper = Number(u.is_super_admin || 0) === 1;
+            var badges = [];
+            if (isCurrent) badges.push('<span class="users-badge-current">Current</span>');
+            if (isSuper) badges.push('<span class="users-badge-current">Super Admin</span>');
+            var badge = badges.join('');
             var action = (!isCurrent && !isAdmin)
                 ? '<span class="users-actions"><button type="button" class="btn-icon-danger users-del" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '" aria-label="Delete user"><i class="fas fa-trash"></i></button></span>'
                 : '<span class="users-actions"></span>';
@@ -1254,19 +1356,132 @@ $department_options = [
         }).join('');
     }
 
-    function loadItEmployees() {
+    function renderItPagination() {
+        var wrap = document.getElementById('itPagination');
+        var info = document.getElementById('itPaginationInfo');
+        var controls = document.getElementById('itPaginationControls');
+        if (!wrap || !info || !controls) return;
+        var total = Number(tmItState.total || 0);
+        var page = Number(tmItState.page || 1);
+        var limit = Number(tmItState.limit || window.TM_IT_PAGE_SIZE || 3);
+        var totalPages = Number(tmItState.totalPages || Math.max(1, Math.ceil(total / Math.max(1, limit))));
+
+        if (!total || totalPages <= 1) {
+            wrap.style.display = 'none';
+            return;
+        }
+
+        var start = (page - 1) * limit + 1;
+        var end = Math.min(total, page * limit);
+        info.textContent = 'Showing ' + start + ' \u2013 ' + end + ' of ' + total + ' users';
+
+        var btns = [];
+        var prevDisabled = page <= 1;
+        var nextDisabled = page >= totalPages;
+        btns.push('<a href=\"#\" class=\"page-btn' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">\u2039</a>');
+
+        var startPage = Math.max(1, page - 2);
+        var endPage = Math.min(totalPages, startPage + 4);
+        startPage = Math.max(1, endPage - 4);
+        for (var p = startPage; p <= endPage; p++) {
+            btns.push('<a href=\"#\" class=\"page-btn' + (p === page ? ' active' : '') + '\" data-page=\"' + p + '\">' + p + '</a>');
+        }
+        btns.push('<a href=\"#\" class=\"page-btn' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">\u203a</a>');
+
+        controls.innerHTML = btns.join('');
+        wrap.style.display = 'flex';
+    }
+
+    function loadItEmployees(page) {
         var input = document.getElementById('itSearchInput');
         var q = input ? input.value.trim() : '';
-        fetch('ajax_it_employees.php?q=' + encodeURIComponent(q) + '&limit=60', { credentials: 'same-origin' })
+        var p = typeof page === 'number' && page > 0 ? page : (tmItState.page || 1);
+        tmItState.page = p;
+        tmItState.limit = Number(window.TM_IT_PAGE_SIZE) || 3;
+        var url = 'ajax_it_employees.php?q=' + encodeURIComponent(q) + '&limit=' + encodeURIComponent(String(tmItState.limit)) + '&page=' + encodeURIComponent(String(tmItState.page));
+        fetch(url, { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.ok) {
                     renderItEmployees([]);
+                    tmItState.total = 0;
+                    tmItState.totalPages = 1;
+                    renderItPagination();
                     return;
                 }
                 renderItEmployees(data.employees || []);
+                tmItState.total = Number(data.total_employees || 0);
+                tmItState.page = Number(data.page || tmItState.page || 1);
+                tmItState.limit = Number(data.limit || tmItState.limit || window.TM_IT_PAGE_SIZE);
+                tmItState.totalPages = Number(data.total_pages || Math.max(1, Math.ceil((tmItState.total || 0) / (tmItState.limit || 1))));
+                renderItPagination();
             })
-            .catch(function () { renderItEmployees([]); });
+            .catch(function () {
+                renderItEmployees([]);
+                tmItState.total = 0;
+                tmItState.totalPages = 1;
+                renderItPagination();
+            });
+    }
+
+    function renderItAdminsPagination() {
+        var wrap = document.getElementById('itAdminsPagination');
+        var info = document.getElementById('itAdminsPaginationInfo');
+        var controls = document.getElementById('itAdminsPaginationControls');
+        if (!wrap || !info || !controls) return;
+        var total = Number(tmItAdminsState.total || 0);
+        var page = Number(tmItAdminsState.page || 1);
+        var limit = Number(tmItAdminsState.limit || window.TM_IT_ADMINS_PAGE_SIZE || 2);
+        var totalPages = Number(tmItAdminsState.totalPages || Math.max(1, Math.ceil(total / Math.max(1, limit))));
+
+        if (!total || totalPages <= 1) {
+            wrap.style.display = 'none';
+            return;
+        }
+
+        var start = (page - 1) * limit + 1;
+        var end = Math.min(total, page * limit);
+        info.textContent = 'Showing ' + start + ' \u2013 ' + end + ' of ' + total + ' admins';
+
+        var btns = [];
+        var prevDisabled = page <= 1;
+        var nextDisabled = page >= totalPages;
+        btns.push('<a href=\"#\" class=\"page-btn' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">\u2039</a>');
+
+        var startPage = Math.max(1, page - 2);
+        var endPage = Math.min(totalPages, startPage + 4);
+        startPage = Math.max(1, endPage - 4);
+        for (var p = startPage; p <= endPage; p++) {
+            btns.push('<a href=\"#\" class=\"page-btn' + (p === page ? ' active' : '') + '\" data-page=\"' + p + '\">' + p + '</a>');
+        }
+        btns.push('<a href=\"#\" class=\"page-btn' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">\u203a</a>');
+
+        controls.innerHTML = btns.join('');
+        wrap.style.display = 'flex';
+    }
+
+    function showItAdminsPage(page) {
+        var grid = document.getElementById('itAdminsGrid');
+        if (!grid) return;
+        var cards = Array.prototype.slice.call(grid.querySelectorAll('.admin-card'));
+        var limit = Number(tmItAdminsState.limit || window.TM_IT_ADMINS_PAGE_SIZE || 2);
+        tmItAdminsState.total = cards.length;
+        tmItAdminsState.totalPages = Math.max(1, Math.ceil((tmItAdminsState.total || 0) / Math.max(1, limit)));
+        tmItAdminsState.page = Math.min(Math.max(1, Number(page || 1)), tmItAdminsState.totalPages);
+
+        if (cards.length <= limit) {
+            cards.forEach(function (c) { c.style.display = ''; });
+            var wrap = document.getElementById('itAdminsPagination');
+            if (wrap) wrap.style.display = 'none';
+            return;
+        }
+
+        var startIdx = (tmItAdminsState.page - 1) * limit;
+        var endIdx = startIdx + limit;
+        cards.forEach(function (c, idx) {
+            c.style.display = (idx >= startIdx && idx < endIdx) ? '' : 'none';
+        });
+        renderItAdminsPagination();
     }
 
     function escapeHtml(str) {
@@ -1329,20 +1544,135 @@ $department_options = [
 
         var addUserForm = document.getElementById('addUserForm');
         if (addUserForm) {
+            var usernameEl = document.getElementById('username');
+            var domainEl = document.getElementById('domain');
+            var fullNameEl = document.getElementById('fullName');
+            function normalizeEmailInputs() {
+                if (!usernameEl || !domainEl) return;
+                var raw = String(usernameEl.value || '').trim();
+                if (!raw) return;
+                var atIdx = raw.indexOf('@');
+                if (atIdx > -1) {
+                    var local = raw.slice(0, atIdx);
+                    var dom = raw.slice(atIdx + 1);
+                    dom = dom ? ('@' + dom) : '';
+                    dom = dom.toLowerCase();
+                    if (dom) {
+                        var matched = false;
+                        Array.prototype.slice.call(domainEl.options || []).forEach(function (opt) {
+                            if (!opt || matched) return;
+                            if (String(opt.value || '').toLowerCase() === dom) {
+                                domainEl.value = opt.value;
+                                matched = true;
+                            }
+                        });
+                    }
+                    usernameEl.value = local;
+                }
+                usernameEl.value = String(usernameEl.value || '')
+                    .trim()
+                    .toLowerCase();
+            }
+            function normalizeFullName() {
+                if (!fullNameEl) return '';
+                fullNameEl.value = String(fullNameEl.value || '').replace(/\s+/g, ' ').trim();
+                return fullNameEl.value;
+            }
+            function validFullName(value) {
+                return /^(?=.{2,100}$)[A-Za-z][A-Za-z .,'-]*[A-Za-z.]$/.test(String(value || '')) && !/\d/.test(String(value || ''));
+            }
+            function validEmailLocalPart(value) {
+                var local = String(value || '').trim().toLowerCase();
+                if (!local || /\s/.test(local)) return false;
+                if (local.indexOf('..') > -1) return false;
+                return /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/.test(local);
+            }
+            function showCreateUserError(title, text) {
+                Swal.fire({
+                    target: document.body,
+                    icon: 'warning',
+                    title: title,
+                    text: text,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#1B5E20',
+                    allowOutsideClick: true,
+                    customClass: {
+                        popup: 'swal-create-user-popup'
+                    }
+                });
+            }
+            if (fullNameEl) {
+                fullNameEl.addEventListener('blur', normalizeFullName);
+            }
+            if (usernameEl) {
+                usernameEl.addEventListener('blur', normalizeEmailInputs);
+                usernameEl.addEventListener('input', function () {
+                    if (String(usernameEl.value || '').indexOf('@') > -1) normalizeEmailInputs();
+                });
+                usernameEl.addEventListener('paste', function () {
+                    setTimeout(normalizeEmailInputs, 0);
+                });
+            }
             addUserForm.addEventListener('submit', function (e) {
                 e.preventDefault();
                 var fullName = document.getElementById('fullName');
                 var username = document.getElementById('username');
                 var domain = document.getElementById('domain');
                 var password = document.getElementById('newPassword');
+                var deptEl = document.getElementById('newDept');
                 if (!fullName || !username || !domain || !password) return;
+                var normalizedName = normalizeFullName();
+                var rawUsernameValue = String(username.value || '');
+
+                if (!normalizedName) {
+                    showCreateUserError('Full name required', 'Please enter the user\'s full name.');
+                    fullName.focus();
+                    return;
+                }
+                if (/\d/.test(normalizedName)) {
+                    showCreateUserError('Invalid full name', 'Numbers are not allowed in the full name.');
+                    fullName.focus();
+                    return;
+                }
+                if (!validFullName(normalizedName)) {
+                    showCreateUserError('Invalid full name', 'Please use a valid name with letters only.');
+                    fullName.focus();
+                    return;
+                }
+                if (!String(rawUsernameValue || '').trim()) {
+                    showCreateUserError('Email required', 'Please enter the email username.');
+                    username.focus();
+                    return;
+                }
+                if (/\s/.test(rawUsernameValue)) {
+                    showCreateUserError('Invalid email', 'Email must not contain spaces.');
+                    username.focus();
+                    return;
+                }
+                normalizeEmailInputs();
+                var normalizedUsername = String(username.value || '').trim().toLowerCase();
+                var emailAddress = normalizedUsername + String(domain.value || '');
+                if (!validEmailLocalPart(normalizedUsername) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailAddress)) {
+                    showCreateUserError('Invalid email', 'Please enter a valid email address.');
+                    username.focus();
+                    return;
+                }
+                if (deptEl && !String(deptEl.value || '').trim()) {
+                    showCreateUserError('Department required', 'Please select a department.');
+                    deptEl.focus();
+                    return;
+                }
+                if (!String(password.value || '').trim()) {
+                    showCreateUserError('Password required', 'Please enter a password for the new user.');
+                    password.focus();
+                    return;
+                }
 
                 var fd = new FormData(addUserForm);
-                fd.set('full_name', fullName.value || '');
-                fd.set('username', username.value || '');
+                fd.set('full_name', normalizedName);
+                fd.set('username', normalizedUsername);
                 fd.set('domain', domain.value || '@leadsagri.com');
                 fd.set('password', password.value || '');
-                var deptEl = document.getElementById('newDept');
                 if (deptEl) fd.set('department', deptEl.value || '');
 
                 var btn = document.getElementById('createUserBtn');
@@ -1358,10 +1688,15 @@ $department_options = [
                     .then(function (data) {
                         if (!data || !data.ok) {
                             var msg = (data && data.error) ? data.error : 'Failed to create user.';
-                            Swal.fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#1B5E20' });
+                            var title = 'Unable to create user';
+                            if (data && data.error_code === 'email_exists') title = 'Email already registered';
+                            if (data && (data.error_code === 'email_invalid' || data.error_code === 'email_has_spaces')) title = 'Invalid email';
+                            if (data && data.error_code === 'name_exists') title = 'Name already registered';
+                            if (data && (data.error_code === 'name_invalid' || data.error_code === 'name_has_number')) title = 'Invalid full name';
+                            showCreateUserError(title, msg);
                             return;
                         }
-                        var emailAddress = (String(username.value || '').trim()) + (String(domain.value || ''));
+                        var emailAddress = normalizedUsername + (String(domain.value || ''));
                         var plainPassword = String(password.value || '');
                         Swal.fire({
                             title: '',
@@ -1441,7 +1776,7 @@ $department_options = [
                         closeModal();
                     })
                     .catch(function () {
-                        Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to create user.', confirmButtonColor: '#1B5E20' });
+                        showCreateUserError('Unable to create user', 'Failed to create user.');
                     })
                     .finally(function () {
                         if (btn) btn.disabled = false;
@@ -1541,22 +1876,51 @@ $department_options = [
         if (itForm) {
             itForm.addEventListener('submit', function (e) {
                 e.preventDefault();
-                loadItEmployees();
+                loadItEmployees(1);
             });
         }
         if (itInput) {
             itInput.addEventListener('input', function () {
                 if (itDebounce) clearTimeout(itDebounce);
-                itDebounce = setTimeout(loadItEmployees, 250);
+                itDebounce = setTimeout(function () { loadItEmployees(1); }, 250);
             });
         }
         var clearItBtn = document.getElementById('clearItSearch');
         if (clearItBtn) {
             clearItBtn.addEventListener('click', function () {
                 if (itInput) itInput.value = '';
-                loadItEmployees();
+                loadItEmployees(1);
             });
         }
+
+        var itPagination = document.getElementById('itPaginationControls');
+        if (itPagination) {
+            itPagination.addEventListener('click', function (e) {
+                var target = e.target && e.target.closest ? e.target.closest('.page-btn') : null;
+                if (!target) return;
+                e.preventDefault();
+                if (target.classList.contains('disabled') || target.classList.contains('active')) return;
+                var nextPage = parseInt(target.getAttribute('data-page') || '', 10);
+                if (!nextPage || nextPage < 1) return;
+                loadItEmployees(nextPage);
+            });
+        }
+
+        loadItEmployees(1);
+
+        var itAdminsPagination = document.getElementById('itAdminsPaginationControls');
+        if (itAdminsPagination) {
+            itAdminsPagination.addEventListener('click', function (e) {
+                var target = e.target && e.target.closest ? e.target.closest('.page-btn') : null;
+                if (!target) return;
+                e.preventDefault();
+                if (target.classList.contains('disabled') || target.classList.contains('active')) return;
+                var nextPage = parseInt(target.getAttribute('data-page') || '', 10);
+                if (!nextPage || nextPage < 1) return;
+                showItAdminsPage(nextPage);
+            });
+        }
+        showItAdminsPage(1);
     });
 
     function confirmAddition(userId) {
@@ -1684,6 +2048,18 @@ $department_options = [
         cursor: pointer !important;
     }
     .swal-cred-btn:hover { background: #144a1e !important; }
+    .swal2-container {
+        z-index: 9999 !important;
+    }
+    .swal-create-user-popup {
+        border-radius: 18px !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        border: 1px solid rgba(251, 191, 36, 0.28) !important;
+        box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22) !important;
+        font-family: 'Inter', sans-serif !important;
+        width: min(520px, calc(100vw - 32px)) !important;
+    }
     .cred-wrap { text-align: center; }
     .cred-check {
         width: 72px;

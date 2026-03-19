@@ -1,6 +1,9 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/notification_service.php';
+
+notif_ensure_action_type_column($conn);
 
 /* Protect page */
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
@@ -136,11 +139,12 @@ function time_elapsed_string($datetime, $full = false) {
             flex-shrink: 0;
             color: #ffffff;
         }
-.notif-icon.priority-critical { background: #E53935; }
-.notif-icon.priority-high { background: #FB8C00; }
-.notif-icon.priority-medium { background: #FBC02D; }
-.notif-icon.priority-low { background: #43A047; }
-.notif-icon.priority-neutral { background: #94a3b8; }
+.notif-icon.type-assigned { background: #2563eb; }
+.notif-icon.type-updated { background: #2563eb; }
+.notif-icon.type-reassigned { background: #9333ea; }
+.notif-icon.type-closed { background: #16a34a; }
+.notif-icon.type-note { background: #ca8a04; }
+.notif-icon.type-neutral { background: #94a3b8; }
 
 .priority-badge{
     padding:4px 10px;
@@ -253,10 +257,30 @@ function time_elapsed_string($datetime, $full = false) {
                                 $priorityClass = $priorityKey !== '' ? 'priority-' . $priorityKey : 'priority-neutral';
                                 $priorityLabel = $priorityKey !== '' ? '<span class="priority-badge ' . $priorityClass . '">' . htmlspecialchars(ucfirst($priorityKey), ENT_QUOTES, 'UTF-8') . '</span>' : '';
                                 $ticketIdJs = isset($row['ticket_id']) && $row['ticket_id'] !== null ? (int) $row['ticket_id'] : null;
+                                $typeKey = (string) ($row['type'] ?? '');
+                                $actionType = notif_normalize_action_type((string) ($row['action_type'] ?? ''), $typeKey);
+                                $iconClass = 'fa-ticket';
+                                $iconTypeClass = 'type-neutral';
+                                if ($actionType === 'update' && $typeKey === 'note_added') {
+                                    $iconClass = 'fa-sticky-note';
+                                    $iconTypeClass = 'type-note';
+                                } elseif ($actionType === 'update') {
+                                    $iconClass = 'fa-sync-alt';
+                                    $iconTypeClass = 'type-updated';
+                                } elseif ($actionType === 'close') {
+                                    $iconClass = 'fa-check-circle';
+                                    $iconTypeClass = 'type-closed';
+                                } elseif ($actionType === 'reassign') {
+                                    $iconClass = 'fa-exchange-alt';
+                                    $iconTypeClass = 'type-reassigned';
+                                } elseif ($actionType === 'assign') {
+                                    $iconClass = 'fa-inbox';
+                                    $iconTypeClass = 'type-assigned';
+                                }
                             ?>
                             <div class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?>" 
                                  onclick="markAsRead(<?= (int) $row['id'] ?>, <?= json_encode($ticketIdJs) ?>)">
-                                <div class="notif-icon <?= $priorityClass ?>"><i class="fas fa-ticket"></i></div>
+                                <div class="notif-icon <?= htmlspecialchars($iconTypeClass, ENT_QUOTES, 'UTF-8') ?>"><i class="fas <?= htmlspecialchars($iconClass, ENT_QUOTES, 'UTF-8') ?>"></i></div>
                                 <div class="notif-content">
                                     <div class="notif-text"><?= $priorityLabel ?><?= htmlspecialchars((string) $row['message'], ENT_QUOTES, 'UTF-8') ?></div>
                                     <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>

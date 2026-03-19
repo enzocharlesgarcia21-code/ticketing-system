@@ -131,7 +131,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
     <input type="hidden" name="otp" id="otpFull" required>
     <div class="error" id="otpClientError" style="display:none;">Please enter the 6-digit OTP.</div>
-    <button type="submit">Verify</button>
 </form>
 
 <form method="POST" style="margin-top: 12px;">
@@ -169,24 +168,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             full.value = digits.join('');
         }
 
+        var submitting = false;
+
         function sync() {
             full.value = readCode();
             setError(false);
         }
 
+        function resetInputs() {
+            inputs.forEach(function (input) { input.value = ''; });
+            full.value = '';
+            submitting = false;
+            if (inputs[0]) inputs[0].focus();
+        }
+
         inputs.forEach(function (input, idx) {
-            input.addEventListener('input', function (e) {
+            input.addEventListener('input', function () {
                 var v = (input.value || '').replace(/\D/g, '');
                 if (v.length > 1) {
                     writeCode(v);
-                    var next = inputs[Math.min(5, v.length - 1)];
-                    if (next) next.focus();
-                    return;
+                } else {
+                    input.value = v.slice(0, 1);
+                    sync();
+                    if (input.value && idx < inputs.length - 1) {
+                        inputs[idx + 1].focus();
+                    }
                 }
-                input.value = v.slice(0, 1);
                 sync();
-                if (input.value && idx < inputs.length - 1) {
-                    inputs[idx + 1].focus();
+                if (!submitting && /^\d{6}$/.test(full.value || '')) {
+                    submitting = true;
+                    form.submit();
                 }
             });
 
@@ -229,11 +240,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     setError(true);
                     var firstEmpty = inputs.find(function (i) { return !(i.value || '').trim(); }) || inputs[0];
                     if (firstEmpty) firstEmpty.focus();
+                    submitting = false;
                 }
             });
         }
 
+        <?php if (isset($error) && $error !== ''): ?>
+        resetInputs();
+        <?php else: ?>
         inputs[0].focus();
+        <?php endif; ?>
     })();
 </script>
 </body>

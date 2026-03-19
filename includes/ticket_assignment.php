@@ -20,6 +20,7 @@ function ticket_company_group_map(): array
         '@leadsagri.com' => $standard,
         '@leadsanimalhealth.com' => $standard,
         '@leadsav.com' => $standard,
+        '@malvedaproperties.com' => $standard,
         '@leadstech-corp.com' => $standard,
         '@lingapleads.org' => $standard,
         '@primestocks.ph' => $standard,
@@ -120,36 +121,29 @@ function ticket_is_valid_group_for_company(string $company, string $group): bool
     return in_array($group, $map[$company], true);
 }
 
-function ticket_find_assignee_id(mysqli $conn, string $company, string $group): ?int
+function ticket_assignee_email_overrides(): array
 {
-    $company = ticket_normalize_company($company);
-    $groupKey = ticket_department_key_from_value($group);
-    $group = $groupKey;
-    if ($company === '' || $group === '') return null;
-    $deptAliases = ticket_department_aliases_for_key($group);
-    $deptAliases = array_values(array_unique(array_filter(array_map('strtoupper', $deptAliases), static function ($v) { return is_string($v) && $v !== ''; })));
+    return [
+        '@leadsagri.com' => [
+            'IT' => 'matthew22@leadsagri.com',
+        ],
+    ];
+}
+
+function ticket_find_department_admin_id(mysqli $conn, array $deptAliases): ?int
+{
+    $deptAliases = array_values(array_unique(array_filter(array_map('strtoupper', array_map('trim', $deptAliases)), static function ($v) {
+        return is_string($v) && $v !== '';
+    })));
     if (count($deptAliases) === 0) return null;
-    $deptPlaceholders = implode(',', array_fill(0, count($deptAliases), '?'));
+
+    $placeholders = implode(',', array_fill(0, count($deptAliases), '?'));
+    $sql = "SELECT id FROM users WHERE role = 'admin' AND UPPER(department) IN ($placeholders) ORDER BY id ASC LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) return null;
+
     $types = str_repeat('s', count($deptAliases));
     $params = $deptAliases;
-
-    if (strpos($company, '@') === 0) {
-        $sql = "SELECT id FROM users WHERE role = 'employee' AND UPPER(department) IN ($deptPlaceholders) AND LOWER(email) LIKE ? ORDER BY id ASC LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        if (!$stmt) return null;
-        $types .= 's';
-        $params[] = '%' . strtolower($company);
-    } else {
-        $aliases = ticket_company_aliases($company);
-        if (count($aliases) === 0) return null;
-        $placeholders = implode(',', array_fill(0, count($aliases), '?'));
-        $sql = "SELECT id FROM users WHERE role = 'employee' AND UPPER(department) IN ($deptPlaceholders) AND company IN ($placeholders) ORDER BY id ASC LIMIT 1";
-        $stmt = $conn->prepare($sql);
-        if (!$stmt) return null;
-        $types .= str_repeat('s', count($aliases));
-        $params = array_merge($params, $aliases);
-    }
-
     $bind = [];
     $bind[] = $types;
     foreach ($params as $k => $p) {
@@ -160,8 +154,106 @@ function ticket_find_assignee_id(mysqli $conn, string $company, string $group): 
     $res = $stmt->get_result();
     $row = $res ? $res->fetch_assoc() : null;
     $stmt->close();
+
     if (!$row || !isset($row['id'])) return null;
     return (int) $row['id'];
+}
+
+function ticket_find_assignee_ids(mysqli $conn, string $company, string $group): array
+{
+    $company = ticket_normalize_company($company);
+    $groupKey = ticket_department_key_from_value($group);
+    $group = $groupKey;
+    if ($company === '' || $group === '') return [];
+    $deptAliases = ticket_department_aliases_for_key($group);
+    $deptAliases = array_values(array_unique(array_filter(array_map('strtoupper', $deptAliases), static function ($v) { return is_string($v) && $v !== ''; })));
+    if (count($deptAliases) === 0) return [];
+
+    $overrides = ticket_assignee_email_overrides();
+    $preferredEmail = '';
+    if (isset($overrides[$company]) && isset($overrides[$company][$group])) {
+        $preferredEmail = strtolower(trim((string) $overrides[$company][$group]));
+    }
+
+    $deptPlaceholders = implode(',', array_fill(0, count($deptAliases), '?'));
+    $types = str_repeat('s', count($deptAliases));
+    $params = $deptAliases;
+    $ids = [];
+
+    if (strpos($company, '@') === 0) {
+        $domain = ltrim(strtolower($company), '@');
+        if ($domain === '') {
+            $adminId = ticket_find_department_admin_id($conn, $deptAliases);
+            return $adminId ? [$adminId] : [];
+        }
+        $sql = "SELECT id FROM users
+                WHERE role = 'employee'
+                  AND UPPER(department) IN ($deptPlaceholders)
+                  AND LOWER(email) LIKE ?
+                ORDER BY " . ($preferredEmail !== '' ? "CASE WHEN LOWER(email) = ? THEN 0 ELSE 1 END, " : "") . "is_verified DESC, id ASC";
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+            $adminId = ticket_find_department_admin_id($conn, $deptAliases);
+            return $adminId ? [$adminId] : [];
+        }
+        $types .= 's';
+        $params[] = '%@' . $domain;
+        if ($preferredEmail !== '') {
+            $types .= 's';
+            $params[] = $preferredEmail;
+        }
+    } else {
+        $aliases = ticket_company_aliases($company);
+        if (count($aliases) === 0) {
+            $adminId = ticket_find_department_admin_id($conn, $deptAliases);
+            return $adminId ? [$adminId] : [];
+        }
+        $placeholders = implode(',', array_fill(0, count($aliases), '?'));
+        $sql = "SELECT id FROM users
+                WHERE role = 'employee'
+                  AND UPPER(department) IN ($deptPlaceholders)
+                  AND company IN ($placeholders)
+                ORDER BY " . ($preferredEmail !== '' ? "CASE WHEN LOWER(email) = ? THEN 0 ELSE 1 END, " : "") . "is_verified DESC, id ASC";
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+            $adminId = ticket_find_department_admin_id($conn, $deptAliases);
+            return $adminId ? [$adminId] : [];
+        }
+        $types .= str_repeat('s', count($aliases));
+        $params = array_merge($params, $aliases);
+        if ($preferredEmail !== '') {
+            $types .= 's';
+            $params[] = $preferredEmail;
+        }
+    }
+
+    $bind = [];
+    $bind[] = $types;
+    foreach ($params as $k => $p) {
+        $bind[] = &$params[$k];
+    }
+    call_user_func_array([$stmt, 'bind_param'], $bind);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($res && ($row = $res->fetch_assoc())) {
+        if (!isset($row['id'])) continue;
+        $id = (int) $row['id'];
+        if ($id > 0) $ids[] = $id;
+    }
+    $stmt->close();
+
+    $ids = array_values(array_filter(array_unique($ids), static function ($v) { return (int) $v > 0; }));
+    if (count($ids) > 0) return $ids;
+
+    $adminId = ticket_find_department_admin_id($conn, $deptAliases);
+    return $adminId ? [$adminId] : [];
+}
+
+function ticket_find_assignee_id(mysqli $conn, string $company, string $group): ?int
+{
+    $ids = ticket_find_assignee_ids($conn, $company, $group);
+    if (count($ids) === 0) return null;
+    return (int) $ids[0];
 }
 
 function ticket_ensure_assignment_columns(mysqli $conn): void

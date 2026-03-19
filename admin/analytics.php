@@ -55,14 +55,15 @@ $department_options = [
 ];
 if ($department_filter !== '' && !in_array($department_filter, $department_options, true)) $department_filter = '';
 
-$categories = [];
-$catRes = $conn->query("SELECT DISTINCT category FROM employee_tickets WHERE category IS NOT NULL AND category <> '' ORDER BY category ASC");
-if ($catRes) {
-    while ($r = $catRes->fetch_assoc()) {
-        $v = (string) ($r['category'] ?? '');
-        if ($v !== '') $categories[] = $v;
-    }
-}
+$categories = [
+    'Documentation',
+    'Email',
+    'Hardware',
+    'Internet Concerns',
+    'Procurement',
+    'Software',
+    'Technical Support',
+];
 if ($category_filter !== '' && !in_array($category_filter, $categories, true)) $category_filter = '';
 
 $assignees = [];
@@ -340,9 +341,9 @@ if ($asStmt) {
     $asStmt->close();
 }
 
-$entries = (int) ($_GET['entries'] ?? 10);
+$entries = (int) ($_GET['entries'] ?? 5);
 $allowed_entries = [5, 10, 25, 50, 100];
-if (!in_array($entries, $allowed_entries, true)) $entries = 10;
+if (!in_array($entries, $allowed_entries, true)) $entries = 5;
 $page = (int) ($_GET['page'] ?? 1);
 if ($page < 1) $page = 1;
 $offset = ($page - 1) * $entries;
@@ -422,303 +423,424 @@ if ($ticketsStmt) {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="../js/admin.js"></script>
     <style>
-        .admin-content { max-width: 1600px; }
-        .analytics-title {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            margin: 0;
+        body {
+            background:
+                radial-gradient(circle at top left, rgba(255, 255, 255, 0.95), rgba(245, 247, 250, 0.92) 42%, rgba(239, 243, 247, 0.88) 100%);
         }
-        .analytics-title i { color: #1B5E20; }
-
-        .analytics-toolbar {
-            background: white;
-            padding: 16px;
-            border-radius: 16px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
-            border: 1px solid #eef2f7;
-            margin-bottom: 24px;
+        .admin-content {
+            max-width: 1340px;
+            padding-top: 8px;
         }
-        .analytics-filterbar {
+        .admin-page-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 16px;
+            margin-bottom: 20px;
+        }
+        .analytics-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            margin: 0;
+            font-size: 2.05rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: #111827;
+        }
+        .analytics-title i {
+            color: #1B5E20;
+            font-size: 1.7rem;
+        }
+        .analytics-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
             flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .analytics-toolbar,
+        .analytics-card,
+        .chart-card,
+        .table-card {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(227, 232, 240, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+            backdrop-filter: blur(10px);
+        }
+        .analytics-toolbar {
+            padding: 18px 18px 16px;
+            margin-bottom: 22px;
+        }
+        .analytics-filterbar {
+            display: block;
         }
         .analytics-filters {
             display: grid;
-            grid-template-columns: 1.25fr 1fr 1fr 1fr 1fr;
+            grid-template-columns: 1.5fr 1.2fr 1.15fr 1.15fr 1fr;
             gap: 12px;
-            align-items: center;
-            flex: 1 1 auto;
-            min-width: 520px;
+            align-items: end;
         }
         .analytics-filter {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 7px;
             min-width: 0;
         }
         .analytics-filter label {
             font-size: 12px;
             font-weight: 800;
-            color: #64748b;
-            letter-spacing: 0.03em;
+            color: #374151;
+            letter-spacing: 0.06em;
             text-transform: uppercase;
         }
-        .analytics-control {
+        .analytics-control,
+        .analytics-status-row {
             width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #e5e7eb;
-            border-radius: 10px;
+            min-height: 48px;
+            padding: 0 14px;
+            border: 1px solid #d9dee8;
+            border-radius: 13px;
             font-size: 14px;
             outline: none;
             background: #ffffff;
+            color: #111827;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
         }
-        .analytics-control:focus {
+        .analytics-control:focus,
+        .analytics-status-row:focus-within {
             border-color: #1B5E20;
             box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
         }
         .date-inputs {
             display: grid;
-            grid-template-columns: 1fr auto 1fr;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
             gap: 8px;
             align-items: center;
         }
-        .date-separator { color: #94a3b8; font-weight: 700; }
-        .analytics-actions {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            justify-content: flex-end;
-            flex: 0 0 auto;
+        .date-inputs .analytics-control {
+            padding-right: 10px;
         }
-        .btn-apply {
-            padding: 10px 16px;
-            background-color: #1B5E20;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 800;
-            cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: 0 8px 18px rgba(27, 94, 32, 0.12);
+        .date-separator {
+            color: #6b7280;
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .analytics-status-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 0;
+            padding: 0;
+            border: 0;
+            box-shadow: none;
+            background: transparent;
+        }
+        .analytics-status-row .analytics-control {
+            flex: 1 1 auto;
+        }
+        .analytics-status-row .analytics-inline-clear {
+            min-height: 48px;
+            padding: 0 16px;
+            border: 1px solid #d9dee8;
+            background: #ffffff;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
+            border-radius: 13px;
+            flex: 1 1 auto;
+        }
+        .analytics-inline-clear {
+            color: #111827;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 6px 10px;
+            border-radius: 999px;
+            transition: background 0.2s ease, color 0.2s ease;
             white-space: nowrap;
         }
-        .btn-apply:hover { background-color: #144a1e; transform: translateY(-1px); }
+        .analytics-inline-clear:hover {
+            background: #f3f4f6;
+            color: #1B5E20;
+        }
+        .btn-apply,
         .btn-export {
             display: inline-flex;
             align-items: center;
-            padding: 10px 14px;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
+            justify-content: center;
+            gap: 9px;
+            min-height: 48px;
+            padding: 0 18px;
+            border-radius: 12px;
             font-size: 14px;
             font-weight: 800;
             text-decoration: none;
-            transition: all 0.2s;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
             white-space: nowrap;
-            gap: 8px;
         }
-        .btn-export:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(2,6,23,0.08); }
-        .btn-export-pdf { color: #991b1b; border-color: #fecaca; background: #fef2f2; }
-        .btn-export-pdf:hover { background: #fee2e2; }
-        .btn-export-excel { color: #065f46; border-color: #a7f3d0; background: #ecfdf5; }
-        .btn-export-excel:hover { background: #d1fae5; }
-        .btn-clear { color: #334155; border-color: #e2e8f0; background: #f8fafc; }
-        .btn-clear:hover { background: #eef2f7; }
+        .btn-apply:hover,
+        .btn-export:hover {
+            transform: translateY(-1px);
+        }
+        .btn-export {
+            background: #ffffff;
+            border: 1px solid #c9d4c5;
+            color: #1B5E20;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+        }
+        .btn-export i {
+            font-size: 1rem;
+        }
+        .btn-export-pdf,
+        .btn-export-excel {
+            min-width: 106px;
+        }
+        .btn-export-pdf:hover,
+        .btn-export-excel:hover {
+            background: #f2fbf1;
+            border-color: #99c08d;
+        }
 
         .analytics-metrics {
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
-            gap: 20px;
-            margin-bottom: 24px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 18px;
+            margin-bottom: 18px;
         }
         .analytics-card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
-            border: 1px solid #eef2f7;
             padding: 18px 18px 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
             min-width: 0;
         }
         .analytics-card-top {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
             gap: 12px;
         }
+        .analytics-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #111827;
+            letter-spacing: 0;
+            text-transform: none;
+            margin-bottom: 4px;
+        }
+        .analytics-value {
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: #111827;
+            line-height: 1;
+            letter-spacing: -0.04em;
+        }
+        .analytics-sub {
+            margin-top: 10px;
+            font-size: 0.98rem;
+            color: #4b5563;
+            font-weight: 500;
+        }
         .analytics-icon {
-            width: 44px;
-            height: 44px;
+            width: 46px;
+            height: 46px;
             border-radius: 14px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: #ecfdf5;
-            border: 1px solid #bbf7d0;
-            color: #16a34a;
+            background: linear-gradient(180deg, #eaf8ef 0%, #dff1e8 100%);
+            border: 1px solid #c7e7d0;
+            color: #26a14a;
             flex: 0 0 auto;
-            font-size: 18px;
-        }
-        .analytics-label {
-            font-size: 12px;
-            font-weight: 900;
-            color: #64748b;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-        }
-        .analytics-value {
-            font-size: 28px;
-            font-weight: 900;
-            color: #0f172a;
-            line-height: 1.05;
-        }
-        .analytics-sub {
-            font-size: 12px;
-            color: #64748b;
-            font-weight: 700;
+            font-size: 19px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
         }
 
         .analytics-charts {
             display: grid;
-            grid-template-columns: 2fr 2fr 1.6fr;
-            gap: 20px;
-            margin-bottom: 24px;
+            grid-template-columns: 1.12fr 1.12fr 1fr;
+            gap: 18px;
+            margin-bottom: 18px;
         }
         .chart-card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
-            border: 1px solid #eef2f7;
-            padding: 16px;
-            overflow: hidden;
+            padding: 14px 16px 18px;
             min-width: 0;
         }
         .chart-title {
-            font-size: 14px;
-            font-weight: 900;
-            color: #0f172a;
-            margin: 0 0 12px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #111827;
+            margin: 0 0 10px;
         }
-        .chart-container { position: relative; height: 320px; width: 100%; }
-        .assignee-chart-container { height: 260px; }
+        .chart-container {
+            position: relative;
+            height: 285px;
+            width: 100%;
+        }
+        .assignee-chart-container {
+            height: 285px;
+        }
 
         .table-card {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
-            border: 1px solid #eef2f7;
-            padding: 16px;
-        }
-        .table-topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
-        .entries-control {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            color: #64748b;
-            font-weight: 800;
-            font-size: 13px;
-        }
-        .entries-control select {
-            padding: 8px 10px;
-            border-radius: 10px;
-            border: 1px solid #e5e7eb;
-            background: #ffffff;
-            font-weight: 800;
+            padding: 10px 14px 14px;
         }
         .tickets-table {
             width: 100%;
             border-collapse: collapse;
             overflow: hidden;
         }
-        .tickets-table th, .tickets-table td {
-            padding: 12px 10px;
-            border-bottom: 1px solid #eef2f7;
+        .tickets-table th,
+        .tickets-table td {
+            padding: 15px 12px;
+            border-bottom: 1px solid #e8edf3;
             text-align: left;
             vertical-align: middle;
-            font-size: 13px;
+            font-size: 14px;
+            color: #1f2937;
         }
         .tickets-table th {
             font-size: 12px;
             text-transform: uppercase;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.06em;
             color: #1B5E20;
-            background: #ffffff;
-            font-weight: 900;
+            background: transparent;
+            font-weight: 800;
         }
-        .tickets-table tbody tr:hover td { background: #f8fafc; }
+        .tickets-table tbody tr:hover td {
+            background: #f9fbfc;
+        }
         .status-badge {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 6px 10px;
+            min-width: 78px;
+            padding: 6px 14px;
             border-radius: 999px;
-            font-size: 12px;
-            font-weight: 900;
+            font-size: 14px;
+            font-weight: 500;
             border: 1px solid transparent;
             white-space: nowrap;
         }
-        .status-open { background: #fef9c3; border-color: #fde68a; color: #854d0e; }
-        .status-in-progress { background: #dbeafe; border-color: #bfdbfe; color: #1d4ed8; }
-        .status-resolved { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
-        .status-closed { background: #ffedd5; border-color: #fed7aa; color: #9a3412; }
-
+        .status-open {
+            background: #fff2b3;
+            border-color: #f8e58c;
+            color: #5f5400;
+        }
+        .status-in-progress {
+            background: #dbeafe;
+            border-color: #bfdbfe;
+            color: #1d4ed8;
+        }
+        .status-resolved {
+            background: #dcfce7;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+        .status-closed {
+            background: #ffedd5;
+            border-color: #fed7aa;
+            color: #9a3412;
+        }
         .pagination-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 12px;
-            margin-top: 14px;
+            margin-top: 16px;
             flex-wrap: wrap;
         }
         .pagination-info {
-            color: #64748b;
-            font-weight: 800;
-            font-size: 12px;
+            color: #6b7280;
+            font-weight: 700;
+            font-size: 13px;
         }
-        .pagination-controls { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+        .pagination-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: flex-end;
+        }
         .page-btn {
-            min-width: 34px;
-            height: 34px;
+            min-width: 36px;
+            height: 36px;
             padding: 0 10px;
-            border-radius: 10px;
-            border: 1px solid #e5e7eb;
+            border-radius: 11px;
+            border: 1px solid #dce3eb;
             background: #ffffff;
             color: #0f172a;
-            font-weight: 900;
+            font-weight: 800;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             text-decoration: none;
         }
-        .page-btn:hover { background: #f8fafc; }
-        .page-btn.active { background: #1B5E20; color: #ffffff; border-color: #1B5E20; }
-        .page-btn.disabled { opacity: 0.45; pointer-events: none; }
+        .page-btn:hover {
+            background: #f7fafb;
+        }
+        .page-btn.active {
+            background: #1B5E20;
+            color: #ffffff;
+            border-color: #1B5E20;
+        }
+        .page-btn.disabled {
+            opacity: 0.45;
+            pointer-events: none;
+        }
 
-        @media (max-width: 1200px) {
-            .analytics-filters { grid-template-columns: 1.2fr 1fr 1fr; }
-            .analytics-charts { grid-template-columns: 1fr; }
-            .analytics-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        @media (max-width: 1280px) {
+            .analytics-filters {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+            .analytics-charts {
+                grid-template-columns: 1fr;
+            }
+            .analytics-metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+        @media (max-width: 900px) {
+            .admin-page-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .analytics-header-actions {
+                justify-content: flex-start;
+            }
+            .analytics-filters {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
         }
         @media (max-width: 640px) {
-            .analytics-filters { grid-template-columns: 1fr; min-width: 0; }
-            .analytics-actions { width: 100%; justify-content: flex-start; }
-            .analytics-metrics { grid-template-columns: 1fr; }
+            .admin-content {
+                padding-top: 0;
+            }
+            .analytics-title {
+                font-size: 1.7rem;
+            }
+            .analytics-filters {
+                grid-template-columns: 1fr;
+            }
+            .date-inputs {
+                grid-template-columns: 1fr;
+            }
+            .date-separator {
+                display: none;
+            }
+            .analytics-header-actions {
+                width: 100%;
+                justify-content: flex-start;
+            }
+            .analytics-metrics {
+                grid-template-columns: 1fr;
+            }
+            .chart-container,
+            .assignee-chart-container {
+                height: 250px;
+            }
+            .tickets-table th,
+            .tickets-table td {
+                font-size: 13px;
+                padding: 13px 10px;
+            }
         }
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -734,6 +856,14 @@ if ($ticketsStmt) {
             
             <div class="admin-page-header">
                 <h1 class="admin-page-title analytics-title"><i class="fa-solid fa-chart-line"></i> Analytics</h1>
+                <div class="analytics-header-actions">
+                    <a href="export_analytics_pdf.php?start_date=<?= urlencode($start_date) ?>&end_date=<?= urlencode($end_date) ?>" class="btn-export btn-export-pdf" target="_blank">
+                        <i class="fa-regular fa-file-pdf"></i> PDF
+                    </a>
+                    <a href="export_analytics_excel.php?start_date=<?= urlencode($start_date) ?>&end_date=<?= urlencode($end_date) ?>" class="btn-export btn-export-excel" target="_blank">
+                        <i class="fa-regular fa-file-excel"></i> Excel
+                    </a>
+                </div>
             </div>
 
             <div class="analytics-toolbar">
@@ -752,7 +882,7 @@ if ($ticketsStmt) {
                         <div class="analytics-filter">
                             <label>Category</label>
                             <select class="analytics-control" name="category">
-                                <option value="">All</option>
+                                <option value="" <?= $category_filter === '' ? 'selected' : '' ?> disabled hidden>Select </option>
                                 <?php foreach ($categories as $c): ?>
                                     <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= $category_filter === $c ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
                                 <?php endforeach; ?>
@@ -761,7 +891,7 @@ if ($ticketsStmt) {
                         <div class="analytics-filter">
                             <label>Assignee</label>
                             <select class="analytics-control" name="assignee">
-                                <option value="0">All</option>
+                                <option value="0" <?= (int) $assignee_filter === 0 ? 'selected' : '' ?> disabled hidden>Select </option>
                                 <?php foreach ($assignees as $a): ?>
                                     <option value="<?= (int) ($a['id'] ?? 0); ?>" <?= (int) $assignee_filter === (int) ($a['id'] ?? 0) ? 'selected' : '' ?>>
                                         <?= htmlspecialchars((string) ($a['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
@@ -772,7 +902,7 @@ if ($ticketsStmt) {
                         <div class="analytics-filter">
                             <label>Department</label>
                             <select class="analytics-control" name="department">
-                                <option value="">All</option>
+                                <option value="" <?= $department_filter === '' ? 'selected' : '' ?> disabled hidden>Select </option>
                                 <?php foreach ($department_options as $d): ?>
                                     <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $department_filter === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                                 <?php endforeach; ?>
@@ -780,25 +910,18 @@ if ($ticketsStmt) {
                         </div>
                         <div class="analytics-filter">
                             <label>Status</label>
-                            <select class="analytics-control" name="status">
-                                <option value="">All</option>
-                                <?php foreach ($allowed_statuses as $st): ?>
-                                    <option value="<?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8'); ?>" <?= $status_filter === $st ? 'selected' : '' ?>><?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <div class="analytics-status-row">
+                                <select class="analytics-control" name="status">
+                                    <option value="" <?= $status_filter === '' ? 'selected' : '' ?> disabled hidden>Select</option>
+                                    <?php foreach ($allowed_statuses as $st): ?>
+                                        <option value="<?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8'); ?>" <?= $status_filter === $st ? 'selected' : '' ?>><?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8'); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <a href="analytics.php" class="analytics-inline-clear">Clear</a>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="analytics-actions">
-                        <button type="submit" class="btn-apply"><i class="fa-solid fa-filter"></i> Apply Filter</button>
-                        <a href="analytics.php" class="btn-export btn-clear"><i class="fa-solid fa-rotate-left"></i> Clear</a>
-                        <a href="export_analytics_pdf.php?start_date=<?= $start_date ?>&end_date=<?= $end_date ?>" class="btn-export btn-export-pdf" target="_blank">
-                            <i class="fa-regular fa-file-pdf"></i> PDF
-                        </a>
-                        <a href="export_analytics_excel.php?start_date=<?= $start_date ?>&end_date=<?= $end_date ?>" class="btn-export btn-export-excel" target="_blank">
-                            <i class="fa-regular fa-file-excel"></i> Excel
-                        </a>
-                    </div>
                 </form>
             </div>
 
@@ -811,7 +934,6 @@ if ($ticketsStmt) {
                         </div>
                         <div class="analytics-icon"><i class="fa-solid fa-inbox"></i></div>
                     </div>
-                    <div class="analytics-sub"><?= htmlspecialchars($start_date) ?> to <?= htmlspecialchars($end_date) ?></div>
                 </div>
                 <div class="analytics-card">
                     <div class="analytics-card-top">
@@ -821,7 +943,6 @@ if ($ticketsStmt) {
                         </div>
                         <div class="analytics-icon"><i class="fa-solid fa-circle-check"></i></div>
                     </div>
-                    <div class="analytics-sub"><?= htmlspecialchars($start_date) ?> to <?= htmlspecialchars($end_date) ?></div>
                 </div>
                 <div class="analytics-card">
                     <div class="analytics-card-top">
@@ -831,7 +952,6 @@ if ($ticketsStmt) {
                         </div>
                         <div class="analytics-icon"><i class="fa-solid fa-lock"></i></div>
                     </div>
-                    <div class="analytics-sub"><?= htmlspecialchars($start_date) ?> to <?= htmlspecialchars($end_date) ?></div>
                 </div>
                 <div class="analytics-card">
                     <div class="analytics-card-top">
@@ -842,16 +962,6 @@ if ($ticketsStmt) {
                         <div class="analytics-icon"><i class="fa-solid fa-stopwatch"></i></div>
                     </div>
                     <div class="analytics-sub">Resolved tickets only</div>
-                </div>
-                <div class="analytics-card">
-                    <div class="analytics-card-top">
-                        <div>
-                            <div class="analytics-label">Open Tickets</div>
-                            <div class="analytics-value"><?= number_format((int) ($summary['open'] ?? 0)) ?></div>
-                        </div>
-                        <div class="analytics-icon"><i class="fa-solid fa-ticket"></i></div>
-                    </div>
-                    <div class="analytics-sub">Open &amp; In Progress</div>
                 </div>
             </div>
 
@@ -877,32 +987,10 @@ if ($ticketsStmt) {
             </div>
 
             <div class="table-card">
-                <div class="table-topbar">
-                    <div class="entries-control">
-                        Entries
-                        <form method="GET" action="analytics.php" style="display:inline-flex; align-items:center; gap:10px;">
-                            <input type="hidden" name="start_date" value="<?= htmlspecialchars($start_date) ?>">
-                            <input type="hidden" name="end_date" value="<?= htmlspecialchars($end_date) ?>">
-                            <input type="hidden" name="category" value="<?= htmlspecialchars($category_filter) ?>">
-                            <input type="hidden" name="assignee" value="<?= (int) $assignee_filter ?>">
-                            <input type="hidden" name="department" value="<?= htmlspecialchars($department_filter) ?>">
-                            <input type="hidden" name="status" value="<?= htmlspecialchars($status_filter) ?>">
-                            <input type="hidden" name="page" value="1">
-                            <select name="entries" onchange="this.form.submit()">
-                                <?php foreach ($allowed_entries as $e): ?>
-                                    <option value="<?= (int) $e ?>" <?= (int) $entries === (int) $e ? 'selected' : '' ?>><?= (int) $e ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </form>
-                    </div>
-                    <div class="pagination-info">
-                        <?php
-                            $startNum = $tickets_total > 0 ? ($offset + 1) : 0;
-                            $endNum = min($tickets_total, $offset + $entries);
-                        ?>
-                        Showing <?= (int) $startNum ?> – <?= (int) $endNum ?> of <?= (int) $tickets_total ?> tickets
-                    </div>
-                </div>
+                <?php
+                    $startNum = $tickets_total > 0 ? ($offset + 1) : 0;
+                    $endNum = min($tickets_total, $offset + $entries);
+                ?>
 
                 <div style="width:100%; overflow:auto;">
                     <table class="tickets-table">
@@ -951,9 +1039,11 @@ if ($ticketsStmt) {
                     </table>
                 </div>
 
-                <?php if ($tickets_total_pages > 1): ?>
-                    <div class="pagination-row">
-                        <div class="pagination-info">Page <?= (int) $page ?> of <?= (int) $tickets_total_pages ?></div>
+                <div class="pagination-row">
+                    <div class="pagination-info">
+                        Showing <?= (int) $startNum ?> – <?= (int) $endNum ?> of <?= (int) $tickets_total ?> tickets
+                    </div>
+                    <?php if ($tickets_total_pages > 1): ?>
                         <div class="pagination-controls">
                             <?php
                                 $qsBase = [
@@ -979,8 +1069,8 @@ if ($ticketsStmt) {
                             <?php endfor; ?>
                             <a class="page-btn <?= $page >= $tickets_total_pages ? 'disabled' : '' ?>" href="?<?= http_build_query(array_merge($qsBase, ['page' => $nextPage])) ?>">›</a>
                         </div>
-                    </div>
-                <?php endif; ?>
+                    <?php endif; ?>
+                </div>
             </div>
 
         </div>

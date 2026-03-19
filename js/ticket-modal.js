@@ -6,6 +6,8 @@ var TMTicketModal = (function () {
   var messengerOpen = false;
   var messengerInterval = null;
   var messengerTicketId = null;
+  var messengerConfirmAction = null;
+  var messengerReturnContext = null;
   var currentTicketId = null;
   var lastTicketMeta = null;
   function qs(id) { return document.getElementById(id); }
@@ -224,11 +226,13 @@ var TMTicketModal = (function () {
     var statusEl = form.querySelector('select[name="status"]');
     var deptEl = form.querySelector('select[name="assigned_department"]');
     var companyEl = form.querySelector('select[name="assigned_company"]');
+    var noteEl = form.querySelector('textarea[name="admin_note"]');
     var noticeEl = form.querySelector('#tmNoChangeNotice');
 
     var initialStatus = statusEl ? String(statusEl.value || '') : String((data && data.status) || '');
     var initialDept = deptEl ? String(deptEl.value || '') : '';
     var initialCompany = companyEl ? String(companyEl.value || '') : '';
+    var initialNote = noteEl ? String(noteEl.value || '').trim() : String((data && data.admin_note) || '').trim();
 
     function hideNotice() {
       if (!noticeEl) return;
@@ -236,7 +240,7 @@ var TMTicketModal = (function () {
       noticeEl.textContent = '';
     }
 
-    [statusEl, deptEl, companyEl].forEach(function (el) {
+    [statusEl, deptEl, companyEl, noteEl].forEach(function (el) {
       if (!el) return;
       el.addEventListener('change', hideNotice);
       el.addEventListener('input', hideNotice);
@@ -246,7 +250,8 @@ var TMTicketModal = (function () {
       var currentStatus = statusEl ? String(statusEl.value || '') : initialStatus;
       var currentDept = deptEl ? String(deptEl.value || '') : initialDept;
       var currentCompany = companyEl ? String(companyEl.value || '') : initialCompany;
-      if (currentStatus === initialStatus && currentDept === initialDept && currentCompany === initialCompany) {
+      var currentNote = noteEl ? String(noteEl.value || '').trim() : initialNote;
+      if (currentStatus === initialStatus && currentDept === initialDept && currentCompany === initialCompany && currentNote === initialNote) {
         e.preventDefault();
         if (noticeEl) {
           noticeEl.textContent = 'No changes were made.';
@@ -255,7 +260,30 @@ var TMTicketModal = (function () {
       }
     });
   }
+  function bindAdminNote(container, data) {
+    if (!container) return;
+    var form = container.querySelector('#ticketUpdateForm');
+    if (!form || form.dataset.noteBound === '1') return;
+    form.dataset.noteBound = '1';
+    var textarea = form.querySelector('#tmAdminNote');
+    var max = 300;
+    var tags = form.querySelectorAll('.tm-quick-tag');
+    if (tags && tags.length && textarea) {
+      tags.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var tag = btn.getAttribute('data-tag') || '';
+          if (!tag) return;
+          var current = String(textarea.value || '');
+          var next = current.trim() === '' ? tag : (current + (current.endsWith('\n') ? '' : '\n') + tag);
+          if (next.length > max) next = next.slice(0, max);
+          textarea.value = next;
+          textarea.focus();
+        });
+      });
+    }
+  }
   function buildHtml(data) {
+    var hideUpdateTab = typeof window !== 'undefined' && window.TM_HIDE_UPDATE_TAB === true;
     var statusSlug = data.status ? data.status.toLowerCase().replace(/\s+/g, '') : 'default';
     var prioritySlug = data.priority ? data.priority.toLowerCase() : 'default';
     var endForTotal = (data && data.status && (/^(Resolved|Closed)$/i).test(String(data.status)) && data.updated_at) ? data.updated_at : new Date();
@@ -324,6 +352,15 @@ var TMTicketModal = (function () {
     deptOptionsHtml += deptKeys.map(function (k) {
       return '                  <option value="' + escapeHtml(k) + '" ' + (String(selectedDeptKey || '') === String(k) ? 'selected' : '') + '>' + escapeHtml(k) + '</option>';
     }).join('');
+    var noteValue = data && data.admin_note != null ? String(data.admin_note) : '';
+    var trimmedNoteValue = noteValue.trim();
+    var requesterAdminNoteHtml = (isRequesterPOV && trimmedNoteValue !== '')
+      ? (
+        '      <div class="tm-card"><div class="tm-card-header"><div class="tm-card-header-actions"><span class="tm-card-title">Admin Notes / Comments</span><button type="button" class="tm-inline-chat-btn" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Chat with Admin</button></div></div><div class="tm-card-body">' +
+        '        <div class="tm-requestor-note">' + escapeHtml(noteValue).replace(/\n/g, '<br>') + '</div>' +
+        '      </div></div>'
+      )
+      : '';
     return '' +
       '<div class="tm-header">' +
       '  <div class="tm-header-left">' +
@@ -338,8 +375,8 @@ var TMTicketModal = (function () {
       '</div>' +
       '<div class="tm-tabs">' +
       '  <div class="tm-tab active" data-tab="info" onclick="TMTicketModal.switchTab(\'info\')">Information</div>' +
-      '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Update</div>' +
-      '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Conversation</div>' +
+      (hideUpdateTab ? '' : '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Update</div>') +
+      '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Go to Chat</div>' +
       '</div>' +
       '<div class="tm-body">' +
       '  <div id="tab-info" class="tm-tab-content active">' +
@@ -365,13 +402,15 @@ var TMTicketModal = (function () {
       '          <div class="tm-res-item"><div class="tm-res-label">Duration</div><div class="tm-res-value"><span class="tm-duration-dot"></span>' + (displayStr ? escapeHtml(displayStr) : '-') + '</div></div>' +
       '        </div>' +
       '      </div></div>' +
+      requesterAdminNoteHtml +
       '    </div>' +
       '  </div>' +
-      '  <div id="tab-actions" class="tm-tab-content">' +
+      (hideUpdateTab ? '' : '  <div id="tab-actions" class="tm-tab-content">' +
       '    <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Ticket Update</span></div><div class="tm-card-body">' +
       '    <form id="ticketUpdateForm" method="POST" action="update_ticket.php" class="tm-actions-form">' +
       '      <input type="hidden" name="id" value="' + data.id + '">' +
       '      <input type="hidden" name="csrf_token" value="' + escapeHtml(getCsrfToken()) + '">' +
+      '      <div class="tm-nochange" id="tmNoChangeNotice"></div>' +
       '      <div class="tm-actions-fields">' +
       '        <div class="tm-field">' +
       '          <label class="tm-control-label">Status</label>' +
@@ -391,32 +430,46 @@ var TMTicketModal = (function () {
       '          <div class="tm-select-wrapper">' +
       '            <select class="tm-select tm-dept-select" name="assigned_company">' +
       ( !data.assigned_company ? '                  <option value="" disabled selected hidden>Select Recipient</option>' : '' ) +
-      ( data.assigned_company && ['@gpsci.net','@farmasee.ph','@gmail.com','@leads-eh.com','@leads-farmex.com','@leadsagri.com','@leadsanimalhealth.com','@leadsav.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'].indexOf(String(data.assigned_company).toLowerCase()) === -1
+      ( data.assigned_company && ['@gpsci.net','@farmasee.ph','@gmail.com','@leads-eh.com','@leads-farmex.com','@leadsagri.com','@leadsanimalhealth.com','@leadsav.com','@malvedaproperties.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'].indexOf(String(data.assigned_company).toLowerCase()) === -1
           ? ('                  <option value="' + escapeHtml(data.assigned_company) + '" selected>' + escapeHtml(data.assigned_company) + '</option>')
           : '' ) +
-      '                  <option value="@gpsci.net" ' + (String(data.assigned_company || '').toLowerCase() === '@gpsci.net' ? 'selected' : '') + '>@gpsci.net</option>' +
-      '                  <option value="@farmasee.ph" ' + (String(data.assigned_company || '').toLowerCase() === '@farmasee.ph' ? 'selected' : '') + '>@farmasee.ph</option>' +
+      '                  <option value="@gpsci.net" ' + (String(data.assigned_company || '').toLowerCase() === '@gpsci.net' ? 'selected' : '') + '>GPSCI (@gpsci.net)</option>' +
+      '                  <option value="@farmasee.ph" ' + (String(data.assigned_company || '').toLowerCase() === '@farmasee.ph' ? 'selected' : '') + '>FARMASEE (@farmasee.ph)</option>' +
       '                  <option value="@gmail.com" ' + (String(data.assigned_company || '').toLowerCase() === '@gmail.com' ? 'selected' : '') + '>@gmail.com</option>' +
-      '                  <option value="@leads-eh.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leads-eh.com' ? 'selected' : '') + '>@leads-eh.com</option>' +
-      '                  <option value="@leads-farmex.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leads-farmex.com' ? 'selected' : '') + '>@leads-farmex.com</option>' +
-      '                  <option value="@leadsagri.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsagri.com' ? 'selected' : '') + '>@leadsagri.com</option>' +
-      '                  <option value="@leadsanimalhealth.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsanimalhealth.com' ? 'selected' : '') + '>@leadsanimalhealth.com</option>' +
-      '                  <option value="@leadsav.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsav.com' ? 'selected' : '') + '>@leadsav.com</option>' +
-      '                  <option value="@leadstech-corp.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadstech-corp.com' ? 'selected' : '') + '>@leadstech-corp.com</option>' +
-      '                  <option value="@lingapleads.org" ' + (String(data.assigned_company || '').toLowerCase() === '@lingapleads.org' ? 'selected' : '') + '>@lingapleads.org</option>' +
-      '                  <option value="@primestocks.ph" ' + (String(data.assigned_company || '').toLowerCase() === '@primestocks.ph' ? 'selected' : '') + '>@primestocks.ph</option>' +
+      '                  <option value="@leads-eh.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leads-eh.com' ? 'selected' : '') + '>LEH (@leads-eh.com)</option>' +
+      '                  <option value="@leads-farmex.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leads-farmex.com' ? 'selected' : '') + '>FARMEX (@leads-farmex.com)</option>' +
+      '                  <option value="@leadsagri.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsagri.com' ? 'selected' : '') + '>LAPC (@leadsagri.com)</option>' +
+      '                  <option value="@leadsanimalhealth.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsanimalhealth.com' ? 'selected' : '') + '>LAH (@leadsanimalhealth.com)</option>' +
+      '                  <option value="@leadsav.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsav.com' ? 'selected' : '') + '>LAV (@leadsav.com)</option>' +
+      '                  <option value="@malvedaproperties.com" ' + (String(data.assigned_company || '').toLowerCase() === '@malvedaproperties.com' ? 'selected' : '') + '>MHC (@malvedaproperties.com)</option>' +
+      '                  <option value="@leadstech-corp.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadstech-corp.com' ? 'selected' : '') + '>LTC (@leadstech-corp.com)</option>' +
+      '                  <option value="@lingapleads.org" ' + (String(data.assigned_company || '').toLowerCase() === '@lingapleads.org' ? 'selected' : '') + '>LINGAP (@lingapleads.org)</option>' +
+      '                  <option value="@primestocks.ph" ' + (String(data.assigned_company || '').toLowerCase() === '@primestocks.ph' ? 'selected' : '') + '>PCC (@primestocks.ph)</option>' +
       '            </select>' +
       '          </div>' +
       '        </div>' +
       '      </div>' +
-      '      <div class="tm-nochange" id="tmNoChangeNotice"></div>' +
-      '      <div class="tm-actions-buttons">' +
-      '        <button type="button" class="tm-btn tm-btn-secondary" onclick="TMTicketModal.close()">Close</button>' +
-      '        <button type="submit" class="tm-btn tm-btn-primary">Save Ticket</button>' +
+      '      <div class="tm-note-group">' +
+      '        <div class="tm-note-label">Reason of Concern / Action Taken</div>' +
+      '        <textarea class="tm-textarea" name="admin_note" id="tmAdminNote" maxlength="300" placeholder="Describe what happened or actions taken...">' + escapeHtml(noteValue) + '</textarea>' +
+      '        <div class="tm-note-row">' +
+      '          <div class="tm-note-help">Provide details of the issue or actions performed to resolve it.</div>' +
+      '        </div>' +
+      '        <div class="tm-note-footer">' +
+      '          <div class="tm-quick-tags">' +
+      '            <button type="button" class="tm-quick-tag" data-tag="Investigation">Investigation</button>' +
+      '            <button type="button" class="tm-quick-tag" data-tag="Resolved">Resolved</button>' +
+      '            <button type="button" class="tm-quick-tag" data-tag="Escalated">Escalated</button>' +
+      '          </div>' +
+      '          <div class="tm-actions-buttons">' +
+      '            <button type="button" class="tm-btn tm-btn-secondary" onclick="TMTicketModal.close()">Close</button>' +
+      '            <button type="submit" class="tm-btn tm-btn-primary">Save Ticket</button>' +
+      '          </div>' +
+      '        </div>' +
       '      </div>' +
       '    </form>' +
       '    </div></div>' +
-      '  </div>' +
+      '  </div>') +
       '</div>';
   }
   function startChat(ticketId) {
@@ -831,6 +884,77 @@ var TMTicketModal = (function () {
       messengerInterval = null;
     }
   }
+  function ensureMessengerConfirmExists() {
+    if (qs('tmMessengerConfirm')) return;
+    var dialog = document.createElement('div');
+    dialog.id = 'tmMessengerConfirm';
+    dialog.className = 'tm-messenger-confirm-overlay';
+    dialog.innerHTML =
+      '<div class="tm-messenger-confirm-box" role="dialog" aria-modal="true" aria-labelledby="tmMessengerConfirmTitle">' +
+      '  <div class="tm-messenger-confirm-icon">!</div>' +
+      '  <div class="tm-messenger-confirm-title" id="tmMessengerConfirmTitle">Confirm Action</div>' +
+      '  <div class="tm-messenger-confirm-text" id="tmMessengerConfirmText"></div>' +
+      '  <div class="tm-messenger-confirm-actions">' +
+      '    <button type="button" class="tm-messenger-confirm-btn tm-messenger-confirm-cancel" id="tmMessengerConfirmCancel">Cancel</button>' +
+      '    <button type="button" class="tm-messenger-confirm-btn tm-messenger-confirm-ok" id="tmMessengerConfirmOk">OK</button>' +
+      '  </div>' +
+      '</div>';
+    document.body.appendChild(dialog);
+    dialog.addEventListener('click', function (e) {
+      if (e.target === dialog) hideMessengerConfirm();
+    });
+    var cancelBtn = qs('tmMessengerConfirmCancel');
+    var okBtn = qs('tmMessengerConfirmOk');
+    if (cancelBtn) cancelBtn.addEventListener('click', hideMessengerConfirm);
+    if (okBtn) {
+      okBtn.addEventListener('click', function () {
+        var action = messengerConfirmAction;
+        hideMessengerConfirm();
+        if (typeof action === 'function') action();
+      });
+    }
+  }
+  function hideMessengerConfirm() {
+    var dialog = qs('tmMessengerConfirm');
+    if (dialog) dialog.style.display = 'none';
+    messengerConfirmAction = null;
+  }
+  function hideMessengerMenu() {
+    var menu = qs('tmMessengerMenu');
+    var btn = qs('tmMessengerMenuBtn');
+    if (menu) menu.classList.remove('show');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+  function toggleMessengerMenu() {
+    var menu = qs('tmMessengerMenu');
+    var btn = qs('tmMessengerMenuBtn');
+    if (!menu || !btn || btn.disabled) return;
+    var willShow = !menu.classList.contains('show');
+    hideMessengerMenu();
+    if (willShow) {
+      menu.classList.add('show');
+      btn.setAttribute('aria-expanded', 'true');
+    }
+  }
+  function showMessengerConfirm(options) {
+    ensureMessengerConfirmExists();
+    var dialog = qs('tmMessengerConfirm');
+    var titleEl = qs('tmMessengerConfirmTitle');
+    var textEl = qs('tmMessengerConfirmText');
+    var cancelBtn = qs('tmMessengerConfirmCancel');
+    var okBtn = qs('tmMessengerConfirmOk');
+    if (!dialog || !titleEl || !textEl || !okBtn || !cancelBtn) return;
+
+    var opts = options || {};
+    titleEl.textContent = opts.title || 'Confirm Action';
+    textEl.textContent = opts.message || '';
+    okBtn.textContent = opts.confirmText || 'OK';
+    cancelBtn.textContent = opts.cancelText || 'Cancel';
+    cancelBtn.style.display = opts.hideCancel ? 'none' : 'inline-flex';
+    okBtn.classList.toggle('danger', !!opts.danger);
+    messengerConfirmAction = (typeof opts.onConfirm === 'function') ? opts.onConfirm : null;
+    dialog.style.display = 'flex';
+  }
   function ensureMessengerModalExists() {
     if (qs('tmMessengerModal')) return;
 
@@ -839,6 +963,19 @@ var TMTicketModal = (function () {
       style.id = 'tmMessengerStyles';
       style.textContent =
         '.tm-messenger-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:9999;padding:18px;}' +
+        '.tm-messenger-confirm-overlay{position:fixed;inset:0;background:rgba(15,23,42,.52);display:none;align-items:center;justify-content:center;z-index:10001;padding:20px;}' +
+        '.tm-messenger-confirm-box{width:min(420px,92vw);background:#fff;border-radius:20px;box-shadow:0 28px 70px rgba(2,6,23,.28);padding:28px 24px 22px;border:1px solid rgba(226,232,240,.95);display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;}' +
+        '.tm-messenger-confirm-icon{width:84px;height:84px;border-radius:999px;border:4px solid #fdba74;color:#f97316;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:800;line-height:1;}' +
+        '.tm-messenger-confirm-title{font-size:18px;font-weight:900;color:#334155;}' +
+        '.tm-messenger-confirm-text{font-size:14px;line-height:1.6;color:#64748b;max-width:320px;}' +
+        '.tm-messenger-confirm-actions{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:4px;flex-wrap:wrap;}' +
+        '.tm-messenger-confirm-btn{border:none;border-radius:12px;padding:11px 18px;font-size:14px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:110px;}' +
+        '.tm-messenger-confirm-cancel{background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;}' +
+        '.tm-messenger-confirm-cancel:hover{background:#e2e8f0;}' +
+        '.tm-messenger-confirm-ok{background:#166534;color:#fff;}' +
+        '.tm-messenger-confirm-ok:hover{background:#14532d;}' +
+        '.tm-messenger-confirm-ok.danger{background:#dc2626;}' +
+        '.tm-messenger-confirm-ok.danger:hover{background:#b91c1c;}' +
         '.tm-messenger-panel{width:min(1100px,96vw);height:min(78vh,720px);background:#fff;border-radius:16px;box-shadow:0 30px 80px rgba(2,6,23,.25);overflow:hidden;display:flex;border:1px solid rgba(226,232,240,.9);}' +
         '.tm-messenger-left{width:300px;min-width:300px;max-width:300px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;background:#fbfbfc;}' +
         '.tm-messenger-left-header{padding:14px 14px 10px;display:flex;align-items:center;justify-content:flex-start;gap:10px;border-bottom:1px solid #eef2f7;}' +
@@ -863,6 +1000,17 @@ var TMTicketModal = (function () {
         '.tm-messenger-right-title{display:flex;flex-direction:column;gap:3px;min-width:0;}' +
         '.tm-messenger-title-main{font-size:14px;font-weight:900;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
         '.tm-messenger-title-sub{font-size:12px;font-weight:700;color:#64748b;}' +
+        '.tm-messenger-header-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto;}' +
+        '.tm-messenger-menu-wrap{position:relative;display:flex;align-items:center;}' +
+        '.tm-messenger-menu-btn{border:1px solid #e2e8f0;background:#ffffff;color:#334155;border-radius:12px;width:42px;height:42px;cursor:pointer;font-weight:900;display:inline-flex;align-items:center;justify-content:center;font-size:22px;line-height:1;}' +
+        '.tm-messenger-menu-btn:hover{background:#f8fafc;border-color:#cbd5e1;}' +
+        '.tm-messenger-menu-btn:disabled{opacity:.55;cursor:not-allowed;}' +
+        '.tm-messenger-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:170px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 18px 40px rgba(2,6,23,.16);padding:8px;display:none;flex-direction:column;gap:6px;z-index:2;}' +
+        '.tm-messenger-menu.show{display:flex;}' +
+        '.tm-messenger-menu-item{width:100%;border:none;background:#fff;color:#334155;border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:flex-start;text-align:left;}' +
+        '.tm-messenger-menu-item:hover{background:#f8fafc;}' +
+        '.tm-messenger-menu-item.danger{color:#dc2626;}' +
+        '.tm-messenger-menu-item.danger:hover{background:#fef2f2;}' +
         '.tm-messenger-close{border:none;background:#f1f5f9;color:#0f172a;border-radius:10px;padding:8px 10px;cursor:pointer;font-weight:900;display:inline-flex;align-items:center;justify-content:center;}' +
         '.tm-messenger-close:hover{background:#e2e8f0;}' +
         '.tm-messenger-messages{flex:1;overflow:auto;padding:16px;background:#f9fafb;display:flex;flex-direction:column;gap:12px;}' +
@@ -876,9 +1024,37 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay .chat-bubble.me{align-self:flex-end;background:#1B5E20;color:#fff;border-bottom-right-radius:4px;}' +
         '.tm-messenger-overlay .chat-bubble.other{align-self:flex-start;background:#f1f5f9;color:#0f172a;border-bottom-left-radius:4px;}' +
         '.tm-messenger-overlay .chat-sender{font-size:12px;font-weight:800;opacity:.9;}' +
+        '.tm-messenger-overlay .chat-bubble.me .chat-sender{color:#fff;}' +
+        '.tm-messenger-overlay .chat-bubble.other .chat-sender{color:#475569;}' +
         '.tm-messenger-overlay .chat-time{font-size:11px;font-weight:700;opacity:.75;margin-top:2px;align-self:flex-end;}' +
         '@media (max-width: 820px){.tm-messenger-panel{width:96vw;height:86vh}.tm-messenger-left{width:260px;min-width:260px;max-width:260px}}' +
-        '@media (max-width: 640px){.tm-messenger-panel{flex-direction:column}.tm-messenger-left{width:100%;min-width:0;max-width:none;height:44%}.tm-messenger-right{height:56%}}';
+        '@media (max-width: 768px){' +
+          '.tm-messenger-overlay{align-items:flex-end;justify-content:center;padding:0;}' +
+          '.tm-messenger-panel{width:100vw;height:85vh;max-height:90vh;border-radius:18px 18px 0 0;border-bottom-left-radius:0;border-bottom-right-radius:0;box-shadow:0 -10px 30px rgba(0,0,0,.2);flex-direction:column;}' +
+          '.tm-messenger-left{width:100%;min-width:0;max-width:none;height:38%;border-right:none;border-bottom:1px solid #e5e7eb;}' +
+          '.tm-messenger-left-header{padding:12px 16px;position:sticky;top:0;background:#fff;z-index:2;}' +
+          '.tm-messenger-search{padding:0 16px 10px;border-bottom:1px solid #eef2f7;position:sticky;top:49px;background:#fbfbfc;z-index:2;}' +
+          '.tm-messenger-search input{font-size:14px;padding:10px 12px;border-radius:12px;}' +
+          '.tm-messenger-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px;}' +
+          '.tm-messenger-item{padding:12px;border-radius:14px;}' +
+          '.tm-messenger-right{height:62%;min-height:0;}' +
+          '.tm-messenger-right-header{padding:12px 16px;font-size:16px;font-weight:600;position:sticky;top:0;background:#fff;z-index:2;}' +
+          '.tm-messenger-title-main{font-size:15px;}' +
+          '.tm-messenger-title-sub{font-size:12px;}' +
+          '.tm-messenger-messages{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;gap:10px;}' +
+          '.tm-messenger-overlay .chat-bubble{max-width:88%;}' +
+          '.tm-messenger-confirm-box{padding:24px 18px 18px;border-radius:18px;}' +
+          '.tm-messenger-confirm-icon{width:72px;height:72px;font-size:40px;}' +
+          '.tm-messenger-confirm-actions{width:100%;}' +
+          '.tm-messenger-confirm-btn{flex:1 1 140px;min-height:44px;}' +
+          '.tm-messenger-compose{display:flex;gap:10px;padding:12px;border-top:1px solid #eee;background:#fff;position:sticky;bottom:0;}' +
+          '.tm-messenger-compose input{flex:1;border-radius:12px;padding:10px 12px;border:1px solid #ddd;min-height:44px;}' +
+          '.tm-messenger-send{padding:10px 16px;border-radius:10px;min-width:72px;min-height:44px;}' +
+          '.tm-messenger-header-actions{width:auto;}' +
+          '.tm-messenger-menu-btn{min-width:40px;min-height:40px;border-radius:10px;}' +
+          '.tm-messenger-menu{right:0;min-width:160px;}' +
+          '.tm-messenger-close{min-width:40px;min-height:40px;border-radius:10px;padding:8px;}' +
+        '}';
       document.head.appendChild(style);
     }
 
@@ -900,7 +1076,16 @@ var TMTicketModal = (function () {
       '        <div class="tm-messenger-title-main" id="tmMessengerHeaderTitle">Select a conversation</div>' +
       '        <div class="tm-messenger-title-sub" id="tmMessengerHeaderSub"> </div>' +
       '      </div>' +
-      '      <button type="button" class="tm-messenger-close" id="tmMessengerCloseBtn" aria-label="Close">×</button>' +
+      '      <div class="tm-messenger-header-actions">' +
+      '        <div class="tm-messenger-menu-wrap">' +
+      '          <button type="button" class="tm-messenger-menu-btn" id="tmMessengerMenuBtn" aria-label="Chat options" aria-expanded="false" disabled>&#8942;</button>' +
+      '          <div class="tm-messenger-menu" id="tmMessengerMenu">' +
+      '            <button type="button" class="tm-messenger-menu-item" id="tmMessengerViewTicketBtn">View Ticket</button>' +
+      '            <button type="button" class="tm-messenger-menu-item danger" id="tmMessengerDeleteBtn">Delete Conversation</button>' +
+      '          </div>' +
+      '        </div>' +
+      '        <button type="button" class="tm-messenger-close" id="tmMessengerCloseBtn" aria-label="Close">&times;</button>' +
+      '      </div>' +
       '    </div>' +
       '    <div class="tm-messenger-messages" id="tmMessengerMessages"><div class="tm-messenger-empty">Select a ticket on the left.</div></div>' +
       '    <div class="tm-messenger-compose">' +
@@ -911,14 +1096,36 @@ var TMTicketModal = (function () {
       '  </div>' +
       '</div>';
     document.body.appendChild(overlay);
+    ensureMessengerConfirmExists();
 
     overlay.addEventListener('click', function (e) {
       if (e.target === overlay) closeMessengerChat();
     });
     var closeBtn = qs('tmMessengerCloseBtn');
     if (closeBtn) closeBtn.addEventListener('click', closeMessengerChat);
+    var deleteBtn = qs('tmMessengerDeleteBtn');
+    if (deleteBtn) deleteBtn.addEventListener('click', deleteMessengerConversation);
+    var menuBtn = qs('tmMessengerMenuBtn');
+    if (menuBtn) menuBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleMessengerMenu();
+    });
+    var viewTicketBtn = qs('tmMessengerViewTicketBtn');
+    if (viewTicketBtn) viewTicketBtn.addEventListener('click', viewMessengerTicket);
+    document.addEventListener('click', function (e) {
+      var wrap = qs('tmMessengerMenu') ? qs('tmMessengerMenu').parentElement : null;
+      if (wrap && !wrap.contains(e.target)) hideMessengerMenu();
+    });
     document.addEventListener('keydown', function (e) {
       if (!messengerOpen) return;
+      if (qs('tmMessengerConfirm') && qs('tmMessengerConfirm').style.display === 'flex') {
+        if (e.key === 'Escape') hideMessengerConfirm();
+        return;
+      }
+      if (e.key === 'Escape' && qs('tmMessengerMenu') && qs('tmMessengerMenu').classList.contains('show')) {
+        hideMessengerMenu();
+        return;
+      }
       if (e.key === 'Escape') closeMessengerChat();
     });
 
@@ -1047,8 +1254,28 @@ var TMTicketModal = (function () {
   function setMessengerHeader(conv) {
     var title = qs('tmMessengerHeaderTitle');
     var sub = qs('tmMessengerHeaderSub');
+    var menuBtn = qs('tmMessengerMenuBtn');
     if (title) title.textContent = conv ? ('#' + String(conv.id).padStart(6, '0') + ' • ' + String(conv.subject || '')) : 'Select a conversation';
     if (sub) sub.textContent = conv && conv.last_message_time ? ('Last message: ' + String(conv.last_message_time)) : '';
+    if (menuBtn) menuBtn.disabled = !conv;
+    if (!conv) hideMessengerMenu();
+  }
+  function clearMessengerSelection() {
+    messengerTicketId = null;
+    var idEl = qs('tmMessengerTicketId');
+    if (idEl) idEl.value = '';
+    var input = qs('tmMessengerInput');
+    var sendBtn = qs('tmMessengerSendBtn');
+    if (input) {
+      input.value = '';
+      input.disabled = true;
+    }
+    if (sendBtn) sendBtn.disabled = true;
+    setMessengerHeader(null);
+    var container = qs('tmMessengerMessages');
+    if (container) container.innerHTML = '<div class="tm-messenger-empty">Select a ticket on the left.</div>';
+    hideMessengerMenu();
+    renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
   }
   function selectConversation(conv, noReloadConversations) {
     if (!conv || conv.id == null) return;
@@ -1201,6 +1428,76 @@ var TMTicketModal = (function () {
         }
       });
   }
+  function deleteMessengerConversation() {
+    var ticketIdEl = qs('tmMessengerTicketId');
+    var deleteBtn = qs('tmMessengerDeleteBtn');
+    var ticketId = ticketIdEl ? String(ticketIdEl.value || '') : '';
+    if (!ticketId) return;
+    if (deleteBtn && deleteBtn.disabled) return;
+    hideMessengerMenu();
+    showMessengerConfirm({
+      title: 'Delete Conversation',
+      message: 'Delete this conversation?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      danger: true,
+      onConfirm: function () {
+        if (deleteBtn) deleteBtn.disabled = true;
+        var formData = new FormData();
+        formData.append('ticket_id', ticketId);
+        var t = getCsrfToken();
+        if (t) formData.append('csrf_token', t);
+        postJson('chat_delete.php', formData)
+          .then(function (data) {
+            if (!(data && data.success)) {
+              if (deleteBtn) deleteBtn.disabled = false;
+              showMessengerConfirm({
+                title: 'Delete Failed',
+                message: (data && data.error) ? String(data.error) : 'Failed to delete chat.',
+                confirmText: 'OK',
+                hideCancel: true
+              });
+              return;
+            }
+            if (Array.isArray(window.__tmConversations)) {
+              window.__tmConversations = window.__tmConversations.filter(function (c) {
+                return !(c && String(c.id) === String(ticketId));
+              });
+            }
+            stopMessenger();
+            clearMessengerSelection();
+            var remaining = Array.isArray(window.__tmConversations) ? window.__tmConversations : [];
+            if (remaining.length) {
+              selectConversation(remaining[0], true);
+            } else {
+              var list = qs('tmMessengerList');
+              if (list) list.innerHTML = '<div class="tm-messenger-empty">No conversations.</div>';
+            }
+          })
+          .catch(function () {
+            if (deleteBtn) deleteBtn.disabled = false;
+            showMessengerConfirm({
+              title: 'Delete Failed',
+              message: 'Failed to delete chat.',
+              confirmText: 'OK',
+              hideCancel: true
+            });
+          });
+      }
+    });
+  }
+  function viewMessengerTicket() {
+    var ticketIdEl = qs('tmMessengerTicketId');
+    var ticketId = ticketIdEl ? String(ticketIdEl.value || '') : '';
+    if (!ticketId) return;
+    hideMessengerMenu();
+    messengerReturnContext = { ticketId: ticketId };
+    var modal = qs('tmMessengerModal');
+    if (modal) modal.style.display = 'none';
+    messengerOpen = false;
+    stopMessenger();
+    open(ticketId);
+  }
   function openMessengerChat() {
     ensureMessengerModalExists();
     var modal = qs('tmMessengerModal');
@@ -1246,7 +1543,35 @@ var TMTicketModal = (function () {
     var modal = qs('tmMessengerModal');
     if (modal) modal.style.display = 'none';
     messengerOpen = false;
+    messengerReturnContext = null;
     stopMessenger();
+  }
+  function restoreMessengerAfterTicketClose() {
+    if (!messengerReturnContext || !messengerReturnContext.ticketId) return;
+    ensureMessengerModalExists();
+    var ticketId = String(messengerReturnContext.ticketId);
+    messengerReturnContext = null;
+    messengerTicketId = ticketId;
+    var modal = qs('tmMessengerModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    messengerOpen = true;
+    stopChat();
+    stopChatBadge();
+    var found = Array.isArray(window.__tmConversations)
+      ? window.__tmConversations.find(function (c) { return c && String(c.id) === ticketId; })
+      : null;
+    if (found) {
+      selectConversation(found, true);
+    } else {
+      var subject = (lastTicketMeta && String(lastTicketMeta.id) === String(ticketId) && lastTicketMeta.subject) ? String(lastTicketMeta.subject) : 'Ticket';
+      if (!Array.isArray(window.__tmConversations)) window.__tmConversations = [];
+      found = { id: ticketId, subject: subject, last_message_time: '', unread_count: 0, last_message: '', last_sender_name: '' };
+      window.__tmConversations.unshift(found);
+      renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
+      selectConversation(found, true);
+    }
+    setTimeout(function () { loadConversationsAndMaybeSelect(); }, 0);
   }
   function open(id, options) {
     var modal = qs('ticketModal');
@@ -1267,6 +1592,7 @@ var TMTicketModal = (function () {
         lastTicketMeta = { id: data && data.id != null ? data.id : id, subject: data && data.subject ? String(data.subject) : '' };
         modalContent.innerHTML = buildHtml(data);
         bindNoChangeGuard(modalContent, data);
+        bindAdminNote(modalContent, data);
         setTimeout(function () {
           var statusSelect = modalContent.querySelector('.tm-status-select');
           if (statusSelect) updateStatusColor(statusSelect);
@@ -1287,6 +1613,7 @@ var TMTicketModal = (function () {
     stopChat();
     stopChatBadge();
     closeChatModal();
+    restoreMessengerAfterTicketClose();
   }
   function viewImage(src) {
     var modal = qs('imagePreviewModal');

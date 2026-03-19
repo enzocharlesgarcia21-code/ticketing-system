@@ -97,6 +97,7 @@ $conn->query("UPDATE notifications SET is_read = 1 WHERE ticket_id = $id AND use
 // 🟢 START TIMER LOGIC (For Employees working on the ticket)
 // Only if the ticket is assigned to their department
 $dept = $_SESSION['department'];
+$userEmail = (string) ($_SESSION['email'] ?? '');
 // Fetch user company if not in session
 if (!isset($_SESSION['company'])) {
     $c_stmt = $conn->prepare("SELECT company FROM users WHERE id = ?");
@@ -108,6 +109,21 @@ if (!isset($_SESSION['company'])) {
     }
 }
 $company = $_SESSION['company'];
+if ($userEmail === '') {
+    $e_stmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
+    if ($e_stmt) {
+        $e_stmt->bind_param("i", $_SESSION['user_id']);
+        $e_stmt->execute();
+        $e_res = $e_stmt->get_result();
+        if ($e_row = $e_res->fetch_assoc()) {
+            $userEmail = (string) ($e_row['email'] ?? '');
+            if ($userEmail !== '') {
+                $_SESSION['email'] = $userEmail;
+            }
+        }
+        $e_stmt->close();
+    }
+}
 
 $checkStmt = $conn->prepare("SELECT started_at, assigned_department, assigned_group, assigned_company, assigned_user_id FROM employee_tickets WHERE id = ?");
 $checkStmt->bind_param("i", $id);
@@ -117,9 +133,15 @@ $checkResult = $checkStmt->get_result();
 if ($checkResult->num_rows > 0) {
     $ticketData = $checkResult->fetch_assoc();
     $assigneeOk = isset($ticketData['assigned_user_id']) && (int) $ticketData['assigned_user_id'] === (int) $_SESSION['user_id'];
-    $ticketCompanyCode = company_code((string) ($ticketData['assigned_company'] ?? ''));
+    $ticketAssignedCompany = (string) ($ticketData['assigned_company'] ?? '');
+    $ticketCompanyCode = company_code($ticketAssignedCompany);
     $userCompanyCode = company_code((string) $company);
-    $companyOk = ($ticketCompanyCode !== '' && $userCompanyCode !== '' && $ticketCompanyCode === $userCompanyCode) || ((string) ($ticketData['assigned_company'] ?? '') === (string) $company);
+    if (strpos($ticketAssignedCompany, '@') === 0) {
+        $ticketDomain = strtolower(ltrim($ticketAssignedCompany, '@'));
+        $companyOk = ($ticketDomain !== '' && $userEmail !== '' && str_ends_with(strtolower($userEmail), '@' . $ticketDomain));
+    } else {
+        $companyOk = ($ticketCompanyCode !== '' && $userCompanyCode !== '' && $ticketCompanyCode === $userCompanyCode) || ($ticketAssignedCompany === (string) $company);
+    }
     $ticketGroup = (string) ($ticketData['assigned_group'] ?? ($ticketData['assigned_department'] ?? ''));
     $groupOk = $ticketGroup !== '' && $ticketGroup === $dept;
     if (($assigneeOk || ($groupOk && $companyOk)) && is_null($ticketData['started_at'])) {
@@ -130,10 +152,12 @@ if ($checkResult->num_rows > 0) {
 }
 
 $companyAliases = company_aliases((string) $company);
-$companyCond = implode(' OR ', array_fill(0, max(1, count($companyAliases)), "COALESCE(NULLIF(t.assigned_company, ''), t.company) = ?"));
+$companyCol = "COALESCE(NULLIF(t.assigned_company, ''), t.company)";
+$companyCond = implode(' OR ', array_fill(0, max(1, count($companyAliases)), "$companyCol = ?"));
 if (count($companyAliases) === 0) {
     $companyAliases = [''];
 }
+$companyMatchClause = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND ($companyCond)))";
 $sql = "
     SELECT 
         t.*, 
@@ -146,12 +170,12 @@ $sql = "
     WHERE t.id = ? AND (
         t.user_id = ?
         OR t.assigned_user_id = ?
-        OR (COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department) = ? AND ($companyCond))
+        OR (COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department) = ? AND $companyMatchClause)
     )
 ";
 $stmt = $conn->prepare($sql);
-$types = 'iiis' . str_repeat('s', count($companyAliases));
-$params = array_merge([$id, (int) $_SESSION['user_id'], (int) $_SESSION['user_id'], $dept], $companyAliases);
+$types = 'iiiss' . str_repeat('s', count($companyAliases));
+$params = array_merge([$id, (int) $_SESSION['user_id'], (int) $_SESSION['user_id'], $dept, strtolower($userEmail)], $companyAliases);
 $bind = [];
 $bind[] = $types;
 foreach ($params as $k => $p) {

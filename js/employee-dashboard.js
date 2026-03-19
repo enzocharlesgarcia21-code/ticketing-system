@@ -25,6 +25,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (navbarToggler && navbarCollapse) {
         navbarToggler.addEventListener('click', function() {
+            if (
+                window.innerWidth <= 768 &&
+                document.body &&
+                (
+                    document.body.classList.contains('employee-dashboard-page') ||
+                    document.body.classList.contains('employee-notifications-page')
+                )
+            ) {
+                return;
+            }
             navbarCollapse.classList.toggle('show');
         });
     }

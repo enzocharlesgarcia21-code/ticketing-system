@@ -35,7 +35,7 @@ function isActive($page) {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <nav class="navbar">
     <div class="nav-left">
-        <img src="../assets/img/logo.png" alt="Leads Agri Logo" class="logo-icon">
+        <img src="../assets/img/UPDATEDlogo.png" alt="Leads Agri Logo" class="logo-icon">
         <div class="brand-name">Leads Agri Helpdesk</div>
         <button class="navbar-toggler" id="navbarToggler">
             <i class="fas fa-bars"></i>
@@ -207,11 +207,12 @@ window.TM_CSRF_TOKEN = <?php echo json_encode($csrfToken, JSON_HEX_TAG | JSON_HE
     font-size: 16px;
     color: #ffffff;
 }
-.notif-icon.priority-critical { background: #E53935; }
-.notif-icon.priority-high { background: #FB8C00; }
-.notif-icon.priority-medium { background: #FBC02D; }
-.notif-icon.priority-low { background: #43A047; }
-.notif-icon.priority-neutral { background: #94a3b8; }
+.notif-icon.type-assigned { background: #2563eb; }
+.notif-icon.type-updated { background: #2563eb; }
+.notif-icon.type-reassigned { background: #9333ea; }
+.notif-icon.type-closed { background: #16a34a; }
+.notif-icon.type-note { background: #ca8a04; }
+.notif-icon.type-neutral { background: #94a3b8; }
 
 .priority-badge{
     padding:4px 10px;
@@ -331,8 +332,24 @@ window.TM_CSRF_TOKEN = <?php echo json_encode($csrfToken, JSON_HEX_TAG | JSON_HE
 }
 .tm-global-chat-fab .chat-badge.is-visible { display: inline-flex; }
 @media (max-width: 768px) {
-    .tm-global-chat-fab { right: 16px; bottom: 16px; padding: 12px 14px; }
+    .tm-global-chat-fab {
+        right: 12px;
+        bottom: 12px;
+        width: 42px;
+        height: 42px;
+        min-width: 42px;
+        min-height: 42px;
+        padding: 0;
+        border-radius: 999px;
+        justify-content: center;
+        gap: 0;
+    }
     .tm-global-chat-fab .tm-global-chat-label { display: none; }
+    .tm-global-chat-fab i { font-size: 16px; }
+    .tm-global-chat-fab .chat-badge {
+        top: -4px;
+        right: -4px;
+    }
 }
 
 /* Employee user pill (match admin style) */
@@ -396,7 +413,18 @@ document.addEventListener('DOMContentLoaded', function() {
     bell.addEventListener('click', function(e) {
         e.stopPropagation();
         if (userDropdown) userDropdown.classList.remove('show');
+        const isOpening = !dropdown.classList.contains('show');
         dropdown.classList.toggle('show');
+        if (isOpening) {
+            badge.style.display = 'none';
+            dot.style.display = 'none';
+            const body = 'mark_all=1' + (CSRF_TOKEN ? ('&csrf_token=' + encodeURIComponent(String(CSRF_TOKEN))) : '');
+            fetch('mark_notification_read.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body
+            }).catch(function () {});
+        }
     });
 
     // Close dropdown when clicking outside
@@ -449,14 +477,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update List
                 if (data.notifications && data.notifications.length > 0) {
                     list.innerHTML = data.notifications.map(n => {
+                        const actionType = (n.action_type || '').toString().toLowerCase() || (function (legacyType) {
+                            if (legacyType === 'dept_assigned' || legacyType === 'new_ticket') return 'assign';
+                            if (legacyType === 'reassigned') return 'reassign';
+                            if (legacyType === 'ticket_closed') return 'close';
+                            if (legacyType === 'status_update' || legacyType === 'note_added') return 'update';
+                            return '';
+                        })((n.type || '').toString());
                         const rawPriority = (n.priority || '').toString().toLowerCase();
                         const allowed = ['critical', 'high', 'medium', 'low'];
                         const priorityKey = allowed.includes(rawPriority) ? rawPriority : '';
                         const priorityClass = priorityKey ? `priority-${priorityKey}` : 'priority-neutral';
                         const priorityLabel = priorityKey ? `<span class="priority-badge ${priorityClass}">${escapeHtml(priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1))}</span>` : '';
+                        let iconClass = 'fa-ticket';
+                        let iconTypeClass = 'type-neutral';
+                        if (actionType === 'update' && n.type === 'note_added') iconClass = 'fa-sticky-note';
+                        else if (actionType === 'update') iconClass = 'fa-sync-alt';
+                        else if (actionType === 'close') iconClass = 'fa-check-circle';
+                        else if (actionType === 'reassign') iconClass = 'fa-exchange-alt';
+                        else if (actionType === 'assign') iconClass = 'fa-inbox';
+                        if (actionType === 'update' && n.type === 'note_added') iconTypeClass = 'type-note';
+                        else if (actionType === 'update') iconTypeClass = 'type-updated';
+                        else if (actionType === 'close') iconTypeClass = 'type-closed';
+                        else if (actionType === 'reassign') iconTypeClass = 'type-reassigned';
+                        else if (actionType === 'assign') iconTypeClass = 'type-assigned';
                         return `
                             <div class="notif-item ${n.is_read == 0 ? 'unread' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${n.type || ''}')">
-                                <div class="notif-icon ${priorityClass}"><i class="fas fa-ticket"></i></div>
+                                <div class="notif-icon ${iconTypeClass}"><i class="fas ${iconClass}"></i></div>
                                 <div class="notif-content">
                                     <div class="notif-msg">${priorityLabel}${escapeHtml(n.message)}</div>
                                     <time class="notif-time" data-timestamp="${n.created_at}">${n.time_ago || ''}</time>

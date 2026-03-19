@@ -169,7 +169,7 @@ if ($search !== '') {
     $searchIdInt = (int) $searchId;
     $searchById = ($searchId !== '' && $searchIdInt > 0);
 
-    $chunk = "(u.name LIKE ? OR u.email LIKE ? OR t.subject LIKE ? OR CAST(t.id AS CHAR) LIKE ?";
+    $chunk = "(u.name LIKE ? OR COALESCE(NULLIF(t.requester_email,''), u.email) LIKE ? OR t.subject LIKE ? OR CAST(t.id AS CHAR) LIKE ?";
     $params[] = $term; $types .= 's';
     $params[] = $term; $types .= 's';
     $params[] = $term; $types .= 's';

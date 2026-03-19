@@ -7,6 +7,7 @@ require_once '../config/database.php';
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/notification_service.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
@@ -22,9 +23,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     ticket_ensure_assignment_columns($conn);
 
     $user_id    = $_SESSION['user_id'];
-    $allowed_categories = ['Hardware', 'Software', 'Documentation', 'Email', 'Internet Concerns', 'Procurement'];
+    $allowed_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
     $category = trim((string) ($_POST['category'] ?? ''));
     if ($category === '' || !in_array($category, $allowed_categories, true)) {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Please select a valid category.'], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
         $_SESSION['error'] = 'Please select a valid category.';
         header("Location: request_ticket.php");
         exit();
@@ -71,7 +78,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $assigned_company = ticket_normalize_company($assigned_company);
     $assigned_group = ticket_department_key_from_value($assigned_group);
     $assigned_department = $assigned_group;
-    $description = !empty($_POST['description']) ? $_POST['description'] : NULL;
+    $description = trim((string) ($_POST['description'] ?? ''));
 
     if ($assigned_company === '' || !ticket_is_valid_company($assigned_company)) {
         if ($isAjax) {
@@ -95,8 +102,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         header("Location: request_ticket.php");
         exit();
     }
+    if ($description === '') {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Description is required.'], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
+        $_SESSION['error'] = 'Description is required.';
+        header("Location: request_ticket.php");
+        exit();
+    }
 
-    $assigned_user_id = ticket_find_assignee_id($conn, $assigned_company, $assigned_group);
+    $assigned_user_ids = ticket_find_assignee_ids($conn, $assigned_company, $assigned_group);
+    $assigned_user_id = count($assigned_user_ids) > 0 ? (int) $assigned_user_ids[0] : null;
     if (!$assigned_user_id) {
         if ($isAjax) {
             header('Content-Type: application/json; charset=utf-8');
@@ -130,6 +149,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $attachmentName = NULL;
     $uploadedFiles = [];
+    $unsupportedAttachmentMessage = 'Please insert supported files only.';
 
     /* ================= FILE UPLOAD ================= */
 
@@ -139,13 +159,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $maxFiles = 5;
         $selectedFiles = 0;
         $totalBytes = 0;
-        $allowedTypes = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
+        $allowedTypes = ['jpg', 'jpeg', 'png', 'pdf', 'docx'];
         $allowedMimes = [
             'jpg' => ['image/jpeg'],
             'jpeg' => ['image/jpeg'],
             'png' => ['image/png'],
             'pdf' => ['application/pdf'],
-            'doc' => ['application/msword', 'application/vnd.ms-word', 'application/octet-stream'],
             'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
         ];
         $finfo = null;
@@ -160,6 +179,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $selectedFiles++;
         }
         if ($selectedFiles > $maxFiles) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'error' => 'Maximum 5 attachments allowed.'], JSON_UNESCAPED_UNICODE);
+                exit();
+            }
             $_SESSION['error'] = 'Maximum 5 attachments allowed.';
             header("Location: request_ticket.php");
             exit();
@@ -184,7 +209,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
 
             if (!in_array($fileExt, $allowedTypes, true)) {
-                $error_msg = 'Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.';
+                $error_msg = $unsupportedAttachmentMessage;
                 break;
             }
             if ($fileSize <= 0 || $fileSize > $maxBytes) {
@@ -199,7 +224,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $mime = (string) $finfo->file($fileTmp);
                 $allowed = $allowedMimes[$fileExt] ?? [];
                 if ($mime !== '' && count($allowed) > 0 && !in_array($mime, $allowed, true)) {
-                    $error_msg = 'Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.';
+                    $error_msg = $unsupportedAttachmentMessage;
                     break;
                 }
             }
@@ -231,6 +256,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if (is_string($p) && $p !== '' && file_exists($p)) {
                     unlink($p);
                 }
+            }
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'error' => $error_msg], JSON_UNESCAPED_UNICODE);
+                exit();
             }
             $_SESSION['error'] = $error_msg;
             header("Location: request_ticket.php");
@@ -298,7 +329,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    /* ================= NOTIFICATIONS FOR ADMINS ================= */
+    /* ================= NOTIFICATIONS & EMAILS ================= */
     // 1. Get User Details
     $user_stmt = $conn->prepare("SELECT name, company FROM users WHERE id = ?");
     $user_stmt->bind_param("i", $user_id);
@@ -309,34 +340,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $user_company = $user_data['company'] ?? 'Unknown Company';
     $user_stmt->close();
 
-    // 2. Format Message
-    $ticket_number = str_pad($ticket_id, 6, '0', STR_PAD_LEFT);
-    $notif_msg = "New $priority priority ticket #$ticket_number from $user_name - $department";
-
-    if ($assigned_user_id) {
-        $dept_notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, ?)");
-        if ($dept_notif_stmt) {
-            $dept_type = 'dept_assigned';
-            $dept_msg = "New ticket #$ticket_number from $user_name was assigned to your group.";
-            $dept_notif_stmt->bind_param("iiss", $assigned_user_id, $ticket_id, $dept_msg, $dept_type);
-            $dept_notif_stmt->execute();
-            $dept_notif_stmt->close();
+    // 2. System Notifications
+    $ticket_number = notif_ticket_number((int) $ticket_id);
+    $ticketStatus = 'Open';
+    $statusStmt = $conn->prepare("SELECT status FROM employee_tickets WHERE id = ? LIMIT 1");
+    if ($statusStmt) {
+        $statusStmt->bind_param("i", $ticket_id);
+        $statusStmt->execute();
+        $statusRes = $statusStmt->get_result();
+        $statusRow = $statusRes ? $statusRes->fetch_assoc() : null;
+        $statusStmt->close();
+        if ($statusRow && isset($statusRow['status']) && trim((string) $statusRow['status']) !== '') {
+            $ticketStatus = (string) $statusRow['status'];
         }
     }
 
-    // 3. Insert Notification for ALL Admins
-    $admin_query = "SELECT id FROM users WHERE role = 'admin'";
-    $admin_result = $conn->query($admin_query);
-
-    if ($admin_result) {
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, 'new_ticket')");
-        while ($admin = $admin_result->fetch_assoc()) {
-            $admin_id = $admin['id'];
-            $notif_stmt->bind_param("iis", $admin_id, $ticket_id, $notif_msg);
-            $notif_stmt->execute();
-        }
-        $notif_stmt->close();
+    $newTicketNotifMsg = "New ticket #$ticket_number from $user_name was assigned to your group.";
+    foreach ($assigned_user_ids as $notifyUserId) {
+        $notifyUserId = (int) $notifyUserId;
+        if ($notifyUserId <= 0 || $notifyUserId === (int) $user_id) continue;
+        notif_insert_system($conn, $notifyUserId, (int) $ticket_id, $newTicketNotifMsg, 'dept_assigned');
     }
+    notif_insert_admins($conn, (int) $ticket_id, $newTicketNotifMsg, 'new_ticket');
 
     $ticketDetails = null;
     $ticketStmt = $conn->prepare("
@@ -361,7 +386,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    $ticketNumber = str_pad((string) $ticket_id, 6, '0', STR_PAD_LEFT);
+    $ticketNumber = $ticket_number;
     $requesterName = (string) ($ticketDetails['name'] ?? ($user_name ?? ($_SESSION['name'] ?? 'Unknown')));
     $employeeEmail = (string) ($ticketDetails['email'] ?? '');
     $createdAt = (string) ($ticketDetails['created_at'] ?? '');
@@ -375,32 +400,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $ticketDescriptionSafe = nl2br(htmlspecialchars($ticketDescription));
     $ticketAssignedDeptSafe = htmlspecialchars($ticketAssignedDept);
     $createdAtSafe = htmlspecialchars($createdAt);
+    $attachmentLabels = [];
+    foreach ($uploadedFiles as $uploadedFile) {
+        $originalName = trim((string) ($uploadedFile['original_name'] ?? ''));
+        if ($originalName !== '') {
+            $attachmentLabels[] = $originalName;
+        }
+    }
+    $attachmentSummary = count($attachmentLabels) > 0
+        ? 'Attachments: ' . implode(', ', $attachmentLabels)
+        : '';
 
     $adminSubject = "New Ticket Submitted (#$ticketNumber)";
-    $adminBodyHtml = "
-        <div style='font-family:Arial, sans-serif; color:#333; line-height:1.5'>
-            <h2 style='margin:0 0 12px 0'>New Ticket Submitted</h2>
-            <p style='margin:0 0 16px 0'>
-                Ticket ID: <strong>#$ticketNumberSafe</strong><br>
-                Category: <strong>$ticketSubjectSafe</strong><br>
-                Department: <strong>$ticketAssignedDeptSafe</strong><br>
-                Date Created: <strong>$createdAtSafe</strong><br>
-                Requested by: <strong>$requesterNameSafe</strong>
-            </p>
-            <div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin:0 0 16px 0'>
-                $ticketDescriptionSafe
-            </div>
-            <p style='margin:0'>Login to the system to view the ticket.</p>
-        </div>
-    ";
-    $adminBodyText = "New Ticket Submitted\n\n"
-        . "Ticket ID: #$ticketNumber\n"
-        . "Category: $ticketSubject\n"
-        . "Department: $ticketAssignedDept\n"
-        . "Date Created: $createdAt\n"
-        . "Requested by: $requesterName\n\n"
-        . $ticketDescription . "\n\n"
-        . "Login to the system to view the ticket.\n";
+    $adminTpl = notif_email_simple('New Ticket Submitted', [
+        "Ticket ID: #$ticketNumber",
+        "Title: $ticketSubject",
+        "Category: $category",
+        "Priority: $priority",
+        "Status: $ticketStatus",
+        "Assigned Department: $ticketAssignedDept",
+        "Requested by: $requesterName",
+        "Requester Email: $employeeEmail"
+    ], 'Open Ticket', notif_ticket_link_admin((int) $ticket_id));
 
     $attachments = [];
     if (!empty($attachmentName)) {
@@ -410,39 +431,52 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    $adminOk = sendSmtpEmail($adminEmails, $adminSubject, $adminBodyHtml, $adminBodyText, $attachments);
+    $adminOk = notif_email_send($adminEmails, $adminSubject, (string) $adminTpl['html'], (string) $adminTpl['text'], $attachments);
     if (!$adminOk) {
         error_log('Ticket email failed (admins) | ticketId=' . (string) $ticket_id);
     }
 
+    $assigneeEmails = [];
+    foreach ($assigned_user_ids as $notifyUserId) {
+        $notifyUserId = (int) $notifyUserId;
+        if ($notifyUserId <= 0 || $notifyUserId === (int) $user_id) continue;
+        $assigneeContact = notif_user_contact($conn, $notifyUserId);
+        $assigneeEmail = trim((string) ($assigneeContact['email'] ?? ''));
+        if ($assigneeEmail !== '') {
+            $assigneeEmails[] = $assigneeEmail;
+        }
+    }
+    $assigneeEmails = array_values(array_unique($assigneeEmails));
+    if (count($assigneeEmails) > 0) {
+        $assigneeLines = [
+            "Ticket ID: #$ticketNumber",
+            "Category: $category",
+            "Status: $ticketStatus",
+            "Requested by: $requesterName",
+            "Description:\n$ticketDescription"
+        ];
+        if ($attachmentSummary !== '') {
+            $assigneeLines[] = $attachmentSummary;
+        }
+        $assigneeTpl = notif_email_simple('Ticket Assigned', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks((int) $ticket_id));
+        notif_email_send($assigneeEmails, "New Ticket Assigned (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
+    }
+
     if ($employeeEmail !== '') {
         $employeeSubject = "Ticket Submitted (#$ticketNumber)";
-        $employeeBodyHtml = "
-            <div style='font-family:Arial, sans-serif; color:#333; line-height:1.5'>
-                <h2 style='margin:0 0 12px 0'>Ticket Submitted</h2>
-                <p style='margin:0 0 16px 0'>Hello <strong>$requesterNameSafe</strong>,</p>
-                <p style='margin:0 0 16px 0'>We received your ticket. Here are the details:</p>
-                <p style='margin:0 0 16px 0'>
-                    Ticket ID: <strong>#$ticketNumberSafe</strong><br>
-                    Category: <strong>$ticketSubjectSafe</strong><br>
-                    Department: <strong>$ticketAssignedDeptSafe</strong><br>
-                    Date Created: <strong>$createdAtSafe</strong>
-                </p>
-                <div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin:0 0 16px 0'>
-                    $ticketDescriptionSafe
-                </div>
-                <p style='margin:0'>Login to the system to track updates.</p>
-            </div>
-        ";
-        $employeeBodyText = "Ticket Submitted\n\n"
-            . "Ticket ID: #$ticketNumber\n"
-            . "Category: $ticketSubject\n"
-            . "Department: $ticketAssignedDept\n"
-            . "Date Created: $createdAt\n\n"
-            . $ticketDescription . "\n\n"
-            . "Login to the system to track updates.\n";
+        $employeeLines = [
+            "Ticket ID: #$ticketNumber",
+            "Category: $category",
+            "Status: $ticketStatus",
+            "Assigned Department: $ticketAssignedDept",
+            "Description:\n$ticketDescription"
+        ];
+        if ($attachmentSummary !== '') {
+            $employeeLines[] = $attachmentSummary;
+        }
+        $employeeTpl = notif_email_simple('Ticket Submitted', $employeeLines, 'View My Tickets', notif_ticket_link_employee_tickets((int) $ticket_id));
 
-        $employeeOk = sendSmtpEmail([$employeeEmail], $employeeSubject, $employeeBodyHtml, $employeeBodyText);
+        $employeeOk = notif_email_send([$employeeEmail], $employeeSubject, (string) $employeeTpl['html'], (string) $employeeTpl['text'], $attachments);
         if (!$employeeOk) {
             error_log('Ticket email failed (employee) | ticketId=' . (string) $ticket_id);
         }
@@ -452,12 +486,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     /* ================= SUCCESS MESSAGE ================= */
 
+    $_SESSION['success'] = "Ticket successfully submitted!";
+
     if ($isAjax) {
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['ok' => true, 'message' => 'Ticket successfully submitted!'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => true, 'message' => 'Ticket successfully submitted!', 'ticket_id' => (int) $ticket_id, 'ticket_number' => (string) $ticketNumber], JSON_UNESCAPED_UNICODE);
         exit();
     }
-    $_SESSION['success'] = "Ticket successfully submitted!";
     header("Location: my_tickets.php");
     exit();
 }
@@ -473,78 +508,205 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        .ticket-modal {
+        body.employee-request-ticket-page .select-wrapper {
+            position: relative;
+        }
+        body.employee-request-ticket-page .select-wrapper .form-control {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            min-height: 48px;
+            padding: 0 44px 0 16px;
+            border: 1px solid #d9dee8;
+            border-radius: 13px;
+            background: #ffffff;
+            color: #111827;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+        body.employee-request-ticket-page .select-wrapper .form-control:focus {
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
+        }
+        body.employee-request-ticket-page .select-wrapper .select-icon {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #374151;
+            font-size: 14px;
+            pointer-events: none;
+        }
+        body.employee-request-ticket-page .required-asterisk {
+            color: #dc2626;
+        }
+        body.employee-request-ticket-page textarea.form-control {
+            resize: none;
+        }
+        body.employee-request-ticket-page .ticket-loading-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(2, 6, 23, 0.45);
-            display: flex;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.46);
+            backdrop-filter: blur(4px);
+            display: none;
             align-items: center;
             justify-content: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
             z-index: 9999;
             padding: 20px;
-            box-sizing: border-box;
         }
-        .ticket-modal.show { opacity: 1; pointer-events: all; }
-        .ticket-modal-content {
-            background: white;
-            padding: 26px 22px;
-            border-radius: 14px;
-            text-align: center;
-            width: 320px;
+        body.employee-request-ticket-page .ticket-loading-overlay.show {
+            display: flex;
+        }
+        body.employee-request-ticket-page .ticket-loading-card {
+            width: 360px;
             max-width: calc(100vw - 40px);
-            animation: popIn 0.3s ease;
-            border: 1px solid #e5e7eb;
-            box-shadow: 0 22px 60px rgba(2, 6, 23, 0.18);
+            background: #ffffff;
+            border-radius: 18px;
+            padding: 24px 22px 20px;
+            text-align: center;
+            border: 1px solid rgba(27, 94, 32, 0.18);
+            box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22);
+            position: relative;
+            overflow: hidden;
         }
-        .check-icon {
-            width: 52px;
-            height: 52px;
+        body.employee-request-ticket-page .ticket-loading-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 6px;
+            background: linear-gradient(90deg, #1B5E20, #144a1e);
+        }
+        body.employee-request-ticket-page .ticket-loading-spinner {
+            width: 56px;
+            height: 56px;
+            margin: 10px auto 14px;
             border-radius: 999px;
-            background: #ecfdf5;
-            border: 1px solid #bbf7d0;
-            color: #1B5E20;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            font-weight: 900;
-            margin: 0 auto 12px;
+            border: 4px solid #e2e8f0;
+            border-top-color: #1B5E20;
+            animation: employeeTicketSpin 0.9s linear infinite;
         }
-        .ticket-modal-content h3 {
+        body.employee-request-ticket-page .ticket-loading-title {
             margin: 0 0 8px;
             font-size: 18px;
+            font-weight: 800;
             color: #0f172a;
         }
-        .ticket-modal-content p {
-            margin: 0 0 16px;
+        body.employee-request-ticket-page .ticket-loading-text {
+            margin: 0;
             color: #64748b;
             font-size: 14px;
             line-height: 1.45;
         }
-        .ticket-modal-content button {
-            width: auto;
-            border: 1px solid #e2e8f0;
-            background: #ffffff;
-            color: #0f172a;
-            border-radius: 10px;
-            padding: 10px 14px;
-            font-weight: 800;
-            cursor: pointer;
+        @keyframes employeeTicketSpin {
+            to { transform: rotate(360deg); }
         }
-        .ticket-modal-content button:hover { background: #f8fafc; }
-        @keyframes popIn {
-            from { transform: scale(0.92); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
+        @media (max-width: 768px) {
+            body.employee-request-ticket-page .dashboard-container {
+                padding: 12px;
+            }
+
+            body.employee-request-ticket-page .page-header {
+                margin-bottom: 18px !important;
+            }
+
+            body.employee-request-ticket-page .form-card {
+                padding: 16px;
+                border-radius: 14px;
+                margin: 0;
+            }
+
+            body.employee-request-ticket-page .form-section-title {
+                margin-top: 18px;
+                margin-bottom: 14px;
+                padding-bottom: 12px;
+                font-size: 16px;
+            }
+
+            body.employee-request-ticket-page .form-group {
+                margin-bottom: 14px;
+            }
+
+            body.employee-request-ticket-page .form-control,
+            body.employee-request-ticket-page .form-group input,
+            body.employee-request-ticket-page .form-group select,
+            body.employee-request-ticket-page .form-group textarea {
+                height: 42px;
+                padding: 10px 12px;
+                font-size: 14px;
+                border-radius: 10px;
+            }
+
+            body.employee-request-ticket-page textarea.form-control {
+                height: auto;
+                min-height: 90px;
+                padding: 10px 12px;
+                resize: none;
+            }
+
+            body.employee-request-ticket-page .file-control {
+                display: flex !important;
+                align-items: center !important;
+                gap: 10px !important;
+                padding: 10px !important;
+                border-radius: 10px !important;
+                border: 1px dashed #D1D5DB !important;
+                background: #F9FAFB !important;
+                flex-wrap: wrap;
+            }
+
+            body.employee-request-ticket-page .file-button {
+                padding: 8px 12px !important;
+                border-radius: 8px !important;
+                font-size: 14px !important;
+            }
+
+            body.employee-request-ticket-page .file-name {
+                font-size: 13px;
+                flex: 1 1 140px;
+                min-width: 0;
+            }
+
+            body.employee-request-ticket-page .form-text {
+                margin-top: 6px;
+                font-size: 11px;
+            }
+
+            body.employee-request-ticket-page .form-actions {
+                margin-top: 18px;
+            }
+
+            body.employee-request-ticket-page .btn-submit {
+                width: 100%;
+                padding: 14px;
+                font-size: 16px;
+                border-radius: 12px;
+                margin-top: 10px;
+            }
+
+            body.employee-request-ticket-page .tm-global-chat-fab {
+                right: 12px;
+                bottom: 80px;
+                width: 42px !important;
+                max-width: 42px !important;
+                min-width: 42px;
+                height: 42px;
+                min-height: 42px;
+                padding: 0 !important;
+                border-radius: 999px;
+                justify-content: center;
+                gap: 0;
+            }
+
+            body.employee-request-ticket-page .tm-global-chat-fab .tm-global-chat-label {
+                display: none;
+            }
+
+            body.employee-request-ticket-page .tm-global-chat-fab i {
+                font-size: 16px;
+            }
         }
     </style>
 </head>
-<body>
+<body class="employee-request-ticket-page">
 
     <!-- 2️⃣ TOP NAVIGATION BAR -->
     <?php include '../includes/employee_navbar.php'; ?>
@@ -573,47 +735,49 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <h3 class="form-section-title">Request Information</h3>
 
                     <div class="form-group">
-                        <label>Ticket Recipient (Company Email Domain) *</label>
+                        <label>Ticket Recipient <span class="required-asterisk">*</span></label>
                         <div class="select-wrapper">
                             <select name="assigned_company" id="assigned_company" class="form-control" required>
-                                <option value=""disabled selected hidden>Select Recipient</option>
-                                <option value="@gpsci.net">@gpsci.net</option>
-                                <option value="@farmasee.ph">@farmasee.ph</option>
+                                <option value="" disabled selected hidden>Choose recipient</option>
+                                <option value="@gpsci.net">GPSCI (@gpsci.net)</option>
+                                <option value="@farmasee.ph">FARMASEE (@farmasee.ph)</option>
                                 <option value="@gmail.com">@gmail.com</option>
-                                <option value="@leads-eh.com">@leads-eh.com</option>
-                                <option value="@leads-farmex.com">@leads-farmex.com</option>
-                                <option value="@leadsagri.com">@leadsagri.com</option>
-                                <option value="@leadsanimalhealth.com">@leadsanimalhealth.com</option>
-                                <option value="@leadsav.com">@leadsav.com</option>
-                                <option value="@leadstech-corp.com">@leadstech-corp.com</option>
-                                <option value="@lingapleads.org">@lingapleads.org</option>
-                                <option value="@primestocks.ph">@primestocks.ph</option>
+                                <option value="@leads-eh.com">LEH (@leads-eh.com)</option>
+                                <option value="@leads-farmex.com">FARMEX (@leads-farmex.com)</option>
+                                <option value="@leadsagri.com">LAPC (@leadsagri.com)</option>
+                                <option value="@leadsanimalhealth.com">LAH (@leadsanimalhealth.com)</option>
+                                <option value="@leadsav.com">LAV (@leadsav.com)</option>
+                                <option value="@malvedaproperties.com">MHC (@malvedaproperties.com)</option>
+                                <option value="@leadstech-corp.com">LTC (@leadstech-corp.com)</option>
+                                <option value="@lingapleads.org">LINGAP (@lingapleads.org)</option>
+                                <option value="@primestocks.ph">PCC (@primestocks.ph)</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label>Assigned Department *</label>
+                        <label>Assigned Department <span class="required-asterisk">*</span></label>
                         <div class="select-wrapper">
                             <select name="assigned_group" id="assigned_group" class="form-control" required>
-                                <option value="" disabled selected hidden>Select Department</option>
+                                <option value="" disabled selected hidden>Choose department</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label>Category *</label>
+                        <label>Category <span class="required-asterisk">*</span></label>
                         <div class="select-wrapper">
                             <select name="category" class="form-control" required>
-                                <option value="" disabled selected hidden>Select Category</option>
-                                <option value="Hardware">Hardware</option>
-                                <option value="Software">Software</option>
+                                <option value="" disabled selected hidden>Choose category</option>
                                 <option value="Documentation">Documentation</option>
                                 <option value="Email">Email</option>
+                                <option value="Hardware">Hardware</option>
                                 <option value="Internet Concerns">Internet Concerns</option>
                                 <option value="Procurement">Procurement</option>
+                                <option value="Software">Software</option>
+                                <option value="Technical Support">Technical Support</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>
                         </div>
@@ -622,8 +786,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     
 
                     <div class="form-group">
-                        <label>Description *</label>
-                        <textarea name="description" class="form-control" placeholder="Describe your issue in detail..."></textarea>
+                        <label>Description <span class="required-asterisk">*</span></label>
+                        <textarea name="description" class="form-control" placeholder="Describe your issue in detail..." style="resize:none;" required></textarea>
                     </div>
 
                     <div class="form-group">
@@ -634,11 +798,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 <span>Choose File</span>
                             </button>
                             <span id="file-name" class="file-name" style="color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">No file chosen</span>
-                            <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" style="display:none;">
+                            <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.docx" style="display:none;">
                         </div>
-                        <small class="form-text">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files, 5MB total)</small>
+                        <small class="form-text">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files)</small>
                         <div id="attachment-error" style="display:none;margin-top:10px;background:#fee2e2;color:#991b1b;padding:10px 12px;border-radius:10px;border:1px solid #fecaca;font-weight:700;"></div>
-                        <div id="attachment-total" style="margin-top:10px;color:#475569;font-weight:800;font-size:12px;white-space:nowrap;"></div>
                         <div id="attachment-toast" role="alert" aria-live="assertive" style="position:fixed;top:18px;right:18px;z-index:9999;display:none;max-width:min(420px, calc(100vw - 36px));background:#991b1b;color:#ffffff;padding:12px 14px;border-radius:12px;box-shadow:0 16px 40px rgba(2,6,23,0.22);font-weight:800;font-size:13px;"></div>
                         <div id="attachment-preview" style="margin-top: 10px;"></div>
                     </div>
@@ -652,12 +815,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </div>
 
-    <div id="successModal" class="ticket-modal" aria-hidden="true">
-        <div class="ticket-modal-content" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
-            <div class="check-icon">✓</div>
-            <h3 id="successModalTitle">Ticket Submitted</h3>
-            <p>Your ticket has been successfully created.</p>
-            <button type="button" onclick="closeModal()">Close</button>
+    <div id="ticketLoadingOverlay" class="ticket-loading-overlay" aria-hidden="true">
+        <div class="ticket-loading-card" role="status" aria-live="polite" aria-busy="true">
+            <div class="ticket-loading-spinner"></div>
+            <h3 class="ticket-loading-title">Submitting Ticket</h3>
+            <p class="ticket-loading-text">Please wait while we submit your ticket.</p>
         </div>
     </div>
 
@@ -692,13 +854,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         var fileNameEl = document.getElementById('file-name');
         var preview = document.getElementById('attachment-preview');
         var errorEl = document.getElementById('attachment-error');
-        var totalEl = document.getElementById('attachment-total');
         var toastEl = document.getElementById('attachment-toast');
         var dt = new DataTransfer();
         var objectUrls = [];
         var MAX_BYTES = 5 * 1024 * 1024;
         var MAX_FILES = 5;
-        var ALLOWED_EXT = ['jpg','jpeg','png','pdf','doc','docx'];
+        var ALLOWED_EXT = ['jpg','jpeg','png','pdf','docx'];
+        var UNSUPPORTED_FILE_MESSAGE = 'Please insert supported files only.';
         var toastTimer = null;
 
         if (chooseBtn) {
@@ -721,13 +883,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if (kb < 1024) return (Math.round(kb * 10) / 10) + ' KB';
             var mb = kb / 1024;
             return (Math.round(mb * 10) / 10) + ' MB';
-        }
-
-        function setTotal() {
-            if (!totalEl) return;
-            var total = 0;
-            Array.from(dt.files).forEach(function (f) { total += (f && f.size) ? f.size : 0; });
-            totalEl.textContent = 'Total: ' + formatSize(total) + ' / 5 MB';
         }
 
         function syncFiles() {
@@ -839,7 +994,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 row.appendChild(removeBtn);
                 preview.appendChild(row);
             });
-            setTotal();
         }
 
         function showToast(msg) {
@@ -888,15 +1042,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         if (attachmentInput) {
             attachmentInput.addEventListener('change', function (e) {
+                var selectedFiles = Array.from(e.target.files || []);
                 var blockedMax = false;
-                Array.from(e.target.files || []).forEach(function (file) {
-                    if (dt.files.length >= MAX_FILES) {
-                        blockedMax = true;
-                        return;
-                    }
+                var hasUnsupportedType = false;
+                var validFiles = [];
+
+                selectedFiles.forEach(function (file) {
                     var ext = getExt(file && file.name);
                     if (ALLOWED_EXT.indexOf(ext) === -1) {
-                        showError('Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.');
+                        hasUnsupportedType = true;
+                        return;
+                    }
+                    validFiles.push(file);
+                });
+
+                if (hasUnsupportedType) {
+                    attachmentInput.value = '';
+                    showError(UNSUPPORTED_FILE_MESSAGE);
+                    return;
+                }
+
+                validFiles.forEach(function (file) {
+                    if (dt.files.length >= MAX_FILES) {
+                        blockedMax = true;
                         return;
                     }
                     var nextTotal = (file && file.size || 0);
@@ -931,7 +1099,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 Array.from(dt.files).forEach(function (f) { total += (f && f.size) ? f.size : 0; });
                 if (dt.files.length > MAX_FILES || badType || total > MAX_BYTES) {
                     e.preventDefault();
-                    showError(dt.files.length > MAX_FILES ? 'Maximum 5 attachments allowed.' : (badType ? 'Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.' : 'Attachment too large. Max 5MB total.'));
+                    showError(dt.files.length > MAX_FILES ? 'Maximum 5 attachments allowed.' : (badType ? UNSUPPORTED_FILE_MESSAGE : 'Attachment too large. Max 5MB total.'));
                     return;
                 }
                 showError('');
@@ -941,22 +1109,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </script>
 
     <script>
-    function closeModal(){
-        var m = document.getElementById('successModal');
-        if (m) m.classList.remove('show');
-    }
-
     (function () {
         var form = document.getElementById('ticketForm');
-        var modal = document.getElementById('successModal');
         var ajaxError = document.getElementById('ajaxError');
+        var loadingOverlay = document.getElementById('ticketLoadingOverlay');
         if (!form) return;
-
-        if (modal) {
-            modal.addEventListener('click', function (e) {
-                if (e.target === modal) closeModal();
-            });
-        }
 
         form.addEventListener('submit', function(e) {
             if (e.defaultPrevented) return;
@@ -965,6 +1122,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             var submitBtn = form.querySelector('button[type="submit"]');
             if (submitBtn) submitBtn.disabled = true;
+            if (loadingOverlay) {
+                loadingOverlay.classList.add('show');
+                loadingOverlay.setAttribute('aria-hidden', 'false');
+            }
 
             var formData = new FormData(form);
 
@@ -981,16 +1142,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         ajaxError.textContent = msg;
                         ajaxError.style.display = 'block';
                     }
+                    if (loadingOverlay) {
+                        loadingOverlay.classList.remove('show');
+                        loadingOverlay.setAttribute('aria-hidden', 'true');
+                    }
                     return;
                 }
-                if (modal) modal.classList.add("show");
                 form.reset();
                 if (typeof window.TMEmployeeResetAttachments === 'function') window.TMEmployeeResetAttachments();
+                window.location.href = 'my_tickets.php';
             })
             .catch(function () {
                 if (ajaxError) {
                     ajaxError.textContent = 'Failed to submit ticket.';
                     ajaxError.style.display = 'block';
+                }
+                if (loadingOverlay) {
+                    loadingOverlay.classList.remove('show');
+                    loadingOverlay.setAttribute('aria-hidden', 'true');
                 }
             })
             .finally(function () {

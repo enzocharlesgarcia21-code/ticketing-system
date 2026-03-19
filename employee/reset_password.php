@@ -53,30 +53,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reset Password - Employee</title>
-    <link rel="stylesheet" href="../css/employee-login.css">
+<link rel="stylesheet" href="../css/employee-login.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
 <div class="login-container">
     <div class="login-card">
+        <a href="verify_reset_otp.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
 
         <h2>Reset Password</h2>
-        <p style="text-align:center; color:#666; font-size:0.9rem; margin-bottom:20px;">
-            Create a new strong password.
-        </p>
+        <p class="auth-note">Create a new strong password for <strong><?php echo htmlspecialchars($_SESSION['reset_email'], ENT_QUOTES, 'UTF-8'); ?></strong>.</p>
 
         <?php if(isset($error)) : ?>
-            <div class="error"><?php echo $error; ?></div>
+            <div class="error"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
         <?php endif; ?>
 
         <form method="POST">
             <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label>New Password</label>
-                <input type="password" name="password" id="password" required placeholder="New Password">
+                <div class="input-shell">
+                    <span class="input-icon"><i class="fas fa-lock"></i></span>
+                    <input type="password" name="password" id="password" required placeholder="Enter your new password">
+                </div>
                 
                 <div id="password-validation" class="password-validation">
+                    <div class="password-validation-title">Password requirements</div>
                     <ul>
                         <li id="rule-length">Minimum 8 characters</li>
                         <li id="rule-uppercase">At least 1 uppercase letter</li>
@@ -89,10 +93,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             <div class="form-group">
                 <label>Confirm Password</label>
-                <input type="password" name="confirm_password" required placeholder="Confirm Password">
+                <div class="input-shell">
+                    <span class="input-icon"><i class="fas fa-shield-halved"></i></span>
+                    <input type="password" name="confirm_password" required placeholder="Confirm your new password">
+                </div>
             </div>
 
-            <button type="submit">Reset Password</button>
+            <button type="submit">Confirm New Password</button>
         </form>
 
     </div>
@@ -153,4 +160,3 @@ document.addEventListener('DOMContentLoaded', function() {
 
 </body>
 </html>
-

@@ -21,6 +21,8 @@ $stmt = $conn->prepare("
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
+$successMessage = isset($_SESSION['success']) ? (string) $_SESSION['success'] : '';
+unset($_SESSION['success']);
 ?>
 
 <!DOCTYPE html>
@@ -34,6 +36,84 @@ $result = $stmt->get_result();
     <link rel="stylesheet" href="../css/view-tickets.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        .ticket-success-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.46);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 20px;
+        }
+        .ticket-success-overlay.show {
+            display: flex;
+        }
+        .ticket-success-card {
+            width: 360px;
+            max-width: calc(100vw - 40px);
+            background: #ffffff;
+            border-radius: 18px;
+            padding: 24px 22px 20px;
+            text-align: center;
+            border: 1px solid rgba(27, 94, 32, 0.18);
+            box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22);
+            position: relative;
+            overflow: hidden;
+        }
+        .ticket-success-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 6px;
+            background: linear-gradient(90deg, #1B5E20, #144a1e);
+        }
+        .ticket-success-icon {
+            width: 64px;
+            height: 64px;
+            margin: 8px auto 14px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #dcfce7;
+            border: 1px solid #bbf7d0;
+            color: #15803d;
+            font-size: 28px;
+            font-weight: 900;
+        }
+        .ticket-success-title {
+            margin: 0 0 8px;
+            font-size: 22px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .ticket-success-text {
+            margin: 0;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .ticket-success-actions {
+            margin-top: 18px;
+            display: flex;
+            justify-content: center;
+        }
+        .ticket-success-btn {
+            border: 1px solid rgba(20, 74, 30, 0.28);
+            background: #1B5E20;
+            color: #ffffff;
+            border-radius: 12px;
+            padding: 10px 18px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .ticket-success-btn:hover {
+            background: #144a1e;
+        }
+    </style>
 </head>
 <body>
 
@@ -41,13 +121,6 @@ $result = $stmt->get_result();
 
     <div class="dashboard-container">
         <div class="content-wrapper">
-
-            <?php if(isset($_SESSION['success'])): ?>
-                <div class="alert alert-success" style="background: #dcfce7; color: #166534; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #bbf7d0;">
-                    <?= htmlspecialchars($_SESSION['success'], ENT_QUOTES, 'UTF-8'); ?>
-                </div>
-                <?php unset($_SESSION['success']); ?>
-            <?php endif; ?>
 
             <div class="page-header">
                 <h1 class="page-title">My Submitted Tickets</h1>
@@ -124,6 +197,16 @@ $result = $stmt->get_result();
             <img id="previewImage" src="" alt="Preview" class="preview-image">
         </div>
     </div>
+    <div id="ticketSuccessOverlay" class="ticket-success-overlay" aria-hidden="true">
+        <div class="ticket-success-card" role="dialog" aria-modal="true" aria-labelledby="ticketSuccessTitle">
+            <div class="ticket-success-icon">✓</div>
+            <h2 id="ticketSuccessTitle" class="ticket-success-title">Your ticket has been submitted</h2>
+            <p class="ticket-success-text"><?= htmlspecialchars($successMessage !== '' ? $successMessage : 'Your ticket has been submitted successfully.', ENT_QUOTES, 'UTF-8'); ?></p>
+            <div class="ticket-success-actions">
+                <button type="button" id="ticketSuccessBtn" class="ticket-success-btn">OK</button>
+            </div>
+        </div>
+    </div>
     <script>
     window.TM_CURRENT_USER = <?php echo json_encode([
         'id' => $_SESSION['user_id'] ?? null,
@@ -133,6 +216,7 @@ $result = $stmt->get_result();
         'company' => $_SESSION['company'] ?? null,
         'role' => $_SESSION['role'] ?? null
     ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    window.TM_HIDE_UPDATE_TAB = true;
     </script>
     <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
     <script>
@@ -148,6 +232,27 @@ $result = $stmt->get_result();
     var tid = p.get('ticket_id') || p.get('id');
     if (tid) {
         TMTicketModal.open(tid);
+    }
+    var ticketSuccessOverlay = document.getElementById('ticketSuccessOverlay');
+    var ticketSuccessBtn = document.getElementById('ticketSuccessBtn');
+    var hasSuccessMessage = <?php echo json_encode($successMessage !== ''); ?>;
+    if (hasSuccessMessage && ticketSuccessOverlay) {
+        ticketSuccessOverlay.classList.add('show');
+        ticketSuccessOverlay.setAttribute('aria-hidden', 'false');
+    }
+    if (ticketSuccessBtn && ticketSuccessOverlay) {
+        ticketSuccessBtn.addEventListener('click', function () {
+            ticketSuccessOverlay.classList.remove('show');
+            ticketSuccessOverlay.setAttribute('aria-hidden', 'true');
+        });
+    }
+    if (ticketSuccessOverlay) {
+        ticketSuccessOverlay.addEventListener('click', function (e) {
+            if (e.target === ticketSuccessOverlay) {
+                ticketSuccessOverlay.classList.remove('show');
+                ticketSuccessOverlay.setAttribute('aria-hidden', 'true');
+            }
+        });
     }
     </script>
 

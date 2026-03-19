@@ -7,43 +7,158 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     exit();
 }
 
-// 1. Handle Search & Filter
-$search = $_GET['search'] ?? '';
-$category = $_GET['category'] ?? '';
+// 1. Handle Search
+$search = trim((string) ($_GET['search'] ?? ''));
 
-// 2. Base Query
-$query = "SELECT * FROM knowledge_base WHERE 1=1";
-$params = [];
-$types = "";
+function kb_excerpt(string $text, int $maxLen = 160): string
+{
+    $t = preg_replace('/\s+/', ' ', trim($text));
+    if ($t === null) {
+        $t = '';
+    }
 
-// 3. Apply Filters
-if (!empty($search)) {
-    $query .= " AND (title LIKE ? OR content LIKE ?)";
-    $searchTerm = "%$search%";
-    $params[] = $searchTerm;
-    $params[] = $searchTerm;
-    $types .= "ss";
+    if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+        if (mb_strlen($t) <= $maxLen) {
+            return $t;
+        }
+        return mb_substr($t, 0, $maxLen) . '...';
+    }
+
+    if (strlen($t) <= $maxLen) {
+        return $t;
+    }
+
+    return substr($t, 0, $maxLen) . '...';
 }
 
-if (!empty($category)) {
-    $query .= " AND category = ?";
-    $params[] = $category;
-    $types .= "s";
+function kb_normalize_category_name(string $category): string
+{
+    $category = trim($category);
+    $category = preg_replace('/\s+Issues?$/i', '', $category);
+    $category = preg_replace('/\s+Issue$/i', '', $category);
+    $category = preg_replace('/\s+Problem$/i', '', $category);
+    $category = preg_replace('/\s+Access$/i', ' Login & Account', $category);
+    return trim($category);
 }
 
-// 4. Sort
-$query .= " ORDER BY created_at DESC";
-
-// 5. Execute
-$stmt = $conn->prepare($query);
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
+function kb_category_label(string $category): string
+{
+    $normalized = kb_normalize_category_name($category);
+    $key = strtolower($normalized);
+    if ($key === 'documentation') return 'Documentation';
+    if ($key === 'email') return 'Email';
+    if ($key === 'internet concerns' || $key === 'network') return 'Internet Concerns';
+    if ($key === 'software') return 'Software';
+    if ($key === 'hardware') return 'Hardware';
+    if ($key === 'procurement') return 'Procurement';
+    if ($key === 'technical support') return 'Technical Support';
+    return $normalized !== '' ? $normalized : 'Documentation';
 }
-$stmt->execute();
-$result = $stmt->get_result();
 
-// 6. Pre-defined Categories
-$categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Problem', 'Account Access', 'Technical Support', 'Other'];
+function kb_category_icon_class(string $category): string
+{
+    $key = strtolower(kb_normalize_category_name($category));
+    if (strpos($key, 'documentation') !== false) return 'fa-book-open';
+    if (strpos($key, 'software') !== false) return 'fa-laptop';
+    if (strpos($key, 'hardware') !== false) return 'fa-screwdriver-wrench';
+    if (strpos($key, 'network') !== false || strpos($key, 'internet') !== false) return 'fa-globe';
+    if (strpos($key, 'email') !== false) return 'fa-envelope';
+    if (strpos($key, 'procurement') !== false) return 'fa-cart-shopping';
+    if (strpos($key, 'technical') !== false) return 'fa-headset';
+    return 'fa-folder';
+}
+
+// 2. Fetch categories with article counts
+$categoryCards = [];
+$categoryMap = [];
+$fixedCategories = [
+    'Documentation',
+    'Email',
+    'Hardware',
+    'Internet Concerns',
+    'Procurement',
+    'Software',
+    'Technical Support',
+];
+$categoryCounts = [];
+$catStmt = $conn->prepare("
+    SELECT category, COUNT(*) AS total_articles
+    FROM knowledge_base
+    WHERE category IS NOT NULL AND category <> ''
+    GROUP BY category
+    ORDER BY category ASC
+");
+if ($catStmt) {
+    $catStmt->execute();
+    $catResult = $catStmt->get_result();
+    $categoryIndex = 1;
+    while ($row = $catResult->fetch_assoc()) {
+        $rawCategory = trim((string) ($row['category'] ?? ''));
+        if ($rawCategory === '') {
+            continue;
+        }
+        $normalizedCategory = kb_category_label($rawCategory);
+        if (!isset($categoryCounts[$normalizedCategory])) {
+            $categoryCounts[$normalizedCategory] = 0;
+        }
+        $categoryCounts[$normalizedCategory] += (int) ($row['total_articles'] ?? 0);
+    }
+    $catStmt->close();
+}
+
+foreach ($fixedCategories as $fixedCategory) {
+    $categoryCards[] = [
+        'id' => $categoryIndex,
+        'raw' => $fixedCategory,
+        'label' => $fixedCategory,
+        'icon' => kb_category_icon_class($fixedCategory),
+        'total_articles' => (int) ($categoryCounts[$fixedCategory] ?? 0),
+    ];
+    $categoryMap[$categoryIndex] = $fixedCategory;
+    $categoryIndex++;
+}
+
+// 3. Most visited articles for homepage section
+$mostVisitedArticles = [];
+$mostVisitedStmt = $conn->prepare("
+    SELECT id, title, category, created_at, COALESCE(views, 0) AS views
+    FROM knowledge_base
+    ORDER BY COALESCE(views, 0) DESC, created_at DESC
+    LIMIT 3
+");
+if ($mostVisitedStmt) {
+    $mostVisitedStmt->execute();
+    $mostVisitedResult = $mostVisitedStmt->get_result();
+    while ($row = $mostVisitedResult->fetch_assoc()) {
+        $mostVisitedArticles[] = $row;
+    }
+    $mostVisitedStmt->close();
+}
+
+$searchResults = [];
+if ($search !== '') {
+    $searchStmt = $conn->prepare("
+        SELECT id, title, category, content, created_at, COALESCE(views, 0) AS views
+        FROM knowledge_base
+        WHERE title LIKE ?
+           OR content LIKE ?
+           OR category LIKE ?
+        ORDER BY created_at DESC
+    ");
+    if ($searchStmt) {
+        $term = '%' . $search . '%';
+        $searchStmt->bind_param("sss", $term, $term, $term);
+        $searchStmt->execute();
+        $searchResult = $searchStmt->get_result();
+        while ($searchResult && ($row = $searchResult->fetch_assoc())) {
+            $searchResults[] = $row;
+        }
+        $searchStmt->close();
+    }
+}
+
+$showHomeSections = ($search === '');
+
 ?>
 
 <!DOCTYPE html>
@@ -57,7 +172,13 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
     <style>
         /* Knowledge Base Specific Styles */
         body {
-            background-color: #F9FAFB;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.16)),
+                url('../assets/img/kbkb.jpg');
+            background-repeat: no-repeat;
+            background-position: center top;
+            background-attachment: fixed;
+            background-size: cover;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
@@ -85,7 +206,8 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             display: flex;
             gap: 16px;
             justify-content: center;
-            max-width: 800px;
+            align-items: stretch;
+            max-width: 980px;
             margin: 0 auto;
             flex-wrap: wrap;
         }
@@ -93,7 +215,7 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
         .search-input-group {
             position: relative;
             flex: 1;
-            min-width: 320px;
+            min-width: 0;
         }
 
         .search-icon {
@@ -107,13 +229,15 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
 
         .search-input {
             width: 100%;
-            padding: 14px 14px 14px 48px;
+            min-height: 58px;
+            padding: 16px 18px 16px 52px;
             border: 1px solid #E5E7EB;
             border-radius: 12px;
             font-size: 16px;
             background: white;
             transition: all 0.2s;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            box-sizing: border-box;
         }
 
         .search-input:focus {
@@ -122,25 +246,220 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.1);
         }
 
-        .category-select {
-            padding: 14px 24px;
-            border: 1px solid #E5E7EB;
-            border-radius: 12px;
-            background: white;
-            color: #374151;
-            font-size: 16px;
-            cursor: pointer;
-            min-width: 200px;
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 16px center;
-            background-size: 16px;
+        .most-visited-section,
+        .results-section {
+            max-width: 980px;
+            margin: -18px auto 36px;
         }
 
-        .category-select:focus {
-            outline: none;
+        .results-section.is-loading {
+            opacity: 0.65;
+            transition: opacity 0.2s ease;
+        }
+
+        .most-visited-title,
+        .results-title {
+            margin: 0 0 14px;
+            color: #111827;
+            font-size: 20px;
+            font-weight: 700;
+            text-align: left;
+        }
+
+        .most-visited-card {
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid #E5E7EB;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+        }
+
+        .most-visited-item {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 18px 20px;
+            text-decoration: none;
+            color: inherit;
+            border-bottom: 1px solid #E5E7EB;
+            transition: background 0.2s ease;
+        }
+
+        .most-visited-item:last-child {
+            border-bottom: none;
+        }
+
+        .most-visited-item:hover {
+            background: #F8FAFC;
+        }
+
+        .most-visited-main {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        .most-visited-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 10px;
+            background: #E8F5E9;
+            color: #1B5E20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            flex: 0 0 auto;
+            margin-top: 2px;
+        }
+
+        .most-visited-content {
+            min-width: 0;
+        }
+
+        .most-visited-heading {
+            margin: 0 0 8px;
+            color: #1F2937;
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.35;
+        }
+
+        .most-visited-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: #EEF2F0;
+            color: #4B5563;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .most-visited-date {
+            color: #6B7280;
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            flex: 0 0 auto;
+            padding-top: 2px;
+        }
+
+        .categories-section {
+            max-width: 980px;
+            margin: 0 auto 36px;
+        }
+
+        .results-section {
+            margin-top: -18px;
+        }
+
+        .results-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+
+        .results-count {
+            color: #6B7280;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .categories-title {
+            margin: 0 0 14px;
+            color: #111827;
+            font-size: 20px;
+            font-weight: 700;
+            text-align: left;
+        }
+
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .category-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px 18px;
+            background: white;
+            border: 1px solid #E5E7EB;
+            border-radius: 14px;
+            text-decoration: none;
+            color: #111827;
+            cursor: pointer;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .category-card:hover {
             border-color: #1B5E20;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .category-card.active {
+            border-color: #1B5E20;
+            background: #E8F5E9;
+        }
+
+        .category-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #1B5E20;
+            background: #F0FDF4;
+            flex: 0 0 auto;
+        }
+
+        .category-info h4 {
+            margin: 0 0 4px;
+            color: #1F2937;
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .category-info p {
+            margin: 0;
+            color: #6B7280;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .articles-heading {
+            max-width: 980px;
+            margin: 0 auto 18px;
+            color: #111827;
+            font-size: 20px;
+            font-weight: 700;
+            text-align: left;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            color: #1B5E20;
+            font-size: 14px;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .back-btn:hover {
+            text-decoration: underline;
         }
 
         /* Grid Layout */
@@ -299,8 +618,24 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             .search-input-group {
                 min-width: 100%;
             }
-            .category-select {
-                width: 100%;
+            .most-visited-section {
+                margin-top: -8px;
+            }
+            .results-section {
+                margin-top: -8px;
+            }
+            .most-visited-item {
+                flex-direction: column;
+            }
+            .most-visited-date {
+                padding-top: 0;
+                padding-left: 44px;
+            }
+            .categories-section {
+                margin-top: 0;
+            }
+            .category-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -315,73 +650,202 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
         
         <!-- Search & Filter Header -->
         <div class="kb-header">
-            <h1 class="kb-title"> Knowledge Base</h1>
+            <h1 class="kb-title">Knowledge Base</h1>
             
-            <form method="GET" class="search-filter-wrapper">
+            <form method="GET" class="search-filter-wrapper" id="kbSearchForm">
                 <div class="search-input-group">
                     <i class="fas fa-search search-icon"></i>
                     <input type="text" name="search" class="search-input" 
                            placeholder="Search for articles, guides, or solutions..." 
-                           value="<?= htmlspecialchars($search) ?>">
+                           value="<?= htmlspecialchars($search) ?>"
+                           autocomplete="off">
                 </div>
-                
-                <select name="category" class="category-select" onchange="this.form.submit()">
-                    <option value=""disabled selected hidden>All Categories</option>
-                    <?php foreach($categories as $cat): ?>
-                        <option value="<?= htmlspecialchars($cat) ?>" 
-                                <?= $category === $cat ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($cat) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
             </form>
         </div>
 
-        <!-- Articles Grid -->
-        <div class="kb-grid">
-            <?php if ($result->num_rows > 0): ?>
-                <?php while($article = $result->fetch_assoc()): ?>
-                    <div class="kb-card" onclick="window.location.href='view_article.php?id=<?= $article['id'] ?>'">
-                        <?php if (!empty($article['image_path'])): ?>
-                            <div style="height: 180px; overflow: hidden; border-bottom: 1px solid #E5E7EB;">
-                                <img src="../<?= htmlspecialchars($article['image_path']) ?>" alt="<?= htmlspecialchars($article['title']) ?>" style="width: 100%; height: 100%; object-fit: cover;">
-                            </div>
-                        <?php endif; ?>
-                        <div class="kb-card-body">
-                            <span class="kb-category-badge">
-                                <?= htmlspecialchars($article['category']) ?>
-                            </span>
-                            <h3 class="kb-card-title">
-                                <?= htmlspecialchars($article['title']) ?>
-                            </h3>
-                            <div class="kb-card-preview">
-                                <?= htmlspecialchars(substr(strip_tags($article['content']), 0, 120)) ?>...
-                            </div>
-                        </div>
-                        <div class="kb-card-footer">
-                            <div class="kb-views">
-                                <i class="far fa-eye"></i> <?= number_format($article['views'] ?? 0) ?> views
-                            </div>
-                            <a href="view_article.php?id=<?= $article['id'] ?>" class="read-more-btn">
-                                Read Article <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                    </div>
-                <?php endwhile; ?>
-            <?php else: ?>
-                <div class="no-results">
-                    <div class="no-results-icon">
-                        <i class="fas fa-search"></i>
-                    </div>
-                    <p class="no-results-text">No articles found</p>
-                    <p class="no-results-sub">Try adjusting your search or category filter</p>
+        <div class="results-section<?= $showHomeSections ? '' : ' is-active' ?>" id="kbResultsSection"<?= $showHomeSections ? ' style="display:none;"' : '' ?>>
+                <div class="results-meta">
+                    <h2 class="results-title">Search Results</h2>
+                    <div class="results-count" id="kbResultsCount"><?= number_format(count($searchResults)) ?> article<?= count($searchResults) === 1 ? '' : 's' ?> found</div>
                 </div>
-            <?php endif; ?>
+
+                <div id="kbResultsContent">
+                    <?php if (empty($searchResults)): ?>
+                        <div class="no-results">
+                            <div class="no-results-icon"><i class="fas fa-book-open"></i></div>
+                            <div class="no-results-text">No articles found.</div>
+                            <div class="no-results-sub">Try a different keyword or browse the categories below.</div>
+                        </div>
+                    <?php else: ?>
+                        <div class="kb-grid">
+                            <?php foreach ($searchResults as $searchArticle): ?>
+                                <div class="kb-card">
+                                    <div class="kb-card-body">
+                                        <span class="kb-category-badge"><?= htmlspecialchars(kb_category_label((string) $searchArticle['category'])) ?></span>
+                                        <h3 class="kb-card-title"><?= htmlspecialchars((string) $searchArticle['title']) ?></h3>
+                                        <p class="kb-card-preview"><?= htmlspecialchars(kb_excerpt((string) ($searchArticle['content'] ?? ''), 160)) ?></p>
+                                    </div>
+                                    <div class="kb-card-footer">
+                                        <span class="kb-views">
+                                            <i class="fas fa-calendar"></i>
+                                            <?= !empty($searchArticle['created_at']) ? date('M d, Y', strtotime((string) $searchArticle['created_at'])) : '' ?>
+                                        </span>
+                                        <a href="view_article.php?id=<?= (int) $searchArticle['id'] ?>" class="read-more-btn">
+                                            Read More <i class="fas fa-arrow-right"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+        <?php if (!empty($mostVisitedArticles)): ?>
+            <div class="most-visited-section" id="kbMostVisitedSection"<?= $showHomeSections ? '' : ' style="display:none;"' ?>>
+                <h2 class="most-visited-title">Most Visited Articles</h2>
+                <div class="most-visited-card">
+                    <?php foreach ($mostVisitedArticles as $visitedArticle): ?>
+                        <a href="view_article.php?id=<?= (int) $visitedArticle['id'] ?>" class="most-visited-item">
+                            <div class="most-visited-main">
+                                <div class="most-visited-icon">
+                                    <i class="fas fa-file-lines"></i>
+                                </div>
+                                <div class="most-visited-content">
+                                    <h3 class="most-visited-heading"><?= htmlspecialchars($visitedArticle['title']) ?></h3>
+                                    <span class="most-visited-tag"><?= htmlspecialchars(kb_category_label((string) $visitedArticle['category'])) ?></span>
+                                </div>
+                            </div>
+                            <div class="most-visited-date">
+                                <?= !empty($visitedArticle['created_at']) ? date('M d, Y', strtotime((string) $visitedArticle['created_at'])) : '' ?>
+                            </div>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <div class="categories-section">
+            <h2 class="categories-title">Categories</h2>
+            <div class="category-grid">
+                <?php foreach ($categoryCards as $categoryCard): ?>
+                    <a
+                        href="category_articles.php?category=<?= urlencode($categoryCard['raw']) ?>"
+                        class="category-card"
+                    >
+                        <div class="category-icon">
+                            <i class="fas <?= htmlspecialchars($categoryCard['icon']) ?>"></i>
+                        </div>
+                        <div class="category-info">
+                            <h4><?= htmlspecialchars($categoryCard['label']) ?></h4>
+                            <p><?= number_format((int) $categoryCard['total_articles']) ?> Articles</p>
+                        </div>
+                    </a>
+                <?php endforeach; ?>
+            </div>
         </div>
 
     </div>
 
     <script src="../js/employee-dashboard.js"></script>
+    <script>
+    (function () {
+        var form = document.getElementById('kbSearchForm');
+        var input = form ? form.querySelector('input[name="search"]') : null;
+        var resultsSection = document.getElementById('kbResultsSection');
+        var resultsContent = document.getElementById('kbResultsContent');
+        var resultsCount = document.getElementById('kbResultsCount');
+        var mostVisitedSection = document.getElementById('kbMostVisitedSection');
+        var timer = null;
+        var lastFetchedValue = input ? input.value.trim() : '';
+        var controller = null;
+
+        if (!form || !input || !resultsSection || !resultsContent || !resultsCount) return;
+
+        function updateUrl(value) {
+            var url = new URL(window.location.href);
+            if (value) {
+                url.searchParams.set('search', value);
+            } else {
+                url.searchParams.delete('search');
+            }
+            window.history.replaceState({}, '', url.toString());
+        }
+
+        function setHomeVisible(isVisible) {
+            if (!mostVisitedSection) return;
+            mostVisitedSection.style.display = isVisible ? '' : 'none';
+        }
+
+        function fetchResults(force) {
+            var currentValue = input.value.trim();
+
+            if (!force && currentValue === lastFetchedValue) {
+                return;
+            }
+
+            if (controller) {
+                controller.abort();
+            }
+
+            if (currentValue === '') {
+                lastFetchedValue = '';
+                updateUrl('');
+                resultsSection.style.display = 'none';
+                resultsSection.classList.remove('is-loading');
+                setHomeVisible(true);
+                return;
+            }
+
+            controller = new AbortController();
+            lastFetchedValue = currentValue;
+            updateUrl(currentValue);
+            resultsSection.style.display = '';
+            resultsSection.classList.add('is-loading');
+            setHomeVisible(false);
+
+            fetch('ajax_kb_search.php?search=' + encodeURIComponent(currentValue), {
+                signal: controller.signal,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (!data || !data.ok) {
+                        throw new Error('Search failed');
+                    }
+                    resultsCount.textContent = data.count + ' article' + (data.count === 1 ? '' : 's') + ' found';
+                    resultsContent.innerHTML = data.html;
+                })
+                .catch(function (error) {
+                    if (error.name === 'AbortError') return;
+                    resultsCount.textContent = '0 articles found';
+                    resultsContent.innerHTML = '<div class="no-results"><div class="no-results-icon"><i class="fas fa-book-open"></i></div><div class="no-results-text">Search is unavailable.</div><div class="no-results-sub">Please try again in a moment.</div></div>';
+                })
+                .finally(function () {
+                    resultsSection.classList.remove('is-loading');
+                });
+        }
+
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            fetchResults(true);
+        });
+
+        input.addEventListener('input', function () {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(function () {
+                fetchResults(false);
+            }, 350);
+        });
+
+        input.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                window.clearTimeout(timer);
+                fetchResults(true);
+            }
+        });
+    })();
+    </script>
 </body>
 </html>
-

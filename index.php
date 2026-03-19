@@ -138,34 +138,6 @@
             box-shadow: 0 14px 30px rgba(2, 6, 23, 0.14);
         }
 
-        #pageTransition {
-            position: fixed;
-            inset: 0;
-            background:
-                radial-gradient(700px 420px at 70% 45%, rgba(22, 163, 74, 0.18), rgba(255, 255, 255, 0) 60%),
-                linear-gradient(135deg, rgba(6, 46, 46, 0.92), rgba(2, 20, 43, 0.95));
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 260ms ease;
-            z-index: 9999;
-        }
-
-        body.tm-transitioning #pageTransition {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        body.tm-transitioning .auth-card {
-            transform: translateY(4px) scale(0.99);
-            opacity: 0.92;
-            transition: transform 260ms ease, opacity 260ms ease;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            #pageTransition { transition: none; }
-            body.tm-transitioning .auth-card { transition: none; }
-        }
-
         @media (min-width: 1100px) {
             .auth-split-right { transform: translateX(-70px); }
         }
@@ -205,11 +177,92 @@
                 padding: 34px 24px;
             }
         }
+
+        @media (max-width: 768px) {
+            body {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                padding: 20px;
+            }
+
+            body::after {
+                content: "";
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.15);
+                pointer-events: none;
+                z-index: 0;
+            }
+
+            .auth-container,
+            .auth-wrapper {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: auto;
+                min-height: 0;
+                padding: 0;
+                gap: 0;
+            }
+
+            .auth-split-left {
+                display: none;
+            }
+
+            .auth-split-right {
+                width: 100%;
+                flex: 0 0 auto;
+                height: auto;
+            }
+
+            .auth-card {
+                width: 100%;
+                max-width: 360px;
+                padding: 26px;
+                border-radius: 18px;
+                text-align: center;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+            }
+
+            .auth-card::before {
+                border-radius: 18px;
+            }
+
+            .auth-title,
+            .auth-card .card-title {
+                font-size: 24px;
+                line-height: 1.3;
+            }
+
+            .auth-subtitle,
+            .auth-card .subtitle {
+                font-size: 14px;
+                margin-bottom: 22px;
+            }
+
+            .auth-logo {
+                width: 140px;
+                margin-bottom: 12px;
+            }
+
+            .auth-button,
+            .auth-btn {
+                width: 100%;
+                height: 54px;
+                font-size: 16px;
+            }
+
+            .auth-button:active,
+            .auth-btn:active {
+                transform: scale(0.98);
+            }
+        }
     </style>
 </head>
 <body>
-
-<div id="pageTransition" aria-hidden="true"></div>
 
 <div class="auth-wrapper auth-container">
     <section class="auth-split-left" aria-label="Leads Agri branding">
@@ -241,32 +294,6 @@
         </div>
     </section>
 </div>
-
-<script>
-(function () {
-    function shouldIgnoreClick(e) {
-        if (!e) return true;
-        if (e.defaultPrevented) return true;
-        if (e.button !== 0) return true;
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return true;
-        return false;
-    }
-
-    document.addEventListener('click', function (e) {
-        var a = e.target && e.target.closest ? e.target.closest('a.auth-btn') : null;
-        if (!a) return;
-        if (shouldIgnoreClick(e)) return;
-        var href = a.getAttribute('href');
-        if (!href || href.charAt(0) === '#') return;
-
-        e.preventDefault();
-        document.body.classList.add('tm-transitioning');
-        window.setTimeout(function () {
-            window.location.href = href;
-        }, 220);
-    });
-})();
-</script>
 
 </body>
 </html>
