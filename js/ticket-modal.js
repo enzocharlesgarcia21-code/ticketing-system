@@ -11,6 +11,38 @@ var TMTicketModal = (function () {
   var currentTicketId = null;
   var lastTicketMeta = null;
   function qs(id) { return document.getElementById(id); }
+  function ensureTicketModalExists() {
+    if (!document || !document.body) return;
+
+    if (!document.getElementById('tmSharedViewTicketsCss')) {
+      var link = document.createElement('link');
+      link.id = 'tmSharedViewTicketsCss';
+      link.rel = 'stylesheet';
+      link.href = '../css/view-tickets.css?v=' + Date.now();
+      document.head.appendChild(link);
+    }
+
+    if (!qs('ticketModal')) {
+      var overlay = document.createElement('div');
+      overlay.id = 'ticketModal';
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = '<div class="modal-content" id="modalContent"></div>';
+      document.body.appendChild(overlay);
+    }
+
+    if (!qs('imagePreviewModal')) {
+      var imageModal = document.createElement('div');
+      imageModal.id = 'imagePreviewModal';
+      imageModal.className = 'image-preview-modal';
+      imageModal.setAttribute('onclick', 'TMTicketModal.closeImagePreview(event)');
+      imageModal.innerHTML =
+        '<div class="image-preview-content">' +
+        '  <button class="preview-close" onclick="TMTicketModal.closeImagePreview(event)">×</button>' +
+        '  <img id="previewImage" src="" alt="Preview">' +
+        '</div>';
+      document.body.appendChild(imageModal);
+    }
+  }
   function getCsrfToken() {
     var meta = document.querySelector('meta[name="csrf-token"]');
     if (meta && meta.getAttribute) {
@@ -188,6 +220,27 @@ var TMTicketModal = (function () {
     if (mins === 0) return hrs + ' ' + (hrs === 1 ? 'hr' : 'hrs');
     return hrs + ' ' + (hrs === 1 ? 'hr' : 'hrs') + ' ' + mins + ' ' + (mins === 1 ? 'min' : 'mins');
   }
+  function computeResolutionSeconds(createdAt, updatedAt) {
+    if (!createdAt || !updatedAt) return null;
+    var c = new Date(createdAt);
+    var u = new Date(updatedAt);
+    if (isNaN(c.getTime()) || isNaN(u.getTime())) return null;
+    var diffMs = u.getTime() - c.getTime();
+    if (diffMs <= 0) return 0;
+    return Math.round(diffMs / 1000);
+  }
+  function formatResolutionStringWithSeconds(totalSeconds) {
+    if (totalSeconds == null) return null;
+    var seconds = Math.max(0, Math.round(totalSeconds));
+    var hrs = Math.floor(seconds / 3600);
+    var mins = Math.floor((seconds % 3600) / 60);
+    var secs = seconds % 60;
+    var parts = [];
+    if (hrs > 0) parts.push(hrs + ' ' + (hrs === 1 ? 'hr' : 'hrs'));
+    if (mins > 0 || hrs > 0) parts.push(mins + ' ' + (mins === 1 ? 'min' : 'mins'));
+    parts.push(secs + ' ' + (secs === 1 ? 'sec' : 'secs'));
+    return parts.join(' ');
+  }
   function getDurationClass(durationStr, minutes) {
     if (typeof minutes === 'number') {
       if (minutes < 30) return 'green';
@@ -284,14 +337,22 @@ var TMTicketModal = (function () {
   }
   function buildHtml(data) {
     var hideUpdateTab = typeof window !== 'undefined' && window.TM_HIDE_UPDATE_TAB === true;
+    var hideAdminChat = typeof window !== 'undefined' && window.TM_HIDE_ADMIN_CHAT === true;
+    var hideRequesterAdminChatButton = typeof window !== 'undefined' && window.TM_HIDE_REQUESTOR_ADMIN_CHAT_BUTTON === true;
     var statusSlug = data.status ? data.status.toLowerCase().replace(/\s+/g, '') : 'default';
     var prioritySlug = data.priority ? data.priority.toLowerCase() : 'default';
-    var endForTotal = (data && data.status && (/^(Resolved|Closed)$/i).test(String(data.status)) && data.updated_at) ? data.updated_at : new Date();
-    var resMinutesAll = computeResolutionMinutes(data.created_at, endForTotal);
-    var backendStr = data && data.duration && !/^(in progress|not started)$/i.test(String(data.duration)) ? String(data.duration) : null;
-    var displayStr = backendStr || formatResolutionString(resMinutesAll);
-    var cls = getDurationClass(backendStr, resMinutesAll);
-    var isRunning = (endForTotal instanceof Date);
+    var resolutionStart = (data && (data.started_at || data.created_at)) ? (data.started_at || data.created_at) : null;
+    var resolutionEnd = (data && data.status && (/^(Resolved|Closed)$/i).test(String(data.status)))
+      ? (data.resolved_at || data.updated_at || null)
+      : null;
+    var resMinutesAll = computeResolutionMinutes(resolutionStart, resolutionEnd);
+    var resSecondsAll = computeResolutionSeconds(resolutionStart, resolutionEnd);
+    var backendStr = data && data.duration ? String(data.duration) : null;
+    var displayStr = resolutionEnd
+      ? (formatResolutionStringWithSeconds(resSecondsAll) || formatResolutionString(resMinutesAll))
+      : backendStr;
+    var cls = getDurationClass(displayStr, resMinutesAll);
+    var isRunning = !resolutionEnd && !!(data && data.started_at);
     var resBadge = displayStr ? '<span class="tm-duration-badge ' + cls + (isRunning ? ' running' : '') + '">' + escapeHtml(displayStr) + '</span>' : '<span class="tm-duration-badge neutral">-</span>';
     var current = (typeof window !== 'undefined' && window.TM_CURRENT_USER) ? window.TM_CURRENT_USER : null;
     var isRequesterPOV = false;
@@ -356,7 +417,7 @@ var TMTicketModal = (function () {
     var trimmedNoteValue = noteValue.trim();
     var requesterAdminNoteHtml = (isRequesterPOV && trimmedNoteValue !== '')
       ? (
-        '      <div class="tm-card"><div class="tm-card-header"><div class="tm-card-header-actions"><span class="tm-card-title">Admin Notes / Comments</span><button type="button" class="tm-inline-chat-btn" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Chat with Admin</button></div></div><div class="tm-card-body">' +
+        '      <div class="tm-card"><div class="tm-card-header"><div class="tm-card-header-actions"><span class="tm-card-title">Admin Notes / Comments</span>' + (hideRequesterAdminChatButton ? '' : ('<button type="button" class="tm-inline-chat-btn" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Chat with Admin</button>')) + '</div></div><div class="tm-card-body">' +
         '        <div class="tm-requestor-note">' + escapeHtml(noteValue).replace(/\n/g, '<br>') + '</div>' +
         '      </div></div>'
       )
@@ -376,7 +437,7 @@ var TMTicketModal = (function () {
       '<div class="tm-tabs">' +
       '  <div class="tm-tab active" data-tab="info" onclick="TMTicketModal.switchTab(\'info\')">Information</div>' +
       (hideUpdateTab ? '' : '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Update</div>') +
-      '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Go to Chat</div>' +
+      (hideAdminChat ? '' : '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Go to Chat</div>') +
       '</div>' +
       '<div class="tm-body">' +
       '  <div id="tab-info" class="tm-tab-content active">' +
@@ -390,18 +451,18 @@ var TMTicketModal = (function () {
       '        <div class="tm-info-label">ASSIGNED TO</div><div class="tm-info-value">' + (data.assigned_department ? escapeHtml(String(data.assigned_department)) : '-') + (data.assigned_company ? '<br><small class="text-muted">(' + escapeHtml(String(data.assigned_company)) + ')</small>' : '') + '</div>' +
       '      </div></div></div>' +
       '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Ticket Activity</span></div><div class="tm-card-body">' + renderTimeline(data) + '</div></div>' +
+      '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Resolution</span></div><div class="tm-card-body">' +
+      '        <div class="tm-resolution-row">' +
+      '          <div class="tm-res-item"><div class="tm-res-label">Start</div><div class="tm-res-value">' + (resolutionStart ? formatTimelineTime(resolutionStart) : '-') + '</div></div>' +
+      '          <div class="tm-res-item"><div class="tm-res-label">End</div><div class="tm-res-value">' + (resolutionEnd ? formatTimelineTime(resolutionEnd) : 'Pending') + '</div></div>' +
+      '          <div class="tm-res-item"><div class="tm-res-label">Duration</div><div class="tm-res-value"><span class="tm-duration-dot"></span>' + (displayStr ? escapeHtml(displayStr) : '-') + '</div></div>' +
+      '        </div>' +
+      '      </div></div>' +
       '    </div>' +
       '    <div class="tm-desc-col">' +
       '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Description</span></div><div class="tm-card-body"><div class="tm-desc-text">' + escapeHtml(data.description).replace(/\n/g, '<br>') + '</div>' + renderAttachmentsBlock(data) + '</div></div>' +
       '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
       '      ' + ((data.urgency && data.urgency !== '-') ? '<div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Urgency</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.urgency)) + '</div></div></div>' : '') +
-      '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Resolution</span></div><div class="tm-card-body">' +
-      '        <div class="tm-resolution-row">' +
-      '          <div class="tm-res-item"><div class="tm-res-label">Start</div><div class="tm-res-value">' + (data.created_at ? formatTimelineTime(data.created_at) : '-') + '</div></div>' +
-      '          <div class="tm-res-item"><div class="tm-res-label">End</div><div class="tm-res-value">' + ((data.status && (/^(Resolved|Closed)$/i).test(String(data.status)) && data.updated_at) ? formatTimelineTime(data.updated_at) : 'Pending') + '</div></div>' +
-      '          <div class="tm-res-item"><div class="tm-res-label">Duration</div><div class="tm-res-value"><span class="tm-duration-dot"></span>' + (displayStr ? escapeHtml(displayStr) : '-') + '</div></div>' +
-      '        </div>' +
-      '      </div></div>' +
       requesterAdminNoteHtml +
       '    </div>' +
       '  </div>' +
@@ -1574,6 +1635,7 @@ var TMTicketModal = (function () {
     setTimeout(function () { loadConversationsAndMaybeSelect(); }, 0);
   }
   function open(id, options) {
+    ensureTicketModalExists();
     var modal = qs('ticketModal');
     var modalContent = qs('modalContent');
     if (!modal || !modalContent) return;

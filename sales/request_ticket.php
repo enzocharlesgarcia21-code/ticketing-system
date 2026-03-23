@@ -366,13 +366,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
                 }
 
-                $newTicketNotifMsg = "New ticket #$ticket_number from $name was assigned to your group.";
-                notif_insert_admins($conn, $ticket_id, $newTicketNotifMsg, 'new_ticket');
+                $notifDepartmentLabel = $assigned_department !== '' ? $assigned_department : 'the selected department';
+                $notifCompanyLabel = ltrim((string) $assigned_company, '@');
+                $notifTargetLabel = $notifCompanyLabel !== '' ? ($notifDepartmentLabel . ' at ' . $notifCompanyLabel) : $notifDepartmentLabel;
+                $employeeTicketNotifMsg = "New ticket #$ticket_number from $name was assigned to your group.";
+                $adminTicketNotifMsg = "New ticket #$ticket_number from $name was assigned to $notifTargetLabel.";
+                notif_insert_admins($conn, $ticket_id, $adminTicketNotifMsg, 'new_ticket');
 
                 foreach ($assigned_user_ids as $notifyUserId) {
                     $notifyUserId = (int) $notifyUserId;
                     if ($notifyUserId <= 0) continue;
-                    notif_insert_system($conn, $notifyUserId, $ticket_id, $newTicketNotifMsg, 'dept_assigned');
+                    notif_insert_system($conn, $notifyUserId, $ticket_id, $employeeTicketNotifMsg, 'dept_assigned');
                 }
 
                 $adminEmails = [];
@@ -521,16 +525,20 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            width: 68px;
+            height: 68px;
+            flex: 0 0 68px;
         }
         .sales-logo img {
-            height: 56px;
-            width: 56px;
+            height: 100%;
+            width: 100%;
             object-fit: contain;
             background-color: #ffffff;
             padding: 6px;
             border-radius: 50%;
             box-shadow: 0 2px 6px rgba(0,0,0,0.12);
             display: block;
+            box-sizing: border-box;
         }
         .sales-nav-right {
             display: flex;
@@ -593,8 +601,15 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
                 position: static;
                 left: auto;
                 grid-area: logo;
+                width: 52px;
+                height: 52px;
+                flex: 0 0 52px;
             }
-            .sales-logo img { height: 44px; width: 44px; padding: 4px; }
+            .sales-logo img {
+                height: 100%;
+                width: 100%;
+                padding: 4px;
+            }
             .sales-brand { display: contents; }
             .sales-brand-title {
                 grid-area: title;
@@ -958,10 +973,10 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         .ticket-modal.show { opacity: 1; pointer-events: all; }
         .ticket-modal-content {
             background: #ffffff;
-            padding: 22px 22px 18px;
-            border-radius: 18px;
+            padding: 26px 24px 22px;
+            border-radius: 24px;
             text-align: center;
-            width: 360px;
+            width: 392px;
             max-width: calc(100vw - 40px);
             animation: popIn 0.3s ease;
             border: 1px solid rgba(27, 94, 32, 0.18);
@@ -997,26 +1012,52 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             border-color: #fecaca;
             color: #991b1b;
         }
-        .ticket-modal-spinner {
-            width: 56px;
-            height: 56px;
+        .ticket-modal-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 8px;
+            padding: 7px 12px;
             border-radius: 999px;
-            border: 4px solid #e2e8f0;
-            border-top-color: #1B5E20;
-            margin: 8px auto 12px;
-            animation: spin 0.9s linear infinite;
+            background: #ecfdf5;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
         .ticket-modal-content h3 {
             margin: 0 0 8px;
             font-size: 18px;
             color: #0f172a;
         }
         .ticket-modal-content p {
-            margin: 0 0 16px;
+            margin: 0 0 14px;
             color: #64748b;
             font-size: 14px;
             line-height: 1.45;
+        }
+        .ticket-modal-progress {
+            height: 8px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            overflow: hidden;
+            margin: 0 0 10px;
+        }
+        .ticket-modal-progress span {
+            display: block;
+            width: 22%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #1B5E20, #22c55e);
+            transition: width 0.35s ease;
+        }
+        .ticket-modal-status {
+            min-height: 18px;
+            color: #166534;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
         }
         .ticket-modal-actions {
             display: flex;
@@ -1037,10 +1078,10 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         .ticket-modal-content button:hover { background: #144a1e; }
         .ticket-modal[data-state="loading"] .ticket-modal-icon,
         .ticket-modal[data-state="loading"] .ticket-modal-actions { display: none; }
-        .ticket-modal[data-state="success"] .ticket-modal-spinner,
         .ticket-modal[data-state="success"] .ticket-modal-icon.error { display: none; }
-        .ticket-modal[data-state="error"] .ticket-modal-spinner,
         .ticket-modal[data-state="error"] .ticket-modal-icon.success { display: none; }
+        .ticket-modal[data-state="success"] .ticket-modal-progress span { width: 100% !important; }
+        .ticket-modal[data-state="error"] .ticket-modal-progress span { background: linear-gradient(90deg, #ef4444, #f97316); }
         @keyframes popIn {
             from { transform: scale(0.92); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
@@ -1100,7 +1141,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 <header class="sales-topbar">
     <div class="sales-topbar-inner">
         <div class="sales-logo">
-            <img src="../assets/img/UPDATEDlogo.png" alt="Leads Agri Logo">
+            <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo">
         </div>
         <div class="sales-brand">
             <div class="sales-brand-title">Leads Agri Helpdesk</div>
@@ -1124,7 +1165,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
     <?php else: ?>
 
         <?php if($error_msg): ?>
-            <div class="alert alert-error"><?= htmlspecialchars($error_msg, ENT_QUOTES, 'UTF-8'); ?></div>
+            <div class="alert alert-error" id="pageError"><?= htmlspecialchars($error_msg, ENT_QUOTES, 'UTF-8'); ?></div>
         <?php endif; ?>
         <div class="alert alert-error" id="ajaxError" style="display:none;"></div>
 
@@ -1208,11 +1249,13 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 
 <div id="successModal" class="ticket-modal" aria-hidden="true">
     <div class="ticket-modal-content" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
-        <div class="ticket-modal-spinner" id="ticketModalSpinner"></div>
+        <div class="ticket-modal-badge">Secure Submit</div>
         <div class="ticket-modal-icon success" id="ticketModalSuccessIcon">✓</div>
         <div class="ticket-modal-icon error" id="ticketModalErrorIcon">!</div>
         <h3 id="successModalTitle">Submitting Ticket</h3>
-        <p id="successModalDesc">Please wait while we submit your ticket.</p>
+        <p id="successModalDesc">Preparing your request and attachments...</p>
+        <div class="ticket-modal-progress"><span id="ticketModalProgressBar"></span></div>
+        <div class="ticket-modal-status" id="ticketModalStatus">Validating ticket details</div>
         <div class="ticket-modal-actions" id="ticketModalActions">
             <button type="button" id="ticketModalDoneBtn">Done</button>
         </div>
@@ -1476,8 +1519,12 @@ function closeModal(){
     m.setAttribute('data-state', '');
     var t = document.getElementById('successModalTitle');
     var d = document.getElementById('successModalDesc');
+    var s = document.getElementById('ticketModalStatus');
+    var p = document.getElementById('ticketModalProgressBar');
     if (t) t.textContent = 'Submitting Ticket';
-    if (d) d.textContent = 'Please wait while we submit your ticket.';
+    if (d) d.textContent = 'Preparing your request and attachments...';
+    if (s) s.textContent = 'Validating ticket details';
+    if (p) p.style.width = '22%';
 }
 
 (function () {
@@ -1486,7 +1533,54 @@ function closeModal(){
     var ajaxError = document.getElementById('ajaxError');
     var doneBtn = document.getElementById('ticketModalDoneBtn');
     var descriptionField = form ? form.querySelector('textarea[name="description"]') : null;
+    var statusText = document.getElementById('ticketModalStatus');
+    var progressBar = document.getElementById('ticketModalProgressBar');
+    var loadingTimers = [];
+    var successRedirectTimer = null;
     if (!form) return;
+
+    function clearLoadingTimers() {
+        while (loadingTimers.length) {
+            window.clearTimeout(loadingTimers.pop());
+        }
+        if (successRedirectTimer) {
+            window.clearTimeout(successRedirectTimer);
+            successRedirectTimer = null;
+        }
+    }
+
+    function setModalState(state, title, desc, status, progress) {
+        if (!modal) return;
+        modal.setAttribute('data-state', state || '');
+        var t = document.getElementById('successModalTitle');
+        var d = document.getElementById('successModalDesc');
+        if (t && title) t.textContent = title;
+        if (d && desc) d.textContent = desc;
+        if (statusText) statusText.textContent = status || '';
+        if (progressBar && progress != null) progressBar.style.width = String(progress) + '%';
+    }
+
+    function revealErrorBanner(message) {
+        if (!ajaxError) return;
+        ajaxError.textContent = message;
+        ajaxError.style.display = 'block';
+        ajaxError.setAttribute('tabindex', '-1');
+        window.requestAnimationFrame(function () {
+            ajaxError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            try { ajaxError.focus({ preventScroll: true }); } catch (e) {}
+        });
+    }
+
+    function startLoadingSequence() {
+        clearLoadingTimers();
+        setModalState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Validating ticket details', 24);
+        loadingTimers.push(window.setTimeout(function () {
+            setModalState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Creating your ticket record', 68);
+        }, 180));
+        loadingTimers.push(window.setTimeout(function () {
+            setModalState('loading', 'Submitting Ticket', 'Almost there. We are finalizing your request...', 'Finalizing your request', 94);
+        }, 420));
+    }
 
     function validateDescription() {
         if (!descriptionField) return true;
@@ -1505,6 +1599,7 @@ function closeModal(){
             if (!modal) return;
             var state = modal.getAttribute('data-state') || '';
             if (state === 'success') {
+                clearLoadingTimers();
                 window.location.href = '../index.php';
                 return;
             }
@@ -1532,13 +1627,9 @@ function closeModal(){
         if (submitBtn) submitBtn.disabled = true;
 
         if (modal) {
-            modal.setAttribute('data-state', 'loading');
             modal.classList.add('show');
             modal.setAttribute('aria-hidden', 'false');
-            var t = document.getElementById('successModalTitle');
-            var d = document.getElementById('successModalDesc');
-            if (t) t.textContent = 'Submitting Ticket';
-            if (d) d.textContent = 'Please wait while we submit your ticket.';
+            startLoadingSequence();
         }
 
         var formData = new FormData(form);
@@ -1551,28 +1642,21 @@ function closeModal(){
         .then(function (response) { return response.json(); })
         .then(function (data) {
             if (!data || !data.ok) {
+                clearLoadingTimers();
                 var msg = (data && data.error) ? data.error : 'Failed to submit ticket.';
-                if (ajaxError) {
-                    ajaxError.textContent = msg;
-                    ajaxError.style.display = 'block';
-                }
                 if (modal) {
-                    modal.setAttribute('data-state', 'error');
-                    var t = document.getElementById('successModalTitle');
-                    var d = document.getElementById('successModalDesc');
-                    if (t) t.textContent = 'Submission Failed';
-                    if (d) d.textContent = msg;
+                    modal.classList.remove('show');
+                    modal.setAttribute('aria-hidden', 'true');
+                    modal.setAttribute('data-state', '');
                 }
-            if (doneBtn) doneBtn.textContent = 'Close';
+                revealErrorBanner(msg);
+                if (doneBtn) doneBtn.textContent = 'Close';
                 return;
             }
 
             if (modal) {
-                modal.setAttribute('data-state', 'success');
-                var t = document.getElementById('successModalTitle');
-                var d = document.getElementById('successModalDesc');
-                if (t) t.textContent = 'Ticket Submitted';
-                if (d) d.textContent = 'Your ticket has been successfully created.';
+                clearLoadingTimers();
+                setModalState('success', 'Ticket Submitted', 'Your ticket has been successfully created.', 'Redirecting you back', 100);
             }
         if (doneBtn) doneBtn.textContent = 'Done';
             form.reset();
@@ -1581,24 +1665,33 @@ function closeModal(){
                 if (typeof syncFiles === 'function') syncFiles();
                 if (typeof showError === 'function') showError('');
             }
+            successRedirectTimer = window.setTimeout(function () {
+                window.location.href = '../index.php';
+            }, 180);
         })
         .catch(function () {
-            if (ajaxError) {
-                ajaxError.textContent = 'Failed to submit ticket.';
-                ajaxError.style.display = 'block';
-            }
+            clearLoadingTimers();
             if (modal) {
-                modal.setAttribute('data-state', 'error');
-                var t = document.getElementById('successModalTitle');
-                var d = document.getElementById('successModalDesc');
-                if (t) t.textContent = 'Submission Failed';
-                if (d) d.textContent = 'Failed to submit ticket.';
+                modal.classList.remove('show');
+                modal.setAttribute('aria-hidden', 'true');
+                modal.setAttribute('data-state', '');
             }
+            revealErrorBanner('Failed to submit ticket.');
             if (doneBtn) doneBtn.textContent = 'Close';
         })
         .finally(function () {
             if (submitBtn) submitBtn.disabled = false;
         });
+    });
+})();
+</script>
+
+<script>
+(function () {
+    var pageError = document.getElementById('pageError');
+    if (!pageError) return;
+    window.requestAnimationFrame(function () {
+        pageError.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
 })();
 </script>

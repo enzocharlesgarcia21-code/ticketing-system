@@ -120,7 +120,8 @@ $companyAliasCond = count($companyAliases) > 0
     ? ("(" . implode(" OR ", array_fill(0, count($companyAliases), "$companyCol = ?")) . ")")
     : "(1=0)";
 $companyCond = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND $companyAliasCond))";
-$groupCond = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), t.department) = ?";
+$taskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), NULLIF(t.assigned_department, ''), NULLIF(t.department, ''), NULLIF(u.department, ''))";
+$groupCond = "$taskDeptExpr = ?";
 
 $where[] = "((t.assigned_user_id = ? AND t.user_id <> ?) OR (t.user_id <> ? AND $groupCond AND $companyCond))";
 $params[] = $user_id;
@@ -158,7 +159,7 @@ if ($search !== '') {
 }
 
 if ($department !== '') {
-    $where[] = "COALESCE(NULLIF(t.department, ''), NULLIF(u.department, '')) = ?";
+    $where[] = "$taskDeptExpr = ?";
     $params[] = $department;
     $types .= "s";
 }
@@ -169,7 +170,8 @@ if ($status !== '') {
     $types .= "s";
 }
 
-$sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department
+$sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department,
+               $taskDeptExpr AS task_department
         FROM employee_tickets t 
         JOIN users u ON t.user_id = u.id";
 $countSql = "SELECT COUNT(*) as total 
@@ -248,7 +250,7 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '<td class="task-ticket-id">#' . str_pad((string) $row['id'], 6, '0', STR_PAD_LEFT) . '</td>';
         $rowsHtml .= '<td class="subject-cell task-ticket-category"><strong>' . h((string) $row['category']) . '</strong></td>';
         $rowsHtml .= '<td class="task-ticket-requester"><div class="user-info"><strong>' . h((string) $dispName) . '</strong><br><small>' . h((string) $dispEmail) . '</small></div></td>';
-        $rowsHtml .= '<td class="task-ticket-department">' . h((string) (!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales'))) . '</td>';
+        $rowsHtml .= '<td class="task-ticket-department">' . h((string) (!empty($row['task_department']) ? $row['task_department'] : (!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales')))) . '</td>';
         $rowsHtml .= '<td class="task-ticket-status"><span class="status-' . strtolower(str_replace(' ', '-', (string) $row['status'])) . '">' . h((string) $row['status']) . '</span></td>';
         $rowsHtml .= '<td class="task-ticket-date">' . h(date("M d, Y", strtotime((string) $row['created_at']))) . '</td>';
         $rowsHtml .= '<td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>';

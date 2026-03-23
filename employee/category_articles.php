@@ -40,6 +40,25 @@ function kb_category_label(string $category): string
     return $normalized !== '' ? $normalized : 'Documentation';
 }
 
+function kb_category_aliases(string $category): array
+{
+    $category = kb_category_label($category);
+    $map = [
+        'Documentation' => ['Documentation'],
+        'Email' => ['Email', 'Email Problem'],
+        'Hardware' => ['Hardware', 'Hardware Issue', 'Hardware Issues'],
+        'Internet Concerns' => ['Internet Concerns', 'Network', 'Network Issue', 'Network Issues'],
+        'Procurement' => ['Procurement'],
+        'Software' => ['Software', 'Software Issue', 'Software Issues'],
+        'Technical Support' => ['Technical Support'],
+    ];
+
+    $aliases = $map[$category] ?? [$category];
+    return array_values(array_unique(array_filter(array_map('trim', $aliases), static function ($value) {
+        return $value !== '';
+    })));
+}
+
 function kb_category_icon_class(string $category): string
 {
     $key = strtolower(kb_normalize_category_name($category));
@@ -83,9 +102,11 @@ if ($category === '' || !in_array($category, $fixedCategories, true)) {
 }
 
 $articles = [];
-$query = "SELECT * FROM knowledge_base WHERE category = ?";
-$params = [$category];
-$types = 's';
+$categoryAliases = kb_category_aliases($category);
+$placeholders = implode(',', array_fill(0, count($categoryAliases), '?'));
+$query = "SELECT * FROM knowledge_base WHERE category IN ($placeholders)";
+$params = $categoryAliases;
+$types = str_repeat('s', count($categoryAliases));
 
 if ($search !== '') {
     $query .= " AND (title LIKE ? OR content LIKE ?)";

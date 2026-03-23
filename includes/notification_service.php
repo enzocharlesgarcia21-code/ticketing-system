@@ -198,3 +198,39 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
     $bodyText = "Leads Agri Helpdesk\n$title\n\n" . $lineText . "\n$ctaLabel: $ctaUrl\n";
     return ['html' => $bodyHtml, 'text' => $bodyText];
 }
+
+function notif_message_highlight_html(string $message): string
+{
+    $escaped = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+    if ($escaped === '') {
+        return '';
+    }
+
+    return (string) preg_replace_callback(
+        '/\b(in progress|reassigned|assigned|resolved|closed|open)\b/i',
+        static function (array $matches): string {
+            $token = strtolower(preg_replace('/\s+/', ' ', trim((string) ($matches[1] ?? ''))));
+            $class = 'notif-keyword-generic';
+
+            switch ($token) {
+                case 'resolved':
+                case 'closed':
+                    $class = 'notif-keyword-success';
+                    break;
+                case 'in progress':
+                case 'open':
+                    $class = 'notif-keyword-info';
+                    break;
+                case 'assigned':
+                    $class = 'notif-keyword-assign';
+                    break;
+                case 'reassigned':
+                    $class = 'notif-keyword-reassign';
+                    break;
+            }
+
+            return '<span class="notif-keyword ' . $class . '">' . $matches[0] . '</span>';
+        },
+        $escaped
+    );
+}

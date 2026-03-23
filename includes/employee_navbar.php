@@ -242,6 +242,43 @@ window.TM_CSRF_TOKEN = <?php echo json_encode($csrfToken, JSON_HEX_TAG | JSON_HE
     margin-bottom: 6px;
 }
 
+.notif-keyword {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.08rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.83em;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0 0.08rem;
+    vertical-align: baseline;
+}
+
+.notif-keyword-success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.notif-keyword-info {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.notif-keyword-assign {
+    background: #e0f2fe;
+    color: #0284c7;
+}
+
+.notif-keyword-reassign {
+    background: #f3e8ff;
+    color: #7e22ce;
+}
+
+.notif-keyword-generic {
+    background: #e2e8f0;
+    color: #475569;
+}
+
 .notif-time {
     font-size: 0.8rem;
     color: #94a3b8;
@@ -505,7 +542,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="notif-item ${n.is_read == 0 ? 'unread' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${n.type || ''}')">
                                 <div class="notif-icon ${iconTypeClass}"><i class="fas ${iconClass}"></i></div>
                                 <div class="notif-content">
-                                    <div class="notif-msg">${priorityLabel}${escapeHtml(n.message)}</div>
+                                    <div class="notif-msg">${priorityLabel}${highlightNotificationMessage(n.message)}</div>
                                     <time class="notif-time" data-timestamp="${n.created_at}">${n.time_ago || ''}</time>
                                 </div>
                             </div>
@@ -527,6 +564,24 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+    }
+
+    function highlightNotificationMessage(text) {
+        const safe = escapeHtml(text);
+        return safe.replace(/\b(in progress|reassigned|assigned|resolved|closed|open)\b/gi, (match) => {
+            const token = match.toLowerCase().replace(/\s+/g, ' ').trim();
+            let className = 'notif-keyword-generic';
+            if (token === 'resolved' || token === 'closed') {
+                className = 'notif-keyword-success';
+            } else if (token === 'in progress' || token === 'open') {
+                className = 'notif-keyword-info';
+            } else if (token === 'assigned') {
+                className = 'notif-keyword-assign';
+            } else if (token === 'reassigned') {
+                className = 'notif-keyword-reassign';
+            }
+            return `<span class="notif-keyword ${className}">${match}</span>`;
+        });
     }
 
     // Mark as Read & Redirect

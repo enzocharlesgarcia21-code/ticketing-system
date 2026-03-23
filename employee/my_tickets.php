@@ -37,6 +37,9 @@ unset($_SESSION['success']);
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
+        body.tm-hide-requestor-admin-chat .tm-inline-chat-btn {
+            display: none !important;
+        }
         .ticket-success-overlay {
             position: fixed;
             inset: 0;
@@ -116,6 +119,7 @@ unset($_SESSION['success']);
     </style>
 </head>
 <body>
+    <script>document.body.classList.add('tm-hide-requestor-admin-chat');</script>
 
     <?php include '../includes/employee_navbar.php'; ?>
 
@@ -217,6 +221,7 @@ unset($_SESSION['success']);
         'role' => $_SESSION['role'] ?? null
     ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     window.TM_HIDE_UPDATE_TAB = true;
+    window.TM_HIDE_REQUESTOR_ADMIN_CHAT_BUTTON = true;
     </script>
     <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
     <script>

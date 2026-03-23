@@ -88,6 +88,15 @@ if ($user_email === '') {
     if ($user_email !== '') $_SESSION['email'] = $user_email;
 }
 
+$flashError = isset($_SESSION['error']) ? trim((string) $_SESSION['error']) : '';
+if ($flashError !== '') {
+    unset($_SESSION['error']);
+}
+$flashErrorTitle = 'Update Failed';
+if ($flashError !== '' && stripos($flashError, 'No assignee available') !== false) {
+    $flashErrorTitle = 'No Assignee Available';
+}
+
 /* ================= GET VALUES ================= */
 
 $search = $_GET['search'] ?? '';
@@ -126,7 +135,8 @@ $companyAliasCond = count($companyAliases) > 0
     ? ("(" . implode(" OR ", array_fill(0, count($companyAliases), "$companyCol = ?")) . ")")
     : "(1=0)";
 $companyCond = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND $companyAliasCond))";
-$groupCond = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), t.department) = ?";
+$taskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), NULLIF(t.assigned_department, ''), NULLIF(t.department, ''), NULLIF(u.department, ''))";
+$groupCond = "$taskDeptExpr = ?";
 
 $where[] = "((t.assigned_user_id = ? AND t.user_id <> ?) OR (t.user_id <> ? AND $groupCond AND $companyCond))";
 $params[] = (int) $user_id;
@@ -176,7 +186,7 @@ if (!empty($search)) {
 }
 
 if ($department !== '') {
-    $where[] = "COALESCE(NULLIF(t.department, ''), NULLIF(u.department, '')) = ?";
+    $where[] = "$taskDeptExpr = ?";
     $params[] = $department;
     $types .= "s";
 }
@@ -188,7 +198,8 @@ if ($status !== '') {
 }
 
 // Construct SQL
-$sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department
+$sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department,
+               $taskDeptExpr AS task_department
         FROM employee_tickets t 
         JOIN users u ON t.user_id = u.id";
 $countSql = "SELECT COUNT(*) as total 
@@ -417,6 +428,90 @@ $result = $stmt->get_result();
                 display: none;
             }
         }
+
+        .task-flash-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.42);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            padding: 20px;
+        }
+
+        .task-flash-dialog {
+            width: min(100%, 460px);
+            background: #ffffff;
+            border: 1px solid #fecaca;
+            border-radius: 24px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+            overflow: hidden;
+        }
+
+        .task-flash-topbar {
+            height: 6px;
+            background: linear-gradient(90deg, #dc2626, #f97316);
+        }
+
+        .task-flash-body {
+            padding: 30px 30px 26px;
+            text-align: center;
+        }
+
+        .task-flash-icon {
+            width: 78px;
+            height: 78px;
+            margin: 0 auto 18px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff7ed;
+            color: #ea580c;
+            border: 2px solid #fdba74;
+            font-size: 36px;
+            font-weight: 800;
+        }
+
+        .task-flash-title {
+            margin: 0 0 10px;
+            font-size: 30px;
+            line-height: 1.12;
+            font-weight: 800;
+            color: #1f2937;
+        }
+
+        .task-flash-message {
+            margin: 0;
+            font-size: 18px;
+            line-height: 1.55;
+            color: #475569;
+        }
+
+        .task-flash-actions {
+            margin-top: 24px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .task-flash-btn {
+            min-width: 112px;
+            height: 48px;
+            border: none;
+            border-radius: 14px;
+            background: #166534;
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 12px 28px rgba(22, 101, 52, 0.24);
+        }
+
+        .task-flash-btn:hover {
+            background: #14532d;
+        }
     </style>
 </head>
 <body class="employee-my-task-page">
@@ -513,7 +608,7 @@ $result = $stmt->get_result();
                                             <small><?= htmlspecialchars($dispEmail, ENT_QUOTES, 'UTF-8'); ?></small>
                                         </div>
                                     </td>
-                                    <td class="task-ticket-department"><?= htmlspecialchars(!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales'), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td class="task-ticket-department"><?= htmlspecialchars(!empty($row['task_department']) ? $row['task_department'] : (!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales')), ENT_QUOTES, 'UTF-8'); ?></td>
 
                                     <td class="task-ticket-status">
                                         <span class="status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
@@ -588,6 +683,22 @@ $result = $stmt->get_result();
         </div>
     </div>
     
+    <?php if ($flashError !== ''): ?>
+    <div id="taskFlashOverlay" class="task-flash-overlay" role="dialog" aria-modal="true" aria-labelledby="taskFlashTitle">
+        <div class="task-flash-dialog">
+            <div class="task-flash-topbar"></div>
+            <div class="task-flash-body">
+                <div class="task-flash-icon">!</div>
+                <h2 id="taskFlashTitle" class="task-flash-title"><?= htmlspecialchars($flashErrorTitle, ENT_QUOTES, 'UTF-8'); ?></h2>
+                <p class="task-flash-message"><?= htmlspecialchars($flashError, ENT_QUOTES, 'UTF-8'); ?></p>
+                <div class="task-flash-actions">
+                    <button type="button" class="task-flash-btn" id="taskFlashCloseBtn">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <script src="../js/employee-dashboard.js"></script>
     <script>
     window.TM_CURRENT_USER = <?php echo json_encode([
@@ -666,6 +777,27 @@ $result = $stmt->get_result();
         if (tid) {
             TMTicketModal.open(tid);
         }
+
+        (function () {
+            var overlay = document.getElementById('taskFlashOverlay');
+            if (!overlay) return;
+            var closeBtn = document.getElementById('taskFlashCloseBtn');
+            function closeFlash() {
+                overlay.style.display = 'none';
+            }
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeFlash);
+                closeBtn.focus();
+            }
+            overlay.addEventListener('click', function (e) {
+                if (e.target === overlay) closeFlash();
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && overlay.style.display !== 'none') {
+                    closeFlash();
+                }
+            });
+        })();
     </script>
 </body>
 </html>

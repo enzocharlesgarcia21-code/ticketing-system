@@ -148,36 +148,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         // --- INSERT NOTIFICATIONS ---
         if ($old_data) {
-            $notif_user_id = $old_data['user_id'];
-            $notifications = [];
+            $notif_user_id = (int) ($old_data['user_id'] ?? 0);
+            $statusChanged = (string) ($old_data['status'] ?? '') !== (string) $new_status;
+            $oldAssignedDept = ticket_department_key_from_value((string) ($old_data['assigned_department'] ?? ($old_data['assigned_group'] ?? '')));
+            $oldAssignedCompany = ticket_normalize_company((string) ($old_data['assigned_company'] ?? ($old_data['company'] ?? '')));
+            $deptChanged = $oldAssignedDept !== (string) $newDeptNorm;
+            $companyChanged = $oldAssignedCompany !== (string) $newCompanyNorm;
+            $assignmentChanged = $deptChanged || $companyChanged;
+            $noteChanged = !empty($admin_note) && (string) $admin_note !== (string) ($old_data['admin_note'] ?? '');
 
-            // 1. Status Change
-            if ($old_data['status'] !== $new_status) {
-                if ($new_status === 'Closed') {
-                     $notifications[] = [
-                        'msg' => "Your ticket #$id has been closed.",
-                        'type' => 'ticket_closed',
-                        'action_type' => 'close'
-                    ];
-                } else {
-                    $notifications[] = [
-                        'msg' => "Your ticket #$id status was updated to $new_status.",
-                        'type' => 'status_update',
-                        'action_type' => 'update'
-                    ];
-                }
-            }
+            $requesterNotification = null;
 
-            // 2. Department/Company Change
-            $deptChanged = (string) ($old_data['assigned_department'] ?? '') !== (string) $new_department;
-            $companyChanged = (string) ($old_data['assigned_company'] ?? '') !== (string) $effective_company;
-            if ($deptChanged || $companyChanged) {
+            if ($assignmentChanged) {
                 $assignmentActionType = $oldAssignedUserId === 0 ? 'assign' : 'reassign';
-                $requesterAssignmentMsg = $assignmentActionType === 'assign'
-                    ? "Your ticket #$id was assigned to $new_department" . ($effective_company !== '' ? (" at $effective_company") : "") . "."
-                    : "Your ticket #$id was reassigned to $new_department" . ($effective_company !== '' ? (" at $effective_company") : "") . ".";
-                $notifications[] = [
-                    'msg' => $requesterAssignmentMsg,
+                $requesterNotification = [
+                    'msg' => $assignmentActionType === 'assign'
+                        ? "Your ticket #$id was assigned to $new_department" . ($effective_company !== '' ? (" at $effective_company") : "") . "."
+                        : "Your ticket #$id was reassigned to $new_department" . ($effective_company !== '' ? (" at $effective_company") : "") . ".",
                     'type' => 'reassigned',
                     'action_type' => $assignmentActionType
                 ];
@@ -185,28 +172,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 foreach (($assigneeIds ?? []) as $notifyUserId) {
                     $notifyUserId = (int) $notifyUserId;
                     if ($notifyUserId <= 0) continue;
-                    notif_insert_system($conn, $notifyUserId, (int) $id, "New ticket #$id was assigned to your group" . ($effective_company !== '' ? (" ($effective_company)") : "") . ".", 'dept_assigned', 10, $assignmentActionType);
+                    notif_insert_system($conn, $notifyUserId, (int) $id, "New ticket #$id was assigned to your group.", 'dept_assigned', 10, $assignmentActionType);
                 }
-            }
-
-            // 3. Admin Note Added
-            if (!empty($admin_note) && $admin_note !== $old_data['admin_note']) {
-                 $preview = strlen($admin_note) > 50 ? substr($admin_note, 0, 50) . '...' : $admin_note;
-                 $notifications[] = [
+            } elseif ($statusChanged) {
+                $requesterNotification = $new_status === 'Closed'
+                    ? [
+                        'msg' => "Your ticket #$id has been closed.",
+                        'type' => 'ticket_closed',
+                        'action_type' => 'close'
+                    ]
+                    : [
+                        'msg' => "Your ticket #$id status was updated to $new_status.",
+                        'type' => 'status_update',
+                        'action_type' => 'update'
+                    ];
+            } elseif ($noteChanged) {
+                $preview = strlen($admin_note) > 50 ? substr($admin_note, 0, 50) . '...' : $admin_note;
+                $requesterNotification = [
                     'msg' => "Admin added a note to ticket #$id: '$preview'",
                     'type' => 'note_added',
                     'action_type' => 'update'
                 ];
             }
 
-            if (!empty($notifications)) {
-                $ins_notif = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type, action_type) VALUES (?, ?, ?, ?, ?)");
-                foreach ($notifications as $n) {
-                    $actionType = (string) ($n['action_type'] ?? notif_normalize_action_type('', (string) ($n['type'] ?? '')));
-                    $ins_notif->bind_param("iisss", $notif_user_id, $id, $n['msg'], $n['type'], $actionType);
-                    $ins_notif->execute();
-                }
-                $ins_notif->close();
+            if ($notif_user_id > 0 && is_array($requesterNotification)) {
+                notif_insert_system(
+                    $conn,
+                    $notif_user_id,
+                    (int) $id,
+                    (string) $requesterNotification['msg'],
+                    (string) $requesterNotification['type'],
+                    15,
+                    (string) $requesterNotification['action_type']
+                );
             }
         }
 

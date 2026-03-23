@@ -245,7 +245,7 @@ unset($recent_articles_query['recent_page']);
     <style>
         body {
             background-image:
-                linear-gradient(rgba(246, 242, 255, 0.78), rgba(245, 249, 255, 0.88)),
+                linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.16)),
                 url('../assets/img/kbkb.jpg');
             background-repeat: no-repeat;
             background-position: center top;
