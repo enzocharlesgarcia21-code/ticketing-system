@@ -18,6 +18,43 @@ $fixedCategories = [
     'Technical Support',
 ];
 
+function kb_category_label_ajax(string $category): string
+{
+    $category = trim($category);
+    $category = preg_replace('/\s+Issues?$/i', '', $category);
+    $category = preg_replace('/\s+Issue$/i', '', $category);
+    $category = preg_replace('/\s+Problem$/i', '', $category);
+    $normalized = trim((string) $category);
+    $key = strtolower($normalized);
+    if ($key === 'documentation') return 'Documentation';
+    if ($key === 'email') return 'Email';
+    if ($key === 'internet concerns' || $key === 'network') return 'Internet Concerns';
+    if ($key === 'software') return 'Software';
+    if ($key === 'hardware') return 'Hardware';
+    if ($key === 'procurement') return 'Procurement';
+    if ($key === 'technical support') return 'Technical Support';
+    return $normalized !== '' ? $normalized : 'Documentation';
+}
+
+function kb_category_aliases_ajax(string $category): array
+{
+    $category = kb_category_label_ajax($category);
+    $map = [
+        'Documentation' => ['Documentation'],
+        'Email' => ['Email', 'Email Problem'],
+        'Hardware' => ['Hardware', 'Hardware Issue', 'Hardware Issues'],
+        'Internet Concerns' => ['Internet Concerns', 'Network', 'Network Issue', 'Network Issues'],
+        'Procurement' => ['Procurement'],
+        'Software' => ['Software', 'Software Issue', 'Software Issues'],
+        'Technical Support' => ['Technical Support'],
+    ];
+
+    $aliases = $map[$category] ?? [$category];
+    return array_values(array_unique(array_filter(array_map('trim', $aliases), static function ($value) {
+        return $value !== '';
+    })));
+}
+
 function kb_category_icon_class_ajax(string $category): string
 {
     $key = strtolower(trim($category));
@@ -62,9 +99,11 @@ if ($category === '' || !in_array($category, $fixedCategories, true)) {
 }
 
 $articles = [];
-$query = "SELECT * FROM knowledge_base WHERE visible_to_sales = 1 AND category = ?";
-$params = [$category];
-$types = 's';
+$categoryAliases = kb_category_aliases_ajax($category);
+$placeholders = implode(',', array_fill(0, count($categoryAliases), '?'));
+$query = "SELECT * FROM knowledge_base WHERE visible_to_sales = 1 AND category IN ($placeholders)";
+$params = $categoryAliases;
+$types = str_repeat('s', count($categoryAliases));
 
 if ($search !== '') {
     $query .= " AND (title LIKE ? OR content LIKE ?)";

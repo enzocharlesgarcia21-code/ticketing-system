@@ -355,13 +355,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    $newTicketNotifMsg = "New ticket #$ticket_number from $user_name was assigned to your group.";
+    $notifDepartmentLabel = $assigned_department !== '' ? $assigned_department : 'the selected department';
+    $notifCompanyLabel = ltrim((string) $assigned_company, '@');
+    $notifTargetLabel = $notifCompanyLabel !== '' ? ($notifDepartmentLabel . ' at ' . $notifCompanyLabel) : $notifDepartmentLabel;
+    $employeeTicketNotifMsg = "New ticket #$ticket_number from $user_name was assigned to your group.";
+    $adminTicketNotifMsg = "New ticket #$ticket_number from $user_name was assigned to $notifTargetLabel.";
     foreach ($assigned_user_ids as $notifyUserId) {
         $notifyUserId = (int) $notifyUserId;
         if ($notifyUserId <= 0 || $notifyUserId === (int) $user_id) continue;
-        notif_insert_system($conn, $notifyUserId, (int) $ticket_id, $newTicketNotifMsg, 'dept_assigned');
+        notif_insert_system($conn, $notifyUserId, (int) $ticket_id, $employeeTicketNotifMsg, 'dept_assigned');
     }
-    notif_insert_admins($conn, (int) $ticket_id, $newTicketNotifMsg, 'new_ticket');
+    notif_insert_admins($conn, (int) $ticket_id, $adminTicketNotifMsg, 'new_ticket');
 
     $ticketDetails = null;
     $ticketStmt = $conn->prepare("
@@ -557,11 +561,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             display: flex;
         }
         body.employee-request-ticket-page .ticket-loading-card {
-            width: 360px;
+            width: 392px;
             max-width: calc(100vw - 40px);
             background: #ffffff;
-            border-radius: 18px;
-            padding: 24px 22px 20px;
+            border-radius: 24px;
+            padding: 26px 24px 22px;
             text-align: center;
             border: 1px solid rgba(27, 94, 32, 0.18);
             box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22);
@@ -575,15 +579,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             height: 6px;
             background: linear-gradient(90deg, #1B5E20, #144a1e);
         }
-        body.employee-request-ticket-page .ticket-loading-spinner {
-            width: 56px;
-            height: 56px;
-            margin: 10px auto 14px;
-            border-radius: 999px;
-            border: 4px solid #e2e8f0;
-            border-top-color: #1B5E20;
-            animation: employeeTicketSpin 0.9s linear infinite;
-        }
         body.employee-request-ticket-page .ticket-loading-title {
             margin: 0 0 8px;
             font-size: 18px;
@@ -591,13 +586,46 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             color: #0f172a;
         }
         body.employee-request-ticket-page .ticket-loading-text {
-            margin: 0;
+            margin: 0 0 14px;
             color: #64748b;
             font-size: 14px;
             line-height: 1.45;
         }
-        @keyframes employeeTicketSpin {
-            to { transform: rotate(360deg); }
+        body.employee-request-ticket-page .ticket-loading-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 8px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: #ecfdf5;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+        }
+        body.employee-request-ticket-page .ticket-loading-progress {
+            height: 8px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            overflow: hidden;
+            margin: 0 0 10px;
+        }
+        body.employee-request-ticket-page .ticket-loading-progress span {
+            display: block;
+            width: 22%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #1B5E20, #22c55e);
+            transition: width 0.35s ease;
+        }
+        body.employee-request-ticket-page .ticket-loading-status {
+            min-height: 18px;
+            color: #166534;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
         }
         @media (max-width: 768px) {
             body.employee-request-ticket-page .dashboard-container {
@@ -714,7 +742,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <div class="dashboard-container">
         <div class="content-wrapper">
             <?php if(isset($_SESSION['error'])): ?>
-                <div class="alert alert-error" style="background:#fee2e2;color:#991b1b;padding:15px;border-radius:8px;margin-bottom:20px;border:1px solid #fecaca;font-weight:700;">
+                <div class="alert alert-error" id="pageError" style="background:#fee2e2;color:#991b1b;padding:15px;border-radius:8px;margin-bottom:20px;border:1px solid #fecaca;font-weight:700;">
                     <?= htmlspecialchars($_SESSION['error'], ENT_QUOTES, 'UTF-8'); ?>
                 </div>
                 <?php unset($_SESSION['error']); ?>
@@ -817,9 +845,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <div id="ticketLoadingOverlay" class="ticket-loading-overlay" aria-hidden="true">
         <div class="ticket-loading-card" role="status" aria-live="polite" aria-busy="true">
-            <div class="ticket-loading-spinner"></div>
+            <div class="ticket-loading-badge">Secure Submit</div>
             <h3 class="ticket-loading-title">Submitting Ticket</h3>
-            <p class="ticket-loading-text">Please wait while we submit your ticket.</p>
+            <p class="ticket-loading-text">Preparing your request and attachments...</p>
+            <div class="ticket-loading-progress"><span id="ticketLoadingProgressBar"></span></div>
+            <div class="ticket-loading-status" id="ticketLoadingStatus">Validating ticket details</div>
         </div>
     </div>
 
@@ -1113,7 +1143,54 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         var form = document.getElementById('ticketForm');
         var ajaxError = document.getElementById('ajaxError');
         var loadingOverlay = document.getElementById('ticketLoadingOverlay');
+        var loadingTitle = document.querySelector('.ticket-loading-title');
+        var loadingText = document.querySelector('.ticket-loading-text');
+        var loadingStatus = document.getElementById('ticketLoadingStatus');
+        var loadingProgress = document.getElementById('ticketLoadingProgressBar');
+        var loadingTimers = [];
+        var successRedirectTimer = null;
         if (!form) return;
+
+        function revealErrorBanner(message) {
+            if (!ajaxError) return;
+            ajaxError.textContent = message;
+            ajaxError.style.display = 'block';
+            ajaxError.setAttribute('tabindex', '-1');
+            window.requestAnimationFrame(function () {
+                ajaxError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                try { ajaxError.focus({ preventScroll: true }); } catch (e) {}
+            });
+        }
+
+        function clearLoadingTimers() {
+            while (loadingTimers.length) {
+                window.clearTimeout(loadingTimers.pop());
+            }
+            if (successRedirectTimer) {
+                window.clearTimeout(successRedirectTimer);
+                successRedirectTimer = null;
+            }
+        }
+
+        function setLoadingState(state, title, text, status, progress) {
+            if (!loadingOverlay) return;
+            loadingOverlay.setAttribute('data-state', state || '');
+            if (loadingTitle && title) loadingTitle.textContent = title;
+            if (loadingText && text) loadingText.textContent = text;
+            if (loadingStatus) loadingStatus.textContent = status || '';
+            if (loadingProgress && progress != null) loadingProgress.style.width = String(progress) + '%';
+        }
+
+        function startLoadingSequence() {
+            clearLoadingTimers();
+            setLoadingState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Validating ticket details', 24);
+            loadingTimers.push(window.setTimeout(function () {
+                setLoadingState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Creating your ticket record', 68);
+            }, 180));
+            loadingTimers.push(window.setTimeout(function () {
+                setLoadingState('loading', 'Submitting Ticket', 'Almost there. We are finalizing your request...', 'Finalizing your request', 94);
+            }, 420));
+        }
 
         form.addEventListener('submit', function(e) {
             if (e.defaultPrevented) return;
@@ -1125,6 +1202,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if (loadingOverlay) {
                 loadingOverlay.classList.add('show');
                 loadingOverlay.setAttribute('aria-hidden', 'false');
+                startLoadingSequence();
             }
 
             var formData = new FormData(form);
@@ -1137,34 +1215,44 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             .then(function (response) { return response.json(); })
             .then(function (data) {
                 if (!data || !data.ok) {
+                    clearLoadingTimers();
                     var msg = (data && data.error) ? data.error : 'Failed to submit ticket.';
-                    if (ajaxError) {
-                        ajaxError.textContent = msg;
-                        ajaxError.style.display = 'block';
-                    }
                     if (loadingOverlay) {
                         loadingOverlay.classList.remove('show');
                         loadingOverlay.setAttribute('aria-hidden', 'true');
+                        loadingOverlay.setAttribute('data-state', '');
                     }
+                    revealErrorBanner(msg);
                     return;
                 }
                 form.reset();
                 if (typeof window.TMEmployeeResetAttachments === 'function') window.TMEmployeeResetAttachments();
-                window.location.href = 'my_tickets.php';
+                clearLoadingTimers();
+                setLoadingState('success', 'Ticket Submitted', 'Your ticket has been created successfully.', 'Redirecting to your tickets', 100);
+                successRedirectTimer = window.setTimeout(function () {
+                    window.location.href = 'my_tickets.php';
+                }, 120);
             })
             .catch(function () {
-                if (ajaxError) {
-                    ajaxError.textContent = 'Failed to submit ticket.';
-                    ajaxError.style.display = 'block';
-                }
+                clearLoadingTimers();
                 if (loadingOverlay) {
                     loadingOverlay.classList.remove('show');
                     loadingOverlay.setAttribute('aria-hidden', 'true');
+                    loadingOverlay.setAttribute('data-state', '');
                 }
+                revealErrorBanner('Failed to submit ticket.');
             })
             .finally(function () {
                 if (submitBtn) submitBtn.disabled = false;
             });
+        });
+    })();
+
+    (function () {
+        var pageError = document.getElementById('pageError');
+        if (!pageError) return;
+        window.requestAnimationFrame(function () {
+            pageError.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
     })();
     </script>

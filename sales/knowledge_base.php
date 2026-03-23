@@ -214,17 +214,21 @@ $showHomeSections = ($search === '');
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            width: 68px;
+            height: 68px;
+            flex: 0 0 68px;
         }
 
         .sales-logo img {
-            height: 56px;
-            width: 56px;
+            height: 100%;
+            width: 100%;
             object-fit: contain;
             background-color: #ffffff;
             padding: 6px;
             border-radius: 50%;
             box-shadow: 0 2px 6px rgba(0,0,0,0.12);
             display: block;
+            box-sizing: border-box;
         }
 
         .sales-brand {
@@ -724,11 +728,14 @@ $showHomeSections = ($search === '');
                 position: static;
                 left: auto;
                 grid-area: logo;
+                width: 52px;
+                height: 52px;
+                flex: 0 0 52px;
             }
 
             .sales-logo img {
-                height: 44px;
-                width: 44px;
+                height: 100%;
+                width: 100%;
                 padding: 4px;
             }
 
@@ -814,7 +821,7 @@ $showHomeSections = ($search === '');
     <header class="sales-topbar">
         <div class="sales-topbar-inner">
             <div class="sales-logo">
-                <img src="../assets/img/UPDATEDlogo.png" alt="Leads Agri Logo">
+                <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo">
             </div>
             <div class="sales-brand">
                 <div class="sales-brand-title">Leads Agri Helpdesk</div>

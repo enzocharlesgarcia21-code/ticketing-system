@@ -67,10 +67,10 @@
         }
 
         .auth-card {
-            width: 75%;
-            max-width: 450px;
-            min-height: 450px;
-            padding: 52px 48px 50px;
+            width: min(100%, 520px);
+            max-width: 520px;
+            height: 500px;
+            padding: 34px 48px 46px;
             border-radius: 28px;
             background: rgba(255, 255, 255, 0.88);
             border: 1px solid rgba(255, 255, 255, 0.72);
@@ -103,11 +103,37 @@
         }
 
         .auth-card .card-title {
-            margin: 0 0 8px 0;
-            font-size: 32px;
-            letter-spacing: -0.02em;
-            line-height: 1.15;
+            margin: 0 0 10px 0;
+            line-height: 1.12;
             color: #14532d;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .auth-card .card-title-top {
+            display: block;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .auth-card .welcome-logo {
+            width: 92px;
+            height: 92px;
+            object-fit: contain;
+            display: block;
+            margin: -12px auto 18px;
+        }
+
+        .auth-card .card-title-main {
+            display: block;
+            font-size: 30px;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            text-transform: uppercase;
         }
 
         .auth-card .subtitle {
@@ -233,8 +259,22 @@
 
             .auth-title,
             .auth-card .card-title {
+                gap: 6px;
+                line-height: 1.2;
+            }
+
+            .auth-card .card-title-top {
+                font-size: 16px;
+            }
+
+            .auth-card .card-title-main {
                 font-size: 24px;
-                line-height: 1.3;
+            }
+
+            .auth-card .welcome-logo {
+                width: 76px;
+                height: 76px;
+                margin: 10px auto 14px;
             }
 
             .auth-subtitle,
@@ -270,7 +310,11 @@
 
     <section class="auth-split-right" aria-label="Role selection">
         <div class="auth-card">
-            <h1 class="card-title">Welcome to Leads Agri Helpdesk</h1>
+            <img src="assets/img/leads-logo.png" alt="Leads Agri Logo" class="welcome-logo">
+            <h1 class="card-title">
+                <span class="card-title-top">Welcome To</span>
+                <span class="card-title-main">Leads Agri Helpdesk</span>
+            </h1>
             <p class="subtitle">Choose a portal to continue</p>
 
             <div class="auth-buttons portal-buttons">

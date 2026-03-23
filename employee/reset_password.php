@@ -54,6 +54,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reset Password - Employee</title>
 <link rel="stylesheet" href="../css/employee-login.css?v=<?php echo time(); ?>">
+<link rel="stylesheet" href="../css/password-toggle.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -74,9 +75,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <?php echo csrf_field(); ?>
             <div class="form-group">
                 <label>New Password</label>
-                <div class="input-shell">
+                <div class="input-shell password-wrapper">
                     <span class="input-icon"><i class="fas fa-lock"></i></span>
-                    <input type="password" name="password" id="password" required placeholder="Enter your new password">
+                    <input type="password" name="password" id="password" class="password-input" required placeholder="Enter your new password">
+                    <button type="button" class="toggle-password" aria-label="Show or hide password">
+                        <span class="eye-icon" aria-hidden="true"></span>
+                    </button>
                 </div>
                 
                 <div id="password-validation" class="password-validation">
@@ -93,9 +97,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             <div class="form-group">
                 <label>Confirm Password</label>
-                <div class="input-shell">
+                <div class="input-shell password-wrapper">
                     <span class="input-icon"><i class="fas fa-shield-halved"></i></span>
-                    <input type="password" name="confirm_password" required placeholder="Confirm your new password">
+                    <input type="password" name="confirm_password" class="password-input" required placeholder="Confirm your new password">
+                    <button type="button" class="toggle-password" aria-label="Show or hide password">
+                        <span class="eye-icon" aria-hidden="true"></span>
+                    </button>
                 </div>
             </div>
 
@@ -157,6 +164,7 @@ document.addEventListener('DOMContentLoaded', function() {
     passwordInput.addEventListener('input', validatePassword);
 });
 </script>
+<script src="../js/password-toggle.js"></script>
 
 </body>
 </html>

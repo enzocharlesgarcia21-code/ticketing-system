@@ -169,6 +169,37 @@ function time_elapsed_string($datetime, $full = false) {
             color: #334155;
             margin-bottom: 4px;
         }
+        .notif-keyword {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.08rem 0.45rem;
+            border-radius: 999px;
+            font-size: 0.83em;
+            font-weight: 700;
+            line-height: 1.2;
+            margin: 0 0.08rem;
+            vertical-align: baseline;
+        }
+        .notif-keyword-success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .notif-keyword-info {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        .notif-keyword-assign {
+            background: #e0f2fe;
+            color: #0284c7;
+        }
+        .notif-keyword-reassign {
+            background: #f3e8ff;
+            color: #7e22ce;
+        }
+        .notif-keyword-generic {
+            background: #e2e8f0;
+            color: #475569;
+        }
         .notif-date {
             font-size: 0.8rem;
             color: #94a3b8;
@@ -282,7 +313,7 @@ function time_elapsed_string($datetime, $full = false) {
                                  onclick="markAsRead(<?= (int) $row['id'] ?>, <?= json_encode($ticketIdJs) ?>)">
                                 <div class="notif-icon <?= htmlspecialchars($iconTypeClass, ENT_QUOTES, 'UTF-8') ?>"><i class="fas <?= htmlspecialchars($iconClass, ENT_QUOTES, 'UTF-8') ?>"></i></div>
                                 <div class="notif-content">
-                                    <div class="notif-text"><?= $priorityLabel ?><?= htmlspecialchars((string) $row['message'], ENT_QUOTES, 'UTF-8') ?></div>
+                                    <div class="notif-text"><?= $priorityLabel ?><?= notif_message_highlight_html((string) $row['message']) ?></div>
                                     <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
                                 </div>
                                 <?php if($row['is_read'] == 0): ?>
