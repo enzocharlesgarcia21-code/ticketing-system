@@ -104,16 +104,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <!DOCTYPE html>
 <html>
 <head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Verify OTP</title>
-<link rel="stylesheet" href="../css/employee-dashboard.css">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/employee-login.css?v=<?php echo time(); ?>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
-<div class="login-container">
+<div class="auth-wrapper auth-container login-container">
+<section class="auth-split-left" aria-hidden="true"></section>
+<section class="auth-split-right" aria-label="Verify OTP">
 <div class="login-card">
 
+<a href="register.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
+
 <h2>Email Verification</h2>
+<p class="auth-note">Enter the 6-digit OTP sent to <strong><?php echo htmlspecialchars($email, ENT_QUOTES, 'UTF-8'); ?></strong></p>
 
 <?php if(isset($error)) echo "<div class='error'>$error</div>"; ?>
 <?php if(isset($success)) echo "<div class='success' style='background:#dcfce7;color:#166534;padding:12px 14px;border-radius:10px;font-weight:700;margin-bottom:12px;'>$success</div>"; ?>
@@ -136,10 +143,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <form method="POST" style="margin-top: 12px;">
     <?php echo csrf_field(); ?>
     <input type="hidden" name="resend" value="1">
-    <button type="submit" style="width:100%; background:#1B5E20; color:#fff; border:none; padding:12px 14px; border-radius:10px; font-weight:800; cursor:pointer;">Resend OTP</button>
+<button type="submit" style="width:100%; background:#1B5E20; color:#fff; border:none; padding:12px 14px; border-radius:10px; font-weight:800; cursor:pointer;">Resend OTP</button>
 </form>
 
 </div>
+</section>
 </div>
 
 <script>

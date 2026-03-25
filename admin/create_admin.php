@@ -170,14 +170,14 @@ $department_options = [
 
         .admin-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 24px;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 18px;
         }
 
         .admin-card {
             background: white;
-            border-radius: 16px;
-            padding: 24px;
+            border-radius: 14px;
+            padding: 10px 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             border: 1px solid #e5e7eb;
             display: flex;
@@ -188,6 +188,7 @@ $department_options = [
             position: relative;
             overflow: hidden;
             pointer-events: none;
+            min-height: 165px;
         }
 
         .admin-card:hover {
@@ -207,58 +208,61 @@ $department_options = [
         }
 
         .admin-avatar {
-            width: 64px;
-            height: 64px;
+            width: 40px;
+            height: 40px;
             background-color: #e6f4ea;
             color: #1B5E20;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 16px;
             font-weight: 700;
-            margin-bottom: 16px;
+            margin-bottom: 6px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
         .admin-name {
-            font-size: 16px;
+            font-size: 11px;
             font-weight: 600;
             color: #1F2937;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
+            line-height: 1.3;
         }
 
         .admin-email {
-            font-size: 13px;
+            font-size: 9px;
             color: #6B7280;
-            margin-bottom: 16px;
+            margin-bottom: 6px;
+            line-height: 1.35;
+            word-break: break-word;
         }
 
         .admin-badge {
             background-color: #dcfce7;
             color: #166534;
-            padding: 6px 14px;
+            padding: 2px 8px;
             border-radius: 99px;
-            font-size: 11px;
+            font-size: 8px;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border: 1px solid #bbf7d0;
-            margin-bottom: 15px;
+            margin-bottom: 6px;
         }
 
         .remove-admin-btn {
             background-color: #dc3545;
             color: white;
             border: none;
-            padding: 8px 12px;
+            padding: 5px 7px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 9px;
             font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             transition: all 0.2s;
             pointer-events: auto;
         }
@@ -422,7 +426,7 @@ $department_options = [
             color: #16a34a;
             flex: 0 0 auto;
         }
-        .mgmt-card-body { padding: 16px; }
+        .mgmt-card-body { padding: 12px; }
         .form-grid {
             display: grid;
             grid-template-columns: 160px 1fr;
@@ -710,7 +714,8 @@ $department_options = [
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            margin-top: 12px;
+            margin-top: 16px;
+            padding: 10px 8px 2px;
         }
         .pagination-info {
             color: #64748b;
@@ -723,26 +728,34 @@ $department_options = [
             margin-left: auto;
             align-items: center;
             justify-content: flex-end;
+            flex-wrap: wrap;
         }
         .page-btn {
-            min-width: 34px;
-            height: 34px;
-            padding: 0 10px;
-            border-radius: 10px;
-            border: 1px solid #e5e7eb;
+            min-width: 40px;
+            height: 40px;
+            padding: 0 15px;
+            border-radius: 999px;
+            border: 1px solid #d7e2ea;
             cursor: pointer;
             background: #ffffff;
             color: #0f172a;
-            font-weight: 800;
+            font-weight: 600;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             text-decoration: none;
             user-select: none;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+            transition: all 0.2s ease;
         }
-        .page-btn:hover { background: #f8fafc; }
-        .page-btn.active { background: #1B5E20; color: #ffffff; border-color: #1B5E20; }
-        .page-btn.disabled { opacity: 0.45; pointer-events: none; }
+        .page-btn:hover { background: #f8fafc; transform: translateY(-1px); border-color: #cbd5e1; }
+        .page-btn.active { background: #166534; color: #ffffff; border-color: #166534; box-shadow: 0 10px 18px rgba(22, 101, 52, 0.22); }
+        .page-btn.disabled { opacity: 0.45; pointer-events: none; box-shadow: none; }
+        .page-btn.prev,
+        .page-btn.next {
+            min-width: 110px;
+            padding: 0 18px;
+        }
         .add-user-trigger {
             background: #1B5E20;
             color: #ffffff;
@@ -835,11 +848,16 @@ $department_options = [
         }
         .admin-bottom-grid > .mgmt-card .table-card { flex: 1 1 auto; }
         .admin-bottom-grid > .mgmt-card .admin-card-grid { flex: 1 1 auto; align-content: start; }
-        .admin-bottom-grid > .mgmt-card .users-pagination { margin-top: auto; }
+        .admin-bottom-grid > .mgmt-card .users-pagination {
+            margin-top: auto;
+            margin-left: 4px;
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
         .admin-card-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
+            gap: 12px;
         }
         .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 34%; text-align: left; }
         .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 36%; text-align: left; }
@@ -1002,7 +1020,7 @@ $department_options = [
                         <div class="form-grid">
                             <div class="form-label">Full Name *</div>
                             <div class="fullname-row">
-                                <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required>
+                                <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required inputmode="text" autocomplete="off">
                                 <select class="domain-select" name="department" id="newDept" aria-label="Department" required>
                                     <option value="">Select Department</option>
                                     <?php foreach ($department_options as $d): ?>
@@ -1144,11 +1162,11 @@ $department_options = [
                                     <span class="admin-badge">ADMIN</span>
 
                                     <?php if ($admin['id'] != $_SESSION['user_id']): ?>
-                                        <button type="button" class="remove-admin-btn" style="width: 100%; justify-content: center; margin-top: 10px;" onclick="confirmRemoval(<?= $admin['id'] ?>)">
+                                        <button type="button" class="remove-admin-btn" style="width: 100%; justify-content: center; margin-top: 6px;" onclick="confirmRemoval(<?= $admin['id'] ?>)">
                                             <i class="fa-solid fa-trash"></i> Remove Admin
                                         </button>
                                     <?php else: ?>
-                                        <button type="button" class="remove-admin-btn" style="width: 100%; justify-content: center; margin-top: 10px; opacity: 0.5; cursor: not-allowed;" disabled>
+                                        <button type="button" class="remove-admin-btn" style="width: 100%; justify-content: center; margin-top: 6px; opacity: 0.5; cursor: not-allowed;" disabled>
                                             <i class="fa-solid fa-lock"></i> Current Admin
                                         </button>
                                     <?php endif; ?>
@@ -1177,7 +1195,7 @@ $department_options = [
     window.TM_ADMIN_CURRENT_USER_ID = <?php echo (int) ($_SESSION['user_id'] ?? 0); ?>;
     window.TM_USERS_PAGE_SIZE = 5;
     window.TM_IT_PAGE_SIZE = 3;
-    window.TM_IT_ADMINS_PAGE_SIZE = 2;
+    window.TM_IT_ADMINS_PAGE_SIZE = 4;
     var tmUsersState = { page: 1, limit: window.TM_USERS_PAGE_SIZE, total: 0, totalPages: 1 };
     var tmItState = { page: 1, limit: window.TM_IT_PAGE_SIZE, total: 0, totalPages: 1 };
     var tmItAdminsState = { page: 1, limit: window.TM_IT_ADMINS_PAGE_SIZE, total: 0, totalPages: 1 };
@@ -1279,7 +1297,7 @@ $department_options = [
         var btns = [];
         var prevDisabled = page <= 1;
         var nextDisabled = page >= totalPages;
-        btns.push('<a href=\"#\" class=\"page-btn' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">\u2039</a>');
+        btns.push('<a href=\"#\" class=\"page-btn prev' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">&lsaquo; Previous</a>');
 
         var startPage = Math.max(1, page - 2);
         var endPage = Math.min(totalPages, startPage + 4);
@@ -1287,7 +1305,7 @@ $department_options = [
         for (var p = startPage; p <= endPage; p++) {
             btns.push('<a href=\"#\" class=\"page-btn' + (p === page ? ' active' : '') + '\" data-page=\"' + p + '\">' + p + '</a>');
         }
-        btns.push('<a href=\"#\" class=\"page-btn' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">\u203a</a>');
+        btns.push('<a href=\"#\" class=\"page-btn next' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">Next &rsaquo;</a>');
 
         controls.innerHTML = btns.join('');
         wrap.style.display = 'flex';
@@ -1378,7 +1396,7 @@ $department_options = [
         var btns = [];
         var prevDisabled = page <= 1;
         var nextDisabled = page >= totalPages;
-        btns.push('<a href=\"#\" class=\"page-btn' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">\u2039</a>');
+        btns.push('<a href=\"#\" class=\"page-btn prev' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">&lsaquo; Previous</a>');
 
         var startPage = Math.max(1, page - 2);
         var endPage = Math.min(totalPages, startPage + 4);
@@ -1386,7 +1404,7 @@ $department_options = [
         for (var p = startPage; p <= endPage; p++) {
             btns.push('<a href=\"#\" class=\"page-btn' + (p === page ? ' active' : '') + '\" data-page=\"' + p + '\">' + p + '</a>');
         }
-        btns.push('<a href=\"#\" class=\"page-btn' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">\u203a</a>');
+        btns.push('<a href=\"#\" class=\"page-btn next' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">Next &rsaquo;</a>');
 
         controls.innerHTML = btns.join('');
         wrap.style.display = 'flex';
@@ -1446,7 +1464,7 @@ $department_options = [
         var btns = [];
         var prevDisabled = page <= 1;
         var nextDisabled = page >= totalPages;
-        btns.push('<a href=\"#\" class=\"page-btn' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">\u2039</a>');
+        btns.push('<a href=\"#\" class=\"page-btn prev' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">&lsaquo; Previous</a>');
 
         var startPage = Math.max(1, page - 2);
         var endPage = Math.min(totalPages, startPage + 4);
@@ -1454,7 +1472,7 @@ $department_options = [
         for (var p = startPage; p <= endPage; p++) {
             btns.push('<a href=\"#\" class=\"page-btn' + (p === page ? ' active' : '') + '\" data-page=\"' + p + '\">' + p + '</a>');
         }
-        btns.push('<a href=\"#\" class=\"page-btn' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">\u203a</a>');
+        btns.push('<a href=\"#\" class=\"page-btn next' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">Next &rsaquo;</a>');
 
         controls.innerHTML = btns.join('');
         wrap.style.display = 'flex';
@@ -1575,7 +1593,10 @@ $department_options = [
             }
             function normalizeFullName() {
                 if (!fullNameEl) return '';
-                fullNameEl.value = String(fullNameEl.value || '').replace(/\s+/g, ' ').trim();
+                fullNameEl.value = String(fullNameEl.value || '')
+                    .replace(/\d+/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
                 return fullNameEl.value;
             }
             function validFullName(value) {
@@ -1602,6 +1623,20 @@ $department_options = [
                 });
             }
             if (fullNameEl) {
+                fullNameEl.addEventListener('input', function () {
+                    var current = String(fullNameEl.value || '');
+                    var cleaned = current.replace(/\d+/g, '');
+                    if (cleaned !== current) {
+                        var cursorPos = fullNameEl.selectionStart || cleaned.length;
+                        fullNameEl.value = cleaned;
+                        try {
+                            fullNameEl.setSelectionRange(cursorPos - (current.length - cleaned.length), cursorPos - (current.length - cleaned.length));
+                        } catch (e) {}
+                    }
+                });
+                fullNameEl.addEventListener('paste', function () {
+                    setTimeout(normalizeFullName, 0);
+                });
                 fullNameEl.addEventListener('blur', normalizeFullName);
             }
             if (usernameEl) {

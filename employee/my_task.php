@@ -92,6 +92,10 @@ $flashError = isset($_SESSION['error']) ? trim((string) $_SESSION['error']) : ''
 if ($flashError !== '') {
     unset($_SESSION['error']);
 }
+$flashSuccess = isset($_SESSION['task_success']) ? trim((string) $_SESSION['task_success']) : '';
+if ($flashSuccess !== '') {
+    unset($_SESSION['task_success']);
+}
 $flashErrorTitle = 'Update Failed';
 if ($flashError !== '' && stripos($flashError, 'No assignee available') !== false) {
     $flashErrorTitle = 'No Assignee Available';
@@ -227,6 +231,9 @@ if (!empty($where)) {
 
 $total_records = $total_row['total'] ?? 0;
 $total_pages = ceil($total_records / $limit);
+if ($total_pages < 1) $total_pages = 1;
+if ($page > $total_pages) $page = $total_pages;
+$offset = ($page - 1) * $limit;
 
 // --- EXECUTE MAIN QUERY ---
 $stmt = $conn->prepare($sql);
@@ -239,6 +246,8 @@ $types .= "ii";
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $result = $stmt->get_result();
+$showing_from = $total_records > 0 ? ($offset + 1) : 0;
+$showing_to = min($offset + $limit, (int) $total_records);
 
 ?>
 
@@ -512,6 +521,82 @@ $result = $stmt->get_result();
         .task-flash-btn:hover {
             background: #14532d;
         }
+        .task-success-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.46);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3100;
+            padding: 20px;
+        }
+        .task-success-dialog {
+            width: min(100%, 430px);
+            background: #ffffff;
+            border-radius: 22px;
+            padding: 28px 24px 22px;
+            text-align: center;
+            border: 1px solid rgba(27, 94, 32, 0.18);
+            box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22);
+            position: relative;
+            overflow: hidden;
+        }
+        .task-success-dialog::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 6px;
+            background: linear-gradient(90deg, #1B5E20, #144a1e);
+        }
+        .task-success-icon {
+            width: 74px;
+            height: 74px;
+            margin: 8px auto 18px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+            font-size: 36px;
+            font-weight: 900;
+        }
+        .task-success-title {
+            margin: 0 0 10px;
+            font-size: 22px;
+            line-height: 1.25;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .task-success-message {
+            margin: 0;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .task-success-actions {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .task-success-btn {
+            min-width: 82px;
+            height: 48px;
+            border: none;
+            border-radius: 14px;
+            background: #166534;
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 12px 28px rgba(22, 101, 52, 0.24);
+        }
+        .task-success-btn:hover {
+            background: #14532d;
+        }
     </style>
 </head>
 <body class="employee-my-task-page">
@@ -611,7 +696,7 @@ $result = $stmt->get_result();
                                     <td class="task-ticket-department"><?= htmlspecialchars(!empty($row['task_department']) ? $row['task_department'] : (!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales')), ENT_QUOTES, 'UTF-8'); ?></td>
 
                                     <td class="task-ticket-status">
-                                        <span class="status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
+                                        <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
                                             <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
@@ -636,29 +721,32 @@ $result = $stmt->get_result();
 
                 <!-- PAGINATION UI -->
                 <div id="tasksPagination">
-                <?php if ($total_pages > 1): ?>
+                <?php if ($total_records > 0): ?>
                 <div class="pagination-glass">
-                    <!-- Previous Link -->
+                    <div class="pagination-summary">Showing <?= number_format($showing_from) ?> - <?= number_format($showing_to) ?> of <?= number_format((int) $total_records) ?> tickets</div>
+                    <?php if ($total_pages > 1): ?>
                     <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
+                       data-page="<?= max(1, $page - 1) ?>"
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
-                        Previous
+                        &lsaquo; Previous
                     </a>
 
                     <div class="page-numbers">
-                        <!-- Page Numbers -->
                         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
                             <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
+                               data-page="<?= $i ?>"
                                class="page-btn <?= ($i == $page) ? 'active' : ''; ?>">
                                 <?= $i; ?>
                             </a>
                         <?php endfor; ?>
                     </div>
 
-                    <!-- Next Link -->
                     <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
+                       data-page="<?= min($total_pages, $page + 1) ?>"
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
-                        Next
+                        Next &rsaquo;
                     </a>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
                 </div>
@@ -699,6 +787,19 @@ $result = $stmt->get_result();
     </div>
     <?php endif; ?>
 
+    <?php if ($flashSuccess !== ''): ?>
+    <div id="taskSuccessOverlay" class="task-success-overlay" role="dialog" aria-modal="true" aria-labelledby="taskSuccessTitle">
+        <div class="task-success-dialog">
+            <div class="task-success-icon">✓</div>
+            <h2 id="taskSuccessTitle" class="task-success-title">The ticket has been updated</h2>
+            <p class="task-success-message"><?= htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?></p>
+            <div class="task-success-actions">
+                <button type="button" class="task-success-btn" id="taskSuccessCloseBtn">OK</button>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <script src="../js/employee-dashboard.js"></script>
     <script>
     window.TM_CURRENT_USER = <?php echo json_encode([
@@ -709,6 +810,9 @@ $result = $stmt->get_result();
         'company' => $_SESSION['company'] ?? null,
         'role' => $_SESSION['role'] ?? null
     ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    </script>
+    <script>
+        window.TM_HIDE_QUICK_TAGS = true;
     </script>
     <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
     <script>
@@ -795,6 +899,27 @@ $result = $stmt->get_result();
             document.addEventListener('keydown', function (e) {
                 if (e.key === 'Escape' && overlay.style.display !== 'none') {
                     closeFlash();
+                }
+            });
+        })();
+
+        (function () {
+            var overlay = document.getElementById('taskSuccessOverlay');
+            if (!overlay) return;
+            var closeBtn = document.getElementById('taskSuccessCloseBtn');
+            function closeSuccess() {
+                overlay.style.display = 'none';
+            }
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeSuccess);
+                closeBtn.focus();
+            }
+            overlay.addEventListener('click', function (e) {
+                if (e.target === overlay) closeSuccess();
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && overlay.style.display !== 'none') {
+                    closeSuccess();
                 }
             });
         })();

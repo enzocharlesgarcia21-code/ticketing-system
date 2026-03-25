@@ -251,7 +251,7 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '<td class="subject-cell task-ticket-category"><strong>' . h((string) $row['category']) . '</strong></td>';
         $rowsHtml .= '<td class="task-ticket-requester"><div class="user-info"><strong>' . h((string) $dispName) . '</strong><br><small>' . h((string) $dispEmail) . '</small></div></td>';
         $rowsHtml .= '<td class="task-ticket-department">' . h((string) (!empty($row['task_department']) ? $row['task_department'] : (!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales')))) . '</td>';
-        $rowsHtml .= '<td class="task-ticket-status"><span class="status-' . strtolower(str_replace(' ', '-', (string) $row['status'])) . '">' . h((string) $row['status']) . '</span></td>';
+        $rowsHtml .= '<td class="task-ticket-status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', (string) $row['status'])) . '">' . h((string) $row['status']) . '</span></td>';
         $rowsHtml .= '<td class="task-ticket-date">' . h(date("M d, Y", strtotime((string) $row['created_at']))) . '</td>';
         $rowsHtml .= '<td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>';
         $rowsHtml .= '</tr>';
@@ -260,17 +260,22 @@ if ($result && $result->num_rows > 0) {
     $rowsHtml = '<tr><td colspan="6" style="text-align:center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tasks found for your department.</p></div></td></tr>';
 }
 $stmt->close();
+$showingFrom = $total > 0 ? ($offset + 1) : 0;
+$showingTo = min($offset + $limit, $total);
 
 $paginationHtml = '';
-if ($totalPages > 1) {
+if ($total > 0) {
     $paginationHtml .= '<div class="pagination-glass">';
-    $paginationHtml .= '<a href="#" data-page="' . ($page - 1) . '" class="page-btn prev' . ($page <= 1 ? ' disabled' : '') . '">Previous</a>';
-    $paginationHtml .= '<div class="page-numbers">';
-    for ($i = 1; $i <= $totalPages; $i++) {
-        $paginationHtml .= '<a href="#" data-page="' . $i . '" class="page-btn' . ($i === $page ? ' active' : '') . '">' . $i . '</a>';
+    $paginationHtml .= '<div class="pagination-summary">Showing ' . number_format($showingFrom) . ' - ' . number_format($showingTo) . ' of ' . number_format($total) . ' tickets</div>';
+    if ($totalPages > 1) {
+        $paginationHtml .= '<a href="#" data-page="' . max(1, $page - 1) . '" class="page-btn prev' . ($page <= 1 ? ' disabled' : '') . '">&lsaquo; Previous</a>';
+        $paginationHtml .= '<div class="page-numbers">';
+        for ($i = 1; $i <= $totalPages; $i++) {
+            $paginationHtml .= '<a href="#" data-page="' . $i . '" class="page-btn' . ($i === $page ? ' active' : '') . '">' . $i . '</a>';
+        }
+        $paginationHtml .= '</div>';
+        $paginationHtml .= '<a href="#" data-page="' . min($totalPages, $page + 1) . '" class="page-btn next' . ($page >= $totalPages ? ' disabled' : '') . '">Next &rsaquo;</a>';
     }
-    $paginationHtml .= '</div>';
-    $paginationHtml .= '<a href="#" data-page="' . ($page + 1) . '" class="page-btn next' . ($page >= $totalPages ? ' disabled' : '') . '">Next</a>';
     $paginationHtml .= '</div>';
 }
 

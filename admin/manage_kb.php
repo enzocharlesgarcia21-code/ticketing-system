@@ -7,6 +7,10 @@ require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/kb_media.php';
 
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 // Access Control
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -18,10 +22,19 @@ $colRes = $conn->query("SHOW COLUMNS FROM knowledge_base LIKE 'visible_to_sales'
 if ($colRes && $colRes->num_rows === 0) {
     $conn->query("ALTER TABLE knowledge_base ADD COLUMN visible_to_sales TINYINT(1) NOT NULL DEFAULT 1");
 }
+$subCategoryColRes = $conn->query("SHOW COLUMNS FROM knowledge_base LIKE 'sub_category'");
+if ($subCategoryColRes && $subCategoryColRes->num_rows === 0) {
+    $conn->query("ALTER TABLE knowledge_base ADD COLUMN sub_category VARCHAR(255) NULL AFTER category");
+}
+kb_ensure_image_path_column_supports_multiple($conn);
 
 // Handle Form Submission (Add/Delete)
 $success_msg = '';
 $error_msg = '';
+
+if (empty($_SESSION['kb_add_submission_token'])) {
+    $_SESSION['kb_add_submission_token'] = bin2hex(random_bytes(16));
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_validate();
@@ -29,21 +42,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // 1. Add New Article
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
+    $submitted_token = trim((string) ($_POST['submission_token'] ?? ''));
+    $session_token = trim((string) ($_SESSION['kb_add_submission_token'] ?? ''));
     $title = trim($_POST['title']);
     $category = trim($_POST['category']);
+    $sub_category = trim((string) ($_POST['sub_category'] ?? ''));
     $content = trim($_POST['content']);
-    $visible_to_sales = isset($_POST['visible_to_sales']) ? 1 : 0;
+    $visible_to_sales = 1;
 
-    if (!empty($title) && !empty($category) && !empty($content)) {
+    if ($submitted_token === '' || $session_token === '' || !hash_equals($session_token, $submitted_token)) {
+        $error_msg = "This article form has expired. Please reopen the form and try again.";
+    }
+
+    if (strcasecmp($category, 'Others') === 0 && $sub_category === '') {
+        $error_msg = "Sub-category is required for Others.";
+    }
+    if (strcasecmp($category, 'Others') !== 0) {
+        $sub_category = null;
+    }
+
+    if ($error_msg === '' && !empty($title) && !empty($category)) {
         
         $image_path = null;
         $image_upload_error = '';
-        $stored_image_path = kb_store_uploaded_image($_FILES['image'] ?? null, $image_upload_error);
+        $stored_image_paths = kb_store_uploaded_images($_FILES['image'] ?? null, $image_upload_error);
 
-        if ($stored_image_path === false) {
+        if ($stored_image_paths === false) {
             $error_msg = $image_upload_error;
-        } elseif (is_string($stored_image_path)) {
-            $image_path = $stored_image_path;
+        } elseif (is_array($stored_image_paths) && count($stored_image_paths) > 0) {
+            $image_path = kb_encode_image_paths($stored_image_paths);
         }
 
         // Handle Reference Links
@@ -107,12 +134,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
 
-        $stmt = $conn->prepare("INSERT INTO knowledge_base (title, category, content, image_path, article_links, article_presentation, article_video, visible_to_sales, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param("sssssssi", $title, $category, $content, $image_path, $links_json, $presentation_path, $video_content, $visible_to_sales);
+        $stmt = $conn->prepare("INSERT INTO knowledge_base (title, category, sub_category, content, image_path, article_links, article_presentation, article_video, visible_to_sales, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param("ssssssssi", $title, $category, $sub_category, $content, $image_path, $links_json, $presentation_path, $video_content, $visible_to_sales);
 
         if ($error_msg !== '') {
             // Preserve the upload error already set above.
         } elseif ($stmt->execute()) {
+            $_SESSION['kb_add_submission_token'] = bin2hex(random_bytes(16));
             $new_article_id = $conn->insert_id;
             
             // Handle Related Articles
@@ -127,12 +155,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             }
 
-            $success_msg = "Article added successfully!";
+            header("Location: manage_kb.php?msg=added");
+            exit();
         } else {
             $error_msg = "Error adding article: " . $conn->error;
         }
     } else {
-        $error_msg = "All fields are required.";
+        if ($error_msg === '') {
+            $error_msg = "Title and category are required.";
+        }
     }
 }
 
@@ -142,6 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // 2.5 Check for Update Success Message
 if (isset($_GET['msg']) && $_GET['msg'] === 'updated') {
     $success_msg = "Article updated successfully!";
+}
+if (isset($_GET['msg']) && $_GET['msg'] === 'added') {
+    $success_msg = "Article added successfully!";
 }
 if (isset($_GET['error'])) {
     $error_msg = htmlspecialchars($_GET['error']);
@@ -167,7 +201,7 @@ $total_articles = count($articles);
 $categories_count = count($unique_categories);
 
 // Pre-defined categories
-$categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
+$categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support', 'Others'];
 $category_meta = [
     'Documentation' => ['icon' => 'fa-file-lines', 'tone' => 'teal'],
     'Email' => ['icon' => 'fa-envelope', 'tone' => 'sand'],
@@ -176,6 +210,7 @@ $category_meta = [
     'Procurement' => ['icon' => 'fa-cart-shopping', 'tone' => 'emerald'],
     'Software' => ['icon' => 'fa-desktop', 'tone' => 'sky'],
     'Technical Support' => ['icon' => 'fa-headset', 'tone' => 'mint'],
+    'Others' => ['icon' => 'fa-folder', 'tone' => 'slate'],
     'Uncategorized' => ['icon' => 'fa-folder-open', 'tone' => 'slate'],
 ];
 $category_aliases = [
@@ -184,7 +219,6 @@ $category_aliases = [
     'software issue' => 'Software',
     'email problem' => 'Email',
     'account access' => 'Technical Support',
-    'other' => 'Technical Support',
 ];
 $articles_by_category = [];
 foreach ($categories as $category_name) {
@@ -199,6 +233,9 @@ foreach ($articles as $article_row) {
     if (isset($category_aliases[$category_lookup_key])) {
         $category_name = $category_aliases[$category_lookup_key];
         $article_row['category'] = $category_name;
+    }
+    if ($category_name !== 'Uncategorized' && !in_array($category_name, $categories, true)) {
+        $category_name = 'Others';
     }
     if (!isset($articles_by_category[$category_name])) {
         $articles_by_category[$category_name] = [];
@@ -277,7 +314,7 @@ unset($recent_articles_query['recent_page']);
         }
 
         .btn-add-article {
-            background: linear-gradient(135deg, #1ec9a1 0%, #16a085 100%);
+            background: #166534;
             color: white;
             border: none;
             padding: 15px 28px;
@@ -289,13 +326,13 @@ unset($recent_articles_query['recent_page']);
             align-items: center;
             gap: 12px;
             transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
-            box-shadow: 0 12px 28px rgba(22, 160, 133, 0.24);
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.28);
         }
 
         .btn-add-article:hover {
             transform: translateY(-2px);
             filter: brightness(0.98);
-            box-shadow: 0 16px 32px rgba(22, 160, 133, 0.3);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.32);
         }
 
         .stats-grid {
@@ -456,12 +493,12 @@ unset($recent_articles_query['recent_page']);
         }
 
         .kb-page-link {
-            min-width: 42px;
-            height: 42px;
-            padding: 0 14px;
-            border-radius: 14px;
-            border: 1px solid rgba(210, 218, 235, 0.95);
-            background: rgba(255, 255, 255, 0.88);
+            min-width: 40px;
+            height: 40px;
+            padding: 0 15px;
+            border-radius: 999px;
+            border: 1px solid #d7e2ea;
+            background: #ffffff;
             color: #475467;
             font-size: 14px;
             font-weight: 600;
@@ -469,27 +506,33 @@ unset($recent_articles_query['recent_page']);
             align-items: center;
             justify-content: center;
             text-decoration: none;
-            box-shadow: 0 8px 20px rgba(77, 89, 112, 0.08);
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
             transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
         }
 
         .kb-page-link:hover {
             transform: translateY(-1px);
-            border-color: rgba(92, 132, 255, 0.34);
-            box-shadow: 0 12px 22px rgba(77, 89, 112, 0.12);
+            border-color: #cbd5e1;
+            box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
         }
 
         .kb-page-link.is-active {
-            background: linear-gradient(135deg, #4d6bff 0%, #6d8cff 100%);
-            border-color: transparent;
+            background: #166534;
+            border-color: #166534;
             color: #fff;
-            box-shadow: 0 12px 24px rgba(77, 107, 255, 0.22);
+            box-shadow: 0 10px 18px rgba(22, 101, 52, 0.22);
         }
 
         .kb-page-link.is-disabled {
             opacity: 0.45;
             pointer-events: none;
             box-shadow: none;
+        }
+
+        .kb-page-link:first-child,
+        .kb-page-link:last-child {
+            min-width: 110px;
+            padding: 0 18px;
         }
 
         .kb-categories-card {
@@ -749,14 +792,14 @@ unset($recent_articles_query['recent_page']);
         }
 
         .btn-edit {
-            background-color: #EFF6FF;
-            color: #2563EB;
-            border: 1px solid #DBEAFE;
+            background-color: #ECFDF5;
+            color: #166534;
+            border: 1px solid #BBF7D0;
         }
 
         .btn-edit:hover {
-            background-color: #DBEAFE;
-            border-color: #BFDBFE;
+            background-color: #D1FAE5;
+            border-color: #86EFAC;
         }
 
         .alert {
@@ -796,10 +839,10 @@ unset($recent_articles_query['recent_page']);
 
         .modal-content {
             background: white;
-            padding: 35px;
+            padding: 28px;
             border-radius: 16px;
-            width: 100%;
-            max-width: 650px; /* Slightly wider */
+            width: min(90vw, 1080px);
+            max-width: 1080px;
             max-height: 85vh; /* Limit height */
             overflow-y: auto; /* Enable scrolling */
             position: relative;
@@ -888,8 +931,8 @@ unset($recent_articles_query['recent_page']);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 25px;
-            padding-bottom: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
             border-bottom: 1px solid #E5E7EB;
         }
 
@@ -921,7 +964,29 @@ unset($recent_articles_query['recent_page']);
 
         /* Form Styles in Modal */
         .form-group {
-            margin-bottom: 24px;
+            margin-bottom: 20px;
+        }
+
+        .kb-modal-form-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 400px;
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        .kb-modal-main-column {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .kb-modal-side-column {
+            min-width: 0;
+            padding-left: 2px;
+            border-left: 1px solid #E5E7EB;
+        }
+        .kb-modal-side-column::before {
+            content: none;
         }
 
         .form-label {
@@ -949,14 +1014,113 @@ unset($recent_articles_query['recent_page']);
         }
 
         textarea.form-control {
-            min-height: 180px;
+            min-height: 132px;
             resize: vertical;
             font-family: inherit;
             line-height: 1.5;
+            overflow-y: hidden;
+        }
+        .kb-create-content {
+            height: 240px;
+            min-height: 240px;
+            max-height: 240px;
+            resize: none;
+            overflow-y: auto !important;
+            overflow-x: hidden;
+            scrollbar-gutter: stable;
+            word-break: break-word;
+        }
+        .kb-content-group {
+            flex: 1 1 auto;
+        }
+        .kb-image-preview-grid {
+            margin-top: 10px;
+            display: none;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .kb-image-preview-item {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            overflow: visible;
+        }
+        .kb-image-preview-item img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 10px;
+            border: 1px solid #D1D5DB;
+            background: #F8FAFC;
+        }
+        .kb-image-preview-remove {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            border: 2px solid #fff;
+            border-radius: 999px;
+            background: #EF4444;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+            z-index: 2;
+        }
+        .kb-image-dropzone {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 120px;
+            padding: 24px 18px;
+            border: 1.5px dashed #C7D2DA;
+            border-radius: 16px;
+            background: linear-gradient(180deg, #FCFEFD 0%, #F8FBFA 100%);
+            color: #4B5563;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+        .kb-image-dropzone:hover,
+        .kb-image-dropzone.is-active {
+            border-color: #166534;
+            background: #F0FDF4;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+        }
+        .kb-image-dropzone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .kb-image-dropzone-icon {
+            font-size: 24px;
+            color: #1F8A57;
+        }
+        .kb-image-dropzone-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #374151;
+        }
+        .kb-image-dropzone-subtitle,
+        .kb-image-dropzone-note {
+            font-size: 13px;
+            color: #6B7280;
         }
 
         .btn-submit {
-            background-color: #10B981;
+            background-color: #166534;
             color: white;
             border: none;
             padding: 14px 20px;
@@ -966,13 +1130,13 @@ unset($recent_articles_query['recent_page']);
             font-weight: 600;
             font-size: 16px;
             transition: background-color 0.2s;
-            box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+            box-shadow: 0 4px 6px -1px rgba(22, 101, 52, 0.22);
         }
 
         .btn-submit:hover {
-            background-color: #059669;
+            background-color: #14532D;
             transform: translateY(-1px);
-            box-shadow: 0 6px 8px -1px rgba(16, 185, 129, 0.3);
+            box-shadow: 0 6px 8px -1px rgba(22, 101, 52, 0.32);
         }
 
         @keyframes fadeIn {
@@ -997,7 +1161,18 @@ unset($recent_articles_query['recent_page']);
             }
             .modal-content {
                 margin: 20px;
+                width: calc(100% - 40px);
                 max-width: calc(100% - 40px);
+            }
+            .kb-modal-form-grid {
+                grid-template-columns: 1fr;
+                gap: 22px;
+            }
+            .kb-modal-side-column {
+                padding-left: 0;
+                border-left: none;
+                border-top: 1px solid #E5E7EB;
+                padding-top: 22px;
             }
         }
 
@@ -1006,14 +1181,13 @@ unset($recent_articles_query['recent_page']);
             background-color: #F9FAFB;
             border: 1px solid #E5E7EB;
             border-radius: 12px;
-            padding: 25px;
+            padding: 20px;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 25px;
+            grid-template-columns: 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
         }
         .resources-title {
-            grid-column: 1 / -1; /* Make title span full width */
             font-size: 16px;
             font-weight: 700;
             color: #111827;
@@ -1032,6 +1206,24 @@ unset($recent_articles_query['recent_page']);
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
             transition: all 0.2s;
             margin-bottom: 0; /* Override previous margin */
+        }
+        .kb-side-submit {
+            margin-top: 4px;
+        }
+        .kb-main-submit-wrap {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            margin-top: 8px;
+            padding-top: 0;
+            border-top: none;
+            align-items: center;
+        }
+        .kb-main-submit-wrap .btn-submit {
+            width: 320px;
+            max-width: 100%;
+            flex: 0 0 auto;
+            margin: 0 auto;
         }
         .resource-item:hover {
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -1342,9 +1534,7 @@ unset($recent_articles_query['recent_page']);
                                 <a
                                     href="?<?= htmlspecialchars(http_build_query($recent_prev_query), ENT_QUOTES, 'UTF-8') ?>"
                                     class="kb-page-link<?= $recent_articles_page <= 1 ? ' is-disabled' : '' ?>"
-                                >
-                                    <i class="fas fa-chevron-left"></i>
-                                </a>
+                                >&lsaquo; Previous</a>
                                 <?php for ($page = 1; $page <= $recent_articles_total_pages; $page++): ?>
                                     <?php $recent_page_query = $recent_articles_query; ?>
                                     <?php $recent_page_query['recent_page'] = $page; ?>
@@ -1358,9 +1548,7 @@ unset($recent_articles_query['recent_page']);
                                 <a
                                     href="?<?= htmlspecialchars(http_build_query($recent_next_query), ENT_QUOTES, 'UTF-8') ?>"
                                     class="kb-page-link<?= $recent_articles_page >= $recent_articles_total_pages ? ' is-disabled' : '' ?>"
-                                >
-                                    <i class="fas fa-chevron-right"></i>
-                                </a>
+                                >Next &rsaquo;</a>
                             </div>
                         </div>
                     <?php endif; ?>
@@ -1491,94 +1679,106 @@ unset($recent_articles_query['recent_page']);
         <form method="POST" action="" enctype="multipart/form-data">
             <?php echo csrf_field(); ?>
             <input type="hidden" name="action" value="add">
-            
-            <div class="form-group">
-                <label class="form-label">Article Title</label>
-                <input type="text" name="title" class="form-control" required placeholder="e.g. How to reset password">
-            </div>
+            <input type="hidden" name="submission_token" value="<?= htmlspecialchars((string) ($_SESSION['kb_add_submission_token'] ?? '')) ?>">
+            <div class="kb-modal-form-grid">
+                <div class="kb-modal-main-column">
+                    <div class="form-group">
+                        <label class="form-label">Article Title</label>
+                        <input type="text" name="title" class="form-control" required placeholder="e.g. How to reset password">
+                    </div>
 
-            <div class="form-group">
-                <label class="form-label">Category</label>
-                <select name="category" class="form-control" required>
-                    <option value=""disabled selected hidden>Select Category</option>
-                    <?php foreach ($categories as $cat): ?>
-                        <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
+                    <div class="form-group">
+                        <label class="form-label">Category</label>
+                        <select name="category" class="form-control" id="kb-category-select" required>
+                            <option value=""disabled selected hidden>Select Category</option>
+                            <?php foreach ($categories as $cat): ?>
+                                <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input
+                            type="text"
+                            name="sub_category"
+                            id="kb-sub-category"
+                            class="form-control"
+                            placeholder="Enter category (e.g. Printer)"
+                            style="display:none; margin-top: 12px;"
+                        >
+                    </div>
 
-            <div class="form-group">
-                <label class="form-label kb-visible-toggle">
-                    <input type="checkbox" name="visible_to_sales" value="1" checked>
-                    Visible to Sales users
-                </label>
-            </div>
+                    <div class="form-group">
+                        <label class="form-label">Upload Image (Optional)</label>
+                        <label class="kb-image-dropzone" id="kb-image-dropzone">
+                            <input type="file" name="image[]" id="kb-image-input" class="form-control" accept="image/*" multiple onchange="previewAddImage(this)">
+                            <div class="kb-image-dropzone-icon"><i class="fas fa-folder-open"></i></div>
+                            <div class="kb-image-dropzone-title">Drag &amp; drop images here,</div>
+                            <div class="kb-image-dropzone-subtitle">or click to upload</div>
+                            <div class="kb-image-dropzone-note">You can upload multiple images.</div>
+                        </label>
+                        <div id="add-image-preview" class="kb-image-preview-grid"></div>
+                    </div>
 
-            <div class="form-group">
-                <label class="form-label">Article Image (Optional)</label>
-                <input type="file" name="image" class="form-control" accept="image/*" onchange="previewAddImage(this)">
-                <div id="add-image-preview" style="margin-top: 10px; display: none;">
-                    <img id="add-image-preview-img" src="" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid #ddd;">
+                    <div class="form-group kb-content-group">
+                        <label class="form-label">Content</label>
+                        <textarea name="content" class="form-control kb-create-content" rows="6" placeholder="Write article content here..."></textarea>
+                    </div>
+
                 </div>
-            </div>
 
-            <div class="form-group">
-                <label class="form-label">Content</label>
-                <textarea name="content" class="form-control" required placeholder="Write article content here..."></textarea>
-            </div>
+                <div class="kb-modal-side-column">
+                    <div class="resources-wrapper">
+                        <div class="resources-title">
+                            <i class="fas fa-paperclip" style="color: #10B981;"></i> Additional Resources
+                        </div>
 
-            <!-- New Resources Section -->
-            <div class="resources-wrapper">
-                <div class="resources-title">
-                    <i class="fas fa-paperclip" style="color: #10B981;"></i> Additional Resources
-                </div>
+                        <div class="resource-item">
+                            <label class="resource-label">Reference Links</label>
+                            <div id="link-container">
+                                <div class="link-row">
+                                    <input type="text" name="link_labels[]" class="form-control" placeholder="Link Label" style="flex: 1;">
+                                    <input type="url" name="link_urls[]" class="form-control" placeholder="URL" style="flex: 2;">
+                                    <button type="button" class="btn-remove-link" onclick="removeLink(this)"><i class="fas fa-times"></i></button>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-add-link" onclick="addLink()"><i class="fas fa-plus"></i> Add Link</button>
+                        </div>
 
-                <div class="resource-item">
-                    <label class="resource-label">Reference Links</label>
-                    <div id="link-container">
-                        <div class="link-row">
-                            <input type="text" name="link_labels[]" class="form-control" placeholder="Link Label" style="flex: 1;">
-                            <input type="url" name="link_urls[]" class="form-control" placeholder="URL" style="flex: 2;">
-                            <button type="button" class="btn-remove-link" onclick="removeLink(this)"><i class="fas fa-times"></i></button>
+                        <div class="resource-item">
+                            <label class="resource-label">Presentation (PPT/PPTX)</label>
+                            <input type="file" name="presentation" class="form-control" accept=".ppt, .pptx">
+                            <small style="color: #6B7280; display: block; margin-top: 5px;">Supported formats: .ppt, .pptx</small>
+                        </div>
+
+                        <div class="resource-item">
+                            <label class="resource-label">Video </label>
+                            <input type="hidden" name="video_type" id="video_type_input" value="upload">
+                            
+                            <div class="video-toggles-wrapper" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                                <div class="video-toggles">
+                                    <button type="button" class="video-toggle-btn active" onclick="setVideoType('upload', this)">Upload Video</button>
+                                    <button type="button" class="video-toggle-btn" onclick="setVideoType('url', this)">YouTube URL</button>
+                                </div>
+                                <button type="button" id="btn-remove-video" onclick="removeVideo()" style="background:none; border:none; color: #EF4444; font-size: 13px; font-weight: 500; cursor: pointer; display: none; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px; transition: background 0.2s;">
+                                    <i class="fas fa-trash-alt"></i> Remove Video
+                                </button>
+                            </div>
+                            
+                            <div id="video-upload-input">
+                                <input type="file" name="video_file" class="form-control" accept=".mp4" onchange="updateRemoveButtonVisibility()">
+                                <small style="color: #6B7280; display: block; margin-top: 5px;">Supported format: .mp4</small>
+                            </div>
+                            
+                            <div id="video-url-input" style="display: none;">
+                                <input type="url" name="video_url" class="form-control" placeholder="https://www.youtube.com/watch?v=..." oninput="updateRemoveButtonVisibility()">
+                            </div>
                         </div>
                     </div>
-                    <button type="button" class="btn-add-link" onclick="addLink()"><i class="fas fa-plus"></i> Add Link</button>
+
                 </div>
-
-                <div class="resource-item">
-                    <label class="resource-label">Presentation (PPT/PPTX)</label>
-                    <input type="file" name="presentation" class="form-control" accept=".ppt, .pptx">
-                    <small style="color: #6B7280; display: block; margin-top: 5px;">Supported formats: .ppt, .pptx</small>
-                </div>
-
-                <div class="resource-item">
-                    <label class="resource-label">Video </label>
-                    <input type="hidden" name="video_type" id="video_type_input" value="upload">
-                    
-                    <div class="video-toggles-wrapper" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
-                        <div class="video-toggles">
-                            <button type="button" class="video-toggle-btn active" onclick="setVideoType('upload', this)">Upload Video</button>
-                            <button type="button" class="video-toggle-btn" onclick="setVideoType('url', this)">YouTube URL</button>
-                        </div>
-                        <button type="button" id="btn-remove-video" onclick="removeVideo()" style="background:none; border:none; color: #EF4444; font-size: 13px; font-weight: 500; cursor: pointer; display: none; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px; transition: background 0.2s;">
-                            <i class="fas fa-trash-alt"></i> Remove Video
-                        </button>
-                    </div>
-                    
-                    <div id="video-upload-input">
-                        <input type="file" name="video_file" class="form-control" accept=".mp4" onchange="updateRemoveButtonVisibility()">
-                        <small style="color: #6B7280; display: block; margin-top: 5px;">Supported format: .mp4</small>
-                    </div>
-                    
-                    <div id="video-url-input" style="display: none;">
-                        <input type="url" name="video_url" class="form-control" placeholder="https://www.youtube.com/watch?v=..." oninput="updateRemoveButtonVisibility()">
-                    </div>
-                </div>
-
-
             </div>
 
-            <button type="submit" name="add_article" class="btn-submit">Publish Article</button>
+            <div class="kb-main-submit-wrap">
+                <button type="submit" name="add_article" class="btn-submit" id="kb-publish-btn">Publish Article</button>
+            </div>
         </form>
     </div>
 </div>
@@ -1757,6 +1957,11 @@ document.addEventListener('click', function(e) {
 <script>
     // Add Modal Logic
     const addModal = document.getElementById('addArticleModal');
+    const kbImageInput = document.getElementById('kb-image-input');
+    const kbImageDropzone = document.getElementById('kb-image-dropzone');
+    const kbCategorySelect = document.getElementById('kb-category-select');
+    const kbSubCategory = document.getElementById('kb-sub-category');
+    let addImageDataTransfer = new DataTransfer();
     
     function openModal() {
         addModal.style.display = 'flex';
@@ -1765,26 +1970,147 @@ document.addEventListener('click', function(e) {
 
     function previewAddImage(input) {
         const previewDiv = document.getElementById('add-image-preview');
-        const previewImg = document.getElementById('add-image-preview-img');
-        
-        if (input.files && input.files[0]) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                previewImg.src = e.target.result;
-                previewDiv.style.display = 'block';
-            }
-            reader.readAsDataURL(input.files[0]);
+        if (!previewDiv) return;
+
+        previewDiv.innerHTML = '';
+
+        if (input.files && input.files.length > 0) {
+            addImageDataTransfer = new DataTransfer();
+            Array.from(input.files).forEach(function(file) {
+                addImageDataTransfer.items.add(file);
+            });
+        }
+
+        if (addImageDataTransfer.files && addImageDataTransfer.files.length > 0) {
+            previewDiv.style.display = 'flex';
+
+            Array.from(addImageDataTransfer.files).forEach(function(file, index) {
+                if (!file.type || file.type.indexOf('image/') !== 0) {
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const item = document.createElement('div');
+                    item.className = 'kb-image-preview-item';
+
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.alt = '';
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'kb-image-preview-remove';
+                    removeBtn.type = 'button';
+                    removeBtn.textContent = 'x';
+                    removeBtn.setAttribute('aria-label', 'Remove image');
+                    removeBtn.onclick = function() {
+                        const nextFiles = new DataTransfer();
+                        Array.from(addImageDataTransfer.files).forEach(function(existingFile, existingIndex) {
+                            if (existingIndex !== index) {
+                                nextFiles.items.add(existingFile);
+                            }
+                        });
+                        addImageDataTransfer = nextFiles;
+                        input.files = addImageDataTransfer.files;
+                        previewAddImage(input);
+                    };
+
+                    item.appendChild(img);
+                    item.appendChild(removeBtn);
+                    previewDiv.appendChild(item);
+                };
+                reader.readAsDataURL(file);
+            });
         } else {
             previewDiv.style.display = 'none';
         }
+    }
+
+    function mergeDroppedImages(fileList) {
+        if (!kbImageInput || !fileList || !fileList.length) return;
+        const nextFiles = new DataTransfer();
+
+        Array.from(addImageDataTransfer.files || []).forEach(function(file) {
+            nextFiles.items.add(file);
+        });
+
+        Array.from(fileList).forEach(function(file) {
+            if (file.type && file.type.indexOf('image/') === 0) {
+                nextFiles.items.add(file);
+            }
+        });
+
+        addImageDataTransfer = nextFiles;
+        kbImageInput.files = addImageDataTransfer.files;
+        previewAddImage(kbImageInput);
+    }
+
+    if (kbImageDropzone && kbImageInput) {
+        ['dragenter', 'dragover'].forEach(function(eventName) {
+            kbImageDropzone.addEventListener(eventName, function(event) {
+                event.preventDefault();
+                kbImageDropzone.classList.add('is-active');
+            });
+        });
+
+        ['dragleave', 'dragend', 'drop'].forEach(function(eventName) {
+            kbImageDropzone.addEventListener(eventName, function(event) {
+                event.preventDefault();
+                if (eventName !== 'drop') {
+                    kbImageDropzone.classList.remove('is-active');
+                }
+            });
+        });
+
+        kbImageDropzone.addEventListener('drop', function(event) {
+            kbImageDropzone.classList.remove('is-active');
+            const droppedFiles = event.dataTransfer ? event.dataTransfer.files : null;
+            if (droppedFiles && droppedFiles.length) {
+                mergeDroppedImages(droppedFiles);
+            }
+        });
+    }
+
+    function syncSubCategoryVisibility() {
+        if (!kbCategorySelect || !kbSubCategory) return;
+        const isOthers = kbCategorySelect.value === 'Others';
+        kbSubCategory.style.display = isOthers ? 'block' : 'none';
+        kbSubCategory.required = isOthers;
+        if (!isOthers) {
+            kbSubCategory.value = '';
+        }
+    }
+
+    if (kbCategorySelect) {
+        kbCategorySelect.addEventListener('change', syncSubCategoryVisibility);
+        syncSubCategoryVisibility();
+    }
+
+    const kbAddForm = document.querySelector('#addArticleModal form');
+    const kbPublishBtn = document.getElementById('kb-publish-btn');
+    if (kbAddForm && kbPublishBtn) {
+        kbAddForm.addEventListener('submit', function() {
+            kbPublishBtn.disabled = true;
+            kbPublishBtn.textContent = 'Publishing...';
+        });
     }
 
     function closeModal() {
         addModal.style.display = 'none';
         document.body.style.overflow = '';
         // Reset preview
-        document.getElementById('add-image-preview').style.display = 'none';
+        const previewDiv = document.getElementById('add-image-preview');
+        if (previewDiv) {
+            previewDiv.style.display = 'none';
+            previewDiv.innerHTML = '';
+        }
+        addImageDataTransfer = new DataTransfer();
         document.querySelector('#addArticleModal form').reset();
+        syncCustomCategoryVisibility();
+        if (kbPublishBtn) {
+            kbPublishBtn.disabled = false;
+            kbPublishBtn.textContent = 'Publish Article';
+        }
     }
 
     // Close modals when clicking outside
@@ -1818,7 +2144,7 @@ document.addEventListener('click', function(e) {
 
     // Check for success message in URL
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('msg') === 'deleted') {
+    if (urlParams.get('msg') === 'deleted' || urlParams.get('msg') === 'added') {
         const Toast = Swal.mixin({
             toast: true,
             position: 'top',
@@ -1833,13 +2159,27 @@ document.addEventListener('click', function(e) {
 
         Toast.fire({
             icon: 'success',
-            title: 'Article deleted'
+            title: urlParams.get('msg') === 'added' ? 'Article added' : 'Article deleted'
         });
         
         // Clean URL to prevent showing toast again on refresh
         const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
         window.history.replaceState({path: newUrl}, '', newUrl);
     }
+
+    function autoResizeTextarea(textarea) {
+        if (!textarea) return;
+        if (textarea.classList.contains('kb-create-content')) return;
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    }
+
+    document.querySelectorAll('textarea.form-control').forEach(function(textarea) {
+        autoResizeTextarea(textarea);
+        textarea.addEventListener('input', function() {
+            autoResizeTextarea(textarea);
+        });
+    });
 </script>
 
 </body>

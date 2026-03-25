@@ -56,8 +56,7 @@ if ($search !== '') {
     $stmt = $conn->prepare("
         SELECT id, title, category, content, created_at
         FROM knowledge_base
-        WHERE visible_to_sales = 1
-          AND (
+        WHERE (
                title LIKE ?
            OR content LIKE ?
            OR category LIKE ?

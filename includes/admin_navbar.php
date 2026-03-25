@@ -528,7 +528,7 @@ function fetchAdminNotifications() {
                     const allowed = ['critical', 'high', 'medium', 'low'];
                     const priorityKey = allowed.includes(rawPriority) ? rawPriority : '';
                     const priorityClass = priorityKey ? `priority-${priorityKey}` : 'priority-neutral';
-                    const priorityLabel = priorityKey ? `<span class="priority-badge ${priorityClass}">${escapeHtml(priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1))}</span>` : '';
+                    const priorityLabel = (n.type !== 'note_added' && priorityKey) ? `<span class="priority-badge ${priorityClass}">${escapeHtml(priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1))}</span>` : '';
                     let iconClass = 'fa-ticket';
                     let iconTypeClass = 'type-neutral';
                     if (actionType === 'update' && n.type === 'note_added') iconClass = 'fa-sticky-note';

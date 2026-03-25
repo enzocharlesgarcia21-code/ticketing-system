@@ -189,7 +189,11 @@ if (!empty($search)) {
 }
 
 // --- PAGINATION LOGIC ---
-$limit = 5;
+$allowed_limits = [10, 25, 50, 100, 500, 1000];
+$limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 10;
+if (!in_array($limit, $allowed_limits, true)) {
+    $limit = 10;
+}
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 if ($page < 1) $page = 1;
 $offset = ($page - 1) * $limit;
@@ -225,7 +229,7 @@ $result = $stmt->get_result();
     <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        .at-layout { width: 100%; max-width: 1400px; display: flex; gap: 18px; align-items: flex-start; }
+        .at-layout { width: 100%; max-width: 1560px; display: flex; gap: 18px; align-items: flex-start; }
         .at-sidebar { width: 260px; flex: 0 0 260px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; box-shadow: 0 4px 10px rgba(2,6,23,0.04); position: sticky; top: 96px; min-height: calc(100vh - 120px); display: flex; flex-direction: column; }
         .at-sidebar-section + .at-sidebar-section { margin-top: 16px; }
         .at-sidebar-title { font-size: 12px; font-weight: 800; color: #475569; display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 8px; text-transform: none; }
@@ -242,9 +246,135 @@ $result = $stmt->get_result();
         .at-sidebar-link.disabled { opacity: 0.45; pointer-events: none; }
         .at-main { flex: 1 1 auto; min-width: 0; }
         .at-main .admin-content { max-width: none; }
+        #filterForm .filter-row {
+            gap: 8px;
+            align-items: center;
+            flex-wrap: nowrap;
+        }
+        #filterForm .filter-input {
+            flex: 1 1 280px;
+            min-width: 280px;
+        }
+        #filterForm .filter-select {
+            min-width: 0;
+            padding: 10px 26px 10px 10px;
+            flex: 0 0 auto;
+        }
+        #filterForm select[name="department"] { width: 154px; }
+        #filterForm select[name="company_email"] { width: 176px; }
+        #filterForm select[name="priority"] { width: 128px; }
+        #filterForm select[name="status"] { width: 128px; }
+        #filterForm .clear-btn {
+            margin-left: 0;
+        }
+        .table-footer-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 14px 0 0;
+            flex-wrap: wrap;
+        }
+        .table-footer-bar .entries-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .table-footer-bar .entries-row .filter-select {
+            width: 96px;
+            min-width: 96px;
+        }
+        .table-footer-bar #ticketsPagination {
+            margin-left: auto;
+        }
+        .table-footer-bar #ticketsPagination .pagination-glass {
+            gap: 12px;
+            margin-top: 0;
+        }
+        .table-footer-bar #ticketsPagination .page-numbers {
+            gap: 10px;
+        }
+        .table-footer-bar #ticketsPagination .page-btn {
+            min-width: 42px;
+            height: 42px;
+            padding: 0 16px;
+            border: 1px solid #d8e2ec;
+            background: #ffffff;
+            color: #334155;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+        }
+        .table-footer-bar #ticketsPagination .page-btn.prev,
+        .table-footer-bar #ticketsPagination .page-btn.next {
+            min-width: 84px;
+            padding: 0 18px;
+            font-weight: 700;
+        }
+        .table-footer-bar #ticketsPagination .page-btn:hover:not(.active):not(.disabled) {
+            background: #f8fafc;
+            border-color: #cfd9e3;
+            transform: translateY(-1px);
+        }
+        .table-footer-bar #ticketsPagination .page-btn.active {
+            background: #166534;
+            border-color: #166534;
+            color: #ffffff;
+            box-shadow: 0 10px 24px rgba(22, 101, 52, 0.26);
+        }
+        .table-footer-bar #ticketsPagination .page-btn.disabled {
+            opacity: 0.45;
+            background: #ffffff;
+            border-color: #d8e2ec;
+        }
+        .table-footer-bar #ticketsPagination .pagination-ellipsis {
+            min-width: 24px;
+            height: 42px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+        }
         @media (max-width: 1100px) {
             .at-sidebar { display: none; }
             .at-layout { max-width: 1200px; }
+            #filterForm .filter-row { flex-wrap: wrap; }
+        }
+        @media (max-width: 768px) {
+            .table-footer-bar #ticketsPagination {
+                width: 100%;
+                margin-left: 0;
+            }
+            .table-footer-bar #ticketsPagination .pagination-glass {
+                justify-content: center;
+                gap: 8px;
+            }
+            .table-footer-bar #ticketsPagination .page-numbers {
+                gap: 8px;
+            }
+            .table-footer-bar #ticketsPagination .page-btn {
+                min-width: 38px;
+                height: 38px;
+                padding: 0 13px;
+                font-size: 13px;
+            }
+            .table-footer-bar #ticketsPagination .page-btn.prev,
+            .table-footer-bar #ticketsPagination .page-btn.next {
+                min-width: 74px;
+                padding: 0 14px;
+            }
+            .table-footer-bar #ticketsPagination .pagination-ellipsis {
+                min-width: 18px;
+                height: 38px;
+                font-size: 16px;
+            }
         }
     </style>
 </head>
@@ -343,7 +473,7 @@ $result = $stmt->get_result();
                         </select>
 
                         <select name="company_email" class="filter-select" onchange="submitForm()">
-                            <option value="" disabled selected hidden>All Company Email</option>
+                            <option value="" disabled selected hidden>All Email</option>
                             <?php
                                 $domains = ['@gpsci.net','@farmasee.ph','@gmail.com','@leads-eh.com','@leads-farmex.com','@leadsagri.com','@leadsanimalhealth.com','@leadsav.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'];
                                 $selDomain = strtolower(trim((string) $company_email));
@@ -442,33 +572,83 @@ $result = $stmt->get_result();
                     </table>
                 </div>
 
-                <!-- PAGINATION UI -->
-                <div id="ticketsPagination">
-                <?php if ($total_pages > 1): ?>
-                <div class="pagination-glass">
-                    <!-- Previous Link -->
-                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
-                       class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
-                        Previous
-                    </a>
-
-                    <!-- Page Numbers -->
-                    <div class="page-numbers">
-                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
-                               class="page-btn <?= ($i == $page) ? 'active' : ''; ?>">
-                                <?= $i; ?>
-                            </a>
-                        <?php endfor; ?>
+                <div class="table-footer-bar">
+                    <div class="entries-row">
+                        <span>Show</span>
+                        <select id="limitSelect" name="limit" class="filter-select" onchange="submitForm(1)">
+                            <?php foreach ($allowed_limits as $allowed_limit): ?>
+                                <option value="<?= $allowed_limit; ?>" <?= $limit === $allowed_limit ? 'selected' : ''; ?>><?= number_format($allowed_limit); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span>Entries</span>
                     </div>
 
-                    <!-- Next Link -->
-                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
-                       class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
-                        Next
-                    </a>
-                </div>
-                <?php endif; ?>
+                    <!-- PAGINATION UI -->
+                    <div id="ticketsPagination">
+                    <?php if ($total_pages > 1): ?>
+                    <div class="pagination-glass">
+                        <!-- Previous Link -->
+                        <a href="?page=<?= $page - 1; ?>&limit=<?= $limit; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
+                           data-page="<?= max(1, $page - 1) ?>"
+                           class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
+                            &lsaquo; Previous
+                        </a>
+
+                        <!-- Page Numbers -->
+                        <div class="page-numbers">
+                            <?php
+                                $pagination_pages = [];
+                                if ($total_pages < 10) {
+                                    for ($i = 1; $i <= $total_pages; $i++) {
+                                        $pagination_pages[] = $i;
+                                    }
+                                } else {
+                                    $pagination_pages = [1];
+                                    $window_start = max(2, $page - 1);
+                                    $window_end = min($total_pages - 1, $page + 1);
+
+                                    if ($page <= 4) {
+                                        $window_start = 2;
+                                        $window_end = 5;
+                                    } elseif ($page >= $total_pages - 3) {
+                                        $window_start = $total_pages - 4;
+                                        $window_end = $total_pages - 1;
+                                    }
+
+                                    if ($window_start > 2) {
+                                        $pagination_pages[] = 'ellipsis';
+                                    }
+                                    for ($i = $window_start; $i <= $window_end; $i++) {
+                                        $pagination_pages[] = $i;
+                                    }
+                                    if ($window_end < $total_pages - 1) {
+                                        $pagination_pages[] = 'ellipsis';
+                                    }
+                                    $pagination_pages[] = $total_pages;
+                                }
+                            ?>
+                            <?php foreach ($pagination_pages as $pagination_item): ?>
+                                <?php if ($pagination_item === 'ellipsis'): ?>
+                                    <span class="pagination-ellipsis">...</span>
+                                <?php else: ?>
+                                    <a href="?page=<?= $pagination_item; ?>&limit=<?= $limit; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
+                                       data-page="<?= $pagination_item ?>"
+                                       class="page-btn <?= ($pagination_item == $page) ? 'active' : ''; ?>">
+                                        <?= $pagination_item; ?>
+                                    </a>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <!-- Next Link -->
+                        <a href="?page=<?= $page + 1; ?>&limit=<?= $limit; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
+                           data-page="<?= min($total_pages, $page + 1) ?>"
+                           class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
+                            Next &rsaquo;
+                        </a>
+                    </div>
+                    <?php endif; ?>
+                    </div>
                 </div>
 
             </div>
@@ -486,6 +666,7 @@ const searchInput = document.getElementById("searchInput");
 const filterForm = document.getElementById("filterForm");
 const tbodyEl = document.getElementById("ticketsTbody");
 const paginationEl = document.getElementById("ticketsPagination");
+const limitSelect = document.getElementById("limitSelect");
 
 searchInput.addEventListener("keyup", function () {
     clearTimeout(typingTimer);
@@ -510,7 +691,9 @@ function serializeForm(page) {
         params.set(k, s);
     });
     params.set('page', String(page || 1));
-    params.set('limit', '5');
+    if (limitSelect && limitSelect.value) {
+        params.set('limit', String(limitSelect.value));
+    }
     return params;
 }
 
@@ -559,6 +742,7 @@ window.TM_CURRENT_USER = <?php echo json_encode([
     'company' => $_SESSION['company'] ?? null,
     'role' => $_SESSION['role'] ?? null
 ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+window.TM_HIDE_QUICK_TAGS = true;
 </script>
 <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
 <script>
@@ -599,6 +783,12 @@ if (clearBtn) {
 if (filterForm) {
     filterForm.addEventListener('submit', function (e) {
         e.preventDefault();
+        submitForm(1);
+    });
+}
+
+if (limitSelect) {
+    limitSelect.addEventListener('change', function () {
         submitForm(1);
     });
 }

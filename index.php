@@ -99,7 +99,8 @@
         .auth-card {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
+            padding-top: 43px;
         }
 
         .auth-card .card-title {
@@ -146,16 +147,32 @@
             display: flex;
             flex-direction: column;
             gap: 16px;
+            margin-top: 22px;
             margin-bottom: 0;
         }
 
         .auth-btn {
-            height: 60px;
-            border-radius: 16px;
-            padding: 0 18px;
+            height: 72px;
+            border-radius: 20px;
+            padding: 0 24px;
             background: rgba(255, 255, 255, 0.92);
             border: 1px solid rgba(226, 232, 240, 0.95);
             box-shadow: 0 10px 24px rgba(2, 6, 23, 0.06);
+        }
+
+        .auth-btn .btn-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+        }
+
+        .auth-btn .btn-icon i,
+        .auth-btn .btn-arrow i {
+            font-size: 22px;
+        }
+
+        .auth-btn .btn-label {
+            font-size: 18px;
         }
 
         .auth-btn:hover {
@@ -165,7 +182,7 @@
         }
 
         @media (min-width: 1100px) {
-            .auth-split-right { transform: translateX(-70px); }
+            .auth-split-right { transform: translateX(20px); }
         }
 
         @media (max-width: 900px) {
@@ -200,7 +217,7 @@
 
             .auth-card {
                 min-height: 0;
-                padding: 34px 24px;
+                padding: 40px 24px 34px;
             }
         }
 
@@ -247,7 +264,7 @@
             .auth-card {
                 width: 100%;
                 max-width: 360px;
-                padding: 26px;
+                padding: 24px 26px 26px;
                 border-radius: 18px;
                 text-align: center;
                 box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
@@ -283,6 +300,10 @@
                 margin-bottom: 22px;
             }
 
+            .portal-buttons {
+                margin-top: 24px;
+            }
+
             .auth-logo {
                 width: 140px;
                 margin-bottom: 12px;
@@ -291,8 +312,18 @@
             .auth-button,
             .auth-btn {
                 width: 100%;
-                height: 54px;
-                font-size: 16px;
+                height: 62px;
+                font-size: 17px;
+            }
+
+            .auth-btn .btn-icon {
+                width: 40px;
+                height: 40px;
+            }
+
+            .auth-btn .btn-icon i,
+            .auth-btn .btn-arrow i {
+                font-size: 20px;
             }
 
             .auth-button:active,

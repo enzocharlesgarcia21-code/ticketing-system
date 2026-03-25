@@ -14,6 +14,7 @@ $fixedCategories = [
     'Procurement',
     'Software',
     'Technical Support',
+    'Others',
 ];
 
 function kb_normalize_category_name(string $category): string
@@ -69,7 +70,23 @@ function kb_category_icon_class(string $category): string
     if (strpos($key, 'email') !== false) return 'fa-envelope';
     if (strpos($key, 'procurement') !== false) return 'fa-cart-shopping';
     if (strpos($key, 'technical') !== false) return 'fa-headset';
+    if (strpos($key, 'other') !== false) return 'fa-folder';
     return 'fa-folder';
+}
+
+function kb_is_standard_category(string $category): bool
+{
+    static $standard = [
+        'Documentation',
+        'Email',
+        'Hardware',
+        'Internet Concerns',
+        'Procurement',
+        'Software',
+        'Technical Support',
+    ];
+
+    return in_array(kb_category_label($category), $standard, true);
 }
 
 function kb_excerpt_text(string $text, int $maxLen = 140): string
@@ -102,28 +119,37 @@ if ($category === '' || !in_array($category, $fixedCategories, true)) {
 }
 
 $articles = [];
-$categoryAliases = kb_category_aliases($category);
-$placeholders = implode(',', array_fill(0, count($categoryAliases), '?'));
-$query = "SELECT * FROM knowledge_base WHERE category IN ($placeholders)";
-$params = $categoryAliases;
-$types = str_repeat('s', count($categoryAliases));
+$query = "SELECT * FROM knowledge_base";
+$params = [];
+$types = '';
 
 if ($search !== '') {
-    $query .= " AND (title LIKE ? OR content LIKE ?)";
+    $query .= " WHERE (title LIKE ? OR content LIKE ?)";
     $term = "%{$search}%";
     $params[] = $term;
     $params[] = $term;
-    $types .= 'ss';
+    $types = 'ss';
 }
 
 $query .= " ORDER BY created_at DESC";
 $stmt = $conn->prepare($query);
 if ($stmt) {
-    $stmt->bind_param($types, ...$params);
+    if ($types !== '') {
+        $stmt->bind_param($types, ...$params);
+    }
     $stmt->execute();
     $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {
-        $articles[] = $row;
+        $rowCategory = trim((string) ($row['category'] ?? ''));
+        $matches = false;
+        if ($category === 'Others') {
+            $matches = $rowCategory !== '' && !kb_is_standard_category($rowCategory);
+        } else {
+            $matches = in_array($rowCategory, kb_category_aliases($category), true);
+        }
+        if ($matches) {
+            $articles[] = $row;
+        }
     }
     $stmt->close();
 }
@@ -260,11 +286,6 @@ if ($stmt) {
             justify-content: center;
         }
 
-        .clear-btn {
-            background: white;
-            color: #111827;
-        }
-
         .articles-container {
             background: white;
             border: 1px solid #E5E7EB;
@@ -375,10 +396,6 @@ if ($stmt) {
                 min-width: 100%;
             }
 
-            .clear-btn {
-                width: 100%;
-            }
-
             .article-grid {
                 grid-template-columns: 1fr;
             }
@@ -417,7 +434,6 @@ if ($stmt) {
                             value="<?= htmlspecialchars($search) ?>"
                         >
                     </div>
-                    <button type="button" class="clear-btn" id="clearCategorySearch">Clear</button>
                 </form>
             </div>
 
@@ -462,7 +478,6 @@ if ($stmt) {
         (function () {
             var form = document.getElementById('categorySearchForm');
             var input = document.getElementById('categorySearchInput');
-            var clearBtn = document.getElementById('clearCategorySearch');
             var results = document.getElementById('categoryArticlesResults');
             var countTitle = document.getElementById('articlesCountTitle');
             if (!form || !input || !results || !countTitle) return;
@@ -525,14 +540,6 @@ if ($stmt) {
                 timer = setTimeout(runSearch, 250);
             });
 
-            if (clearBtn) {
-                clearBtn.addEventListener('click', function () {
-                    input.value = '';
-                    clearTimeout(timer);
-                    runSearch();
-                    input.focus();
-                });
-            }
         })();
     </script>
 </body>

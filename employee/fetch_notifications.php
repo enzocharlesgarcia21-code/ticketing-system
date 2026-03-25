@@ -14,7 +14,15 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
 $user_id = (int) $_SESSION['user_id'];
 
 // Unread count
-$count_result = $conn->query("SELECT COUNT(*) as count FROM notifications WHERE user_id = $user_id AND is_read = 0");
+$count_result = $conn->query("
+    SELECT COUNT(*) as count
+    FROM notifications n
+    LEFT JOIN employee_tickets t ON n.ticket_id = t.id
+    WHERE n.user_id = $user_id
+      AND n.is_read = 0
+      AND n.type <> 'chat_message'
+      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+");
 if (!$count_result) {
     http_response_code(500);
     echo json_encode(['unread_count' => 0, 'notifications' => [], 'error' => 'SQL Error']);
@@ -24,11 +32,14 @@ $unread_count = (int) ($count_result->fetch_assoc()['count'] ?? 0);
 
 // Latest 10 notifications with seconds_ago for lightweight time-ago formatting
 $query = "SELECT n.id, n.ticket_id, n.message, n.type, n.is_read, n.created_at,
+                 n.action_type,
                  t.priority,
                  TIMESTAMPDIFF(SECOND, n.created_at, NOW()) as seconds_ago
           FROM notifications n
           LEFT JOIN employee_tickets t ON n.ticket_id = t.id
           WHERE n.user_id = $user_id
+            AND n.type <> 'chat_message'
+            AND (n.type <> 'note_added' OR t.user_id = n.user_id)
           ORDER BY n.created_at DESC
           LIMIT 10";
 $result = $conn->query($query);
@@ -54,7 +65,7 @@ while ($row = $result->fetch_assoc()) {
     $notifications[] = [
         'id' => (int) $row['id'],
         'ticket_id' => (int) $row['ticket_id'],
-        'message' => (string) $row['message'],
+        'message' => notif_display_message((string) ($row['type'] ?? ''), (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0)),
         'type' => (string) $row['type'],
         'action_type' => (string) ($row['action_type'] ?? ''),
         'priority' => $row['priority'] ?? null,

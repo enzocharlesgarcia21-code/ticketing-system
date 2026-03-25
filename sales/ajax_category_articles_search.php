@@ -101,7 +101,7 @@ if ($category === '' || !in_array($category, $fixedCategories, true)) {
 $articles = [];
 $categoryAliases = kb_category_aliases_ajax($category);
 $placeholders = implode(',', array_fill(0, count($categoryAliases), '?'));
-$query = "SELECT * FROM knowledge_base WHERE visible_to_sales = 1 AND category IN ($placeholders)";
+$query = "SELECT * FROM knowledge_base WHERE category IN ($placeholders)";
 $params = $categoryAliases;
 $types = str_repeat('s', count($categoryAliases));
 

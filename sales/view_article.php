@@ -14,14 +14,8 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 }
 
 $article_id = (int)$_GET['id'];
-
-// 1. Increment Views
-$updateStmt = $conn->prepare("UPDATE knowledge_base SET views = views + 1 WHERE id = ? AND visible_to_sales = 1");
-$updateStmt->bind_param("i", $article_id);
-$updateStmt->execute();
-
-// 2. Fetch Article
-$stmt = $conn->prepare("SELECT * FROM knowledge_base WHERE id = ? AND visible_to_sales = 1");
+// 1. Fetch Article
+$stmt = $conn->prepare("SELECT * FROM knowledge_base WHERE id = ?");
 $stmt->bind_param("i", $article_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -32,10 +26,33 @@ if ($result->num_rows === 0) {
 }
 
 $article = $result->fetch_assoc();
-$article_image_url = kb_resolve_asset_url($article['image_path'] ?? '');
+$registered_view = kb_register_article_view($conn, $article_id);
+if ($registered_view) {
+    $article['views'] = (int) ($article['views'] ?? 0) + 1;
+}
+$article_image_urls = kb_resolve_asset_urls($article['image_path'] ?? '');
 $back_category = trim((string) ($article['category'] ?? ''));
+$back_subcategory = trim((string) ($article['sub_category'] ?? ''));
 if ($back_category === '') {
     $back_category = 'Documentation';
+}
+
+$standard_kb_categories = [
+    'Documentation',
+    'Email',
+    'Hardware',
+    'Internet Concerns',
+    'Procurement',
+    'Software',
+    'Technical Support',
+];
+
+if (strcasecmp($back_category, 'Others') === 0 && $back_subcategory !== '') {
+    $back_url = 'knowledge_base.php?category=Others&sub=' . urlencode($back_subcategory);
+} elseif ($back_category !== '' && !in_array($back_category, $standard_kb_categories, true)) {
+    $back_url = 'knowledge_base.php?category=Others&sub=' . urlencode($back_category);
+} else {
+    $back_url = 'knowledge_base.php?category=' . urlencode($back_category);
 }
 
 // Fetch Related Articles
@@ -44,7 +61,6 @@ $relatedStmt = $conn->prepare("
     FROM kb_related_articles r 
     JOIN knowledge_base k ON r.related_article_id = k.id 
     WHERE r.article_id = ?
-      AND k.visible_to_sales = 1
 ");
 $relatedStmt->bind_param("i", $article_id);
 $relatedStmt->execute();
@@ -130,88 +146,121 @@ function renderArticleContent($text) {
             position: sticky;
             top: 0;
             z-index: 10;
-            background: linear-gradient(90deg, #1B5E20, #14532d);
-            border-bottom: 3px solid #FBBF24;
-            min-height: 96px;
+            background:
+                linear-gradient(0deg, rgba(20, 42, 23, 0.16), rgba(20, 42, 23, 0.16)),
+                radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.05), transparent 38%),
+                linear-gradient(135deg, #214f2a 0%, #1a4726 48%, #183f22 100%);
+            border-bottom: 4px solid #d6a329;
+            box-shadow: 0 14px 34px rgba(6, 24, 12, 0.22);
         }
 
         .sales-topbar-inner {
             width: 100%;
             margin: 0 auto;
-            padding: 22px 24px;
+            padding: 8px 22px 9px;
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 16px;
-            position: relative;
+            justify-content: space-between;
+            gap: 20px;
             box-sizing: border-box;
         }
 
+        .sales-brand-block {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            min-width: 0;
+        }
+
         .sales-logo {
-            position: absolute;
-            left: 24px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            width: 54px;
+            height: 54px;
+            flex: 0 0 54px;
         }
 
         .sales-logo img {
-            height: 56px;
-            width: 56px;
+            height: 100%;
+            width: 100%;
             object-fit: contain;
             background-color: #ffffff;
-            padding: 6px;
-            border-radius: 50%;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+            padding: 8px;
+            border-radius: 999px;
+            box-shadow: 0 8px 18px rgba(6, 24, 12, 0.22);
             display: block;
+            box-sizing: border-box;
+        }
+
+        .sales-brand-divider {
+            width: 1px;
+            height: 40px;
+            background: rgba(233, 219, 174, 0.58);
+            flex: 0 0 1px;
         }
 
         .sales-brand {
             display: flex;
             flex-direction: column;
-            line-height: 1.1;
-            align-items: center;
-            text-align: center;
+            line-height: 1.08;
+            align-items: flex-start;
+            text-align: left;
         }
 
         .sales-brand-title {
-            font-weight: 800;
-            letter-spacing: 0.2px;
-            color: #ffffff;
-            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            color: #f8f6ee;
+            font-size: 19px;
+            text-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
         }
 
         .sales-brand-subtitle {
-            font-size: 18px;
-            font-weight: 700;
-            color: #FDE68A;
-            margin-top: 3px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #e5bf59;
+            margin-top: 4px;
         }
 
         .sales-nav-right {
             display: flex;
             align-items: center;
-            gap: 14px;
-            position: absolute;
-            right: 24px;
+            justify-content: flex-end;
+            flex: 0 0 auto;
         }
 
         .sales-nav-link {
-            color: rgba(255, 255, 255, 0.92);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-height: 42px;
+            padding: 0 20px;
+            color: #f8f6ee;
             text-decoration: none;
             font-weight: 700;
-            font-size: 14px;
-            padding: 10px 14px;
+            font-size: 13px;
+            letter-spacing: 0.01em;
             border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            transition: background 0.2s, color 0.2s, border-color 0.2s;
+            border: 1px solid rgba(232, 223, 193, 0.34);
+            background: rgba(255, 255, 255, 0.02);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
             white-space: nowrap;
         }
 
         .sales-nav-link:hover {
-            background: rgba(255, 255, 255, 0.12);
-            color: #FDE68A;
-            border-color: rgba(253, 230, 138, 0.65);
+            background: rgba(255, 255, 255, 0.08);
+            color: #f6cf62;
+            border-color: rgba(229, 191, 89, 0.55);
+            transform: translateY(-1px);
+        }
+
+        .sales-nav-link-icon {
+            color: #f6cf62;
+            font-size: 16px;
+            line-height: 1;
         }
 
         .article-container {
@@ -359,6 +408,127 @@ function renderArticleContent($text) {
             margin: 1em 0;
         }
 
+        .article-image-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+
+        .article-image-gallery img {
+            width: 100%;
+            max-height: 500px;
+            object-fit: cover;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin: 0;
+        }
+
+        .article-image-link {
+            display: block;
+            text-decoration: none;
+        }
+
+        .article-image-link img {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: zoom-in;
+        }
+
+        .article-image-link:hover img {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+        }
+
+        .article-lightbox {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 28px;
+            z-index: 9999;
+        }
+
+        .article-lightbox.is-open {
+            display: flex;
+        }
+
+        .article-lightbox-stage {
+            max-width: min(1100px, calc(100vw - 140px));
+            max-height: calc(100vh - 110px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            touch-action: none;
+        }
+
+        .article-lightbox-image {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 14px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+            transform-origin: center center;
+            transition: transform 0.15s ease;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        .article-lightbox-close,
+        .article-lightbox-nav {
+            position: absolute;
+            border: none;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.14);
+            color: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+        }
+
+        .article-lightbox-close {
+            top: 24px;
+            right: 24px;
+            width: 42px;
+            height: 42px;
+            font-size: 24px;
+            line-height: 1;
+        }
+
+        .article-lightbox-nav {
+            top: 50%;
+            transform: translateY(-50%);
+            width: 52px;
+            height: 52px;
+            font-size: 30px;
+            line-height: 1;
+        }
+
+        .article-lightbox-prev {
+            left: 24px;
+        }
+
+        .article-lightbox-next {
+            right: 24px;
+        }
+
+        .article-lightbox-counter {
+            position: absolute;
+            left: 50%;
+            bottom: 24px;
+            transform: translateX(-50%);
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.14);
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
         @media (max-width: 768px) {
             .sales-topbar {
                 min-height: 80px;
@@ -378,24 +548,53 @@ function renderArticleContent($text) {
                 column-gap: 10px;
             }
 
-            .sales-logo {
-                position: static;
-                left: auto;
-                grid-area: logo;
-            }
-
             .sales-logo img {
                 height: 44px;
                 width: 44px;
                 padding: 4px;
             }
 
-            .sales-brand {
+            .sales-brand-block {
                 display: contents;
             }
 
+            .sales-brand-divider {
+                display: none;
+            }
+
+            .sales-topbar {
+                min-height: auto;
+            }
+
+            .sales-topbar-inner {
+                padding: 8px 12px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+
+            .sales-brand-block {
+                gap: 8px;
+                align-items: center;
+            }
+
+            .sales-logo {
+                width: 40px;
+                height: 40px;
+                flex: 0 0 40px;
+            }
+
+            .sales-logo img {
+                height: 100%;
+                width: 100%;
+                padding: 4px;
+            }
+
+            .sales-brand-divider {
+                height: 28px;
+            }
+
             .sales-brand-title {
-                grid-area: title;
                 font-size: 18px;
                 font-weight: 600;
                 line-height: 1.3;
@@ -403,37 +602,20 @@ function renderArticleContent($text) {
             }
 
             .sales-brand-subtitle {
-                grid-area: subtitle;
                 font-size: 14px;
                 color: #FACC15;
-                margin-top: 0;
-                text-align: center;
+                margin-top: 4px;
+                text-align: left;
             }
 
             .sales-nav-right {
-                position: static;
-                right: auto;
-                grid-area: nav;
                 width: 100%;
-                justify-content: center;
-                margin-top: 8px;
+                justify-content: stretch;
             }
 
             .sales-nav-link {
-                min-width: 160px;
-                max-width: 180px;
-                background: white;
-                color: #1B5E20;
-                border: 2px solid rgba(255,255,255,0.3);
-                display: flex;
-                align-items: center;
+                width: 100%;
                 justify-content: center;
-                text-align: center;
-                height: 38px;
-                border-radius: 999px;
-                padding: 6px 14px;
-                font-size: 13px;
-                font-weight: 600;
             }
 
             .article-header, .article-content {
@@ -442,6 +624,32 @@ function renderArticleContent($text) {
             .article-title {
                 font-size: 24px;
             }
+            .article-lightbox {
+                padding: 16px;
+            }
+            .article-lightbox-stage {
+                max-width: calc(100vw - 32px);
+                max-height: calc(100vh - 120px);
+            }
+            .article-lightbox-image {
+                max-width: 100%;
+                max-height: 100%;
+            }
+            .article-lightbox-nav {
+                width: 42px;
+                height: 42px;
+                font-size: 24px;
+            }
+            .article-lightbox-prev {
+                left: 12px;
+            }
+            .article-lightbox-next {
+                right: 12px;
+            }
+            .article-lightbox-close {
+                top: 12px;
+                right: 12px;
+            }
         }
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -449,22 +657,28 @@ function renderArticleContent($text) {
 <body>
     <header class="sales-topbar">
         <div class="sales-topbar-inner">
-            <div class="sales-logo">
-                <img src="../assets/img/UPDATEDlogo.png" alt="Leads Agri Logo">
-            </div>
-            <div class="sales-brand">
-                <div class="sales-brand-title">Leads Agri Helpdesk</div>
-                <div class="sales-brand-subtitle">Knowledge Base</div>
+            <div class="sales-brand-block">
+                <div class="sales-logo">
+                    <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo">
+                </div>
+                <div class="sales-brand-divider" aria-hidden="true"></div>
+                <div class="sales-brand">
+                    <div class="sales-brand-title">Leads Agri Helpdesk</div>
+                    <div class="sales-brand-subtitle">Knowledge Base</div>
+                </div>
             </div>
             <div class="sales-nav-right">
-                <a class="sales-nav-link" href="/ticketing/sales/request_ticket.php">Submit Ticket</a>
+                <a class="sales-nav-link" href="/ticketing/sales/request_ticket.php">
+                    <span>Submit Ticket</span>
+                    <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+                </a>
             </div>
         </div>
     </header>
 
     <div class="article-container">
         
-        <a href="category_articles.php?category=<?= urlencode($back_category) ?>" class="back-link" aria-label="Back to Category Articles">
+        <a href="<?= htmlspecialchars($back_url) ?>" class="back-link" aria-label="Back to Category Articles">
             <i class="fas fa-arrow-left"></i>
         </a>
 
@@ -489,9 +703,13 @@ function renderArticleContent($text) {
             </div>
 
             <div class="article-content">
-                <?php if (!empty($article_image_url)): ?>
-                    <div style="margin-bottom: 30px;">
-                        <img src="<?= htmlspecialchars($article_image_url) ?>" alt="<?= htmlspecialchars($article['title']) ?>" style="width: 100%; max-height: 500px; object-fit: cover; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                <?php if (!empty($article_image_urls)): ?>
+                    <div class="article-image-gallery">
+                        <?php foreach ($article_image_urls as $index => $article_image_url): ?>
+                            <a href="<?= htmlspecialchars($article_image_url) ?>" class="article-image-link" data-article-image="<?= htmlspecialchars($article_image_url) ?>" data-article-index="<?= (int) $index ?>">
+                                <img src="<?= htmlspecialchars($article_image_url) ?>" alt="<?= htmlspecialchars($article['title']) ?>">
+                            </a>
+                        <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
                 <?= renderArticleContent($article['content']) ?>
@@ -695,6 +913,127 @@ function renderArticleContent($text) {
         </article>
 
     </div>
+
+    <div class="article-lightbox" id="articleLightbox" aria-hidden="true">
+        <button type="button" class="article-lightbox-close" id="articleLightboxClose" aria-label="Close image viewer">&times;</button>
+        <button type="button" class="article-lightbox-nav article-lightbox-prev" id="articleLightboxPrev" aria-label="Previous image">&#8249;</button>
+        <div class="article-lightbox-stage" id="articleLightboxStage">
+            <img src="" alt="" class="article-lightbox-image" id="articleLightboxImage">
+        </div>
+        <button type="button" class="article-lightbox-nav article-lightbox-next" id="articleLightboxNext" aria-label="Next image">&#8250;</button>
+        <div class="article-lightbox-counter" id="articleLightboxCounter"></div>
+    </div>
+
+    <script>
+    (function () {
+        var links = Array.prototype.slice.call(document.querySelectorAll('[data-article-image]'));
+        var lightbox = document.getElementById('articleLightbox');
+        var stage = document.getElementById('articleLightboxStage');
+        var lightboxImage = document.getElementById('articleLightboxImage');
+        var counter = document.getElementById('articleLightboxCounter');
+        var prevBtn = document.getElementById('articleLightboxPrev');
+        var nextBtn = document.getElementById('articleLightboxNext');
+        var closeBtn = document.getElementById('articleLightboxClose');
+        var currentIndex = 0;
+        var currentScale = 1;
+
+        if (!links.length || !lightbox || !stage || !lightboxImage || !counter || !prevBtn || !nextBtn || !closeBtn) {
+            return;
+        }
+
+        function resetZoom() {
+            currentScale = 1;
+            lightboxImage.style.transform = 'scale(1)';
+            stage.scrollTop = 0;
+            stage.scrollLeft = 0;
+        }
+
+        function applyZoom(nextScale) {
+            currentScale = Math.max(1, Math.min(4, nextScale));
+            lightboxImage.style.transform = 'scale(' + currentScale + ')';
+        }
+
+        function renderImage() {
+            var activeLink = links[currentIndex];
+            if (!activeLink) return;
+            var src = activeLink.getAttribute('data-article-image') || '';
+            lightboxImage.src = src;
+            lightboxImage.alt = activeLink.querySelector('img') ? (activeLink.querySelector('img').alt || '') : '';
+            counter.textContent = (currentIndex + 1) + ' / ' + links.length;
+            resetZoom();
+        }
+
+        function openLightbox(index) {
+            currentIndex = index;
+            renderImage();
+            lightbox.classList.add('is-open');
+            lightbox.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox() {
+            lightbox.classList.remove('is-open');
+            lightbox.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+            resetZoom();
+        }
+
+        function showPrev() {
+            currentIndex = (currentIndex - 1 + links.length) % links.length;
+            renderImage();
+        }
+
+        function showNext() {
+            currentIndex = (currentIndex + 1) % links.length;
+            renderImage();
+        }
+
+        links.forEach(function (link, index) {
+            link.addEventListener('click', function (event) {
+                event.preventDefault();
+                openLightbox(index);
+            });
+        });
+
+        prevBtn.addEventListener('click', function (event) {
+            event.stopPropagation();
+            showPrev();
+        });
+
+        nextBtn.addEventListener('click', function (event) {
+            event.stopPropagation();
+            showNext();
+        });
+
+        stage.addEventListener('wheel', function (event) {
+            event.preventDefault();
+            var delta = event.deltaY < 0 ? 0.2 : -0.2;
+            applyZoom(currentScale + delta);
+        }, { passive: false });
+
+        lightboxImage.addEventListener('dblclick', function (event) {
+            event.preventDefault();
+            applyZoom(currentScale > 1 ? 1 : 2);
+        });
+
+        closeBtn.addEventListener('click', function () {
+            closeLightbox();
+        });
+
+        lightbox.addEventListener('click', function (event) {
+            if (event.target === lightbox) {
+                closeLightbox();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (!lightbox.classList.contains('is-open')) return;
+            if (event.key === 'Escape') closeLightbox();
+            if (event.key === 'ArrowLeft') showPrev();
+            if (event.key === 'ArrowRight') showNext();
+        });
+    })();
+    </script>
 
     <script src="../js/employee-dashboard.js"></script>
 </body>
