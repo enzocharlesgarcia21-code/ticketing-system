@@ -187,9 +187,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         'action_type' => 'update'
                     ];
             } elseif ($noteChanged) {
-                $preview = strlen($admin_note) > 50 ? substr($admin_note, 0, 50) . '...' : $admin_note;
                 $requesterNotification = [
-                    'msg' => "Admin added a note to ticket #$id: '$preview'",
+                    'msg' => "A private note was added to ticket #$id.",
                     'type' => 'note_added',
                     'action_type' => 'update'
                 ];

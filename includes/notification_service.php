@@ -199,6 +199,17 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
     return ['html' => $bodyHtml, 'text' => $bodyText];
 }
 
+function notif_display_message(string $type, string $message, int $ticketId = 0): string
+{
+    $type = strtolower(trim($type));
+    if ($type === 'note_added') {
+        return $ticketId > 0
+            ? ("A private note was added to ticket #" . $ticketId . ".")
+            : "A private note was added to a ticket.";
+    }
+    return $message;
+}
+
 function notif_message_highlight_html(string $message): string
 {
     $escaped = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');

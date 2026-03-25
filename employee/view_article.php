@@ -15,13 +15,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 }
 
 $article_id = (int)$_GET['id'];
-
-// 1. Increment Views
-$updateStmt = $conn->prepare("UPDATE knowledge_base SET views = views + 1 WHERE id = ?");
-$updateStmt->bind_param("i", $article_id);
-$updateStmt->execute();
-
-// 2. Fetch Article
+// 1. Fetch Article
 $stmt = $conn->prepare("SELECT * FROM knowledge_base WHERE id = ?");
 $stmt->bind_param("i", $article_id);
 $stmt->execute();
@@ -33,10 +27,33 @@ if ($result->num_rows === 0) {
 }
 
 $article = $result->fetch_assoc();
-$article_image_url = kb_resolve_asset_url($article['image_path'] ?? '');
+$registered_view = kb_register_article_view($conn, $article_id);
+if ($registered_view) {
+    $article['views'] = (int) ($article['views'] ?? 0) + 1;
+}
+$article_image_urls = kb_resolve_asset_urls($article['image_path'] ?? '');
 $back_category = trim((string) ($article['category'] ?? ''));
+$back_subcategory = trim((string) ($article['sub_category'] ?? ''));
 if ($back_category === '') {
     $back_category = 'Documentation';
+}
+
+$standard_kb_categories = [
+    'Documentation',
+    'Email',
+    'Hardware',
+    'Internet Concerns',
+    'Procurement',
+    'Software',
+    'Technical Support',
+];
+
+if (strcasecmp($back_category, 'Others') === 0 && $back_subcategory !== '') {
+    $back_url = 'knowledge_base.php?category=Others&sub=' . urlencode($back_subcategory);
+} elseif ($back_category !== '' && !in_array($back_category, $standard_kb_categories, true)) {
+    $back_url = 'knowledge_base.php?category=Others&sub=' . urlencode($back_category);
+} else {
+    $back_url = 'knowledge_base.php?category=' . urlencode($back_category);
 }
 
 // Fetch Related Articles
@@ -271,12 +288,159 @@ function renderArticleContent($text) {
             margin: 1em 0;
         }
 
+        .article-image-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+
+        .article-image-gallery img {
+            width: 100%;
+            max-height: 500px;
+            object-fit: cover;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin: 0;
+        }
+
+        .article-image-link {
+            display: block;
+            text-decoration: none;
+        }
+
+        .article-image-link img {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: zoom-in;
+        }
+
+        .article-image-link:hover img {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+        }
+
+        .article-lightbox {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 28px;
+            z-index: 9999;
+        }
+
+        .article-lightbox.is-open {
+            display: flex;
+        }
+
+        .article-lightbox-stage {
+            max-width: min(1100px, calc(100vw - 140px));
+            max-height: calc(100vh - 110px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            touch-action: none;
+        }
+
+        .article-lightbox-image {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 14px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+            transform-origin: center center;
+            transition: transform 0.15s ease;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        .article-lightbox-close,
+        .article-lightbox-nav {
+            position: absolute;
+            border: none;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.14);
+            color: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+        }
+
+        .article-lightbox-close {
+            top: 24px;
+            right: 24px;
+            width: 42px;
+            height: 42px;
+            font-size: 24px;
+            line-height: 1;
+        }
+
+        .article-lightbox-nav {
+            top: 50%;
+            transform: translateY(-50%);
+            width: 52px;
+            height: 52px;
+            font-size: 30px;
+            line-height: 1;
+        }
+
+        .article-lightbox-prev {
+            left: 24px;
+        }
+
+        .article-lightbox-next {
+            right: 24px;
+        }
+
+        .article-lightbox-counter {
+            position: absolute;
+            left: 50%;
+            bottom: 24px;
+            transform: translateX(-50%);
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.14);
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
         @media (max-width: 768px) {
             .article-header, .article-content {
                 padding: 24px;
             }
             .article-title {
                 font-size: 24px;
+            }
+            .article-lightbox {
+                padding: 16px;
+            }
+            .article-lightbox-stage {
+                max-width: calc(100vw - 32px);
+                max-height: calc(100vh - 120px);
+            }
+            .article-lightbox-image {
+                max-width: 100%;
+                max-height: 100%;
+            }
+            .article-lightbox-nav {
+                width: 42px;
+                height: 42px;
+                font-size: 24px;
+            }
+            .article-lightbox-prev {
+                left: 12px;
+            }
+            .article-lightbox-next {
+                right: 12px;
+            }
+            .article-lightbox-close {
+                top: 12px;
+                right: 12px;
             }
         }
     </style>
@@ -288,7 +452,7 @@ function renderArticleContent($text) {
 
     <div class="article-container">
         
-        <a href="category_articles.php?category=<?= urlencode($back_category) ?>" class="back-link" aria-label="Back to Category Articles">
+        <a href="<?= htmlspecialchars($back_url) ?>" class="back-link" aria-label="Back to Category Articles">
             <i class="fas fa-arrow-left"></i>
         </a>
 
@@ -313,9 +477,13 @@ function renderArticleContent($text) {
             </div>
 
             <div class="article-content">
-                <?php if (!empty($article_image_url)): ?>
-                    <div style="margin-bottom: 30px;">
-                        <img src="<?= htmlspecialchars($article_image_url) ?>" alt="<?= htmlspecialchars($article['title']) ?>" style="width: 100%; max-height: 500px; object-fit: cover; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                <?php if (!empty($article_image_urls)): ?>
+                    <div class="article-image-gallery">
+                        <?php foreach ($article_image_urls as $index => $article_image_url): ?>
+                            <a href="<?= htmlspecialchars($article_image_url) ?>" class="article-image-link" data-article-image="<?= htmlspecialchars($article_image_url) ?>" data-article-index="<?= (int) $index ?>">
+                                <img src="<?= htmlspecialchars($article_image_url) ?>" alt="<?= htmlspecialchars($article['title']) ?>">
+                            </a>
+                        <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
                 <?= renderArticleContent($article['content']) ?>
@@ -519,6 +687,127 @@ function renderArticleContent($text) {
         </article>
 
     </div>
+
+    <div class="article-lightbox" id="articleLightbox" aria-hidden="true">
+        <button type="button" class="article-lightbox-close" id="articleLightboxClose" aria-label="Close image viewer">&times;</button>
+        <button type="button" class="article-lightbox-nav article-lightbox-prev" id="articleLightboxPrev" aria-label="Previous image">&#8249;</button>
+        <div class="article-lightbox-stage" id="articleLightboxStage">
+            <img src="" alt="" class="article-lightbox-image" id="articleLightboxImage">
+        </div>
+        <button type="button" class="article-lightbox-nav article-lightbox-next" id="articleLightboxNext" aria-label="Next image">&#8250;</button>
+        <div class="article-lightbox-counter" id="articleLightboxCounter"></div>
+    </div>
+
+    <script>
+    (function () {
+        var links = Array.prototype.slice.call(document.querySelectorAll('[data-article-image]'));
+        var lightbox = document.getElementById('articleLightbox');
+        var stage = document.getElementById('articleLightboxStage');
+        var lightboxImage = document.getElementById('articleLightboxImage');
+        var counter = document.getElementById('articleLightboxCounter');
+        var prevBtn = document.getElementById('articleLightboxPrev');
+        var nextBtn = document.getElementById('articleLightboxNext');
+        var closeBtn = document.getElementById('articleLightboxClose');
+        var currentIndex = 0;
+        var currentScale = 1;
+
+        if (!links.length || !lightbox || !stage || !lightboxImage || !counter || !prevBtn || !nextBtn || !closeBtn) {
+            return;
+        }
+
+        function resetZoom() {
+            currentScale = 1;
+            lightboxImage.style.transform = 'scale(1)';
+            stage.scrollTop = 0;
+            stage.scrollLeft = 0;
+        }
+
+        function applyZoom(nextScale) {
+            currentScale = Math.max(1, Math.min(4, nextScale));
+            lightboxImage.style.transform = 'scale(' + currentScale + ')';
+        }
+
+        function renderImage() {
+            var activeLink = links[currentIndex];
+            if (!activeLink) return;
+            var src = activeLink.getAttribute('data-article-image') || '';
+            lightboxImage.src = src;
+            lightboxImage.alt = activeLink.querySelector('img') ? (activeLink.querySelector('img').alt || '') : '';
+            counter.textContent = (currentIndex + 1) + ' / ' + links.length;
+            resetZoom();
+        }
+
+        function openLightbox(index) {
+            currentIndex = index;
+            renderImage();
+            lightbox.classList.add('is-open');
+            lightbox.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox() {
+            lightbox.classList.remove('is-open');
+            lightbox.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+            resetZoom();
+        }
+
+        function showPrev() {
+            currentIndex = (currentIndex - 1 + links.length) % links.length;
+            renderImage();
+        }
+
+        function showNext() {
+            currentIndex = (currentIndex + 1) % links.length;
+            renderImage();
+        }
+
+        links.forEach(function (link, index) {
+            link.addEventListener('click', function (event) {
+                event.preventDefault();
+                openLightbox(index);
+            });
+        });
+
+        prevBtn.addEventListener('click', function (event) {
+            event.stopPropagation();
+            showPrev();
+        });
+
+        nextBtn.addEventListener('click', function (event) {
+            event.stopPropagation();
+            showNext();
+        });
+
+        stage.addEventListener('wheel', function (event) {
+            event.preventDefault();
+            var delta = event.deltaY < 0 ? 0.2 : -0.2;
+            applyZoom(currentScale + delta);
+        }, { passive: false });
+
+        lightboxImage.addEventListener('dblclick', function (event) {
+            event.preventDefault();
+            applyZoom(currentScale > 1 ? 1 : 2);
+        });
+
+        closeBtn.addEventListener('click', function () {
+            closeLightbox();
+        });
+
+        lightbox.addEventListener('click', function (event) {
+            if (event.target === lightbox) {
+                closeLightbox();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (!lightbox.classList.contains('is-open')) return;
+            if (event.key === 'Escape') closeLightbox();
+            if (event.key === 'ArrowLeft') showPrev();
+            if (event.key === 'ArrowRight') showNext();
+        });
+    })();
+    </script>
 
     <script src="../js/employee-dashboard.js"></script>
 </body>

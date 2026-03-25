@@ -117,65 +117,79 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+<?php
+    $password_invalid = isset($error) && $error === "Incorrect password.";
+?>
 
-<div class="login-container">
-    <div class="login-card">
-        <a href="../index.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
+<div class="auth-wrapper auth-container login-container">
+    <section class="auth-split-left" aria-hidden="true"></section>
 
-        <h2>Login</h2>
+    <section class="auth-split-right" aria-label="Employee login">
+        <div class="login-card">
+            <a href="../index.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
 
-        <?php if (isset($_GET['registered'])) : ?>
-            <div class="success">Account created successfully! Please login.</div>
-        <?php endif; ?>
+            <h2>Login</h2>
 
-        <?php if (isset($_GET['password_reset'])) : ?>
-            <div class="success">Password reset successfully! Please login with your new password.</div>
-        <?php endif; ?>
+            <?php if (isset($_GET['registered'])) : ?>
+                <div class="success">Account created successfully! Please login.</div>
+            <?php endif; ?>
 
-        <?php if (isset($error)) : ?>
-            <div class="error"><?php echo $error; ?></div>
-        <?php endif; ?>
+            <?php if (isset($_GET['password_reset'])) : ?>
+                <div class="success">Password reset successfully! Please login with your new password.</div>
+            <?php endif; ?>
 
-        <form method="POST">
-            <?php echo csrf_field(); ?>
+            <?php if (isset($error)) : ?>
+                <div class="error"><?php echo $error; ?></div>
+            <?php endif; ?>
 
-            <div class="form-group">
-                <label>Email *</label>
-                <div class="input-shell">
-                    <span class="input-icon"><i class="fas fa-envelope"></i></span>
-                    <input
-                        type="text"
-                        name="email"
-                        id="emailInput"
-                        placeholder="Email"
-                        value="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>"
-                        required
-                        title="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>"
-                    >
-                    <input type="hidden" name="email_domain" id="emailDomain" value="<?php echo htmlspecialchars($email_domain, ENT_QUOTES, 'UTF-8'); ?>">
+            <form method="POST">
+                <?php echo csrf_field(); ?>
+
+                <div class="form-group">
+                    <label>Email *</label>
+                    <div class="input-shell">
+                        <span class="input-icon"><i class="fas fa-envelope"></i></span>
+                        <input
+                            type="text"
+                            name="email"
+                            id="emailInput"
+                            placeholder="Email"
+                            value="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>"
+                            required
+                            title="<?php echo htmlspecialchars($email_value, ENT_QUOTES, 'UTF-8'); ?>"
+                        >
+                        <input type="hidden" name="email_domain" id="emailDomain" value="<?php echo htmlspecialchars($email_domain, ENT_QUOTES, 'UTF-8'); ?>">
+                    </div>
                 </div>
-            </div>
 
-            <div class="form-group">
-                <label>Password *</label>
-                <div class="input-shell password-wrapper">
-                    <span class="input-icon"><i class="fas fa-lock"></i></span>
-                    <input type="password" name="password" class="password-input" placeholder="Password" required>
-                    <button type="button" class="toggle-password" aria-label="Show or hide password">
-                        <span class="eye-icon" aria-hidden="true"></span>
-                    </button>
+                <div class="form-group">
+                    <label>Password *</label>
+                    <div class="input-shell password-wrapper<?php echo $password_invalid ? ' is-invalid' : ''; ?>">
+                        <span class="input-icon"><i class="fas fa-lock"></i></span>
+                        <input
+                            type="password"
+                            name="password"
+                            class="password-input"
+                            placeholder="Password"
+                            required
+                            aria-invalid="<?php echo $password_invalid ? 'true' : 'false'; ?>"
+                        >
+                        <button type="button" class="toggle-password" aria-label="Show or hide password">
+                            <span class="eye-icon" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <a href="forgot_password.php" class="forgot-link">Forgot Password?</a>
                 </div>
-                <a href="forgot_password.php" class="forgot-link">Forgot Password?</a>
+
+                <button type="submit">Login</button>
+            </form>
+
+            <div class="signup-link signup-link-hidden">
+                Don&rsquo;t have an account?
+                <a href="register.php">Sign up</a>
             </div>
-
-            <button type="submit">Login</button>
-        </form>
-
-        <div class="signup-link signup-link-hidden">
-            Don&rsquo;t have an account?
-            <a href="register.php">Sign up</a>
         </div>
-    </div>
+    </section>
 </div>
 
 <script>

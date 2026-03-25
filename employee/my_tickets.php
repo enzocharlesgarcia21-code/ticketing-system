@@ -12,17 +12,41 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
 ticket_apply_sla_priority($conn);
 
 $user_id = (int) $_SESSION['user_id'];
+$limit = 10;
+$page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
+if ($page < 1) $page = 1;
+
+$countStmt = $conn->prepare("
+    SELECT COUNT(*) AS total
+    FROM employee_tickets
+    WHERE user_id = ?
+");
+$countStmt->bind_param("i", $user_id);
+$countStmt->execute();
+$countResult = $countStmt->get_result();
+$countRow = $countResult ? $countResult->fetch_assoc() : null;
+$countStmt->close();
+
+$total_records = (int) ($countRow['total'] ?? 0);
+$total_pages = (int) ceil($total_records / $limit);
+if ($total_pages < 1) $total_pages = 1;
+if ($page > $total_pages) $page = $total_pages;
+$offset = ($page - 1) * $limit;
+$showing_from = $total_records > 0 ? ($offset + 1) : 0;
+$showing_to = min($offset + $limit, $total_records);
 
 $stmt = $conn->prepare("
-    SELECT * FROM employee_tickets
+    SELECT *
+    FROM employee_tickets
     WHERE user_id = ?
     ORDER BY created_at DESC
+    LIMIT ?, ?
 ");
-$stmt->bind_param("i", $user_id);
+$stmt->bind_param("iii", $user_id, $offset, $limit);
 $stmt->execute();
 $result = $stmt->get_result();
-$successMessage = isset($_SESSION['success']) ? (string) $_SESSION['success'] : '';
 unset($_SESSION['success']);
+$successMessage = '';
 ?>
 
 <!DOCTYPE html>
@@ -40,81 +64,8 @@ unset($_SESSION['success']);
         body.tm-hide-requestor-admin-chat .tm-inline-chat-btn {
             display: none !important;
         }
-        .ticket-success-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.46);
-            backdrop-filter: blur(4px);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            padding: 20px;
-        }
-        .ticket-success-overlay.show {
-            display: flex;
-        }
-        .ticket-success-card {
-            width: 360px;
-            max-width: calc(100vw - 40px);
-            background: #ffffff;
-            border-radius: 18px;
-            padding: 24px 22px 20px;
-            text-align: center;
-            border: 1px solid rgba(27, 94, 32, 0.18);
-            box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22);
-            position: relative;
-            overflow: hidden;
-        }
-        .ticket-success-card::before {
-            content: "";
-            position: absolute;
-            inset: 0 0 auto 0;
-            height: 6px;
-            background: linear-gradient(90deg, #1B5E20, #144a1e);
-        }
-        .ticket-success-icon {
-            width: 64px;
-            height: 64px;
-            margin: 8px auto 14px;
-            border-radius: 999px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: #dcfce7;
-            border: 1px solid #bbf7d0;
-            color: #15803d;
-            font-size: 28px;
-            font-weight: 900;
-        }
-        .ticket-success-title {
-            margin: 0 0 8px;
-            font-size: 22px;
-            font-weight: 800;
-            color: #0f172a;
-        }
-        .ticket-success-text {
-            margin: 0;
-            color: #64748b;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-        .ticket-success-actions {
-            margin-top: 18px;
-            display: flex;
-            justify-content: center;
-        }
-        .ticket-success-btn {
-            border: 1px solid rgba(20, 74, 30, 0.28);
-            background: #1B5E20;
-            color: #ffffff;
-            border-radius: 12px;
-            padding: 10px 18px;
-            font-weight: 800;
-            cursor: pointer;
-        }
-        .ticket-success-btn:hover {
-            background: #144a1e;
+        #ticketSuccessOverlay {
+            display: none !important;
         }
     </style>
 </head>
@@ -180,6 +131,26 @@ unset($_SESSION['success']);
                         </tbody>
                     </table>
                 </div>
+                <?php if ($total_records > 0): ?>
+                <div class="pagination-glass">
+                    <div class="pagination-summary">Showing <?= number_format($showing_from) ?> - <?= number_format($showing_to) ?> of <?= number_format($total_records) ?> tickets</div>
+                    <?php if ($total_pages > 1): ?>
+                    <a href="?page=<?= max(1, $page - 1) ?>" class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
+                        &lsaquo; Previous
+                    </a>
+                    <div class="page-numbers">
+                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                            <a href="?page=<?= $i ?>" class="page-btn <?= ($i === $page) ? 'active' : ''; ?>">
+                                <?= $i ?>
+                            </a>
+                        <?php endfor; ?>
+                    </div>
+                    <a href="?page=<?= min($total_pages, $page + 1) ?>" class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
+                        Next &rsaquo;
+                    </a>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
             </div>
 
         </div>
@@ -204,10 +175,10 @@ unset($_SESSION['success']);
     <div id="ticketSuccessOverlay" class="ticket-success-overlay" aria-hidden="true">
         <div class="ticket-success-card" role="dialog" aria-modal="true" aria-labelledby="ticketSuccessTitle">
             <div class="ticket-success-icon">✓</div>
-            <h2 id="ticketSuccessTitle" class="ticket-success-title">Your ticket has been submitted</h2>
-            <p class="ticket-success-text"><?= htmlspecialchars($successMessage !== '' ? $successMessage : 'Your ticket has been submitted successfully.', ENT_QUOTES, 'UTF-8'); ?></p>
+            <h2 id="ticketSuccessTitle" class="ticket-success-title">Ticket Submitted Successfully</h2>
+            <p class="ticket-success-text"><?= htmlspecialchars($successMessage !== '' ? $successMessage : 'Your request has been sent. Our team will get back to you soon.', ENT_QUOTES, 'UTF-8'); ?></p>
             <div class="ticket-success-actions">
-                <button type="button" id="ticketSuccessBtn" class="ticket-success-btn">OK</button>
+                <button type="button" id="ticketSuccessBtn" class="ticket-success-btn">Done</button>
             </div>
         </div>
     </div>
@@ -237,27 +208,6 @@ unset($_SESSION['success']);
     var tid = p.get('ticket_id') || p.get('id');
     if (tid) {
         TMTicketModal.open(tid);
-    }
-    var ticketSuccessOverlay = document.getElementById('ticketSuccessOverlay');
-    var ticketSuccessBtn = document.getElementById('ticketSuccessBtn');
-    var hasSuccessMessage = <?php echo json_encode($successMessage !== ''); ?>;
-    if (hasSuccessMessage && ticketSuccessOverlay) {
-        ticketSuccessOverlay.classList.add('show');
-        ticketSuccessOverlay.setAttribute('aria-hidden', 'false');
-    }
-    if (ticketSuccessBtn && ticketSuccessOverlay) {
-        ticketSuccessBtn.addEventListener('click', function () {
-            ticketSuccessOverlay.classList.remove('show');
-            ticketSuccessOverlay.setAttribute('aria-hidden', 'true');
-        });
-    }
-    if (ticketSuccessOverlay) {
-        ticketSuccessOverlay.addEventListener('click', function (e) {
-            if (e.target === ticketSuccessOverlay) {
-                ticketSuccessOverlay.classList.remove('show');
-                ticketSuccessOverlay.setAttribute('aria-hidden', 'true');
-            }
-        });
     }
     </script>
 

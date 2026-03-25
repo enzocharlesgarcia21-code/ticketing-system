@@ -491,164 +491,185 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
     <title>Sales Ticket Request | Leads Agri Helpdesk</title>
     <!-- Reuse existing CSS or inline minimal styles -->
     <link rel="stylesheet" href="../css/employee-dashboard.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         body {
             background: #f3f4f6 url('../assets/img/leadss.jpg') no-repeat center center fixed;
             background-size: cover;
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             margin: 0;
         }
         .sales-topbar {
             position: sticky;
             top: 0;
             z-index: 10;
-            background: linear-gradient(90deg, #1B5E20, #14532d);
-            border-bottom: 3px solid #FBBF24;
-            min-height: 96px;
+            background:
+                linear-gradient(0deg, rgba(20, 42, 23, 0.16), rgba(20, 42, 23, 0.16)),
+                radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.05), transparent 38%),
+                linear-gradient(135deg, #214f2a 0%, #1a4726 48%, #183f22 100%);
+            border-bottom: 4px solid #d6a329;
+            box-shadow: 0 14px 34px rgba(6, 24, 12, 0.22);
         }
         .sales-topbar-inner {
-            max-width: 100%;
             width: 100%;
             margin: 0 auto;
-            padding: 22px 24px;
+            padding: 8px 22px 9px;
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 16px;
-            position: relative;
+            justify-content: space-between;
+            gap: 20px;
             box-sizing: border-box;
         }
+        .sales-brand-block {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            min-width: 0;
+        }
         .sales-logo {
-            position: absolute;
-            left: 24px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 68px;
-            height: 68px;
-            flex: 0 0 68px;
+            width: 54px;
+            height: 54px;
+            flex: 0 0 54px;
         }
         .sales-logo img {
             height: 100%;
             width: 100%;
             object-fit: contain;
             background-color: #ffffff;
-            padding: 6px;
-            border-radius: 50%;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+            padding: 8px;
+            border-radius: 999px;
+            box-shadow: 0 8px 18px rgba(6, 24, 12, 0.22);
             display: block;
             box-sizing: border-box;
+        }
+        .sales-brand-divider {
+            width: 1px;
+            height: 40px;
+            background: rgba(233, 219, 174, 0.58);
+            flex: 0 0 1px;
         }
         .sales-nav-right {
             display: flex;
             align-items: center;
-            gap: 14px;
-            position: absolute;
-            right: 24px;
+            justify-content: flex-end;
+            flex: 0 0 auto;
         }
         .sales-nav-link {
-            color: rgba(255, 255, 255, 0.92);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-height: 42px;
+            padding: 0 20px;
+            color: #f8f6ee;
             text-decoration: none;
             font-weight: 700;
-            font-size: 14px;
-            padding: 10px 14px;
+            font-size: 13px;
+            letter-spacing: 0.01em;
             border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            transition: background 0.2s, color 0.2s, border-color 0.2s;
+            border: 1px solid rgba(232, 223, 193, 0.34);
+            background: rgba(255, 255, 255, 0.02);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s;
             white-space: nowrap;
         }
         .sales-nav-link:hover {
-            background: rgba(255, 255, 255, 0.12);
-            color: #FDE68A;
-            border-color: rgba(253, 230, 138, 0.65);
+            background: rgba(255, 255, 255, 0.08);
+            color: #f6cf62;
+            border-color: rgba(229, 191, 89, 0.55);
+            transform: translateY(-1px);
+        }
+        .sales-nav-link-icon {
+            color: #f6cf62;
+            font-size: 16px;
+            line-height: 1;
         }
         .sales-brand {
             display: flex;
             flex-direction: column;
-            line-height: 1.1;
-            align-items: center;
-            text-align: center;
+            line-height: 1.08;
+            align-items: flex-start;
+            text-align: left;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
         .sales-brand-title {
             font-weight: 700;
-            letter-spacing: 0.2px;
-            color: #ffffff;
-            font-size: 24px;
+            letter-spacing: 0.01em;
+            color: #f8f6ee;
+            font-size: 17px;
+            text-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+            line-height: 1.08;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
         .sales-brand-subtitle {
-            font-size: 18px;
+            font-size: 13px;
             font-weight: 600;
-            color: #FDE68A;
-            margin-top: 3px;
+            color: #e5bf59;
+            margin-top: 4px;
+            line-height: 1.08;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
         @media (max-width: 768px) {
-            .sales-topbar { min-height: 80px; }
             .sales-topbar-inner {
-                padding: 14px 16px;
-                display: grid;
-                grid-template-columns: auto auto;
-                grid-template-areas:
-                    "logo title"
-                    "subtitle subtitle"
-                    "nav nav";
-                justify-content: center;
+                padding: 8px 12px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+            .sales-brand-block {
+                gap: 8px;
                 align-items: center;
-                row-gap: 6px;
-                column-gap: 10px;
             }
             .sales-logo {
-                position: static;
-                left: auto;
-                grid-area: logo;
-                width: 52px;
-                height: 52px;
-                flex: 0 0 52px;
+                width: 40px;
+                height: 40px;
+                flex: 0 0 40px;
             }
             .sales-logo img {
                 height: 100%;
                 width: 100%;
                 padding: 4px;
             }
-            .sales-brand { display: contents; }
+            .sales-brand-divider {
+                height: 28px;
+            }
+            .sales-brand {
+                min-width: 0;
+            }
             .sales-brand-title {
-                grid-area: title;
-                font-size: 18px;
+                font-size: 15px;
                 font-weight: 600;
                 text-align: left;
+                line-height: 1.08;
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
             }
             .sales-brand-subtitle {
-                grid-area: subtitle;
-                font-size: 14px;
+                font-size: 11px;
                 color: #FACC15;
-                margin-top: 0;
-                text-align: center;
+                margin-top: 4px;
+                text-align: left;
+                line-height: 1.08;
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
             }
             .sales-nav-right {
-                position: static;
-                right: auto;
-                grid-area: nav;
                 width: 100%;
-                justify-content: center;
-                margin-top: 8px;
+                justify-content: stretch;
             }
             .sales-nav-link {
                 width: 100%;
-                max-width: 220px;
+                max-width: none;
                 justify-content: center;
                 border-radius: 999px;
-                padding: 8px 16px;
-                font-size: 14px;
-                background: #ffffff;
-                color: #14532d;
-                border-color: rgba(255, 255, 255, 0.6);
-                box-shadow: 0 14px 30px rgba(2, 6, 23, 0.16);
-                letter-spacing: 0.01em;
+                min-height: 40px;
+                padding: 0 14px;
+                font-size: 12px;
             }
             .sales-nav-link:hover {
-                background: rgba(255, 255, 255, 0.92);
-                color: #14532d;
-                border-color: rgba(255, 255, 255, 0.75);
+                color: #f6cf62;
+                border-color: rgba(229, 191, 89, 0.55);
             }
             .sales-nav-link:active {
                 transform: scale(0.98);
@@ -769,6 +790,10 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         .header h1 {
             color: #1B5E20;
+            font-size: 24px;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: 0;
             margin-bottom: 10px;
         }
         .header p {
@@ -954,31 +979,24 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         .ticket-modal {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             background: rgba(15, 23, 42, 0.46);
             backdrop-filter: blur(4px);
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
             z-index: 9999;
             padding: 20px;
             box-sizing: border-box;
         }
-        .ticket-modal.show { opacity: 1; pointer-events: all; }
+        .ticket-modal.show { display: flex; }
         .ticket-modal-content {
-            background: #ffffff;
-            padding: 26px 24px 22px;
-            border-radius: 24px;
-            text-align: center;
-            width: 392px;
+            width: 480px;
             max-width: calc(100vw - 40px);
-            animation: popIn 0.3s ease;
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 28px 30px 22px;
+            text-align: center;
             border: 1px solid rgba(27, 94, 32, 0.18);
             box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22);
             position: relative;
@@ -987,62 +1005,72 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         .ticket-modal-content::before {
             content: "";
             position: absolute;
-            left: 0;
-            top: 0;
-            right: 0;
-            height: 6px;
+            inset: 0 0 auto 0;
+            height: 8px;
             background: linear-gradient(90deg, #1B5E20, #144a1e);
         }
+        .ticket-modal-spinner {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 16px;
+            border-radius: 999px;
+            background: conic-gradient(#1B8A43 0deg, #2FAE52 145deg, #A6E05C 235deg, #1B8A43 360deg);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            animation: ticket-loading-spin 1.15s linear infinite;
+            box-shadow: 0 10px 24px rgba(27, 138, 67, 0.18);
+        }
+        .ticket-modal-spinner::before {
+            content: "";
+            width: 42px;
+            height: 42px;
+            border-radius: 999px;
+            background: #ffffff;
+            box-shadow: inset 0 0 0 1px rgba(22, 101, 52, 0.08);
+        }
         .ticket-modal-icon {
-            width: 64px;
-            height: 64px;
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 16px;
             border-radius: 999px;
             background: #ecfdf5;
             border: 1px solid #bbf7d0;
             color: #1B5E20;
-            display: inline-flex;
+            display: none;
             align-items: center;
             justify-content: center;
-            font-size: 30px;
+            font-size: 31px;
             font-weight: 900;
-            margin: 6px auto 12px;
+            box-shadow: 0 10px 24px rgba(27, 138, 67, 0.14);
         }
         .ticket-modal-icon.error {
             background: #fef2f2;
             border-color: #fecaca;
             color: #991b1b;
-        }
-        .ticket-modal-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 8px;
-            padding: 7px 12px;
-            border-radius: 999px;
-            background: #ecfdf5;
-            border: 1px solid #bbf7d0;
-            color: #166534;
-            font-size: 12px;
-            font-weight: 800;
-            letter-spacing: 0.02em;
+            box-shadow: none;
         }
         .ticket-modal-content h3 {
-            margin: 0 0 8px;
-            font-size: 18px;
+            margin: 4px 0 14px;
+            font-size: 24px;
+            font-weight: 800;
             color: #0f172a;
+            letter-spacing: -0.03em;
         }
         .ticket-modal-content p {
-            margin: 0 0 14px;
-            color: #64748b;
-            font-size: 14px;
-            line-height: 1.45;
+            margin: 0 auto 18px;
+            color: #8b93a7;
+            font-size: 16px;
+            line-height: 1.4;
+            max-width: 320px;
         }
         .ticket-modal-progress {
-            height: 8px;
-            border-radius: 999px;
-            background: #e2e8f0;
+            position: absolute;
+            width: 1px;
+            height: 1px;
             overflow: hidden;
-            margin: 0 0 10px;
+            opacity: 0;
+            pointer-events: none;
         }
         .ticket-modal-progress span {
             display: block;
@@ -1053,38 +1081,74 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             transition: width 0.35s ease;
         }
         .ticket-modal-status {
-            min-height: 18px;
-            color: #166534;
-            font-size: 12px;
+            min-height: 28px;
+            color: #2c8a46;
+            font-size: 16px;
             font-weight: 800;
-            letter-spacing: 0.02em;
+            letter-spacing: -0.01em;
         }
         .ticket-modal-actions {
-            display: flex;
+            display: none;
             justify-content: center;
             gap: 10px;
-            margin-top: 6px;
+            margin-top: 10px;
         }
         .ticket-modal-content button {
             width: auto;
+            min-width: 108px;
             border: 1px solid rgba(20, 74, 30, 0.28);
             background: #1B5E20;
             color: #ffffff;
-            border-radius: 12px;
-            padding: 10px 16px;
+            border-radius: 13px;
+            padding: 10px 20px;
+            font-size: 15px;
             font-weight: 900;
             cursor: pointer;
         }
         .ticket-modal-content button:hover { background: #144a1e; }
-        .ticket-modal[data-state="loading"] .ticket-modal-icon,
-        .ticket-modal[data-state="loading"] .ticket-modal-actions { display: none; }
-        .ticket-modal[data-state="success"] .ticket-modal-icon.error { display: none; }
-        .ticket-modal[data-state="error"] .ticket-modal-icon.success { display: none; }
+        .ticket-modal[data-state="loading"] .ticket-modal-spinner,
+        .ticket-modal[data-state="success"] .ticket-modal-icon.success,
+        .ticket-modal[data-state="error"] .ticket-modal-icon.error {
+            display: flex;
+        }
+        .ticket-modal[data-state="success"] .ticket-modal-actions,
+        .ticket-modal[data-state="error"] .ticket-modal-actions {
+            display: flex;
+        }
+        .ticket-modal[data-state="success"] .ticket-modal-status {
+            display: none;
+        }
         .ticket-modal[data-state="success"] .ticket-modal-progress span { width: 100% !important; }
         .ticket-modal[data-state="error"] .ticket-modal-progress span { background: linear-gradient(90deg, #ef4444, #f97316); }
-        @keyframes popIn {
-            from { transform: scale(0.92); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
+        @keyframes ticket-loading-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @media (max-width: 768px) {
+            .ticket-modal-content {
+                width: 100%;
+                border-radius: 22px;
+                padding: 24px 20px 20px;
+            }
+            .ticket-modal-content h3 {
+                font-size: 22px;
+            }
+            .ticket-modal-content p,
+            .ticket-modal-status {
+                font-size: 15px;
+            }
+            .ticket-modal-spinner,
+            .ticket-modal-icon {
+                width: 56px;
+                height: 56px;
+            }
+            .ticket-modal-spinner::before {
+                width: 40px;
+                height: 40px;
+            }
+            .ticket-modal-icon {
+                font-size: 28px;
+            }
         }
 
         @media (min-width: 900px) and (orientation: landscape) {
@@ -1140,15 +1204,21 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 
 <header class="sales-topbar">
     <div class="sales-topbar-inner">
-        <div class="sales-logo">
-            <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo">
-        </div>
-        <div class="sales-brand">
-            <div class="sales-brand-title">Leads Agri Helpdesk</div>
-            <div class="sales-brand-subtitle">Sales Ticket Request</div>
+        <div class="sales-brand-block">
+            <div class="sales-logo">
+                <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo">
+            </div>
+            <div class="sales-brand-divider" aria-hidden="true"></div>
+            <div class="sales-brand">
+                <div class="sales-brand-title">Leads Agri Helpdesk</div>
+                <div class="sales-brand-subtitle">Sales Ticket Request</div>
+            </div>
         </div>
         <div class="sales-nav-right">
-            <a class="sales-nav-link" href="/ticketing/sales/knowledge_base.php">Knowledge Base</a>
+            <a class="sales-nav-link" href="/ticketing/sales/knowledge_base.php">
+                <span>Knowledge Base</span>
+                <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
+            </a>
         </div>
     </div>
 </header>
@@ -1249,7 +1319,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 
 <div id="successModal" class="ticket-modal" aria-hidden="true">
     <div class="ticket-modal-content" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
-        <div class="ticket-modal-badge">Secure Submit</div>
+        <div class="ticket-modal-spinner" aria-hidden="true"></div>
         <div class="ticket-modal-icon success" id="ticketModalSuccessIcon">✓</div>
         <div class="ticket-modal-icon error" id="ticketModalErrorIcon">!</div>
         <h3 id="successModalTitle">Submitting Ticket</h3>
@@ -1521,10 +1591,12 @@ function closeModal(){
     var d = document.getElementById('successModalDesc');
     var s = document.getElementById('ticketModalStatus');
     var p = document.getElementById('ticketModalProgressBar');
+    var doneBtn = document.getElementById('ticketModalDoneBtn');
     if (t) t.textContent = 'Submitting Ticket';
     if (d) d.textContent = 'Preparing your request and attachments...';
     if (s) s.textContent = 'Validating ticket details';
     if (p) p.style.width = '22%';
+    if (doneBtn) doneBtn.textContent = 'Done';
 }
 
 (function () {
@@ -1537,6 +1609,8 @@ function closeModal(){
     var progressBar = document.getElementById('ticketModalProgressBar');
     var loadingTimers = [];
     var successRedirectTimer = null;
+    var loadingStartedAt = 0;
+    var MIN_LOADING_MS = 3000;
     if (!form) return;
 
     function clearLoadingTimers() {
@@ -1555,7 +1629,7 @@ function closeModal(){
         var t = document.getElementById('successModalTitle');
         var d = document.getElementById('successModalDesc');
         if (t && title) t.textContent = title;
-        if (d && desc) d.textContent = desc;
+        if (d && desc != null) d.innerHTML = desc;
         if (statusText) statusText.textContent = status || '';
         if (progressBar && progress != null) progressBar.style.width = String(progress) + '%';
     }
@@ -1572,14 +1646,21 @@ function closeModal(){
     }
 
     function startLoadingSequence() {
+            loadingStartedAt = Date.now();
+            clearLoadingTimers();
+            setModalState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Validating ticket details', 24);
+            loadingTimers.push(window.setTimeout(function () {
+                setModalState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Creating your ticket record', 68);
+        }, 800));
+            loadingTimers.push(window.setTimeout(function () {
+                setModalState('loading', 'Submitting Ticket', 'Almost there. We are finalizing your request...', 'Finalizing your request', 94);
+        }, 1800));
+        }
+
+    function showSuccessState() {
+        if (!modal) return;
         clearLoadingTimers();
-        setModalState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Validating ticket details', 24);
-        loadingTimers.push(window.setTimeout(function () {
-            setModalState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Creating your ticket record', 68);
-        }, 180));
-        loadingTimers.push(window.setTimeout(function () {
-            setModalState('loading', 'Submitting Ticket', 'Almost there. We are finalizing your request...', 'Finalizing your request', 94);
-        }, 420));
+        setModalState('success', 'Ticket Submitted Successfully', 'Your request has been sent.<br>Our team will get back to you soon.', '', 100);
     }
 
     function validateDescription() {
@@ -1655,19 +1736,23 @@ function closeModal(){
             }
 
             if (modal) {
-                clearLoadingTimers();
-                setModalState('success', 'Ticket Submitted', 'Your ticket has been successfully created.', 'Redirecting you back', 100);
+                var elapsed = loadingStartedAt ? (Date.now() - loadingStartedAt) : 0;
+                var waitMs = Math.max(0, MIN_LOADING_MS - elapsed);
+                if (waitMs > 0) {
+                    successRedirectTimer = window.setTimeout(function () {
+                        successRedirectTimer = null;
+                        showSuccessState();
+                    }, waitMs);
+                } else {
+                    showSuccessState();
+                }
             }
-        if (doneBtn) doneBtn.textContent = 'Done';
             form.reset();
             if (typeof dt !== 'undefined') {
                 dt = new DataTransfer();
                 if (typeof syncFiles === 'function') syncFiles();
                 if (typeof showError === 'function') showError('');
             }
-            successRedirectTimer = window.setTimeout(function () {
-                window.location.href = '../index.php';
-            }, 180);
         })
         .catch(function () {
             clearLoadingTimers();

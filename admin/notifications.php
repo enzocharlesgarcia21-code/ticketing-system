@@ -27,7 +27,14 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 20;
 $offset = ($page - 1) * $limit;
 
-$total_res = $conn->query("SELECT COUNT(*) as c FROM notifications WHERE user_id = $user_id");
+$total_res = $conn->query("
+    SELECT COUNT(*) as c
+    FROM notifications n
+    LEFT JOIN employee_tickets t ON n.ticket_id = t.id
+    WHERE n.user_id = $user_id
+      AND n.type <> 'chat_message'
+      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+");
 if (!$total_res) {
     die("SQL Error: " . $conn->error);
 }
@@ -39,6 +46,8 @@ $sql = "
     FROM notifications n
     LEFT JOIN employee_tickets t ON n.ticket_id = t.id
     WHERE n.user_id = ?
+      AND n.type <> 'chat_message'
+      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
     ORDER BY n.created_at DESC
     LIMIT ? OFFSET ?
 ";
@@ -207,20 +216,32 @@ function time_elapsed_string($datetime, $full = false) {
         .pagination {
             display: flex;
             justify-content: center;
-            gap: 10px;
+            gap: 8px;
             padding: 20px;
+            flex-wrap: wrap;
         }
         .page-link {
-            padding: 8px 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
+            min-width: 40px;
+            height: 40px;
+            padding: 0 15px;
+            border: 1px solid #d7e2ea;
+            border-radius: 999px;
             text-decoration: none;
-            color: #64748b;
+            color: #1f2937;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffffff;
+            font-weight: 600;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+            transition: all 0.2s ease;
         }
+        .page-link:hover { background: #f8fafc; transform: translateY(-1px); border-color: #cbd5e1; }
         .page-link.active {
-            background-color: #1f6f3f;
+            background-color: #166534;
             color: white;
-            border-color: #1f6f3f;
+            border-color: #166534;
+            box-shadow: 0 10px 18px rgba(22, 101, 52, 0.22);
         }
         .mark-read-btn {
             background: none;
@@ -286,10 +307,12 @@ function time_elapsed_string($datetime, $full = false) {
                                     }
                                 }
                                 $priorityClass = $priorityKey !== '' ? 'priority-' . $priorityKey : 'priority-neutral';
-                                $priorityLabel = $priorityKey !== '' ? '<span class="priority-badge ' . $priorityClass . '">' . htmlspecialchars(ucfirst($priorityKey), ENT_QUOTES, 'UTF-8') . '</span>' : '';
                                 $ticketIdJs = isset($row['ticket_id']) && $row['ticket_id'] !== null ? (int) $row['ticket_id'] : null;
                                 $typeKey = (string) ($row['type'] ?? '');
                                 $actionType = notif_normalize_action_type((string) ($row['action_type'] ?? ''), $typeKey);
+                                $priorityLabel = ($typeKey !== 'note_added' && $priorityKey !== '')
+                                    ? '<span class="priority-badge ' . $priorityClass . '">' . htmlspecialchars(ucfirst($priorityKey), ENT_QUOTES, 'UTF-8') . '</span>'
+                                    : '';
                                 $iconClass = 'fa-ticket';
                                 $iconTypeClass = 'type-neutral';
                                 if ($actionType === 'update' && $typeKey === 'note_added') {
@@ -308,12 +331,13 @@ function time_elapsed_string($datetime, $full = false) {
                                     $iconClass = 'fa-inbox';
                                     $iconTypeClass = 'type-assigned';
                                 }
+                                $displayMessage = notif_display_message($typeKey, (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
                             ?>
                             <div class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?>" 
                                  onclick="markAsRead(<?= (int) $row['id'] ?>, <?= json_encode($ticketIdJs) ?>)">
                                 <div class="notif-icon <?= htmlspecialchars($iconTypeClass, ENT_QUOTES, 'UTF-8') ?>"><i class="fas <?= htmlspecialchars($iconClass, ENT_QUOTES, 'UTF-8') ?>"></i></div>
                                 <div class="notif-content">
-                                    <div class="notif-text"><?= $priorityLabel ?><?= notif_message_highlight_html((string) $row['message']) ?></div>
+                                    <div class="notif-text"><?= $priorityLabel ?><?= notif_message_highlight_html($displayMessage) ?></div>
                                     <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
                                 </div>
                                 <?php if($row['is_read'] == 0): ?>
@@ -331,13 +355,13 @@ function time_elapsed_string($datetime, $full = false) {
 
                 <?php if($total_pages > 1): ?>
                 <div class="pagination-glass">
-                    <a href="?page=<?= max(1, $page - 1); ?>" class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">Previous</a>
+                    <a href="?page=<?= max(1, $page - 1); ?>" class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">&lsaquo; Previous</a>
                     <div class="page-numbers">
                         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
                             <a href="?page=<?= $i; ?>" class="page-btn <?= ($i == $page) ? 'active' : ''; ?>"><?= $i; ?></a>
                         <?php endfor; ?>
                     </div>
-                    <a href="?page=<?= min($total_pages, $page + 1); ?>" class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">Next</a>
+                    <a href="?page=<?= min($total_pages, $page + 1); ?>" class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">Next &rsaquo;</a>
                 </div>
                 <?php endif; ?>
 

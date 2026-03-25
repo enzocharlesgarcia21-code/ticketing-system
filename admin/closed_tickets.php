@@ -135,7 +135,7 @@ $result = $stmt->get_result();
                 <?php if ($total_pages > 1): ?>
                 <div class="pagination-glass">
                     <a href="?page=<?= $page - 1; ?>" class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
-                        Previous
+                        &lsaquo; Previous
                     </a>
 
                     <div class="page-numbers">
@@ -147,7 +147,7 @@ $result = $stmt->get_result();
                     </div>
 
                     <a href="?page=<?= $page + 1; ?>" class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
-                        Next
+                        Next &rsaquo;
                     </a>
                 </div>
                 <?php endif; ?>

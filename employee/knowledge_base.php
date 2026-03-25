@@ -65,7 +65,61 @@ function kb_category_icon_class(string $category): string
     if (strpos($key, 'email') !== false) return 'fa-envelope';
     if (strpos($key, 'procurement') !== false) return 'fa-cart-shopping';
     if (strpos($key, 'technical') !== false) return 'fa-headset';
+    if (strpos($key, 'other') !== false) return 'fa-folder';
     return 'fa-folder';
+}
+
+function kb_is_standard_category(string $category): bool
+{
+    static $standard = [
+        'Documentation',
+        'Email',
+        'Hardware',
+        'Internet Concerns',
+        'Procurement',
+        'Software',
+        'Technical Support',
+    ];
+
+    return in_array(kb_category_label($category), $standard, true);
+}
+
+function kb_category_aliases(string $category): array
+{
+    $label = kb_category_label($category);
+    $aliases = [$label];
+
+    if ($label === 'Internet Concerns') {
+        $aliases[] = 'Network Issue';
+        $aliases[] = 'Network';
+        $aliases[] = 'Internet Concern';
+        $aliases[] = 'Internet Concerns';
+    } elseif ($label === 'Software') {
+        $aliases[] = 'Software Issue';
+    } elseif ($label === 'Hardware') {
+        $aliases[] = 'Hardware Issue';
+    } elseif ($label === 'Email') {
+        $aliases[] = 'Email Problem';
+    } elseif ($label === 'Technical Support') {
+        $aliases[] = 'Technical Support';
+    } elseif ($label === 'Documentation') {
+        $aliases[] = 'Documentations';
+    }
+
+    return array_values(array_unique(array_filter(array_map('trim', $aliases))));
+}
+
+function kb_others_subcategory_name(array $row): string
+{
+    $rawCategory = trim((string) ($row['category'] ?? ''));
+    $subCategory = trim((string) ($row['sub_category'] ?? ''));
+    if (strcasecmp($rawCategory, 'Others') === 0) {
+        return $subCategory;
+    }
+    if ($rawCategory !== '' && !kb_is_standard_category($rawCategory)) {
+        return $rawCategory;
+    }
+    return '';
 }
 
 // 2. Fetch categories with article counts
@@ -79,6 +133,7 @@ $fixedCategories = [
     'Procurement',
     'Software',
     'Technical Support',
+    'Others',
 ];
 $categoryCounts = [];
 $catStmt = $conn->prepare("
@@ -98,6 +153,9 @@ if ($catStmt) {
             continue;
         }
         $normalizedCategory = kb_category_label($rawCategory);
+        if (!kb_is_standard_category($normalizedCategory)) {
+            $normalizedCategory = 'Others';
+        }
         if (!isset($categoryCounts[$normalizedCategory])) {
             $categoryCounts[$normalizedCategory] = 0;
         }
@@ -118,12 +176,12 @@ foreach ($fixedCategories as $fixedCategory) {
     $categoryIndex++;
 }
 
-// 3. Most visited articles for homepage section
+// 3. Most recent articles for homepage section
 $mostVisitedArticles = [];
 $mostVisitedStmt = $conn->prepare("
     SELECT id, title, category, created_at, COALESCE(views, 0) AS views
     FROM knowledge_base
-    ORDER BY COALESCE(views, 0) DESC, created_at DESC
+    ORDER BY created_at DESC, id DESC
     LIMIT 3
 ");
 if ($mostVisitedStmt) {
@@ -157,7 +215,60 @@ if ($search !== '') {
     }
 }
 
-$showHomeSections = ($search === '');
+$selectedCategory = trim((string) ($_GET['category'] ?? ''));
+$selectedSubCategory = trim((string) ($_GET['sub'] ?? ''));
+$activeCategory = ($selectedCategory !== '' && in_array($selectedCategory, $fixedCategories, true)) ? $selectedCategory : '';
+$showCategoryView = ($activeCategory !== '');
+$showHomeSections = ($search === '' && !$showCategoryView);
+$othersSubcategories = [];
+$categoryArticles = [];
+$categoryViewTitle = $activeCategory;
+
+if ($showCategoryView) {
+    $viewStmt = $conn->prepare("
+        SELECT id, title, category, sub_category, content, created_at, COALESCE(views, 0) AS views
+        FROM knowledge_base
+        ORDER BY created_at DESC, id DESC
+    ");
+    if ($viewStmt) {
+        $viewStmt->execute();
+        $viewResult = $viewStmt->get_result();
+        $subCategoryCounts = [];
+        while ($viewResult && ($row = $viewResult->fetch_assoc())) {
+            $rowCategory = trim((string) ($row['category'] ?? ''));
+            if ($activeCategory === 'Others') {
+                $subName = kb_others_subcategory_name($row);
+                if ($selectedSubCategory === '') {
+                    if ($subName !== '') {
+                        if (!isset($subCategoryCounts[$subName])) {
+                            $subCategoryCounts[$subName] = 0;
+                        }
+                        $subCategoryCounts[$subName]++;
+                    }
+                } elseif ($subName !== '' && strcasecmp($subName, $selectedSubCategory) === 0) {
+                    $categoryArticles[] = $row;
+                }
+            } elseif (in_array($rowCategory, kb_category_aliases($activeCategory), true)) {
+                $categoryArticles[] = $row;
+            }
+        }
+        $viewStmt->close();
+
+        if ($activeCategory === 'Others' && $selectedSubCategory === '') {
+            ksort($subCategoryCounts, SORT_NATURAL | SORT_FLAG_CASE);
+            foreach ($subCategoryCounts as $subName => $totalArticles) {
+                $othersSubcategories[] = [
+                    'name' => $subName,
+                    'total_articles' => (int) $totalArticles,
+                ];
+            }
+        }
+    }
+
+    if ($activeCategory === 'Others' && $selectedSubCategory !== '') {
+        $categoryViewTitle = $selectedSubCategory;
+    }
+}
 
 ?>
 
@@ -452,14 +563,23 @@ $showHomeSections = ($search === '');
             align-items: center;
             gap: 8px;
             margin-bottom: 16px;
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid #CFE7D1;
+            background: #FFFFFF;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
             color: #1B5E20;
             font-size: 14px;
             font-weight: 700;
             text-decoration: none;
+            transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
         }
 
         .back-btn:hover {
-            text-decoration: underline;
+            background: #F0FDF4;
+            border-color: #A9D6AE;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+            transform: translateY(-1px);
         }
 
         /* Grid Layout */
@@ -471,6 +591,8 @@ $showHomeSections = ($search === '');
 
         /* Card Styles */
         .kb-card {
+            text-decoration: none;
+            color: inherit;
             background: white;
             border-radius: 16px;
             border: 1px solid #E5E7EB;
@@ -652,18 +774,20 @@ $showHomeSections = ($search === '');
         <div class="kb-header">
             <h1 class="kb-title">Knowledge Base</h1>
             
-            <form method="GET" class="search-filter-wrapper" id="kbSearchForm">
-                <div class="search-input-group">
-                    <i class="fas fa-search search-icon"></i>
-                    <input type="text" name="search" class="search-input" 
-                           placeholder="Search for articles, guides, or solutions..." 
-                           value="<?= htmlspecialchars($search) ?>"
-                           autocomplete="off">
-                </div>
-            </form>
+            <?php if (!($activeCategory === 'Others' && $selectedSubCategory === '')): ?>
+                <form method="GET" class="search-filter-wrapper" id="kbSearchForm">
+                    <div class="search-input-group">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" name="search" class="search-input" 
+                               placeholder="Search for articles, guides, or solutions..." 
+                               value="<?= htmlspecialchars($search) ?>"
+                               autocomplete="off">
+                    </div>
+                </form>
+            <?php endif; ?>
         </div>
 
-        <div class="results-section<?= $showHomeSections ? '' : ' is-active' ?>" id="kbResultsSection"<?= $showHomeSections ? ' style="display:none;"' : '' ?>>
+        <div class="results-section<?= $search !== '' ? ' is-active' : '' ?>" id="kbResultsSection"<?= $search !== '' ? '' : ' style="display:none;"' ?>>
                 <div class="results-meta">
                     <h2 class="results-title">Search Results</h2>
                     <div class="results-count" id="kbResultsCount"><?= number_format(count($searchResults)) ?> article<?= count($searchResults) === 1 ? '' : 's' ?> found</div>
@@ -679,7 +803,7 @@ $showHomeSections = ($search === '');
                     <?php else: ?>
                         <div class="kb-grid">
                             <?php foreach ($searchResults as $searchArticle): ?>
-                                <div class="kb-card">
+                                <a href="view_article.php?id=<?= (int) $searchArticle['id'] ?>" class="kb-card">
                                     <div class="kb-card-body">
                                         <span class="kb-category-badge"><?= htmlspecialchars(kb_category_label((string) $searchArticle['category'])) ?></span>
                                         <h3 class="kb-card-title"><?= htmlspecialchars((string) $searchArticle['title']) ?></h3>
@@ -690,11 +814,11 @@ $showHomeSections = ($search === '');
                                             <i class="fas fa-calendar"></i>
                                             <?= !empty($searchArticle['created_at']) ? date('M d, Y', strtotime((string) $searchArticle['created_at'])) : '' ?>
                                         </span>
-                                        <a href="view_article.php?id=<?= (int) $searchArticle['id'] ?>" class="read-more-btn">
-                                            Read More <i class="fas fa-arrow-right"></i>
-                                        </a>
+                                        <span class="read-more-btn" aria-hidden="true">
+                                            <i class="fas fa-arrow-right"></i>
+                                        </span>
                                     </div>
-                                </div>
+                                </a>
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
@@ -703,7 +827,7 @@ $showHomeSections = ($search === '');
 
         <?php if (!empty($mostVisitedArticles)): ?>
             <div class="most-visited-section" id="kbMostVisitedSection"<?= $showHomeSections ? '' : ' style="display:none;"' ?>>
-                <h2 class="most-visited-title">Most Visited Articles</h2>
+                <h2 class="most-visited-title">Most Recent Articles</h2>
                 <div class="most-visited-card">
                     <?php foreach ($mostVisitedArticles as $visitedArticle): ?>
                         <a href="view_article.php?id=<?= (int) $visitedArticle['id'] ?>" class="most-visited-item">
@@ -725,25 +849,96 @@ $showHomeSections = ($search === '');
             </div>
         <?php endif; ?>
 
-        <div class="categories-section">
-            <h2 class="categories-title">Categories</h2>
-            <div class="category-grid">
-                <?php foreach ($categoryCards as $categoryCard): ?>
-                    <a
-                        href="category_articles.php?category=<?= urlencode($categoryCard['raw']) ?>"
-                        class="category-card"
-                    >
-                        <div class="category-icon">
-                            <i class="fas <?= htmlspecialchars($categoryCard['icon']) ?>"></i>
+        <?php if ($showCategoryView): ?>
+            <div class="categories-section">
+                <?php if ($activeCategory === 'Others' && $selectedSubCategory === ''): ?>
+                    <a href="knowledge_base.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back to Categories</a>
+                    <h2 class="categories-title">Other Categories</h2>
+                    <?php if (empty($othersSubcategories)): ?>
+                        <div class="no-results">
+                            <div class="no-results-icon"><i class="fas fa-folder-open"></i></div>
+                            <div class="no-results-text">No sub-categories available yet.</div>
+                            <div class="no-results-sub">Articles saved under Others will appear here once a sub-category is added.</div>
                         </div>
-                        <div class="category-info">
-                            <h4><?= htmlspecialchars($categoryCard['label']) ?></h4>
-                            <p><?= number_format((int) $categoryCard['total_articles']) ?> Articles</p>
+                    <?php else: ?>
+                        <div class="category-grid">
+                            <?php foreach ($othersSubcategories as $subCategoryCard): ?>
+                                <a
+                                    href="knowledge_base.php?category=Others&sub=<?= urlencode($subCategoryCard['name']) ?>"
+                                    class="category-card"
+                                >
+                                    <div class="category-icon">
+                                        <i class="fas fa-folder"></i>
+                                    </div>
+                                    <div class="category-info">
+                                        <h4><?= htmlspecialchars($subCategoryCard['name']) ?></h4>
+                                        <p><?= number_format((int) $subCategoryCard['total_articles']) ?> Articles</p>
+                                    </div>
+                                </a>
+                            <?php endforeach; ?>
                         </div>
-                    </a>
-                <?php endforeach; ?>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <a href="<?= $activeCategory === 'Others' ? 'knowledge_base.php?category=Others' : 'knowledge_base.php' ?>" class="back-btn"><i class="fas fa-arrow-left"></i> <?= $activeCategory === 'Others' ? 'Back to Others' : 'Back to Categories' ?></a>
+                    <h2 class="articles-heading"><?= htmlspecialchars($activeCategory === 'Others' ? ($selectedSubCategory !== '' ? $selectedSubCategory : 'Others') : $categoryViewTitle) ?> Articles</h2>
+                    <?php if (empty($categoryArticles)): ?>
+                        <div class="no-results">
+                            <div class="no-results-icon"><i class="fas fa-book-open"></i></div>
+                            <div class="no-results-text">No articles found.</div>
+                            <div class="no-results-sub">There are no published articles in this section yet.</div>
+                        </div>
+                    <?php else: ?>
+                        <div class="kb-grid">
+                            <?php foreach ($categoryArticles as $categoryArticle): ?>
+                                <?php
+                                $articleCategory = trim((string) ($categoryArticle['category'] ?? ''));
+                                $articleSubCategory = trim((string) ($categoryArticle['sub_category'] ?? ''));
+                                $badgeText = $activeCategory === 'Others'
+                                    ? ($articleSubCategory !== '' ? $articleSubCategory : kb_others_subcategory_name($categoryArticle))
+                                    : kb_category_label($articleCategory);
+                                ?>
+                                <a href="view_article.php?id=<?= (int) $categoryArticle['id'] ?>" class="kb-card">
+                                    <div class="kb-card-body">
+                                        <span class="kb-category-badge"><?= htmlspecialchars($badgeText !== '' ? $badgeText : 'Others') ?></span>
+                                        <h3 class="kb-card-title"><?= htmlspecialchars((string) $categoryArticle['title']) ?></h3>
+                                        <p class="kb-card-preview"><?= htmlspecialchars(kb_excerpt((string) ($categoryArticle['content'] ?? ''), 160)) ?></p>
+                                    </div>
+                                    <div class="kb-card-footer">
+                                        <span class="kb-views">
+                                            <i class="fas fa-calendar"></i>
+                                            <?= !empty($categoryArticle['created_at']) ? date('M d, Y', strtotime((string) $categoryArticle['created_at'])) : '' ?>
+                                        </span>
+                                        <span class="read-more-btn" aria-hidden="true">
+                                            <i class="fas fa-arrow-right"></i>
+                                        </span>
+                                    </div>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                <?php endif; ?>
             </div>
-        </div>
+        <?php else: ?>
+            <div class="categories-section">
+                <h2 class="categories-title">Categories</h2>
+                <div class="category-grid">
+                    <?php foreach ($categoryCards as $categoryCard): ?>
+                        <a
+                            href="knowledge_base.php?category=<?= urlencode($categoryCard['raw']) ?>"
+                            class="category-card"
+                        >
+                            <div class="category-icon">
+                                <i class="fas <?= htmlspecialchars($categoryCard['icon']) ?>"></i>
+                            </div>
+                            <div class="category-info">
+                                <h4><?= htmlspecialchars($categoryCard['label']) ?></h4>
+                                <p><?= number_format((int) $categoryCard['total_articles']) ?> Articles</p>
+                            </div>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
     </div>
 

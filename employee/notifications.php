@@ -27,13 +27,24 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 20;
 $offset = ($page - 1) * $limit;
 
-$total_res = $conn->query("SELECT COUNT(*) as c FROM notifications WHERE user_id = $user_id");
+$total_res = $conn->query("
+    SELECT COUNT(*) as c
+    FROM notifications n
+    LEFT JOIN employee_tickets t ON n.ticket_id = t.id
+    WHERE n.user_id = $user_id
+      AND n.type <> 'chat_message'
+      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+");
 $total = $total_res->fetch_assoc()['c'];
 $total_pages = ceil($total / $limit);
 
 $stmt = $conn->prepare("
-    SELECT * FROM notifications
-    WHERE user_id = ?
+    SELECT n.*
+    FROM notifications n
+    LEFT JOIN employee_tickets t ON n.ticket_id = t.id
+    WHERE n.user_id = ?
+      AND n.type <> 'chat_message'
+      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?
 ");
@@ -171,20 +182,47 @@ function time_elapsed_string($datetime, $full = false) {
         .pagination {
             display: flex;
             justify-content: center;
-            gap: 10px;
+            align-items: center;
+            gap: 8px;
             padding: 20px;
+            flex-wrap: wrap;
         }
         .page-link {
-            padding: 8px 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
+            min-width: 40px;
+            height: 40px;
+            padding: 0 15px;
+            border: 1px solid #d7e2ea;
+            border-radius: 999px;
             text-decoration: none;
-            color: #64748b;
+            color: #1f2937;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffffff;
+            font-weight: 600;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+            transition: all 0.2s ease;
+        }
+        .page-link:hover {
+            background: #f8fafc;
+            transform: translateY(-1px);
+            border-color: #cbd5e1;
         }
         .page-link.active {
-            background-color: #16a34a;
+            background-color: #166534;
             color: white;
-            border-color: #16a34a;
+            border-color: #166534;
+            box-shadow: 0 10px 18px rgba(22, 101, 52, 0.22);
+        }
+        .page-link.prev,
+        .page-link.next {
+            min-width: 110px;
+            padding: 0 18px;
+        }
+        .page-link.disabled {
+            opacity: 0.45;
+            pointer-events: none;
+            box-shadow: none;
         }
         .mark-read-btn {
             background: none;
@@ -530,6 +568,7 @@ function time_elapsed_string($datetime, $full = false) {
                                     $colorClass = '#64748b';
                                     break;
                             }
+                            $displayMessage = notif_display_message($typeJs, (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
                         ?>
                         <div class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?>" 
                              onclick="markAsRead(<?= (int) $row['id'] ?>, <?= json_encode($ticketIdJs) ?>, <?= json_encode($typeJs) ?>)">
@@ -537,7 +576,7 @@ function time_elapsed_string($datetime, $full = false) {
                                 <i class="fas <?= $iconClass ?>"></i>
                             </div>
                             <div class="notif-content">
-                                <div class="notif-text"><?= notif_message_highlight_html((string) $row['message']) ?></div>
+                                <div class="notif-text"><?= notif_message_highlight_html($displayMessage) ?></div>
                                 <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
                             </div>
                             <?php if($row['is_read'] == 0): ?>
@@ -555,9 +594,11 @@ function time_elapsed_string($datetime, $full = false) {
 
             <?php if($total_pages > 1): ?>
             <div class="pagination">
+                <a href="?page=<?= max(1, $page - 1) ?>" class="page-link prev <?= ($page <= 1) ? 'disabled' : '' ?>">&lsaquo; Previous</a>
                 <?php for($i = 1; $i <= $total_pages; $i++): ?>
                     <a href="?page=<?= $i ?>" class="page-link <?= $i == $page ? 'active' : '' ?>"><?= $i ?></a>
                 <?php endfor; ?>
+                <a href="?page=<?= min($total_pages, $page + 1) ?>" class="page-link next <?= ($page >= $total_pages) ? 'disabled' : '' ?>">Next &rsaquo;</a>
             </div>
             <?php endif; ?>
 

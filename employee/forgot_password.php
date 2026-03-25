@@ -84,7 +84,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </head>
 <body>
 
-<div class="login-container">
+<div class="auth-wrapper auth-container login-container">
+    <section class="auth-split-left" aria-hidden="true"></section>
+    <section class="auth-split-right" aria-label="Forgot password">
     <div class="login-card">
         <a href="employee_login.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
 
@@ -108,6 +110,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <button type="submit">Send OTP</button>
         </form>
     </div>
+    </section>
 </div>
 
 </body>

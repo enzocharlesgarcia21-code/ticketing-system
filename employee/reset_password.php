@@ -60,7 +60,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </head>
 <body>
 
-<div class="login-container">
+<div class="auth-wrapper auth-container login-container">
+    <section class="auth-split-left" aria-hidden="true"></section>
+    <section class="auth-split-right" aria-label="Reset password">
     <div class="login-card">
         <a href="verify_reset_otp.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
 
@@ -110,6 +112,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </form>
 
     </div>
+    </section>
 </div>
 
 <script>

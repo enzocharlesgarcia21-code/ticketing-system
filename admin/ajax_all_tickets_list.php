@@ -93,11 +93,11 @@ $companyEmail = trim((string) ($_GET['company_email'] ?? ''));
 $view = trim((string) ($_GET['view'] ?? ''));
 $view = $view === 'trash' ? 'closed' : $view;
 $page = (int) ($_GET['page'] ?? 1);
-$limit = (int) ($_GET['limit'] ?? 5);
+$allowedLimits = [10, 25, 50, 100, 500, 1000];
+$limit = (int) ($_GET['limit'] ?? 25);
 
 if ($page < 1) $page = 1;
-if ($limit < 1) $limit = 1;
-if ($limit > 50) $limit = 50;
+if (!in_array($limit, $allowedLimits, true)) $limit = 25;
 $offset = ($page - 1) * $limit;
 
 $where = [];
@@ -284,15 +284,48 @@ if ($totalPages > 1) {
     $nextParams['page'] = min($totalPages, $page + 1);
 
     $paginationHtml .= '<div class="pagination-glass">';
-    $paginationHtml .= '<a href="?' . h(http_build_query($prevParams)) . '" data-page="' . (string) max(1, $page - 1) . '" class="page-btn prev ' . ($page <= 1 ? 'disabled' : '') . '">Previous</a>';
+    $paginationHtml .= '<a href="?' . h(http_build_query($prevParams)) . '" data-page="' . (string) max(1, $page - 1) . '" class="page-btn prev ' . ($page <= 1 ? 'disabled' : '') . '">&lsaquo; Previous</a>';
     $paginationHtml .= '<div class="page-numbers">';
-    for ($i = 1; $i <= $totalPages; $i++) {
+    $paginationItems = [];
+    if ($totalPages < 10) {
+        for ($i = 1; $i <= $totalPages; $i++) {
+            $paginationItems[] = $i;
+        }
+    } else {
+        $paginationItems = [1];
+        $windowStart = max(2, $page - 1);
+        $windowEnd = min($totalPages - 1, $page + 1);
+
+        if ($page <= 4) {
+            $windowStart = 2;
+            $windowEnd = 5;
+        } elseif ($page >= $totalPages - 3) {
+            $windowStart = $totalPages - 4;
+            $windowEnd = $totalPages - 1;
+        }
+
+        if ($windowStart > 2) {
+            $paginationItems[] = 'ellipsis';
+        }
+        for ($i = $windowStart; $i <= $windowEnd; $i++) {
+            $paginationItems[] = $i;
+        }
+        if ($windowEnd < $totalPages - 1) {
+            $paginationItems[] = 'ellipsis';
+        }
+        $paginationItems[] = $totalPages;
+    }
+    foreach ($paginationItems as $item) {
+        if ($item === 'ellipsis') {
+            $paginationHtml .= '<span class="pagination-ellipsis">...</span>';
+            continue;
+        }
         $p = $queryBase;
-        $p['page'] = $i;
-        $paginationHtml .= '<a href="?' . h(http_build_query($p)) . '" data-page="' . (string) $i . '" class="page-btn ' . ($i === $page ? 'active' : '') . '">' . (string) $i . '</a>';
+        $p['page'] = $item;
+        $paginationHtml .= '<a href="?' . h(http_build_query($p)) . '" data-page="' . (string) $item . '" class="page-btn ' . ($item === $page ? 'active' : '') . '">' . (string) $item . '</a>';
     }
     $paginationHtml .= '</div>';
-    $paginationHtml .= '<a href="?' . h(http_build_query($nextParams)) . '" data-page="' . (string) min($totalPages, $page + 1) . '" class="page-btn next ' . ($page >= $totalPages ? 'disabled' : '') . '">Next</a>';
+    $paginationHtml .= '<a href="?' . h(http_build_query($nextParams)) . '" data-page="' . (string) min($totalPages, $page + 1) . '" class="page-btn next ' . ($page >= $totalPages ? 'disabled' : '') . '">Next &rsaquo;</a>';
     $paginationHtml .= '</div>';
 }
 

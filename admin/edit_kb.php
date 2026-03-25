@@ -18,6 +18,7 @@ $colRes = $conn->query("SHOW COLUMNS FROM knowledge_base LIKE 'visible_to_sales'
 if ($colRes && $colRes->num_rows === 0) {
     $conn->query("ALTER TABLE knowledge_base ADD COLUMN visible_to_sales TINYINT(1) NOT NULL DEFAULT 1");
 }
+kb_ensure_image_path_column_supports_multiple($conn);
 
 $success_msg = '';
 $error_msg = '';
@@ -43,53 +44,74 @@ if ($result->num_rows === 0) {
 }
 
 $article = $result->fetch_assoc();
+$article_image_paths = kb_extract_image_paths($article['image_path'] ?? null);
+$article_image_urls = kb_resolve_asset_urls($article['image_path'] ?? null, '../');
+
+function kb_sorted_links_json($labels, $urls) {
+    $links = [];
+    if (is_array($labels) && is_array($urls)) {
+        foreach ($labels as $index => $label) {
+            $label = trim((string) $label);
+            $url = trim((string) ($urls[$index] ?? ''));
+            if ($label !== '' && $url !== '') {
+                $links[] = [
+                    'label' => $label,
+                    'url' => $url,
+                ];
+            }
+        }
+    }
+
+    if (count($links) === 0) {
+        return null;
+    }
+
+    usort($links, function ($a, $b) {
+        return strcmp(($a['label'] ?? '') . '|' . ($a['url'] ?? ''), ($b['label'] ?? '') . '|' . ($b['url'] ?? ''));
+    });
+
+    return json_encode($links);
+}
 
 // Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_validate();
     $title = trim($_POST['title']);
     $category = trim($_POST['category']);
+    $custom_category = trim((string) ($_POST['custom_category'] ?? ''));
     $content = trim($_POST['content']);
-    $remove_image = isset($_POST['remove_image']) && $_POST['remove_image'] == '1';
-    $visible_to_sales = isset($_POST['visible_to_sales']) ? 1 : 0;
+    $visible_to_sales = 1;
 
-    if (!empty($title) && !empty($category) && !empty($content)) {
-        $image_path = $article['image_path']; // Keep existing image by default
+    if (strcasecmp($category, 'Other') === 0) {
+        $category = $custom_category;
+    }
 
-        // Handle Image Removal
-        if ($remove_image) {
-            kb_delete_uploaded_file($image_path);
-            $image_path = null;
+    if (!empty($title) && !empty($category)) {
+        $original_image_path = $article['image_path'];
+        $original_image_paths = kb_extract_image_paths($original_image_path);
+        $removed_existing_images = json_decode((string) ($_POST['remove_existing_images'] ?? '[]'), true);
+        if (!is_array($removed_existing_images)) {
+            $removed_existing_images = [];
         }
+        $removed_existing_images = kb_extract_image_paths($removed_existing_images);
+        $kept_existing_images = array_values(array_filter($original_image_paths, function ($path) use ($removed_existing_images) {
+            return !in_array($path, $removed_existing_images, true);
+        }));
 
-        // Handle New Image Upload
         $image_upload_error = '';
-        $stored_image_path = kb_store_uploaded_image($_FILES['image'] ?? null, $image_upload_error);
-        if ($stored_image_path === false) {
+        $stored_image_paths = kb_store_uploaded_images($_FILES['image'] ?? null, $image_upload_error);
+        if ($stored_image_paths === false) {
             $error_msg = $image_upload_error;
-        } elseif (is_string($stored_image_path)) {
-            if (!$remove_image) {
-                kb_delete_uploaded_file($article['image_path']);
-            }
-            $image_path = $stored_image_path;
         }
+        $new_image_paths = is_array($stored_image_paths) ? $stored_image_paths : [];
+        $image_path = kb_encode_image_paths(array_merge($kept_existing_images, $new_image_paths));
 
         // Handle Reference Links
-        $links_json = null;
-        if (isset($_POST['link_labels']) && isset($_POST['link_urls'])) {
-            $links = [];
-            foreach ($_POST['link_labels'] as $index => $label) {
-                if (!empty($label) && !empty($_POST['link_urls'][$index])) {
-                    $links[] = [
-                        'label' => trim($label),
-                        'url' => trim($_POST['link_urls'][$index])
-                    ];
-                }
-            }
-            if (!empty($links)) {
-                $links_json = json_encode($links);
-            }
-        }
+        $links_json = kb_sorted_links_json($_POST['link_labels'] ?? [], $_POST['link_urls'] ?? []);
+        $original_links_json = kb_sorted_links_json(
+            array_column((array) json_decode($article['article_links'] ?? '[]', true), 'label'),
+            array_column((array) json_decode($article['article_links'] ?? '[]', true), 'url')
+        );
 
         // Handle Presentation
         $presentation_path = $article['article_presentation'];
@@ -156,25 +178,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $video_content = null;
         }
 
+        $original_title = trim((string) ($article['title'] ?? ''));
+        $original_category = trim((string) ($article['category'] ?? ''));
+        $original_content = trim((string) ($article['content'] ?? ''));
+        $original_presentation_path = $article['article_presentation'];
+        $original_video_content = $article['article_video'];
+        $original_visible_to_sales = isset($article['visible_to_sales']) ? (int) $article['visible_to_sales'] : 1;
+
+        $has_changes = (
+            $title !== $original_title ||
+            $category !== $original_category ||
+            $content !== $original_content ||
+            (string) $image_path !== (string) $original_image_path ||
+            (string) $links_json !== (string) $original_links_json ||
+            (string) $presentation_path !== (string) $original_presentation_path ||
+            (string) $video_content !== (string) $original_video_content ||
+            (int) $visible_to_sales !== (int) $original_visible_to_sales
+        );
+
         $update_stmt = $conn->prepare("UPDATE knowledge_base SET title = ?, category = ?, content = ?, image_path = ?, article_links = ?, article_presentation = ?, article_video = ?, visible_to_sales = ? WHERE id = ?");
         $update_stmt->bind_param("sssssssii", $title, $category, $content, $image_path, $links_json, $presentation_path, $video_content, $visible_to_sales, $article_id);
         
         if ($error_msg !== '') {
             // Preserve the upload error already set above.
+        } elseif (!$has_changes) {
+            if (!empty($new_image_paths)) {
+                kb_delete_uploaded_file($new_image_paths);
+            }
+            $error_msg = "No changes were made.";
         } elseif ($update_stmt->execute()) {
-            
+            if (!empty($removed_existing_images)) {
+                kb_delete_uploaded_file($removed_existing_images);
+            }
             header("Location: manage_kb.php?msg=updated");
             exit();
         } else {
+            if (!empty($new_image_paths)) {
+                kb_delete_uploaded_file($new_image_paths);
+            }
             $error_msg = "Error updating article: " . $conn->error;
         }
     } else {
-        $error_msg = "All fields are required.";
+        $error_msg = "Title and category are required.";
     }
 }
 
 // Pre-defined categories
 $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Problem', 'Account Access', 'Technical Support', 'Other'];
+$current_category = trim((string) ($article['category'] ?? ''));
+$is_custom_category = ($current_category !== '' && !in_array($current_category, $categories, true));
+$selected_category = $is_custom_category ? 'Other' : $current_category;
+$custom_category_value = $is_custom_category ? $current_category : '';
 ?>
 
 <!DOCTYPE html>
@@ -191,13 +245,13 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
         }
         .edit-container {
             padding: 40px;
-            max-width: 900px;
+            max-width: 1180px;
             width: 95%;
             margin: 0 auto;
         }
         .edit-card {
             background: white;
-            padding: 40px;
+            padding: 34px 34px 28px;
             border-radius: 16px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 10px 15px -3px rgba(0, 0, 0, 0.05);
             border: 1px solid #E5E7EB;
@@ -261,36 +315,93 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             outline: none;
             box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
         }
+        .custom-category-field {
+            margin-top: 12px;
+        }
         textarea.form-control {
-            min-height: 400px;
-            resize: vertical;
+            min-height: 240px;
+            resize: none;
             line-height: 1.6;
             font-family: inherit;
+            overflow-y: auto;
+        }
+        .kb-edit-form-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.65fr) 400px;
+            gap: 24px;
+            align-items: start;
+        }
+        .kb-edit-main-column {
+            min-width: 0;
+        }
+        .kb-edit-side-column {
+            min-width: 0;
+            padding-left: 24px;
+            border-left: 1px solid #E5E7EB;
         }
         .btn-save {
-            background-color: #3B82F6;
+            background-color: #166534;
             color: white;
             border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
+            padding: 14px 20px;
+            border-radius: 10px;
             font-weight: 600;
-            font-size: 15px;
+            font-size: 16px;
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+            width: 320px;
+            max-width: 100%;
+            box-shadow: 0 4px 6px -1px rgba(22, 101, 52, 0.22);
         }
         .btn-save:hover {
-            background-color: #2563EB;
+            background-color: #14532D;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 8px -1px rgba(22, 101, 52, 0.32);
         }
-        .current-image-preview {
-            position: relative;
-            display: inline-block;
+        .current-image-preview-grid,
+        .kb-image-preview-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
             margin-top: 10px;
         }
-        .current-image-preview img {
-            max-width: 100%;
-            max-height: 200px;
-            border-radius: 8px;
+        .current-image-preview,
+        .kb-image-preview-item {
+            position: relative;
+            width: 120px;
+            height: 96px;
+            border-radius: 10px;
+        }
+        .current-image-preview img,
+        .kb-image-preview-item img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
             border: 1px solid #E5E7EB;
+            object-fit: cover;
+            background: #F8FAFC;
+        }
+        .kb-image-preview-remove {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            border: 2px solid #fff;
+            border-radius: 999px;
+            background: #EF4444;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+            z-index: 2;
         }
         .btn-remove-image {
             position: absolute;
@@ -302,11 +413,71 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             border-radius: 50%;
             width: 28px;
             height: 28px;
+            padding: 0;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+            z-index: 2;
+            line-height: 1;
+        }
+        .btn-remove-image i {
+            pointer-events: none;
+            font-size: 12px;
+        }
+        .kb-image-dropzone {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 120px;
+            padding: 24px 18px;
+            border: 1.5px dashed #C7D2DA;
+            border-radius: 16px;
+            background: linear-gradient(180deg, #FCFEFD 0%, #F8FBFA 100%);
+            color: #4B5563;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .kb-image-dropzone:hover,
+        .kb-image-dropzone.is-active {
+            border-color: #166534;
+            background: #F0FDF4;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+        }
+        .kb-image-dropzone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .kb-image-dropzone-icon {
+            font-size: 24px;
+            color: #1F8A57;
+        }
+        .kb-image-dropzone-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #374151;
+        }
+        .kb-image-dropzone-subtitle,
+        .kb-image-dropzone-note {
+            font-size: 13px;
+            color: #6B7280;
+        }
+        .kb-image-selection-note {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #6B7280;
+        }
+        .current-image-preview-empty {
+            color: #6B7280;
+            font-style: italic;
+            font-size: 14px;
         }
         .alert-error {
             background-color: #FEE2E2;
@@ -322,22 +493,22 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             background-color: #F9FAFB;
             border: 1px solid #E5E7EB;
             border-radius: 12px;
-            padding: 25px;
-            margin-top: 30px;
+            padding: 20px;
+            margin-top: 0;
             display: flex;
             flex-direction: column;
-            gap: 25px;
+            gap: 16px;
         }
         
         .resources-title {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
             color: #111827;
-            padding-bottom: 15px;
+            padding-bottom: 10px;
             border-bottom: 1px solid #E5E7EB;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .resource-item {
@@ -482,12 +653,12 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
         }
 
         .form-actions {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #E5E7EB;
+            margin-top: 14px;
             display: flex;
-            justify-content: flex-end;
+            justify-content: center;
             align-items: center;
+            padding-top: 0;
+            border-top: none;
         }
 
         /* Custom File Button */
@@ -535,6 +706,24 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
             accent-color:#10B981;
             flex:0 0 auto;
         }
+        @media (max-width: 980px) {
+            .edit-container {
+                padding: 24px;
+            }
+            .edit-card {
+                padding: 24px 22px;
+            }
+            .kb-edit-form-grid {
+                grid-template-columns: 1fr;
+                gap: 22px;
+            }
+            .kb-edit-side-column {
+                padding-left: 0;
+                border-left: none;
+                border-top: 1px solid #E5E7EB;
+                padding-top: 22px;
+            }
+        }
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
@@ -562,58 +751,75 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
         <div class="edit-card">
             <form method="POST" enctype="multipart/form-data">
                 <?php echo csrf_field(); ?>
-                <div class="form-group">
-                    <label class="form-label">Article Title</label>
-                    <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($article['title']) ?>" required>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Category</label>
-                    <select name="category" class="form-control" required>
-                        <option value=""disabled selected hidden>Select Category</option>
-                        <?php foreach ($categories as $cat): ?>
-                            <option value="<?= htmlspecialchars($cat) ?>" <?= $article['category'] === $cat ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($cat) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label kb-visible-toggle">
-                        <input type="checkbox" name="visible_to_sales" value="1" <?= (isset($article['visible_to_sales']) ? ((int) $article['visible_to_sales'] === 1) : true) ? 'checked' : '' ?>>
-                        Visible to Sales users
-                    </label>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Current Image</label>
-                    <?php if ($article['image_path']): ?>
-                        <div class="current-image-preview" id="image-preview-container">
-                            <img src="../<?= htmlspecialchars($article['image_path']) ?>" alt="Article Image">
-                            <button type="button" class="btn-remove-image" onclick="markImageRemoved()">
-                                <i class="fas fa-times"></i>
-                            </button>
+                <div class="kb-edit-form-grid">
+                    <div class="kb-edit-main-column">
+                        <div class="form-group">
+                            <label class="form-label">Article Title</label>
+                            <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($article['title']) ?>" required>
                         </div>
-                        <input type="hidden" name="remove_image" id="remove_image_input" value="0">
-                        <div id="image-removed-msg" style="display: none; color: #EF4444; font-size: 14px; margin-top: 5px;">Image will be removed on save.</div>
-                    <?php else: ?>
-                        <div style="color: #6B7280; font-style: italic; font-size: 14px;">No image uploaded</div>
-                    <?php endif; ?>
-                    
-                    <div style="margin-top: 15px;">
-                        <label class="form-label">Update Image (Optional)</label>
-                        <input type="file" name="image" class="form-control" accept="image/*">
+
+                        <div class="form-group">
+                            <label class="form-label">Category</label>
+                            <select name="category" class="form-control" id="kb-edit-category-select" required>
+                                <option value=""disabled selected hidden>Select Category</option>
+                                <?php foreach ($categories as $cat): ?>
+                                    <option value="<?= htmlspecialchars($cat) ?>" <?= $selected_category === $cat ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($cat) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <input
+                                type="text"
+                                name="custom_category"
+                                id="kb-edit-custom-category"
+                                class="form-control custom-category-field"
+                                placeholder="Enter custom category name"
+                                value="<?= htmlspecialchars($custom_category_value, ENT_QUOTES, 'UTF-8') ?>"
+                                style="display: <?= $selected_category === 'Other' ? 'block' : 'none' ?>;"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Upload Image (Optional)</label>
+                            <div id="current-image-section">
+                                <?php if (!empty($article_image_urls)): ?>
+                                    <div class="current-image-preview-grid" id="image-preview-container">
+                                        <?php foreach ($article_image_urls as $index => $image_url): ?>
+                                            <div class="current-image-preview" data-image-path="<?= htmlspecialchars($article_image_paths[$index] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                                <img src="<?= htmlspecialchars($image_url) ?>" alt="Article Image">
+                                                <button type="button" class="btn-remove-image" onclick="removeExistingImage(this)">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="current-image-preview-empty" id="image-preview-empty">No image uploaded</div>
+                                <?php endif; ?>
+                                <input type="hidden" name="remove_existing_images" id="remove_existing_images" value="[]">
+                            </div>
+                            
+                            <div style="margin-top: 12px;">
+                                <label class="kb-image-dropzone" id="kb-image-dropzone">
+                                    <input type="file" name="image[]" id="kb-image-input" class="form-control" accept="image/*" multiple>
+                                    <div class="kb-image-dropzone-icon"><i class="fas fa-folder-open"></i></div>
+                                    <div class="kb-image-dropzone-title">Drag &amp; drop images here,</div>
+                                    <div class="kb-image-dropzone-subtitle">or click to upload</div>
+                                    <div class="kb-image-dropzone-note">You can upload multiple images.</div>
+                                </label>
+                                <div class="kb-image-selection-note" id="kb-image-selection-note"></div>
+                                <div id="new-image-preview" class="kb-image-preview-grid" style="display:none;"></div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
+                            <textarea name="content" class="form-control" rows="6" placeholder="Write acticle content here..."><?= htmlspecialchars($article['content']) ?></textarea>
+                        </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label class="form-label">Content</label>
-                    <textarea name="content" class="form-control" required><?= htmlspecialchars($article['content']) ?></textarea>
-                </div>
-
-                <!-- New Resources Section -->
-                <div class="resources-wrapper">
+                    <div class="kb-edit-side-column">
+                        <div class="resources-wrapper">
                     <div class="resources-title">
                         <i class="fas fa-paperclip" style="color: #10B981;"></i> Additional Resources
                     </div>
@@ -724,6 +930,8 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
                     </div>
 
                     
+                        </div>
+                    </div>
                 </div>
 
                 <div class="form-actions">
@@ -738,10 +946,32 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
 
 <script src="../js/admin.js"></script>
 <script>
-    function markImageRemoved() {
-        document.getElementById('image-preview-container').style.display = 'none';
-        document.getElementById('remove_image_input').value = '1';
-        document.getElementById('image-removed-msg').style.display = 'block';
+    const removedExistingImages = new Set();
+
+    function syncRemovedExistingImages() {
+        const hiddenInput = document.getElementById('remove_existing_images');
+        if (hiddenInput) {
+            hiddenInput.value = JSON.stringify(Array.from(removedExistingImages));
+        }
+    }
+
+    function removeExistingImage(button) {
+        const previewItem = button ? button.closest('.current-image-preview') : null;
+        if (!previewItem) return;
+
+        const imagePath = previewItem.getAttribute('data-image-path') || '';
+        if (imagePath) {
+            removedExistingImages.add(imagePath);
+            syncRemovedExistingImages();
+        }
+
+        previewItem.remove();
+
+        const previewContainer = document.getElementById('image-preview-container');
+        const emptyState = document.getElementById('image-preview-empty');
+        if (previewContainer && previewContainer.children.length === 0 && emptyState) {
+            emptyState.style.display = 'block';
+        }
     }
 
     function addLink() {
@@ -865,6 +1095,160 @@ $categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Probl
         } else {
             display.textContent = '';
         }
+    }
+
+    const kbImageInput = document.getElementById('kb-image-input');
+    const kbImageDropzone = document.getElementById('kb-image-dropzone');
+    const kbImageSelectionNote = document.getElementById('kb-image-selection-note');
+    const kbNewImagePreview = document.getElementById('new-image-preview');
+    let editImageDataTransfer = new DataTransfer();
+
+    function updateKbImageSelectionNote() {
+        if (!kbImageSelectionNote || !kbImageInput) return;
+        const imageCount = kbImageInput.files ? kbImageInput.files.length : 0;
+        kbImageSelectionNote.textContent = imageCount > 0
+            ? imageCount + (imageCount === 1 ? ' new image selected' : ' new images selected')
+            : '';
+    }
+
+    function previewEditImages(input) {
+        if (!kbNewImagePreview) return;
+
+        kbNewImagePreview.innerHTML = '';
+
+        if (input.files && input.files.length > 0) {
+            editImageDataTransfer = new DataTransfer();
+            Array.from(input.files).forEach(function(file) {
+                if (file.type && file.type.indexOf('image/') === 0) {
+                    editImageDataTransfer.items.add(file);
+                }
+            });
+            input.files = editImageDataTransfer.files;
+        }
+
+        if (!editImageDataTransfer.files || !editImageDataTransfer.files.length) {
+            kbNewImagePreview.style.display = 'none';
+            updateKbImageSelectionNote();
+            return;
+        }
+
+        kbNewImagePreview.style.display = 'flex';
+        Array.from(editImageDataTransfer.files).forEach(function(file, index) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const item = document.createElement('div');
+                item.className = 'kb-image-preview-item';
+
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.alt = '';
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'kb-image-preview-remove';
+                removeBtn.type = 'button';
+                removeBtn.textContent = 'x';
+                removeBtn.setAttribute('aria-label', 'Remove image');
+                removeBtn.onclick = function() {
+                    const nextFiles = new DataTransfer();
+                    Array.from(editImageDataTransfer.files).forEach(function(existingFile, existingIndex) {
+                        if (existingIndex !== index) {
+                            nextFiles.items.add(existingFile);
+                        }
+                    });
+                    editImageDataTransfer = nextFiles;
+                    kbImageInput.files = editImageDataTransfer.files;
+                    previewEditImages(kbImageInput);
+                };
+
+                item.appendChild(img);
+                item.appendChild(removeBtn);
+                kbNewImagePreview.appendChild(item);
+            };
+            reader.readAsDataURL(file);
+        });
+
+        updateKbImageSelectionNote();
+    }
+
+    function mergeDroppedEditImages(fileList) {
+        if (!kbImageInput || !fileList || !fileList.length) return;
+        const nextFiles = new DataTransfer();
+
+        Array.from(editImageDataTransfer.files || []).forEach(function(file) {
+            nextFiles.items.add(file);
+        });
+
+        Array.from(fileList).forEach(function(file) {
+            if (file.type && file.type.indexOf('image/') === 0) {
+                nextFiles.items.add(file);
+            }
+        });
+
+        editImageDataTransfer = nextFiles;
+        kbImageInput.files = editImageDataTransfer.files;
+        previewEditImages(kbImageInput);
+    }
+
+    if (kbImageInput) {
+        kbImageInput.addEventListener('change', function() {
+            previewEditImages(kbImageInput);
+        });
+    }
+
+    if (kbImageDropzone && kbImageInput) {
+        ['dragenter', 'dragover'].forEach(function(eventName) {
+            kbImageDropzone.addEventListener(eventName, function(event) {
+                event.preventDefault();
+                kbImageDropzone.classList.add('is-active');
+            });
+        });
+
+        ['dragleave', 'dragend', 'drop'].forEach(function(eventName) {
+            kbImageDropzone.addEventListener(eventName, function(event) {
+                event.preventDefault();
+                if (eventName !== 'drop') {
+                    kbImageDropzone.classList.remove('is-active');
+                }
+            });
+        });
+
+        kbImageDropzone.addEventListener('drop', function(event) {
+            kbImageDropzone.classList.remove('is-active');
+            const droppedFiles = event.dataTransfer ? event.dataTransfer.files : null;
+            if (!droppedFiles || !droppedFiles.length) return;
+            mergeDroppedEditImages(droppedFiles);
+        });
+    }
+
+    function autoResizeTextarea(textarea) {
+        if (!textarea) return;
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    }
+
+    document.querySelectorAll('textarea.form-control').forEach(function(textarea) {
+        autoResizeTextarea(textarea);
+        textarea.addEventListener('input', function() {
+            autoResizeTextarea(textarea);
+        });
+    });
+
+    const kbEditCategorySelect = document.getElementById('kb-edit-category-select');
+    const kbEditCustomCategory = document.getElementById('kb-edit-custom-category');
+
+    function syncEditCustomCategory() {
+        if (!kbEditCategorySelect || !kbEditCustomCategory) return;
+        const isOther = kbEditCategorySelect.value === 'Other';
+        kbEditCustomCategory.style.display = isOther ? 'block' : 'none';
+        kbEditCustomCategory.required = isOther;
+        if (!isOther) {
+            kbEditCustomCategory.value = '';
+        }
+    }
+
+    if (kbEditCategorySelect && kbEditCustomCategory) {
+        kbEditCategorySelect.addEventListener('change', syncEditCustomCategory);
+        syncEditCustomCategory();
     }
 </script>
 

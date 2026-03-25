@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/notification_service.php';
 
 header('Content-Type: application/json');
 
@@ -89,6 +90,34 @@ if ($stmt->execute()) {
         $recipientId = $assigneeId;
     } else {
         $recipientId = $requesterId;
+    }
+
+    if ($recipientId > 0 && $recipientId !== $sender_id) {
+        $senderInfo = notif_user_contact($conn, (int) $sender_id);
+        $senderName = trim((string) ($senderInfo['name'] ?? ''));
+        if ($senderName === '') {
+            $senderName = 'Someone';
+        }
+        $ticketNumber = notif_ticket_number((int) $ticket_id);
+        $messagePreview = trim($message);
+        if (function_exists('mb_strlen')) {
+            if (mb_strlen($messagePreview) > 80) {
+                $messagePreview = mb_substr($messagePreview, 0, 80) . '...';
+            }
+        } else {
+            if (strlen($messagePreview) > 80) {
+                $messagePreview = substr($messagePreview, 0, 80) . '...';
+            }
+        }
+        notif_insert_system(
+            $conn,
+            (int) $recipientId,
+            (int) $ticket_id,
+            $senderName . ' sent a chat message on ticket #' . $ticketNumber . ': ' . $messagePreview,
+            'chat_message',
+            5,
+            'update'
+        );
     }
 
     exit;

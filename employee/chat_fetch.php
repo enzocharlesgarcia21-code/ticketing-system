@@ -29,6 +29,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
         SELECT
             t.id,
             t.subject,
+            t.status,
+            COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email,
             MAX(tm.created_at) AS last_message_time,
             COALESCE(SUM(CASE WHEN tm.id IS NOT NULL AND tm.is_read = 0 AND tm.sender_id <> ? THEN 1 ELSE 0 END), 0) AS unread_count,
             SUBSTRING_INDEX(GROUP_CONCAT(tm.message ORDER BY tm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_message,
@@ -37,18 +39,19 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
         FROM employee_tickets t
         LEFT JOIN ticket_messages tm ON t.id = tm.ticket_id
         LEFT JOIN users u ON tm.sender_id = u.id
+        LEFT JOIN users requester ON t.user_id = requester.id
     ";
     $params = [$current_user_id];
     $types = 'i';
 
-    $sql .= " WHERE (t.user_id = ? OR t.assigned_user_id = ?) AND EXISTS (SELECT 1 FROM ticket_messages tm2 WHERE tm2.ticket_id = t.id) ";
+    $sql .= " WHERE (t.user_id = ? OR t.assigned_user_id = ?) AND t.status IN ('Open', 'In Progress') ";
     $params[] = $current_user_id;
     $types .= 'i';
     $params[] = $current_user_id;
     $types .= 'i';
 
     $sql .= "
-        GROUP BY t.id, t.subject
+        GROUP BY t.id, t.subject, t.status
         ORDER BY COALESCE(MAX(tm.created_at), MAX(t.created_at)) DESC
         LIMIT 50
     ";
@@ -74,6 +77,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
         $rows[] = [
             'id' => (int) $r['id'],
             'subject' => (string) $r['subject'],
+            'status' => (string) $r['status'],
+            'requester_email' => (string) $r['requester_email'],
             'last_message_time' => (string) $r['last_message_time'],
             'ticket_created_at' => (string) $r['ticket_created_at'],
             'unread_count' => (int) $r['unread_count'],

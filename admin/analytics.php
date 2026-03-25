@@ -758,32 +758,44 @@ if ($ticketsStmt) {
             gap: 8px;
             align-items: center;
             justify-content: flex-end;
+            flex-wrap: wrap;
         }
         .page-btn {
-            min-width: 36px;
-            height: 36px;
-            padding: 0 10px;
-            border-radius: 11px;
-            border: 1px solid #dce3eb;
+            min-width: 40px;
+            height: 40px;
+            padding: 0 15px;
+            border-radius: 999px;
+            border: 1px solid #d7e2ea;
             background: #ffffff;
             color: #0f172a;
-            font-weight: 800;
+            font-weight: 600;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             text-decoration: none;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+            transition: all 0.2s ease;
+        }
+        .page-btn.prev,
+        .page-btn.next {
+            min-width: 110px;
+            padding: 0 18px;
         }
         .page-btn:hover {
-            background: #f7fafb;
+            background: #f8fafc;
+            transform: translateY(-1px);
+            border-color: #cbd5e1;
         }
         .page-btn.active {
-            background: #1B5E20;
+            background: #166534;
             color: #ffffff;
-            border-color: #1B5E20;
+            border-color: #166534;
+            box-shadow: 0 10px 18px rgba(22, 101, 52, 0.22);
         }
         .page-btn.disabled {
             opacity: 0.45;
             pointer-events: none;
+            box-shadow: none;
         }
 
         @media (max-width: 1280px) {
@@ -857,10 +869,10 @@ if ($ticketsStmt) {
             <div class="admin-page-header">
                 <h1 class="admin-page-title analytics-title"><i class="fa-solid fa-chart-line"></i> Analytics</h1>
                 <div class="analytics-header-actions">
-                    <a href="export_analytics_pdf.php?start_date=<?= urlencode($start_date) ?>&end_date=<?= urlencode($end_date) ?>" class="btn-export btn-export-pdf" target="_blank">
+                    <a href="export_analytics_pdf.php?start_date=<?= urlencode($start_date) ?>&end_date=<?= urlencode($end_date) ?>&category=<?= urlencode($category_filter) ?>&assignee=<?= urlencode((string) $assignee_filter) ?>&department=<?= urlencode($department_filter) ?>&status=<?= urlencode($status_filter) ?>" class="btn-export btn-export-pdf" target="_blank">
                         <i class="fa-regular fa-file-pdf"></i> PDF
                     </a>
-                    <a href="export_analytics_excel.php?start_date=<?= urlencode($start_date) ?>&end_date=<?= urlencode($end_date) ?>" class="btn-export btn-export-excel" target="_blank">
+                    <a href="export_analytics_excel.php?start_date=<?= urlencode($start_date) ?>&end_date=<?= urlencode($end_date) ?>&category=<?= urlencode($category_filter) ?>&assignee=<?= urlencode((string) $assignee_filter) ?>&department=<?= urlencode($department_filter) ?>&status=<?= urlencode($status_filter) ?>" class="btn-export btn-export-excel" target="_blank">
                         <i class="fa-regular fa-file-excel"></i> Excel
                     </a>
                 </div>
@@ -1058,7 +1070,7 @@ if ($ticketsStmt) {
                                 $prevPage = max(1, $page - 1);
                                 $nextPage = min($tickets_total_pages, $page + 1);
                             ?>
-                            <a class="page-btn <?= $page <= 1 ? 'disabled' : '' ?>" href="?<?= http_build_query(array_merge($qsBase, ['page' => $prevPage])) ?>">‹</a>
+                            <a class="page-btn prev <?= $page <= 1 ? 'disabled' : '' ?>" href="?<?= http_build_query(array_merge($qsBase, ['page' => $prevPage])) ?>">&lsaquo; Previous</a>
                             <?php
                                 $startP = max(1, $page - 2);
                                 $endP = min($tickets_total_pages, $startP + 4);
@@ -1067,7 +1079,7 @@ if ($ticketsStmt) {
                             ?>
                                 <a class="page-btn <?= $p === $page ? 'active' : '' ?>" href="?<?= http_build_query(array_merge($qsBase, ['page' => $p])) ?>"><?= (int) $p ?></a>
                             <?php endfor; ?>
-                            <a class="page-btn <?= $page >= $tickets_total_pages ? 'disabled' : '' ?>" href="?<?= http_build_query(array_merge($qsBase, ['page' => $nextPage])) ?>">›</a>
+                            <a class="page-btn next <?= $page >= $tickets_total_pages ? 'disabled' : '' ?>" href="?<?= http_build_query(array_merge($qsBase, ['page' => $nextPage])) ?>">Next &rsaquo;</a>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -1078,6 +1090,18 @@ if ($ticketsStmt) {
 </div>
 
 <script>
+    (function () {
+        var filterForm = document.querySelector('.analytics-filterbar');
+        if (!filterForm) return;
+
+        var controls = filterForm.querySelectorAll('select[name="category"], select[name="assignee"], select[name="department"], select[name="status"], input[name="start_date"], input[name="end_date"]');
+        controls.forEach(function (control) {
+            control.addEventListener('change', function () {
+                filterForm.submit();
+            });
+        });
+    })();
+
     // Theme colors
     const isDarkMode = document.body.classList.contains('dark-mode');
     const textColor = isDarkMode ? '#cbd5e1' : '#64748b';
@@ -1175,3 +1199,4 @@ if ($ticketsStmt) {
 
 </body>
 </html>
+

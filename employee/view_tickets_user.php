@@ -291,7 +291,7 @@ $result = $stmt->get_result();
                     <!-- Previous Link -->
                     <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&category=<?= urlencode($category); ?>&department=<?= urlencode($department); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
-                        Previous
+                        &lsaquo; Previous
                     </a>
 
                     <div class="page-numbers">
@@ -307,7 +307,7 @@ $result = $stmt->get_result();
                     <!-- Next Link -->
                     <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&category=<?= urlencode($category); ?>&department=<?= urlencode($department); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>" 
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
-                        Next
+                        Next &rsaquo;
                     </a>
                 </div>
                 <?php endif; ?>

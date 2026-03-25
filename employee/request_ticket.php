@@ -17,6 +17,46 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
 $isAjax = (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string) $_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
     || (isset($_SERVER['HTTP_ACCEPT']) && strpos((string) $_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
 
+function finish_ticket_submit_response(bool $isAjax, array $payload = []): void
+{
+    if (function_exists('apache_setenv')) {
+        @apache_setenv('no-gzip', '1');
+    }
+    @ini_set('zlib.output_compression', '0');
+    @ini_set('implicit_flush', '1');
+
+    if (function_exists('session_write_close')) {
+        @session_write_close();
+    }
+    ignore_user_abort(true);
+
+    if ($isAjax) {
+        $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+            header('Cache-Control: no-store, no-cache, must-revalidate');
+            header('Connection: close');
+            header('Content-Encoding: none');
+            header('Content-Length: ' . strlen((string) $body));
+        }
+        echo $body;
+    } else {
+        if (!headers_sent()) {
+            header("Location: my_tickets.php");
+        }
+    }
+
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+        return;
+    }
+
+    @flush();
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
 
@@ -367,6 +407,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     notif_insert_admins($conn, (int) $ticket_id, $adminTicketNotifMsg, 'new_ticket');
 
+    /* ================= SUCCESS RESPONSE ================= */
+
+    $ticketNumber = $ticket_number;
+    finish_ticket_submit_response($isAjax, [
+        'ok' => true,
+        'message' => 'Ticket successfully submitted!',
+        'ticket_id' => (int) $ticket_id,
+        'ticket_number' => (string) $ticketNumber
+    ]);
+
     $ticketDetails = null;
     $ticketStmt = $conn->prepare("
         SELECT t.subject, t.description, t.assigned_department, t.created_at, u.email, u.name
@@ -390,7 +440,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    $ticketNumber = $ticket_number;
     $requesterName = (string) ($ticketDetails['name'] ?? ($user_name ?? ($_SESSION['name'] ?? 'Unknown')));
     $employeeEmail = (string) ($ticketDetails['email'] ?? '');
     $createdAt = (string) ($ticketDetails['created_at'] ?? '');
@@ -488,16 +537,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         error_log('Ticket email skipped (employee email empty) | ticketId=' . (string) $ticket_id);
     }
 
-    /* ================= SUCCESS MESSAGE ================= */
-
-    $_SESSION['success'] = "Ticket successfully submitted!";
-
-    if ($isAjax) {
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['ok' => true, 'message' => 'Ticket successfully submitted!', 'ticket_id' => (int) $ticket_id, 'ticket_number' => (string) $ticketNumber], JSON_UNESCAPED_UNICODE);
-        exit();
-    }
-    header("Location: my_tickets.php");
     exit();
 }
 ?>
@@ -546,7 +585,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         body.employee-request-ticket-page textarea.form-control {
             resize: none;
         }
-        body.employee-request-ticket-page .ticket-loading-overlay {
+        body.employee-request-ticket-page .ticket-modal {
             position: fixed;
             inset: 0;
             background: rgba(15, 23, 42, 0.46);
@@ -556,63 +595,92 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             justify-content: center;
             z-index: 9999;
             padding: 20px;
+            box-sizing: border-box;
         }
-        body.employee-request-ticket-page .ticket-loading-overlay.show {
-            display: flex;
-        }
-        body.employee-request-ticket-page .ticket-loading-card {
-            width: 392px;
+        body.employee-request-ticket-page .ticket-modal.show { display: flex; }
+        body.employee-request-ticket-page .ticket-modal-content {
+            width: 480px;
             max-width: calc(100vw - 40px);
             background: #ffffff;
             border-radius: 24px;
-            padding: 26px 24px 22px;
+            padding: 28px 30px 22px;
             text-align: center;
             border: 1px solid rgba(27, 94, 32, 0.18);
             box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22);
             position: relative;
             overflow: hidden;
         }
-        body.employee-request-ticket-page .ticket-loading-card::before {
+        body.employee-request-ticket-page .ticket-modal-content::before {
             content: "";
             position: absolute;
             inset: 0 0 auto 0;
-            height: 6px;
+            height: 8px;
             background: linear-gradient(90deg, #1B5E20, #144a1e);
         }
-        body.employee-request-ticket-page .ticket-loading-title {
-            margin: 0 0 8px;
-            font-size: 18px;
-            font-weight: 800;
-            color: #0f172a;
-        }
-        body.employee-request-ticket-page .ticket-loading-text {
-            margin: 0 0 14px;
-            color: #64748b;
-            font-size: 14px;
-            line-height: 1.45;
-        }
-        body.employee-request-ticket-page .ticket-loading-badge {
-            display: inline-flex;
+        body.employee-request-ticket-page .ticket-modal-spinner {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 16px;
+            border-radius: 999px;
+            background: conic-gradient(#1B8A43 0deg, #2FAE52 145deg, #A6E05C 235deg, #1B8A43 360deg);
+            display: none;
             align-items: center;
             justify-content: center;
-            margin-bottom: 8px;
-            padding: 7px 12px;
+            animation: ticket-loading-spin 1.15s linear infinite;
+            box-shadow: 0 10px 24px rgba(27, 138, 67, 0.18);
+        }
+        body.employee-request-ticket-page .ticket-modal-spinner::before {
+            content: "";
+            width: 42px;
+            height: 42px;
+            border-radius: 999px;
+            background: #ffffff;
+            box-shadow: inset 0 0 0 1px rgba(22, 101, 52, 0.08);
+        }
+        body.employee-request-ticket-page .ticket-modal-icon {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 16px;
             border-radius: 999px;
             background: #ecfdf5;
             border: 1px solid #bbf7d0;
-            color: #166534;
-            font-size: 12px;
+            color: #1B5E20;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 31px;
+            font-weight: 900;
+            box-shadow: 0 10px 24px rgba(27, 138, 67, 0.14);
+        }
+        body.employee-request-ticket-page .ticket-modal-icon.error {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #991b1b;
+            box-shadow: none;
+        }
+        body.employee-request-ticket-page .ticket-modal-content h3 {
+            margin: 4px 0 14px;
+            font-size: 24px;
             font-weight: 800;
-            letter-spacing: 0.02em;
+            color: #0f172a;
+            letter-spacing: -0.03em;
         }
-        body.employee-request-ticket-page .ticket-loading-progress {
-            height: 8px;
-            border-radius: 999px;
-            background: #e2e8f0;
+        body.employee-request-ticket-page .ticket-modal-content p {
+            margin: 0 auto 18px;
+            color: #8b93a7;
+            font-size: 16px;
+            line-height: 1.4;
+            max-width: 320px;
+        }
+        body.employee-request-ticket-page .ticket-modal-progress {
+            position: absolute;
+            width: 1px;
+            height: 1px;
             overflow: hidden;
-            margin: 0 0 10px;
+            opacity: 0;
+            pointer-events: none;
         }
-        body.employee-request-ticket-page .ticket-loading-progress span {
+        body.employee-request-ticket-page .ticket-modal-progress span {
             display: block;
             width: 22%;
             height: 100%;
@@ -620,14 +688,77 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             background: linear-gradient(90deg, #1B5E20, #22c55e);
             transition: width 0.35s ease;
         }
-        body.employee-request-ticket-page .ticket-loading-status {
-            min-height: 18px;
-            color: #166534;
-            font-size: 12px;
+        body.employee-request-ticket-page .ticket-modal-status {
+            min-height: 28px;
+            color: #2c8a46;
+            font-size: 16px;
             font-weight: 800;
-            letter-spacing: 0.02em;
+            letter-spacing: -0.01em;
+        }
+        body.employee-request-ticket-page .ticket-modal-actions {
+            display: none;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        body.employee-request-ticket-page .ticket-modal-content button {
+            width: auto;
+            min-width: 108px;
+            border: 1px solid rgba(20, 74, 30, 0.28);
+            background: #1B5E20;
+            color: #ffffff;
+            border-radius: 13px;
+            padding: 10px 20px;
+            font-size: 15px;
+            font-weight: 900;
+            cursor: pointer;
+        }
+        body.employee-request-ticket-page .ticket-modal-content button:hover {
+            background: #144a1e;
+        }
+        body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-spinner,
+        body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-icon.success,
+        body.employee-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-icon.error {
+            display: flex;
+        }
+        body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-actions,
+        body.employee-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-actions {
+            display: flex;
+        }
+        body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-status {
+            display: none;
+        }
+        body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-progress span { width: 100% !important; }
+        body.employee-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-progress span { background: linear-gradient(90deg, #ef4444, #f97316); }
+        @keyframes ticket-loading-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
         @media (max-width: 768px) {
+            body.employee-request-ticket-page .ticket-modal-content {
+                width: 100%;
+                border-radius: 22px;
+                padding: 24px 20px 20px;
+            }
+            body.employee-request-ticket-page .ticket-modal-content h3 {
+                font-size: 22px;
+            }
+            body.employee-request-ticket-page .ticket-modal-content p,
+            body.employee-request-ticket-page .ticket-modal-status {
+                font-size: 15px;
+            }
+            body.employee-request-ticket-page .ticket-modal-spinner,
+            body.employee-request-ticket-page .ticket-modal-icon {
+                width: 56px;
+                height: 56px;
+            }
+            body.employee-request-ticket-page .ticket-modal-spinner::before {
+                width: 40px;
+                height: 40px;
+            }
+            body.employee-request-ticket-page .ticket-modal-icon {
+                font-size: 28px;
+            }
             body.employee-request-ticket-page .dashboard-container {
                 padding: 12px;
             }
@@ -843,13 +974,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </div>
 
-    <div id="ticketLoadingOverlay" class="ticket-loading-overlay" aria-hidden="true">
-        <div class="ticket-loading-card" role="status" aria-live="polite" aria-busy="true">
-            <div class="ticket-loading-badge">Secure Submit</div>
-            <h3 class="ticket-loading-title">Submitting Ticket</h3>
-            <p class="ticket-loading-text">Preparing your request and attachments...</p>
-            <div class="ticket-loading-progress"><span id="ticketLoadingProgressBar"></span></div>
-            <div class="ticket-loading-status" id="ticketLoadingStatus">Validating ticket details</div>
+    <div id="successModal" class="ticket-modal" aria-hidden="true">
+        <div class="ticket-modal-content" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
+            <div class="ticket-modal-spinner" aria-hidden="true"></div>
+            <div class="ticket-modal-icon success" id="ticketModalSuccessIcon">✓</div>
+            <div class="ticket-modal-icon error" id="ticketModalErrorIcon">!</div>
+            <h3 id="successModalTitle">Submitting Ticket</h3>
+            <p id="successModalDesc">Preparing your request and attachments...</p>
+            <div class="ticket-modal-progress"><span id="ticketModalProgressBar"></span></div>
+            <div class="ticket-modal-status" id="ticketModalStatus">Validating ticket details</div>
+            <div class="ticket-modal-actions" id="ticketModalActions">
+                <button type="button" id="ticketModalDoneBtn">Done</button>
+            </div>
         </div>
     </div>
 
@@ -1139,17 +1275,57 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </script>
 
     <script>
+    function closeModal(){
+        var m = document.getElementById('successModal');
+        if (!m) return;
+        m.classList.remove('show');
+        m.setAttribute('aria-hidden', 'true');
+        m.setAttribute('data-state', '');
+        var t = document.getElementById('successModalTitle');
+        var d = document.getElementById('successModalDesc');
+        var s = document.getElementById('ticketModalStatus');
+        var p = document.getElementById('ticketModalProgressBar');
+        var doneBtn = document.getElementById('ticketModalDoneBtn');
+        if (t) t.textContent = 'Submitting Ticket';
+        if (d) d.textContent = 'Preparing your request and attachments...';
+        if (s) s.textContent = 'Validating ticket details';
+        if (p) p.style.width = '22%';
+        if (doneBtn) doneBtn.textContent = 'Done';
+    }
+
     (function () {
         var form = document.getElementById('ticketForm');
+        var modal = document.getElementById('successModal');
         var ajaxError = document.getElementById('ajaxError');
-        var loadingOverlay = document.getElementById('ticketLoadingOverlay');
-        var loadingTitle = document.querySelector('.ticket-loading-title');
-        var loadingText = document.querySelector('.ticket-loading-text');
-        var loadingStatus = document.getElementById('ticketLoadingStatus');
-        var loadingProgress = document.getElementById('ticketLoadingProgressBar');
+        var doneBtn = document.getElementById('ticketModalDoneBtn');
+        var statusText = document.getElementById('ticketModalStatus');
+        var progressBar = document.getElementById('ticketModalProgressBar');
         var loadingTimers = [];
         var successRedirectTimer = null;
+        var loadingStartedAt = 0;
+        var MIN_LOADING_MS = 3000;
         if (!form) return;
+
+        function clearLoadingTimers() {
+            while (loadingTimers.length) {
+                window.clearTimeout(loadingTimers.pop());
+            }
+            if (successRedirectTimer) {
+                window.clearTimeout(successRedirectTimer);
+                successRedirectTimer = null;
+            }
+        }
+
+        function setModalState(state, title, desc, status, progress) {
+            if (!modal) return;
+            modal.setAttribute('data-state', state || '');
+            var t = document.getElementById('successModalTitle');
+            var d = document.getElementById('successModalDesc');
+            if (t && title) t.textContent = title;
+            if (d && desc != null) d.innerHTML = desc;
+            if (statusText) statusText.textContent = status || '';
+            if (progressBar && progress != null) progressBar.style.width = String(progress) + '%';
+        }
 
         function revealErrorBanner(message) {
             if (!ajaxError) return;
@@ -1162,34 +1338,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             });
         }
 
-        function clearLoadingTimers() {
-            while (loadingTimers.length) {
-                window.clearTimeout(loadingTimers.pop());
-            }
-            if (successRedirectTimer) {
-                window.clearTimeout(successRedirectTimer);
-                successRedirectTimer = null;
-            }
-        }
-
-        function setLoadingState(state, title, text, status, progress) {
-            if (!loadingOverlay) return;
-            loadingOverlay.setAttribute('data-state', state || '');
-            if (loadingTitle && title) loadingTitle.textContent = title;
-            if (loadingText && text) loadingText.textContent = text;
-            if (loadingStatus) loadingStatus.textContent = status || '';
-            if (loadingProgress && progress != null) loadingProgress.style.width = String(progress) + '%';
-        }
-
         function startLoadingSequence() {
+            loadingStartedAt = Date.now();
             clearLoadingTimers();
-            setLoadingState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Validating ticket details', 24);
+            setModalState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Validating ticket details', 24);
             loadingTimers.push(window.setTimeout(function () {
-                setLoadingState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Creating your ticket record', 68);
-            }, 180));
+                setModalState('loading', 'Submitting Ticket', 'Preparing your request and attachments...', 'Creating your ticket record', 68);
+            }, 800));
             loadingTimers.push(window.setTimeout(function () {
-                setLoadingState('loading', 'Submitting Ticket', 'Almost there. We are finalizing your request...', 'Finalizing your request', 94);
-            }, 420));
+                setModalState('loading', 'Submitting Ticket', 'Almost there. We are finalizing your request...', 'Finalizing your request', 94);
+            }, 1800));
+        }
+
+        function showSuccessState() {
+            if (!modal) return;
+            clearLoadingTimers();
+                    setModalState('success', 'Ticket Submitted Successfully', 'Your request has been sent.<br>Our team will get back to you soon.', '', 100);
+        }
+
+        if (modal) {
+            modal.addEventListener('click', function (e) {
+                if (e.target === modal) closeModal();
+            });
+        }
+        if (doneBtn) {
+            doneBtn.addEventListener('click', function () {
+                if (!modal) return;
+                var state = modal.getAttribute('data-state') || '';
+                if (state === 'success') {
+                    clearLoadingTimers();
+                    window.location.href = 'my_tickets.php';
+                    return;
+                }
+                closeModal();
+            });
         }
 
         form.addEventListener('submit', function(e) {
@@ -1199,9 +1381,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             var submitBtn = form.querySelector('button[type="submit"]');
             if (submitBtn) submitBtn.disabled = true;
-            if (loadingOverlay) {
-                loadingOverlay.classList.add('show');
-                loadingOverlay.setAttribute('aria-hidden', 'false');
+
+            if (modal) {
+                modal.classList.add('show');
+                modal.setAttribute('aria-hidden', 'false');
                 startLoadingSequence();
             }
 
@@ -1217,30 +1400,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if (!data || !data.ok) {
                     clearLoadingTimers();
                     var msg = (data && data.error) ? data.error : 'Failed to submit ticket.';
-                    if (loadingOverlay) {
-                        loadingOverlay.classList.remove('show');
-                        loadingOverlay.setAttribute('aria-hidden', 'true');
-                        loadingOverlay.setAttribute('data-state', '');
+                    if (modal) {
+                        modal.classList.remove('show');
+                        modal.setAttribute('aria-hidden', 'true');
+                        modal.setAttribute('data-state', '');
                     }
                     revealErrorBanner(msg);
+                    if (doneBtn) doneBtn.textContent = 'Close';
                     return;
+                }
+
+                if (modal) {
+                    var elapsed = loadingStartedAt ? (Date.now() - loadingStartedAt) : 0;
+                    var waitMs = Math.max(0, MIN_LOADING_MS - elapsed);
+                    if (waitMs > 0) {
+                        successRedirectTimer = window.setTimeout(function () {
+                            successRedirectTimer = null;
+                            showSuccessState();
+                        }, waitMs);
+                    } else {
+                        showSuccessState();
+                    }
                 }
                 form.reset();
                 if (typeof window.TMEmployeeResetAttachments === 'function') window.TMEmployeeResetAttachments();
-                clearLoadingTimers();
-                setLoadingState('success', 'Ticket Submitted', 'Your ticket has been created successfully.', 'Redirecting to your tickets', 100);
-                successRedirectTimer = window.setTimeout(function () {
-                    window.location.href = 'my_tickets.php';
-                }, 120);
             })
             .catch(function () {
                 clearLoadingTimers();
-                if (loadingOverlay) {
-                    loadingOverlay.classList.remove('show');
-                    loadingOverlay.setAttribute('aria-hidden', 'true');
-                    loadingOverlay.setAttribute('data-state', '');
+                if (modal) {
+                    modal.classList.remove('show');
+                    modal.setAttribute('aria-hidden', 'true');
+                    modal.setAttribute('data-state', '');
                 }
                 revealErrorBanner('Failed to submit ticket.');
+                if (doneBtn) doneBtn.textContent = 'Close';
             })
             .finally(function () {
                 if (submitBtn) submitBtn.disabled = false;

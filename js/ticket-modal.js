@@ -198,6 +198,19 @@ var TMTicketModal = (function () {
     }
     return html;
   }
+  function hasImageAttachments(data) {
+    var list = [];
+    if (data && Array.isArray(data.attachments) && data.attachments.length) {
+      list = data.attachments.slice();
+    } else if (data && data.attachment) {
+      list = [data.attachment];
+    }
+    if (!list.length) return false;
+    return list.some(function (att) {
+      var n = normalizeAttachment(att);
+      return !!n.filename && isImageFile(n.filename);
+    });
+  }
   function computeResolutionMinutes(createdAt, updatedAt) {
     if (!createdAt || !updatedAt) return null;
     var c = new Date(createdAt);
@@ -319,7 +332,6 @@ var TMTicketModal = (function () {
     if (!form || form.dataset.noteBound === '1') return;
     form.dataset.noteBound = '1';
     var textarea = form.querySelector('#tmAdminNote');
-    var max = 300;
     var tags = form.querySelectorAll('.tm-quick-tag');
     if (tags && tags.length && textarea) {
       tags.forEach(function (btn) {
@@ -328,7 +340,6 @@ var TMTicketModal = (function () {
           if (!tag) return;
           var current = String(textarea.value || '');
           var next = current.trim() === '' ? tag : (current + (current.endsWith('\n') ? '' : '\n') + tag);
-          if (next.length > max) next = next.slice(0, max);
           textarea.value = next;
           textarea.focus();
         });
@@ -339,6 +350,7 @@ var TMTicketModal = (function () {
     var hideUpdateTab = typeof window !== 'undefined' && window.TM_HIDE_UPDATE_TAB === true;
     var hideAdminChat = typeof window !== 'undefined' && window.TM_HIDE_ADMIN_CHAT === true;
     var hideRequesterAdminChatButton = typeof window !== 'undefined' && window.TM_HIDE_REQUESTOR_ADMIN_CHAT_BUTTON === true;
+    var hideQuickTags = typeof window !== 'undefined' && window.TM_HIDE_QUICK_TAGS === true;
     var statusSlug = data.status ? data.status.toLowerCase().replace(/\s+/g, '') : 'default';
     var prioritySlug = data.priority ? data.priority.toLowerCase() : 'default';
     var resolutionStart = (data && (data.started_at || data.created_at)) ? (data.started_at || data.created_at) : null;
@@ -417,11 +429,20 @@ var TMTicketModal = (function () {
     var trimmedNoteValue = noteValue.trim();
     var requesterAdminNoteHtml = (isRequesterPOV && trimmedNoteValue !== '')
       ? (
-        '      <div class="tm-card"><div class="tm-card-header"><div class="tm-card-header-actions"><span class="tm-card-title">Admin Notes / Comments</span>' + (hideRequesterAdminChatButton ? '' : ('<button type="button" class="tm-inline-chat-btn" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Chat with Admin</button>')) + '</div></div><div class="tm-card-body">' +
+        '      <div class="tm-card tm-card-admin-notes"><div class="tm-card-header"><div class="tm-card-header-actions"><span class="tm-card-title">Admin Notes / Comments</span>' + (hideRequesterAdminChatButton ? '' : ('<button type="button" class="tm-inline-chat-btn" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Chat with Admin</button>')) + '</div></div><div class="tm-card-body">' +
         '        <div class="tm-requestor-note">' + escapeHtml(noteValue).replace(/\n/g, '<br>') + '</div>' +
         '      </div></div>'
       )
       : '';
+    var resolutionCardHtml =
+      '      <div class="tm-card tm-card-resolution"><div class="tm-card-header"><span class="tm-card-title">Resolution</span></div><div class="tm-card-body">' +
+      '        <div class="tm-resolution-row">' +
+      '          <div class="tm-res-item"><div class="tm-res-label">Start</div><div class="tm-res-value">' + (resolutionStart ? formatTimelineTime(resolutionStart) : '-') + '</div></div>' +
+      '          <div class="tm-res-item"><div class="tm-res-label">End</div><div class="tm-res-value">' + (resolutionEnd ? formatTimelineTime(resolutionEnd) : 'Pending') + '</div></div>' +
+      '          <div class="tm-res-item"><div class="tm-res-label">Duration</div><div class="tm-res-value"><span class="tm-duration-dot"></span>' + (displayStr ? escapeHtml(displayStr) : '-') + '</div></div>' +
+      '        </div>' +
+      '      </div></div>';
+    var showResolutionUnderDescription = !hasImageAttachments(data);
     return '' +
       '<div class="tm-header">' +
       '  <div class="tm-header-left">' +
@@ -442,7 +463,7 @@ var TMTicketModal = (function () {
       '<div class="tm-body">' +
       '  <div id="tab-info" class="tm-tab-content active">' +
       '    <div class="tm-info-col">' +
-      '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Ticket Information</span></div><div class="tm-card-body"><div class="tm-info-grid">' +
+      '      <div class="tm-card tm-card-ticket-info"><div class="tm-card-header"><span class="tm-card-title">Ticket Information</span></div><div class="tm-card-body"><div class="tm-info-grid">' +
       '        <div class="tm-info-label">CREATED BY</div><div class="tm-info-value">' + (data.created_by_name ? escapeHtml(String(data.created_by_name)) : '-') + '</div>' +
       '        <div class="tm-info-label">EMAIL</div><div class="tm-info-value">' + (data.created_by_email ? escapeHtml(String(data.created_by_email)) : '-') + '</div>' +
       '        <div class="tm-info-label">DEPARTMENT</div><div class="tm-info-value">' + (data.department ? escapeHtml(String(data.department)) : '-') + '</div>' +
@@ -450,24 +471,19 @@ var TMTicketModal = (function () {
       '        <div class="tm-info-label">LAST UPDATED</div><div class="tm-info-value">' + (data.updated_at ? formatTimelineTime(data.updated_at) : '-') + '</div>' +
       '        <div class="tm-info-label">ASSIGNED TO</div><div class="tm-info-value">' + (data.assigned_department ? escapeHtml(String(data.assigned_department)) : '-') + (data.assigned_company ? '<br><small class="text-muted">(' + escapeHtml(String(data.assigned_company)) + ')</small>' : '') + '</div>' +
       '      </div></div></div>' +
-      '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Ticket Activity</span></div><div class="tm-card-body">' + renderTimeline(data) + '</div></div>' +
-      '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Resolution</span></div><div class="tm-card-body">' +
-      '        <div class="tm-resolution-row">' +
-      '          <div class="tm-res-item"><div class="tm-res-label">Start</div><div class="tm-res-value">' + (resolutionStart ? formatTimelineTime(resolutionStart) : '-') + '</div></div>' +
-      '          <div class="tm-res-item"><div class="tm-res-label">End</div><div class="tm-res-value">' + (resolutionEnd ? formatTimelineTime(resolutionEnd) : 'Pending') + '</div></div>' +
-      '          <div class="tm-res-item"><div class="tm-res-label">Duration</div><div class="tm-res-value"><span class="tm-duration-dot"></span>' + (displayStr ? escapeHtml(displayStr) : '-') + '</div></div>' +
-      '        </div>' +
-      '      </div></div>' +
+      '      <div class="tm-card tm-card-ticket-activity"><div class="tm-card-header"><span class="tm-card-title">Ticket Activity</span></div><div class="tm-card-body">' + renderTimeline(data) + '</div></div>' +
+      (showResolutionUnderDescription ? '' : resolutionCardHtml) +
       '    </div>' +
       '    <div class="tm-desc-col">' +
-      '      <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Description</span></div><div class="tm-card-body"><div class="tm-desc-text">' + escapeHtml(data.description).replace(/\n/g, '<br>') + '</div>' + renderAttachmentsBlock(data) + '</div></div>' +
-      '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
-      '      ' + ((data.urgency && data.urgency !== '-') ? '<div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Urgency</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.urgency)) + '</div></div></div>' : '') +
       requesterAdminNoteHtml +
+      '      <div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">Description</span></div><div class="tm-card-body"><div class="tm-desc-text">' + escapeHtml(data.description).replace(/\n/g, '<br>') + '</div>' + renderAttachmentsBlock(data) + '</div></div>' +
+      (showResolutionUnderDescription ? resolutionCardHtml : '') +
+      '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card tm-card-impact"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
+      '      ' + ((data.urgency && data.urgency !== '-') ? '<div class="tm-card tm-card-urgency"><div class="tm-card-header"><span class="tm-card-title">Urgency</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.urgency)) + '</div></div></div>' : '') +
       '    </div>' +
       '  </div>' +
       (hideUpdateTab ? '' : '  <div id="tab-actions" class="tm-tab-content">' +
-      '    <div class="tm-card"><div class="tm-card-header"><span class="tm-card-title">Ticket Update</span></div><div class="tm-card-body">' +
+      '    <div class="tm-card tm-card-ticket-update"><div class="tm-card-header"><span class="tm-card-title">Ticket Update</span></div><div class="tm-card-body">' +
       '    <form id="ticketUpdateForm" method="POST" action="update_ticket.php" class="tm-actions-form">' +
       '      <input type="hidden" name="id" value="' + data.id + '">' +
       '      <input type="hidden" name="csrf_token" value="' + escapeHtml(getCsrfToken()) + '">' +
@@ -512,16 +528,15 @@ var TMTicketModal = (function () {
       '      </div>' +
       '      <div class="tm-note-group">' +
       '        <div class="tm-note-label">Reason of Concern / Action Taken</div>' +
-      '        <textarea class="tm-textarea" name="admin_note" id="tmAdminNote" maxlength="300" placeholder="Describe what happened or actions taken...">' + escapeHtml(noteValue) + '</textarea>' +
-      '        <div class="tm-note-row">' +
-      '          <div class="tm-note-help">Provide details of the issue or actions performed to resolve it.</div>' +
-      '        </div>' +
+      '        <textarea class="tm-textarea" name="admin_note" id="tmAdminNote" placeholder="Provide details of the issue or actions performed to resolve it.">' + escapeHtml(noteValue) + '</textarea>' +
       '        <div class="tm-note-footer">' +
+      (hideQuickTags ? '' : (
       '          <div class="tm-quick-tags">' +
       '            <button type="button" class="tm-quick-tag" data-tag="Investigation">Investigation</button>' +
       '            <button type="button" class="tm-quick-tag" data-tag="Resolved">Resolved</button>' +
       '            <button type="button" class="tm-quick-tag" data-tag="Escalated">Escalated</button>' +
-      '          </div>' +
+      '          </div>'
+      )) +
       '          <div class="tm-actions-buttons">' +
       '            <button type="button" class="tm-btn tm-btn-secondary" onclick="TMTicketModal.close()">Close</button>' +
       '            <button type="submit" class="tm-btn tm-btn-primary">Save Ticket</button>' +
@@ -1119,9 +1134,75 @@ var TMTicketModal = (function () {
       document.head.appendChild(style);
     }
 
+    if (typeof window !== 'undefined' && window.TM_MESSENGER_STYLE === 'employee' && !document.getElementById('tmMessengerEmployeeStyles')) {
+      var employeeStyle = document.createElement('style');
+      employeeStyle.id = 'tmMessengerEmployeeStyles';
+      employeeStyle.textContent =
+        '.tm-messenger-overlay.employee-style{background:rgba(15,23,42,.32);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:20px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-panel{position:relative;width:min(88vw,1180px);height:min(82vh,760px);border-radius:24px;overflow:hidden;background:#ffffff;border:1px solid rgba(226,232,240,.9);box-shadow:0 24px 68px rgba(15,23,42,.20);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-panel::before{content:\"\";position:absolute;top:0;left:0;right:0;height:10px;background:linear-gradient(180deg,#275f33 0%,#1b5e20 100%);z-index:3;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-left{width:332px;min-width:332px;max-width:332px;background:linear-gradient(180deg,#fcfcfd 0%,#f8fafc 100%);border-right:1px solid #e2e8f0;padding-top:10px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-left-header{padding:24px 18px 12px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-left-title{font-size:17px;font-weight:900;color:#0f172a;letter-spacing:-.03em;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-search{padding:0 14px 10px;position:relative;background:transparent;border-bottom:none;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-search::before{content:\"\";position:absolute;left:28px;top:50%;width:16px;height:16px;transform:translateY(-50%);background:no-repeat center/contain url(\"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2718%27 height=%2718%27 fill=%27none%27 viewBox=%270 0 24 24%27%3E%3Cpath stroke=%2794a3b8%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z%27/%3E%3C/svg%3E\");pointer-events:none;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-search input{border-radius:14px;border:1px solid #dbe3ec;background:#fff;padding:12px 14px 12px 42px;font-size:14px;color:#0f172a;box-shadow:0 4px 12px rgba(15,23,42,.04);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-search input:focus{border-color:#86efac;box-shadow:0 0 0 4px rgba(34,197,94,.12);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-filters{display:flex;gap:8px;flex-wrap:nowrap;white-space:nowrap;padding:0 14px 12px;overflow:hidden;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-filter-btn{flex:0 0 auto;border:1px solid #e2e8f0;background:#fff;color:#475569;border-radius:14px;padding:10px 14px;font-size:13px;font-weight:800;line-height:1;cursor:pointer;box-shadow:0 4px 12px rgba(15,23,42,.04);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-filter-btn:hover{background:#f8fafc;border-color:#cbd5e1;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-filter-btn.active{background:#f8fafc;color:#0f172a;border-color:#d7e3da;box-shadow:inset 0 0 0 1px rgba(34,197,94,.08);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-list{padding:6px 12px 14px;gap:8px;background:transparent;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item{padding:13px 13px 12px;border-radius:16px;border:1px solid #e7edf3;background:#fff;box-shadow:0 6px 14px rgba(15,23,42,.04);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item:hover{transform:none;border-color:#d9e2ec;background:#fbfdff;box-shadow:0 10px 18px rgba(15,23,42,.06);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.active{border-color:#d9efe0;background:linear-gradient(180deg,#fcfefd 0%,#f4fbf6 100%);box-shadow:inset 4px 0 0 #22a55a,0 10px 22px rgba(34,197,94,.10);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.active .tm-messenger-item-subject{color:#0f172a;font-weight:700;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.active .tm-messenger-item-preview{color:#475569;font-weight:500;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat{border-color:#86efac;background:linear-gradient(180deg,#fbfffc 0%,#ecfdf3 100%);box-shadow:inset 5px 0 0 #16a34a,0 12px 24px rgba(22,163,74,.16);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat.active{border-color:#6ee7b7;background:linear-gradient(180deg,#f9fffb 0%,#e8fbef 100%);box-shadow:inset 5px 0 0 #16a34a,0 12px 24px rgba(22,163,74,.18);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat .tm-messenger-item-subject{color:#052e16;font-weight:900;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat .tm-messenger-item-preview{color:#14532d;font-weight:800;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat .tm-messenger-item-time{color:#14532d;font-weight:900;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item-subject{font-size:15px;font-weight:700;color:#0f172a;letter-spacing:-.02em;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item-preview{margin-top:7px;font-size:13px;color:#64748b;line-height:1.42;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item-time{font-size:12px;font-weight:800;color:#475569;}' +
+        '.tm-messenger-overlay.employee-style .unread-badge{width:10px;height:10px;min-width:10px;border-radius:999px;background:#16a34a;color:transparent;font-size:0;display:inline-flex;align-items:center;justify-content:center;padding:0;box-shadow:0 0 0 3px rgba(22,163,74,.14);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-right{background:linear-gradient(180deg,#ffffff 0%,#fbfcfd 100%);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-right-header{padding:26px 22px 16px;border-bottom:1px solid #e5e7eb;background:#fff;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:20px;font-weight:700;color:#0f172a;letter-spacing:-.02em;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-title-sub{margin-top:8px;font-size:13px;color:#475569;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-status-pill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;background:#f6fbf7;border:1px solid #d9efe0;color:#0f172a;font-size:13px;font-weight:800;line-height:1;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-status-pill::before{content:\"\";width:10px;height:10px;border-radius:999px;background:#22a55a;display:inline-block;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-status-pill.status-in-progress::before{background:#16a34a;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-status-pill.status-closed::before{background:#94a3b8;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-sub-sep{color:#cbd5e1;font-weight:800;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-menu-btn,.tm-messenger-overlay.employee-style .tm-messenger-close{width:48px;height:48px;border-radius:15px;border:1px solid #dbe3ec;background:#fff;box-shadow:0 8px 18px rgba(15,23,42,.08);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-close{display:inline-flex;font-size:28px;line-height:1;color:#dc2626;border-color:#fecaca;background:#fff5f5;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-close:hover{background:#fee2e2;border-color:#fca5a5;color:#b91c1c;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-menu{top:calc(100% + 10px);min-width:208px;border-radius:18px;padding:10px;box-shadow:0 20px 46px rgba(15,23,42,.16);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-menu-item{padding:12px 14px;font-size:14px;font-weight:800;border-radius:12px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-messages{padding:20px 22px 16px;background:linear-gradient(180deg,#ffffff 0%,#fbfbfd 100%);gap:14px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble{max-width:min(66%,420px);padding:13px 15px;border-radius:20px;border:1px solid #e6edf3;box-shadow:0 10px 24px rgba(15,23,42,.06);gap:6px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other{background:#ffffff;color:#0f172a;border-bottom-left-radius:10px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me{background:#174d1b;color:#fff;border-color:#174d1b;border-bottom-right-radius:10px;box-shadow:0 12px 28px rgba(23,77,27,.22);}' +
+        '.tm-messenger-overlay.employee-style .chat-sender{font-size:14px;font-weight:900;line-height:1.2;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-sender{color:#ffffff;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-sender{color:#0f172a;}' +
+        '.tm-messenger-overlay.employee-style .chat-time{font-size:12px;font-weight:700;opacity:.72;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-compose{padding:14px 14px 16px;border-top:1px solid #e5e7eb;background:#fff;gap:12px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-compose input{border-radius:16px;border:1.5px solid #86efac;padding:13px 16px;font-size:14px;min-height:50px;box-shadow:0 0 0 4px rgba(34,197,94,.08);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-compose input:focus{border-color:#22c55e;box-shadow:0 0 0 5px rgba(34,197,94,.12);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-send{min-width:96px;min-height:50px;padding:0 20px;border-radius:16px;background:linear-gradient(180deg,#1f5f23 0%,#174d1b 100%);font-size:14px;letter-spacing:.01em;box-shadow:0 14px 26px rgba(23,77,27,.22);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-send:hover{background:linear-gradient(180deg,#205d24 0%,#154819 100%);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-empty{font-size:15px;color:#94a3b8;}' +
+        '@media (max-width: 980px){.tm-messenger-overlay.employee-style{padding:10px}.tm-messenger-overlay.employee-style .tm-messenger-panel{width:100vw;height:86vh;border-radius:20px}.tm-messenger-overlay.employee-style .tm-messenger-left{width:292px;min-width:292px;max-width:292px}.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:18px;font-weight:700}.tm-messenger-overlay.employee-style .chat-bubble{max-width:80%;}}' +
+        '@media (max-width: 768px){.tm-messenger-overlay.employee-style{padding:0;align-items:flex-end}.tm-messenger-overlay.employee-style .tm-messenger-panel{height:88vh;border-radius:22px 22px 0 0}.tm-messenger-overlay.employee-style .tm-messenger-panel::before{height:10px}.tm-messenger-overlay.employee-style .tm-messenger-left{width:100%;min-width:0;max-width:none;height:40%}.tm-messenger-overlay.employee-style .tm-messenger-right{height:60%}.tm-messenger-overlay.employee-style .tm-messenger-left-header{padding:20px 16px 10px}.tm-messenger-overlay.employee-style .tm-messenger-right-header{padding:20px 16px 12px}.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:17px}.tm-messenger-overlay.employee-style .tm-messenger-search{padding:0 12px 10px}.tm-messenger-overlay.employee-style .tm-messenger-search::before{left:25px}.tm-messenger-overlay.employee-style .tm-messenger-filters{padding:0 12px 12px;gap:6px;overflow-x:auto;}.tm-messenger-overlay.employee-style .tm-messenger-filter-btn{padding:9px 12px;font-size:12px;border-radius:12px}.tm-messenger-overlay.employee-style .tm-messenger-messages{padding:16px 14px}.tm-messenger-overlay.employee-style .tm-messenger-compose{padding:12px 12px 14px}.tm-messenger-overlay.employee-style .tm-messenger-send{min-width:86px;min-height:48px;border-radius:15px;}}';
+      document.head.appendChild(employeeStyle);
+    }
+
     var overlay = document.createElement('div');
     overlay.id = 'tmMessengerModal';
-    overlay.className = 'tm-messenger-overlay';
+    overlay.className = 'tm-messenger-overlay' + ((typeof window !== 'undefined' && window.TM_MESSENGER_STYLE === 'employee') ? ' employee-style' : '');
     overlay.innerHTML =
       '<div class="tm-messenger-panel" role="dialog" aria-modal="true" aria-label="Ticket Conversations">' +
       '  <div class="tm-messenger-left">' +
@@ -1129,6 +1210,13 @@ var TMTicketModal = (function () {
       '      <div class="tm-messenger-left-title">Conversations</div>' +
       '    </div>' +
       '    <div class="tm-messenger-search"><input type="text" id="tmMessengerSearch" placeholder="Search tickets..."></div>' +
+      ((typeof window !== 'undefined' && window.TM_MESSENGER_STYLE === 'employee')
+        ? ('    <div class="tm-messenger-filters" id="tmMessengerFilters">' +
+           '      <button type="button" class="tm-messenger-filter-btn active" data-filter="all" id="tmMessengerFilterAll">All (0)</button>' +
+           '      <button type="button" class="tm-messenger-filter-btn" data-filter="open" id="tmMessengerFilterOpen">Open (0)</button>' +
+           '      <button type="button" class="tm-messenger-filter-btn" data-filter="in_progress" id="tmMessengerFilterInProgress">In Progress (0)</button>' +
+           '    </div>')
+        : '') +
       '    <div class="tm-messenger-list" id="tmMessengerList"><div class="tm-messenger-empty">Loading...</div></div>' +
       '  </div>' +
       '  <div class="tm-messenger-right">' +
@@ -1208,6 +1296,45 @@ var TMTicketModal = (function () {
         renderConversations(search.value);
       });
     }
+    if (typeof window !== 'undefined' && window.TM_MESSENGER_STYLE === 'employee') {
+      var filterWrap = qs('tmMessengerFilters');
+      if (filterWrap) {
+        filterWrap.addEventListener('click', function (e) {
+          var btn = e.target && e.target.closest ? e.target.closest('.tm-messenger-filter-btn') : null;
+          if (!btn) return;
+          window.__tmMessengerFilter = String(btn.getAttribute('data-filter') || 'all');
+          updateMessengerFilterButtons();
+          renderConversations(search ? search.value : '');
+        });
+      }
+    }
+  }
+  function normalizeMessengerStatus(status) {
+    var s = String(status || '').trim().toLowerCase();
+    if (s === 'in progress' || s === 'inprogress') return 'in_progress';
+    if (s === 'open') return 'open';
+    return 'other';
+  }
+  function updateMessengerFilterButtons() {
+    var activeFilter = (typeof window !== 'undefined' && window.__tmMessengerFilter) ? String(window.__tmMessengerFilter) : 'all';
+    var convs = Array.isArray(window.__tmConversations) ? window.__tmConversations : [];
+    var counts = { all: convs.length, open: 0, in_progress: 0 };
+    convs.forEach(function (c) {
+      var normalized = normalizeMessengerStatus(c && c.status ? c.status : '');
+      if (normalized === 'open') counts.open += 1;
+      if (normalized === 'in_progress') counts.in_progress += 1;
+    });
+    var defs = [
+      { id: 'tmMessengerFilterAll', key: 'all', label: 'All' },
+      { id: 'tmMessengerFilterOpen', key: 'open', label: 'Open' },
+      { id: 'tmMessengerFilterInProgress', key: 'in_progress', label: 'In Progress' }
+    ];
+    defs.forEach(function (def) {
+      var el = qs(def.id);
+      if (!el) return;
+      el.textContent = def.label + ' (' + String(counts[def.key] || 0) + ')';
+      el.classList.toggle('active', activeFilter === def.key);
+    });
   }
   function toRelative(ts) {
     if (!ts) return '';
@@ -1223,6 +1350,28 @@ var TMTicketModal = (function () {
     if (h < 24) return h + 'h ago';
     var d = Math.floor(diff / 86400);
     return d + 'd ago';
+  }
+  function formatChatTimeDisplay(value) {
+    if (!value) return '';
+    var parsed = value instanceof Date ? value : new Date(String(value).replace(' ', 'T'));
+    if (isNaN(parsed.getTime())) {
+      var raw = String(value).trim();
+      var match = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if (!match) return raw;
+      var hours = parseInt(match[1], 10);
+      var minutes = match[2];
+      var suffix = hours >= 12 ? 'PM' : 'AM';
+      var hour12 = hours % 12;
+      if (hour12 === 0) hour12 = 12;
+      return String(hour12) + ':' + minutes + ' ' + suffix;
+    }
+    return parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+  function messengerStatusClass(status) {
+    var s = normalizeMessengerStatus(status);
+    if (s === 'in_progress') return 'status-in-progress';
+    if (s === 'open') return 'status-open';
+    return 'status-closed';
   }
   function loadConversationsAndMaybeSelect() {
     var formData = new FormData();
@@ -1247,9 +1396,10 @@ var TMTicketModal = (function () {
           var has = window.__tmConversations.some(function (c) { return c && String(c.id) === String(messengerTicketId); });
           if (!has) {
             var subject = (lastTicketMeta && String(lastTicketMeta.id) === String(messengerTicketId) && lastTicketMeta.subject) ? String(lastTicketMeta.subject) : 'Ticket';
-            window.__tmConversations.unshift({ id: String(messengerTicketId), subject: subject, last_message_time: '', unread_count: 0, last_message: '', last_sender_name: '' });
+            window.__tmConversations.unshift({ id: String(messengerTicketId), subject: subject, status: '', last_message_time: '', unread_count: 0, last_message: '', last_sender_name: '' });
           }
         }
+        updateMessengerFilterButtons();
         renderConversations(searchEl ? searchEl.value : '');
         if (!messengerTicketId && window.__tmConversations.length) {
           selectConversation(window.__tmConversations[0]);
@@ -1272,7 +1422,13 @@ var TMTicketModal = (function () {
     var list = qs('tmMessengerList');
     if (!list) return;
     var convs = Array.isArray(window.__tmConversations) ? window.__tmConversations : [];
+    var activeFilter = (typeof window !== 'undefined' && window.__tmMessengerFilter) ? String(window.__tmMessengerFilter) : 'all';
     var q = (query || '').trim().toLowerCase();
+    if (activeFilter !== 'all') {
+      convs = convs.filter(function (c) {
+        return normalizeMessengerStatus(c && c.status ? c.status : '') === activeFilter;
+      });
+    }
     if (q) {
       convs = convs.filter(function (c) {
         var s = (c && c.subject) ? String(c.subject) : '';
@@ -1317,7 +1473,23 @@ var TMTicketModal = (function () {
     var sub = qs('tmMessengerHeaderSub');
     var menuBtn = qs('tmMessengerMenuBtn');
     if (title) title.textContent = conv ? ('#' + String(conv.id).padStart(6, '0') + ' • ' + String(conv.subject || '')) : 'Select a conversation';
-    if (sub) sub.textContent = conv && conv.last_message_time ? ('Last message: ' + String(conv.last_message_time)) : '';
+    if (sub) {
+      if (conv) {
+        if (typeof window !== 'undefined' && window.TM_MESSENGER_STYLE === 'employee') {
+          var rel = toRelative(conv.last_message_time || conv.ticket_created_at || '');
+          var statusLabel = String(conv.status || 'Open').trim() || 'Open';
+          var requesterEmail = conv && conv.requester_email ? String(conv.requester_email) : '';
+          sub.innerHTML =
+            '<span class="tm-messenger-status-pill ' + messengerStatusClass(statusLabel) + '">' + escapeHtml(statusLabel) + '</span>' +
+            (rel ? ('<span class="tm-messenger-sub-sep">•</span><span>' + escapeHtml(rel) + '</span>') : '') +
+            (requesterEmail ? ('<span class="tm-messenger-sub-sep">•</span><span>' + escapeHtml(requesterEmail) + '</span>') : '');
+        } else {
+          sub.textContent = conv.last_message_time ? ('Last message: ' + String(conv.last_message_time)) : '';
+        }
+      } else {
+        sub.textContent = '';
+      }
+    }
     if (menuBtn) menuBtn.disabled = !conv;
     if (!conv) hideMessengerMenu();
   }
@@ -1399,7 +1571,7 @@ var TMTicketModal = (function () {
       contentDiv.textContent = msg.message;
       var timeDiv = document.createElement('div');
       timeDiv.classList.add('chat-time');
-      timeDiv.textContent = msg.created_at;
+      timeDiv.textContent = formatChatTimeDisplay(msg.created_at);
       bubble.appendChild(contentDiv);
       bubble.appendChild(timeDiv);
       container.appendChild(bubble);
@@ -1411,7 +1583,10 @@ var TMTicketModal = (function () {
     if (isNaN(dt.getTime())) dt = new Date();
     var h = dt.getHours();
     var m = dt.getMinutes();
-    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    var suffix = h >= 12 ? 'PM' : 'AM';
+    var hour12 = h % 12;
+    if (hour12 === 0) hour12 = 12;
+    return String(hour12) + ':' + String(m).padStart(2, '0') + ' ' + suffix;
   }
   function appendMessengerBubble(message, isMe, senderName, timeText) {
     var container = qs('tmMessengerMessages');

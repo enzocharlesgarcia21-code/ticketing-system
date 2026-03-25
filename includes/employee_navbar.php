@@ -89,6 +89,7 @@ function isActive($page) {
 
 <script>
 window.TM_CSRF_TOKEN = <?php echo json_encode($csrfToken, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+window.TM_MESSENGER_STYLE = 'employee';
 </script>
 
 <button type="button" id="globalChatFab" class="tm-global-chat-fab" onclick="window.TMGlobalChat && window.TMGlobalChat.open()">
@@ -525,7 +526,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const allowed = ['critical', 'high', 'medium', 'low'];
                         const priorityKey = allowed.includes(rawPriority) ? rawPriority : '';
                         const priorityClass = priorityKey ? `priority-${priorityKey}` : 'priority-neutral';
-                        const priorityLabel = priorityKey ? `<span class="priority-badge ${priorityClass}">${escapeHtml(priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1))}</span>` : '';
+                        const priorityLabel = (n.type !== 'note_added' && priorityKey) ? `<span class="priority-badge ${priorityClass}">${escapeHtml(priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1))}</span>` : '';
                         let iconClass = 'fa-ticket';
                         let iconTypeClass = 'type-neutral';
                         if (actionType === 'update' && n.type === 'note_added') iconClass = 'fa-sticky-note';
