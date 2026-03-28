@@ -44,14 +44,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
     $submitted_token = trim((string) ($_POST['submission_token'] ?? ''));
     $session_token = trim((string) ($_SESSION['kb_add_submission_token'] ?? ''));
-    $title = trim($_POST['title']);
-    $category = trim($_POST['category']);
+    $title = trim((string) ($_POST['title'] ?? ''));
+    $category = trim((string) ($_POST['category'] ?? ''));
     $sub_category = trim((string) ($_POST['sub_category'] ?? ''));
-    $content = trim($_POST['content']);
+    $content = trim((string) ($_POST['content'] ?? ''));
     $visible_to_sales = 1;
+    $has_uploaded_image = false;
+
+    if (isset($_FILES['image']) && isset($_FILES['image']['error'])) {
+        $image_errors = $_FILES['image']['error'];
+        if (is_array($image_errors)) {
+            foreach ($image_errors as $image_error) {
+                if ((int) $image_error !== UPLOAD_ERR_NO_FILE) {
+                    $has_uploaded_image = true;
+                    break;
+                }
+            }
+        } elseif ((int) $image_errors !== UPLOAD_ERR_NO_FILE) {
+            $has_uploaded_image = true;
+        }
+    }
 
     if ($submitted_token === '' || $session_token === '' || !hash_equals($session_token, $submitted_token)) {
         $error_msg = "This article form has expired. Please reopen the form and try again.";
+    }
+
+    if ($error_msg === '') {
+        $missing_fields = [];
+        if ($title === '') $missing_fields[] = 'article title';
+        if ($category === '') $missing_fields[] = 'category';
+        if (!empty($missing_fields)) {
+            $error_msg = 'Please fill in all required fields: ' . implode(', ', $missing_fields) . '.';
+        }
     }
 
     if (strcasecmp($category, 'Others') === 0 && $sub_category === '') {
@@ -162,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     } else {
         if ($error_msg === '') {
-            $error_msg = "Title and category are required.";
+            $error_msg = "Article title and category are required.";
         }
     }
 }
@@ -832,9 +856,12 @@ unset($recent_articles_query['recent_page']);
             background: rgba(0, 0, 0, 0.6); /* Darker overlay */
             z-index: 1000;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             animation: fadeIn 0.2s ease-out;
             backdrop-filter: blur(4px); /* Stronger blur */
+            padding: 96px 24px 32px;
+            overflow-y: auto;
+            box-sizing: border-box;
         }
 
         .modal-content {
@@ -843,13 +870,15 @@ unset($recent_articles_query['recent_page']);
             border-radius: 16px;
             width: min(90vw, 1080px);
             max-width: 1080px;
-            max-height: 85vh; /* Limit height */
+            min-height: min(760px, calc(100vh - 148px));
+            max-height: calc(100vh - 128px);
             overflow-y: auto; /* Enable scrolling */
             position: relative;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
             animation: slideUp 0.3s ease-out;
             display: flex;
             flex-direction: column;
+            margin: 0 auto;
         }
 
         /* Tab Styles */
@@ -972,6 +1001,7 @@ unset($recent_articles_query['recent_page']);
             grid-template-columns: minmax(0, 1fr) 400px;
             gap: 24px;
             align-items: stretch;
+            margin-top: 10px;
         }
 
         .kb-modal-main-column {
@@ -997,6 +1027,11 @@ unset($recent_articles_query['recent_page']);
             font-size: 14px;
         }
 
+        .form-label .required-asterisk {
+            color: #dc2626;
+            margin-left: 3px;
+        }
+
         .form-control {
             width: 100%;
             padding: 14px;
@@ -1015,10 +1050,74 @@ unset($recent_articles_query['recent_page']);
 
         textarea.form-control {
             min-height: 132px;
-            resize: vertical;
+            resize: none;
             font-family: inherit;
             line-height: 1.5;
             overflow-y: hidden;
+        }
+
+        .swal-delete-popup {
+            border-radius: 22px;
+            padding: 16px 0 0;
+            box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
+            overflow: hidden;
+        }
+
+        .swal-delete-icon {
+            width: 58px !important;
+            height: 58px !important;
+            margin: 0 auto 10px !important;
+            border-width: 3px !important;
+            color: #f6b26b !important;
+            border-color: #f6b26b !important;
+        }
+
+        .swal-delete-title {
+            font-size: 20px !important;
+            font-weight: 700 !important;
+            color: #20243a !important;
+            line-height: 1.15 !important;
+            padding: 0 22px !important;
+            margin: 0 0 7px !important;
+        }
+
+        .swal-delete-html {
+            font-size: 13px !important;
+            line-height: 1.45 !important;
+            color: #5b6275 !important;
+            padding: 0 22px !important;
+            margin: 0 0 14px !important;
+        }
+
+        .swal-delete-actions {
+            width: 100%;
+            gap: 12px;
+            margin: 0 !important;
+            padding: 14px 18px 18px !important;
+            border-top: 1px solid #e6e8ef;
+            justify-content: center;
+        }
+
+        .swal-delete-confirm,
+        .swal-delete-cancel {
+            min-width: 0;
+            width: 154px;
+            height: 42px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            margin: 0 !important;
+            box-shadow: none !important;
+        }
+
+        .swal-delete-confirm {
+            background: linear-gradient(180deg, #e54559 0%, #d6374d 100%) !important;
+            color: #ffffff !important;
+        }
+
+        .swal-delete-cancel {
+            background: linear-gradient(180deg, #eceef3 0%, #dfe3eb 100%) !important;
+            color: #2e3345 !important;
         }
         .kb-create-content {
             height: 240px;
@@ -1159,10 +1258,16 @@ unset($recent_articles_query['recent_page']);
             .kb-category-grid-admin {
                 grid-template-columns: 1fr;
             }
+            .modal-overlay {
+                padding: 76px 20px 20px;
+                align-items: flex-start;
+            }
             .modal-content {
-                margin: 20px;
-                width: calc(100% - 40px);
-                max-width: calc(100% - 40px);
+                margin: 0 auto;
+                width: 100%;
+                max-width: 100%;
+                min-height: 0;
+                max-height: calc(100vh - 96px);
             }
             .kb-modal-form-grid {
                 grid-template-columns: 1fr;
@@ -1683,12 +1788,12 @@ unset($recent_articles_query['recent_page']);
             <div class="kb-modal-form-grid">
                 <div class="kb-modal-main-column">
                     <div class="form-group">
-                        <label class="form-label">Article Title</label>
+                        <label class="form-label">Article Title<span class="required-asterisk">*</span></label>
                         <input type="text" name="title" class="form-control" required placeholder="e.g. How to reset password">
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Category</label>
+                        <label class="form-label">Category<span class="required-asterisk">*</span></label>
                         <select name="category" class="form-control" id="kb-category-select" required>
                             <option value=""disabled selected hidden>Select Category</option>
                             <?php foreach ($categories as $cat): ?>
@@ -1706,7 +1811,7 @@ unset($recent_articles_query['recent_page']);
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Upload Image (Optional)</label>
+                        <label class="form-label">Upload Image</label>
                         <label class="kb-image-dropzone" id="kb-image-dropzone">
                             <input type="file" name="image[]" id="kb-image-input" class="form-control" accept="image/*" multiple onchange="previewAddImage(this)">
                             <div class="kb-image-dropzone-icon"><i class="fas fa-folder-open"></i></div>
@@ -2124,16 +2229,21 @@ document.addEventListener('click', function(e) {
     function confirmDelete(id) {
         Swal.fire({
             title: 'Delete this article?',
-            text: "This action cannot be undone.",
+            html: 'This action cannot be undone.',
             icon: 'warning',
+            width: '420px',
             showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
+            buttonsStyling: false,
             confirmButtonText: 'Delete',
             cancelButtonText: 'Cancel',
-            reverseButtons: true, // Typically better UX to have primary action on right or distinct
             customClass: {
-                popup: 'swal2-rounded'
+                popup: 'swal-delete-popup',
+                icon: 'swal-delete-icon',
+                title: 'swal-delete-title',
+                htmlContainer: 'swal-delete-html',
+                actions: 'swal-delete-actions',
+                confirmButton: 'swal-delete-confirm',
+                cancelButton: 'swal-delete-cancel'
             }
         }).then((result) => {
             if (result.isConfirmed) {

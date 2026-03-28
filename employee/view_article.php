@@ -153,22 +153,28 @@ function renderArticleContent($text) {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 46px;
-            height: 46px;
-            color: #6B7280;
+            gap: 9px;
+            min-height: 40px;
+            padding: 7px 19px;
+            color: #ffffff;
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 800;
             margin-bottom: 30px;
-            border: 1px solid #D1E7D3;
-            border-radius: 12px;
-            background: #ffffff;
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
-            transition: background 0.2s, color 0.2s;
+            border: 1px solid rgba(189, 223, 179, 0.62);
+            border-radius: 999px;
+            background: #4a8f58;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+            font-size: 13px;
         }
 
         .back-link:hover {
-            color: #1B5E20;
-            background: #F0FDF4;
+            background: #5a9d67;
+            border-color: rgba(213, 238, 204, 0.7);
+            transform: translateY(-1px);
+        }
+        .back-link i {
+            color: #f6cf4a;
         }
 
         .article-card {
@@ -454,6 +460,7 @@ function renderArticleContent($text) {
         
         <a href="<?= htmlspecialchars($back_url) ?>" class="back-link" aria-label="Back to Category Articles">
             <i class="fas fa-arrow-left"></i>
+            <span>Back</span>
         </a>
 
         <article class="article-card">

@@ -3,6 +3,32 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/mailer.php';
 
+function notif_ensure_requester_identity_columns(mysqli $conn): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    $columns = [
+        'requester_name' => "VARCHAR(255) NULL",
+        'requester_email' => "VARCHAR(255) NULL",
+    ];
+
+    foreach ($columns as $column => $ddl) {
+        $hasColumn = false;
+        $res = $conn->query("SHOW COLUMNS FROM employee_tickets LIKE '$column'");
+        if ($res && $res->fetch_assoc()) {
+            $hasColumn = true;
+        }
+        if ($res instanceof mysqli_result) {
+            $res->free();
+        }
+        if (!$hasColumn) {
+            $conn->query("ALTER TABLE employee_tickets ADD COLUMN $column $ddl");
+        }
+    }
+}
+
 function notif_ensure_action_type_column(mysqli $conn): void
 {
     static $done = false;
@@ -14,8 +40,30 @@ function notif_ensure_action_type_column(mysqli $conn): void
     if ($res && $res->fetch_assoc()) {
         $hasColumn = true;
     }
+    if ($res instanceof mysqli_result) {
+        $res->free();
+    }
     if (!$hasColumn) {
         $conn->query("ALTER TABLE notifications ADD COLUMN action_type VARCHAR(20) NULL AFTER type");
+    }
+}
+
+function notif_ensure_title_column(mysqli $conn): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    $hasColumn = false;
+    $res = $conn->query("SHOW COLUMNS FROM notifications LIKE 'title'");
+    if ($res && $res->fetch_assoc()) {
+        $hasColumn = true;
+    }
+    if ($res instanceof mysqli_result) {
+        $res->free();
+    }
+    if (!$hasColumn) {
+        $conn->query("ALTER TABLE notifications ADD COLUMN title VARCHAR(255) NULL AFTER ticket_id");
     }
 }
 
@@ -50,6 +98,50 @@ function notif_normalize_action_type(string $actionType, string $legacyType = ''
 function notif_ticket_number(int $ticketId): string
 {
     return str_pad((string) $ticketId, 6, '0', STR_PAD_LEFT);
+}
+
+function notif_company_display_map(): array
+{
+    return [
+        '@farmasee.ph' => 'FARMASEE',
+        'farmasee.ph' => 'FARMASEE',
+        '@gmail.com' => 'Gmail',
+        'gmail.com' => 'Gmail',
+        '@gpsci.net' => 'GPSCI',
+        'gpsci.net' => 'GPSCI',
+        '@leads-eh.com' => 'LEH',
+        'leads-eh.com' => 'LEH',
+        '@leads-farmex.com' => 'FARMEX',
+        'leads-farmex.com' => 'FARMEX',
+        '@leadsagri.com' => 'LAPC',
+        'leadsagri.com' => 'LAPC',
+        '@leadsanimalhealth.com' => 'LAH',
+        'leadsanimalhealth.com' => 'LAH',
+        '@leadsav.com' => 'LAV',
+        'leadsav.com' => 'LAV',
+        '@leadstech-corp.com' => 'LTC',
+        'leadstech-corp.com' => 'LTC',
+        '@lingapleads.org' => 'LINGAP',
+        'lingapleads.org' => 'LINGAP',
+        '@malvedaholdings.com' => 'MHC',
+        'malvedaholdings.com' => 'MHC',
+        '@malvedaproperties.com' => 'MPDC',
+        'malvedaproperties.com' => 'MPDC',
+        '@primestocks.ph' => 'PCC',
+        'primestocks.ph' => 'PCC',
+    ];
+}
+
+function notif_replace_company_domains(string $message): string
+{
+    $message = trim($message);
+    if ($message === '') return '';
+    $map = notif_company_display_map();
+    // Replace longer tokens first to avoid partial overlaps.
+    uksort($map, static function ($a, $b) {
+        return strlen((string) $b) <=> strlen((string) $a);
+    });
+    return str_ireplace(array_keys($map), array_values($map), $message);
 }
 
 function notif_base_url(): string
@@ -109,7 +201,7 @@ function notif_admin_user_ids(mysqli $conn): array
     return array_values(array_filter(array_unique($ids), static function ($v) { return (int) $v > 0; }));
 }
 
-function notif_insert_system(mysqli $conn, int $userId, int $ticketId, string $message, string $type = 'ticket', int $dedupeSeconds = 10, string $actionType = ''): bool
+function notif_insert_system(mysqli $conn, int $userId, int $ticketId, string $message, string $type = 'ticket', int $dedupeSeconds = 10, string $actionType = '', string $title = ''): bool
 {
     $userId = (int) $userId;
     $ticketId = (int) $ticketId;
@@ -117,16 +209,19 @@ function notif_insert_system(mysqli $conn, int $userId, int $ticketId, string $m
     $type = trim($type) !== '' ? trim($type) : 'ticket';
     $actionType = notif_normalize_action_type($actionType, $type);
     notif_ensure_action_type_column($conn);
+    notif_ensure_title_column($conn);
+    $title = trim($title);
 
     $existsStmt = $conn->prepare("
         SELECT id
         FROM notifications
         WHERE user_id = ? AND ticket_id = ? AND type = ? AND message = ? AND COALESCE(action_type, '') = ?
+          AND COALESCE(title, '') = ?
           AND created_at >= (NOW() - INTERVAL ? SECOND)
         LIMIT 1
     ");
     if ($existsStmt) {
-        $existsStmt->bind_param("iisssi", $userId, $ticketId, $type, $message, $actionType, $dedupeSeconds);
+        $existsStmt->bind_param("iissssi", $userId, $ticketId, $type, $message, $actionType, $title, $dedupeSeconds);
         $existsStmt->execute();
         $existsRes = $existsStmt->get_result();
         $exists = $existsRes && $existsRes->fetch_assoc();
@@ -134,12 +229,12 @@ function notif_insert_system(mysqli $conn, int $userId, int $ticketId, string $m
         if ($exists) return true;
     }
 
-    $stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type, action_type) VALUES (?, ?, ?, ?, ?)");
+    $stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, title, message, type, action_type) VALUES (?, ?, ?, ?, ?, ?)");
     if (!$stmt) {
         error_log('Notification insert prepare failed | userId=' . (string) $userId . ' ticketId=' . (string) $ticketId . ' err=' . (string) $conn->error);
         return false;
     }
-    $stmt->bind_param("iisss", $userId, $ticketId, $message, $type, $actionType);
+    $stmt->bind_param("iissss", $userId, $ticketId, $title, $message, $type, $actionType);
     $ok = $stmt->execute();
     if (!$ok) {
         error_log('Notification insert failed | userId=' . (string) $userId . ' ticketId=' . (string) $ticketId . ' err=' . (string) $stmt->error);
@@ -154,6 +249,350 @@ function notif_insert_admins(mysqli $conn, int $ticketId, string $message, strin
     foreach ($ids as $id) {
         notif_insert_system($conn, (int) $id, $ticketId, $message, $type, 10, $actionType);
     }
+}
+
+function notif_unique_user_ids(array $ids): array
+{
+    return array_values(array_filter(array_unique(array_map('intval', $ids)), static function ($id) {
+        return $id > 0;
+    }));
+}
+
+function notif_department_user_ids(mysqli $conn, string $department): array
+{
+    $department = trim($department);
+    if ($department === '') return [];
+
+    $ids = [];
+    $stmt = $conn->prepare("SELECT id FROM users WHERE UPPER(TRIM(COALESCE(department, ''))) = UPPER(TRIM(?))");
+    if (!$stmt) return [];
+    $stmt->bind_param("s", $department);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($res && ($row = $res->fetch_assoc())) {
+        $ids[] = (int) ($row['id'] ?? 0);
+    }
+    $stmt->close();
+    return notif_unique_user_ids($ids);
+}
+
+function notif_ticket_data(mysqli $conn, int $ticketId): ?array
+{
+    notif_ensure_requester_identity_columns($conn);
+
+    $stmt = $conn->prepare("
+        SELECT
+            t.id,
+            t.user_id,
+            t.subject,
+            t.category,
+            t.description,
+            t.attachment,
+            t.priority,
+            t.status,
+            t.created_at,
+            t.updated_at,
+            t.started_at,
+            t.assigned_user_id,
+            t.assigned_department,
+            t.assigned_group,
+            t.assigned_company,
+            t.requester_name,
+            t.requester_email,
+            COALESCE(NULLIF(TRIM(t.requester_name), ''), creator.name) AS creator_name,
+            COALESCE(NULLIF(TRIM(t.requester_email), ''), creator.email) AS creator_email,
+            assignee.name AS assignee_name,
+            assignee.email AS assignee_email,
+            assignee.department AS assignee_department
+        FROM employee_tickets t
+        LEFT JOIN users creator ON creator.id = t.user_id
+        LEFT JOIN users assignee ON assignee.id = t.assigned_user_id
+        WHERE t.id = ?
+        LIMIT 1
+    ");
+    if (!$stmt) return null;
+    $stmt->bind_param("i", $ticketId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+    return $row ?: null;
+}
+
+function notif_ticket_email_attachments(mysqli $conn, int $ticketId, string $legacyAttachment = ''): array
+{
+    $ticketId = (int) $ticketId;
+    if ($ticketId <= 0) {
+        return [];
+    }
+
+    $attachments = [];
+    $seen = [];
+
+    $attStmt = $conn->prepare("SELECT stored_name, original_name FROM ticket_attachments WHERE ticket_id = ? ORDER BY id ASC");
+    if ($attStmt) {
+        $attStmt->bind_param("i", $ticketId);
+        $attStmt->execute();
+        $attRes = $attStmt->get_result();
+        while ($attRes && ($row = $attRes->fetch_assoc())) {
+            $storedName = trim((string) ($row['stored_name'] ?? ''));
+            if ($storedName === '') {
+                continue;
+            }
+            $path = realpath(__DIR__ . '/../uploads/' . $storedName);
+            if ($path === false || !is_file($path)) {
+                continue;
+            }
+            $name = trim((string) ($row['original_name'] ?? ''));
+            $key = strtolower($path) . '|' . strtolower($name);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $attachments[] = [
+                'path' => $path,
+                'name' => $name !== '' ? $name : basename($path),
+            ];
+        }
+        $attStmt->close();
+    }
+
+    $legacyAttachment = trim($legacyAttachment);
+    if ($legacyAttachment !== '') {
+        $legacyPath = realpath(__DIR__ . '/../uploads/' . $legacyAttachment);
+        if ($legacyPath !== false && is_file($legacyPath)) {
+            $key = strtolower($legacyPath) . '|' . strtolower(basename($legacyPath));
+            if (!isset($seen[$key])) {
+                $attachments[] = [
+                    'path' => $legacyPath,
+                    'name' => basename($legacyPath),
+                ];
+            }
+        }
+    }
+
+    return $attachments;
+}
+
+function notif_ticket_attachment_summary(array $attachments): string
+{
+    $labels = [];
+    foreach ($attachments as $attachment) {
+        if (!is_array($attachment)) {
+            continue;
+        }
+        $name = trim((string) ($attachment['name'] ?? ''));
+        if ($name === '') {
+            $path = trim((string) ($attachment['path'] ?? ''));
+            if ($path !== '') {
+                $name = basename($path);
+            }
+        }
+        if ($name !== '') {
+            $labels[] = $name;
+        }
+    }
+
+    $labels = array_values(array_unique($labels));
+    return count($labels) > 0
+        ? ('Attachments: ' . implode(', ', $labels))
+        : '';
+}
+
+function notif_compact_email_lines(array $lines): array
+{
+    $out = [];
+    $seenCategory = false;
+
+    foreach ($lines as $line) {
+        $line = trim((string) $line);
+        if ($line === '') {
+            continue;
+        }
+
+        if (stripos($line, 'Subject:') === 0) {
+            continue;
+        }
+
+        if (stripos($line, 'Previous status:') === 0) {
+            continue;
+        }
+
+        if (stripos($line, 'New status:') === 0) {
+            continue;
+        }
+
+        if (stripos($line, 'Current status:') === 0) {
+            continue;
+        }
+
+        if (stripos($line, 'Category:') === 0) {
+            if ($seenCategory) {
+                continue;
+            }
+            $seenCategory = true;
+        }
+
+        $out[] = $line;
+    }
+
+    return $out;
+}
+
+function getUsersToNotify(mysqli $conn, array $ticket): array
+{
+    $ids = [];
+    $creatorId = (int) ($ticket['user_id'] ?? 0);
+    $assigneeId = (int) ($ticket['assigned_user_id'] ?? 0);
+    $assigneeDepartment = trim((string) ($ticket['assignee_department'] ?? ''));
+
+    if ($creatorId > 0) $ids[] = $creatorId;
+    if ($assigneeId > 0) $ids[] = $assigneeId;
+    if ($assigneeDepartment !== '') {
+        $ids = array_merge($ids, notif_department_user_ids($conn, $assigneeDepartment));
+    }
+    $ids = array_merge($ids, notif_admin_user_ids($conn));
+
+    return notif_unique_user_ids($ids);
+}
+
+function sendPriorityEscalationNotification(mysqli $conn, array $ticket, array $userIds, string $newPriority, string $oldPriority = ''): array
+{
+    $ticketId = (int) ($ticket['id'] ?? 0);
+    $newPriority = trim($newPriority);
+    if ($ticketId <= 0 || $newPriority === '' || count($userIds) === 0) {
+        return ['inserted' => 0, 'emailed' => 0];
+    }
+
+    $title = 'Ticket Priority Escalated';
+    $message = 'Ticket #' . notif_ticket_number($ticketId) . ' priority has been escalated to ' . $newPriority . '. Immediate attention is required.';
+    $type = 'priority_escalated';
+    $actionType = 'update';
+    $inserted = 0;
+
+    foreach (notif_unique_user_ids($userIds) as $userId) {
+        if (notif_insert_system($conn, (int) $userId, $ticketId, $message, $type, 86400, $actionType, $title)) {
+            $inserted++;
+        }
+    }
+
+    $emails = [];
+    foreach (notif_unique_user_ids($userIds) as $userId) {
+        $contact = notif_user_contact($conn, (int) $userId);
+        $email = trim((string) ($contact['email'] ?? ''));
+        if ($email !== '') $emails[] = $email;
+    }
+    $emails = array_values(array_unique($emails));
+
+    $emailed = 0;
+    if (count($emails) > 0) {
+        $lines = [
+            'Ticket #' . notif_ticket_number($ticketId) . ' priority has been escalated to ' . $newPriority . '.',
+            'Immediate attention is required.',
+        ];
+        if ($oldPriority !== '') {
+            $lines[] = 'Previous priority: ' . $oldPriority;
+        }
+        if (!empty($ticket['subject'])) {
+            $lines[] = 'Subject: ' . (string) $ticket['subject'];
+        }
+        $mail = notif_email_simple($title, $lines, 'View Ticket', notif_ticket_link_admin($ticketId));
+        if (notif_email_send($emails, $title, (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''))) {
+            $emailed = count($emails);
+        }
+    }
+
+    return ['inserted' => $inserted, 'emailed' => $emailed];
+}
+
+function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $oldStatus, string $newStatus, string $updatedBy = '', array $options = []): array
+{
+    $ticketId = (int) $ticketId;
+    $oldStatus = trim($oldStatus);
+    $newStatus = trim($newStatus);
+    $updatedBy = trim($updatedBy);
+    if ($ticketId <= 0 || $newStatus === '' || strcasecmp($oldStatus, $newStatus) === 0) {
+        return ['inserted' => 0, 'emailed' => 0];
+    }
+
+    $ticket = notif_ticket_data($conn, $ticketId);
+    if (!$ticket) {
+        return ['inserted' => 0, 'emailed' => 0];
+    }
+
+    $creatorId = (int) ($ticket['user_id'] ?? 0);
+    $creatorEmail = trim((string) ($ticket['creator_email'] ?? ''));
+    $ticketNumber = notif_ticket_number($ticketId);
+    $title = strcasecmp($newStatus, 'Closed') === 0 ? 'Ticket Closed' : 'Ticket Status Updated';
+    $attachments = isset($options['attachments']) && is_array($options['attachments']) ? $options['attachments'] : [];
+    $assigneeEmails = isset($options['assignee_emails']) && is_array($options['assignee_emails']) ? $options['assignee_emails'] : [];
+    $extraLines = isset($options['extra_lines']) && is_array($options['extra_lines']) ? $options['extra_lines'] : [];
+
+    $assigneeEmails = array_values(array_unique(array_filter(array_map(static function ($email) {
+        return strtolower(trim((string) $email));
+    }, $assigneeEmails), static function ($email) {
+        return $email !== '';
+    })));
+    if ($creatorEmail !== '') {
+        $assigneeEmails = array_values(array_filter($assigneeEmails, static function ($email) use ($creatorEmail) {
+            return strcasecmp($email, $creatorEmail) !== 0;
+        }));
+    }
+
+    $bySuffix = $updatedBy !== '' ? (' by ' . $updatedBy) : '';
+    $message = strcasecmp($newStatus, 'Closed') === 0
+        ? ('Your ticket #' . $ticketId . ' has been closed' . $bySuffix . '.')
+        : ('Your ticket #' . $ticketId . ' status was updated to ' . $newStatus . $bySuffix . '.');
+
+    $inserted = 0;
+    if ($creatorId > 0 && notif_insert_system($conn, $creatorId, $ticketId, $message, strcasecmp($newStatus, 'Closed') === 0 ? 'ticket_closed' : 'status_update', 15, strcasecmp($newStatus, 'Closed') === 0 ? 'close' : 'update', $title)) {
+        $inserted = 1;
+    }
+
+    $emailed = 0;
+    if ($creatorEmail !== '') {
+        $lines = [
+            'Ticket ID: #' . $ticketNumber,
+            'Ticket has been updated.',
+        ];
+        if ($updatedBy !== '') {
+            $lines[] = 'Updated by: ' . $updatedBy;
+        }
+        foreach ($extraLines as $line) {
+            $line = trim((string) $line);
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+        $lines = notif_compact_email_lines($lines);
+        $mail = notif_email_simple($title, $lines, 'View Ticket', notif_ticket_link_employee_tickets($ticketId));
+        if (notif_email_send([$creatorEmail], $title . ' (#' . $ticketNumber . ')', (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''), $attachments)) {
+            $emailed = 1;
+        }
+    }
+
+    if (count($assigneeEmails) > 0) {
+        $lines = [
+            'Ticket ID: #' . $ticketNumber,
+            'Ticket has been updated.',
+        ];
+        if ($updatedBy !== '') {
+            $lines[] = 'Updated by: ' . $updatedBy;
+        }
+        foreach ($extraLines as $line) {
+            $line = trim((string) $line);
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+        $lines = notif_compact_email_lines($lines);
+        $mail = notif_email_simple($title, $lines, 'View Task', notif_ticket_link_employee_tasks($ticketId));
+        if (notif_email_send($assigneeEmails, $title . ' (#' . $ticketNumber . ')', (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''), $attachments)) {
+            $emailed += count($assigneeEmails);
+        }
+    }
+
+    return ['inserted' => $inserted, 'emailed' => $emailed];
 }
 
 function notif_email_send(array $toEmails, string $subjectLine, string $bodyHtml, string $bodyText, array $attachments = []): bool
@@ -207,7 +646,7 @@ function notif_display_message(string $type, string $message, int $ticketId = 0)
             ? ("A private note was added to ticket #" . $ticketId . ".")
             : "A private note was added to a ticket.";
     }
-    return $message;
+    return notif_replace_company_domains($message);
 }
 
 function notif_message_highlight_html(string $message): string

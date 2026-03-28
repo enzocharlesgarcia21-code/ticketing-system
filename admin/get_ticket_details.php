@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/ticket_assignment.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     http_response_code(403);
@@ -14,6 +15,9 @@ if (!isset($_GET['id'])) {
 }
 
 $id = (int)$_GET['id'];
+$currentUserId = (int) ($_SESSION['user_id'] ?? 0);
+
+ticket_ensure_assignment_columns($conn);
 
 function parseLegacyRequesterInfo($text) {
     if (!is_string($text) || $text === '') {
@@ -54,24 +58,19 @@ $checkStmt->bind_param("i", $id);
 $checkStmt->execute();
 $checkResult = $checkStmt->get_result();
 
-if ($checkResult->num_rows > 0) {
-    $ticketData = $checkResult->fetch_assoc();
-    if (is_null($ticketData['started_at'])) {
-        $updateStart = $conn->prepare("UPDATE employee_tickets SET started_at = NOW() WHERE id = ?");
-        $updateStart->bind_param("i", $id);
-        $updateStart->execute();
-    }
-}
-
 $stmt = $conn->prepare("
     SELECT 
         t.*, 
         u.name as created_by_name, 
         u.email as created_by_email, 
         u.company as user_company,
-        u.department as user_department
+        u.department as user_department,
+        handler.name AS assigned_to_name,
+        handler.email AS assigned_to_email,
+        handler.department AS assigned_to_department
     FROM employee_tickets t 
     JOIN users u ON t.user_id = u.id 
+    LEFT JOIN users handler ON handler.id = t.assigned_to
     WHERE t.id = ?
 ");
 $stmt->bind_param("i", $id);
@@ -104,6 +103,19 @@ if ($row = $result->fetch_assoc()) {
     if ($requester_name !== '') $row['created_by_name'] = $requester_name;
     if ($requester_email !== '') $row['created_by_email'] = $requester_email;
     $row['description'] = $clean_desc;
+    $userContext = ticket_build_user_context($conn, $currentUserId, $_SESSION);
+    $row['can_chat'] = ticket_user_can_chat($row, $currentUserId, $userContext);
+    $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
+    $row['assigned_to_name'] = isset($row['assigned_to_name']) ? (string) $row['assigned_to_name'] : '';
+    $row['assigned_to_email'] = isset($row['assigned_to_email']) ? (string) $row['assigned_to_email'] : '';
+    $row['assigned_to_department'] = isset($row['assigned_to_department']) ? (string) $row['assigned_to_department'] : '';
+    if ($row['can_chat']) {
+        $row['chat_locked_message'] = '';
+    } elseif ($row['assigned_to_name'] !== '') {
+        $row['chat_locked_message'] = 'This ticket is already assigned to ' . $row['assigned_to_name'] . '.';
+    } else {
+        $row['chat_locked_message'] = 'This ticket is handled by another IT staff.';
+    }
 
     $attachments = [];
     if (!empty($row['attachment'])) {

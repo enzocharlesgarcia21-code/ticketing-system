@@ -1,8 +1,10 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/notification_service.php';
+require_once '../includes/ticket_assignment.php';
 
 notif_ensure_action_type_column($conn);
+ticket_apply_sla_priority($conn);
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     http_response_code(403);
@@ -49,6 +51,7 @@ if (!$result) {
 
 while ($row = $result->fetch_assoc()) {
     $row['message'] = notif_display_message((string) ($row['type'] ?? ''), (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
+    $row['title'] = (string) ($row['title'] ?? '');
     // Add time_ago for frontend convenience
     $time_ago = $row['seconds_ago'];
     if ($time_ago < 60) {

@@ -122,22 +122,25 @@ $companyAliasCond = count($companyAliases) > 0
 $companyCond = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND $companyAliasCond))";
 $taskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), NULLIF(t.assigned_department, ''), NULLIF(t.department, ''), NULLIF(u.department, ''))";
 $groupCond = "$taskDeptExpr = ?";
+$requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
 
-$where[] = "((t.assigned_user_id = ? AND t.user_id <> ?) OR (t.user_id <> ? AND $groupCond AND $companyCond))";
+$where[] = "((t.assigned_user_id = ? AND t.user_id <> ?) OR (t.user_id <> ? AND $companyCond AND ((NOT $requiresGroupCond) OR (? = '' OR $groupCond))))";
 $params[] = $user_id;
 $types .= "i";
 $params[] = $user_id;
 $types .= "i";
 $params[] = $user_id;
 $types .= "i";
-$params[] = $user_department;
-$types .= "s";
 $params[] = strtolower((string) $user_email);
 $types .= "s";
 foreach ($companyAliases as $co) {
     $params[] = $co;
     $types .= "s";
 }
+$params[] = $user_department;
+$types .= "s";
+$params[] = $user_department;
+$types .= "s";
 
 $where[] = "t.status != 'Closed'";
 

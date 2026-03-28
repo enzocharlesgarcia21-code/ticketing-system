@@ -25,7 +25,6 @@ if (isset($_POST['mark_all_read'])) {
 /* Get notifications */
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 20;
-$offset = ($page - 1) * $limit;
 
 $total_res = $conn->query("
     SELECT COUNT(*) as c
@@ -39,7 +38,9 @@ if (!$total_res) {
     die("SQL Error: " . $conn->error);
 }
 $total = $total_res->fetch_assoc()['c'];
-$total_pages = ceil($total / $limit);
+$total_pages = max(1, (int) ceil($total / $limit));
+$page = max(1, min($page, $total_pages));
+$offset = ($page - 1) * $limit;
 
 $sql = "
     SELECT n.*, t.priority
@@ -243,6 +244,66 @@ function time_elapsed_string($datetime, $full = false) {
             border-color: #166534;
             box-shadow: 0 10px 18px rgba(22, 101, 52, 0.22);
         }
+        .pagination-glass {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 24px;
+            padding: 0 6px 10px;
+        }
+        .page-numbers {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .page-btn {
+            min-width: 40px;
+            height: 40px;
+            padding: 0 15px;
+            border: 1px solid #d7e2ea;
+            border-radius: 999px;
+            text-decoration: none;
+            color: #1f2937;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .page-btn:hover:not(.active):not(.disabled) {
+            background: #f8fafc;
+            transform: translateY(-1px);
+            border-color: #cbd5e1;
+        }
+        .page-btn.active {
+            background: #166534;
+            color: white;
+            border-color: #166534;
+            box-shadow: 0 10px 18px rgba(22, 101, 52, 0.22);
+        }
+        .page-btn.disabled {
+            opacity: 0.45;
+            pointer-events: none;
+            box-shadow: none;
+        }
+        .page-btn.prev,
+        .page-btn.next {
+            padding: 0 18px;
+        }
+        .page-ellipsis {
+            color: #94a3b8;
+            font-weight: 700;
+            padding: 0 4px;
+            user-select: none;
+        }
         .mark-read-btn {
             background: none;
             border: none;
@@ -264,6 +325,15 @@ function time_elapsed_string($datetime, $full = false) {
             font-size: 1.5rem;
             color: #1f2937;
             font-weight: 600;
+        }
+        @media (max-width: 768px) {
+            .pagination-glass {
+                justify-content: flex-start;
+            }
+            .page-btn.prev,
+            .page-btn.next {
+                padding: 0 14px;
+            }
         }
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -357,9 +427,28 @@ function time_elapsed_string($datetime, $full = false) {
                 <div class="pagination-glass">
                     <a href="?page=<?= max(1, $page - 1); ?>" class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">&lsaquo; Previous</a>
                     <div class="page-numbers">
-                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                        <?php
+                            $window = 2;
+                            $start_page = max(1, $page - $window);
+                            $end_page = min($total_pages, $page + $window);
+                            if ($start_page > 1):
+                        ?>
+                            <a href="?page=1" class="page-btn <?= ($page == 1) ? 'active' : ''; ?>">1</a>
+                            <?php if ($start_page > 2): ?>
+                                <span class="page-ellipsis">...</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
+
+                        <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
                             <a href="?page=<?= $i; ?>" class="page-btn <?= ($i == $page) ? 'active' : ''; ?>"><?= $i; ?></a>
                         <?php endfor; ?>
+
+                        <?php if ($end_page < $total_pages): ?>
+                            <?php if ($end_page < ($total_pages - 1)): ?>
+                                <span class="page-ellipsis">...</span>
+                            <?php endif; ?>
+                            <a href="?page=<?= $total_pages; ?>" class="page-btn <?= ($page == $total_pages) ? 'active' : ''; ?>"><?= $total_pages; ?></a>
+                        <?php endif; ?>
                     </div>
                     <a href="?page=<?= min($total_pages, $page + 1); ?>" class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">Next &rsaquo;</a>
                 </div>

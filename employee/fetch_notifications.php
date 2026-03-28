@@ -1,9 +1,11 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/notification_service.php';
+require_once '../includes/ticket_assignment.php';
 header('Content-Type: application/json');
 
 notif_ensure_action_type_column($conn);
+ticket_apply_sla_priority($conn);
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
     http_response_code(403);
@@ -31,7 +33,7 @@ if (!$count_result) {
 $unread_count = (int) ($count_result->fetch_assoc()['count'] ?? 0);
 
 // Latest 10 notifications with seconds_ago for lightweight time-ago formatting
-$query = "SELECT n.id, n.ticket_id, n.message, n.type, n.is_read, n.created_at,
+$query = "SELECT n.id, n.ticket_id, n.title, n.message, n.type, n.is_read, n.created_at,
                  n.action_type,
                  t.priority,
                  TIMESTAMPDIFF(SECOND, n.created_at, NOW()) as seconds_ago
@@ -65,6 +67,7 @@ while ($row = $result->fetch_assoc()) {
     $notifications[] = [
         'id' => (int) $row['id'],
         'ticket_id' => (int) $row['ticket_id'],
+        'title' => (string) ($row['title'] ?? ''),
         'message' => notif_display_message((string) ($row['type'] ?? ''), (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0)),
         'type' => (string) $row['type'],
         'action_type' => (string) ($row['action_type'] ?? ''),

@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 csrf_validate();
 ticket_ensure_chat_tables($conn);
+ticket_ensure_assignment_columns($conn);
 
 if (!isset($_POST['ticket_id'])) {
     http_response_code(400);
@@ -30,7 +31,7 @@ $ticket_id = (int) $_POST['ticket_id'];
 $current_user_id = (int) ($_SESSION['user_id'] ?? 0);
 
 $ticket = null;
-$stmt = $conn->prepare("SELECT user_id, assigned_user_id FROM employee_tickets WHERE id = ? LIMIT 1");
+$stmt = $conn->prepare("SELECT user_id, assigned_to FROM employee_tickets WHERE id = ? LIMIT 1");
 if ($stmt) {
     $stmt->bind_param("i", $ticket_id);
     $stmt->execute();
@@ -46,8 +47,7 @@ if (!$ticket) {
 }
 
 $requesterId = (int) ($ticket['user_id'] ?? 0);
-$assigneeId = (int) ($ticket['assigned_user_id'] ?? 0);
-if ($current_user_id !== $requesterId && ($assigneeId <= 0 || $current_user_id !== $assigneeId)) {
+if (!ticket_user_can_chat($ticket, $current_user_id)) {
     http_response_code(403);
     echo json_encode(['error' => 'Access Denied']);
     exit;

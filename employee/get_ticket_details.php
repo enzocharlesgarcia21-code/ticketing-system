@@ -15,6 +15,7 @@ if (!isset($_GET['id'])) {
 }
 
 $id = (int)$_GET['id'];
+$currentUserId = (int) ($_SESSION['user_id'] ?? 0);
 
 ticket_ensure_assignment_columns($conn);
 
@@ -91,47 +92,49 @@ function parseLegacyRequesterInfo($text) {
 }
 
 /* Mark notifications as read for this ticket */
-$user_id = $_SESSION['user_id'];
+$user_id = $currentUserId;
 $conn->query("UPDATE notifications SET is_read = 1 WHERE ticket_id = $id AND user_id = $user_id");
 
 // 🟢 START TIMER LOGIC (For Employees working on the ticket)
 // Only if the ticket is assigned to their department
-$dept = $_SESSION['department'];
+$dept = (string) ($_SESSION['department'] ?? '');
+$company = (string) ($_SESSION['company'] ?? '');
 $userEmail = (string) ($_SESSION['email'] ?? '');
-// Fetch user company if not in session
-if (!isset($_SESSION['company'])) {
-    $c_stmt = $conn->prepare("SELECT company FROM users WHERE id = ?");
-    $c_stmt->bind_param("i", $_SESSION['user_id']);
-    $c_stmt->execute();
-    $c_res = $c_stmt->get_result();
-    if ($c_row = $c_res->fetch_assoc()) {
-        $_SESSION['company'] = $c_row['company'];
-    }
-}
-$company = $_SESSION['company'];
-if ($userEmail === '') {
-    $e_stmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
-    if ($e_stmt) {
-        $e_stmt->bind_param("i", $_SESSION['user_id']);
-        $e_stmt->execute();
-        $e_res = $e_stmt->get_result();
-        if ($e_row = $e_res->fetch_assoc()) {
-            $userEmail = (string) ($e_row['email'] ?? '');
-            if ($userEmail !== '') {
+
+if ($dept === '' || $company === '' || $userEmail === '') {
+    $userInfoStmt = $conn->prepare("SELECT department, company, email FROM users WHERE id = ? LIMIT 1");
+    if ($userInfoStmt) {
+        $userInfoStmt->bind_param("i", $currentUserId);
+        $userInfoStmt->execute();
+        $userInfoRes = $userInfoStmt->get_result();
+        $userInfoRow = $userInfoRes ? $userInfoRes->fetch_assoc() : null;
+        $userInfoStmt->close();
+
+        if ($userInfoRow) {
+            if ($dept === '') {
+                $dept = (string) ($userInfoRow['department'] ?? '');
+                $_SESSION['department'] = $dept;
+            }
+            if ($company === '') {
+                $company = (string) ($userInfoRow['company'] ?? '');
+                $_SESSION['company'] = $company;
+            }
+            if ($userEmail === '') {
+                $userEmail = (string) ($userInfoRow['email'] ?? '');
                 $_SESSION['email'] = $userEmail;
             }
         }
-        $e_stmt->close();
     }
 }
 
-$checkStmt = $conn->prepare("SELECT started_at, assigned_department, assigned_group, assigned_company, assigned_user_id FROM employee_tickets WHERE id = ?");
+$checkStmt = $conn->prepare("SELECT user_id, started_at, assigned_department, assigned_group, assigned_company, assigned_user_id, assigned_to FROM employee_tickets WHERE id = ?");
 $checkStmt->bind_param("i", $id);
 $checkStmt->execute();
 $checkResult = $checkStmt->get_result();
 
 if ($checkResult->num_rows > 0) {
     $ticketData = $checkResult->fetch_assoc();
+    $isRequester = isset($ticketData['user_id']) && (int) $ticketData['user_id'] === $currentUserId;
     $assigneeOk = isset($ticketData['assigned_user_id']) && (int) $ticketData['assigned_user_id'] === (int) $_SESSION['user_id'];
     $ticketAssignedCompany = (string) ($ticketData['assigned_company'] ?? '');
     $ticketCompanyCode = company_code($ticketAssignedCompany);
@@ -144,11 +147,6 @@ if ($checkResult->num_rows > 0) {
     }
     $ticketGroup = (string) ($ticketData['assigned_group'] ?? ($ticketData['assigned_department'] ?? ''));
     $groupOk = $ticketGroup !== '' && $ticketGroup === $dept;
-    if (($assigneeOk || ($groupOk && $companyOk)) && is_null($ticketData['started_at'])) {
-        $updateStart = $conn->prepare("UPDATE employee_tickets SET started_at = NOW() WHERE id = ?");
-        $updateStart->bind_param("i", $id);
-        $updateStart->execute();
-    }
 }
 
 $companyAliases = company_aliases((string) $company);
@@ -158,24 +156,29 @@ if (count($companyAliases) === 0) {
     $companyAliases = [''];
 }
 $companyMatchClause = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND ($companyCond)))";
+$requiresGroupClause = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
 $sql = "
     SELECT 
         t.*, 
         u.name as created_by_name, 
         u.email as created_by_email, 
         u.company as user_company,
-        u.department as user_department
+        u.department as user_department,
+        handler.name AS assigned_to_name,
+        handler.email AS assigned_to_email,
+        handler.department AS assigned_to_department
     FROM employee_tickets t 
     JOIN users u ON t.user_id = u.id 
+    LEFT JOIN users handler ON handler.id = t.assigned_to
     WHERE t.id = ? AND (
         t.user_id = ?
         OR t.assigned_user_id = ?
-        OR (COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department) = ? AND $companyMatchClause)
+        OR ($companyMatchClause AND ((NOT $requiresGroupClause) OR (? = '' OR COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department) = ?)))
     )
 ";
 $stmt = $conn->prepare($sql);
-$types = 'iiiss' . str_repeat('s', count($companyAliases));
-$params = array_merge([$id, (int) $_SESSION['user_id'], (int) $_SESSION['user_id'], $dept, strtolower($userEmail)], $companyAliases);
+$types = 'iiis' . str_repeat('s', count($companyAliases)) . 'ss';
+$params = array_merge([$id, (int) $_SESSION['user_id'], (int) $_SESSION['user_id'], strtolower($userEmail)], $companyAliases, [$dept, $dept]);
 $bind = [];
 $bind[] = $types;
 foreach ($params as $k => $p) {
@@ -211,6 +214,19 @@ if ($row = $result->fetch_assoc()) {
     if ($requester_name !== '') $row['created_by_name'] = $requester_name;
     if ($requester_email !== '') $row['created_by_email'] = $requester_email;
     $row['description'] = $clean_desc;
+    $userContext = ticket_build_user_context($conn, $currentUserId, $_SESSION);
+    $row['can_chat'] = ticket_user_can_chat($row, $currentUserId, $userContext);
+    $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
+    $row['assigned_to_name'] = isset($row['assigned_to_name']) ? (string) $row['assigned_to_name'] : '';
+    $row['assigned_to_email'] = isset($row['assigned_to_email']) ? (string) $row['assigned_to_email'] : '';
+    $row['assigned_to_department'] = isset($row['assigned_to_department']) ? (string) $row['assigned_to_department'] : '';
+    if ($row['can_chat']) {
+        $row['chat_locked_message'] = '';
+    } elseif ($row['assigned_to_name'] !== '') {
+        $row['chat_locked_message'] = 'This ticket is already assigned to ' . $row['assigned_to_name'] . '.';
+    } else {
+        $row['chat_locked_message'] = 'This ticket is handled by another IT staff.';
+    }
 
     $attachments = [];
     if (!empty($row['attachment'])) {

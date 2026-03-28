@@ -67,6 +67,18 @@ $successMessage = '';
         #ticketSuccessOverlay {
             display: none !important;
         }
+        #ticketModal .modal-content {
+            width: min(96vw, 1220px);
+            max-width: 1220px;
+            height: min(92vh, 760px);
+            max-height: 92vh;
+        }
+        .page-ellipsis {
+            color: #94a3b8;
+            font-weight: 700;
+            padding: 0 4px;
+            user-select: none;
+        }
     </style>
 </head>
 <body>
@@ -93,7 +105,7 @@ $successMessage = '';
                                 <th>Date Created</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="myTicketsTbody">
                             <?php if($result->num_rows > 0): ?>
                                 <?php while($row = $result->fetch_assoc()): ?>
                                 <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer;">
@@ -131,6 +143,7 @@ $successMessage = '';
                         </tbody>
                     </table>
                 </div>
+                <div id="myTicketsPagination">
                 <?php if ($total_records > 0): ?>
                 <div class="pagination-glass">
                     <div class="pagination-summary">Showing <?= number_format($showing_from) ?> - <?= number_format($showing_to) ?> of <?= number_format($total_records) ?> tickets</div>
@@ -151,6 +164,7 @@ $successMessage = '';
                     <?php endif; ?>
                 </div>
                 <?php endif; ?>
+                </div>
             </div>
 
         </div>
@@ -196,12 +210,59 @@ $successMessage = '';
     </script>
     <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
     <script>
-    document.querySelectorAll('.ticket-row').forEach(function(row){
-        row.addEventListener('click', function(){
-            var id = this.getAttribute('data-id');
-            TMTicketModal.open(id);
-        });
+    var myTicketsBodyEl = document.getElementById('myTicketsTbody');
+    var myTicketsPaginationEl = document.getElementById('myTicketsPagination');
+    var myTicketsCurrentPage = <?= (int) $page ?>;
+    var myTicketsAutoRefreshMs = 10000;
+
+    function myTicketsModalOpen() {
+        var overlay = document.getElementById('ticketModal');
+        return !!(overlay && overlay.style.display === 'flex');
+    }
+
+    function refreshMyTickets(page, updateHistory) {
+        if (!myTicketsBodyEl || !myTicketsPaginationEl) return;
+        var nextPage = parseInt(page || myTicketsCurrentPage || 1, 10);
+        if (!nextPage || nextPage < 1) nextPage = 1;
+        var params = new URLSearchParams();
+        params.set('page', String(nextPage));
+        params.set('limit', '10');
+        fetch('ajax_my_tickets_list.php?' + params.toString(), { method: 'GET', credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.ok) return;
+                myTicketsBodyEl.innerHTML = data.rows_html || '';
+                myTicketsPaginationEl.innerHTML = data.pagination_html || '';
+                myTicketsCurrentPage = parseInt(data.page || nextPage, 10) || 1;
+                if (updateHistory === false) return;
+                var url = new URL(window.location.href);
+                url.searchParams.set('page', String(myTicketsCurrentPage));
+                history.replaceState({}, '', url.toString());
+            })
+            .catch(function () {});
+    }
+
+    function scheduleMyTicketsRefresh() {
+        if (document.hidden || myTicketsModalOpen()) return;
+        refreshMyTickets(myTicketsCurrentPage, false);
+    }
+
+    document.addEventListener('click', function (e) {
+        var row = e.target && e.target.closest ? e.target.closest('.ticket-row') : null;
+        if (row && row.getAttribute) {
+            var id = row.getAttribute('data-id');
+            if (id) TMTicketModal.open(id);
+        }
+        var pageBtn = e.target && e.target.closest ? e.target.closest('#myTicketsPagination a.page-btn') : null;
+        if (pageBtn) {
+            e.preventDefault();
+            if (pageBtn.classList.contains('disabled')) return;
+            var nextPage = parseInt(pageBtn.getAttribute('data-page') || '', 10);
+            if (!nextPage || nextPage < 1) return;
+            refreshMyTickets(nextPage, true);
+        }
     });
+
     var modal = document.getElementById('ticketModal');
     modal.addEventListener('click', function(e){ if(e.target === modal) TMTicketModal.close(); });
     var p = new URLSearchParams(window.location.search);
@@ -209,6 +270,12 @@ $successMessage = '';
     if (tid) {
         TMTicketModal.open(tid);
     }
+    setInterval(scheduleMyTicketsRefresh, myTicketsAutoRefreshMs);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            scheduleMyTicketsRefresh();
+        }
+    });
     </script>
 
     

@@ -2,6 +2,10 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
     header("Location: employee_login.php");
     exit();
@@ -69,7 +73,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <section class="auth-split-left" aria-hidden="true"></section>
     <section class="auth-split-right" aria-label="Force password change">
     <div class="login-card">
-        <a href="dashboard.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
+        <a href="logout.php" class="back-btn"><i class="fas fa-arrow-left"></i> Logout</a>
 
         <h2>Change Password</h2>
         <p class="auth-note">Please change your password before continuing to your account.</p>
@@ -121,6 +125,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', function () {
+        history.pushState(null, '', window.location.href);
+        window.location.replace('force_password_change.php');
+    });
+
     const passwordInput = document.getElementById('password');
     const validationBox = document.getElementById('password-validation');
 

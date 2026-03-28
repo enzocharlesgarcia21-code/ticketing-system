@@ -17,14 +17,15 @@ $company_id = '';
 $category = '';
 $description = '';
 $assigned_department_selected = '';
+$lapcDepartments = ticket_lapc_departments();
 
 $companies = [
     "LTC (@leadstech-corp.com)",
     "GPSCI (@gpsci.net)",
     "LAPC (@leadsagri.com)",
     "FARMEX (@leads-farmex.com)",
-    "@gmail.com",
-    
+    "MHC (@malvedaholdings.com)",
+    "MPDC (@malvedaproperties.com)",
 ];
 
 function derive_name_from_email(string $email): string
@@ -39,8 +40,85 @@ function derive_name_from_email(string $email): string
     return ucwords(strtolower($local));
 }
 
+function normalize_sales_recipient_company(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') return '';
+    if (preg_match('/\((@\S+)\)/', $value, $matches)) {
+        return strtolower(trim((string) ($matches[1] ?? '')));
+    }
+    if (strpos($value, '@') === 0) {
+        return strtolower($value);
+    }
+    return ticket_normalize_company($value);
+}
+
+function find_sales_domain_recipient_ids(mysqli $conn, string $domain): array
+{
+    $domain = strtolower(trim($domain));
+    if ($domain === '' || strpos($domain, '@') !== 0) return [];
+
+    $stmt = $conn->prepare("
+        SELECT id
+        FROM users
+        WHERE role IN ('employee', 'admin')
+          AND LOWER(email) LIKE ?
+        ORDER BY FIELD(role, 'employee', 'admin'), is_verified DESC, id ASC
+    ");
+    if (!$stmt) return [];
+
+    $emailLike = '%' . $domain;
+    $stmt->bind_param("s", $emailLike);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $ids = [];
+    while ($res && ($row = $res->fetch_assoc())) {
+        $id = (int) ($row['id'] ?? 0);
+        if ($id > 0) $ids[] = $id;
+    }
+    $stmt->close();
+
+    return array_values(array_unique($ids));
+}
+
 $isAjax = (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string) $_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
     || (isset($_SERVER['HTTP_ACCEPT']) && strpos((string) $_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+
+function finish_ticket_submit_response(bool $isAjax, array $payload = []): void
+{
+    if (!$isAjax) return;
+
+    if (function_exists('apache_setenv')) {
+        @apache_setenv('no-gzip', '1');
+    }
+    @ini_set('zlib.output_compression', '0');
+    @ini_set('implicit_flush', '1');
+
+    if (function_exists('session_write_close')) {
+        @session_write_close();
+    }
+    ignore_user_abort(true);
+
+    $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
+    while (ob_get_level() > 0) {
+        @ob_end_clean();
+    }
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Connection: close');
+        header('Content-Encoding: none');
+        header('Content-Length: ' . strlen((string) $body));
+    }
+    echo $body;
+
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+        return;
+    }
+
+    @flush();
+}
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
@@ -48,7 +126,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $email      = trim((string)($_POST['email'] ?? ''));
     $company_id = trim((string)($_POST['company_id'] ?? ''));
-    $assigned_department_selected = ticket_department_key_from_value(trim((string)($_POST['assigned_department'] ?? '')));
+    $assigned_department_selected = trim((string)($_POST['assigned_department'] ?? ''));
     $allowed_categories = ['Hardware', 'Software', 'Documentation', 'Email', 'Internet Concerns', 'Procurement', 'Technical Support'];
     $category   = trim((string)($_POST['category'] ?? ''));
     $description = trim((string)($_POST['description'] ?? ''));
@@ -58,24 +136,32 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $department = 'Sales';
     $priority = 'Low';
     $subject = $category !== '' ? ($category . ' Concern') : 'Sales Ticket';
-    $assigned_department = $assigned_department_selected;
-    $assigned_company = ticket_normalize_company($company_id);
-    $assigned_group = $assigned_department;
-    $assigned_user_ids = ticket_find_assignee_ids($conn, $assigned_company, $assigned_group);
+    $normalized_company_id = normalize_sales_recipient_company($company_id);
+    $isLapcRecipient = ($normalized_company_id === '@leadsagri.com');
+    $assigned_department = $isLapcRecipient ? $assigned_department_selected : 'IT';
+    $assigned_company = $normalized_company_id;
+    $assigned_group = $isLapcRecipient ? trim($assigned_department_selected) : 'IT';
+    if ($isLapcRecipient) {
+        $assigned_user_ids = ticket_find_assignee_ids($conn, $assigned_company, $assigned_group);
+    } else {
+        $assigned_user_ids = find_sales_domain_recipient_ids($conn, $assigned_company);
+    }
     $assigned_user_id = count($assigned_user_ids) > 0 ? (int) $assigned_user_ids[0] : null;
-    $allowedDepartments = ticket_standard_assigned_departments();
-    if ($assigned_department === '') {
+    $allowedDepartments = ticket_lapc_departments();
+    if ($isLapcRecipient && $assigned_department === '') {
         $error_msg = "Please select a department.";
-    } elseif (!in_array($assigned_department, $allowedDepartments, true)) {
+    } elseif ($isLapcRecipient && !in_array($assigned_department, $allowedDepartments, true)) {
         $error_msg = "Invalid department selected.";
     }
     if ($error_msg === '') {
         if ($assigned_company === '' || !ticket_is_valid_company($assigned_company)) {
             $error_msg = "Ticket Recipient (Company Email Domain) is required.";
-        } elseif ($assigned_group === '' || !ticket_is_valid_group_for_company($assigned_company, $assigned_group)) {
+        } elseif ($isLapcRecipient && ($assigned_group === '' || !ticket_is_valid_group_for_company($assigned_company, $assigned_group))) {
             $error_msg = "Invalid department selected for the chosen recipient.";
         } elseif (!$assigned_user_id) {
-            $error_msg = "No assignee available for the selected recipient and department.";
+            $error_msg = $isLapcRecipient
+                ? "No assignee available for the selected recipient and department."
+                : "No assignee available for the selected recipient.";
         }
     }
 
@@ -379,6 +465,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     notif_insert_system($conn, $notifyUserId, $ticket_id, $employeeTicketNotifMsg, 'dept_assigned');
                 }
 
+                finish_ticket_submit_response($isAjax, [
+                    'ok' => true,
+                    'message' => $success_msg,
+                    'ticket_id' => (int) $ticket_id,
+                    'ticket_number' => (string) $ticket_number
+                ]);
+
                 $adminEmails = [];
                 if (count($adminEmails) === 0) {
                     $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
@@ -391,24 +484,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 $ticketNumber = str_pad((string) $ticket_id, 6, '0', STR_PAD_LEFT);
                 $subjectLine = "New Sales Ticket (#$ticketNumber)";
-
-                $attachments = [];
-                $attachmentLabels = [];
-                foreach ($uploadedFiles as $f) {
-                    $stored = (string)($f['stored_name'] ?? '');
-                    $original = trim((string)($f['original_name'] ?? ''));
-                    if ($original !== '') {
-                        $attachmentLabels[] = $original;
-                    }
-                    if ($stored === '') continue;
-                    $path = realpath(__DIR__ . '/../uploads/' . $stored);
-                    if ($path) {
-                        $attachments[] = ['path' => $path];
-                    }
+                $assignedRecipientLabel = ticket_company_display_name((string) $assigned_company);
+                if ($assignedRecipientLabel === '') {
+                    $assignedRecipientLabel = (string) $assigned_company;
                 }
-                $attachmentSummary = count($attachmentLabels) > 0
-                    ? 'Attachments: ' . implode(', ', $attachmentLabels)
-                    : '';
+
+                $attachments = notif_ticket_email_attachments($conn, $ticket_id, (string) ($attachmentName ?? ''));
+                $attachmentSummary = notif_ticket_attachment_summary($attachments);
 
                 $adminTpl = notif_email_simple('New Sales Ticket', [
                     "Ticket ID: #$ticketNumber",
@@ -416,32 +498,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     "Category: $category",
                     "Status: $ticketStatus",
                     "Requester: $email",
-                    "Assigned Department: $assigned_department",
-                    "Assigned Recipient: $assigned_company"
+                    "Assigned Recipient: $assignedRecipientLabel"
                 ], 'Open Ticket', notif_ticket_link_admin($ticket_id));
+                if ($isLapcRecipient) {
+                    $adminTpl = notif_email_simple('New Sales Ticket', [
+                        "Ticket ID: #$ticketNumber",
+                        "Title: $subject",
+                        "Category: $category",
+                        "Status: $ticketStatus",
+                        "Requester: $email",
+                        "Assigned Department: $assigned_department",
+                        "Assigned Recipient: $assignedRecipientLabel"
+                    ], 'Open Ticket', notif_ticket_link_admin($ticket_id));
+                }
                 notif_email_send($adminEmails, $subjectLine, (string) $adminTpl['html'], (string) $adminTpl['text'], $attachments);
 
-                $assigneeEmails = [];
-                foreach ($assigned_user_ids as $notifyUserId) {
-                    $notifyUserId = (int) $notifyUserId;
-                    if ($notifyUserId <= 0) continue;
-                    $assigneeContact = notif_user_contact($conn, $notifyUserId);
-                    $assigneeEmail = trim((string) ($assigneeContact['email'] ?? ''));
-                    if ($assigneeEmail !== '') {
-                        $assigneeEmails[] = $assigneeEmail;
-                    }
-                }
-                $assigneeEmails = array_values(array_unique($assigneeEmails));
+                $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, (string) $assigned_group);
                 if (count($assigneeEmails) > 0) {
                     $assigneeLines = [
                         "Ticket ID: #$ticketNumber",
                         "Category: $category",
                         "Status: $ticketStatus",
                         "Requester: $email",
-                        "Assigned Department: $assigned_department",
-                        "Assigned Recipient: $assigned_company",
+                        "Assigned Recipient: $assignedRecipientLabel",
                         "Description:\n$raw_description"
                     ];
+                    if ($isLapcRecipient) {
+                        array_splice($assigneeLines, 4, 0, ["Assigned Department: $assigned_department"]);
+                    }
                     if ($attachmentSummary !== '') {
                         $assigneeLines[] = $attachmentSummary;
                     }
@@ -453,15 +537,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     "Ticket ID: #$ticketNumber",
                     "Category: $category",
                     "Status: $ticketStatus",
-                    "Assigned Department: $assigned_department",
-                    "Assigned Recipient: $assigned_company",
+                    "Assigned Recipient: $assignedRecipientLabel",
                     "Description:\n$raw_description"
                 ];
+                if ($isLapcRecipient) {
+                    array_splice($requesterLines, 3, 0, ["Assigned Department: $assigned_department"]);
+                }
                 if ($attachmentSummary !== '') {
                     $requesterLines[] = $attachmentSummary;
                 }
                 $requesterTpl = notif_email_simple('Ticket Submitted', $requesterLines, 'Go To Helpdesk', notif_base_url() . '/ticketing/index.php');
                 notif_email_send([$email], "Ticket Submitted (#$ticketNumber)", (string) $requesterTpl['html'], (string) $requesterTpl['text'], $attachments);
+
+                if ($isAjax) {
+                    exit;
+                }
 
             } else {
                 $error_msg = "Failed to submit ticket: " . $stmt->error;
@@ -490,6 +580,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Ticket Request | Leads Agri Helpdesk</title>
     <!-- Reuse existing CSS or inline minimal styles -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
@@ -556,6 +647,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             align-items: center;
             justify-content: flex-end;
             flex: 0 0 auto;
+            gap: 10px;
         }
         .sales-nav-link {
             display: inline-flex;
@@ -777,7 +869,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             color: #dc2626;
         }
         .sales-container {
-            max-width: 1040px;
+            max-width: 920px;
             margin: 24px auto;
             background: white;
             padding: 40px;
@@ -834,24 +926,26 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         input, select, textarea {
             width: 100%;
             padding: 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: #1B5E20;
-          
-        }
-        .category-select {
-            height: 62px;
-            padding: 0 52px 0 20px;
             border: 2px solid #73a66f;
-            border-radius: 18px;
+            border-radius: 16px;
+            font-size: 15px;
+            box-sizing: border-box;
             background-color: #ffffff;
             color: #0f172a;
-            font-size: 16px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+        }
+        input {
+            height: 50px;
+            padding: 0 16px;
+        }
+        #recipientRow select {
+            height: 50px;
+            padding: 0 46px 0 16px;
+            border: 2px solid #73a66f;
+            border-radius: 16px;
+            background-color: #ffffff;
+            color: #0f172a;
+            font-size: 15px;
             line-height: 1.2;
             appearance: none;
             -webkit-appearance: none;
@@ -860,8 +954,39 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
                 linear-gradient(45deg, transparent 50%, #1B5E20 50%),
                 linear-gradient(135deg, #1B5E20 50%, transparent 50%);
             background-position:
-                calc(100% - 24px) calc(50% - 3px),
-                calc(100% - 18px) calc(50% - 3px);
+                calc(100% - 22px) calc(50% - 3px),
+                calc(100% - 16px) calc(50% - 3px);
+            background-size: 6px 6px, 6px 6px;
+            background-repeat: no-repeat;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+        }
+        #recipientRow select:focus {
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
+        }
+        .category-select {
+            height: 50px;
+            padding: 0 46px 0 16px;
+            border: 2px solid #73a66f;
+            border-radius: 16px;
+            background-color: #ffffff;
+            color: #0f172a;
+            font-size: 15px;
+            line-height: 1.2;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image:
+                linear-gradient(45deg, transparent 50%, #1B5E20 50%),
+                linear-gradient(135deg, #1B5E20 50%, transparent 50%);
+            background-position:
+                calc(100% - 22px) calc(50% - 3px),
+                calc(100% - 16px) calc(50% - 3px);
             background-size: 6px 6px, 6px 6px;
             background-repeat: no-repeat;
             box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
@@ -873,6 +998,11 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         .category-select option {
             color: #0f172a;
             font-size: 16px;
+        }
+        textarea {
+            min-height: 120px;
+            padding: 14px 16px;
+            resize: vertical;
         }
         button {
             width: 100%;
@@ -894,6 +1024,23 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             justify-content: flex-end;
             align-items: center;
             gap: 12px;
+        }
+        #recipientRow {
+            display: flex;
+            gap: 12px;
+        }
+        #recipientGroup {
+            flex: 1;
+            transition: all 0.3s ease;
+        }
+        #departmentGroup {
+            flex: 1;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .full-width {
+            flex: 100% !important;
         }
         .form-actions button {
             width: auto;
@@ -991,58 +1138,51 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         .ticket-modal.show { display: flex; }
         .ticket-modal-content {
-            width: 480px;
+            width: 360px;
             max-width: calc(100vw - 40px);
             background: #ffffff;
-            border-radius: 24px;
-            padding: 28px 30px 22px;
+            border-radius: 20px;
+            padding: 14px 0 0;
             text-align: center;
-            border: 1px solid rgba(27, 94, 32, 0.18);
-            box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22);
+            border: none;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
             position: relative;
             overflow: hidden;
         }
-        .ticket-modal-content::before {
-            content: "";
-            position: absolute;
-            inset: 0 0 auto 0;
-            height: 8px;
-            background: linear-gradient(90deg, #1B5E20, #144a1e);
-        }
         .ticket-modal-spinner {
-            width: 60px;
-            height: 60px;
-            margin: 0 auto 16px;
+            width: 52px;
+            height: 52px;
+            margin: 0 auto 10px;
             border-radius: 999px;
             background: conic-gradient(#1B8A43 0deg, #2FAE52 145deg, #A6E05C 235deg, #1B8A43 360deg);
             display: none;
             align-items: center;
             justify-content: center;
             animation: ticket-loading-spin 1.15s linear infinite;
-            box-shadow: 0 10px 24px rgba(27, 138, 67, 0.18);
+            box-shadow: 0 8px 20px rgba(27, 138, 67, 0.16);
         }
         .ticket-modal-spinner::before {
             content: "";
-            width: 42px;
-            height: 42px;
+            width: 36px;
+            height: 36px;
             border-radius: 999px;
             background: #ffffff;
             box-shadow: inset 0 0 0 1px rgba(22, 101, 52, 0.08);
         }
         .ticket-modal-icon {
-            width: 60px;
-            height: 60px;
-            margin: 0 auto 16px;
+            width: 52px;
+            height: 52px;
+            margin: 0 auto 14px;
             border-radius: 999px;
             background: #ecfdf5;
-            border: 1px solid #bbf7d0;
+            border: 3px solid #d9f0cd;
             color: #1B5E20;
             display: none;
             align-items: center;
             justify-content: center;
-            font-size: 31px;
+            font-size: 26px;
             font-weight: 900;
-            box-shadow: 0 10px 24px rgba(27, 138, 67, 0.14);
+            box-shadow: none;
         }
         .ticket-modal-icon.error {
             background: #fef2f2;
@@ -1051,18 +1191,21 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             box-shadow: none;
         }
         .ticket-modal-content h3 {
-            margin: 4px 0 14px;
-            font-size: 24px;
-            font-weight: 800;
-            color: #0f172a;
-            letter-spacing: -0.03em;
+            margin: 0 0 8px;
+            padding: 0 20px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #20243a;
+            line-height: 1.2;
+            letter-spacing: normal;
         }
         .ticket-modal-content p {
-            margin: 0 auto 18px;
-            color: #8b93a7;
-            font-size: 16px;
-            line-height: 1.4;
-            max-width: 320px;
+            margin: 0 auto 12px;
+            color: #5b6275;
+            font-size: 12px;
+            line-height: 1.45;
+            max-width: 250px;
+            padding: 0 20px;
         }
         .ticket-modal-progress {
             position: absolute;
@@ -1081,28 +1224,31 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             transition: width 0.35s ease;
         }
         .ticket-modal-status {
-            min-height: 28px;
+            min-height: 24px;
             color: #2c8a46;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 800;
             letter-spacing: -0.01em;
         }
         .ticket-modal-actions {
             display: none;
             justify-content: center;
-            gap: 10px;
-            margin-top: 10px;
+            gap: 12px;
+            margin-top: 0;
+            padding: 14px 18px 18px;
+            border-top: 1px solid #e6e8ef;
         }
         .ticket-modal-content button {
-            width: auto;
-            min-width: 108px;
+            width: 136px;
+            min-width: 0;
+            height: 40px;
             border: 1px solid rgba(20, 74, 30, 0.28);
             background: #1B5E20;
             color: #ffffff;
-            border-radius: 13px;
-            padding: 10px 20px;
-            font-size: 15px;
-            font-weight: 900;
+            border-radius: 12px;
+            padding: 0 18px;
+            font-size: 13px;
+            font-weight: 700;
             cursor: pointer;
         }
         .ticket-modal-content button:hover { background: #144a1e; }
@@ -1125,35 +1271,39 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             to { transform: rotate(360deg); }
         }
         @media (max-width: 768px) {
+            #recipientRow {
+                flex-direction: column;
+            }
             .ticket-modal-content {
                 width: 100%;
-                border-radius: 22px;
-                padding: 24px 20px 20px;
+                max-width: 360px;
+                border-radius: 20px;
+                padding: 20px 0 0;
             }
             .ticket-modal-content h3 {
-                font-size: 22px;
+                font-size: 18px;
             }
             .ticket-modal-content p,
             .ticket-modal-status {
-                font-size: 15px;
+                font-size: 13px;
             }
             .ticket-modal-spinner,
             .ticket-modal-icon {
-                width: 56px;
-                height: 56px;
+                width: 50px;
+                height: 50px;
             }
             .ticket-modal-spinner::before {
-                width: 40px;
-                height: 40px;
+                width: 34px;
+                height: 34px;
             }
             .ticket-modal-icon {
-                font-size: 28px;
+                font-size: 24px;
             }
         }
 
         @media (min-width: 900px) and (orientation: landscape) {
             .sales-container {
-                max-width: 1040px;
+                max-width: 920px;
                 margin: 16px auto;
                 padding: 24px;
             }
@@ -1215,6 +1365,10 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
         <div class="sales-nav-right">
+            <a class="sales-nav-link" href="../index.php">
+                <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-arrow-left"></i></span>
+                <span>Back</span>
+            </a>
             <a class="sales-nav-link" href="/ticketing/sales/knowledge_base.php">
                 <span>Knowledge Base</span>
                 <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
@@ -1231,7 +1385,6 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 
         <?php if($success_msg): ?>
         <div class="alert alert-success"><?= htmlspecialchars($success_msg, ENT_QUOTES, 'UTF-8'); ?></div>
-        <a href="../index.php" class="back-link">Back</a>
     <?php else: ?>
 
         <?php if($error_msg): ?>
@@ -1248,10 +1401,10 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
                 <input type="email" name="email" required value="<?= htmlspecialchars($email ?? '', ENT_QUOTES, 'UTF-8'); ?>">
             </div>
 
-            <div class="form-row two-col">
-                <div class="form-group">
+            <div class="form-row" id="recipientRow">
+                <div class="form-group" id="recipientGroup">
                     <label>Ticket Recipient <span class="required-asterisk">*</span></label>
-                    <select name="company_id" required>
+                    <select name="company_id" id="ticket_recipient" required>
                         <option value="" disabled selected hidden>Select Recipient</option>
                         <?php foreach ($companies as $c): ?>
                             <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= (isset($company_id) && $company_id === $c) ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
@@ -1259,11 +1412,11 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
                     </select>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group hidden" id="departmentGroup">
                     <label>Department <span class="required-asterisk">*</span></label>
-                    <select name="assigned_department" required>
+                    <select name="assigned_department" id="department" required disabled>
                         <option value="" disabled <?= $assigned_department_selected === '' ? 'selected' : '' ?> hidden>Select Department</option>
-                        <?php foreach (ticket_standard_assigned_departments() as $d): ?>
+                        <?php foreach ($lapcDepartments as $d): ?>
                             <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $assigned_department_selected === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                         <?php endforeach; ?>
                     </select>
@@ -1309,7 +1462,6 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
 
             <div class="form-actions">
-                <a href="../index.php" class="btn-back">Back</a>
                 <button type="submit" class="submit-btn">Submit Ticket</button>
             </div>
         </form>
@@ -1333,6 +1485,32 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script>
+var recipient = document.getElementById('ticket_recipient');
+var departmentGroup = document.getElementById('departmentGroup');
+var recipientGroup = document.getElementById('recipientGroup');
+var departmentSelect = document.getElementById('department');
+
+function toggleDepartmentField() {
+    if (!recipient || !departmentGroup || !recipientGroup || !departmentSelect) return;
+    var value = recipient.value;
+
+    if (value === 'LAPC (@leadsagri.com)') {
+        departmentGroup.classList.remove('hidden');
+        recipientGroup.classList.remove('full-width');
+        departmentSelect.disabled = false;
+        departmentSelect.setAttribute('required', 'true');
+    } else {
+        departmentGroup.classList.add('hidden');
+        recipientGroup.classList.add('full-width');
+        departmentSelect.value = '';
+        departmentSelect.disabled = true;
+        departmentSelect.removeAttribute('required');
+    }
+}
+
+if (recipient) recipient.addEventListener('change', toggleDepartmentField);
+toggleDepartmentField();
+
 var attachmentInput = document.getElementById('attachments');
 var chooseBtn = document.getElementById('choose-file-btn');
 var fileNameEl = document.getElementById('file-name');
@@ -1610,7 +1788,7 @@ function closeModal(){
     var loadingTimers = [];
     var successRedirectTimer = null;
     var loadingStartedAt = 0;
-    var MIN_LOADING_MS = 3000;
+    var MIN_LOADING_MS = 600;
     if (!form) return;
 
     function clearLoadingTimers() {

@@ -20,6 +20,7 @@ $user_company = $_SESSION['company'] ?? '';
 $user_email = $_SESSION['email'] ?? '';
 
 ticket_ensure_assignment_columns($conn);
+ticket_apply_sla_priority($conn);
 
 function company_code(string $value): string
 {
@@ -106,11 +107,35 @@ if ($flashError !== '' && stripos($flashError, 'No assignee available') !== fals
 $search = $_GET['search'] ?? '';
 $department = $_GET['department'] ?? '';
 $status = $_GET['status'] ?? '';
+ $userCompanyNorm = ticket_normalize_company((string) $user_company);
+ $userEmailNorm = strtolower(trim((string) $user_email));
+ $show_department_filter = ($userCompanyNorm === '@leadsagri.com')
+    || (company_code((string) $user_company) === 'LAPC')
+    || ($userEmailNorm !== '' && str_ends_with($userEmailNorm, '@leadsagri.com'));
 
-$allowed_departments = ticket_standard_assigned_departments();
+$allowed_departments = [
+    'Admin & Legal',
+    'Banana Farm Operations',
+    'Diagnostics / Lingap',
+    'Digital Agri Solutions and Innovations',
+    'E-Commerce',
+    'Executive',
+    'Finance and Accounting',
+    'HR',
+    'Institutional Sales',
+    'Management',
+    'Marketing',
+    'New Business Segment',
+    'Seed Production',
+    'Supply Chain',
+    'Supply Chain Innovation',
+    'Technical',
+];
+natcasesort($allowed_departments);
+$allowed_departments = array_values($allowed_departments);
 $allowed_statuses = ['Open','In Progress','Resolved'];
 
-if (!in_array($department, $allowed_departments, true)) {
+if (!$show_department_filter || !in_array($department, $allowed_departments, true)) {
     $department = '';
 }
 if (!in_array($status, $allowed_statuses, true)) {
@@ -141,22 +166,25 @@ $companyAliasCond = count($companyAliases) > 0
 $companyCond = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND $companyAliasCond))";
 $taskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), NULLIF(t.assigned_department, ''), NULLIF(t.department, ''), NULLIF(u.department, ''))";
 $groupCond = "$taskDeptExpr = ?";
+$requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
 
-$where[] = "((t.assigned_user_id = ? AND t.user_id <> ?) OR (t.user_id <> ? AND $groupCond AND $companyCond))";
+$where[] = "((t.assigned_user_id = ? AND t.user_id <> ?) OR (t.user_id <> ? AND $companyCond AND ((NOT $requiresGroupCond) OR (? = '' OR $groupCond))))";
 $params[] = (int) $user_id;
 $types .= "i";
 $params[] = (int) $user_id;
 $types .= "i";
 $params[] = (int) $user_id;
 $types .= "i";
-$params[] = $user_department;
-$types .= "s";
 $params[] = strtolower((string) $user_email);
 $types .= "s";
 foreach ($companyAliases as $co) {
     $params[] = $co;
     $types .= "s";
 }
+$params[] = $user_department;
+$types .= "s";
+$params[] = $user_department;
+$types .= "s";
 
 $where[] = "t.status != 'Closed'";
 
@@ -536,19 +564,12 @@ $showing_to = min($offset + $limit, (int) $total_records);
             width: min(100%, 430px);
             background: #ffffff;
             border-radius: 22px;
-            padding: 28px 24px 22px;
+            padding: 28px 0 0;
             text-align: center;
             border: 1px solid rgba(27, 94, 32, 0.18);
             box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22);
             position: relative;
             overflow: hidden;
-        }
-        .task-success-dialog::before {
-            content: "";
-            position: absolute;
-            inset: 0 0 auto 0;
-            height: 6px;
-            background: linear-gradient(90deg, #1B5E20, #144a1e);
         }
         .task-success-icon {
             width: 74px;
@@ -558,44 +579,67 @@ $showing_to = min($offset + $limit, (int) $total_records);
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #dcfce7;
+            background: #f6fff4;
             color: #15803d;
-            border: 1px solid #bbf7d0;
-            font-size: 36px;
-            font-weight: 900;
+            border: 3px solid #d7ebc6;
+            box-sizing: border-box;
+            font-size: 34px;
+            line-height: 1;
+            font-weight: 700;
         }
         .task-success-title {
             margin: 0 0 10px;
+            padding: 0 24px;
             font-size: 22px;
             line-height: 1.25;
             font-weight: 800;
-            color: #0f172a;
+            color: #20243a;
         }
         .task-success-message {
             margin: 0;
+            padding: 0 24px;
             color: #64748b;
             font-size: 14px;
             line-height: 1.5;
         }
         .task-success-actions {
             margin-top: 20px;
+            padding: 18px 24px 22px;
             display: flex;
             justify-content: center;
+            border-top: 1px solid #e2e8f0;
+            background: #fbfdff;
         }
         .task-success-btn {
-            min-width: 82px;
-            height: 48px;
+            min-width: 172px;
+            height: 44px;
             border: none;
-            border-radius: 14px;
-            background: #166534;
+            border-radius: 10px;
+            background: #1f6b24;
             color: #ffffff;
-            font-size: 18px;
-            font-weight: 800;
+            font-size: 15px;
+            font-weight: 700;
             cursor: pointer;
-            box-shadow: 0 12px 28px rgba(22, 101, 52, 0.24);
+            box-shadow: none;
+            transition: background 0.2s ease, transform 0.2s ease;
         }
         .task-success-btn:hover {
-            background: #14532d;
+            background: #18591d;
+        }
+        .task-success-btn:active {
+            transform: translateY(1px);
+        }
+
+        body.employee-my-task-page #ticketModal .tm-control-label-department {
+            font-size: 15px;
+            font-weight: 600;
+            color: #111827;
+            letter-spacing: 0;
+            text-transform: none;
+        }
+
+        body.employee-my-task-page #ticketModal .tm-control-label-department .tm-required-star {
+            color: #dc2626;
         }
     </style>
 </head>
@@ -627,6 +671,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                     </div>
 
                     <div class="filters-wrapper">
+                        <?php if ($show_department_filter): ?>
                         <div class="select-wrapper small">
                             <select name="department" class="filter-select" id="filterDepartment">
                                 <option value="" disabled selected hidden<?= $department === '' ? 'selected' : '' ?>> All Department</option>
@@ -635,6 +680,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                 <?php endforeach; ?>
                             </select>
                         </div>
+                        <?php endif; ?>
 
                         <div class="select-wrapper small">
                             <select name="status" class="filter-select" id="filterStatus">
@@ -790,11 +836,11 @@ $showing_to = min($offset + $limit, (int) $total_records);
     <?php if ($flashSuccess !== ''): ?>
     <div id="taskSuccessOverlay" class="task-success-overlay" role="dialog" aria-modal="true" aria-labelledby="taskSuccessTitle">
         <div class="task-success-dialog">
-            <div class="task-success-icon">✓</div>
+            <div class="task-success-icon" aria-hidden="true">&#10003;</div>
             <h2 id="taskSuccessTitle" class="task-success-title">The ticket has been updated</h2>
             <p class="task-success-message"><?= htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?></p>
             <div class="task-success-actions">
-                <button type="button" class="task-success-btn" id="taskSuccessCloseBtn">OK</button>
+                <button type="button" class="task-success-btn" id="taskSuccessCloseBtn">Close</button>
             </div>
         </div>
     </div>
@@ -813,6 +859,10 @@ $showing_to = min($offset + $limit, (int) $total_records);
     </script>
     <script>
         window.TM_HIDE_QUICK_TAGS = true;
+        window.TM_FORCE_LAPC_DEPARTMENTS = true;
+        window.TM_FORCE_DEPARTMENT_PLACEHOLDER = true;
+        window.TM_DEPARTMENT_LABEL_TEXT = 'Assigned Department';
+        window.TM_DEPARTMENT_REQUIRED = true;
     </script>
     <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
     <script>
@@ -822,11 +872,20 @@ $showing_to = min($offset + $limit, (int) $total_records);
         var searchInput = document.getElementById("searchInput");
         var tbodyEl = document.getElementById("tasksTbody");
         var paginationEl = document.getElementById("tasksPagination");
+        var currentTasksPage = <?= (int) $page ?>;
+        var tasksAutoRefreshMs = 10000;
 
-        function refreshTasks(page) {
+        function taskModalOpen() {
+            var overlay = document.getElementById('ticketModal');
+            return !!(overlay && overlay.style.display === 'flex');
+        }
+
+        function refreshTasks(page, updateHistory) {
             if (!filterForm || !tbodyEl || !paginationEl) return;
             var params = new URLSearchParams(new FormData(filterForm));
-            params.set('page', String(page || 1));
+            var nextPage = parseInt(page || currentTasksPage || 1, 10);
+            if (!nextPage || nextPage < 1) nextPage = 1;
+            params.set('page', String(nextPage));
             params.set('limit', '10');
             fetch('ajax_my_task_list.php?' + params.toString(), { method: 'GET', credentials: 'same-origin' })
                 .then(function (r) { return r.json(); })
@@ -834,12 +893,20 @@ $showing_to = min($offset + $limit, (int) $total_records);
                     if (!data || !data.ok) return;
                     tbodyEl.innerHTML = data.rows_html || '';
                     paginationEl.innerHTML = data.pagination_html || '';
+                    currentTasksPage = parseInt(data.page || nextPage, 10) || 1;
+                    if (updateHistory === false) return;
                     var url = new URL(window.location.href);
                     url.search = '';
                     params.forEach(function (v, k) { url.searchParams.set(k, v); });
+                    url.searchParams.set('page', String(currentTasksPage));
                     history.replaceState({}, '', url.toString());
                 })
                 .catch(function () {});
+        }
+
+        function scheduleTasksRefresh() {
+            if (document.hidden || taskModalOpen()) return;
+            refreshTasks(currentTasksPage, false);
         }
 
         if (searchInput) {
@@ -881,6 +948,12 @@ $showing_to = min($offset + $limit, (int) $total_records);
         if (tid) {
             TMTicketModal.open(tid);
         }
+        setInterval(scheduleTasksRefresh, tasksAutoRefreshMs);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                scheduleTasksRefresh();
+            }
+        });
 
         (function () {
             var overlay = document.getElementById('taskFlashOverlay');
