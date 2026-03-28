@@ -87,6 +87,8 @@ function isActive($page) {
     </div>
 </nav>
 
+<div id="priorityEscalationToastHost" class="priority-escalation-toast-host" aria-live="polite" aria-atomic="true"></div>
+
 <script>
 window.TM_CSRF_TOKEN = <?php echo json_encode($csrfToken, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 window.TM_MESSENGER_STYLE = 'employee';
@@ -180,14 +182,29 @@ window.TM_MESSENGER_STYLE = 'employee';
 }
 
 .notif-item {
+    position: relative;
     display: flex;
     align-items: flex-start;
-    padding: 16px 20px;
+    padding: 16px 20px 16px 22px;
     border-bottom: 1px solid #f1f5f9;
     cursor: pointer;
     transition: all 0.2s ease;
     gap: 15px;
 }
+.notif-item::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    background: transparent;
+}
+.notif-item.type-card-assigned::before { background: #2563eb; }
+.notif-item.type-card-updated::before { background: #0ea5e9; }
+.notif-item.type-card-reassigned::before { background: #9333ea; }
+.notif-item.type-card-closed::before { background: #16a34a; }
+.notif-item.type-card-note::before { background: #ca8a04; }
 
 .notif-item:hover {
     background-color: #f8fafc;
@@ -196,6 +213,31 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-item.unread {
     background-color: #f0f9f3;
 }
+.notif-item.priority-escalation {
+    position: relative;
+    gap: 15px;
+    margin: 0;
+    padding: 16px 20px 16px 22px;
+    border: 0;
+    border-bottom: 1px solid #f1f5f9;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: none;
+    overflow: hidden;
+}
+.notif-item.priority-escalation::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 7px;
+    border-radius: 7px;
+    background: #94a3b8;
+}
+.notif-item.priority-escalation.priority-low::before { background: #43A047; }
+.notif-item.priority-escalation.priority-high::before { background: #FB8C00; }
+.notif-item.priority-escalation.priority-critical::before { background: #E53935; }
 
 .notif-icon {
     flex-shrink: 0;
@@ -213,7 +255,34 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-icon.type-reassigned { background: #9333ea; }
 .notif-icon.type-closed { background: #16a34a; }
 .notif-icon.type-note { background: #ca8a04; }
+.notif-icon.type-priority-alert { background: linear-gradient(135deg, #dc2626, #fb7185); }
 .notif-icon.type-neutral { background: #94a3b8; }
+.notif-item.type-card-assigned .notif-icon,
+.notif-item.type-card-updated .notif-icon,
+.notif-item.type-card-reassigned .notif-icon,
+.notif-item.type-card-closed .notif-icon,
+.notif-item.type-card-note .notif-icon {
+    border-radius: 10px;
+}
+.notif-item.priority-escalation .notif-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 16px;
+    box-shadow: none;
+}
+.notif-item.priority-escalation.priority-low .notif-icon {
+    background: linear-gradient(135deg, #c8f1d0, #e9f9ed);
+    color: #2f855a;
+}
+.notif-item.priority-escalation.priority-high .notif-icon {
+    background: linear-gradient(135deg, #fde5c6, #fff3df);
+    color: #f59e0b;
+}
+.notif-item.priority-escalation.priority-critical .notif-icon {
+    background: linear-gradient(135deg, #ef4355, #ff6b7d);
+    color: #ffffff;
+}
 
 .priority-badge{
     padding:4px 10px;
@@ -230,16 +299,60 @@ window.TM_MESSENGER_STYLE = 'employee';
 .priority-badge.priority-medium { background:#FBC02D; }
 .priority-badge.priority-low { background:#43A047; }
 .priority-badge.priority-neutral { background:#94a3b8; }
+.notif-item.priority-escalation .priority-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    margin: 0;
+    padding: 3px 10px;
+    border-radius: 10px;
+    border: 2px solid currentColor;
+    background: #ffffff;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+}
+.notif-item.priority-escalation .priority-badge.priority-low {
+    color: #43A047;
+    background: #f8fff9;
+}
+.notif-item.priority-escalation .priority-badge.priority-high {
+    color: #d97706;
+    background: #fff8ef;
+}
+.notif-item.priority-escalation .priority-badge.priority-critical {
+    color: #dc2626;
+    background: #fff5f5;
+}
 
 .notif-content {
     flex: 1;
     min-width: 0;
+}
+.notif-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+}
+.notif-title-text {
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #111827;
 }
 
 .notif-msg {
     font-size: 0.95rem;
     color: #334155;
     line-height: 1.4;
+    margin-bottom: 6px;
+}
+.notif-item.priority-escalation .notif-msg {
+    font-size: 0.95rem;
+    line-height: 1.4;
+    color: #334155;
     margin-bottom: 6px;
 }
 
@@ -284,6 +397,131 @@ window.TM_MESSENGER_STYLE = 'employee';
     font-size: 0.8rem;
     color: #94a3b8;
     display: block;
+}
+.notif-item.priority-escalation .notif-time {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.priority-escalation-toast-host {
+    position: fixed;
+    top: 82px;
+    right: 18px;
+    z-index: 5000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.priority-escalation-toast {
+    min-width: 340px;
+    max-width: min(460px, calc(100vw - 36px));
+    background: linear-gradient(180deg, #fff7f8 0%, #ffffff 100%);
+    color: #3f1d24;
+    border-radius: 22px;
+    box-shadow: 0 22px 48px rgba(127, 29, 29, 0.18);
+    padding: 18px 18px 18px 16px;
+    border-left: 6px solid #fb7185;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.priority-escalation-toast.priority-critical {
+    border-left-color: #dc2626;
+}
+
+.priority-escalation-toast-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #d9465f 0%, #be123c 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.24);
+}
+
+.priority-escalation-toast-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.priority-escalation-toast-title {
+    font-size: 14px;
+    font-weight: 800;
+    margin-bottom: 6px;
+    color: #881337;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.priority-escalation-toast-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 58px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: 0.01em;
+    background: #fb7185;
+}
+
+.priority-escalation-toast-pill.priority-critical {
+    background: #dc2626;
+}
+
+.priority-escalation-toast-pill.priority-high {
+    background: #f97316;
+}
+
+.priority-escalation-toast-message {
+    font-size: 15px;
+    line-height: 1.5;
+    color: #4c1d2a;
+}
+
+.priority-escalation-toast-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: #fb7185;
+    box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.14);
+    flex-shrink: 0;
+}
+
+.priority-escalation-toast.priority-critical .priority-escalation-toast-dot {
+    background: #dc2626;
+    box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12);
+}
+
+@media (max-width: 640px) {
+    .priority-escalation-toast {
+        min-width: 0;
+        width: calc(100vw - 24px);
+        padding: 16px;
+        gap: 12px;
+    }
+
+    .priority-escalation-toast-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        font-size: 24px;
+    }
+
+    .priority-escalation-toast-message {
+        font-size: 14px;
+    }
 }
 
 .notif-footer {
@@ -527,23 +765,36 @@ document.addEventListener('DOMContentLoaded', function() {
                         const priorityKey = allowed.includes(rawPriority) ? rawPriority : '';
                         const priorityClass = priorityKey ? `priority-${priorityKey}` : 'priority-neutral';
                         const priorityLabel = (n.type !== 'note_added' && priorityKey) ? `<span class="priority-badge ${priorityClass}">${escapeHtml(priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1))}</span>` : '';
+                        const isPriorityEscalation = (n.type || '').toString() === 'priority_escalated';
+                        const titleText = getNotificationTitle(actionType, (n.type || '').toString(), priorityKey);
                         let iconClass = 'fa-ticket';
                         let iconTypeClass = 'type-neutral';
-                        if (actionType === 'update' && n.type === 'note_added') iconClass = 'fa-sticky-note';
+                        if ((n.type || '').toString() === 'priority_escalated') iconClass = 'fa-exclamation';
+                        else if (actionType === 'update' && n.type === 'note_added') iconClass = 'fa-sticky-note';
                         else if (actionType === 'update') iconClass = 'fa-sync-alt';
                         else if (actionType === 'close') iconClass = 'fa-check-circle';
                         else if (actionType === 'reassign') iconClass = 'fa-exchange-alt';
                         else if (actionType === 'assign') iconClass = 'fa-inbox';
-                        if (actionType === 'update' && n.type === 'note_added') iconTypeClass = 'type-note';
+                        if ((n.type || '').toString() === 'priority_escalated') iconTypeClass = 'type-priority-alert';
+                        else if (actionType === 'update' && n.type === 'note_added') iconTypeClass = 'type-note';
                         else if (actionType === 'update') iconTypeClass = 'type-updated';
                         else if (actionType === 'close') iconTypeClass = 'type-closed';
                         else if (actionType === 'reassign') iconTypeClass = 'type-reassigned';
                         else if (actionType === 'assign') iconTypeClass = 'type-assigned';
+                        let itemTypeClass = '';
+                        if (!isPriorityEscalation) {
+                            if (actionType === 'update' && n.type === 'note_added') itemTypeClass = 'type-card-note';
+                            else if (actionType === 'update') itemTypeClass = 'type-card-updated';
+                            else if (actionType === 'close') itemTypeClass = 'type-card-closed';
+                            else if (actionType === 'reassign') itemTypeClass = 'type-card-reassigned';
+                            else if (actionType === 'assign') itemTypeClass = 'type-card-assigned';
+                        }
+                        const messageHtml = `<div class="notif-title">${priorityLabel}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
                         return `
-                            <div class="notif-item ${n.is_read == 0 ? 'unread' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${n.type || ''}')">
+                            <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${isPriorityEscalation ? `priority-escalation ${priorityClass}` : itemTypeClass}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${n.type || ''}')">
                                 <div class="notif-icon ${iconTypeClass}"><i class="fas ${iconClass}"></i></div>
                                 <div class="notif-content">
-                                    <div class="notif-msg">${priorityLabel}${highlightNotificationMessage(n.message)}</div>
+                                    ${messageHtml}
                                     <time class="notif-time" data-timestamp="${n.created_at}">${n.time_ago || ''}</time>
                                 </div>
                             </div>
@@ -565,6 +816,23 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+    }
+
+    function getPriorityNotificationTitle(priorityKey) {
+        if (priorityKey === 'critical') return 'Priority Escalation';
+        if (priorityKey === 'high') return 'Ticket Warning';
+        if (priorityKey === 'low') return 'Ticket Assigned';
+        return 'Ticket Update';
+    }
+
+    function getNotificationTitle(actionType, type, priorityKey) {
+        if (type === 'priority_escalated') return getPriorityNotificationTitle(priorityKey);
+        if (actionType === 'assign') return 'Ticket Assigned';
+        if (actionType === 'reassign') return 'Ticket Reassigned';
+        if (actionType === 'close') return 'Ticket Closed';
+        if (actionType === 'update' && type === 'note_added') return 'Ticket Note';
+        if (actionType === 'update') return 'Status Update';
+        return 'Ticket Update';
     }
 
     function highlightNotificationMessage(text) {
@@ -600,7 +868,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.location.href = 'notifications.php';
                 return;
             }
-            if (type === 'dept_assigned') {
+            const taskTypes = new Set(['dept_assigned', 'reassigned', 'priority_escalated', 'new_ticket']);
+            if (taskTypes.has(String(type || ''))) {
                 window.location.href = `my_task.php?ticket_id=${ticketId}`;
             } else {
                 window.location.href = `my_tickets.php?ticket_id=${ticketId}`;

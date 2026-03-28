@@ -9,6 +9,36 @@ require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/notification_service.php';
 
+$lapcDepartments = ticket_lapc_departments();
+
+function find_domain_recipient_ids(mysqli $conn, string $domain): array
+{
+    $domain = strtolower(trim($domain));
+    if ($domain === '' || strpos($domain, '@') !== 0) return [];
+
+    $stmt = $conn->prepare("
+        SELECT id
+        FROM users
+        WHERE role = 'employee'
+          AND LOWER(email) LIKE ?
+        ORDER BY is_verified DESC, id ASC
+    ");
+    if (!$stmt) return [];
+
+    $emailLike = '%' . $domain;
+    $stmt->bind_param("s", $emailLike);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $ids = [];
+    while ($res && ($row = $res->fetch_assoc())) {
+        $id = (int) ($row['id'] ?? 0);
+        if ($id > 0) $ids[] = $id;
+    }
+    $stmt->close();
+
+    return array_values(array_unique($ids));
+}
+
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
     exit();
@@ -116,8 +146,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $assigned_company = isset($_POST['assigned_company']) ? trim((string) $_POST['assigned_company']) : '';
     $assigned_group = isset($_POST['assigned_group']) ? trim((string) $_POST['assigned_group']) : '';
     $assigned_company = ticket_normalize_company($assigned_company);
-    $assigned_group = ticket_department_key_from_value($assigned_group);
-    $assigned_department = $assigned_group;
+    $requiresDepartment = (strtolower((string) $assigned_company) === '@leadsagri.com');
+    $allowedDepartments = $lapcDepartments;
+    $routing_group = $requiresDepartment ? trim($assigned_group) : 'IT';
+    $assigned_group = $routing_group;
+    $assigned_department = $requiresDepartment ? $routing_group : 'IT';
     $description = trim((string) ($_POST['description'] ?? ''));
 
     if ($assigned_company === '' || !ticket_is_valid_company($assigned_company)) {
@@ -131,7 +164,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         header("Location: request_ticket.php");
         exit();
     }
-    if ($assigned_group === '' || !ticket_is_valid_group_for_company($assigned_company, $assigned_group)) {
+    if ($requiresDepartment && ($assigned_group === '' || !in_array($assigned_group, $allowedDepartments, true))) {
         if ($isAjax) {
             header('Content-Type: application/json; charset=utf-8');
             http_response_code(400);
@@ -154,16 +187,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    $assigned_user_ids = ticket_find_assignee_ids($conn, $assigned_company, $assigned_group);
+    if ($requiresDepartment) {
+        $assigned_user_ids = ticket_find_assignee_ids($conn, $assigned_company, $routing_group);
+    } else {
+        $assigned_user_ids = find_domain_recipient_ids($conn, $assigned_company);
+    }
     $assigned_user_id = count($assigned_user_ids) > 0 ? (int) $assigned_user_ids[0] : null;
     if (!$assigned_user_id) {
         if ($isAjax) {
             header('Content-Type: application/json; charset=utf-8');
             http_response_code(400);
-            echo json_encode(['ok' => false, 'error' => 'No assignee available for the selected recipient and department.'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['ok' => false, 'error' => 'No user found for the selected ticket recipient.'], JSON_UNESCAPED_UNICODE);
             exit();
         }
-        $_SESSION['error'] = 'No assignee available for the selected recipient and department.';
+        $_SESSION['error'] = 'No user found for the selected ticket recipient.';
         header("Location: request_ticket.php");
         exit();
     }
@@ -395,7 +432,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    $notifDepartmentLabel = $assigned_department !== '' ? $assigned_department : 'the selected department';
+    $notifDepartmentLabel = $assigned_department !== '' ? $assigned_department : ($requiresDepartment ? 'the selected department' : 'the selected recipient');
     $notifCompanyLabel = ltrim((string) $assigned_company, '@');
     $notifTargetLabel = $notifCompanyLabel !== '' ? ($notifDepartmentLabel . ' at ' . $notifCompanyLabel) : $notifDepartmentLabel;
     $employeeTicketNotifMsg = "New ticket #$ticket_number from $user_name was assigned to your group.";
@@ -453,16 +490,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $ticketDescriptionSafe = nl2br(htmlspecialchars($ticketDescription));
     $ticketAssignedDeptSafe = htmlspecialchars($ticketAssignedDept);
     $createdAtSafe = htmlspecialchars($createdAt);
-    $attachmentLabels = [];
-    foreach ($uploadedFiles as $uploadedFile) {
-        $originalName = trim((string) ($uploadedFile['original_name'] ?? ''));
-        if ($originalName !== '') {
-            $attachmentLabels[] = $originalName;
-        }
-    }
-    $attachmentSummary = count($attachmentLabels) > 0
-        ? 'Attachments: ' . implode(', ', $attachmentLabels)
-        : '';
+    $attachments = notif_ticket_email_attachments($conn, (int) $ticket_id, (string) ($attachmentName ?? ''));
+    $attachmentSummary = notif_ticket_attachment_summary($attachments);
 
     $adminSubject = "New Ticket Submitted (#$ticketNumber)";
     $adminTpl = notif_email_simple('New Ticket Submitted', [
@@ -476,30 +505,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         "Requester Email: $employeeEmail"
     ], 'Open Ticket', notif_ticket_link_admin((int) $ticket_id));
 
-    $attachments = [];
-    if (!empty($attachmentName)) {
-        $path = realpath(__DIR__ . '/../uploads/' . $attachmentName);
-        if ($path) {
-            $attachments[] = ['path' => $path];
-        }
-    }
-
     $adminOk = notif_email_send($adminEmails, $adminSubject, (string) $adminTpl['html'], (string) $adminTpl['text'], $attachments);
     if (!$adminOk) {
         error_log('Ticket email failed (admins) | ticketId=' . (string) $ticket_id);
     }
 
-    $assigneeEmails = [];
-    foreach ($assigned_user_ids as $notifyUserId) {
-        $notifyUserId = (int) $notifyUserId;
-        if ($notifyUserId <= 0 || $notifyUserId === (int) $user_id) continue;
-        $assigneeContact = notif_user_contact($conn, $notifyUserId);
-        $assigneeEmail = trim((string) ($assigneeContact['email'] ?? ''));
-        if ($assigneeEmail !== '') {
-            $assigneeEmails[] = $assigneeEmail;
-        }
-    }
-    $assigneeEmails = array_values(array_unique($assigneeEmails));
+    $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, $assigned_group, (int) $user_id);
     if (count($assigneeEmails) > 0) {
         $assigneeLines = [
             "Ticket ID: #$ticketNumber",
@@ -558,15 +569,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             appearance: none;
             -webkit-appearance: none;
             -moz-appearance: none;
-            min-height: 48px;
+            min-height: 50px;
             padding: 0 44px 0 16px;
-            border: 1px solid #d9dee8;
-            border-radius: 13px;
+            border: 2px solid #73a66f;
+            border-radius: 16px;
             background: #ffffff;
-            color: #111827;
-            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+            color: #0f172a;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
         }
         body.employee-request-ticket-page .select-wrapper .form-control:focus {
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
+        }
+        body.employee-request-ticket-page .form-control:focus,
+        body.employee-request-ticket-page .form-group input:focus,
+        body.employee-request-ticket-page .form-group textarea:focus {
+            outline: none;
             border-color: #1B5E20;
             box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
         }
@@ -584,6 +602,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.employee-request-ticket-page textarea.form-control {
             resize: none;
+            border: 2px solid #73a66f;
+            border-radius: 16px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
         }
         body.employee-request-ticket-page .ticket-modal {
             position: fixed;
@@ -599,58 +620,51 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.employee-request-ticket-page .ticket-modal.show { display: flex; }
         body.employee-request-ticket-page .ticket-modal-content {
-            width: 480px;
+            width: 360px;
             max-width: calc(100vw - 40px);
             background: #ffffff;
-            border-radius: 24px;
-            padding: 28px 30px 22px;
+            border-radius: 20px;
+            padding: 14px 0 0;
             text-align: center;
-            border: 1px solid rgba(27, 94, 32, 0.18);
-            box-shadow: 0 26px 80px rgba(2, 6, 23, 0.22);
+            border: none;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
             position: relative;
             overflow: hidden;
         }
-        body.employee-request-ticket-page .ticket-modal-content::before {
-            content: "";
-            position: absolute;
-            inset: 0 0 auto 0;
-            height: 8px;
-            background: linear-gradient(90deg, #1B5E20, #144a1e);
-        }
         body.employee-request-ticket-page .ticket-modal-spinner {
-            width: 60px;
-            height: 60px;
-            margin: 0 auto 16px;
+            width: 52px;
+            height: 52px;
+            margin: 0 auto 10px;
             border-radius: 999px;
             background: conic-gradient(#1B8A43 0deg, #2FAE52 145deg, #A6E05C 235deg, #1B8A43 360deg);
             display: none;
             align-items: center;
             justify-content: center;
             animation: ticket-loading-spin 1.15s linear infinite;
-            box-shadow: 0 10px 24px rgba(27, 138, 67, 0.18);
+            box-shadow: 0 8px 20px rgba(27, 138, 67, 0.16);
         }
         body.employee-request-ticket-page .ticket-modal-spinner::before {
             content: "";
-            width: 42px;
-            height: 42px;
+            width: 36px;
+            height: 36px;
             border-radius: 999px;
             background: #ffffff;
             box-shadow: inset 0 0 0 1px rgba(22, 101, 52, 0.08);
         }
         body.employee-request-ticket-page .ticket-modal-icon {
-            width: 60px;
-            height: 60px;
-            margin: 0 auto 16px;
+            width: 52px;
+            height: 52px;
+            margin: 0 auto 14px;
             border-radius: 999px;
             background: #ecfdf5;
-            border: 1px solid #bbf7d0;
+            border: 3px solid #d9f0cd;
             color: #1B5E20;
             display: none;
             align-items: center;
             justify-content: center;
-            font-size: 31px;
+            font-size: 26px;
             font-weight: 900;
-            box-shadow: 0 10px 24px rgba(27, 138, 67, 0.14);
+            box-shadow: none;
         }
         body.employee-request-ticket-page .ticket-modal-icon.error {
             background: #fef2f2;
@@ -659,18 +673,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             box-shadow: none;
         }
         body.employee-request-ticket-page .ticket-modal-content h3 {
-            margin: 4px 0 14px;
-            font-size: 24px;
-            font-weight: 800;
-            color: #0f172a;
-            letter-spacing: -0.03em;
+            margin: 0 0 8px;
+            padding: 0 20px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #20243a;
+            line-height: 1.2;
+            letter-spacing: normal;
         }
         body.employee-request-ticket-page .ticket-modal-content p {
-            margin: 0 auto 18px;
-            color: #8b93a7;
-            font-size: 16px;
-            line-height: 1.4;
-            max-width: 320px;
+            margin: 0 auto 12px;
+            color: #5b6275;
+            font-size: 12px;
+            line-height: 1.45;
+            max-width: 250px;
+            padding: 0 20px;
         }
         body.employee-request-ticket-page .ticket-modal-progress {
             position: absolute;
@@ -689,28 +706,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             transition: width 0.35s ease;
         }
         body.employee-request-ticket-page .ticket-modal-status {
-            min-height: 28px;
+            min-height: 24px;
             color: #2c8a46;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 800;
             letter-spacing: -0.01em;
         }
         body.employee-request-ticket-page .ticket-modal-actions {
             display: none;
             justify-content: center;
-            gap: 10px;
-            margin-top: 10px;
+            gap: 12px;
+            margin-top: 0;
+            padding: 14px 18px 18px;
+            border-top: 1px solid #e6e8ef;
         }
         body.employee-request-ticket-page .ticket-modal-content button {
-            width: auto;
-            min-width: 108px;
+            width: 136px;
+            min-width: 0;
+            height: 40px;
             border: 1px solid rgba(20, 74, 30, 0.28);
             background: #1B5E20;
             color: #ffffff;
-            border-radius: 13px;
-            padding: 10px 20px;
-            font-size: 15px;
-            font-weight: 900;
+            border-radius: 12px;
+            padding: 0 18px;
+            font-size: 13px;
+            font-weight: 700;
             cursor: pointer;
         }
         body.employee-request-ticket-page .ticket-modal-content button:hover {
@@ -737,27 +757,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         @media (max-width: 768px) {
             body.employee-request-ticket-page .ticket-modal-content {
                 width: 100%;
-                border-radius: 22px;
-                padding: 24px 20px 20px;
+                max-width: 360px;
+                border-radius: 20px;
+                padding: 20px 0 0;
             }
             body.employee-request-ticket-page .ticket-modal-content h3 {
-                font-size: 22px;
+                font-size: 18px;
             }
             body.employee-request-ticket-page .ticket-modal-content p,
             body.employee-request-ticket-page .ticket-modal-status {
-                font-size: 15px;
+                font-size: 13px;
             }
             body.employee-request-ticket-page .ticket-modal-spinner,
             body.employee-request-ticket-page .ticket-modal-icon {
-                width: 56px;
-                height: 56px;
+                width: 50px;
+                height: 50px;
             }
             body.employee-request-ticket-page .ticket-modal-spinner::before {
-                width: 40px;
-                height: 40px;
+                width: 34px;
+                height: 34px;
             }
             body.employee-request-ticket-page .ticket-modal-icon {
-                font-size: 28px;
+                font-size: 24px;
             }
             body.employee-request-ticket-page .dashboard-container {
                 padding: 12px;
@@ -788,16 +809,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             body.employee-request-ticket-page .form-group input,
             body.employee-request-ticket-page .form-group select,
             body.employee-request-ticket-page .form-group textarea {
-                height: 42px;
-                padding: 10px 12px;
-                font-size: 14px;
-                border-radius: 10px;
+                height: 50px;
+                padding: 12px 16px;
+                font-size: 15px;
+                border-radius: 16px;
+                border: 2px solid #73a66f;
+                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
             }
 
             body.employee-request-ticket-page textarea.form-control {
                 height: auto;
-                min-height: 90px;
-                padding: 10px 12px;
+                min-height: 120px;
+                padding: 14px 16px;
                 resize: none;
             }
 
@@ -898,27 +921,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <div class="select-wrapper">
                             <select name="assigned_company" id="assigned_company" class="form-control" required>
                                 <option value="" disabled selected hidden>Choose recipient</option>
-                                <option value="@gpsci.net">GPSCI (@gpsci.net)</option>
-                                <option value="@farmasee.ph">FARMASEE (@farmasee.ph)</option>
-                                <option value="@gmail.com">@gmail.com</option>
-                                <option value="@leads-eh.com">LEH (@leads-eh.com)</option>
                                 <option value="@leads-farmex.com">FARMEX (@leads-farmex.com)</option>
-                                <option value="@leadsagri.com">LAPC (@leadsagri.com)</option>
+                                <option value="@farmasee.ph">FARMASEE (@farmasee.ph)</option>
+                                <option value="@gpsci.net">GPSCI (@gpsci.net)</option>
                                 <option value="@leadsanimalhealth.com">LAH (@leadsanimalhealth.com)</option>
+                                <option value="@leadsagri.com">LAPC (@leadsagri.com)</option>
+                                <option value="@leads-eh.com">LEH (@leads-eh.com)</option>
                                 <option value="@leadsav.com">LAV (@leadsav.com)</option>
-                                <option value="@malvedaproperties.com">MHC (@malvedaproperties.com)</option>
                                 <option value="@leadstech-corp.com">LTC (@leadstech-corp.com)</option>
                                 <option value="@lingapleads.org">LINGAP (@lingapleads.org)</option>
+                                <option value="@malvedaholdings.com">MHC (@malvedaholdings.com)</option>
+                                <option value="@malvedaproperties.com">MPDC (@malvedaproperties.com)</option>
                                 <option value="@primestocks.ph">PCC (@primestocks.ph)</option>
+                                <option value="@gmail.com">@gmail.com</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>
                         </div>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group" id="departmentContainer">
                         <label>Assigned Department <span class="required-asterisk">*</span></label>
                         <div class="select-wrapper">
-                            <select name="assigned_group" id="assigned_group" class="form-control" required>
+                            <select name="assigned_group" id="assigned_group" class="form-control" required disabled data-selected="<?= htmlspecialchars((string) ($_POST['assigned_group'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                 <option value="" disabled selected hidden>Choose department</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>
@@ -993,28 +1017,43 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const companyEl = document.getElementById('assigned_company');
-        const groupEl = document.getElementById('assigned_group');
-        const DEPARTMENTS = ["ACCOUNTING","ADMIN","BIDDING","E-COMM","HR","IT","LINGAP","MARKETING","SUPPLY CHAIN","TECHNICAL"];
-        function populateGroups(arr) {
-            groupEl.innerHTML = '';
-            const ph = document.createElement('option');
-            ph.value = '';
-            ph.textContent = 'Select Department';
-            ph.disabled = true;
-            ph.selected = true;
-            ph.defaultSelected = true;
-            ph.hidden = true;
-            groupEl.appendChild(ph);
-            arr.forEach(function (g) {
-                const opt = document.createElement('option');
-                opt.value = g;
-                opt.textContent = g;
-                groupEl.appendChild(opt);
+        const recipientDropdown = document.getElementById('assigned_company');
+        const departmentContainer = document.getElementById('departmentContainer');
+        const departmentSelect = document.getElementById('assigned_group');
+        const lapcDepartments = <?= json_encode(array_values($lapcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        function populateDepartments(options) {
+            if (!departmentSelect) return;
+            const selectedValue = String(departmentSelect.getAttribute('data-selected') || departmentSelect.value || '');
+            departmentSelect.innerHTML = '<option value="" disabled selected hidden>Choose department</option>';
+            options.forEach(function(optionValue) {
+                const option = document.createElement('option');
+                option.value = optionValue;
+                option.textContent = optionValue;
+                if (selectedValue !== '' && selectedValue === optionValue) {
+                    option.selected = true;
+                }
+                departmentSelect.appendChild(option);
             });
-            groupEl.value = '';
         }
-        if (groupEl) populateGroups(DEPARTMENTS);
+        function toggleDepartment() {
+            if (!recipientDropdown || !departmentContainer || !departmentSelect) return;
+            const value = String(recipientDropdown.value || '');
+            if (value === '@leadsagri.com') {
+                populateDepartments(lapcDepartments);
+                departmentContainer.style.display = 'block';
+                departmentSelect.disabled = false;
+                departmentSelect.setAttribute('required', 'required');
+            } else {
+                departmentContainer.style.display = 'none';
+                departmentSelect.value = '';
+                departmentSelect.disabled = true;
+                departmentSelect.removeAttribute('required');
+            }
+        }
+        if (recipientDropdown) {
+            recipientDropdown.addEventListener('change', toggleDepartment);
+        }
+        toggleDepartment();
         var attachmentInput = document.getElementById('attachments');
         var chooseBtn = document.getElementById('choose-file-btn');
         var fileNameEl = document.getElementById('file-name');
@@ -1303,7 +1342,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         var loadingTimers = [];
         var successRedirectTimer = null;
         var loadingStartedAt = 0;
-        var MIN_LOADING_MS = 3000;
+        var MIN_LOADING_MS = 600;
         if (!form) return;
 
         function clearLoadingTimers() {

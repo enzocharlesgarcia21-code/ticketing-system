@@ -20,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 csrf_validate();
 
 ticket_ensure_chat_tables($conn);
+ticket_ensure_assignment_columns($conn);
 
 if (!isset($_POST['ticket_id']) || !isset($_POST['message'])) {
     http_response_code(400);
@@ -38,7 +39,7 @@ if (empty($message)) {
 }
 
 $ticket = null;
-$ticketStmt = $conn->prepare("SELECT id, user_id, assigned_user_id, subject, priority FROM employee_tickets WHERE id = ? LIMIT 1");
+$ticketStmt = $conn->prepare("SELECT id, user_id, assigned_user_id, assigned_to, assigned_department, assigned_group, assigned_company, company, subject, priority, status FROM employee_tickets WHERE id = ? LIMIT 1");
 if ($ticketStmt) {
     $ticketStmt->bind_param("i", $ticket_id);
     $ticketStmt->execute();
@@ -52,10 +53,36 @@ if (!$ticket) {
     exit;
 }
 $requesterId = (int) ($ticket['user_id'] ?? 0);
-$assigneeId = (int) ($ticket['assigned_user_id'] ?? 0);
-if (!$is_admin && $sender_id !== $requesterId && ($assigneeId <= 0 || $sender_id !== $assigneeId)) {
+$userContext = ticket_build_user_context($conn, $sender_id, $_SESSION);
+$isHandlerCandidate = ticket_user_is_handler_candidate($ticket, $sender_id, $userContext);
+$ticketWasUnassigned = empty($ticket['assigned_to']);
+if ($sender_id !== $requesterId && $ticketWasUnassigned && $isHandlerCandidate) {
+    ticket_claim_first_handler_on_reply($conn, $ticket_id, $sender_id);
+    $reloadStmt = $conn->prepare("SELECT id, user_id, assigned_user_id, assigned_to, assigned_department, assigned_group, assigned_company, company, subject, priority, status FROM employee_tickets WHERE id = ? LIMIT 1");
+    if ($reloadStmt) {
+        $reloadStmt->bind_param("i", $ticket_id);
+        $reloadStmt->execute();
+        $reloadRes = $reloadStmt->get_result();
+        $reloadedTicket = $reloadRes ? $reloadRes->fetch_assoc() : null;
+        $reloadStmt->close();
+        if ($reloadedTicket) $ticket = $reloadedTicket;
+    }
+}
+$handlerId = (int) ($ticket['assigned_to'] ?? 0);
+$fallbackAssigneeId = (int) ($ticket['assigned_user_id'] ?? 0);
+if (!$is_admin && !ticket_user_can_chat($ticket, $sender_id, $userContext)) {
     http_response_code(403);
-    echo json_encode(['error' => 'Access Denied']);
+    echo json_encode(['success' => false, 'message' => 'You are not allowed to send messages']);
+    exit;
+}
+if ($is_admin && !ticket_user_can_chat($ticket, $sender_id, $userContext)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'You are not allowed to send messages']);
+    exit;
+}
+if ($sender_id !== $requesterId && $sender_id !== $handlerId) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'You are not allowed to send messages']);
     exit;
 }
 
@@ -65,6 +92,9 @@ $stmt->bind_param("iis", $ticket_id, $sender_id, $message);
 
 if ($stmt->execute()) {
     $stmt->close();
+    if ($sender_id === $handlerId) {
+        ticket_promote_status_on_first_handler_reply($conn, $ticket_id, $sender_id);
+    }
     echo json_encode(['success' => true]);
     if (session_status() === PHP_SESSION_ACTIVE) {
         session_write_close();
@@ -78,7 +108,7 @@ if ($stmt->execute()) {
 
     $recipientId = 0;
     if ($sender_id === $requesterId) {
-        $recipientId = $assigneeId;
+        $recipientId = $handlerId > 0 ? $handlerId : $fallbackAssigneeId;
     } else {
         $recipientId = $requesterId;
     }

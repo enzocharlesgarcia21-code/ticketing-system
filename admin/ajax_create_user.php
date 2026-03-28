@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/mailer.php';
+require_once '../includes/ticket_assignment.php';
 
 header('Content-Type: application/json');
 
@@ -108,6 +109,15 @@ if (!in_array($domain, $allowedDomains, true)) {
     json_error('Invalid domain selected.', 400, 'domain_invalid');
 }
 
+$noDepartmentDomains = [
+    '@farmasee.ph',
+    '@malvedaproperties.com',
+    '@lingapleads.org',
+    '@leads-eh.com',
+    '@leadsanimalhealth.com',
+    '@leadsav.com',
+];
+
 $email = $username . $domain;
 if (preg_match('/\s/', $email)) {
     json_error('Email must not contain spaces.', 400, 'email_has_spaces');
@@ -117,7 +127,9 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     json_error('Please enter a valid email address.', 400, 'email_invalid');
 }
 
-if ($department === '') {
+if (in_array($domain, $noDepartmentDomains, true)) {
+    $department = '';
+} elseif ($department === '') {
     json_error('Department is required.', 400, 'department_required');
 }
 
@@ -156,7 +168,8 @@ if ($existsRow && isset($existsRow['id'])) {
 $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
 $role = 'employee';
-$company = '';
+$company = ticket_notification_company_key($domain);
+$company = $company !== '' ? $company : $domain;
 $otp = '000000';
 $verified = 1;
 

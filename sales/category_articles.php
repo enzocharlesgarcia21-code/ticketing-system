@@ -307,20 +307,28 @@ if ($stmt) {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 46px;
-            height: 46px;
-            color: #1B5E20;
+            gap: 9px;
+            min-height: 28px;
+            padding: 4px 18px;
+            color: #ffffff;
             text-decoration: none;
-            font-weight: 700;
+            font-weight: 800;
             margin-bottom: 18px;
-            border: 1px solid #D1E7D3;
-            border-radius: 12px;
-            background: #ffffff;
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+            border: 1px solid rgba(201, 232, 194, 0.54);
+            border-radius: 999px;
+            background: #3d7a47;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            font-size: 12px;
+            transition: background 0.2s, border-color 0.2s, transform 0.2s;
         }
 
         .back-link:hover {
-            background: #F0FDF4;
+            background: #4b8a55;
+            border-color: rgba(220, 245, 215, 0.62);
+            transform: translateY(-1px);
+        }
+        .back-link i {
+            color: #f6cf4a;
         }
 
         .category-header {
@@ -657,6 +665,7 @@ if ($stmt) {
         <div class="category-shell">
             <a href="knowledge_base.php" class="back-link">
                 <i class="fas fa-arrow-left"></i>
+                <span>Back</span>
             </a>
 
             <div class="category-header">

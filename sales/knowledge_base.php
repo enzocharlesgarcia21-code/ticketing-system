@@ -54,18 +54,22 @@ function kb_category_label(string $category): string
     return $normalized !== '' ? $normalized : 'Documentation';
 }
 
-function kb_category_icon_class(string $category): string
+function kb_category_meta(string $category): array
 {
-    $key = strtolower(kb_normalize_category_name($category));
-    if (strpos($key, 'documentation') !== false) return 'fa-book-open';
-    if (strpos($key, 'software') !== false) return 'fa-laptop';
-    if (strpos($key, 'hardware') !== false) return 'fa-screwdriver-wrench';
-    if (strpos($key, 'network') !== false || strpos($key, 'internet') !== false) return 'fa-globe';
-    if (strpos($key, 'email') !== false) return 'fa-envelope';
-    if (strpos($key, 'procurement') !== false) return 'fa-cart-shopping';
-    if (strpos($key, 'technical') !== false) return 'fa-headset';
-    if (strpos($key, 'other') !== false) return 'fa-folder';
-    return 'fa-folder';
+    $label = kb_category_label($category);
+    $map = [
+        'Documentation' => ['icon' => 'fa-file-lines', 'tone' => 'teal'],
+        'Email' => ['icon' => 'fa-envelope', 'tone' => 'sand'],
+        'Hardware' => ['icon' => 'fa-screwdriver-wrench', 'tone' => 'violet'],
+        'Internet Concerns' => ['icon' => 'fa-globe', 'tone' => 'blue'],
+        'Procurement' => ['icon' => 'fa-cart-shopping', 'tone' => 'emerald'],
+        'Software' => ['icon' => 'fa-desktop', 'tone' => 'sky'],
+        'Technical Support' => ['icon' => 'fa-headset', 'tone' => 'mint'],
+        'Others' => ['icon' => 'fa-folder', 'tone' => 'slate'],
+        'Uncategorized' => ['icon' => 'fa-folder-open', 'tone' => 'slate'],
+    ];
+
+    return $map[$label] ?? $map['Others'];
 }
 
 function kb_is_standard_category(string $category): bool
@@ -169,7 +173,8 @@ foreach ($fixedCategories as $fixedCategory) {
         'id' => $categoryIndex,
         'raw' => $fixedCategory,
         'label' => $fixedCategory,
-        'icon' => kb_category_icon_class($fixedCategory),
+        'icon' => kb_category_meta($fixedCategory)['icon'],
+        'tone' => kb_category_meta($fixedCategory)['tone'],
         'total_articles' => (int) ($categoryCounts[$fixedCategory] ?? 0),
     ];
     $categoryMap[$categoryIndex] = $fixedCategory;
@@ -381,6 +386,7 @@ if ($showCategoryView) {
             align-items: center;
             justify-content: flex-end;
             flex: 0 0 auto;
+            gap: 10px;
         }
 
         .sales-nav-link {
@@ -647,17 +653,26 @@ if ($showCategoryView) {
         }
 
         .category-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
+            width: 54px;
+            height: 54px;
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
-            color: #1B5E20;
-            background: #F0FDF4;
+            font-size: 22px;
+            color: #ffffff;
             flex: 0 0 auto;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
         }
+
+        .tone-teal .category-icon { background: linear-gradient(135deg, #6fd0c3 0%, #4099a0 100%); }
+        .tone-sand .category-icon { background: linear-gradient(135deg, #f0d48f 0%, #d9b764 100%); }
+        .tone-violet .category-icon { background: linear-gradient(135deg, #b895ff 0%, #8668f1 100%); }
+        .tone-blue .category-icon { background: linear-gradient(135deg, #74b7ff 0%, #4f86ff 100%); }
+        .tone-emerald .category-icon { background: linear-gradient(135deg, #5fd1b4 0%, #1ca57d 100%); }
+        .tone-sky .category-icon { background: linear-gradient(135deg, #7eb9ff 0%, #5d8fff 100%); }
+        .tone-mint .category-icon { background: linear-gradient(135deg, #6fd8da 0%, #43b4c5 100%); }
+        .tone-slate .category-icon { background: linear-gradient(135deg, #b5bfd0 0%, #7d8ca5 100%); }
 
         .category-info h4 {
             margin: 0 0 4px;
@@ -686,25 +701,29 @@ if ($showCategoryView) {
         .back-btn {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
+            gap: 10px;
             margin-bottom: 16px;
-            padding: 10px 16px;
-            border-radius: 12px;
-            border: 1px solid #CFE7D1;
-            background: #FFFFFF;
-            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
-            color: #1B5E20;
-            font-size: 14px;
-            font-weight: 700;
+            padding: 4px 20px;
+            min-height: 30px;
+            border-radius: 999px;
+            border: 1px solid rgba(201, 232, 194, 0.54);
+            background: #3d7a47;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 800;
             text-decoration: none;
-            transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+            transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
         }
 
         .back-btn:hover {
-            background: #F0FDF4;
-            border-color: #A9D6AE;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+            background: #4b8a55;
+            border-color: rgba(220, 245, 215, 0.62);
             transform: translateY(-1px);
+        }
+        .back-btn i {
+            color: #f6cf4a;
         }
 
         /* Grid Layout */
@@ -956,6 +975,10 @@ if ($showCategoryView) {
                 </div>
             </div>
             <div class="sales-nav-right">
+                <a class="sales-nav-link" href="../index.php">
+                    <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-arrow-left"></i></span>
+                    <span>Back</span>
+                </a>
                 <a class="sales-nav-link" href="/ticketing/sales/request_ticket.php">
                     <span>Submit Ticket</span>
                     <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
@@ -1048,7 +1071,7 @@ if ($showCategoryView) {
         <?php if ($showCategoryView): ?>
             <div class="categories-section">
                 <?php if ($activeCategory === 'Others' && $selectedSubCategory === ''): ?>
-                    <a href="knowledge_base.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back to Categories</a>
+                    <a href="knowledge_base.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
                     <h2 class="categories-title">Other Categories</h2>
                     <?php if (empty($othersSubcategories)): ?>
                         <div class="no-results">
@@ -1075,7 +1098,7 @@ if ($showCategoryView) {
                         </div>
                     <?php endif; ?>
                 <?php else: ?>
-                    <a href="<?= $activeCategory === 'Others' ? 'knowledge_base.php?category=Others' : 'knowledge_base.php' ?>" class="back-btn"><i class="fas fa-arrow-left"></i> <?= $activeCategory === 'Others' ? 'Back to Others' : 'Back to Categories' ?></a>
+                    <a href="<?= $activeCategory === 'Others' ? 'knowledge_base.php?category=Others' : 'knowledge_base.php' ?>" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
                     <h2 class="articles-heading"><?= htmlspecialchars($activeCategory === 'Others' ? ($selectedSubCategory !== '' ? $selectedSubCategory : 'Others') : $categoryViewTitle) ?> Articles</h2>
                     <?php if (empty($categoryArticles)): ?>
                         <div class="no-results">
@@ -1121,7 +1144,7 @@ if ($showCategoryView) {
                     <?php foreach ($categoryCards as $categoryCard): ?>
                         <a
                             href="knowledge_base.php?category=<?= urlencode($categoryCard['raw']) ?>"
-                            class="category-card"
+                            class="category-card tone-<?= htmlspecialchars($categoryCard['tone']) ?>"
                         >
                             <div class="category-icon">
                                 <i class="fas <?= htmlspecialchars($categoryCard['icon']) ?>"></i>

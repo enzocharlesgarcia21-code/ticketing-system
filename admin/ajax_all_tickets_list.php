@@ -60,10 +60,17 @@ function time_ago_days(string $dateTime): string
     return $days . ' days ago';
 }
 
-function sla_badge_html(string $createdAt, string $status): string
+function sla_badge_html(string $createdAt, string $status, string $priority = ''): string
 {
     $statusKey = strtolower(trim($status));
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
+    $priorityKey = strtolower(trim($priority));
+    if ($priorityKey === 'critical') {
+        return '<span class="badge badge-critical">Breached</span>';
+    }
+    if ($priorityKey === 'high') {
+        return '<span class="badge badge-high">At Risk</span>';
+    }
     $createdAt = trim($createdAt);
     if ($createdAt === '') return '-';
     try {
@@ -94,10 +101,10 @@ $view = trim((string) ($_GET['view'] ?? ''));
 $view = $view === 'trash' ? 'closed' : $view;
 $page = (int) ($_GET['page'] ?? 1);
 $allowedLimits = [10, 25, 50, 100, 500, 1000];
-$limit = (int) ($_GET['limit'] ?? 25);
+$limit = (int) ($_GET['limit'] ?? 10);
 
 if ($page < 1) $page = 1;
-if (!in_array($limit, $allowedLimits, true)) $limit = 25;
+if (!in_array($limit, $allowedLimits, true)) $limit = 10;
 $offset = ($page - 1) * $limit;
 
 $where = [];
@@ -157,8 +164,8 @@ if ($status !== '' && $view !== 'closed') {
 if ($companyEmail !== '') {
     $domain = normalize_domain($companyEmail);
     if ($domain !== '') {
-        $where[] = "LOWER(COALESCE(NULLIF(t.requester_email,''), u.email)) LIKE ?";
-        $params[] = '%' . $domain;
+        $where[] = "LOWER(COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))) = ?";
+        $params[] = $domain;
         $types .= 's';
     }
 }
@@ -169,7 +176,8 @@ if ($search !== '') {
     $searchIdInt = (int) $searchId;
     $searchById = ($searchId !== '' && $searchIdInt > 0);
 
-    $chunk = "(u.name LIKE ? OR COALESCE(NULLIF(t.requester_email,''), u.email) LIKE ? OR t.subject LIKE ? OR CAST(t.id AS CHAR) LIKE ?";
+    $chunk = "(u.name LIKE ? OR COALESCE(NULLIF(t.requester_email,''), u.email) LIKE ? OR t.subject LIKE ? OR t.description LIKE ? OR CAST(t.id AS CHAR) LIKE ?";
+    $params[] = $term; $types .= 's';
     $params[] = $term; $types .= 's';
     $params[] = $term; $types .= 's';
     $params[] = $term; $types .= 's';
@@ -183,7 +191,7 @@ if ($search !== '') {
     $where[] = $chunk;
 }
 
-$baseFrom = " FROM employee_tickets t JOIN users u ON t.user_id = u.id";
+$baseFrom = " FROM employee_tickets t LEFT JOIN users u ON t.user_id = u.id";
 $whereSql = count($where) ? (" WHERE " . implode(" AND ", $where)) : "";
 
 $countSql = "SELECT COUNT(*) as total" . $baseFrom . $whereSql;
@@ -254,7 +262,15 @@ while ($res && ($row = $res->fetch_assoc())) {
     $statusVal = (string) ($row['status'] ?? '');
     $createdAt = (string) ($row['created_at'] ?? '');
     $dateStr = $createdAt !== '' ? time_ago_days($createdAt) : '';
-    $slaHtml = sla_badge_html($createdAt, $statusVal);
+    $slaHtml = sla_badge_html($createdAt, $statusVal, (string) ($row['priority'] ?? ''));
+    $assignedCompanyDisplay = strtolower(trim((string) ($row['assigned_company'] ?? '')));
+    $assignedToDisplay = trim((string) ($row['assigned_department'] ?? ''));
+    if ($assignedCompanyDisplay !== '@leadsagri.com' && $assignedCompanyDisplay !== 'lapc') {
+        $assignedToDisplay = trim((string) ($row['assigned_company'] ?? ''));
+    }
+    if ($assignedToDisplay === '') {
+        $assignedToDisplay = trim((string) ($row['assigned_department'] ?? ''));
+    }
     $rowsHtml .= '<tr class="ticket-row" data-id="' . (string) $id . '" style="cursor:pointer;' . ($isUnread ? 'background:rgba(27, 94, 32, 0.08);' : '') . '">';
     $rowsHtml .= '<td data-label="ID">#' . str_pad((string) $id, 6, '0', STR_PAD_LEFT) . '</td>';
     $rowsHtml .= '<td data-label="Requested By"><div class="user-info"><strong>' . h($dispName) . '</strong><br><small>' . h($dispEmail) . '</small></div></td>';
@@ -263,7 +279,7 @@ while ($res && ($row = $res->fetch_assoc())) {
     $rowsHtml .= '<td data-label="Original Dept">' . h($origDept) . '</td>';
     $rowsHtml .= '<td data-label="Date">' . h($dateStr) . '</td>';
     $rowsHtml .= '<td data-label="SLA">' . $slaHtml . '</td>';
-    $rowsHtml .= '<td data-label="Assign To">' . h((string) $assignedDept) . '</td>';
+    $rowsHtml .= '<td data-label="Assign To">' . h(ticket_company_display_name((string) $assignedToDisplay)) . '</td>';
     $rowsHtml .= '</tr>';
 }
 $stmt->close();
@@ -275,6 +291,7 @@ $queryBase = [
     'priority' => $priority,
     'status' => $status,
     'view' => $view,
+    'limit' => $limit,
 ];
 $paginationHtml = '';
 if ($totalPages > 1) {
@@ -287,7 +304,7 @@ if ($totalPages > 1) {
     $paginationHtml .= '<a href="?' . h(http_build_query($prevParams)) . '" data-page="' . (string) max(1, $page - 1) . '" class="page-btn prev ' . ($page <= 1 ? 'disabled' : '') . '">&lsaquo; Previous</a>';
     $paginationHtml .= '<div class="page-numbers">';
     $paginationItems = [];
-    if ($totalPages < 10) {
+    if ($totalPages <= 5) {
         for ($i = 1; $i <= $totalPages; $i++) {
             $paginationItems[] = $i;
         }
@@ -296,11 +313,11 @@ if ($totalPages > 1) {
         $windowStart = max(2, $page - 1);
         $windowEnd = min($totalPages - 1, $page + 1);
 
-        if ($page <= 4) {
+        if ($page <= 3) {
             $windowStart = 2;
-            $windowEnd = 5;
-        } elseif ($page >= $totalPages - 3) {
-            $windowStart = $totalPages - 4;
+            $windowEnd = 3;
+        } elseif ($page >= $totalPages - 2) {
+            $windowStart = $totalPages - 2;
             $windowEnd = $totalPages - 1;
         }
 
@@ -329,10 +346,15 @@ if ($totalPages > 1) {
     $paginationHtml .= '</div>';
 }
 
+$summaryStart = $total > 0 ? ($offset + 1) : 0;
+$summaryEnd = $total > 0 ? min($total, $offset + $limit) : 0;
+$summaryText = 'Showing ' . number_format($summaryStart) . '-' . number_format($summaryEnd) . ' of ' . number_format($total) . ' tickets';
+
 echo json_encode([
     'ok' => true,
     'rows_html' => $rowsHtml,
     'pagination_html' => $paginationHtml,
+    'summary_text' => $summaryText,
     'page' => $page,
     'total_pages' => $totalPages,
     'total' => $total,

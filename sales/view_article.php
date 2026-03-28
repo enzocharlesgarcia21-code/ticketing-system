@@ -209,18 +209,19 @@ function renderArticleContent($text) {
         }
 
         .sales-brand-title {
-            font-weight: 700;
-            letter-spacing: 0.01em;
+            font-weight: 600;
             color: #f8f6ee;
-            font-size: 19px;
+            font-size: 17px;
             text-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
         .sales-brand-subtitle {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             color: #e5bf59;
             margin-top: 4px;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
         .sales-nav-right {
@@ -273,22 +274,28 @@ function renderArticleContent($text) {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 46px;
-            height: 46px;
-            color: #6B7280;
+            gap: 9px;
+            min-height: 28px;
+            padding: 4px 18px;
+            color: #ffffff;
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 800;
             margin-bottom: 30px;
-            border: 1px solid #D1E7D3;
-            border-radius: 12px;
-            background: #ffffff;
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
-            transition: background 0.2s, color 0.2s;
+            border: 1px solid rgba(201, 232, 194, 0.54);
+            border-radius: 999px;
+            background: #3d7a47;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            transition: background 0.2s, border-color 0.2s, transform 0.2s;
+            font-size: 12px;
         }
 
         .back-link:hover {
-            color: #1B5E20;
-            background: #F0FDF4;
+            background: #4b8a55;
+            border-color: rgba(220, 245, 215, 0.62);
+            transform: translateY(-1px);
+        }
+        .back-link i {
+            color: #f6cf4a;
         }
 
         .article-card {
@@ -595,17 +602,20 @@ function renderArticleContent($text) {
             }
 
             .sales-brand-title {
-                font-size: 18px;
+                font-size: 15px;
                 font-weight: 600;
-                line-height: 1.3;
+                line-height: 1.08;
                 text-align: left;
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
             }
 
             .sales-brand-subtitle {
-                font-size: 14px;
+                font-size: 11px;
                 color: #FACC15;
                 margin-top: 4px;
                 text-align: left;
+                line-height: 1.08;
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
             }
 
             .sales-nav-right {
@@ -680,6 +690,7 @@ function renderArticleContent($text) {
         
         <a href="<?= htmlspecialchars($back_url) ?>" class="back-link" aria-label="Back to Category Articles">
             <i class="fas fa-arrow-left"></i>
+            <span>Back</span>
         </a>
 
         <article class="article-card">

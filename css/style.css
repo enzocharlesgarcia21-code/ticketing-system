@@ -241,8 +241,8 @@ tr:hover {
 
 /* Status */
 .badge-open {
-    background: #fefce8;
-    color: #eab308;
+    background: #dcfce7;
+    color: #16a34a;
 }
 
 /* ================= GRAPH LAYOUT ================= */
@@ -424,7 +424,7 @@ tr:hover {
 }
 
 .status-open {
-    background: #eab308;
+    background: var(--primary-green);
 }
 
 .status-in-progress {
@@ -432,7 +432,7 @@ tr:hover {
 }
 
 .status-resolved {
-    background: var(--primary-green-dark);
+    background: #2563eb;
 }
 /* ================= DASHBOARD WELCOME ================= */
 

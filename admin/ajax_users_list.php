@@ -41,28 +41,6 @@ if ($q !== '') {
     $types .= 'ss';
 }
 
-if ($department !== '' && $department !== 'all') {
-    $deptKey = strtoupper($department);
-    $aliasMap = [
-        'ACCOUNTING' => ['ACCOUNTING'],
-        'ADMIN' => ['ADMIN', 'ADMINISTRATION'],
-        'E-COMM' => ['E-COMM', 'E-COMMERCE', 'ECOMM', 'E COMMERCE'],
-        'HR' => ['HR', 'HUMAN RESOURCE', 'HUMAN RESOURCES', 'HUMAN RESOURCE AND TRANSFORMATION'],
-        'IT' => ['IT'],
-        'LINGAP' => ['LINGAP', 'DIAGNOSTICS / LINGAP', 'DIAGNOSTICS/LINGAP'],
-        'MARKETING' => ['MARKETING'],
-        'SUPPLY CHAIN' => ['SUPPLY CHAIN', 'LOGISTICS'],
-        'TECHNICAL' => ['TECHNICAL'],
-    ];
-    $aliases = $aliasMap[$deptKey] ?? [$deptKey];
-    $placeholders = implode(',', array_fill(0, count($aliases), '?'));
-    $where[] = "UPPER(department) IN ($placeholders)";
-    foreach ($aliases as $a) {
-        $params[] = strtoupper($a);
-        $types .= 's';
-    }
-}
-
 if ($role !== '' && $role !== 'all') {
     $where[] = "role = ?";
     $params[] = $role;
@@ -77,6 +55,35 @@ if ($company !== '' && $company !== 'all') {
     } else {
         $where[] = "company = ?";
         $params[] = $company;
+        $types .= 's';
+    }
+}
+
+if ($company === '@leadsagri.com' && $department !== '' && $department !== 'all') {
+    $deptKey = strtoupper($department);
+    $aliasMap = [
+        'ADMIN & LEGAL' => ['ADMIN & LEGAL', 'ADMIN', 'ADMINISTRATION'],
+        'BANANA FARM OPERATIONS' => ['BANANA FARM OPERATIONS'],
+        'DIAGNOSTICS / LINGAP' => ['DIAGNOSTICS / LINGAP', 'DIAGNOSTICS/LINGAP', 'LINGAP'],
+        'DIGITAL AGRI SOLUTIONS AND INNOVATIONS' => ['DIGITAL AGRI SOLUTIONS AND INNOVATIONS'],
+        'E-COMMERCE' => ['E-COMMERCE', 'E-COMM', 'ECOMM', 'E COMMERCE'],
+        'EXECUTIVE' => ['EXECUTIVE'],
+        'FINANCE AND ACCOUNTING' => ['FINANCE AND ACCOUNTING', 'ACCOUNTING'],
+        'HUMAN RESOURCE AND TRANSFORMATION' => ['HUMAN RESOURCE AND TRANSFORMATION', 'HUMAN RESOURCE', 'HUMAN RESOURCES', 'HR'],
+        'INSTITUTIONAL SALES' => ['INSTITUTIONAL SALES', 'SALES'],
+        'MANAGEMENT' => ['MANAGEMENT'],
+        'MARKETING' => ['MARKETING'],
+        'NEW BUSINESS SEGMENT' => ['NEW BUSINESS SEGMENT'],
+        'SEED PRODUCTION' => ['SEED PRODUCTION'],
+        'SUPPLY CHAIN' => ['SUPPLY CHAIN', 'LOGISTICS'],
+        'SUPPLY CHAIN INNOVATION' => ['SUPPLY CHAIN INNOVATION'],
+        'TECHNICAL' => ['TECHNICAL'],
+    ];
+    $aliases = $aliasMap[$deptKey] ?? [$deptKey];
+    $placeholders = implode(',', array_fill(0, count($aliases), '?'));
+    $where[] = "UPPER(department) IN ($placeholders)";
+    foreach ($aliases as $a) {
+        $params[] = strtoupper($a);
         $types .= 's';
     }
 }

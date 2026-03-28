@@ -472,6 +472,9 @@ if ($ticketsStmt) {
         .analytics-toolbar {
             padding: 18px 18px 16px;
             margin-bottom: 22px;
+            position: relative;
+            z-index: 50;
+            overflow: visible;
         }
         .analytics-filterbar {
             display: block;
@@ -487,6 +490,8 @@ if ($ticketsStmt) {
             flex-direction: column;
             gap: 7px;
             min-width: 0;
+            position: relative;
+            z-index: 1;
         }
         .analytics-filter label {
             font-size: 12px;
@@ -539,6 +544,83 @@ if ($ticketsStmt) {
         }
         .analytics-status-row .analytics-control {
             flex: 1 1 auto;
+        }
+        .assignee-dropdown {
+            position: relative;
+            z-index: 70;
+        }
+        .assignee-trigger {
+            width: 100%;
+            min-height: 52px;
+            border-radius: 15px;
+            border: 1px solid #d9dee8;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 16px;
+            font-weight: 500;
+            padding: 0 44px 0 16px;
+            display: flex;
+            align-items: center;
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+        }
+        .assignee-trigger::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #1f2937;
+            font-size: 13px;
+            pointer-events: none;
+            transition: transform 0.2s ease;
+        }
+        .assignee-dropdown.open .assignee-trigger::after {
+            transform: translateY(-50%) rotate(180deg);
+        }
+        .assignee-trigger:focus-visible {
+            outline: 2px solid rgba(22, 101, 52, 0.22);
+            outline-offset: 2px;
+        }
+        .assignee-panel {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border: 1px solid #d9dee8;
+            border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+            max-height: 268px;
+            overflow-y: auto;
+            z-index: 999;
+            display: none;
+            padding: 6px 0;
+        }
+        .assignee-dropdown.open .assignee-panel {
+            display: block;
+        }
+        .assignee-option {
+            width: 100%;
+            border: 0;
+            background: transparent;
+            color: #374151;
+            font-size: 15px;
+            text-align: left;
+            padding: 10px 14px;
+            cursor: pointer;
+            display: block;
+        }
+        .assignee-option:hover,
+        .assignee-option:focus-visible,
+        .assignee-option.is-selected {
+            background: #767676;
+            color: #ffffff;
+            outline: none;
         }
         .analytics-status-row .analytics-inline-clear {
             min-height: 48px;
@@ -726,14 +808,14 @@ if ($ticketsStmt) {
             color: #5f5400;
         }
         .status-in-progress {
-            background: #dbeafe;
-            border-color: #bfdbfe;
-            color: #1d4ed8;
-        }
-        .status-resolved {
             background: #dcfce7;
             border-color: #bbf7d0;
             color: #166534;
+        }
+        .status-resolved {
+            background: #dbeafe;
+            border-color: #bfdbfe;
+            color: #1d4ed8;
         }
         .status-closed {
             background: #ffedd5;
@@ -741,61 +823,110 @@ if ($ticketsStmt) {
             color: #9a3412;
         }
         .pagination-row {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
             align-items: center;
             gap: 12px;
             margin-top: 16px;
-            flex-wrap: wrap;
+        }
+        .entries-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #334155;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .entries-select {
+            min-width: 120px;
+            height: 50px;
+            border-radius: 14px;
+            border: 1px solid #d8e2ec;
+            background: #ffffff;
+            color: #334155;
+            font-size: 14px;
+            font-weight: 700;
+            padding: 0 44px 0 18px;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+            outline: none;
         }
         .pagination-info {
             color: #6b7280;
             font-weight: 700;
             font-size: 13px;
+            white-space: nowrap;
+            text-align: center;
+            justify-self: center;
+        }
+        .pagination-row > .pagination-info:first-of-type {
+            display: none;
         }
         .pagination-controls {
             display: flex;
-            gap: 8px;
+            gap: 12px;
             align-items: center;
             justify-content: flex-end;
+            justify-self: end;
+            flex-wrap: wrap;
+        }
+        .pagination-pages {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             flex-wrap: wrap;
         }
         .page-btn {
             min-width: 40px;
             height: 40px;
-            padding: 0 15px;
+            padding: 0 14px;
             border-radius: 999px;
-            border: 1px solid #d7e2ea;
+            border: 1px solid #d8e2ec;
             background: #ffffff;
-            color: #0f172a;
-            font-weight: 600;
+            color: #334155;
+            font-weight: 700;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             text-decoration: none;
-            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
             transition: all 0.2s ease;
         }
         .page-btn.prev,
         .page-btn.next {
-            min-width: 110px;
-            padding: 0 18px;
+            min-width: 78px;
+            padding: 0 16px;
         }
-        .page-btn:hover {
+        .page-btn:hover:not(.active):not(.disabled) {
             background: #f8fafc;
+            border-color: #cfd9e3;
             transform: translateY(-1px);
-            border-color: #cbd5e1;
         }
         .page-btn.active {
             background: #166534;
             color: #ffffff;
             border-color: #166534;
-            box-shadow: 0 10px 18px rgba(22, 101, 52, 0.22);
+            box-shadow: 0 10px 24px rgba(22, 101, 52, 0.26);
         }
         .page-btn.disabled {
             opacity: 0.45;
             pointer-events: none;
             box-shadow: none;
+            background: #ffffff;
+            border-color: #d8e2ec;
+        }
+        .pagination-ellipsis {
+            min-width: 24px;
+            height: 42px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
         }
 
         @media (max-width: 1280px) {
@@ -853,6 +984,45 @@ if ($ticketsStmt) {
                 font-size: 13px;
                 padding: 13px 10px;
             }
+            .pagination-row {
+                grid-template-columns: 1fr;
+                justify-items: center;
+            }
+            .entries-row {
+                justify-content: center;
+            }
+            .entries-select {
+                min-width: 110px;
+                height: 44px;
+            }
+            .pagination-info {
+                text-align: center;
+            }
+            .pagination-controls {
+                justify-content: center;
+                justify-self: center;
+                gap: 8px;
+            }
+            .pagination-pages {
+                gap: 8px;
+                justify-content: center;
+            }
+            .page-btn {
+                min-width: 38px;
+                height: 38px;
+                padding: 0 13px;
+                font-size: 13px;
+            }
+            .page-btn.prev,
+            .page-btn.next {
+                min-width: 74px;
+                padding: 0 14px;
+            }
+            .pagination-ellipsis {
+                min-width: 18px;
+                height: 38px;
+                font-size: 16px;
+            }
         }
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -902,14 +1072,32 @@ if ($ticketsStmt) {
                         </div>
                         <div class="analytics-filter">
                             <label>Assignee</label>
-                            <select class="analytics-control" name="assignee">
-                                <option value="0" <?= (int) $assignee_filter === 0 ? 'selected' : '' ?> disabled hidden>Select </option>
-                                <?php foreach ($assignees as $a): ?>
-                                    <option value="<?= (int) ($a['id'] ?? 0); ?>" <?= (int) $assignee_filter === (int) ($a['id'] ?? 0) ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars((string) ($a['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <?php
+                                $selectedAssigneeLabel = 'Select';
+                                foreach ($assignees as $a) {
+                                    if ((int) $assignee_filter === (int) ($a['id'] ?? 0)) {
+                                        $selectedAssigneeLabel = (string) ($a['name'] ?? 'Select');
+                                        break;
+                                    }
+                                }
+                            ?>
+                            <div class="assignee-dropdown" id="assigneeDropdown">
+                                <input type="hidden" name="assignee" id="assigneeInput" value="<?= (int) $assignee_filter ?>">
+                                <button type="button" class="assignee-trigger" id="assigneeTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                    <span id="assigneeTriggerLabel"><?= htmlspecialchars($selectedAssigneeLabel, ENT_QUOTES, 'UTF-8') ?></span>
+                                </button>
+                                <div class="assignee-panel" id="assigneePanel" role="listbox" tabindex="-1">
+                                    <?php foreach ($assignees as $a): ?>
+                                        <button
+                                            type="button"
+                                            class="assignee-option <?= (int) $assignee_filter === (int) ($a['id'] ?? 0) ? 'is-selected' : '' ?>"
+                                            data-value="<?= (int) ($a['id'] ?? 0); ?>"
+                                        >
+                                            <?= htmlspecialchars((string) ($a['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                                        </button>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
                         </div>
                         <div class="analytics-filter">
                             <label>Department</label>
@@ -1055,6 +1243,25 @@ if ($ticketsStmt) {
                     <div class="pagination-info">
                         Showing <?= (int) $startNum ?> – <?= (int) $endNum ?> of <?= (int) $tickets_total ?> tickets
                     </div>
+                    <form method="GET" action="analytics.php" class="entries-row">
+                            <input type="hidden" name="start_date" value="<?= htmlspecialchars($start_date, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="end_date" value="<?= htmlspecialchars($end_date, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="category" value="<?= htmlspecialchars($category_filter, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="assignee" value="<?= htmlspecialchars((string) $assignee_filter, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="department" value="<?= htmlspecialchars($department_filter, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="status" value="<?= htmlspecialchars($status_filter, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="page" value="1">
+                            <span>Show</span>
+                            <select name="entries" class="entries-select" onchange="this.form.submit()">
+                                <?php foreach ([10, 25, 50, 100] as $entriesOption): ?>
+                                    <option value="<?= (int) $entriesOption ?>" <?= (int) $entries === (int) $entriesOption ? 'selected' : '' ?>><?= (int) $entriesOption ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <span>Entries</span>
+                    </form>
+                    <div class="pagination-info">
+                        Showing <?= (int) $startNum ?> - <?= (int) $endNum ?> of <?= (int) $tickets_total ?> tickets
+                    </div>
                     <?php if ($tickets_total_pages > 1): ?>
                         <div class="pagination-controls">
                             <?php
@@ -1069,16 +1276,49 @@ if ($ticketsStmt) {
                                 ];
                                 $prevPage = max(1, $page - 1);
                                 $nextPage = min($tickets_total_pages, $page + 1);
+                                $paginationPages = [];
+                                if ($tickets_total_pages <= 5) {
+                                    for ($i = 1; $i <= $tickets_total_pages; $i++) {
+                                        $paginationPages[] = $i;
+                                    }
+                                } else {
+                                    $paginationPages = [1];
+                                    $windowStart = max(2, $page - 1);
+                                    $windowEnd = min($tickets_total_pages - 1, $page + 1);
+
+                                    if ($page <= 3) {
+                                        $windowStart = 2;
+                                        $windowEnd = 3;
+                                    } elseif ($page >= $tickets_total_pages - 2) {
+                                        $windowStart = max(2, $tickets_total_pages - 2);
+                                        $windowEnd = $tickets_total_pages - 1;
+                                    }
+
+                                    if ($windowStart > 2) {
+                                        $paginationPages[] = 'ellipsis';
+                                    }
+
+                                    for ($i = $windowStart; $i <= $windowEnd; $i++) {
+                                        $paginationPages[] = $i;
+                                    }
+
+                                    if ($windowEnd < $tickets_total_pages - 1) {
+                                        $paginationPages[] = 'ellipsis';
+                                    }
+
+                                    $paginationPages[] = $tickets_total_pages;
+                                }
                             ?>
                             <a class="page-btn prev <?= $page <= 1 ? 'disabled' : '' ?>" href="?<?= http_build_query(array_merge($qsBase, ['page' => $prevPage])) ?>">&lsaquo; Previous</a>
-                            <?php
-                                $startP = max(1, $page - 2);
-                                $endP = min($tickets_total_pages, $startP + 4);
-                                $startP = max(1, $endP - 4);
-                                for ($p = $startP; $p <= $endP; $p++):
-                            ?>
-                                <a class="page-btn <?= $p === $page ? 'active' : '' ?>" href="?<?= http_build_query(array_merge($qsBase, ['page' => $p])) ?>"><?= (int) $p ?></a>
-                            <?php endfor; ?>
+                            <div class="pagination-pages">
+                                <?php foreach ($paginationPages as $paginationItem): ?>
+                                    <?php if ($paginationItem === 'ellipsis'): ?>
+                                        <span class="pagination-ellipsis">&hellip;</span>
+                                    <?php else: ?>
+                                        <a class="page-btn <?= (int) $paginationItem === $page ? 'active' : '' ?>" href="?<?= http_build_query(array_merge($qsBase, ['page' => (int) $paginationItem])) ?>"><?= (int) $paginationItem ?></a>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </div>
                             <a class="page-btn next <?= $page >= $tickets_total_pages ? 'disabled' : '' ?>" href="?<?= http_build_query(array_merge($qsBase, ['page' => $nextPage])) ?>">Next &rsaquo;</a>
                         </div>
                     <?php endif; ?>
@@ -1094,12 +1334,58 @@ if ($ticketsStmt) {
         var filterForm = document.querySelector('.analytics-filterbar');
         if (!filterForm) return;
 
-        var controls = filterForm.querySelectorAll('select[name="category"], select[name="assignee"], select[name="department"], select[name="status"], input[name="start_date"], input[name="end_date"]');
+        var controls = filterForm.querySelectorAll('select[name="category"], select[name="department"], select[name="status"], input[name="start_date"], input[name="end_date"]');
         controls.forEach(function (control) {
             control.addEventListener('change', function () {
                 filterForm.submit();
             });
         });
+
+        var assigneeDropdown = document.getElementById('assigneeDropdown');
+        var assigneeTrigger = document.getElementById('assigneeTrigger');
+        var assigneeLabel = document.getElementById('assigneeTriggerLabel');
+        var assigneeInput = document.getElementById('assigneeInput');
+        var assigneePanel = document.getElementById('assigneePanel');
+        if (assigneeDropdown && assigneeTrigger && assigneeLabel && assigneeInput && assigneePanel) {
+            var assigneeOptions = Array.prototype.slice.call(assigneePanel.querySelectorAll('.assignee-option'));
+            function closeAssigneeDropdown() {
+                assigneeDropdown.classList.remove('open');
+                assigneeTrigger.setAttribute('aria-expanded', 'false');
+            }
+            function openAssigneeDropdown() {
+                assigneeDropdown.classList.add('open');
+                assigneeTrigger.setAttribute('aria-expanded', 'true');
+            }
+            assigneeTrigger.addEventListener('click', function () {
+                if (assigneeDropdown.classList.contains('open')) {
+                    closeAssigneeDropdown();
+                } else {
+                    openAssigneeDropdown();
+                }
+            });
+            assigneeOptions.forEach(function (option) {
+                option.addEventListener('click', function () {
+                    var value = String(option.getAttribute('data-value') || '0');
+                    assigneeInput.value = value;
+                    assigneeLabel.textContent = option.textContent.trim() || 'Select';
+                    assigneeOptions.forEach(function (item) {
+                        item.classList.toggle('is-selected', item === option);
+                    });
+                    closeAssigneeDropdown();
+                    filterForm.submit();
+                });
+            });
+            document.addEventListener('click', function (event) {
+                if (!assigneeDropdown.contains(event.target)) {
+                    closeAssigneeDropdown();
+                }
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    closeAssigneeDropdown();
+                }
+            });
+        }
     })();
 
     // Theme colors

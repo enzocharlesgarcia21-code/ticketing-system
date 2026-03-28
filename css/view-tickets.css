@@ -142,7 +142,7 @@
     align-items: flex-start;
     overflow-y: auto;
     padding: 16px;
-    z-index: 2000;
+    z-index: 10020;
     animation: fadeInOverlay 0.2s ease-out;
 }
 
@@ -386,7 +386,7 @@
 .tm-tab {
     padding: 18px 2px 15px;
     font-size: 15px;
-    font-weight: 800;
+    font-weight: 600;
     color: #64748b;
     cursor: pointer;
     position: relative;
@@ -399,8 +399,8 @@
 }
 
 .tm-tab.active {
-    color: #16a34a;
-    font-weight: 800;
+    color: #111827;
+    font-weight: 500;
     border-bottom-color: #22c55e;
 }
 
@@ -449,7 +449,7 @@
 
 .badge-open { background: #fefce8; color: #eab308; }
 .badge-in-progress { background: #dcfce7; color: #16a34a; }
-.badge-resolved { background: #f0fdf4; color: #15803d; }
+.badge-resolved { background: #dbeafe; color: #1d4ed8; }
 .badge-low { background: #f1f5f9; color: #475569; }
 .badge-medium { background: #ffedd5; color: #c2410c; }
 .badge-high { background: #fee2e2; color: #b91c1c; }
@@ -833,7 +833,7 @@
 }
 
 .tm-card {
-    background: linear-gradient(180deg, #fbfffd 0%, #f5fff9 100%);
+    background: #ffffff;
     border: 1px solid #d6e9dc;
     border-radius: 20px;
     box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
@@ -893,6 +893,7 @@
 .tm-card-ticket-update .tm-card-title::before { content: "\f044"; }
 
 .tm-card-body {
+    background: #ffffff;
     padding: 18px 22px 20px;
 }
 
@@ -1014,9 +1015,8 @@
     grid-template-columns: repeat(3, 1fr);
     gap: 0;
     border: 1px solid #d7eadf;
-    border-left: 4px solid #22c55e;
     border-radius: 16px;
-    background: linear-gradient(180deg, #ffffff 0%, #f9fffb 100%);
+    background: #ffffff;
     overflow: hidden;
 }
 .tm-res-item { padding: 16px 18px; }
@@ -1030,6 +1030,25 @@
 .ticket-chat-input { flex: 1; border-radius: 28px; padding: 12px 18px; border: 2px solid #22c55e; height: 46px; }
 .ticket-chat-send { width: 46px; height: 46px; border-radius: 50%; background: #16a34a; color: #fff; display: inline-flex; align-items: center; justify-content: center; border: none; cursor: pointer; }
 .ticket-chat-send:hover { background: #14532d; }
+.ticket-chat-input:disabled {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    color: #6b7280;
+    cursor: not-allowed;
+    opacity: 1;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.ticket-chat-input:disabled::placeholder {
+    color: #6b7280;
+    opacity: 1;
+}
+.ticket-chat-send:disabled {
+    background: #cbd5e1;
+    color: #ffffff;
+    cursor: not-allowed;
+    opacity: 1;
+    box-shadow: none;
+}
 
 /* Ensure new styles override ID-based base styles */
 .ticket-chat-input#chatInput { border-radius: 28px; padding: 12px 18px; height: 46px; }
@@ -1451,6 +1470,87 @@
     color: #94a3b8;
     padding: 24px 0;
 }
+.chat-locked-state {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 16px;
+    color: #475569;
+    padding: 32px 20px;
+}
+.chat-lock-title-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+}
+.chat-locked-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: #f3f4f6;
+    color: #4b5563;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+.chat-lock-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: #4b5563;
+    margin-bottom: 0;
+}
+.chat-lock-subtitle {
+    font-size: 14px;
+    color: #475569;
+    max-width: 520px;
+    line-height: 1.55;
+}
+.chat-lock-subtitle strong {
+    color: #0f172a;
+}
+.chat-disabled-bar {
+    width: 100%;
+    border: 1px solid #dbe1ea;
+    background: #f3f4f6;
+    color: #6b7280;
+    border-radius: 24px;
+    padding: 14px 18px;
+    font-weight: 600;
+    text-align: left;
+    line-height: 1.4;
+}
+.chat-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 16px;
+    border-radius: 999px;
+    background: #fff7db;
+    border: 1px solid #f6df98;
+    color: #1f2937;
+    font-weight: 800;
+}
+.chat-status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: #facc15;
+    box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.18);
+}
+.chat-assignee-line {
+    font-size: 15px;
+    color: #475569;
+    font-weight: 500;
+}
+.chat-assignee-line strong {
+    color: #111827;
+    font-weight: 700;
+}
 
 /* Centered, constrained chat with improved message container */
 .ticket-chat-messages {
@@ -1549,6 +1649,7 @@
     opacity: 0.6;
     cursor: not-allowed;
 }
+
 
 /* ===== Attachment block in Description ===== */
 .tm-attachment {
@@ -1732,7 +1833,7 @@
     width: 100%;
     height: 100%;
     background: rgba(0, 0, 0, 0.85);
-    z-index: 2000;
+    z-index: 10030;
     justify-content: center;
     align-items: center;
     backdrop-filter: blur(4px);

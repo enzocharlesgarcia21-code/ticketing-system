@@ -678,18 +678,21 @@ tr:hover td {
 }
 
 .status-open {
-    background-color: #fefce8;
-    color: #eab308;
+    background-color: #fff2b3;
+    color: #5f5400;
+    border: 1px solid #f8e58c;
 }
 
 .status-in-progress {
     background-color: #dcfce7;
-    color: #16a34a;
+    color: #166534;
+    border: 1px solid #bbf7d0;
 }
 
 .status-resolved {
-    background-color: #dcfce7;
-    color: #14532d;
+    background-color: #dbeafe;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
 }
 
 /* Priority Badges */

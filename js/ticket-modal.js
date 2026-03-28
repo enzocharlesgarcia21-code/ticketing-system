@@ -10,6 +10,8 @@ var TMTicketModal = (function () {
   var messengerReturnContext = null;
   var currentTicketId = null;
   var lastTicketMeta = null;
+  var chatPermissionState = { canChat: true, lockedMessage: '', handlerName: '', statusLabel: '' };
+  var messengerPermissionState = { canChat: false, lockedMessage: '', handlerName: '', statusLabel: '', isChecking: false };
   function qs(id) { return document.getElementById(id); }
   function ensureTicketModalExists() {
     if (!document || !document.body) return;
@@ -91,6 +93,22 @@ var TMTicketModal = (function () {
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
   }
+  function parseTicketDetailsResponse(text) {
+    var raw = text == null ? '' : String(text);
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      var firstBrace = raw.indexOf('{');
+      var lastBrace = raw.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        var candidate = raw.slice(firstBrace, lastBrace + 1);
+        try {
+          return JSON.parse(candidate);
+        } catch (inner) { }
+      }
+    }
+    throw new Error(raw ? raw.slice(0, 300) : 'Invalid server response.');
+  }
   function formatTimelineTime(dateLike) {
     if (!dateLike) return '-';
     var d = dateLike instanceof Date ? dateLike : new Date(dateLike);
@@ -103,12 +121,86 @@ var TMTicketModal = (function () {
       minute: '2-digit'
     });
   }
+  function assignedCompanyUsesDepartment(companyValue) {
+    var normalized = companyValue == null ? '' : String(companyValue).trim().toLowerCase();
+    return normalized === '@leadsagri.com' || normalized === 'lapc';
+  }
+  function companyDisplayName(companyValue) {
+    var value = companyValue == null ? '' : String(companyValue).trim();
+    if (!value) return '';
+    var key = value.toLowerCase();
+    var map = {
+      '@farmasee.ph': 'FARMASEE',
+      'farmasee.ph': 'FARMASEE',
+      '@gmail.com': 'Gmail',
+      'gmail.com': 'Gmail',
+      '@gpsci.net': 'GPSCI',
+      'gpsci.net': 'GPSCI',
+      '@leads-eh.com': 'LEH',
+      'leads-eh.com': 'LEH',
+      '@leads-farmex.com': 'FARMEX',
+      'leads-farmex.com': 'FARMEX',
+      '@leadsagri.com': 'LAPC',
+      'leadsagri.com': 'LAPC',
+      'lapc': 'LAPC',
+      '@leadsanimalhealth.com': 'LAH',
+      'leadsanimalhealth.com': 'LAH',
+      '@leadsav.com': 'LAV',
+      'leadsav.com': 'LAV',
+      '@leadstech-corp.com': 'LTC',
+      'leadstech-corp.com': 'LTC',
+      '@lingapleads.org': 'LINGAP',
+      'lingapleads.org': 'LINGAP',
+      '@malvedaholdings.com': 'MHC',
+      'malvedaholdings.com': 'MHC',
+      '@malvedaproperties.com': 'MPDC',
+      'malvedaproperties.com': 'MPDC',
+      '@primestocks.ph': 'PCC',
+      'primestocks.ph': 'PCC'
+    };
+    return map[key] || value;
+  }
+  function getAssignedTargetParts(ticket) {
+    var assignedDepartment = ticket && (ticket.assigned_department || ticket.assigned_group) ? String(ticket.assigned_department || ticket.assigned_group) : '';
+    var assignedCompany = ticket && ticket.assigned_company ? String(ticket.assigned_company) : '';
+    var handledBy = ticket && ticket.assigned_to_name ? String(ticket.assigned_to_name) : '';
+    var showDepartment = assignedCompanyUsesDepartment(assignedCompany);
+    var primary = showDepartment ? assignedDepartment : assignedCompany;
+    if (!primary && assignedDepartment) primary = assignedDepartment;
+    if (!primary && assignedCompany) primary = assignedCompany;
+    return {
+      primary: primary,
+      department: assignedDepartment,
+      company: assignedCompany,
+      handledBy: handledBy,
+      showDepartment: showDepartment
+    };
+  }
+  function buildAssignedTargetHtml(ticket) {
+    var info = getAssignedTargetParts(ticket);
+    var lines = [];
+    if (info.primary) {
+      var primaryLabel = (!info.showDepartment && info.company && info.primary === info.company)
+        ? companyDisplayName(info.primary)
+        : info.primary;
+      lines.push(escapeHtml(primaryLabel));
+    }
+    else lines.push('-');
+    if (info.showDepartment && info.company) {
+      lines.push('<small class="text-muted">(' + escapeHtml(companyDisplayName(info.company)) + ')</small>');
+    }
+    if (info.handledBy) {
+      lines.push('<small class="text-muted">Handled by: ' + escapeHtml(info.handledBy) + '</small>');
+    }
+    return lines.join('<br>');
+  }
   function renderTimeline(ticket) {
     var createdAt = ticket.created_at ? new Date(ticket.created_at) : null;
     var updatedAt = ticket.updated_at ? new Date(ticket.updated_at) : null;
     var fallbackWhen = updatedAt || createdAt;
     var events = [{ title: 'Ticket created', when: createdAt }];
-    if (ticket.assigned_department) events.push({ title: 'Assigned to ' + ticket.assigned_department, when: fallbackWhen });
+    var assignedInfo = getAssignedTargetParts(ticket);
+    if (assignedInfo.primary) events.push({ title: 'Assigned to ' + assignedInfo.primary, when: fallbackWhen });
     if (ticket.admin_note && String(ticket.admin_note).trim() !== '') events.push({ title: 'Admin added a note', when: fallbackWhen });
     if (ticket.status && ticket.status !== 'Open') events.push({ title: 'Status changed to ' + ticket.status, when: fallbackWhen });
     return '<div class="tm-timeline">' + events.map(function (e) {
@@ -346,11 +438,156 @@ var TMTicketModal = (function () {
       });
     }
   }
+  var standardDeptOptions = [
+    { value: 'ACCOUNTING', label: 'Finance and Accounting' },
+    { value: 'ADMIN', label: 'Admin & Legal' },
+    { value: 'BIDDING', label: 'Bidding' },
+    { value: 'E-COMM', label: 'E-Commerce' },
+    { value: 'HR', label: 'HR' },
+    { value: 'IT', label: 'IT' },
+    { value: 'LINGAP', label: 'Diagnostics / Lingap' },
+    { value: 'MARKETING', label: 'Marketing' },
+    { value: 'SUPPLY CHAIN', label: 'Supply Chain' },
+    { value: 'TECHNICAL', label: 'Technical' }
+  ];
+  var lapcDeptOptions = [
+    { value: 'Admin & Legal', label: 'Admin & Legal' },
+    { value: 'Banana Farm Operations', label: 'Banana Farm Operations' },
+    { value: 'Diagnostics / Lingap', label: 'Diagnostics / Lingap' },
+    { value: 'Digital Agri Solutions and Innovations', label: 'Digital Agri Solutions and Innovations' },
+    { value: 'E-Commerce', label: 'E-Commerce' },
+    { value: 'Executive', label: 'Executive' },
+    { value: 'Finance and Accounting', label: 'Finance and Accounting' },
+    { value: 'HR', label: 'HR' },
+    { value: 'IT', label: 'IT' },
+    { value: 'Institutional Sales', label: 'Institutional Sales' },
+    { value: 'Management', label: 'Management' },
+    { value: 'Marketing', label: 'Marketing' },
+    { value: 'New Business Segment', label: 'New Business Segment' },
+    { value: 'Seed Production', label: 'Seed Production' },
+    { value: 'Supply Chain', label: 'Supply Chain' },
+    { value: 'Supply Chain Innovation', label: 'Supply Chain Innovation' },
+    { value: 'Technical', label: 'Technical' }
+  ];
+  function normalizeCompanyValue(value) {
+    return value == null ? '' : String(value).trim().toLowerCase();
+  }
+  function getDeptOptionsForCompany(companyValue) {
+    if (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true) return lapcDeptOptions;
+    return normalizeCompanyValue(companyValue) === '@leadsagri.com' ? lapcDeptOptions : standardDeptOptions;
+  }
+  function preferredDeptValueForCompany(selectedValue, companyValue) {
+    var raw = selectedValue == null ? '' : String(selectedValue).trim();
+    var isLapcCompany = normalizeCompanyValue(companyValue) === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
+    if (!raw) return isLapcCompany ? '' : 'IT';
+    var options = getDeptOptionsForCompany(companyValue);
+    for (var i = 0; i < options.length; i++) {
+      if (String(options[i].value).toLowerCase() === raw.toLowerCase()) return String(options[i].value);
+    }
+    var deptKey = deptKeyFromValue(raw);
+    if (!isLapcCompany) {
+      for (var k = 0; k < options.length; k++) {
+        if (String(options[k].value).toUpperCase() === deptKey) return String(options[k].value);
+      }
+      return 'IT';
+    }
+    var preferredMap = {
+      'ACCOUNTING': 'Finance and Accounting',
+      'ADMIN': 'Admin & Legal',
+      'BIDDING': 'Bidding',
+      'E-COMM': 'E-Commerce',
+      'HR': 'HR',
+      'IT': 'IT',
+      'LINGAP': 'Diagnostics / Lingap',
+      'MARKETING': 'Marketing',
+      'SUPPLY CHAIN': 'Supply Chain',
+      'TECHNICAL': 'Technical'
+    };
+    var preferredValue = preferredMap[deptKey] || '';
+    if (preferredValue) {
+      for (var j = 0; j < options.length; j++) {
+        if (String(options[j].value).toLowerCase() === preferredValue.toLowerCase()) return String(options[j].value);
+      }
+    }
+    return isLapcCompany ? raw : 'IT';
+  }
+  function buildDeptOptionsHtml(companyValue, selectedValue) {
+    var options = getDeptOptionsForCompany(companyValue);
+    var forcePlaceholder = typeof window !== 'undefined' && window.TM_FORCE_DEPARTMENT_PLACEHOLDER === true;
+    var matchedValue = forcePlaceholder ? '' : preferredDeptValueForCompany(selectedValue, companyValue);
+    var hasSelection = matchedValue !== '';
+    var hasMatchedOption = false;
+    var html = '';
+    if (!hasSelection) {
+      html += '                  <option value="" disabled selected hidden>Choose department</option>';
+    }
+    for (var i = 0; i < options.length; i++) {
+      if (String(options[i].value) === String(matchedValue)) {
+        hasMatchedOption = true;
+        break;
+      }
+    }
+    if (hasSelection && !hasMatchedOption) {
+      html += '                  <option value="' + escapeHtml(matchedValue) + '" selected>' + escapeHtml(matchedValue) + '</option>';
+    }
+    html += options.map(function (option) {
+      return '                  <option value="' + escapeHtml(option.value) + '" ' + (String(option.value) === String(matchedValue) ? 'selected' : '') + '>' + escapeHtml(option.label) + '</option>';
+    }).join('');
+    return html;
+  }
+  function bindDepartmentOptions(container, data) {
+    if (!container) return;
+    var form = container.querySelector('#ticketUpdateForm');
+    if (!form || form.dataset.deptBound === '1') return;
+    form.dataset.deptBound = '1';
+    var deptEl = form.querySelector('select[name="assigned_department"]');
+    var companyEl = form.querySelector('select[name="assigned_company"]');
+    if (!deptEl || !companyEl) return;
+    function syncDeptOptions(preferredValue) {
+      deptEl.innerHTML = buildDeptOptionsHtml(companyEl.value, preferredValue);
+    }
+    function syncDeptAvailability(preferredValue) {
+      var normalizedCompany = normalizeCompanyValue(companyEl.value);
+      var isLapcCompany = normalizedCompany === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
+      var hiddenMirror = form.querySelector('input[type="hidden"][data-dept-mirror="1"]');
+      var selectedValue = preferredDeptValueForCompany(preferredValue, companyEl.value);
+
+      deptEl.value = selectedValue;
+      deptEl.disabled = !isLapcCompany;
+
+      if (!isLapcCompany) {
+        if (!hiddenMirror) {
+          hiddenMirror = document.createElement('input');
+          hiddenMirror.type = 'hidden';
+          hiddenMirror.name = 'assigned_department';
+          hiddenMirror.setAttribute('data-dept-mirror', '1');
+          form.appendChild(hiddenMirror);
+        }
+        hiddenMirror.value = selectedValue;
+      } else if (hiddenMirror) {
+        hiddenMirror.parentNode.removeChild(hiddenMirror);
+      }
+    }
+    var initialPreferredDept = deptEl.value || (data && (data.assigned_department || data.assigned_group)) || '';
+    syncDeptOptions(initialPreferredDept);
+    syncDeptAvailability(initialPreferredDept);
+    companyEl.addEventListener('change', function () {
+      var nextPreferred = deptEl.value || (data && (data.assigned_department || data.assigned_group)) || '';
+      syncDeptOptions(nextPreferred);
+      syncDeptAvailability(nextPreferred);
+    });
+    deptEl.addEventListener('change', function () {
+      syncDeptAvailability(deptEl.value || '');
+    });
+  }
   function buildHtml(data) {
     var hideUpdateTab = typeof window !== 'undefined' && window.TM_HIDE_UPDATE_TAB === true;
     var hideAdminChat = typeof window !== 'undefined' && window.TM_HIDE_ADMIN_CHAT === true;
     var hideRequesterAdminChatButton = typeof window !== 'undefined' && window.TM_HIDE_REQUESTOR_ADMIN_CHAT_BUTTON === true;
     var hideQuickTags = typeof window !== 'undefined' && window.TM_HIDE_QUICK_TAGS === true;
+    var deptLabelText = (typeof window !== 'undefined' && window.TM_DEPARTMENT_LABEL_TEXT) ? String(window.TM_DEPARTMENT_LABEL_TEXT) : 'Assigned Department';
+    var deptRequired = typeof window !== 'undefined' && window.TM_DEPARTMENT_REQUIRED === true;
+    var deptLabelHtml = escapeHtml(deptLabelText) + (deptRequired ? ' <span class="tm-required-star">*</span>' : '');
     var statusSlug = data.status ? data.status.toLowerCase().replace(/\s+/g, '') : 'default';
     var prioritySlug = data.priority ? data.priority.toLowerCase() : 'default';
     var resolutionStart = (data && (data.started_at || data.created_at)) ? (data.started_at || data.created_at) : null;
@@ -382,11 +619,10 @@ var TMTicketModal = (function () {
     } else {
       statusControlHtml =
         '          <div class="tm-select-wrapper">' +
-        '            <select class="tm-select tm-status-select" name="status" onchange="TMTicketModal.updateStatusColor(this)">' +
+        '            <select class="tm-select tm-status-select" name="status">' +
         '                  <option value="Open" ' + (data.status === 'Open' ? 'selected' : '') + '>Open</option>' +
         '                  <option value="In Progress" ' + (data.status === 'In Progress' ? 'selected' : '') + '>In Progress</option>' +
         '                  <option value="Resolved" ' + (data.status === 'Resolved' ? 'selected' : '') + '>Resolved</option>' +
-        '                  <option value="Closed" ' + (data.status === 'Closed' ? 'selected' : '') + '>Closed</option>' +
         '            </select>' +
         '          </div>';
     }
@@ -416,15 +652,7 @@ var TMTicketModal = (function () {
       }
       return u;
     }
-    var deptKeys = ['ACCOUNTING','ADMIN','BIDDING','E-COMM','HR','IT','LINGAP','MARKETING','SUPPLY CHAIN','TECHNICAL'];
-    var selectedDeptKey = deptKeyFromValue(data.assigned_department || '');
-    var deptOptionsHtml = '';
-    if (selectedDeptKey && deptKeys.indexOf(selectedDeptKey) === -1) {
-      deptOptionsHtml += '                  <option value="' + escapeHtml(selectedDeptKey) + '" selected>' + escapeHtml(selectedDeptKey) + '</option>';
-    }
-    deptOptionsHtml += deptKeys.map(function (k) {
-      return '                  <option value="' + escapeHtml(k) + '" ' + (String(selectedDeptKey || '') === String(k) ? 'selected' : '') + '>' + escapeHtml(k) + '</option>';
-    }).join('');
+    var deptOptionsHtml = buildDeptOptionsHtml(data.assigned_company || '', data.assigned_department || data.assigned_group || '');
     var noteValue = data && data.admin_note != null ? String(data.admin_note) : '';
     var trimmedNoteValue = noteValue.trim();
     var requesterAdminNoteHtml = (isRequesterPOV && trimmedNoteValue !== '')
@@ -442,7 +670,6 @@ var TMTicketModal = (function () {
       '          <div class="tm-res-item"><div class="tm-res-label">Duration</div><div class="tm-res-value"><span class="tm-duration-dot"></span>' + (displayStr ? escapeHtml(displayStr) : '-') + '</div></div>' +
       '        </div>' +
       '      </div></div>';
-    var showResolutionUnderDescription = !hasImageAttachments(data);
     return '' +
       '<div class="tm-header">' +
       '  <div class="tm-header-left">' +
@@ -469,15 +696,14 @@ var TMTicketModal = (function () {
       '        <div class="tm-info-label">DEPARTMENT</div><div class="tm-info-value">' + (data.department ? escapeHtml(String(data.department)) : '-') + '</div>' +
       '        <div class="tm-info-label">CREATED AT</div><div class="tm-info-value">' + (data.created_at ? formatTimelineTime(data.created_at) : '-') + '</div>' +
       '        <div class="tm-info-label">LAST UPDATED</div><div class="tm-info-value">' + (data.updated_at ? formatTimelineTime(data.updated_at) : '-') + '</div>' +
-      '        <div class="tm-info-label">ASSIGNED TO</div><div class="tm-info-value">' + (data.assigned_department ? escapeHtml(String(data.assigned_department)) : '-') + (data.assigned_company ? '<br><small class="text-muted">(' + escapeHtml(String(data.assigned_company)) + ')</small>' : '') + '</div>' +
+      '        <div class="tm-info-label">ASSIGNED TO</div><div class="tm-info-value">' + buildAssignedTargetHtml(data) + '</div>' +
       '      </div></div></div>' +
       '      <div class="tm-card tm-card-ticket-activity"><div class="tm-card-header"><span class="tm-card-title">Ticket Activity</span></div><div class="tm-card-body">' + renderTimeline(data) + '</div></div>' +
-      (showResolutionUnderDescription ? '' : resolutionCardHtml) +
       '    </div>' +
       '    <div class="tm-desc-col">' +
       requesterAdminNoteHtml +
       '      <div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">Description</span></div><div class="tm-card-body"><div class="tm-desc-text">' + escapeHtml(data.description).replace(/\n/g, '<br>') + '</div>' + renderAttachmentsBlock(data) + '</div></div>' +
-      (showResolutionUnderDescription ? resolutionCardHtml : '') +
+      resolutionCardHtml +
       '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card tm-card-impact"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
       '      ' + ((data.urgency && data.urgency !== '-') ? '<div class="tm-card tm-card-urgency"><div class="tm-card-header"><span class="tm-card-title">Urgency</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.urgency)) + '</div></div></div>' : '') +
       '    </div>' +
@@ -494,10 +720,9 @@ var TMTicketModal = (function () {
       statusControlHtml +
       '        </div>' +
       '        <div class="tm-field">' +
-      '          <label class="tm-control-label">Assigned Department</label>' +
+      '          <label class="tm-control-label tm-control-label-department">' + deptLabelHtml + '</label>' +
       '          <div class="tm-select-wrapper">' +
       '            <select class="tm-select tm-dept-select" name="assigned_department">' +
-      ( !data.assigned_department ? '                  <option value="" disabled selected hidden>Assign Department</option>' : '' ) +
       deptOptionsHtml +
       '            </select>' +
       '          </div>' +
@@ -507,7 +732,7 @@ var TMTicketModal = (function () {
       '          <div class="tm-select-wrapper">' +
       '            <select class="tm-select tm-dept-select" name="assigned_company">' +
       ( !data.assigned_company ? '                  <option value="" disabled selected hidden>Select Recipient</option>' : '' ) +
-      ( data.assigned_company && ['@gpsci.net','@farmasee.ph','@gmail.com','@leads-eh.com','@leads-farmex.com','@leadsagri.com','@leadsanimalhealth.com','@leadsav.com','@malvedaproperties.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'].indexOf(String(data.assigned_company).toLowerCase()) === -1
+      ( data.assigned_company && ['@gpsci.net','@farmasee.ph','@gmail.com','@leads-eh.com','@leads-farmex.com','@leadsagri.com','@leadsanimalhealth.com','@leadsav.com','@malvedaholdings.com','@malvedaproperties.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'].indexOf(String(data.assigned_company).toLowerCase()) === -1
           ? ('                  <option value="' + escapeHtml(data.assigned_company) + '" selected>' + escapeHtml(data.assigned_company) + '</option>')
           : '' ) +
       '                  <option value="@gpsci.net" ' + (String(data.assigned_company || '').toLowerCase() === '@gpsci.net' ? 'selected' : '') + '>GPSCI (@gpsci.net)</option>' +
@@ -518,7 +743,8 @@ var TMTicketModal = (function () {
       '                  <option value="@leadsagri.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsagri.com' ? 'selected' : '') + '>LAPC (@leadsagri.com)</option>' +
       '                  <option value="@leadsanimalhealth.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsanimalhealth.com' ? 'selected' : '') + '>LAH (@leadsanimalhealth.com)</option>' +
       '                  <option value="@leadsav.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsav.com' ? 'selected' : '') + '>LAV (@leadsav.com)</option>' +
-      '                  <option value="@malvedaproperties.com" ' + (String(data.assigned_company || '').toLowerCase() === '@malvedaproperties.com' ? 'selected' : '') + '>MHC (@malvedaproperties.com)</option>' +
+      '                  <option value="@malvedaholdings.com" ' + (String(data.assigned_company || '').toLowerCase() === '@malvedaholdings.com' ? 'selected' : '') + '>MHC (@malvedaholdings.com)</option>' +
+      '                  <option value="@malvedaproperties.com" ' + (String(data.assigned_company || '').toLowerCase() === '@malvedaproperties.com' ? 'selected' : '') + '>MPDC (@malvedaproperties.com)</option>' +
       '                  <option value="@leadstech-corp.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadstech-corp.com' ? 'selected' : '') + '>LTC (@leadstech-corp.com)</option>' +
       '                  <option value="@lingapleads.org" ' + (String(data.assigned_company || '').toLowerCase() === '@lingapleads.org' ? 'selected' : '') + '>LINGAP (@lingapleads.org)</option>' +
       '                  <option value="@primestocks.ph" ' + (String(data.assigned_company || '').toLowerCase() === '@primestocks.ph' ? 'selected' : '') + '>PCC (@primestocks.ph)</option>' +
@@ -546,6 +772,53 @@ var TMTicketModal = (function () {
       '    </form>' +
       '    </div></div>' +
       '  </div>') +
+      '</div>';
+  }
+  function buildFallbackHtml(data) {
+    var safe = data && typeof data === 'object' ? data : {};
+    var ticketId = safe && safe.id != null ? String(safe.id) : '-';
+    var ticketIdLabel = /^\d+$/.test(ticketId) ? String(ticketId).padStart(6, '0') : ticketId;
+    var subject = safe && safe.subject ? String(safe.subject) : 'Ticket';
+    var status = safe && safe.status ? String(safe.status) : '-';
+    var priority = safe && safe.priority ? String(safe.priority) : '-';
+    var requester = safe && safe.created_by_name ? String(safe.created_by_name) : '-';
+    var requesterEmail = safe && safe.created_by_email ? String(safe.created_by_email) : '-';
+    var assignedInfo = getAssignedTargetParts(safe);
+    var department = assignedInfo.primary
+      ? ((!assignedInfo.showDepartment && assignedInfo.company && assignedInfo.primary === assignedInfo.company)
+          ? companyDisplayName(assignedInfo.primary)
+          : assignedInfo.primary)
+      : '-';
+    var company = assignedInfo.showDepartment && assignedInfo.company ? companyDisplayName(assignedInfo.company) : '-';
+    var createdAt = safe && safe.created_at ? formatTimelineTime(safe.created_at) : '-';
+    var description = safe && safe.description ? String(safe.description) : '-';
+    return '' +
+      '<div class="tm-header">' +
+      '  <div class="tm-header-left">' +
+      '    <div class="tm-title">' + escapeHtml(subject) + '</div>' +
+      '    <div class="tm-chips">' +
+      '      <span class="tm-chip">' + escapeHtml(status) + '</span>' +
+      '      <span class="tm-chip">' + escapeHtml(priority) + '</span>' +
+      '      <span class="tm-id">#' + escapeHtml(ticketIdLabel) + '</span>' +
+      '    </div>' +
+      '  </div>' +
+      '  <button class="tm-close-btn" onclick="TMTicketModal.close()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>' +
+      '</div>' +
+      '<div class="tm-body">' +
+      '  <div id="tab-info" class="tm-tab-content active">' +
+      '    <div class="tm-info-col">' +
+      '      <div class="tm-card tm-card-ticket-info"><div class="tm-card-header"><span class="tm-card-title">Ticket Information</span></div><div class="tm-card-body"><div class="tm-info-grid">' +
+      '        <div class="tm-info-label">CREATED BY</div><div class="tm-info-value">' + escapeHtml(requester) + '</div>' +
+      '        <div class="tm-info-label">EMAIL</div><div class="tm-info-value">' + escapeHtml(requesterEmail) + '</div>' +
+      '        <div class="tm-info-label">ASSIGNED TO</div><div class="tm-info-value">' + escapeHtml(department) + '</div>' +
+      '        <div class="tm-info-label">RECIPIENT</div><div class="tm-info-value">' + escapeHtml(company) + '</div>' +
+      '        <div class="tm-info-label">CREATED AT</div><div class="tm-info-value">' + escapeHtml(createdAt) + '</div>' +
+      '      </div></div></div>' +
+      '    </div>' +
+      '    <div class="tm-desc-col">' +
+      '      <div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">Description</span></div><div class="tm-card-body"><div class="tm-desc-text">' + escapeHtml(description).replace(/\n/g, '<br>') + '</div>' + renderAttachmentsBlock(safe) + '</div></div>' +
+      '    </div>' +
+      '  </div>' +
       '</div>';
   }
   function startChat(ticketId) {
@@ -652,7 +925,8 @@ var TMTicketModal = (function () {
       '    </div>' +
       '  </div>' +
       '  <div class="modal-footer">' +
-      '    <div class="ticket-chat-input-wrapper">' +
+      '    <div id="chatModalNotice" class="chat-empty" style="display:none;"></div>' +
+      '    <div id="chatModalComposer" class="ticket-chat-input-wrapper">' +
       '      <input type="hidden" id="chatModalTicketId" value="">' +
       '      <input type="text" id="chatModalInput" class="ticket-chat-input" placeholder="Type a message..." onkeypress="if(event.key===\'Enter\') TMTicketModal.sendChatModalMessage()">' +
       '      <button id="chatModalSendBtn" class="ticket-chat-send" type="button" onclick="TMTicketModal.sendChatModalMessage()"><i class="fas fa-paper-plane"></i></button>' +
@@ -751,12 +1025,73 @@ var TMTicketModal = (function () {
     var el = qs('chatModalMeta');
     if (el) el.innerHTML = html || '';
   }
+  function extractHandlerName(message) {
+    var raw = String(message || '');
+    var match = raw.match(/(?:handled by|assigned to)\s+(.+?)(?:\.)?$/i);
+    return match && match[1] ? match[1].trim() : '';
+  }
+  function renderLockedChatState(message) {
+    var container = qs('chatModalMessages');
+    if (!container) return;
+    var handlerName = extractHandlerName(message || chatPermissionState.lockedMessage);
+    container.innerHTML =
+      '<div class="chat-locked-state">' +
+      '  <div class="chat-lock-title-row"><span class="chat-locked-icon"><i class="fas fa-lock"></i></span><div class="chat-lock-title">You can\'t message.</div></div>' +
+      '  <div class="chat-lock-subtitle">This ticket is already assigned to <strong>' + escapeHtml(handlerName || 'another IT staff') + '</strong>.</div>' +
+      '</div>';
+  }
+  function setChatComposerState(canChat, lockedMessage) {
+    var composer = qs('chatModalComposer');
+    var input = qs('chatModalInput');
+    var btn = qs('chatModalSendBtn');
+    var notice = qs('chatModalNotice');
+    var allowed = canChat === true;
+    var handlerName = extractHandlerName(lockedMessage);
+    chatPermissionState.canChat = allowed;
+    chatPermissionState.lockedMessage = String(lockedMessage || '');
+    chatPermissionState.handlerName = handlerName;
+    if (composer) composer.style.display = 'flex';
+    if (input) {
+      input.disabled = !allowed;
+      input.readOnly = !allowed;
+      input.tabIndex = allowed ? 0 : -1;
+      input.value = allowed ? input.value : '';
+      input.placeholder = allowed ? 'Type a message...' : 'You can\'t message. This ticket is already assigned.';
+      input.style.cursor = allowed ? 'text' : 'not-allowed';
+      input.style.opacity = allowed ? '1' : '0.65';
+      input.style.backgroundColor = allowed ? '' : '#f3f4f6';
+      input.style.pointerEvents = allowed ? 'auto' : 'none';
+    }
+    if (btn) {
+      btn.disabled = !allowed;
+      btn.tabIndex = allowed ? 0 : -1;
+      btn.style.cursor = allowed ? 'pointer' : 'not-allowed';
+      btn.style.opacity = allowed ? '1' : '0.7';
+      btn.style.backgroundColor = allowed ? '' : '#cbd5e1';
+      btn.style.pointerEvents = allowed ? 'auto' : 'none';
+    }
+    if (notice) {
+      if (allowed) {
+        notice.style.display = 'none';
+        notice.innerHTML = '';
+      } else {
+        notice.style.display = 'none';
+        notice.innerHTML = '';
+      }
+    }
+  }
   function loadChatModalMeta(ticketId) {
+    setChatComposerState(false, 'Checking ticket handler...');
     setChatModalMetaHtml('<span class="chat-meta-loading">Loading details…</span>');
     fetch('get_ticket_details.php?id=' + ticketId)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || data.error) return;
+        lastTicketMeta = {
+          id: data && data.id != null ? data.id : ticketId,
+          subject: data && data.subject ? String(data.subject) : ''
+        };
+        setChatComposerState(data && data.can_chat === true, data && data.chat_locked_message ? String(data.chat_locked_message) : '');
         var current = (typeof window !== 'undefined' && window.TM_CURRENT_USER) ? window.TM_CURRENT_USER : null;
         var currentId = current && current.id != null ? String(current.id) : null;
         var isRequesterPOV = false;
@@ -771,10 +1106,44 @@ var TMTicketModal = (function () {
         if (data.department) requesterMeta.push(String(data.department));
         if (data.company) requesterMeta.push(String(data.company));
         if (data.created_by_email) requesterMeta.push(String(data.created_by_email));
+        var statusLabel = 'Waiting for IT';
+        if (data.status === 'In Progress') statusLabel = 'In Progress';
+        else if (data.status && data.status !== 'Open') statusLabel = String(data.status);
+        chatPermissionState.statusLabel = statusLabel;
+        var assigneeHtml = '';
+        if (data.assigned_to_name) assigneeHtml = '<span class="chat-assignee-line">Assigned to: <strong>' + escapeHtml(String(data.assigned_to_name)) + '</strong></span>';
+        var handlerInfo = getAssignedTargetParts(data);
+        var handlerParts = [];
+        if (handlerInfo.primary) {
+          handlerParts.push((!handlerInfo.showDepartment && handlerInfo.company && handlerInfo.primary === handlerInfo.company)
+            ? companyDisplayName(handlerInfo.primary)
+            : String(handlerInfo.primary));
+        }
+        if (handlerInfo.showDepartment && handlerInfo.company) handlerParts.push(companyDisplayName(handlerInfo.company));
+        var headerHtml = '<span class="chat-status-pill"><span class="chat-status-dot"></span>' + escapeHtml(statusLabel) + '</span>';
+        if (isRequesterPOV) {
+          setChatModalMetaHtml(
+            headerHtml +
+            (assigneeHtml ? ('<span class="chat-meta-dot">•</span>' + assigneeHtml) : '') +
+            (handlerParts.length ? ('<span class="chat-meta-dot">•</span><span class="chat-meta-details">' + escapeHtml(handlerParts.join(' • ')) + '</span>') : '')
+          );
+          return;
+        }
+        var adminParts = handlerParts.slice();
+        var isLockedForViewer = data && data.can_chat !== true && !!data.assigned_to_name;
+        if (!adminParts.length && data.status === 'Open') adminParts.push('Waiting for IT');
+        setChatModalMetaHtml(
+          headerHtml +
+          (assigneeHtml ? ('<span class="chat-meta-dot">•</span>' + assigneeHtml) : '') +
+          (isLockedForViewer ? '' : (adminParts.length ? ('<span class="chat-meta-dot">•</span><span class="chat-meta-details">' + escapeHtml(adminParts.join(' • ')) + '</span>') : '')) +
+          (isLockedForViewer ? '' : (requesterMeta.length ? ('<span class="chat-meta-dot">•</span><span class="chat-meta-details">' + escapeHtml(requesterName + ' • ' + requesterMeta.join(' • ')) + '</span>') : ''))
+        );
+        return;
 
         var assignedParts = [];
         if (data.assigned_department) assignedParts.push(String(data.assigned_department));
         if (data.assigned_company) assignedParts.push(String(data.assigned_company));
+        if (data.assigned_to_name) assignedParts.push('Handled by: ' + String(data.assigned_to_name));
 
         if (isRequesterPOV) {
           // Requester POV: show the other party (assigned department/company)
@@ -808,6 +1177,7 @@ var TMTicketModal = (function () {
     idEl.value = String(ticketId);
     modal.style.display = 'flex';
     chatModalOpen = true;
+    setChatComposerState(false, 'Checking ticket handler...');
     stopChatBadge();
     stopChat();
     loadChatModalMeta(ticketId);
@@ -827,6 +1197,7 @@ var TMTicketModal = (function () {
     }
   }
   function loadTicketMessages(ticketId, scrollBottom) {
+    loadChatModalMeta(ticketId);
     var formData = new FormData();
     formData.append('ticket_id', ticketId);
     var t = getCsrfToken();
@@ -835,17 +1206,16 @@ var TMTicketModal = (function () {
       .then(function (data) {
         if (data && data.error) {
           stopChat();
-          var container = qs('chatModalMessages');
-          if (container) {
-            container.innerHTML = '<div class="chat-empty">Chat is available only between the requester and assigned user.</div>';
-          }
-          var input = qs('chatModalInput');
-          var btn = qs('chatModalSendBtn');
-          if (input) input.disabled = true;
-          if (btn) btn.disabled = true;
+          var errMsg = data && data.error ? String(data.error) : '';
+          setChatComposerState(false, errMsg);
+          renderLockedChatState(errMsg);
           return;
         }
         var msgs = data || [];
+        if (!chatPermissionState.canChat) {
+          renderLockedChatState(chatPermissionState.lockedMessage);
+          return;
+        }
         renderChatModalMessages(msgs, scrollBottom);
         var lastId = 0;
         msgs.forEach(function (m) {
@@ -895,6 +1265,7 @@ var TMTicketModal = (function () {
     var input = qs('chatModalInput');
     var ticketIdEl = qs('chatModalTicketId');
     if (!input || !ticketIdEl) return;
+    if (input.disabled || input.readOnly) return false;
     var message = input.value.trim();
     var btn = qs('chatModalSendBtn');
     if (!message) return;
@@ -932,14 +1303,11 @@ var TMTicketModal = (function () {
     postJson('chat_send.php', formData)
       .then(function (data) {
         if (btn) btn.disabled = false;
-        if (data && data.error) {
-          if (bubble) {
-            bubble.style.border = '1px solid #ef4444';
-            bubble.style.opacity = '0.75';
-          }
-          if (container) {
-            container.innerHTML = '<div class="chat-empty">' + escapeHtml(String(data.error || 'Failed to send message.')) + '</div>';
-          }
+        if (data && (data.error || data.success === false)) {
+          var errMsg = String((data && (data.message || data.error)) || 'You are not allowed to send messages');
+          setChatComposerState(false, errMsg);
+          renderLockedChatState(errMsg);
+          loadChatModalMeta(ticketId);
           return;
         }
         if (data && data.success) {
@@ -948,10 +1316,7 @@ var TMTicketModal = (function () {
       })
       .catch(function () {
         if (btn) btn.disabled = false;
-        if (bubble) {
-          bubble.style.border = '1px solid #ef4444';
-          bubble.style.opacity = '0.75';
-        }
+        loadTicketMessages(ticketId, false);
       });
   }
   function stopMessenger() {
@@ -1094,6 +1459,7 @@ var TMTicketModal = (function () {
         '.tm-messenger-compose{border-top:1px solid #e5e7eb;padding:12px;background:#fff;display:flex;gap:10px;align-items:center;}' +
         '.tm-messenger-compose input{flex:1;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;font-size:14px;outline:none;background:#fff;}' +
         '.tm-messenger-compose input:focus{border-color:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.12);}' +
+        '.tm-messenger-compose input:disabled{background:#f8fafc;border-color:#dbe3ec;color:#64748b;box-shadow:none;cursor:not-allowed;opacity:.8;}' +
         '.tm-messenger-send{border:none;background:#1B5E20;color:#fff;border-radius:12px;padding:12px 14px;font-weight:900;cursor:pointer;min-width:86px;}' +
         '.tm-messenger-send:disabled{opacity:.6;cursor:not-allowed;}' +
         '.tm-messenger-overlay .chat-bubble{max-width:80%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;display:flex;flex-direction:column;gap:4px;box-shadow:0 1px 2px rgba(0,0,0,.04);}' +
@@ -1138,10 +1504,10 @@ var TMTicketModal = (function () {
       var employeeStyle = document.createElement('style');
       employeeStyle.id = 'tmMessengerEmployeeStyles';
       employeeStyle.textContent =
-        '.tm-messenger-overlay.employee-style{background:rgba(15,23,42,.32);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:20px;}' +
-        '.tm-messenger-overlay.employee-style .tm-messenger-panel{position:relative;width:min(88vw,1180px);height:min(82vh,760px);border-radius:24px;overflow:hidden;background:#ffffff;border:1px solid rgba(226,232,240,.9);box-shadow:0 24px 68px rgba(15,23,42,.20);}' +
-        '.tm-messenger-overlay.employee-style .tm-messenger-panel::before{content:\"\";position:absolute;top:0;left:0;right:0;height:10px;background:linear-gradient(180deg,#275f33 0%,#1b5e20 100%);z-index:3;}' +
-        '.tm-messenger-overlay.employee-style .tm-messenger-left{width:332px;min-width:332px;max-width:332px;background:linear-gradient(180deg,#fcfcfd 0%,#f8fafc 100%);border-right:1px solid #e2e8f0;padding-top:10px;}' +
+        '.tm-messenger-overlay.employee-style{background:rgba(15,23,42,.32);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:16px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-panel{position:relative;width:min(86vw,980px);height:min(86vh,760px);border-radius:22px;overflow:hidden;background:#ffffff;border:1px solid rgba(220,235,226,.95);box-shadow:0 26px 60px rgba(15,23,42,.16),0 12px 26px rgba(15,23,42,.08);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-panel::before{content:none;display:none;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-left{width:320px;min-width:320px;max-width:320px;background:linear-gradient(180deg,#fcfcfd 0%,#f8fafc 100%);border-right:1px solid #e2e8f0;padding-top:0;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-left-header{padding:24px 18px 12px;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-left-title{font-size:17px;font-weight:900;color:#0f172a;letter-spacing:-.03em;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-search{padding:0 14px 10px;position:relative;background:transparent;border-bottom:none;}' +
@@ -1175,6 +1541,8 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay.employee-style .tm-messenger-status-pill::before{content:\"\";width:10px;height:10px;border-radius:999px;background:#22a55a;display:inline-block;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-status-pill.status-in-progress::before{background:#16a34a;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-status-pill.status-closed::before{background:#94a3b8;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-assignee{font-size:15px;color:#475569;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-assignee strong{color:#0f172a;font-weight:800;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-sub-sep{color:#cbd5e1;font-weight:800;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-menu-btn,.tm-messenger-overlay.employee-style .tm-messenger-close{width:48px;height:48px;border-radius:15px;border:1px solid #dbe3ec;background:#fff;box-shadow:0 8px 18px rgba(15,23,42,.08);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-close{display:inline-flex;font-size:28px;line-height:1;color:#dc2626;border-color:#fecaca;background:#fff5f5;}' +
@@ -1189,14 +1557,22 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-sender{color:#ffffff;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-sender{color:#0f172a;}' +
         '.tm-messenger-overlay.employee-style .chat-time{font-size:12px;font-weight:700;opacity:.72;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-locked-state{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:16px;padding:32px 20px;color:#475569;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-lock-title-row{display:inline-flex;align-items:center;gap:12px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-locked-icon{width:34px;height:34px;border-radius:10px;background:#f3f4f6;color:#4b5563;display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-lock-title{font-size:16px;font-weight:500;color:#4b5563;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-lock-subtitle{font-size:14px;color:#475569;max-width:520px;line-height:1.55;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-lock-subtitle strong{color:#0f172a;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-compose{padding:14px 14px 16px;border-top:1px solid #e5e7eb;background:#fff;gap:12px;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-compose input{border-radius:16px;border:1.5px solid #86efac;padding:13px 16px;font-size:14px;min-height:50px;box-shadow:0 0 0 4px rgba(34,197,94,.08);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-compose input:focus{border-color:#22c55e;box-shadow:0 0 0 5px rgba(34,197,94,.12);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-compose input:disabled{border-color:#dbe3ec;background:#f8fafc;color:#64748b;box-shadow:none;cursor:not-allowed;opacity:.8;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-send{min-width:96px;min-height:50px;padding:0 20px;border-radius:16px;background:linear-gradient(180deg,#1f5f23 0%,#174d1b 100%);font-size:14px;letter-spacing:.01em;box-shadow:0 14px 26px rgba(23,77,27,.22);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-send:hover{background:linear-gradient(180deg,#205d24 0%,#154819 100%);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-send:disabled{background:#cbd5e1;color:#fff;box-shadow:none;cursor:not-allowed;opacity:1;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-empty{font-size:15px;color:#94a3b8;}' +
-        '@media (max-width: 980px){.tm-messenger-overlay.employee-style{padding:10px}.tm-messenger-overlay.employee-style .tm-messenger-panel{width:100vw;height:86vh;border-radius:20px}.tm-messenger-overlay.employee-style .tm-messenger-left{width:292px;min-width:292px;max-width:292px}.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:18px;font-weight:700}.tm-messenger-overlay.employee-style .chat-bubble{max-width:80%;}}' +
-        '@media (max-width: 768px){.tm-messenger-overlay.employee-style{padding:0;align-items:flex-end}.tm-messenger-overlay.employee-style .tm-messenger-panel{height:88vh;border-radius:22px 22px 0 0}.tm-messenger-overlay.employee-style .tm-messenger-panel::before{height:10px}.tm-messenger-overlay.employee-style .tm-messenger-left{width:100%;min-width:0;max-width:none;height:40%}.tm-messenger-overlay.employee-style .tm-messenger-right{height:60%}.tm-messenger-overlay.employee-style .tm-messenger-left-header{padding:20px 16px 10px}.tm-messenger-overlay.employee-style .tm-messenger-right-header{padding:20px 16px 12px}.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:17px}.tm-messenger-overlay.employee-style .tm-messenger-search{padding:0 12px 10px}.tm-messenger-overlay.employee-style .tm-messenger-search::before{left:25px}.tm-messenger-overlay.employee-style .tm-messenger-filters{padding:0 12px 12px;gap:6px;overflow-x:auto;}.tm-messenger-overlay.employee-style .tm-messenger-filter-btn{padding:9px 12px;font-size:12px;border-radius:12px}.tm-messenger-overlay.employee-style .tm-messenger-messages{padding:16px 14px}.tm-messenger-overlay.employee-style .tm-messenger-compose{padding:12px 12px 14px}.tm-messenger-overlay.employee-style .tm-messenger-send{min-width:86px;min-height:48px;border-radius:15px;}}';
+        '@media (max-width: 980px){.tm-messenger-overlay.employee-style{padding:10px}.tm-messenger-overlay.employee-style .tm-messenger-panel{width:min(94vw,940px);height:min(84vh,720px);border-radius:20px}.tm-messenger-overlay.employee-style .tm-messenger-left{width:300px;min-width:300px;max-width:300px}.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:18px;font-weight:700}.tm-messenger-overlay.employee-style .chat-bubble{max-width:80%;}}' +
+        '@media (max-width: 768px){.tm-messenger-overlay.employee-style{padding:0;align-items:flex-end}.tm-messenger-overlay.employee-style .tm-messenger-panel{height:88vh;border-radius:22px 22px 0 0}.tm-messenger-overlay.employee-style .tm-messenger-panel::before{content:none;display:none}.tm-messenger-overlay.employee-style .tm-messenger-left{width:100%;min-width:0;max-width:none;height:40%}.tm-messenger-overlay.employee-style .tm-messenger-right{height:60%}.tm-messenger-overlay.employee-style .tm-messenger-left-header{padding:20px 16px 10px}.tm-messenger-overlay.employee-style .tm-messenger-right-header{padding:20px 16px 12px}.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:17px}.tm-messenger-overlay.employee-style .tm-messenger-search{padding:0 12px 10px}.tm-messenger-overlay.employee-style .tm-messenger-search::before{left:25px}.tm-messenger-overlay.employee-style .tm-messenger-filters{padding:0 12px 12px;gap:6px;overflow-x:auto;}.tm-messenger-overlay.employee-style .tm-messenger-filter-btn{padding:9px 12px;font-size:12px;border-radius:12px}.tm-messenger-overlay.employee-style .tm-messenger-messages{padding:16px 14px}.tm-messenger-overlay.employee-style .tm-messenger-compose{padding:12px 12px 14px}.tm-messenger-overlay.employee-style .tm-messenger-send{min-width:86px;min-height:48px;border-radius:15px;}}';
       document.head.appendChild(employeeStyle);
     }
 
@@ -1479,10 +1855,13 @@ var TMTicketModal = (function () {
           var rel = toRelative(conv.last_message_time || conv.ticket_created_at || '');
           var statusLabel = String(conv.status || 'Open').trim() || 'Open';
           var requesterEmail = conv && conv.requester_email ? String(conv.requester_email) : '';
+          var assignedName = conv && conv.assigned_to_name ? String(conv.assigned_to_name) : '';
           sub.innerHTML =
             '<span class="tm-messenger-status-pill ' + messengerStatusClass(statusLabel) + '">' + escapeHtml(statusLabel) + '</span>' +
-            (rel ? ('<span class="tm-messenger-sub-sep">•</span><span>' + escapeHtml(rel) + '</span>') : '') +
-            (requesterEmail ? ('<span class="tm-messenger-sub-sep">•</span><span>' + escapeHtml(requesterEmail) + '</span>') : '');
+            (assignedName
+              ? ('<span class="tm-messenger-assignee">Assigned to: <strong>' + escapeHtml(assignedName) + '</strong></span>')
+              : ((rel ? ('<span class="tm-messenger-sub-sep">•</span><span>' + escapeHtml(rel) + '</span>') : '') +
+                (requesterEmail ? ('<span class="tm-messenger-sub-sep">•</span><span>' + escapeHtml(requesterEmail) + '</span>') : '')));
         } else {
           sub.textContent = conv.last_message_time ? ('Last message: ' + String(conv.last_message_time)) : '';
         }
@@ -1495,6 +1874,11 @@ var TMTicketModal = (function () {
   }
   function clearMessengerSelection() {
     messengerTicketId = null;
+    messengerPermissionState.canChat = false;
+    messengerPermissionState.lockedMessage = '';
+    messengerPermissionState.handlerName = '';
+    messengerPermissionState.statusLabel = '';
+    messengerPermissionState.isChecking = false;
     var idEl = qs('tmMessengerTicketId');
     if (idEl) idEl.value = '';
     var input = qs('tmMessengerInput');
@@ -1502,6 +1886,12 @@ var TMTicketModal = (function () {
     if (input) {
       input.value = '';
       input.disabled = true;
+      input.readOnly = true;
+      input.placeholder = 'Type a message...';
+      input.style.cursor = '';
+      input.style.opacity = '';
+      input.style.backgroundColor = '';
+      input.style.pointerEvents = '';
     }
     if (sendBtn) sendBtn.disabled = true;
     setMessengerHeader(null);
@@ -1517,11 +1907,7 @@ var TMTicketModal = (function () {
     var idEl = qs('tmMessengerTicketId');
     if (idEl) idEl.value = messengerTicketId;
     setMessengerHeader(conv);
-
-    var input = qs('tmMessengerInput');
-    var sendBtn = qs('tmMessengerSendBtn');
-    if (input) input.disabled = false;
-    if (sendBtn) sendBtn.disabled = false;
+    setMessengerComposerState(false, 'Checking ticket handler...');
 
     renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
     stopMessenger();
@@ -1531,14 +1917,29 @@ var TMTicketModal = (function () {
       setTimeout(function () { loadConversationsAndMaybeSelect(); }, 0);
     }
   }
-  function loadMessengerMessages(ticketId, scrollBottom) {
+  function loadMessengerMessages(ticketId, scrollBottom, skipMeta) {
+    if (skipMeta !== true) {
+      loadMessengerMeta(ticketId, scrollBottom);
+    }
     var formData = new FormData();
     formData.append('ticket_id', ticketId);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
     postJson('chat_fetch.php', formData)
       .then(function (data) {
-        if (data && data.error) return;
+        if (data && data.error) {
+          var errMsg = String(data.error || '');
+          setMessengerComposerState(false, errMsg);
+          renderMessengerLockedState(errMsg);
+          return;
+        }
+        if (messengerPermissionState.isChecking) {
+          return;
+        }
+        if (!messengerPermissionState.canChat) {
+          renderMessengerLockedState(messengerPermissionState.lockedMessage);
+          return;
+        }
         renderMessengerMessages(data || [], scrollBottom);
       })
       .catch(function () { });
@@ -1625,6 +2026,87 @@ var TMTicketModal = (function () {
     found.last_message_time = nowIso;
     renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
   }
+  function setMessengerComposerState(canChat, lockedMessage) {
+    var input = qs('tmMessengerInput');
+    var btn = qs('tmMessengerSendBtn');
+    var allowed = canChat === true;
+    var waiting = !allowed && String(lockedMessage || '') === 'Checking ticket handler...';
+    var handlerName = extractHandlerName(lockedMessage);
+    messengerPermissionState.canChat = allowed;
+    messengerPermissionState.lockedMessage = String(lockedMessage || '');
+    messengerPermissionState.handlerName = handlerName;
+    messengerPermissionState.isChecking = waiting;
+    if (input) {
+      input.disabled = !allowed;
+      input.readOnly = !allowed;
+      input.tabIndex = allowed ? 0 : -1;
+      if (!allowed) input.value = '';
+      input.placeholder = allowed ? 'Type a message...' : (waiting ? 'Checking ticket handler...' : 'You can\'t message. This ticket is already assigned.');
+      input.style.cursor = allowed ? 'text' : 'not-allowed';
+      input.style.opacity = allowed ? '1' : '0.75';
+      input.style.backgroundColor = allowed ? '' : '#f8fafc';
+      input.style.pointerEvents = allowed ? 'auto' : 'none';
+    }
+    if (btn) {
+      btn.disabled = !allowed;
+      btn.tabIndex = allowed ? 0 : -1;
+      btn.style.cursor = allowed ? 'pointer' : 'not-allowed';
+      btn.style.opacity = allowed ? '1' : '1';
+      btn.style.pointerEvents = allowed ? 'auto' : 'none';
+    }
+  }
+  function renderMessengerLockedState(message) {
+    var container = qs('tmMessengerMessages');
+    if (!container) return;
+    var handlerName = extractHandlerName(message || messengerPermissionState.lockedMessage);
+    container.innerHTML =
+      '<div class="tm-messenger-locked-state">' +
+      '  <div class="tm-messenger-lock-title-row"><span class="tm-messenger-locked-icon"><i class="fas fa-lock"></i></span><div class="tm-messenger-lock-title">You can\'t message.</div></div>' +
+      '  <div class="tm-messenger-lock-subtitle">This ticket is already assigned to <strong>' + escapeHtml(handlerName || 'another IT staff') + '</strong>.</div>' +
+      '</div>';
+  }
+  function loadMessengerMeta(ticketId, scrollBottom) {
+    fetch('get_ticket_details.php?id=' + ticketId)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || data.error) return;
+        lastTicketMeta = {
+          id: data && data.id != null ? data.id : ticketId,
+          subject: data && data.subject ? String(data.subject) : ''
+        };
+        setMessengerComposerState(data && data.can_chat === true, data && data.chat_locked_message ? String(data.chat_locked_message) : '');
+
+        var conv = Array.isArray(window.__tmConversations)
+          ? window.__tmConversations.find(function (c) { return c && String(c.id) === String(ticketId); })
+          : null;
+        if (!conv) {
+          conv = {
+            id: String(ticketId),
+            subject: data && data.subject ? String(data.subject) : 'Ticket',
+            status: data && data.status ? String(data.status) : '',
+            requester_email: data && data.created_by_email ? String(data.created_by_email) : ''
+          };
+          if (!Array.isArray(window.__tmConversations)) window.__tmConversations = [];
+          window.__tmConversations.unshift(conv);
+        }
+        if (data && data.subject) conv.subject = String(data.subject);
+        if (data && data.status) conv.status = String(data.status);
+        if (data && data.created_by_email) conv.requester_email = String(data.created_by_email);
+        conv.assigned_to_name = data && data.assigned_to_name ? String(data.assigned_to_name) : '';
+        messengerPermissionState.statusLabel = conv.status || '';
+        setMessengerHeader(conv);
+        updateMessengerFilterButtons();
+        renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
+        if (messengerTicketId && String(messengerTicketId) === String(ticketId)) {
+          if (messengerPermissionState.canChat === true) {
+            loadMessengerMessages(ticketId, scrollBottom === true, true);
+          } else {
+            renderMessengerLockedState(messengerPermissionState.lockedMessage);
+          }
+        }
+      })
+      .catch(function () { });
+  }
   function sendMessengerMessage() {
     var input = qs('tmMessengerInput');
     var ticketIdEl = qs('tmMessengerTicketId');
@@ -1633,6 +2115,7 @@ var TMTicketModal = (function () {
     var ticketId = String(ticketIdEl.value || '');
     var message = input.value.trim();
     if (!ticketId || !message) return;
+    if (input.disabled || input.readOnly || messengerPermissionState.canChat !== true) return;
     if (btn && btn.disabled) return;
     var senderName = (window.TM_CURRENT_USER && window.TM_CURRENT_USER.name) ? String(window.TM_CURRENT_USER.name) : 'You';
     input.value = '';
@@ -1651,17 +2134,11 @@ var TMTicketModal = (function () {
           setTimeout(function () { loadMessengerMessages(ticketId, true); }, 0);
           return;
         }
-        if (bubble) {
-          bubble.style.border = '1px solid #ef4444';
-          bubble.style.opacity = '0.75';
-        }
+        loadMessengerMessages(ticketId, false);
       })
       .catch(function () {
         if (btn) btn.disabled = false;
-        if (bubble) {
-          bubble.style.border = '1px solid #ef4444';
-          bubble.style.opacity = '0.75';
-        }
+        loadMessengerMessages(ticketId, false);
       });
   }
   function deleteMessengerConversation() {
@@ -1819,7 +2296,8 @@ var TMTicketModal = (function () {
     stopChat();
     ensureChatModalExists();
     fetch('get_ticket_details.php?id=' + id)
-      .then(function (r) { return r.json(); })
+      .then(function (r) { return r.text(); })
+      .then(function (text) { return parseTicketDetailsResponse(text); })
       .then(function (data) {
         if (data && data.error) {
           modalContent.innerHTML = '<div style="padding:40px; text-align:center; color:#ef4444;">' + escapeHtml(data.error) + '</div>';
@@ -1827,16 +2305,35 @@ var TMTicketModal = (function () {
         }
         setCurrentTicketId(data && data.id != null ? data.id : id);
         lastTicketMeta = { id: data && data.id != null ? data.id : id, subject: data && data.subject ? String(data.subject) : '' };
-        modalContent.innerHTML = buildHtml(data);
-        bindNoChangeGuard(modalContent, data);
-        bindAdminNote(modalContent, data);
+        try {
+          modalContent.innerHTML = buildHtml(data);
+        } catch (renderError) {
+          console.error('Ticket modal render failed:', renderError, data);
+          modalContent.innerHTML = buildFallbackHtml(data);
+        }
+        try {
+          bindNoChangeGuard(modalContent, data);
+        } catch (noChangeError) {
+          console.error('Ticket modal no-change guard failed:', noChangeError, data);
+        }
+        try {
+          bindAdminNote(modalContent, data);
+        } catch (adminNoteError) {
+          console.error('Ticket modal admin note binding failed:', adminNoteError, data);
+        }
+        try {
+          bindDepartmentOptions(modalContent, data);
+        } catch (deptBindError) {
+          console.error('Ticket modal department binding failed:', deptBindError, data);
+        }
         setTimeout(function () {
           var statusSelect = modalContent.querySelector('.tm-status-select');
           if (statusSelect) updateStatusColor(statusSelect);
           startChatBadge(data.id);
         }, 0);
       })
-      .catch(function () {
+      .catch(function (err) {
+        console.error('Ticket details load failed:', err);
         modalContent.innerHTML = '<div style="padding:40px; text-align:center; color:#ef4444;">Failed to load details.</div>';
       });
     if (!modal.dataset.boundClose) {

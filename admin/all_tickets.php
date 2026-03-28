@@ -30,10 +30,17 @@ function time_ago_days(string $dateTime): string
     return $created->format('M d, Y');
 }
 
-function sla_badge_html(string $createdAt, string $status): string
+function sla_badge_html(string $createdAt, string $status, string $priority = ''): string
 {
     $statusKey = strtolower(trim($status));
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
+    $priorityKey = strtolower(trim($priority));
+    if ($priorityKey === 'critical') {
+        return '<span class="badge badge-critical">Breached</span>';
+    }
+    if ($priorityKey === 'high') {
+        return '<span class="badge badge-high">At Risk</span>';
+    }
     if ($createdAt === '') return '-';
     try {
         $created = new DateTimeImmutable($createdAt);
@@ -109,7 +116,7 @@ if ($cntStmt) {
 $query = "
 SELECT employee_tickets.*, users.name, users.email, users.department AS user_department
 FROM employee_tickets
-JOIN users ON employee_tickets.user_id = users.id
+LEFT JOIN users ON employee_tickets.user_id = users.id
 WHERE 1
 ";
 
@@ -163,7 +170,7 @@ if (!empty($company_email)) {
     if ($domain !== '') {
         if ($domain[0] !== '@') $domain = '@' . $domain;
         $domainEsc = $conn->real_escape_string($domain);
-        $query .= " AND LOWER(COALESCE(NULLIF(employee_tickets.requester_email,''), users.email)) LIKE '%$domainEsc'";
+        $query .= " AND LOWER(COALESCE(NULLIF(employee_tickets.assigned_company,''), NULLIF(employee_tickets.company,''))) = '$domainEsc'";
     }
 }
 
@@ -179,6 +186,7 @@ if (!empty($search)) {
         users.name LIKE '%$searchSQL%' OR
         LOWER(COALESCE(NULLIF(employee_tickets.requester_email,''), users.email)) LIKE LOWER('%$searchSQL%') OR
         employee_tickets.subject LIKE '%$searchSQL%' OR
+        employee_tickets.description LIKE '%$searchSQL%' OR
         employee_tickets.id LIKE '%$searchSQL%'";
 
     if ($searchById) {
@@ -210,6 +218,9 @@ if ($from_pos !== false) {
 }
 
 $total_pages = ceil($total_records / $limit);
+if ($total_pages < 1) $total_pages = 1;
+if ($page > $total_pages) $page = $total_pages;
+$offset = ($page - 1) * $limit;
 
 $query .= " ORDER BY employee_tickets.created_at DESC LIMIT ?, ?";
 
@@ -226,11 +237,11 @@ $result = $stmt->get_result();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All Tickets</title>
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
-    <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
+<link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         .at-layout { width: 100%; max-width: 1560px; display: flex; gap: 18px; align-items: flex-start; }
-        .at-sidebar { width: 260px; flex: 0 0 260px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; box-shadow: 0 4px 10px rgba(2,6,23,0.04); position: sticky; top: 96px; min-height: calc(100vh - 120px); display: flex; flex-direction: column; }
+        .at-sidebar { width: 260px; flex: 0 0 260px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; box-shadow: 0 4px 10px rgba(2,6,23,0.04); position: static; top: auto; min-height: 580px; height: auto; display: flex; flex-direction: column; align-self: flex-start; }
         .at-sidebar-section + .at-sidebar-section { margin-top: 16px; }
         .at-sidebar-title { font-size: 12px; font-weight: 800; color: #475569; display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 8px; text-transform: none; }
         .at-sidebar-add { width: 28px; height: 28px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: #f1f5f9; color: #1b5e20; border: 1px solid #e2e8f0; cursor: pointer; }
@@ -260,12 +271,18 @@ $result = $stmt->get_result();
             padding: 10px 26px 10px 10px;
             flex: 0 0 auto;
         }
-        #filterForm select[name="department"] { width: 154px; }
-        #filterForm select[name="company_email"] { width: 176px; }
+        #filterForm #recipientFilterSelect { width: 210px; }
+        #filterForm #departmentFilterSelect { width: 210px; }
         #filterForm select[name="priority"] { width: 128px; }
         #filterForm select[name="status"] { width: 128px; }
         #filterForm .clear-btn {
             margin-left: 0;
+        }
+        #filterForm .lapc-department-filter {
+            flex: 0 0 auto;
+        }
+        #filterForm .lapc-department-filter.is-disabled {
+            opacity: 0.7;
         }
         .table-footer-bar {
             display: flex;
@@ -279,6 +296,7 @@ $result = $stmt->get_result();
             display: flex;
             align-items: center;
             gap: 10px;
+            flex: 0 0 auto;
             color: #475569;
             font-size: 12px;
             font-weight: 700;
@@ -286,45 +304,65 @@ $result = $stmt->get_result();
             text-transform: uppercase;
             white-space: nowrap;
         }
+        .table-footer-bar .tickets-summary {
+            flex: 1 1 260px;
+            min-width: 220px;
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
         .table-footer-bar .entries-row .filter-select {
             width: 96px;
             min-width: 96px;
         }
         .table-footer-bar #ticketsPagination {
+            flex: 0 0 auto;
             margin-left: auto;
+            max-width: 100%;
+            min-width: 420px;
         }
         .table-footer-bar #ticketsPagination .pagination-glass {
-            gap: 12px;
+            display: inline-flex;
+            justify-content: center;
+            width: 100%;
+            gap: 8px;
             margin-top: 0;
+            flex-wrap: nowrap;
         }
         .table-footer-bar #ticketsPagination .page-numbers {
-            gap: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 224px;
+            gap: 6px;
         }
         .table-footer-bar #ticketsPagination .page-btn {
-            min-width: 42px;
-            height: 42px;
-            padding: 0 16px;
+            min-width: 38px;
+            height: 38px;
+            padding: 0 13px;
             border: 1px solid #d8e2ec;
             background: #ffffff;
             color: #334155;
             box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+            font-size: 13px;
         }
         .table-footer-bar #ticketsPagination .page-btn.prev,
         .table-footer-bar #ticketsPagination .page-btn.next {
-            min-width: 84px;
-            padding: 0 18px;
+            min-width: 72px;
+            padding: 0 14px;
             font-weight: 700;
         }
         .table-footer-bar #ticketsPagination .page-btn:hover:not(.active):not(.disabled) {
             background: #f8fafc;
             border-color: #cfd9e3;
-            transform: translateY(-1px);
         }
         .table-footer-bar #ticketsPagination .page-btn.active {
             background: #166534;
             border-color: #166534;
             color: #ffffff;
-            box-shadow: 0 10px 24px rgba(22, 101, 52, 0.26);
+            box-shadow: 0 8px 22px rgba(22, 101, 52, 0.18);
         }
         .table-footer-bar #ticketsPagination .page-btn.disabled {
             opacity: 0.45;
@@ -332,31 +370,46 @@ $result = $stmt->get_result();
             border-color: #d8e2ec;
         }
         .table-footer-bar #ticketsPagination .pagination-ellipsis {
-            min-width: 24px;
-            height: 42px;
+            min-width: 18px;
+            height: 38px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             color: #64748b;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 800;
             letter-spacing: 0.08em;
+        }
+        .status-resolved {
+            background: #dbeafe !important;
+            border-color: #bfdbfe !important;
+            color: #1d4ed8 !important;
         }
         @media (max-width: 1100px) {
             .at-sidebar { display: none; }
             .at-layout { max-width: 1200px; }
             #filterForm .filter-row { flex-wrap: wrap; }
+            .table-footer-bar {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
         }
         @media (max-width: 768px) {
+            .table-footer-bar {
+                flex-direction: column;
+                align-items: center;
+            }
             .table-footer-bar #ticketsPagination {
                 width: 100%;
                 margin-left: 0;
+                min-width: 0;
             }
             .table-footer-bar #ticketsPagination .pagination-glass {
                 justify-content: center;
                 gap: 8px;
             }
             .table-footer-bar #ticketsPagination .page-numbers {
+                min-width: 0;
                 gap: 8px;
             }
             .table-footer-bar #ticketsPagination .page-btn {
@@ -450,6 +503,8 @@ $result = $stmt->get_result();
             <div class="admin-card filter-card">
                 <form method="GET" id="filterForm">
                     <input type="hidden" name="view" value="<?= htmlspecialchars($view, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="department" id="departmentFilterValue" value="<?= htmlspecialchars($department, ENT_QUOTES, 'UTF-8'); ?>">
+                    <input type="hidden" name="company_email" id="companyEmailFilterValue" value="<?= htmlspecialchars($company_email, ENT_QUOTES, 'UTF-8'); ?>">
                     <div class="filter-row">
                         <input type="text"
                                name="search"
@@ -458,32 +513,43 @@ $result = $stmt->get_result();
                                placeholder="Search name, email or subject..."
                                value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
 
-                        <select name="department" class="filter-select" onchange="submitForm()">
-                            <option value="" disabled selected hidden>All Department</option>
-                            <option value="ACCOUNTING" <?= $department_key==='ACCOUNTING'?'selected':'' ?>>ACCOUNTING</option>
-                            <option value="ADMIN" <?= $department_key==='ADMIN'?'selected':'' ?>>ADMIN</option>
-                            <option value="BIDDING" <?= $department_key==='BIDDING'?'selected':'' ?>>BIDDING</option>
-                            <option value="E-COMM" <?= $department_key==='E-COMM'?'selected':'' ?>>E-COMM</option>
-                            <option value="HR" <?= $department_key==='HR'?'selected':'' ?>>HR</option>
-                            <option value="IT" <?= $department_key==='IT'?'selected':'' ?>>IT</option>
-                            <option value="LINGAP" <?= $department_key==='LINGAP'?'selected':'' ?>>LINGAP</option>
-                            <option value="MARKETING" <?= $department_key==='MARKETING'?'selected':'' ?>>MARKETING</option>
-                            <option value="SUPPLY CHAIN" <?= $department_key==='SUPPLY CHAIN'?'selected':'' ?>>SUPPLY CHAIN</option>
-                            <option value="TECHNICAL" <?= $department_key==='TECHNICAL'?'selected':'' ?>>TECHNICAL</option>
+                        <select id="recipientFilterSelect" class="filter-select">
+                            <option value="" disabled selected hidden>All Company</option>
+                            <option value="@leads-farmex.com">FARMEX (@leads-farmex.com)</option>
+                            <option value="@farmasee.ph">FARMASEE (@farmasee.ph)</option>
+                            <option value="@gpsci.net">GPSCI (@gpsci.net)</option>
+                            <option value="@leadsanimalhealth.com">LAH (@leadsanimalhealth.com)</option>
+                            <option value="@leadsagri.com">LAPC (@leadsagri.com)</option>
+                            <option value="@leads-eh.com">LEH (@leads-eh.com)</option>
+                            <option value="@leadsav.com">LAV (@leadsav.com)</option>
+                            <option value="@leadstech-corp.com">LTC (@leadstech-corp.com)</option>
+                            <option value="@lingapleads.org">LINGAP (@lingapleads.org)</option>
+                            <option value="@malvedaproperties.com">MHC (@malvedaproperties.com)</option>
+                            <option value="@primestocks.ph">PCC (@primestocks.ph)</option>
                         </select>
 
-                        <select name="company_email" class="filter-select" onchange="submitForm()">
-                            <option value="" disabled selected hidden>All Email</option>
-                            <?php
-                                $domains = ['@gpsci.net','@farmasee.ph','@gmail.com','@leads-eh.com','@leads-farmex.com','@leadsagri.com','@leadsanimalhealth.com','@leadsav.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'];
-                                $selDomain = strtolower(trim((string) $company_email));
-                                if ($selDomain !== '' && $selDomain[0] !== '@') $selDomain = '@' . $selDomain;
-                                foreach ($domains as $d) {
-                                    $isSel = $selDomain !== '' && strtolower($d) === $selDomain;
-                                    echo '<option value="' . htmlspecialchars($d, ENT_QUOTES, 'UTF-8') . '" ' . ($isSel ? 'selected' : '') . '>' . htmlspecialchars($d, ENT_QUOTES, 'UTF-8') . '</option>';
-                                }
-                            ?>
-                        </select>
+                        <div id="departmentFilterWrap" class="lapc-department-filter is-disabled">
+                            <select id="departmentFilterSelect" class="filter-select" disabled>
+                                <option value="" disabled selected hidden>All Department</option>
+                                <option value="Admin &amp; Legal">Admin &amp; Legal</option>
+                                <option value="Banana Farm Operations">Banana Farm Operations</option>
+                                <option value="Diagnostics / Lingap">Diagnostics / Lingap</option>
+                                <option value="Digital Agri Solutions and Innovations">Digital Agri Solutions and Innovations</option>
+                                <option value="E-Commerce">E-Commerce</option>
+                                <option value="Executive">Executive</option>
+                                <option value="Finance and Accounting">Finance and Accounting</option>
+                            <option value="HR">HR</option>
+                                <option value="IT">IT</option>
+                                <option value="Institutional Sales">Institutional Sales</option>
+                                <option value="Management">Management</option>
+                                <option value="Marketing">Marketing</option>
+                                <option value="New Business Segment">New Business Segment</option>
+                                <option value="Seed Production">Seed Production</option>
+                                <option value="Supply Chain">Supply Chain</option>
+                                <option value="Supply Chain Innovation">Supply Chain Innovation</option>
+                                <option value="Technical">Technical</option>
+                            </select>
+                        </div>
 
                         <select name="priority" class="filter-select" onchange="submitForm()">
                             <option value="" disabled selected hidden>All Priority</option>
@@ -564,8 +630,18 @@ $result = $stmt->get_result();
                                     echo htmlspecialchars($origDept !== '' ? $origDept : 'Sales');
                                 ?></td>
                                 <td data-label="Date"><?= htmlspecialchars(time_ago_days((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></td>
-                                <td data-label="SLA"><?= sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? '')); ?></td>
-                                <td data-label="Assign To"><?= htmlspecialchars($row['assigned_department'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td data-label="SLA"><?= sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
+                                <td data-label="Assign To"><?php
+                                    $assignedCompanyDisplay = strtolower(trim((string) ($row['assigned_company'] ?? '')));
+                                    $assignedToDisplay = trim((string) ($row['assigned_department'] ?? ''));
+                                    if ($assignedCompanyDisplay !== '@leadsagri.com' && $assignedCompanyDisplay !== 'lapc') {
+                                        $assignedToDisplay = trim((string) ($row['assigned_company'] ?? ''));
+                                    }
+                                    if ($assignedToDisplay === '') {
+                                        $assignedToDisplay = trim((string) ($row['assigned_department'] ?? ''));
+                                    }
+                                    echo htmlspecialchars(ticket_company_display_name($assignedToDisplay), ENT_QUOTES, 'UTF-8');
+                                ?></td>
                             </tr>
                             <?php } ?>
                         </tbody>
@@ -583,6 +659,14 @@ $result = $stmt->get_result();
                         <span>Entries</span>
                     </div>
 
+                    <?php
+                        $summaryStart = $total_records > 0 ? ($offset + 1) : 0;
+                        $summaryEnd = $total_records > 0 ? min($total_records, $offset + $limit) : 0;
+                    ?>
+                    <div class="tickets-summary" id="ticketsSummary">
+                        Showing <?= number_format($summaryStart); ?>-<?= number_format($summaryEnd); ?> of <?= number_format((int) $total_records); ?> tickets
+                    </div>
+
                     <!-- PAGINATION UI -->
                     <div id="ticketsPagination">
                     <?php if ($total_pages > 1): ?>
@@ -598,7 +682,7 @@ $result = $stmt->get_result();
                         <div class="page-numbers">
                             <?php
                                 $pagination_pages = [];
-                                if ($total_pages < 10) {
+                                if ($total_pages <= 5) {
                                     for ($i = 1; $i <= $total_pages; $i++) {
                                         $pagination_pages[] = $i;
                                     }
@@ -607,11 +691,11 @@ $result = $stmt->get_result();
                                     $window_start = max(2, $page - 1);
                                     $window_end = min($total_pages - 1, $page + 1);
 
-                                    if ($page <= 4) {
+                                    if ($page <= 3) {
                                         $window_start = 2;
-                                        $window_end = 5;
-                                    } elseif ($page >= $total_pages - 3) {
-                                        $window_start = $total_pages - 4;
+                                        $window_end = 3;
+                                    } elseif ($page >= $total_pages - 2) {
+                                        $window_start = $total_pages - 2;
                                         $window_end = $total_pages - 1;
                                     }
 
@@ -655,6 +739,7 @@ $result = $stmt->get_result();
 
                 </div>
             </div>
+        </div>
     </div>
 </div>
 
@@ -666,7 +751,21 @@ const searchInput = document.getElementById("searchInput");
 const filterForm = document.getElementById("filterForm");
 const tbodyEl = document.getElementById("ticketsTbody");
 const paginationEl = document.getElementById("ticketsPagination");
+const ticketsSummaryEl = document.getElementById("ticketsSummary");
+var currentAdminTicketsPage = <?php echo (int) $page; ?>;
+var adminTicketsAutoRefreshMs = 10000;
+
+function adminTicketModalOpen() {
+    var overlay = document.getElementById('ticketModal');
+    return !!(overlay && overlay.style.display === 'flex');
+}
 const limitSelect = document.getElementById("limitSelect");
+const recipientFilterSelect = document.getElementById("recipientFilterSelect");
+const departmentFilterSelect = document.getElementById("departmentFilterSelect");
+const departmentFilterWrap = document.getElementById("departmentFilterWrap");
+const companyEmailFilterValue = document.getElementById("companyEmailFilterValue");
+const departmentFilterValue = document.getElementById("departmentFilterValue");
+const lapcDomainValue = '@leadsagri.com';
 
 searchInput.addEventListener("keyup", function () {
     clearTimeout(typingTimer);
@@ -680,6 +779,65 @@ searchInput.addEventListener("keydown", function () {
 function doneTyping() {
     submitForm(1);
 }
+
+function syncRecipientFilters() {
+    if (!recipientFilterSelect || !departmentFilterSelect || !departmentFilterWrap || !companyEmailFilterValue || !departmentFilterValue) return;
+
+    var currentCompany = String(companyEmailFilterValue.value || '').toLowerCase();
+    var currentDepartment = String(departmentFilterValue.value || '');
+    recipientFilterSelect.value = currentCompany;
+
+    if (currentCompany === lapcDomainValue) {
+        departmentFilterWrap.classList.remove('is-disabled');
+        departmentFilterSelect.disabled = false;
+        if (departmentFilterSelect.options.length > 0) {
+            departmentFilterSelect.options[0].textContent = 'All Department';
+        }
+        departmentFilterSelect.value = currentDepartment;
+    } else {
+        departmentFilterWrap.classList.add('is-disabled');
+        departmentFilterSelect.disabled = true;
+        departmentFilterSelect.value = '';
+    }
+}
+
+function handleRecipientFilterChange() {
+    if (!recipientFilterSelect || !departmentFilterSelect || !departmentFilterWrap || !companyEmailFilterValue || !departmentFilterValue) return;
+
+    var selectedValue = String(recipientFilterSelect.value || '').toLowerCase();
+    companyEmailFilterValue.value = selectedValue;
+
+    if (!selectedValue) {
+        departmentFilterValue.value = '';
+        departmentFilterSelect.value = '';
+        departmentFilterSelect.disabled = true;
+        departmentFilterWrap.classList.add('is-disabled');
+        submitForm(1);
+        return;
+    }
+
+    if (selectedValue === lapcDomainValue) {
+        departmentFilterValue.value = '';
+        departmentFilterSelect.value = '';
+        departmentFilterSelect.disabled = false;
+        departmentFilterWrap.classList.remove('is-disabled');
+        return;
+    }
+
+    departmentFilterValue.value = '';
+    departmentFilterSelect.value = '';
+    departmentFilterSelect.disabled = true;
+    departmentFilterWrap.classList.add('is-disabled');
+    submitForm(1);
+}
+
+function handleDepartmentFilterChange() {
+    if (!departmentFilterSelect || !companyEmailFilterValue || !departmentFilterValue) return;
+    departmentFilterValue.value = String(departmentFilterSelect.value || '');
+    submitForm(1);
+}
+
+syncRecipientFilters();
 
 function serializeForm(page) {
     var fd = new FormData(filterForm);
@@ -697,21 +855,34 @@ function serializeForm(page) {
     return params;
 }
 
-function refreshTickets(page) {
+function refreshTickets(page, updateHistory) {
     if (!filterForm || !tbodyEl || !paginationEl) return;
-    var params = serializeForm(page || 1);
+    var nextPage = parseInt(page || currentAdminTicketsPage || 1, 10);
+    if (!nextPage || nextPage < 1) nextPage = 1;
+    var params = serializeForm(nextPage);
     fetch('ajax_all_tickets_list.php?' + params.toString(), { method: 'GET' })
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (!data || !data.ok) return;
             tbodyEl.innerHTML = data.rows_html || '';
             paginationEl.innerHTML = data.pagination_html || '';
+            if (ticketsSummaryEl) {
+                ticketsSummaryEl.textContent = data.summary_text || 'Showing 0-0 of 0 tickets';
+            }
+            currentAdminTicketsPage = parseInt(data.page || nextPage, 10) || 1;
+            if (updateHistory === false) return;
             var url = new URL(window.location.href);
             url.search = '';
             params.forEach(function (v, k) { url.searchParams.set(k, v); });
+            url.searchParams.set('page', String(currentAdminTicketsPage));
             history.replaceState({}, '', url.toString());
         })
         .catch(function () {});
+}
+
+function scheduleAdminTicketsRefresh() {
+    if (document.hidden || adminTicketModalOpen()) return;
+    refreshTickets(currentAdminTicketsPage, false);
 }
 
 function submitForm(page){
@@ -775,6 +946,9 @@ if (clearBtn) {
         e.preventDefault();
         if (!filterForm) return;
         filterForm.reset();
+        if (companyEmailFilterValue) companyEmailFilterValue.value = '';
+        if (departmentFilterValue) departmentFilterValue.value = '';
+        syncRecipientFilters();
         if (searchInput) searchInput.value = '';
         submitForm(1);
     });
@@ -792,6 +966,20 @@ if (limitSelect) {
         submitForm(1);
     });
 }
+
+if (recipientFilterSelect) {
+    recipientFilterSelect.addEventListener('change', handleRecipientFilterChange);
+}
+
+if (departmentFilterSelect) {
+    departmentFilterSelect.addEventListener('change', handleDepartmentFilterChange);
+}
+setInterval(scheduleAdminTicketsRefresh, adminTicketsAutoRefreshMs);
+document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) {
+        scheduleAdminTicketsRefresh();
+    }
+});
 </script>
     <script src="../js/admin.js"></script>
 <script>

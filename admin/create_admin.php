@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: dashboard.php");
@@ -62,34 +63,22 @@ if ($users_companies_res) {
     }
 }
 
-$email_domains = [
-    'gpsci.net',
-    'farmasee.ph',
-    'gmail.com',
-    'leads-eh.com',
-    'leads-farmex.com',
-    'leadsagri.com',
-    'leadsanimalhealth.com',
-    'leadsav.com',
-    'malvedaproperties.com',
-    'malvedaholdings.com',
-    'leadstech-corp.com',
-    'lingapleads.org',
-    'primestocks.ph'
-
+$company_domain_options = [
+    '@leads-farmex.com' => 'FARMEX',
+    '@farmasee.ph' => 'FARMASEE',
+    '@gpsci.net' => 'GPCI',
+    '@leadsanimalhealth.com' => 'LAH',
+    '@leadsagri.com' => 'LAPC',
+    '@leads-eh.com' => 'LEH',
+    '@leadstech-corp.com' => 'LTC',
+    '@leadsav.com' => 'LAV',
+    '@lingapleads.org' => 'LINGAP',
+    '@malvedaholdings.com' => 'MHC',
+    '@malvedaproperties.com' => 'MPDC',
+    '@primestocks.ph' => 'PCC'
 ];
 
-$department_options = [
-    'ACCOUNTING',
-    'ADMIN',
-    'E-COMM',
-    'HR',
-    'IT',
-    'LINGAP',
-    'MARKETING',
-    'SUPPLY CHAIN',
-    'TECHNICAL'
-];
+$lapc_department_options = ticket_lapc_departments();
 
 ?>
 
@@ -515,6 +504,10 @@ $department_options = [
             font-size: 14px;
             color: #374151;
         }
+        .checkbox-option-text {
+            cursor: pointer;
+            user-select: none;
+        }
         .checkbox-option input {
             width: 16px;
             height: 16px;
@@ -553,6 +546,13 @@ $department_options = [
             cursor: pointer;
             box-sizing: border-box;
             font-size: 13px;
+        }
+        .domain-select:disabled {
+            background-color: #f8fafc;
+            border-color: #dbe4ee;
+            color: #94a3b8;
+            box-shadow: none;
+            cursor: not-allowed;
         }
         .btn {
             border: 1px solid transparent;
@@ -724,37 +724,54 @@ $department_options = [
         }
         .pagination-controls {
             display: flex;
-            gap: 8px;
+            gap: 12px;
             margin-left: auto;
             align-items: center;
             justify-content: flex-end;
             flex-wrap: wrap;
         }
+        .pagination-pages {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
         .page-btn {
-            min-width: 40px;
-            height: 40px;
-            padding: 0 15px;
+            min-width: 42px;
+            height: 42px;
+            padding: 0 16px;
             border-radius: 999px;
-            border: 1px solid #d7e2ea;
+            border: 1px solid #d8e2ec;
             cursor: pointer;
             background: #ffffff;
-            color: #0f172a;
-            font-weight: 600;
+            color: #334155;
+            font-weight: 700;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             text-decoration: none;
             user-select: none;
-            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
             transition: all 0.2s ease;
         }
-        .page-btn:hover { background: #f8fafc; transform: translateY(-1px); border-color: #cbd5e1; }
-        .page-btn.active { background: #166534; color: #ffffff; border-color: #166534; box-shadow: 0 10px 18px rgba(22, 101, 52, 0.22); }
-        .page-btn.disabled { opacity: 0.45; pointer-events: none; box-shadow: none; }
+        .page-btn:hover:not(.active):not(.disabled) { background: #f8fafc; transform: translateY(-1px); border-color: #cfd9e3; }
+        .page-btn.active { background: #166534; color: #ffffff; border-color: #166534; box-shadow: 0 10px 24px rgba(22, 101, 52, 0.26); }
+        .page-btn.disabled { opacity: 0.45; pointer-events: none; box-shadow: none; background: #ffffff; border-color: #d8e2ec; }
         .page-btn.prev,
         .page-btn.next {
-            min-width: 110px;
+            min-width: 84px;
             padding: 0 18px;
+        }
+        .pagination-ellipsis {
+            min-width: 24px;
+            height: 42px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
         }
         .add-user-trigger {
             background: #1B5E20;
@@ -923,6 +940,237 @@ $department_options = [
         }
         @media (max-width: 640px) {
             .admin-card-grid { grid-template-columns: 1fr; }
+            .users-pagination {
+                justify-content: center;
+            }
+            .pagination-info {
+                width: 100%;
+                text-align: center;
+            }
+            .pagination-controls {
+                justify-content: center;
+                margin-left: 0;
+                gap: 8px;
+            }
+            .pagination-pages {
+                gap: 8px;
+                justify-content: center;
+            }
+            .page-btn {
+                min-width: 38px;
+                height: 38px;
+                padding: 0 13px;
+                font-size: 13px;
+            }
+            .page-btn.prev,
+            .page-btn.next {
+                min-width: 74px;
+                padding: 0 14px;
+            }
+            .pagination-ellipsis {
+                min-width: 18px;
+                height: 38px;
+                font-size: 16px;
+            }
+        }
+
+        .swal-delete-popup {
+            border-radius: 22px;
+            padding: 16px 0 0;
+            box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
+            overflow: hidden;
+        }
+
+        .swal-delete-icon {
+            width: 58px !important;
+            height: 58px !important;
+            margin: 0 auto 10px !important;
+            border-width: 3px !important;
+            color: #f6b26b !important;
+            border-color: #f6b26b !important;
+        }
+
+        .swal-delete-title {
+            font-size: 20px !important;
+            font-weight: 700 !important;
+            color: #20243a !important;
+            line-height: 1.15 !important;
+            padding: 0 22px !important;
+            margin: 0 0 7px !important;
+        }
+
+        .swal-delete-html {
+            font-size: 13px !important;
+            line-height: 1.45 !important;
+            color: #5b6275 !important;
+            padding: 0 22px !important;
+            margin: 0 0 14px !important;
+        }
+
+        .swal-delete-actions {
+            width: 100%;
+            gap: 12px;
+            margin: 0 !important;
+            padding: 14px 18px 18px !important;
+            border-top: 1px solid #e6e8ef;
+            justify-content: center;
+        }
+
+        .swal-delete-confirm,
+        .swal-delete-cancel {
+            min-width: 0;
+            width: 154px;
+            height: 42px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            margin: 0 !important;
+            box-shadow: none !important;
+        }
+
+        .swal-delete-confirm {
+            background: linear-gradient(180deg, #e54559 0%, #d6374d 100%) !important;
+            color: #ffffff !important;
+        }
+
+        .swal-delete-cancel {
+            background: linear-gradient(180deg, #eceef3 0%, #dfe3eb 100%) !important;
+            color: #2e3345 !important;
+        }
+
+        .swal-delete-success-popup {
+            border-radius: 22px;
+            padding: 16px 0 0;
+            box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
+            overflow: hidden;
+        }
+
+        .swal-delete-success-icon {
+            width: 58px !important;
+            height: 58px !important;
+            margin: 0 auto 18px !important;
+            border-width: 3px !important;
+            color: #9bd67a !important;
+            border-color: #d9f0cd !important;
+        }
+
+        .swal-delete-success-title {
+            font-size: 20px !important;
+            font-weight: 700 !important;
+            color: #20243a !important;
+            line-height: 1.2 !important;
+            padding: 0 22px !important;
+            margin: 0 0 10px !important;
+        }
+
+        .swal-delete-success-html {
+            font-size: 13px !important;
+            line-height: 1.45 !important;
+            color: #5b6275 !important;
+            padding: 0 22px !important;
+            margin: 0 0 16px !important;
+        }
+
+        .swal-delete-success-actions {
+            width: 100%;
+            gap: 12px;
+            margin: 0 !important;
+            padding: 14px 18px 18px !important;
+            border-top: 1px solid #e6e8ef;
+            justify-content: center;
+        }
+
+        .swal-delete-success-confirm {
+            min-width: 0;
+            width: 154px;
+            height: 42px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            margin: 0 !important;
+            box-shadow: none !important;
+            background: linear-gradient(180deg, #1f7a32 0%, #1b5e20 100%) !important;
+            color: #ffffff !important;
+        }
+
+        .swal-admin-alert-popup {
+            border-radius: 22px;
+            padding: 16px 0 0;
+            box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
+            overflow: hidden;
+        }
+
+        .swal-admin-alert-icon {
+            width: 58px !important;
+            height: 58px !important;
+            margin: 0 auto 18px !important;
+            border-width: 3px !important;
+        }
+
+        .swal-admin-alert-icon.swal2-warning,
+        .swal-admin-alert-icon.swal2-question {
+            color: #f6b26b !important;
+            border-color: #f6b26b !important;
+        }
+
+        .swal-admin-alert-icon.swal2-success {
+            color: #9bd67a !important;
+            border-color: #d9f0cd !important;
+        }
+
+        .swal-admin-alert-icon.swal2-error {
+            color: #e54559 !important;
+            border-color: #f2b3bc !important;
+        }
+
+        .swal-admin-alert-title {
+            font-size: 20px !important;
+            font-weight: 700 !important;
+            color: #20243a !important;
+            line-height: 1.2 !important;
+            padding: 0 22px !important;
+            margin: 0 0 10px !important;
+        }
+
+        .swal-admin-alert-html {
+            font-size: 13px !important;
+            line-height: 1.45 !important;
+            color: #5b6275 !important;
+            padding: 0 22px !important;
+            margin: 0 0 16px !important;
+        }
+
+        .swal-admin-alert-actions {
+            width: 100%;
+            gap: 12px;
+            margin: 0 !important;
+            padding: 14px 18px 18px !important;
+            border-top: 1px solid #e6e8ef;
+            justify-content: center;
+        }
+
+        .swal-admin-alert-confirm,
+        .swal-admin-alert-cancel {
+            min-width: 0;
+            width: 154px;
+            height: 42px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            margin: 0 !important;
+            box-shadow: none !important;
+        }
+
+        .swal-admin-alert-confirm {
+            background: linear-gradient(180deg, #1f7a32 0%, #1b5e20 100%) !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(20, 74, 30, 0.28) !important;
+        }
+
+        .swal-admin-alert-cancel {
+            background: linear-gradient(180deg, #eceef3 0%, #dfe3eb 100%) !important;
+            color: #2e3345 !important;
+            border: 1px solid rgba(100, 116, 139, 0.18) !important;
         }
     </style>
     <!-- Add FontAwesome for trash icon -->
@@ -964,16 +1212,15 @@ $department_options = [
                         <div class="users-filters">
                             <select class="domain-select" id="usersDept">
                                 <option value="all" selected>All Departments</option>
-                                <?php foreach ($department_options as $d): ?>
+                                <?php foreach ($lapc_department_options as $d): ?>
                                     <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                                 <?php endforeach; ?>
                             </select>
                             <div class="users-company-inline">
                                 <select class="domain-select" id="usersCompany">
                                     <option value="all" selected>All Companies</option>
-                                    <?php foreach ($email_domains as $ed): ?>
-                                        <?php $opt = '@' . $ed; ?>
-                                        <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?></option>
+                                    <?php foreach ($company_domain_options as $opt => $label): ?>
+                                        <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($label . ' (' . $opt . ')', ENT_QUOTES, 'UTF-8'); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                                 <button type="button" class="btn btn-auto" id="clearUsersFilters">Clear</button>
@@ -1015,30 +1262,26 @@ $department_options = [
                     </div>
                 </div>
                 <div class="mgmt-card-body">
-                    <form id="addUserForm" autocomplete="off">
+                    <form id="addUserForm" autocomplete="off" novalidate>
                         <?php echo csrf_field(); ?>
                         <div class="form-grid">
-                            <div class="form-label">Full Name *</div>
-                            <div class="fullname-row">
-                                <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required inputmode="text" autocomplete="off">
-                                <select class="domain-select" name="department" id="newDept" aria-label="Department" required>
-                                    <option value="">Select Department</option>
-                                    <?php foreach ($department_options as $d): ?>
-                                        <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
                             <div class="form-label">Email *</div>
                             <div class="username-row">
                                 <input type="text" class="form-control" name="username" id="username" placeholder="juan.delacruz" required>
                                 <select class="domain-select" name="domain" id="domain" required>
-                                    <?php foreach ($email_domains as $ed): ?>
-                                        <?php $opt = '@' . $ed; ?>
-                                        <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>" <?= $ed === 'leadsagri.com' ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>
+                                    <?php foreach ($company_domain_options as $opt => $label): ?>
+                                        <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>" <?= $opt === '@leadsagri.com' ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($label . ' (' . $opt . ')', ENT_QUOTES, 'UTF-8'); ?>
                                         </option>
                                     <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="form-label">Full Name *</div>
+                            <div class="fullname-row">
+                                <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required inputmode="text" autocomplete="off">
+                                <select class="domain-select" name="department" id="newDept" aria-label="Department" required disabled>
+                                    <option value="">Select Company First</option>
                                 </select>
                             </div>
 
@@ -1054,17 +1297,17 @@ $department_options = [
                             </div>
 
                             <div class="form-options">
-                                <label class="checkbox-option">
-                                    <input type="checkbox" name="send_credentials" value="1">
-                                    <span>Send credentials via email</span>
+                                <div class="checkbox-option">
+                                    <input type="checkbox" name="send_credentials" id="sendCredentials" value="1">
+                                    <label class="checkbox-option-text" for="sendCredentials">Send credentials via email</label>
                                     <span class="info-icon" title="Automatically email the user's login credentials after account creation.">?</span>
-                                </label>
+                                </div>
 
-                                <label class="checkbox-option">
-                                    <input type="checkbox" name="force_password_change" value="1" checked>
-                                    <span>Force user to change password on first login</span>
+                                <div class="checkbox-option">
+                                    <input type="checkbox" name="force_password_change" id="forcePasswordChange" value="1" checked>
+                                    <label class="checkbox-option-text" for="forcePasswordChange">Force user to change password on first login</label>
                                     <span class="info-icon" title="User will be required to change their password the first time they log in.">?</span>
-                                </label>
+                                </div>
                             </div>
                         </div>
 
@@ -1196,6 +1439,53 @@ $department_options = [
     window.TM_USERS_PAGE_SIZE = 5;
     window.TM_IT_PAGE_SIZE = 3;
     window.TM_IT_ADMINS_PAGE_SIZE = 4;
+    var companyDepartments = {
+        "@leadsagri.com": <?php echo json_encode(array_values($lapc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
+        "@gpsci.net": ["Accounting", "Sales"],
+        "@primestocks.ph": [
+            "Admin",
+            "Finance and Accounting",
+            "Maintenance",
+            "Management",
+            "Production",
+            "Quality Control",
+            "Supply Chain",
+            "Technical"
+        ],
+        "@malvedaholdings.com": [
+            "Admin & Legal",
+            "E-Commerce",
+            "Executive",
+            "Finance and Accounting",
+            "IT",
+            "Institutional Sales",
+            "Management",
+            "Marketing"
+        ],
+        "@leads-farmex.com": [
+            "Business Development",
+            "Finance and Admin",
+            "Logistics",
+            "Management",
+            "Sales and Marketing",
+            "Special Project",
+            "Technical"
+        ],
+        "@leadstech-corp.com": [
+            "Admin",
+            "Finance and Accounting",
+            "Logistics",
+            "Marketing",
+            "Sales",
+            "Services & Logistics (Luzon)"
+        ],
+        "@farmasee.ph": [],
+        "@malvedaproperties.com": [],
+        "@lingapleads.org": [],
+        "@leads-eh.com": [],
+        "@leadsanimalhealth.com": [],
+        "@leadsav.com": []
+    };
     var tmUsersState = { page: 1, limit: window.TM_USERS_PAGE_SIZE, total: 0, totalPages: 1 };
     var tmItState = { page: 1, limit: window.TM_IT_PAGE_SIZE, total: 0, totalPages: 1 };
     var tmItAdminsState = { page: 1, limit: window.TM_IT_ADMINS_PAGE_SIZE, total: 0, totalPages: 1 };
@@ -1214,6 +1504,74 @@ $department_options = [
             var tmp = out[j]; out[j] = out[k]; out[k] = tmp;
         }
         return out.join('');
+    }
+
+    function buildPaginationModel(page, totalPages) {
+        var currentPage = Math.max(1, Number(page || 1));
+        var pageCount = Math.max(1, Number(totalPages || 1));
+        var items = [];
+
+        if (pageCount <= 7) {
+            for (var i = 1; i <= pageCount; i++) items.push(i);
+            return items;
+        }
+
+        items.push(1);
+
+        var windowStart = Math.max(2, currentPage - 1);
+        var windowEnd = Math.min(pageCount - 1, currentPage + 1);
+
+        if (currentPage <= 4) {
+            windowStart = 2;
+            windowEnd = 5;
+        } else if (currentPage >= pageCount - 3) {
+            windowStart = Math.max(2, pageCount - 4);
+            windowEnd = pageCount - 1;
+        }
+
+        if (windowStart > 2) items.push('ellipsis');
+
+        for (var p = windowStart; p <= windowEnd; p++) {
+            items.push(p);
+        }
+
+        if (windowEnd < pageCount - 1) items.push('ellipsis');
+
+        items.push(pageCount);
+        return items;
+    }
+
+    function updateDepartmentDropdown() {
+        var companyEl = document.getElementById('domain');
+        var deptEl = document.getElementById('newDept');
+        if (!companyEl || !deptEl) return;
+
+        var selectedCompany = String(companyEl.value || '').trim();
+        var departments = companyDepartments[selectedCompany] || [];
+        var html = '';
+
+        if (!selectedCompany) {
+            html = '<option value="">Select Company First</option>';
+            deptEl.disabled = true;
+            deptEl.required = false;
+        } else if (!departments.length) {
+            html = '<option value="">No departments available</option>';
+            deptEl.disabled = true;
+            deptEl.required = false;
+        } else {
+            html = departments.map(function (department) {
+                return '<option value="' + escapeHtml(String(department)) + '">' + escapeHtml(String(department)) + '</option>';
+            }).join('');
+            deptEl.disabled = false;
+            deptEl.required = true;
+        }
+
+        deptEl.innerHTML = html;
+        if (deptEl.disabled) {
+            deptEl.value = '';
+        } else if (departments.length) {
+            deptEl.selectedIndex = 0;
+        }
     }
 
     function renderUsers(users) {
@@ -1298,13 +1656,17 @@ $department_options = [
         var prevDisabled = page <= 1;
         var nextDisabled = page >= totalPages;
         btns.push('<a href=\"#\" class=\"page-btn prev' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">&lsaquo; Previous</a>');
-
-        var startPage = Math.max(1, page - 2);
-        var endPage = Math.min(totalPages, startPage + 4);
-        startPage = Math.max(1, endPage - 4);
-        for (var p = startPage; p <= endPage; p++) {
-            btns.push('<a href=\"#\" class=\"page-btn' + (p === page ? ' active' : '') + '\" data-page=\"' + p + '\">' + p + '</a>');
+        var paginationItems = buildPaginationModel(page, totalPages);
+        btns.push('<div class=\"pagination-pages\">');
+        for (var i = 0; i < paginationItems.length; i++) {
+            var item = paginationItems[i];
+            if (item === 'ellipsis') {
+                btns.push('<span class=\"pagination-ellipsis\">&hellip;</span>');
+            } else {
+                btns.push('<a href=\"#\" class=\"page-btn' + (item === page ? ' active' : '') + '\" data-page=\"' + item + '\">' + item + '</a>');
+            }
         }
+        btns.push('</div>');
         btns.push('<a href=\"#\" class=\"page-btn next' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">Next &rsaquo;</a>');
 
         controls.innerHTML = btns.join('');
@@ -1316,7 +1678,7 @@ $department_options = [
         var deptEl = document.getElementById('usersDept');
         var companyEl = document.getElementById('usersCompany');
         var q = qEl ? qEl.value.trim() : '';
-        var dept = deptEl ? deptEl.value : 'all';
+        var dept = (deptEl && !deptEl.disabled) ? deptEl.value : 'all';
         var company = companyEl ? companyEl.value : 'all';
         var p = typeof page === 'number' && page > 0 ? page : (tmUsersState.page || 1);
         tmUsersState.page = p;
@@ -1345,6 +1707,17 @@ $department_options = [
                 tmUsersState.totalPages = 1;
                 renderUsersPagination();
             });
+    }
+
+    function syncUsersDepartmentFilter() {
+        var deptEl = document.getElementById('usersDept');
+        var companyEl = document.getElementById('usersCompany');
+        if (!deptEl || !companyEl) return;
+        var isLapc = companyEl.value === '@leadsagri.com';
+        deptEl.disabled = !isLapc;
+        if (!isLapc) {
+            deptEl.value = 'all';
+        }
     }
 
     function renderItEmployees(list) {
@@ -1397,13 +1770,17 @@ $department_options = [
         var prevDisabled = page <= 1;
         var nextDisabled = page >= totalPages;
         btns.push('<a href=\"#\" class=\"page-btn prev' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">&lsaquo; Previous</a>');
-
-        var startPage = Math.max(1, page - 2);
-        var endPage = Math.min(totalPages, startPage + 4);
-        startPage = Math.max(1, endPage - 4);
-        for (var p = startPage; p <= endPage; p++) {
-            btns.push('<a href=\"#\" class=\"page-btn' + (p === page ? ' active' : '') + '\" data-page=\"' + p + '\">' + p + '</a>');
+        var paginationItems = buildPaginationModel(page, totalPages);
+        btns.push('<div class=\"pagination-pages\">');
+        for (var i = 0; i < paginationItems.length; i++) {
+            var item = paginationItems[i];
+            if (item === 'ellipsis') {
+                btns.push('<span class=\"pagination-ellipsis\">&hellip;</span>');
+            } else {
+                btns.push('<a href=\"#\" class=\"page-btn' + (item === page ? ' active' : '') + '\" data-page=\"' + item + '\">' + item + '</a>');
+            }
         }
+        btns.push('</div>');
         btns.push('<a href=\"#\" class=\"page-btn next' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">Next &rsaquo;</a>');
 
         controls.innerHTML = btns.join('');
@@ -1465,13 +1842,17 @@ $department_options = [
         var prevDisabled = page <= 1;
         var nextDisabled = page >= totalPages;
         btns.push('<a href=\"#\" class=\"page-btn prev' + (prevDisabled ? ' disabled' : '') + '\" data-page=\"' + (page - 1) + '\">&lsaquo; Previous</a>');
-
-        var startPage = Math.max(1, page - 2);
-        var endPage = Math.min(totalPages, startPage + 4);
-        startPage = Math.max(1, endPage - 4);
-        for (var p = startPage; p <= endPage; p++) {
-            btns.push('<a href=\"#\" class=\"page-btn' + (p === page ? ' active' : '') + '\" data-page=\"' + p + '\">' + p + '</a>');
+        var paginationItems = buildPaginationModel(page, totalPages);
+        btns.push('<div class=\"pagination-pages\">');
+        for (var i = 0; i < paginationItems.length; i++) {
+            var item = paginationItems[i];
+            if (item === 'ellipsis') {
+                btns.push('<span class=\"pagination-ellipsis\">&hellip;</span>');
+            } else {
+                btns.push('<a href=\"#\" class=\"page-btn' + (item === page ? ' active' : '') + '\" data-page=\"' + item + '\">' + item + '</a>');
+            }
         }
+        btns.push('</div>');
         btns.push('<a href=\"#\" class=\"page-btn next' + (nextDisabled ? ' disabled' : '') + '\" data-page=\"' + (page + 1) + '\">Next &rsaquo;</a>');
 
         controls.innerHTML = btns.join('');
@@ -1518,6 +1899,7 @@ $department_options = [
             if (!modal) return;
             modal.classList.add('show');
             modal.setAttribute('aria-hidden', 'false');
+            updateDepartmentDropdown();
             var fullName = document.getElementById('fullName');
             if (fullName) fullName.focus();
         }
@@ -1532,6 +1914,11 @@ $department_options = [
                 if (e.target === modal) closeModal();
             });
         }
+        var domainSelect = document.getElementById('domain');
+        if (domainSelect) {
+            domainSelect.addEventListener('change', updateDepartmentDropdown);
+        }
+        updateDepartmentDropdown();
 
         var autoBtn = document.getElementById('autoGenerateBtn');
         var passEl = document.getElementById('newPassword');
@@ -1556,6 +1943,7 @@ $department_options = [
         if (cancelBtn && form) {
             cancelBtn.addEventListener('click', function () {
                 form.reset();
+                updateDepartmentDropdown();
                 closeModal();
             });
         }
@@ -1613,12 +2001,18 @@ $department_options = [
                     target: document.body,
                     icon: 'warning',
                     title: title,
-                    text: text,
+                    html: escapeHtml(text),
+                    width: '420px',
                     confirmButtonText: 'OK',
-                    confirmButtonColor: '#1B5E20',
+                    buttonsStyling: false,
                     allowOutsideClick: true,
                     customClass: {
-                        popup: 'swal-create-user-popup'
+                        popup: 'swal-admin-alert-popup',
+                        icon: 'swal-admin-alert-icon',
+                        title: 'swal-admin-alert-title',
+                        htmlContainer: 'swal-admin-alert-html',
+                        actions: 'swal-admin-alert-actions',
+                        confirmButton: 'swal-admin-alert-confirm'
                     }
                 });
             }
@@ -1692,7 +2086,7 @@ $department_options = [
                     username.focus();
                     return;
                 }
-                if (deptEl && !String(deptEl.value || '').trim()) {
+                if (deptEl && !deptEl.disabled && !String(deptEl.value || '').trim()) {
                     showCreateUserError('Department required', 'Please select a department.');
                     deptEl.focus();
                     return;
@@ -1708,7 +2102,7 @@ $department_options = [
                 fd.set('username', normalizedUsername);
                 fd.set('domain', domain.value || '@leadsagri.com');
                 fd.set('password', password.value || '');
-                if (deptEl) fd.set('department', deptEl.value || '');
+                if (deptEl) fd.set('department', deptEl.disabled ? '' : (deptEl.value || ''));
 
                 var btn = document.getElementById('createUserBtn');
                 if (btn) btn.disabled = true;
@@ -1829,14 +2223,22 @@ $department_options = [
                 if (!id) return;
                 Swal.fire({
                     title: 'Delete user?',
-                    text: 'This will permanently delete ' + name + '.',
+                    html: 'This will permanently delete ' + escapeHtml(name) + '.',
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonColor: '#dc3545',
-                    cancelButtonColor: '#6B7280',
                     confirmButtonText: 'Delete',
                     cancelButtonText: 'Cancel',
-                    width: '420px'
+                    width: '420px',
+                    buttonsStyling: false,
+                    customClass: {
+                        popup: 'swal-delete-popup',
+                        icon: 'swal-delete-icon',
+                        title: 'swal-delete-title',
+                        htmlContainer: 'swal-delete-html',
+                        actions: 'swal-delete-actions',
+                        confirmButton: 'swal-delete-confirm',
+                        cancelButton: 'swal-delete-cancel'
+                    }
                 }).then(function (result) {
                     if (!result.isConfirmed) return;
                     var csrfEl = document.querySelector('#addUserForm input[name="csrf_token"]') || document.querySelector('input[name="csrf_token"]');
@@ -1853,14 +2255,61 @@ $department_options = [
                         .then(function (data) {
                             if (!data || !data.ok) {
                                 var msg = (data && data.error) ? data.error : 'Failed to delete user.';
-                                Swal.fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#1B5E20' });
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Error',
+                                    html: escapeHtml(msg),
+                                    width: '420px',
+                                    confirmButtonText: 'OK',
+                                    buttonsStyling: false,
+                                    customClass: {
+                                        popup: 'swal-admin-alert-popup',
+                                        icon: 'swal-admin-alert-icon',
+                                        title: 'swal-admin-alert-title',
+                                        htmlContainer: 'swal-admin-alert-html',
+                                        actions: 'swal-admin-alert-actions',
+                                        confirmButton: 'swal-admin-alert-confirm'
+                                    }
+                                });
                                 return;
                             }
-                            Swal.fire({ icon: 'success', title: 'Deleted', text: data.message || 'User deleted', confirmButtonColor: '#1B5E20' });
+                            Swal.fire({
+                                title: '',
+                                html:
+                                    '<div class="cred-wrap">' +
+                                    '  <div class="cred-check"><i class="fa-solid fa-check"></i></div>' +
+                                    '  <div class="cred-title">Deleted</div>' +
+                                    '  <div class="cred-subtitle">' + escapeHtml(data.message || 'User deleted') + '</div>' +
+                                    '</div>',
+                                width: '420px',
+                                confirmButtonText: 'OK',
+                                buttonsStyling: false,
+                                customClass: {
+                                    popup: 'swal-delete-success-popup',
+                                    htmlContainer: 'swal-delete-success-html',
+                                    actions: 'swal-delete-success-actions',
+                                    confirmButton: 'swal-delete-success-confirm'
+                                }
+                            });
                             loadUsersList();
                         })
                         .catch(function () {
-                            Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to delete user.', confirmButtonColor: '#1B5E20' });
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                html: 'Failed to delete user.',
+                                width: '420px',
+                                confirmButtonText: 'OK',
+                                buttonsStyling: false,
+                                customClass: {
+                                    popup: 'swal-admin-alert-popup',
+                                    icon: 'swal-admin-alert-icon',
+                                    title: 'swal-admin-alert-title',
+                                    htmlContainer: 'swal-admin-alert-html',
+                                    actions: 'swal-admin-alert-actions',
+                                    confirmButton: 'swal-admin-alert-confirm'
+                                }
+                            });
                         });
                 });
             });
@@ -1874,10 +2323,17 @@ $department_options = [
                 debounceT = setTimeout(function () { loadUsersList(1); }, 250);
             });
         }
-        ['usersDept', 'usersCompany'].forEach(function (id) {
-            var el = document.getElementById(id);
-            if (el) el.addEventListener('change', function () { loadUsersList(1); });
-        });
+        var usersDeptEl = document.getElementById('usersDept');
+        if (usersDeptEl) {
+            usersDeptEl.addEventListener('change', function () { loadUsersList(1); });
+        }
+        var usersCompanyEl = document.getElementById('usersCompany');
+        if (usersCompanyEl) {
+            usersCompanyEl.addEventListener('change', function () {
+                syncUsersDepartmentFilter();
+                loadUsersList(1);
+            });
+        }
         var clearUsersBtn = document.getElementById('clearUsersFilters');
         if (clearUsersBtn) {
             clearUsersBtn.addEventListener('click', function () {
@@ -1886,6 +2342,7 @@ $department_options = [
                 var companyEl = document.getElementById('usersCompany');
                 if (deptEl) deptEl.value = 'all';
                 if (companyEl) companyEl.value = 'all';
+                syncUsersDepartmentFilter();
                 loadUsersList(1);
             });
         }
@@ -1903,6 +2360,7 @@ $department_options = [
             });
         }
 
+        syncUsersDepartmentFilter();
         loadUsersList(1);
 
         var itForm = document.getElementById('itSearchForm');
@@ -1963,17 +2421,17 @@ $department_options = [
             title: 'Add this user as admin?',
             icon: 'question',
             showCancelButton: true,
-            confirmButtonColor: '#28a745',
-            cancelButtonColor: '#6B7280',
             confirmButtonText: 'Add',
             cancelButtonText: 'Cancel',
-            width: '400px',
-            background: '#fff',
+            width: '420px',
+            buttonsStyling: false,
             customClass: {
-                popup: 'swal-rounded',
-                title: 'swal-title',
-                confirmButton: 'swal-confirm',
-                cancelButton: 'swal-cancel'
+                popup: 'swal-admin-alert-popup',
+                icon: 'swal-admin-alert-icon',
+                title: 'swal-admin-alert-title',
+                actions: 'swal-admin-alert-actions',
+                confirmButton: 'swal-admin-alert-confirm',
+                cancelButton: 'swal-admin-alert-cancel'
             }
         }).then((result) => {
             if (result.isConfirmed) {
@@ -1987,17 +2445,17 @@ $department_options = [
             title: 'Do you want to remove this admin?',
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#dc3545',
-            cancelButtonColor: '#6B7280',
             confirmButtonText: 'Remove',
             cancelButtonText: 'Cancel',
-            width: '400px',
-            background: '#fff',
+            width: '420px',
+            buttonsStyling: false,
             customClass: {
-                popup: 'swal-rounded',
-                title: 'swal-title',
-                confirmButton: 'swal-confirm',
-                cancelButton: 'swal-cancel'
+                popup: 'swal-admin-alert-popup',
+                icon: 'swal-admin-alert-icon',
+                title: 'swal-admin-alert-title',
+                actions: 'swal-admin-alert-actions',
+                confirmButton: 'swal-admin-alert-confirm',
+                cancelButton: 'swal-admin-alert-cancel'
             }
         }).then((result) => {
             if (result.isConfirmed) {
@@ -2006,62 +2464,68 @@ $department_options = [
         });
     }
 
-    const Toast = Swal.mixin({
-        toast: true,
-        position: 'top',
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: false,
-        didOpen: (toast) => {
-            toast.addEventListener('mouseenter', Swal.stopTimer)
-            toast.addEventListener('mouseleave', Swal.resumeTimer)
-        }
-    });
-
     <?php if (isset($_SESSION['admin_added'])): ?>
-        Toast.fire({
+        Swal.fire({
             icon: 'success',
             title: 'Admin added',
-            background: '#dcfce7',
-            color: '#166534',
-            iconColor: '#166534'
+            html: 'The selected user is now an admin.',
+            width: '420px',
+            confirmButtonText: 'OK',
+            buttonsStyling: false,
+            customClass: {
+                popup: 'swal-admin-alert-popup',
+                icon: 'swal-admin-alert-icon',
+                title: 'swal-admin-alert-title',
+                htmlContainer: 'swal-admin-alert-html',
+                actions: 'swal-admin-alert-actions',
+                confirmButton: 'swal-admin-alert-confirm'
+            }
         });
         <?php unset($_SESSION['admin_added']); ?>
     <?php endif; ?>
 
     <?php if (isset($_SESSION['admin_removed'])): ?>
-        Toast.fire({
+        Swal.fire({
             icon: 'success',
             title: 'Admin removed',
-            background: '#dcfce7',
-            color: '#166534',
-            iconColor: '#166534'
+            html: 'The admin has been removed successfully.',
+            width: '420px',
+            confirmButtonText: 'OK',
+            buttonsStyling: false,
+            customClass: {
+                popup: 'swal-admin-alert-popup',
+                icon: 'swal-admin-alert-icon',
+                title: 'swal-admin-alert-title',
+                htmlContainer: 'swal-admin-alert-html',
+                actions: 'swal-admin-alert-actions',
+                confirmButton: 'swal-admin-alert-confirm'
+            }
         });
         <?php unset($_SESSION['admin_removed']); ?>
     <?php endif; ?>
 
     <?php if (isset($_SESSION['error_message'])): ?>
-        Toast.fire({
+        Swal.fire({
             icon: 'error',
-            title: '<?= addslashes($_SESSION['error_message']) ?>',
-            background: '#fee2e2',
-            color: '#991b1b',
-            iconColor: '#991b1b'
+            title: 'Error',
+            html: '<?= addslashes($_SESSION['error_message']) ?>',
+            width: '420px',
+            confirmButtonText: 'OK',
+            buttonsStyling: false,
+            customClass: {
+                popup: 'swal-admin-alert-popup',
+                icon: 'swal-admin-alert-icon',
+                title: 'swal-admin-alert-title',
+                htmlContainer: 'swal-admin-alert-html',
+                actions: 'swal-admin-alert-actions',
+                confirmButton: 'swal-admin-alert-confirm'
+            }
         });
         <?php unset($_SESSION['error_message']); ?>
     <?php endif; ?>
 </script>
 
 <style>
-    .swal-rounded {
-        border-radius: 12px !important;
-        font-family: 'Inter', sans-serif !important;
-    }
-    .swal-title {
-        font-size: 18px !important;
-        font-weight: 600 !important;
-        color: #1F2937 !important;
-    }
     .swal-cred-popup {
         border-radius: 18px !important;
         background: #ffffff !important;

@@ -45,7 +45,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     if ($is_admin) {
         $sql .= " WHERE EXISTS (SELECT 1 FROM ticket_messages tm2 WHERE tm2.ticket_id = t.id) ";
     } else {
-        $sql .= " WHERE (t.user_id = ? OR t.assigned_user_id = ?) ";
+        $sql .= " WHERE (t.user_id = ? OR t.assigned_to = ?) ";
         $params[] = $current_user_id;
         $types .= 'i';
         $params[] = $current_user_id;
@@ -100,7 +100,20 @@ $ticket_id = (int)$_POST['ticket_id'];
 
 // Access Control: only requester and assigned user
 $ticket = null;
-$check = $conn->prepare("SELECT user_id, assigned_user_id FROM employee_tickets WHERE id = ? LIMIT 1");
+$check = $conn->prepare("
+    SELECT
+        t.user_id,
+        t.assigned_user_id,
+        t.assigned_to,
+        t.assigned_department,
+        t.assigned_group,
+        t.assigned_company,
+        t.company,
+        handler.name AS assigned_to_name
+    FROM employee_tickets t
+    LEFT JOIN users handler ON handler.id = t.assigned_to
+    WHERE t.id = ? LIMIT 1
+");
 if ($check) {
     $check->bind_param("i", $ticket_id);
     $check->execute();
@@ -114,10 +127,16 @@ if (!$ticket) {
     exit;
 }
 $requesterId = (int) ($ticket['user_id'] ?? 0);
-$assigneeId = (int) ($ticket['assigned_user_id'] ?? 0);
-if (!$is_admin && $current_user_id !== $requesterId && ($assigneeId <= 0 || $current_user_id !== $assigneeId)) {
+$handlerId = (int) ($ticket['assigned_to'] ?? 0);
+$handlerName = trim((string) ($ticket['assigned_to_name'] ?? ''));
+$userContext = ticket_build_user_context($conn, $current_user_id, $_SESSION);
+if (!ticket_user_can_chat($ticket, $current_user_id, $userContext)) {
     http_response_code(403);
-    echo json_encode(['error' => 'Access Denied']);
+    echo json_encode([
+        'error' => ($handlerId > 0
+            ? ('This ticket is already assigned to ' . ($handlerName !== '' ? $handlerName : 'another IT staff') . '.')
+            : 'You are not allowed to access this chat.')
+    ]);
     exit;
 }
 
