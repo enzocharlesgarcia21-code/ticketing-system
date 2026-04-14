@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leads Agri</title>
+    <title>LEADS AGRI HELPDESK</title>
     <link rel="stylesheet" href="css/auth-select.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -349,14 +349,15 @@
 <body class="portal-home-page">
 
 <div class="auth-wrapper auth-container">
-    <section class="auth-split-left" aria-label="Leads Agri branding">
+    <section class="auth-split-left" aria-label="LEADS AGRI HELPDESK branding">
     </section>
 
     <section class="auth-split-right" aria-label="Role selection">
         <div class="auth-card">
-            <img src="assets/img/leads-logo.png" alt="Leads Agri Logo" class="welcome-logo">
-            <h1 class="card-title">
-                <span class="card-title-main">Welcome to LEADS AGRI HELPDESK</span>
+            <img src="assets/img/leads-logo.png" alt="LEADS AGRI HELPDESK Logo" class="welcome-logo">
+                        <h1 class="card-title">
+                <span class="card-title-top">WELCOME TO</span>
+                <span class="card-title-main">LEADS AGRI HELPDESK</span>
             </h1>
             <p class="subtitle">Choose a portal to continue</p>
 
@@ -391,4 +392,10 @@
 
 </body>
 </html>
+
+
+
+
+
+
 

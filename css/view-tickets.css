@@ -1,4 +1,4 @@
-/* ================= FILTERS ================= */
+﻿/* ================= FILTERS ================= */
 .filter-card {
     background: white;
     border-radius: 12px;
@@ -1562,6 +1562,14 @@
     min-width: 0;
 }
 
+.tm-info-col {
+    order: -1;
+}
+
+.tm-desc-col {
+    order: 1;
+}
+
 .tm-desc-text {
     line-height: 1.65;
     color: #334155;
@@ -2445,3 +2453,6 @@
     from { transform: scale(0.95); opacity: 0; }
     to { transform: scale(1); opacity: 1; }
 }
+
+
+

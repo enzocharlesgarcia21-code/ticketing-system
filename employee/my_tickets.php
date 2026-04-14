@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
@@ -661,21 +661,15 @@ $successMessage = '';
             height: min(92vh, 760px);
             max-height: 92vh;
         }
-        body.employee-my-tickets-page .tm-tab-content.active#tab-info > .tm-info-col,
+                body.employee-my-tickets-page .tm-tab-content.active#tab-info > .tm-info-col,
         body.employee-my-tickets-page .tm-tab-content.active#tab-info > .tm-desc-col {
-            display: contents;
+            display: flex;
         }
-        body.employee-my-tickets-page .tm-tab-content.active#tab-info .tm-card-ticket-info {
+        body.employee-my-tickets-page .tm-tab-content.active#tab-info > .tm-info-col {
+            order: -1;
+        }
+        body.employee-my-tickets-page .tm-tab-content.active#tab-info > .tm-desc-col {
             order: 1;
-        }
-        body.employee-my-tickets-page .tm-tab-content.active#tab-info .tm-card-description {
-            order: 2;
-        }
-        body.employee-my-tickets-page .tm-tab-content.active#tab-info .tm-card-ticket-activity {
-            order: 3;
-        }
-        body.employee-my-tickets-page .tm-tab-content.active#tab-info .tm-card-resolution {
-            order: 4;
         }
         .page-ellipsis {
             color: #94a3b8;
@@ -991,13 +985,13 @@ $successMessage = '';
     <!-- Image Preview Modal -->
     <div id="imagePreviewModal" class="image-preview-modal" onclick="TMTicketModal.closeImagePreview(event)">
         <div class="preview-content">
-            <button class="preview-close" onclick="TMTicketModal.closeImagePreview(event)">×</button>
+            <button class="preview-close" onclick="TMTicketModal.closeImagePreview(event)">Ã—</button>
             <img id="previewImage" src="" alt="Preview" class="preview-image">
         </div>
     </div>
     <div id="ticketSuccessOverlay" class="ticket-success-overlay" aria-hidden="true">
         <div class="ticket-success-card" role="dialog" aria-modal="true" aria-labelledby="ticketSuccessTitle">
-            <div class="ticket-success-icon">✓</div>
+            <div class="ticket-success-icon">âœ“</div>
             <h2 id="ticketSuccessTitle" class="ticket-success-title">Ticket Submitted Successfully</h2>
             <p class="ticket-success-text"><?= htmlspecialchars($successMessage !== '' ? $successMessage : 'Your request has been sent. Our team will get back to you soon.', ENT_QUOTES, 'UTF-8'); ?></p>
             <div class="ticket-success-actions">
@@ -1280,3 +1274,5 @@ $successMessage = '';
     
 </body>
 </html>
+
+
