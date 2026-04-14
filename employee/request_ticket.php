@@ -1325,6 +1325,71 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+        body.employee-request-ticket-page .attachment-upload-shell {
+            border: 1px dashed #d9e6db;
+            border-radius: 16px;
+            background: #ffffff;
+            padding: 10px;
+        }
+        body.employee-request-ticket-page .attachment-dropzone {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 96px;
+            border: 1px dashed #e3e8ef;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdfb 100%);
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+        }
+        body.employee-request-ticket-page .attachment-dropzone:hover {
+            border-color: #b7d8bf;
+            background: #fcfffd;
+            box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.06);
+        }
+        body.employee-request-ticket-page .attachment-dropzone.is-dragover {
+            border-color: #67c86f;
+            background: #f4fbf5;
+            box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.12);
+        }
+        body.employee-request-ticket-page .attachment-dropzone-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #17643a;
+            background: #f0faf2;
+            font-size: 18px;
+        }
+        body.employee-request-ticket-page .attachment-dropzone-copy {
+            color: #0f172a;
+            font-size: 13px;
+            line-height: 1.45;
+            font-weight: 500;
+        }
+        body.employee-request-ticket-page .attachment-hidden-button {
+            display: none;
+        }
+        body.employee-request-ticket-page .attachment-file-name {
+            margin-top: 10px;
+            color: #64748b;
+            font-size: 12px;
+            text-align: center;
+            word-break: break-word;
+        }
+        body.employee-request-ticket-page .attachment-help-text {
+            display: block;
+            margin-top: 10px;
+            color: #64748b;
+            font-size: 11px;
+            text-align: center;
+            line-height: 1.45;
+        }
         body.employee-request-ticket-page .sss-benefits-file-chip-link {
             border: none;
             background: transparent;
@@ -1536,6 +1601,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.employee-request-ticket-page .sap-request-head {
             margin: 0;
+            padding: 18px 24px;
+            background: linear-gradient(135deg, #67c86f, #57b861);
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.25;
+            font-family: inherit;
+        }
+        body.employee-request-ticket-page .form-card {
+            padding: 0 24px 24px;
+            overflow: hidden;
+        }
+        body.employee-request-ticket-page .form-section-title {
+            margin: 0 -24px 22px;
             padding: 18px 24px;
             background: linear-gradient(135deg, #67c86f, #57b861);
             color: #ffffff;
@@ -2169,15 +2248,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
 
             body.employee-request-ticket-page .form-card {
-                padding: 16px;
+                padding: 0 16px 16px;
                 border-radius: 14px;
                 margin: 0;
             }
 
             body.employee-request-ticket-page .form-section-title {
-                margin-top: 18px;
-                margin-bottom: 14px;
-                padding-bottom: 12px;
+                margin: 0 -16px 18px;
+                padding: 14px 16px;
+                background: linear-gradient(180deg, #1f7a36 0%, #16602a 100%);
+                color: #ffffff;
+                border-radius: 14px 14px 0 0;
+                box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.12);
                 font-size: 16px;
             }
 
@@ -2743,15 +2825,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             <div class="form-group" id="attachmentContainer">
                                 <label><span id="attachmentLabelText">Attachment</span> <span id="attachmentOptionalText">(Optional)</span><span id="attachmentRequiredAsterisk" class="required-asterisk" style="display:none;">*</span></label>
                                 <p class="medical-cash-card-copy" id="medicalCashAttachmentIntro" style="display:none;">Please upload any medical document relevant your request as attachment. Thank you.</p>
-                                <div class="file-control" style="display:flex;align-items:center;gap:12px;background:#f8faf9;border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;">
-                                    <button type="button" id="choose-file-btn" class="file-button" style="display:inline-flex;align-items:center;gap:8px;background:#ecfdf5;color:#1B5E20;border:1px solid #bbf7d0;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer;">
-                                        <i class="fas fa-paperclip"></i>
+                                <div class="attachment-upload-shell file-control">
+                                    <div class="attachment-dropzone" id="choose-file-btn" tabindex="0" role="button" aria-label="Drag and drop files or click to upload">
+                                        <span class="attachment-dropzone-icon"><i class="fas fa-cloud-upload-alt"></i></span>
+                                        <div class="attachment-dropzone-copy">Drag &amp; drop files or click to upload</div>
+                                    </div>
+                                    <button type="button" class="attachment-hidden-button" aria-hidden="true" tabindex="-1">
                                         <span id="chooseFileBtnText">Choose File</span>
                                     </button>
-                                    <span id="file-name" class="file-name" style="color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">No file chosen</span>
+                                    <div id="file-name" class="attachment-file-name file-name">No file chosen</div>
                                     <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.docx" style="display:none;">
                                 </div>
-                                <small class="form-text" id="attachmentHelpText">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files)</small>
+                                <small class="form-text attachment-help-text" id="attachmentHelpText">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files)</small>
                                 <div id="attachment-error" style="display:none;margin-top:10px;background:#fee2e2;color:#991b1b;padding:10px 12px;border-radius:10px;border:1px solid #fecaca;font-weight:700;"></div>
                                 <div id="attachment-toast" role="alert" aria-live="assertive" style="position:fixed;top:18px;right:18px;z-index:9999;display:none;max-width:min(420px, calc(100vw - 36px));background:#991b1b;color:#ffffff;padding:12px 14px;border-radius:12px;box-shadow:0 16px 40px rgba(2,6,23,0.22);font-weight:800;font-size:13px;"></div>
                                 <div id="attachment-preview" style="margin-top: 10px;"></div>
@@ -3462,6 +3547,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (chooseBtn) {
             chooseBtn.addEventListener('click', function () {
                 if (attachmentInput) attachmentInput.click();
+            });
+            ['dragenter', 'dragover'].forEach(function(eventName) {
+                chooseBtn.addEventListener(eventName, function () {
+                    chooseBtn.classList.add('is-dragover');
+                });
+            });
+            ['dragleave', 'drop'].forEach(function(eventName) {
+                chooseBtn.addEventListener(eventName, function () {
+                    chooseBtn.classList.remove('is-dragover');
+                });
             });
         }
 
