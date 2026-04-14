@@ -9,7 +9,7 @@ $pass = getenv('DB_PASS') ?: '';
 
 $port = getenv('DB_PORT');
 if ($port === false || $port === '' || !ctype_digit((string) $port)) {
-    $port = 3306;
+    $port = 3307;
 } else {
     $port = (int) $port;
 }

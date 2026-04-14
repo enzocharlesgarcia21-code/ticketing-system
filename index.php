@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leads Agri Helpdesk</title>
+    <title>Leads Agri</title>
     <link rel="stylesheet" href="css/auth-select.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -357,7 +357,7 @@
             <img src="assets/img/leads-logo.png" alt="Leads Agri Logo" class="welcome-logo">
             <h1 class="card-title">
                 <span class="card-title-top">Welcome To</span>
-                <span class="card-title-main">Leads Agri Helpdesk</span>
+                <span class="card-title-main">Leads Agri</span>
             </h1>
             <p class="subtitle">Choose a portal to continue</p>
 
@@ -392,3 +392,4 @@
 
 </body>
 </html>
+
