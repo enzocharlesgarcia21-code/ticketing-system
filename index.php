@@ -356,8 +356,7 @@
         <div class="auth-card">
             <img src="assets/img/leads-logo.png" alt="Leads Agri Logo" class="welcome-logo">
             <h1 class="card-title">
-                <span class="card-title-top">Welcome To</span>
-                <span class="card-title-main">Leads Agri</span>
+                <span class="card-title-main">Welcome to LEADS AGRI HELPDESK</span>
             </h1>
             <p class="subtitle">Choose a portal to continue</p>
 

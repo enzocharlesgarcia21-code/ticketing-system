@@ -661,6 +661,22 @@ $successMessage = '';
             height: min(92vh, 760px);
             max-height: 92vh;
         }
+        body.employee-my-tickets-page .tm-tab-content.active#tab-info > .tm-info-col,
+        body.employee-my-tickets-page .tm-tab-content.active#tab-info > .tm-desc-col {
+            display: contents;
+        }
+        body.employee-my-tickets-page .tm-tab-content.active#tab-info .tm-card-ticket-info {
+            order: 1;
+        }
+        body.employee-my-tickets-page .tm-tab-content.active#tab-info .tm-card-description {
+            order: 2;
+        }
+        body.employee-my-tickets-page .tm-tab-content.active#tab-info .tm-card-ticket-activity {
+            order: 3;
+        }
+        body.employee-my-tickets-page .tm-tab-content.active#tab-info .tm-card-resolution {
+            order: 4;
+        }
         .page-ellipsis {
             color: #94a3b8;
             font-weight: 700;
