@@ -720,6 +720,12 @@ function conference_booking_find_conflict(
         return null;
     }
 
+    $requestedStart = strtotime($bookingDate . ' ' . $startTime);
+    $requestedEnd = strtotime($bookingDate . ' ' . $endTime);
+    if ($requestedStart === false || $requestedEnd === false) {
+        return null;
+    }
+
     $sql = "
         SELECT
             b.id,
@@ -738,12 +744,10 @@ function conference_booking_find_conflict(
         WHERE b.room_id = ?
           AND b.booking_date = ?
           AND UPPER(TRIM(COALESCE(b.status, ''))) <> 'CANCELLED'
-          AND b.start_time < ?
-          AND ADDTIME(b.end_time, ?) > ?
     ";
 
-    $types = "issss";
-    $params = [$roomId, $bookingDate, $endTime, conference_booking_buffer_interval(), $startTime];
+    $types = "is";
+    $params = [$roomId, $bookingDate];
 
     if ($excludeBookingId > 0) {
         $sql .= " AND b.id <> ? ";
@@ -751,7 +755,7 @@ function conference_booking_find_conflict(
         $params[] = $excludeBookingId;
     }
 
-    $sql .= " ORDER BY b.start_time ASC, b.id ASC LIMIT 1";
+    $sql .= " ORDER BY b.start_time ASC, b.id ASC";
     if ($forUpdate) {
         $sql .= " FOR UPDATE";
     }
@@ -769,7 +773,29 @@ function conference_booking_find_conflict(
     call_user_func_array([$stmt, 'bind_param'], $bind);
     $stmt->execute();
     $res = $stmt->get_result();
-    $conflict = $res ? $res->fetch_assoc() : null;
+    $bufferSeconds = 30 * 60;
+    $conflict = null;
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $existingStart = trim((string) ($row['start_time'] ?? ''));
+            $existingEnd = trim((string) ($row['end_time'] ?? ''));
+            if ($existingStart === '' || $existingEnd === '') {
+                continue;
+            }
+
+            $existingStartTs = strtotime($bookingDate . ' ' . $existingStart);
+            $existingEndTs = strtotime($bookingDate . ' ' . $existingEnd);
+            if ($existingStartTs === false || $existingEndTs === false) {
+                continue;
+            }
+
+            $existingBufferedEndTs = $existingEndTs + $bufferSeconds;
+            if ($requestedStart < $existingBufferedEndTs && $requestedEnd > $existingStartTs) {
+                $conflict = $row;
+                break;
+            }
+        }
+    }
     $stmt->close();
 
     return $conflict ?: null;
