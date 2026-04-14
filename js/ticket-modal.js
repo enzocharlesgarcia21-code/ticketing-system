@@ -1,15 +1,19 @@
 var TMTicketModal = (function () {
   var chatInterval = null;
   var chatBadgeInterval = null;
+  var messageActionMenusBound = false;
   var chatBadgeTicketId = null;
   var chatModalOpen = false;
   var messengerOpen = false;
   var messengerInterval = null;
   var messengerTicketId = null;
   var messengerConfirmAction = null;
+  var messengerEditSubmitAction = null;
   var messengerReturnContext = null;
   var currentTicketId = null;
   var lastTicketMeta = null;
+  var chatModalAttachmentFile = null;
+  var messengerAttachmentFile = null;
   var chatPermissionState = { canChat: true, lockedMessage: '', handlerName: '', statusLabel: '' };
   var messengerPermissionState = { canChat: false, lockedMessage: '', handlerName: '', statusLabel: '', isChecking: false };
   function qs(id) { return document.getElementById(id); }
@@ -109,6 +113,163 @@ var TMTicketModal = (function () {
     }
     throw new Error(raw ? raw.slice(0, 300) : 'Invalid server response.');
   }
+  function bindMessageActionMenuCloser() {
+    if (messageActionMenusBound) return;
+    messageActionMenusBound = true;
+    document.addEventListener('click', function () {
+      var openMenus = document.querySelectorAll('.tm-msg-actions-menu.show');
+      openMenus.forEach(function (menu) { menu.classList.remove('show'); });
+    });
+  }
+  function createMessageActionsNode(msg, ticketId, onDone) {
+    if (!msg || !ticketId) return null;
+    if (!msg.is_me) {
+      return null;
+    }
+    var canEdit = msg.can_edit === true;
+    var canDelete = msg.can_delete === true;
+    if (!canEdit && !canDelete) return null;
+    bindMessageActionMenuCloser();
+
+    var wrap = document.createElement('div');
+    wrap.className = 'tm-msg-actions';
+
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'tm-msg-actions-toggle';
+    toggle.setAttribute('aria-label', 'Message actions');
+    toggle.innerHTML = '<i class="fas fa-ellipsis-v"></i>';
+
+    var menu = document.createElement('div');
+    menu.className = 'tm-msg-actions-menu';
+    menu.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    if (canEdit) {
+      var editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'tm-msg-actions-item';
+      editBtn.textContent = 'Edit';
+      editBtn.addEventListener('click', function () {
+        menu.classList.remove('show');
+        var current = String(msg.message || '');
+        showMessengerMessageEditor({
+          value: current,
+          hasAttachment: !!(msg && msg.attachment && msg.attachment.stored_name),
+          onSubmit: function (updated, done, unlock) {
+            var fd = new FormData();
+            fd.append('ticket_id', String(ticketId));
+            fd.append('message_id', String(msg.id || ''));
+            fd.append('message', updated);
+            var t = getCsrfToken();
+            if (t) fd.append('csrf_token', t);
+            postJson('chat_message_update.php', fd)
+              .then(function (res) {
+                if (!(res && res.success)) {
+                  unlock();
+                  showMessengerConfirm({
+                    title: 'Edit Failed',
+                    message: (res && res.error) ? String(res.error) : 'Unable to edit this message.',
+                    confirmText: 'OK',
+                    hideCancel: true
+                  });
+                  return;
+                }
+                done();
+                if (typeof onDone === 'function') onDone();
+              })
+              .catch(function () {
+                unlock();
+                showMessengerConfirm({
+                  title: 'Edit Failed',
+                  message: 'Unable to edit this message.',
+                  confirmText: 'OK',
+                  hideCancel: true
+                });
+              });
+          }
+        });
+      });
+      menu.appendChild(editBtn);
+    }
+
+    if (canDelete) {
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'tm-msg-actions-item danger';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', function () {
+        menu.classList.remove('show');
+        showMessengerConfirm({
+          title: 'Delete Message',
+          message: 'Delete this message?',
+          confirmText: 'Delete',
+          cancelText: 'Cancel',
+          danger: true,
+          onConfirm: function () {
+            var fd = new FormData();
+            fd.append('ticket_id', String(ticketId));
+            fd.append('message_id', String(msg.id || ''));
+            var t = getCsrfToken();
+            if (t) fd.append('csrf_token', t);
+            postJson('chat_message_delete.php', fd)
+              .then(function (res) {
+                if (!(res && res.success)) {
+                  showMessengerConfirm({
+                    title: 'Delete Failed',
+                    message: (res && res.error) ? String(res.error) : 'Unable to delete this message.',
+                    confirmText: 'OK',
+                    hideCancel: true
+                  });
+                  return;
+                }
+                if (typeof onDone === 'function') onDone();
+              })
+              .catch(function () {
+                showMessengerConfirm({
+                  title: 'Delete Failed',
+                  message: 'Unable to delete this message.',
+                  confirmText: 'OK',
+                  hideCancel: true
+                });
+              });
+          }
+        });
+      });
+      menu.appendChild(delBtn);
+    }
+
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var openMenus = document.querySelectorAll('.tm-msg-actions-menu.show');
+      openMenus.forEach(function (m) { if (m !== menu) m.classList.remove('show'); });
+      menu.classList.toggle('show');
+    });
+
+    wrap.appendChild(toggle);
+    wrap.appendChild(menu);
+    return wrap;
+  }
+  function setModalVariant(modalContent, variant) {
+    if (!modalContent || !modalContent.classList) return;
+    modalContent.classList.remove('tm-unavailable-modal');
+    if (variant === 'unavailable') modalContent.classList.add('tm-unavailable-modal');
+  }
+  function buildUnavailableHtml(data) {
+    var title = data && data.unavailable_title ? String(data.unavailable_title) : 'This ticket is no longer available.';
+    var message = data && data.unavailable_message ? String(data.unavailable_message) : 'You can no longer view or respond to this ticket.';
+    return '' +
+      '<div class="tm-unavailable-state">' +
+      '  <div class="tm-unavailable-head">' +
+      '    <span class="tm-unavailable-icon" aria-hidden="true">' +
+      '      <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24" focusable="false" aria-hidden="true">' +
+      '        <path d="M17 9h-1V7a4 4 0 10-8 0v2H7a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2v-8a2 2 0 00-2-2zm-6 0V7a2 2 0 114 0v2h-4z"></path>' +
+      '      </svg>' +
+      '    </span>' +
+      '    <h2 class="tm-unavailable-title">' + escapeHtml(title) + '</h2>' +
+      '  </div>' +
+      '  <p class="tm-unavailable-message">' + escapeHtml(message) + '</p>' +
+      '</div>';
+  }
   function formatTimelineTime(dateLike) {
     if (!dateLike) return '-';
     var d = dateLike instanceof Date ? dateLike : new Date(dateLike);
@@ -122,8 +283,8 @@ var TMTicketModal = (function () {
     });
   }
   function assignedCompanyUsesDepartment(companyValue) {
-    var normalized = companyValue == null ? '' : String(companyValue).trim().toLowerCase();
-    return normalized === '@leadsagri.com' || normalized === 'lapc';
+    var normalized = normalizeCompanyValue(companyValue);
+    return normalized === '@leadsagri.com';
   }
   function companyDisplayName(companyValue) {
     var value = companyValue == null ? '' : String(companyValue).trim();
@@ -276,19 +437,218 @@ var TMTicketModal = (function () {
     });
     var html = '';
     if (images.length) {
-      html += '<div class="tm-attachment-gallery">';
+      html += '<div class="tm-attachment-section"><div class="tm-attachment-section-title">Images</div><div class="tm-attachment-gallery">';
       html += images.map(function (n) {
         var src = '../uploads/' + escapeHtml(n.filename);
         return '<button type="button" class="tm-attachment-thumb" data-src="' + src + '" onclick="TMTicketModal.viewImage(this.dataset.src)">' +
                '<img class="tm-attachment-img" src="' + src + '" alt="' + escapeHtml(n.displayName || '') + '">' +
                '</button>';
       }).join('');
-      html += '</div>';
+      html += '</div></div>';
     }
     if (others.length) {
-      html += others.map(function (a) { return renderAttachment(a); }).join('');
+      html += '<div class="tm-attachment-section"><div class="tm-attachment-section-title">Files</div>' + others.map(function (a) { return renderAttachment(a); }).join('') + '</div>';
     }
     return html;
+  }
+  function getHrDisplay(data) {
+    if (!data || !data.hr_display || typeof data.hr_display !== 'object') return null;
+    return data.hr_display;
+  }
+  function getDisplaySubject(data) {
+    if (!data || typeof data !== 'object') return 'Ticket';
+    if (data.subject_display) return String(data.subject_display);
+    if (data.subject) return String(data.subject);
+    return 'Ticket';
+  }
+  function getChatAttachmentUrl(storedName) {
+    return '../uploads/' + encodeURIComponent(String(storedName || ''));
+  }
+  function formatAttachmentSize(bytes) {
+    var size = Number(bytes || 0);
+    if (!isFinite(size) || size <= 0) return '';
+    if (size < 1024) return String(Math.max(1, Math.round(size))) + ' B';
+    if (size < (1024 * 1024)) return String(Math.round(size / 102.4) / 10) + ' KB';
+    return String(Math.round(size / (1024 * 102.4)) / 10) + ' MB';
+  }
+  function isImageAttachmentFile(file) {
+    if (!file) return false;
+    var mime = String(file.type || '').toLowerCase();
+    if (mime.indexOf('image/') === 0) return true;
+    var name = String(file.name || '').toLowerCase();
+    return /\.(jpe?g|png|gif|webp|bmp)$/i.test(name);
+  }
+  function renderSelectedComposerAttachment(label, file, onRemove) {
+    if (!label) return;
+    var oldUrl = label.getAttribute('data-preview-url');
+    if (oldUrl && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+      try { URL.revokeObjectURL(oldUrl); } catch (e) { }
+    }
+    label.removeAttribute('data-preview-url');
+    label.innerHTML = '';
+    label.classList.remove('has-file');
+    if (!file) return;
+
+    var card = document.createElement('div');
+    card.className = 'tm-selected-attachment';
+    var isImage = isImageAttachmentFile(file);
+    if (isImage) {
+      var thumb = document.createElement('img');
+      thumb.className = 'tm-selected-attachment-thumb';
+      thumb.alt = String(file.name || 'Attachment');
+      if (typeof URL !== 'undefined' && URL.createObjectURL) {
+        var previewUrl = URL.createObjectURL(file);
+        thumb.src = previewUrl;
+        label.setAttribute('data-preview-url', previewUrl);
+      }
+      card.appendChild(thumb);
+    } else {
+      var icon = document.createElement('span');
+      icon.className = 'tm-selected-attachment-file-icon';
+      icon.innerHTML = '<i class="fas fa-paperclip"></i>';
+      card.appendChild(icon);
+    }
+
+    var meta = document.createElement('div');
+    meta.className = 'tm-selected-attachment-meta';
+    var name = document.createElement('div');
+    name.className = 'tm-selected-attachment-name';
+    name.textContent = String(file.name || 'Attachment');
+    var size = document.createElement('div');
+    size.className = 'tm-selected-attachment-size';
+    size.textContent = formatAttachmentSize(file.size || 0);
+    meta.appendChild(name);
+    meta.appendChild(size);
+    card.appendChild(meta);
+
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'tm-selected-attachment-remove';
+    removeBtn.setAttribute('aria-label', 'Remove attachment');
+    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+    removeBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof onRemove === 'function') onRemove();
+    });
+    card.appendChild(removeBtn);
+
+    label.classList.add('has-file');
+    label.appendChild(card);
+  }
+  function createMessageAttachmentNode(attachment) {
+    if (!attachment || !attachment.stored_name) return null;
+    var wrap = document.createElement('div');
+    wrap.className = 'tm-chat-attachment';
+    var attachmentUrl = getChatAttachmentUrl(attachment.stored_name);
+    if (attachment.is_image) {
+      var link = document.createElement('button');
+      link.type = 'button';
+      link.className = 'tm-chat-attachment-link tm-chat-attachment-button';
+      link.setAttribute('role', 'button');
+      link.setAttribute('aria-label', 'Preview image attachment');
+      var openPreview = function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        viewImage(attachmentUrl);
+      };
+      link.addEventListener('click', openPreview);
+      var img = document.createElement('img');
+      img.className = 'tm-chat-attachment-image';
+      img.src = attachmentUrl;
+      img.alt = String(attachment.original_name || 'Attachment');
+      img.addEventListener('click', openPreview);
+      link.appendChild(img);
+      wrap.appendChild(link);
+    } else {
+      var link = document.createElement('a');
+      link.className = 'tm-chat-attachment-link';
+      link.href = attachmentUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      var icon = document.createElement('span');
+      icon.className = 'tm-chat-attachment-icon';
+      icon.innerHTML = '<i class="fas fa-paperclip"></i>';
+      var text = document.createElement('span');
+      text.className = 'tm-chat-attachment-name';
+      text.textContent = String(attachment.original_name || attachment.stored_name);
+      link.appendChild(icon);
+      link.appendChild(text);
+      wrap.appendChild(link);
+    }
+    return wrap;
+  }
+  function setChatModalAttachment(file) {
+    chatModalAttachmentFile = file || null;
+    var label = qs('chatModalAttachmentName');
+    renderSelectedComposerAttachment(label, chatModalAttachmentFile, function () {
+      var input = qs('chatModalAttachmentInput');
+      if (input) input.value = '';
+      setChatModalAttachment(null);
+    });
+  }
+  function setMessengerAttachment(file) {
+    messengerAttachmentFile = file || null;
+    var label = qs('tmMessengerAttachmentName');
+    renderSelectedComposerAttachment(label, messengerAttachmentFile, function () {
+      var input = qs('tmMessengerAttachmentInput');
+      if (input) input.value = '';
+      setMessengerAttachment(null);
+    });
+  }
+  function renderHrRequestDetailsCard(data) {
+    var hr = getHrDisplay(data);
+    if (!hr || !hr.is_hr_special) return '';
+    var items = [];
+    var summaryFields = Array.isArray(hr.summary_fields) ? hr.summary_fields : [];
+    summaryFields.forEach(function (field) {
+      if (!field || !field.label || !field.value) return;
+      items.push('<div class="tm-info-label">' + escapeHtml(String(field.label)).toUpperCase() + '</div><div class="tm-info-value">' + escapeHtml(String(field.value)) + '</div>');
+    });
+    if (!items.length && hr.category) {
+      items.push('<div class="tm-info-label">CATEGORY</div><div class="tm-info-value">' + escapeHtml(String(hr.category)) + '</div>');
+    }
+    var descriptionText = hr && typeof hr.detail_text !== 'undefined'
+      ? String(hr.detail_text || '')
+      : String((data && data.description) || '');
+    var descriptionHtml = descriptionText
+      ? '<div class="tm-hr-section"><div class="tm-info-label">' + escapeHtml(String(hr.detail_label || 'Description')).toUpperCase() + '</div><div class="tm-info-value">' + escapeHtml(descriptionText).replace(/\n/g, '<br>') + '</div></div>'
+      : '';
+    var attachmentGroups = Array.isArray(hr.attachment_groups) ? hr.attachment_groups : [];
+    var attachmentsHtml = attachmentGroups.map(function (group) {
+      if (!group || !Array.isArray(group.attachments) || !group.attachments.length) return '';
+      var helperText = group.helper_text ? '<div class="tm-hr-upload-help">' + escapeHtml(String(group.helper_text)) + '</div>' : '';
+      return '<div class="tm-hr-upload-card">' +
+        '<div class="tm-hr-upload-head">' +
+        '<div class="tm-hr-upload-title">' + escapeHtml(String(group.title || 'Attachment')) + '</div>' +
+        helperText +
+        '</div>' +
+        '<div class="tm-hr-upload-body">' + renderAttachmentsBlock({ attachments: group.attachments }) + '</div>' +
+      '</div>';
+    }).join('');
+    if (!items.length && !descriptionHtml && !attachmentsHtml) return '';
+    return '<div class="tm-card tm-card-request-details"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(String(hr.request_section_title || 'Request Details')) + '</span></div><div class="tm-card-body">' +
+      (items.length ? '<div class="tm-info-grid tm-info-grid-compact">' + items.join('') + '</div>' : '') +
+      descriptionHtml +
+      attachmentsHtml +
+      '</div></div>';
+  }
+  function renderDescriptionCard(data) {
+    var hr = getHrDisplay(data);
+    if (hr && hr.is_hr_special) return '';
+    var title = 'Description';
+    var descriptionText = String((data && data.description) || '');
+    var descriptionHtml = descriptionText
+      ? '<div class="tm-desc-text">' + escapeHtml(descriptionText).replace(/\n/g, '<br>') + '</div>'
+      : '';
+    var attachmentsHtml = renderAttachmentsBlock(data);
+    var emptyHtml = (!descriptionHtml && !attachmentsHtml) ? '<div class="tm-info-value">-</div>' : '';
+    return '<div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(title) + '</span></div><div class="tm-card-body">' + descriptionHtml + attachmentsHtml + emptyHtml + '</div></div>';
+  }
+  function renderHrAttachmentCards(data) {
+    var hr = getHrDisplay(data);
+    if (hr && hr.is_hr_special) return '';
+    return '';
   }
   function hasImageAttachments(data) {
     var list = [];
@@ -386,16 +746,43 @@ var TMTicketModal = (function () {
     var companyEl = form.querySelector('select[name="assigned_company"]');
     var noteEl = form.querySelector('textarea[name="admin_note"]');
     var noticeEl = form.querySelector('#tmNoChangeNotice');
+    var deptMirrorEl = form.querySelector('input[type="hidden"][data-dept-mirror="1"]');
+
+    function normalizeCompanyValueForCompare(value) {
+      return normalizeCompanyValue(value);
+    }
+
+    function normalizeDepartmentValueForCompare(value, companyValue) {
+      var normalizedCompany = normalizeCompanyValue(companyValue);
+      if (normalizedCompany !== '@leadsagri.com') {
+        return '';
+      }
+      return preferredDeptValueForCompany(value, companyValue);
+    }
+
+    function getDeptRawValue() {
+      var mirrorEl = form.querySelector('input[type="hidden"][data-dept-mirror="1"]');
+      if (mirrorEl) return String(mirrorEl.value || '');
+      return deptEl ? String(deptEl.value || '') : '';
+    }
 
     var initialStatus = statusEl ? String(statusEl.value || '') : String((data && data.status) || '');
-    var initialDept = deptEl ? String(deptEl.value || '') : '';
-    var initialCompany = companyEl ? String(companyEl.value || '') : '';
+    var initialCompany = normalizeCompanyValueForCompare(companyEl ? String(companyEl.value || '') : '');
+    var initialDeptRaw = getDeptRawValue();
+    var initialDept = normalizeDepartmentValueForCompare(initialDeptRaw, initialCompany);
     var initialNote = noteEl ? String(noteEl.value || '').trim() : String((data && data.admin_note) || '').trim();
+
+    function showNotice(message) {
+      if (!noticeEl) return;
+      noticeEl.textContent = message;
+      noticeEl.classList.add('show');
+    }
 
     function hideNotice() {
       if (!noticeEl) return;
       noticeEl.classList.remove('show');
       noticeEl.textContent = '';
+      if (deptEl) deptEl.classList.remove('tm-invalid');
     }
 
     [statusEl, deptEl, companyEl, noteEl].forEach(function (el) {
@@ -406,15 +793,22 @@ var TMTicketModal = (function () {
 
     form.addEventListener('submit', function (e) {
       var currentStatus = statusEl ? String(statusEl.value || '') : initialStatus;
-      var currentDept = deptEl ? String(deptEl.value || '') : initialDept;
-      var currentCompany = companyEl ? String(companyEl.value || '') : initialCompany;
+      var currentCompany = normalizeCompanyValueForCompare(companyEl ? String(companyEl.value || '') : initialCompany);
+      var currentDeptRaw = getDeptRawValue();
+      var currentDept = normalizeDepartmentValueForCompare(currentDeptRaw, currentCompany);
       var currentNote = noteEl ? String(noteEl.value || '').trim() : initialNote;
+      if (currentCompany === '@leadsagri.com' && currentDept === '') {
+        e.preventDefault();
+        if (deptEl) {
+          deptEl.classList.add('tm-invalid');
+          deptEl.focus();
+        }
+        showNotice('Please choose a department.');
+        return;
+      }
       if (currentStatus === initialStatus && currentDept === initialDept && currentCompany === initialCompany && currentNote === initialNote) {
         e.preventDefault();
-        if (noticeEl) {
-          noticeEl.textContent = 'No changes were made.';
-          noticeEl.classList.add('show');
-        }
+        showNotice('No changes were made.');
       }
     });
   }
@@ -470,27 +864,81 @@ var TMTicketModal = (function () {
     { value: 'Technical', label: 'Technical' }
   ];
   function normalizeCompanyValue(value) {
-    return value == null ? '' : String(value).trim().toLowerCase();
+    var normalized = value == null ? '' : String(value).trim().toLowerCase();
+    if (normalized === '') return '';
+    var companyAliases = {
+      'lapc': '@leadsagri.com',
+      'lapc (@leadsagri.com)': '@leadsagri.com',
+      'leads agricultural products corporation - lapc': '@leadsagri.com',
+      'leadsagri.com': '@leadsagri.com',
+      '@leadsagri.com': '@leadsagri.com',
+      'lah': '@leadsanimalhealth.com',
+      'lah (@leadsanimalhealth.com)': '@leadsanimalhealth.com',
+      'leads animal health - lah': '@leadsanimalhealth.com',
+      'leadsanimalhealth.com': '@leadsanimalhealth.com',
+      '@leadsanimalhealth.com': '@leadsanimalhealth.com',
+      'leh': '@leads-eh.com',
+      'leh (@leads-eh.com)': '@leads-eh.com',
+      'leads-eh.com': '@leads-eh.com',
+      '@leads-eh.com': '@leads-eh.com',
+      'gpsci': '@gpsci.net',
+      'gpsci (@gpsci.net)': '@gpsci.net',
+      'gpci': '@gpsci.net',
+      'gpsci.net': '@gpsci.net',
+      '@gpsci.net': '@gpsci.net',
+      'farmasee': '@farmasee.ph',
+      'farmasee (@farmasee.ph)': '@farmasee.ph',
+      'farmasee.ph': '@farmasee.ph',
+      '@farmasee.ph': '@farmasee.ph',
+      'farmex': '@leads-farmex.com',
+      'farmex (@leads-farmex.com)': '@leads-farmex.com',
+      'farmex corp': '@leads-farmex.com',
+      'leads-farmex.com': '@leads-farmex.com',
+      '@leads-farmex.com': '@leads-farmex.com',
+      'mhc': '@malvedaholdings.com',
+      'mhc (@malvedaholdings.com)': '@malvedaholdings.com',
+      'malvedaholdings.com': '@malvedaholdings.com',
+      '@malvedaholdings.com': '@malvedaholdings.com',
+      'mpdc': '@malvedaproperties.com',
+      'mpdc (@malvedaproperties.com)': '@malvedaproperties.com',
+      'malvedaproperties.com': '@malvedaproperties.com',
+      '@malvedaproperties.com': '@malvedaproperties.com',
+      'ltc': '@leadstech-corp.com',
+      'ltc (@leadstech-corp.com)': '@leadstech-corp.com',
+      'leadstech-corp.com': '@leadstech-corp.com',
+      '@leadstech-corp.com': '@leadstech-corp.com',
+      'lingap': '@lingapleads.org',
+      'lingap (@lingapleads.org)': '@lingapleads.org',
+      'lingapleads.org': '@lingapleads.org',
+      '@lingapleads.org': '@lingapleads.org',
+      'lav': '@leadsav.com',
+      'lav (@leadsav.com)': '@leadsav.com',
+      'leadsav.com': '@leadsav.com',
+      '@leadsav.com': '@leadsav.com',
+      'pcc': '@primestocks.ph',
+      'pcc (@primestocks.ph)': '@primestocks.ph',
+      'primestocks.ph': '@primestocks.ph',
+      '@primestocks.ph': '@primestocks.ph'
+    };
+    return companyAliases[normalized] || normalized;
   }
   function getDeptOptionsForCompany(companyValue) {
     if (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true) return lapcDeptOptions;
-    return normalizeCompanyValue(companyValue) === '@leadsagri.com' ? lapcDeptOptions : standardDeptOptions;
+    return normalizeCompanyValue(companyValue) === '@leadsagri.com' ? lapcDeptOptions : [];
   }
   function preferredDeptValueForCompany(selectedValue, companyValue) {
     var raw = selectedValue == null ? '' : String(selectedValue).trim();
     var isLapcCompany = normalizeCompanyValue(companyValue) === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
-    if (!raw) return isLapcCompany ? '' : 'IT';
+    if (raw.toLowerCase() === 'no departments available') {
+      raw = '';
+    }
+    if (!raw) return isLapcCompany ? '' : '';
     var options = getDeptOptionsForCompany(companyValue);
     for (var i = 0; i < options.length; i++) {
       if (String(options[i].value).toLowerCase() === raw.toLowerCase()) return String(options[i].value);
     }
     var deptKey = deptKeyFromValue(raw);
-    if (!isLapcCompany) {
-      for (var k = 0; k < options.length; k++) {
-        if (String(options[k].value).toUpperCase() === deptKey) return String(options[k].value);
-      }
-      return 'IT';
-    }
+    if (!isLapcCompany) return '';
     var preferredMap = {
       'ACCOUNTING': 'Finance and Accounting',
       'ADMIN': 'Admin & Legal',
@@ -509,9 +957,14 @@ var TMTicketModal = (function () {
         if (String(options[j].value).toLowerCase() === preferredValue.toLowerCase()) return String(options[j].value);
       }
     }
-    return isLapcCompany ? raw : 'IT';
+    return isLapcCompany ? raw : '';
   }
   function buildDeptOptionsHtml(companyValue, selectedValue) {
+    var normalizedCompany = normalizeCompanyValue(companyValue);
+    var isLapcCompany = normalizedCompany === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
+    if (!isLapcCompany) {
+      return '                  <option value="" selected>No departments available</option>';
+    }
     var options = getDeptOptionsForCompany(companyValue);
     var forcePlaceholder = typeof window !== 'undefined' && window.TM_FORCE_DEPARTMENT_PLACEHOLDER === true;
     var matchedValue = forcePlaceholder ? '' : preferredDeptValueForCompany(selectedValue, companyValue);
@@ -551,6 +1004,7 @@ var TMTicketModal = (function () {
       var isLapcCompany = normalizedCompany === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
       var hiddenMirror = form.querySelector('input[type="hidden"][data-dept-mirror="1"]');
       var selectedValue = preferredDeptValueForCompany(preferredValue, companyEl.value);
+      var hiddenValue = isLapcCompany ? selectedValue : '';
 
       deptEl.value = selectedValue;
       deptEl.disabled = !isLapcCompany;
@@ -563,7 +1017,7 @@ var TMTicketModal = (function () {
           hiddenMirror.setAttribute('data-dept-mirror', '1');
           form.appendChild(hiddenMirror);
         }
-        hiddenMirror.value = selectedValue;
+        hiddenMirror.value = hiddenValue;
       } else if (hiddenMirror) {
         hiddenMirror.parentNode.removeChild(hiddenMirror);
       }
@@ -572,10 +1026,11 @@ var TMTicketModal = (function () {
     syncDeptOptions(initialPreferredDept);
     syncDeptAvailability(initialPreferredDept);
     companyEl.addEventListener('change', function () {
-      var nextPreferred = deptEl.value || (data && (data.assigned_department || data.assigned_group)) || '';
-      syncDeptOptions(nextPreferred);
-      syncDeptAvailability(nextPreferred);
-    });
+      var normalizedCompany = normalizeCompanyValue(companyEl.value);
+        var nextPreferred = normalizedCompany === '@leadsagri.com' ? '' : '';
+        syncDeptOptions(nextPreferred);
+        syncDeptAvailability(nextPreferred);
+      });
     deptEl.addEventListener('change', function () {
       syncDeptAvailability(deptEl.value || '');
     });
@@ -623,6 +1078,7 @@ var TMTicketModal = (function () {
         '                  <option value="Open" ' + (data.status === 'Open' ? 'selected' : '') + '>Open</option>' +
         '                  <option value="In Progress" ' + (data.status === 'In Progress' ? 'selected' : '') + '>In Progress</option>' +
         '                  <option value="Resolved" ' + (data.status === 'Resolved' ? 'selected' : '') + '>Resolved</option>' +
+        '                  <option value="Closed" ' + (data.status === 'Closed' ? 'selected' : '') + '>Closed</option>' +
         '            </select>' +
         '          </div>';
     }
@@ -652,12 +1108,13 @@ var TMTicketModal = (function () {
       }
       return u;
     }
-    var deptOptionsHtml = buildDeptOptionsHtml(data.assigned_company || '', data.assigned_department || data.assigned_group || '');
+    var assignedCompanyValue = normalizeCompanyValue(data.assigned_company || '') || String(data.assigned_company || '');
+    var deptOptionsHtml = buildDeptOptionsHtml(assignedCompanyValue, data.assigned_department || data.assigned_group || '');
     var noteValue = data && data.admin_note != null ? String(data.admin_note) : '';
     var trimmedNoteValue = noteValue.trim();
     var requesterAdminNoteHtml = (isRequesterPOV && trimmedNoteValue !== '')
       ? (
-        '      <div class="tm-card tm-card-admin-notes"><div class="tm-card-header"><div class="tm-card-header-actions"><span class="tm-card-title">Admin Notes / Comments</span>' + (hideRequesterAdminChatButton ? '' : ('<button type="button" class="tm-inline-chat-btn" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Chat with Admin</button>')) + '</div></div><div class="tm-card-body">' +
+        '      <div class="tm-card tm-card-admin-notes"><div class="tm-card-header"><div class="tm-card-header-actions"><span class="tm-card-title">Action Taken/Comments</span>' + (hideRequesterAdminChatButton ? '' : ('<button type="button" class="tm-inline-chat-btn" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Chat with Admin</button>')) + '</div></div><div class="tm-card-body">' +
         '        <div class="tm-requestor-note">' + escapeHtml(noteValue).replace(/\n/g, '<br>') + '</div>' +
         '      </div></div>'
       )
@@ -673,7 +1130,7 @@ var TMTicketModal = (function () {
     return '' +
       '<div class="tm-header">' +
       '  <div class="tm-header-left">' +
-      '    <div class="tm-title">' + escapeHtml(data.subject) + '</div>' +
+      '    <div class="tm-title">' + escapeHtml(getDisplaySubject(data)) + '</div>' +
       '    <div class="tm-chips">' +
       '      <span class="tm-chip tm-chip-' + statusSlug + '">' + escapeHtml(data.status) + '</span>' +
       '      <span class="tm-chip tm-chip-' + prioritySlug + '">' + escapeHtml(data.priority) + '</span>' +
@@ -702,7 +1159,9 @@ var TMTicketModal = (function () {
       '    </div>' +
       '    <div class="tm-desc-col">' +
       requesterAdminNoteHtml +
-      '      <div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">Description</span></div><div class="tm-card-body"><div class="tm-desc-text">' + escapeHtml(data.description).replace(/\n/g, '<br>') + '</div>' + renderAttachmentsBlock(data) + '</div></div>' +
+      '      ' + renderHrRequestDetailsCard(data) +
+      '      ' + renderDescriptionCard(data) +
+      '      ' + renderHrAttachmentCards(data) +
       resolutionCardHtml +
       '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card tm-card-impact"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
       '      ' + ((data.urgency && data.urgency !== '-') ? '<div class="tm-card tm-card-urgency"><div class="tm-card-header"><span class="tm-card-title">Urgency</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.urgency)) + '</div></div></div>' : '') +
@@ -720,6 +1179,29 @@ var TMTicketModal = (function () {
       statusControlHtml +
       '        </div>' +
       '        <div class="tm-field">' +
+      '          <label class="tm-control-label">Ticket Recipient</label>' +
+      '          <div class="tm-select-wrapper">' +
+      '            <select class="tm-select tm-dept-select" name="assigned_company">' +
+      ( !assignedCompanyValue ? '                  <option value="" disabled selected hidden>Select Recipient</option>' : '' ) +
+      ( assignedCompanyValue && ['@gpsci.net','@farmasee.ph','@leads-eh.com','@leads-farmex.com','@leadsagri.com','@leadsanimalhealth.com','@leadsav.com','@malvedaholdings.com','@malvedaproperties.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'].indexOf(String(assignedCompanyValue).toLowerCase()) === -1
+          ? ('                  <option value="' + escapeHtml(assignedCompanyValue) + '" selected>' + escapeHtml(assignedCompanyValue) + '</option>')
+          : '' ) +
+      '                  <option value="@gpsci.net" ' + (String(assignedCompanyValue || '').toLowerCase() === '@gpsci.net' ? 'selected' : '') + '>GPSCI (@gpsci.net)</option>' +
+      '                  <option value="@farmasee.ph" ' + (String(assignedCompanyValue || '').toLowerCase() === '@farmasee.ph' ? 'selected' : '') + '>FARMASEE (@farmasee.ph)</option>' +
+      '                  <option value="@leads-eh.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leads-eh.com' ? 'selected' : '') + '>LEH (@leads-eh.com)</option>' +
+      '                  <option value="@leads-farmex.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leads-farmex.com' ? 'selected' : '') + '>FARMEX (@leads-farmex.com)</option>' +
+      '                  <option value="@leadsagri.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leadsagri.com' ? 'selected' : '') + '>LAPC (@leadsagri.com)</option>' +
+      '                  <option value="@leadsanimalhealth.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leadsanimalhealth.com' ? 'selected' : '') + '>LAH (@leadsanimalhealth.com)</option>' +
+      '                  <option value="@leadsav.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leadsav.com' ? 'selected' : '') + '>LAV (@leadsav.com)</option>' +
+      '                  <option value="@malvedaholdings.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@malvedaholdings.com' ? 'selected' : '') + '>MHC (@malvedaholdings.com)</option>' +
+      '                  <option value="@malvedaproperties.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@malvedaproperties.com' ? 'selected' : '') + '>MPDC (@malvedaproperties.com)</option>' +
+      '                  <option value="@leadstech-corp.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leadstech-corp.com' ? 'selected' : '') + '>LTC (@leadstech-corp.com)</option>' +
+      '                  <option value="@lingapleads.org" ' + (String(assignedCompanyValue || '').toLowerCase() === '@lingapleads.org' ? 'selected' : '') + '>LINGAP (@lingapleads.org)</option>' +
+      '                  <option value="@primestocks.ph" ' + (String(assignedCompanyValue || '').toLowerCase() === '@primestocks.ph' ? 'selected' : '') + '>PCC (@primestocks.ph)</option>' +
+      '            </select>' +
+      '          </div>' +
+      '        </div>' +
+      '        <div class="tm-field">' +
       '          <label class="tm-control-label tm-control-label-department">' + deptLabelHtml + '</label>' +
       '          <div class="tm-select-wrapper">' +
       '            <select class="tm-select tm-dept-select" name="assigned_department">' +
@@ -727,33 +1209,9 @@ var TMTicketModal = (function () {
       '            </select>' +
       '          </div>' +
       '        </div>' +
-      '        <div class="tm-field">' +
-      '          <label class="tm-control-label">Ticket Recipient</label>' +
-      '          <div class="tm-select-wrapper">' +
-      '            <select class="tm-select tm-dept-select" name="assigned_company">' +
-      ( !data.assigned_company ? '                  <option value="" disabled selected hidden>Select Recipient</option>' : '' ) +
-      ( data.assigned_company && ['@gpsci.net','@farmasee.ph','@gmail.com','@leads-eh.com','@leads-farmex.com','@leadsagri.com','@leadsanimalhealth.com','@leadsav.com','@malvedaholdings.com','@malvedaproperties.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'].indexOf(String(data.assigned_company).toLowerCase()) === -1
-          ? ('                  <option value="' + escapeHtml(data.assigned_company) + '" selected>' + escapeHtml(data.assigned_company) + '</option>')
-          : '' ) +
-      '                  <option value="@gpsci.net" ' + (String(data.assigned_company || '').toLowerCase() === '@gpsci.net' ? 'selected' : '') + '>GPSCI (@gpsci.net)</option>' +
-      '                  <option value="@farmasee.ph" ' + (String(data.assigned_company || '').toLowerCase() === '@farmasee.ph' ? 'selected' : '') + '>FARMASEE (@farmasee.ph)</option>' +
-      '                  <option value="@gmail.com" ' + (String(data.assigned_company || '').toLowerCase() === '@gmail.com' ? 'selected' : '') + '>@gmail.com</option>' +
-      '                  <option value="@leads-eh.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leads-eh.com' ? 'selected' : '') + '>LEH (@leads-eh.com)</option>' +
-      '                  <option value="@leads-farmex.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leads-farmex.com' ? 'selected' : '') + '>FARMEX (@leads-farmex.com)</option>' +
-      '                  <option value="@leadsagri.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsagri.com' ? 'selected' : '') + '>LAPC (@leadsagri.com)</option>' +
-      '                  <option value="@leadsanimalhealth.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsanimalhealth.com' ? 'selected' : '') + '>LAH (@leadsanimalhealth.com)</option>' +
-      '                  <option value="@leadsav.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadsav.com' ? 'selected' : '') + '>LAV (@leadsav.com)</option>' +
-      '                  <option value="@malvedaholdings.com" ' + (String(data.assigned_company || '').toLowerCase() === '@malvedaholdings.com' ? 'selected' : '') + '>MHC (@malvedaholdings.com)</option>' +
-      '                  <option value="@malvedaproperties.com" ' + (String(data.assigned_company || '').toLowerCase() === '@malvedaproperties.com' ? 'selected' : '') + '>MPDC (@malvedaproperties.com)</option>' +
-      '                  <option value="@leadstech-corp.com" ' + (String(data.assigned_company || '').toLowerCase() === '@leadstech-corp.com' ? 'selected' : '') + '>LTC (@leadstech-corp.com)</option>' +
-      '                  <option value="@lingapleads.org" ' + (String(data.assigned_company || '').toLowerCase() === '@lingapleads.org' ? 'selected' : '') + '>LINGAP (@lingapleads.org)</option>' +
-      '                  <option value="@primestocks.ph" ' + (String(data.assigned_company || '').toLowerCase() === '@primestocks.ph' ? 'selected' : '') + '>PCC (@primestocks.ph)</option>' +
-      '            </select>' +
-      '          </div>' +
-      '        </div>' +
       '      </div>' +
       '      <div class="tm-note-group">' +
-      '        <div class="tm-note-label">Reason of Concern / Action Taken</div>' +
+      '        <div class="tm-note-label">Action Taken/Comments</div>' +
       '        <textarea class="tm-textarea" name="admin_note" id="tmAdminNote" placeholder="Provide details of the issue or actions performed to resolve it.">' + escapeHtml(noteValue) + '</textarea>' +
       '        <div class="tm-note-footer">' +
       (hideQuickTags ? '' : (
@@ -778,7 +1236,7 @@ var TMTicketModal = (function () {
     var safe = data && typeof data === 'object' ? data : {};
     var ticketId = safe && safe.id != null ? String(safe.id) : '-';
     var ticketIdLabel = /^\d+$/.test(ticketId) ? String(ticketId).padStart(6, '0') : ticketId;
-    var subject = safe && safe.subject ? String(safe.subject) : 'Ticket';
+    var subject = getDisplaySubject(safe);
     var status = safe && safe.status ? String(safe.status) : '-';
     var priority = safe && safe.priority ? String(safe.priority) : '-';
     var requester = safe && safe.created_by_name ? String(safe.created_by_name) : '-';
@@ -816,7 +1274,9 @@ var TMTicketModal = (function () {
       '      </div></div></div>' +
       '    </div>' +
       '    <div class="tm-desc-col">' +
-      '      <div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">Description</span></div><div class="tm-card-body"><div class="tm-desc-text">' + escapeHtml(description).replace(/\n/g, '<br>') + '</div>' + renderAttachmentsBlock(safe) + '</div></div>' +
+      '      ' + renderHrRequestDetailsCard(safe) +
+      '      ' + renderDescriptionCard(safe) +
+      '      ' + renderHrAttachmentCards(safe) +
       '    </div>' +
       '  </div>' +
       '</div>';
@@ -928,12 +1388,26 @@ var TMTicketModal = (function () {
       '    <div id="chatModalNotice" class="chat-empty" style="display:none;"></div>' +
       '    <div id="chatModalComposer" class="ticket-chat-input-wrapper">' +
       '      <input type="hidden" id="chatModalTicketId" value="">' +
+      '      <input type="file" id="chatModalAttachmentInput" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" style="display:none;">' +
+      '      <button id="chatModalAttachBtn" class="ticket-chat-attach" type="button" title="Attach file"><i class="fas fa-paperclip"></i></button>' +
       '      <input type="text" id="chatModalInput" class="ticket-chat-input" placeholder="Type a message..." onkeypress="if(event.key===\'Enter\') TMTicketModal.sendChatModalMessage()">' +
+      '      <span id="chatModalAttachmentName" class="tm-chat-attachment-selected"></span>' +
       '      <button id="chatModalSendBtn" class="ticket-chat-send" type="button" onclick="TMTicketModal.sendChatModalMessage()"><i class="fas fa-paper-plane"></i></button>' +
       '    </div>' +
       '  </div>' +
       '</div>';
     document.body.appendChild(el);
+    var attachBtn = qs('chatModalAttachBtn');
+    var attachInput = qs('chatModalAttachmentInput');
+    if (attachBtn && attachInput) {
+      attachBtn.addEventListener('click', function () {
+        if (!attachBtn.disabled) attachInput.click();
+      });
+      attachInput.addEventListener('change', function () {
+        var file = attachInput.files && attachInput.files[0] ? attachInput.files[0] : null;
+        setChatModalAttachment(file);
+      });
+    }
     window.addEventListener('click', function (e) { var cm = qs('chatModal'); if (cm && e.target === cm) TMTicketModal.closeChatModal(); });
   }
   function getSeenKey(ticketId) {
@@ -1044,6 +1518,8 @@ var TMTicketModal = (function () {
     var composer = qs('chatModalComposer');
     var input = qs('chatModalInput');
     var btn = qs('chatModalSendBtn');
+    var attachBtn = qs('chatModalAttachBtn');
+    var attachInput = qs('chatModalAttachmentInput');
     var notice = qs('chatModalNotice');
     var allowed = canChat === true;
     var handlerName = extractHandlerName(lockedMessage);
@@ -1070,6 +1546,12 @@ var TMTicketModal = (function () {
       btn.style.backgroundColor = allowed ? '' : '#cbd5e1';
       btn.style.pointerEvents = allowed ? 'auto' : 'none';
     }
+    if (attachBtn) attachBtn.disabled = !allowed;
+    if (attachInput) attachInput.disabled = !allowed;
+    if (!allowed) {
+      if (attachInput) attachInput.value = '';
+      setChatModalAttachment(null);
+    }
     if (notice) {
       if (allowed) {
         notice.style.display = 'none';
@@ -1080,16 +1562,18 @@ var TMTicketModal = (function () {
       }
     }
   }
-  function loadChatModalMeta(ticketId) {
-    setChatComposerState(false, 'Checking ticket handler...');
-    setChatModalMetaHtml('<span class="chat-meta-loading">Loading details…</span>');
+  function loadChatModalMeta(ticketId, silentRefresh) {
+    if (silentRefresh !== true) {
+      setChatComposerState(false, 'Checking ticket handler...');
+      setChatModalMetaHtml('<span class="chat-meta-loading">Loading details…</span>');
+    }
     fetch('get_ticket_details.php?id=' + ticketId)
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || data.error) return;
         lastTicketMeta = {
           id: data && data.id != null ? data.id : ticketId,
-          subject: data && data.subject ? String(data.subject) : ''
+          subject: getDisplaySubject(data)
         };
         setChatComposerState(data && data.can_chat === true, data && data.chat_locked_message ? String(data.chat_locked_message) : '');
         var current = (typeof window !== 'undefined' && window.TM_CURRENT_USER) ? window.TM_CURRENT_USER : null;
@@ -1180,7 +1664,7 @@ var TMTicketModal = (function () {
     setChatComposerState(false, 'Checking ticket handler...');
     stopChatBadge();
     stopChat();
-    loadChatModalMeta(ticketId);
+    loadChatModalMeta(ticketId, false);
     loadTicketMessages(ticketId, true);
     chatInterval = setInterval(function () { loadTicketMessages(ticketId, false); }, 3000);
   }
@@ -1197,7 +1681,7 @@ var TMTicketModal = (function () {
     }
   }
   function loadTicketMessages(ticketId, scrollBottom) {
-    loadChatModalMeta(ticketId);
+    loadChatModalMeta(ticketId, true);
     var formData = new FormData();
     formData.append('ticket_id', ticketId);
     var t = getCsrfToken();
@@ -1238,6 +1722,13 @@ var TMTicketModal = (function () {
     messages.forEach(function (msg) {
       var bubble = document.createElement('div');
       bubble.classList.add('chat-bubble', (msg.is_me ? 'me' : 'other'));
+      var ticketIdEl = qs('chatModalTicketId');
+      var ticketId = ticketIdEl ? String(ticketIdEl.value || '') : '';
+      var actionsNode = createMessageActionsNode(msg, ticketId, function () {
+        loadTicketMessages(ticketId, false);
+        loadConversationsAndMaybeSelect();
+      });
+      if (actionsNode) bubble.appendChild(actionsNode);
       var senderLabel = '';
       if (msg && msg.sender_name && String(msg.sender_name).trim() !== '') {
         senderLabel = String(msg.sender_name);
@@ -1250,12 +1741,16 @@ var TMTicketModal = (function () {
         sDiv.textContent = senderLabel;
         bubble.appendChild(sDiv);
       }
-      var contentDiv = document.createElement('div');
-      contentDiv.textContent = msg.message;
+      if (msg && msg.message) {
+        var contentDiv = document.createElement('div');
+        contentDiv.textContent = msg.message;
+        bubble.appendChild(contentDiv);
+      }
+      var attachmentNode = createMessageAttachmentNode(msg && msg.attachment ? msg.attachment : null);
+      if (attachmentNode) bubble.appendChild(attachmentNode);
       var timeDiv = document.createElement('div');
       timeDiv.classList.add('chat-time');
       timeDiv.textContent = msg.created_at;
-      bubble.appendChild(contentDiv);
       bubble.appendChild(timeDiv);
       container.appendChild(bubble);
     });
@@ -1264,40 +1759,20 @@ var TMTicketModal = (function () {
   function sendChatModalMessage() {
     var input = qs('chatModalInput');
     var ticketIdEl = qs('chatModalTicketId');
+    var attachInput = qs('chatModalAttachmentInput');
     if (!input || !ticketIdEl) return;
     if (input.disabled || input.readOnly) return false;
     var message = input.value.trim();
     var btn = qs('chatModalSendBtn');
-    if (!message) return;
+    var hasAttachment = !!chatModalAttachmentFile;
+    if (!message && !hasAttachment) return;
     if (btn && btn.disabled) return;
     var ticketId = String(ticketIdEl.value || '');
-    var senderName = (window.TM_CURRENT_USER && window.TM_CURRENT_USER.name) ? String(window.TM_CURRENT_USER.name) : 'You';
-    input.value = '';
-    var bubble = null;
-    var container = qs('chatModalMessages');
-    if (container) {
-      if (container.querySelector('.chat-empty')) container.innerHTML = '';
-      bubble = document.createElement('div');
-      bubble.classList.add('chat-bubble', 'me');
-      var sDiv = document.createElement('div');
-      sDiv.classList.add('chat-sender');
-      sDiv.textContent = senderName;
-      var contentDiv = document.createElement('div');
-      contentDiv.textContent = message;
-      var timeDiv = document.createElement('div');
-      timeDiv.classList.add('chat-time');
-      timeDiv.textContent = formatHHMM(new Date());
-      bubble.appendChild(sDiv);
-      bubble.appendChild(contentDiv);
-      bubble.appendChild(timeDiv);
-      container.appendChild(bubble);
-      container.scrollTop = container.scrollHeight;
-    }
-    updateConversationPreview(ticketId, message, senderName);
     if (btn) btn.disabled = true;
     var formData = new FormData();
     formData.append('ticket_id', ticketId);
     formData.append('message', message);
+    if (chatModalAttachmentFile) formData.append('attachment', chatModalAttachmentFile);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
     postJson('chat_send.php', formData)
@@ -1311,6 +1786,9 @@ var TMTicketModal = (function () {
           return;
         }
         if (data && data.success) {
+          input.value = '';
+          if (attachInput) attachInput.value = '';
+          setChatModalAttachment(null);
           setTimeout(function () { loadTicketMessages(ticketId, true); }, 0);
         }
       })
@@ -1396,6 +1874,119 @@ var TMTicketModal = (function () {
     messengerConfirmAction = (typeof opts.onConfirm === 'function') ? opts.onConfirm : null;
     dialog.style.display = 'flex';
   }
+  function ensureMessengerEditExists() {
+    if (qs('tmMessengerEdit')) return;
+    var dialog = document.createElement('div');
+    dialog.id = 'tmMessengerEdit';
+    dialog.className = 'tm-messenger-edit-overlay';
+    dialog.style.position = 'fixed';
+    dialog.style.inset = '0';
+    dialog.style.zIndex = '2147483647';
+    dialog.style.display = 'none';
+    dialog.style.alignItems = 'center';
+    dialog.style.justifyContent = 'center';
+    dialog.innerHTML =
+      '<div class="tm-messenger-edit-box" role="dialog" aria-modal="true" aria-labelledby="tmMessengerEditTitle">' +
+      '  <div class="tm-messenger-edit-title" id="tmMessengerEditTitle">Edit message</div>' +
+      '  <textarea id="tmMessengerEditInput" class="tm-messenger-edit-input" rows="4" placeholder="Edit message..."></textarea>' +
+      '  <div class="tm-messenger-edit-actions">' +
+      '    <button type="button" class="tm-messenger-edit-btn tm-messenger-edit-cancel" id="tmMessengerEditCancel">Cancel</button>' +
+      '    <button type="button" class="tm-messenger-edit-btn tm-messenger-edit-save" id="tmMessengerEditSave">Save</button>' +
+      '  </div>' +
+      '</div>';
+    document.body.appendChild(dialog);
+    dialog.addEventListener('click', function (e) {
+      if (e.target === dialog) hideMessengerMessageEditor();
+    });
+    var cancelBtn = qs('tmMessengerEditCancel');
+    var saveBtn = qs('tmMessengerEditSave');
+    var input = qs('tmMessengerEditInput');
+    var box = dialog.querySelector('.tm-messenger-edit-box');
+    if (cancelBtn) cancelBtn.addEventListener('click', hideMessengerMessageEditor);
+    if (box) {
+      box.style.position = 'relative';
+      box.style.zIndex = '2147483647';
+    }
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function () {
+        var ctx = messengerEditSubmitAction;
+        if (!ctx || !input) return;
+        var updated = String(input.value || '').trim();
+        if (updated === String(ctx.original || '').trim()) {
+          hideMessengerMessageEditor();
+          return;
+        }
+        if (!updated && !ctx.hasAttachment) {
+          showMessengerConfirm({
+            title: 'Edit Failed',
+            message: 'Message cannot be empty.',
+            confirmText: 'OK',
+            hideCancel: true
+          });
+          return;
+        }
+        saveBtn.disabled = true;
+        if (typeof ctx.onSubmit === 'function') {
+          ctx.onSubmit(updated, function () {
+            hideMessengerMessageEditor();
+          }, function () {
+            saveBtn.disabled = false;
+          });
+        } else {
+          hideMessengerMessageEditor();
+        }
+      });
+    }
+    if (input) {
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          hideMessengerMessageEditor();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          var trigger = qs('tmMessengerEditSave');
+          if (trigger) trigger.click();
+        }
+      });
+    }
+  }
+  function hideMessengerMessageEditor() {
+    var dialog = qs('tmMessengerEdit');
+    var input = qs('tmMessengerEditInput');
+    var saveBtn = qs('tmMessengerEditSave');
+    if (dialog) dialog.style.display = 'none';
+    if (input) input.value = '';
+    if (saveBtn) saveBtn.disabled = false;
+    messengerEditSubmitAction = null;
+  }
+  function showMessengerMessageEditor(options) {
+    ensureMessengerEditExists();
+    var dialog = qs('tmMessengerEdit');
+    var input = qs('tmMessengerEditInput');
+    var saveBtn = qs('tmMessengerEditSave');
+    var title = qs('tmMessengerEditTitle');
+    if (!dialog || !input || !saveBtn) return;
+    dialog.style.zIndex = '2147483647';
+    dialog.style.display = 'flex';
+    var opts = options || {};
+    if (title) title.textContent = opts.title || 'Edit message';
+    input.value = String(opts.value || '');
+    saveBtn.disabled = false;
+    messengerEditSubmitAction = {
+      original: String(opts.value || ''),
+      hasAttachment: !!opts.hasAttachment,
+      onSubmit: (typeof opts.onSubmit === 'function') ? opts.onSubmit : null
+    };
+    setTimeout(function () {
+      try {
+        input.focus();
+        var length = input.value.length;
+        input.setSelectionRange(length, length);
+      } catch (e) { }
+    }, 0);
+  }
   function ensureMessengerModalExists() {
     if (qs('tmMessengerModal')) return;
 
@@ -1404,7 +1995,7 @@ var TMTicketModal = (function () {
       style.id = 'tmMessengerStyles';
       style.textContent =
         '.tm-messenger-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:9999;padding:18px;}' +
-        '.tm-messenger-confirm-overlay{position:fixed;inset:0;background:rgba(15,23,42,.52);display:none;align-items:center;justify-content:center;z-index:10001;padding:20px;}' +
+        '.tm-messenger-confirm-overlay{position:fixed;inset:0;background:rgba(15,23,42,.52);display:none;align-items:center;justify-content:center;z-index:2147483646;padding:20px;}' +
         '.tm-messenger-confirm-box{width:min(420px,92vw);background:#fff;border-radius:20px;box-shadow:0 28px 70px rgba(2,6,23,.28);padding:28px 24px 22px;border:1px solid rgba(226,232,240,.95);display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;}' +
         '.tm-messenger-confirm-icon{width:84px;height:84px;border-radius:999px;border:4px solid #fdba74;color:#f97316;display:flex;align-items:center;justify-content:center;font-size:48px;font-weight:800;line-height:1;}' +
         '.tm-messenger-confirm-title{font-size:18px;font-weight:900;color:#334155;}' +
@@ -1417,6 +2008,18 @@ var TMTicketModal = (function () {
         '.tm-messenger-confirm-ok:hover{background:#14532d;}' +
         '.tm-messenger-confirm-ok.danger{background:#dc2626;}' +
         '.tm-messenger-confirm-ok.danger:hover{background:#b91c1c;}' +
+        '.tm-messenger-edit-overlay{position:fixed;inset:0;background:rgba(15,23,42,.58);display:none;align-items:center;justify-content:center;z-index:2147483647;padding:18px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}' +
+        '.tm-messenger-edit-box{width:min(520px,92vw);background:#ffffff;border:1px solid #dbe7df;border-radius:20px;box-shadow:0 28px 72px rgba(15,23,42,.24);padding:22px 22px 18px;display:flex;flex-direction:column;gap:14px;}' +
+        '.tm-messenger-edit-title{font-size:18px;font-weight:900;color:#0f172a;line-height:1.2;letter-spacing:-.02em;}' +
+        '.tm-messenger-edit-input{width:100%;min-height:128px;resize:vertical;border:1.5px solid #dbe3ec;border-radius:14px;padding:14px 16px;font-size:14px;color:#0f172a;outline:none;background:#ffffff;line-height:1.55;font-family:inherit;box-shadow:inset 0 1px 2px rgba(15,23,42,.04);appearance:none;-webkit-appearance:none;}' +
+        '.tm-messenger-edit-input:focus{border-color:#86efac;box-shadow:0 0 0 4px rgba(34,197,94,.12);}' +
+        '.tm-messenger-edit-actions{display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;}' +
+        '.tm-messenger-edit-btn{appearance:none;-webkit-appearance:none;border:none;border-radius:12px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer;min-width:96px;line-height:1;}' +
+        '.tm-messenger-edit-cancel{background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;}' +
+        '.tm-messenger-edit-cancel:hover{background:#e2e8f0;}' +
+        '.tm-messenger-edit-save{background:#166534;color:#ffffff;box-shadow:0 12px 22px rgba(22,101,52,.18);}' +
+        '.tm-messenger-edit-save:hover{background:#14532d;}' +
+        '.tm-messenger-edit-save:disabled{opacity:.65;cursor:not-allowed;box-shadow:none;}' +
         '.tm-messenger-panel{width:min(1100px,96vw);height:min(78vh,720px);background:#fff;border-radius:16px;box-shadow:0 30px 80px rgba(2,6,23,.25);overflow:hidden;display:flex;border:1px solid rgba(226,232,240,.9);}' +
         '.tm-messenger-left{width:300px;min-width:300px;max-width:300px;border-right:1px solid #e5e7eb;display:flex;flex-direction:column;background:#fbfbfc;}' +
         '.tm-messenger-left-header{padding:14px 14px 10px;display:flex;align-items:center;justify-content:flex-start;gap:10px;border-bottom:1px solid #eef2f7;}' +
@@ -1428,14 +2031,18 @@ var TMTicketModal = (function () {
         '.tm-messenger-item{width:100%;border:1px solid #e5e7eb;border-radius:12px;background:#fff;padding:10px 10px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:transform .12s,box-shadow .12s,border-color .12s;}' +
         '.tm-messenger-item:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(2,6,23,.08);border-color:#bbf7d0;}' +
         '.tm-messenger-item.active{border-color:#22c55e;box-shadow:0 10px 22px rgba(34,197,94,.12);}' +
-        '.tm-messenger-item.unread-chat{background:#e8f8ee;border-left:4px solid #22c55e;}' +
-        '.tm-messenger-item.unread-chat .tm-messenger-item-subject{font-weight:900;}' +
+        '.tm-messenger-item.locked-ticket{border-color:#e2e8f0;background:#ffffff;}' +
+        '.tm-messenger-item.active-locked{border-color:#22c55e;background:#e8f8ee;box-shadow:0 10px 22px rgba(34,197,94,.12);}' +
+        '.tm-messenger-item.unread-chat{background:#fff;border-left:1px solid #e5e7eb;}' +
+        '.tm-messenger-item.unread-chat .tm-messenger-item-subject{font-weight:800;}' +
         '.tm-messenger-item-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}' +
         '.tm-messenger-item-subject{font-size:13px;font-weight:800;color:#0f172a;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
         '.tm-messenger-item-right{display:flex;align-items:center;gap:8px;flex:0 0 auto;}' +
         '.tm-messenger-item-time{font-size:11px;font-weight:700;color:#64748b;flex:0 0 auto;}' +
         '.unread-badge{background:#22c55e;color:#ffffff;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:900;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:20px;}' +
         '.tm-messenger-item-preview{font-size:12px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+        '.tm-messenger-item-preview.locked{display:flex;align-items:center;gap:6px;color:#64748b;font-weight:700;}' +
+        '.tm-messenger-item-preview .lock-icon{display:inline-flex;align-items:center;justify-content:center;font-size:12px;opacity:.9;}' +
         '.tm-messenger-right{flex:1;min-width:0;display:flex;flex-direction:column;background:#fff;}' +
         '.tm-messenger-right-header{padding:14px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;gap:12px;}' +
         '.tm-messenger-right-title{display:flex;flex-direction:column;gap:3px;min-width:0;}' +
@@ -1456,10 +2063,30 @@ var TMTicketModal = (function () {
         '.tm-messenger-close:hover{background:#e2e8f0;}' +
         '.tm-messenger-messages{flex:1;overflow:auto;padding:16px;background:#f9fafb;display:flex;flex-direction:column;gap:12px;}' +
         '.tm-messenger-empty{color:#94a3b8;font-weight:700;text-align:center;margin-top:26px;}' +
-        '.tm-messenger-compose{border-top:1px solid #e5e7eb;padding:12px;background:#fff;display:flex;gap:10px;align-items:center;}' +
-        '.tm-messenger-compose input{flex:1;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;font-size:14px;outline:none;background:#fff;}' +
+        '.tm-messenger-compose{border-top:1px solid #e5e7eb;padding:12px;background:#fff;display:flex;gap:10px;align-items:center;flex-wrap:nowrap;position:relative;padding-bottom:64px;}' +
+        '.tm-messenger-compose input{flex:1 1 auto;min-width:0;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;font-size:14px;outline:none;background:#fff;}' +
         '.tm-messenger-compose input:focus{border-color:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.12);}' +
         '.tm-messenger-compose input:disabled{background:#f8fafc;border-color:#dbe3ec;color:#64748b;box-shadow:none;cursor:not-allowed;opacity:.8;}' +
+        '.tm-messenger-attach{flex:0 0 auto;width:46px;height:46px;border:none;border-radius:14px;background:#f1f5f9;color:#475569;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:inset 0 0 0 1px #e2e8f0;}' +
+        '.tm-messenger-attach:hover{background:#e2e8f0;color:#0f172a;}' +
+        '.tm-messenger-attach:disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed;box-shadow:none;}' +
+        '.tm-chat-attachment-selected{position:absolute;left:68px;right:98px;bottom:8px;min-height:46px;display:none;}' +
+        '.tm-chat-attachment-selected.has-file{display:block;}' +
+        '.tm-selected-attachment{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;border:1px solid #dbe3ec;border-radius:14px;background:#f8fafc;box-shadow:0 6px 14px rgba(15,23,42,.06);padding:5px 8px 5px 6px;}' +
+        '.tm-selected-attachment-thumb{width:34px;height:34px;border-radius:10px;border:1px solid #e2e8f0;object-fit:cover;display:block;flex:0 0 auto;}' +
+        '.tm-selected-attachment-file-icon{width:34px;height:34px;border-radius:10px;background:#e2e8f0;color:#334155;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;}' +
+        '.tm-selected-attachment-meta{min-width:0;flex:1 1 auto;display:flex;flex-direction:column;gap:1px;}' +
+        '.tm-selected-attachment-name{color:#0f172a;font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+        '.tm-selected-attachment-size{color:#64748b;font-size:11px;font-weight:700;}' +
+        '.tm-selected-attachment-remove{width:28px;height:28px;border:none;border-radius:999px;background:#e2e8f0;color:#334155;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto;}' +
+        '.tm-selected-attachment-remove:hover{background:#fecaca;color:#b91c1c;}' +
+        '.tm-chat-attachment{display:flex;flex-direction:column;gap:8px;margin-top:2px;}' +
+        '.tm-chat-attachment-link{display:inline-flex;align-items:center;gap:10px;color:inherit;text-decoration:none;max-width:100%;}' +
+        '.tm-chat-attachment-button{appearance:none;-webkit-appearance:none;padding:0;border:none;background:transparent;cursor:zoom-in;position:relative;z-index:1;}' +
+        '.tm-chat-attachment-icon{width:34px;height:34px;border-radius:12px;background:rgba(255,255,255,.18);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;}' +
+        '.tm-messenger-overlay .chat-bubble.other .tm-chat-attachment-icon{background:#e2e8f0;color:#334155;}' +
+        '.tm-chat-attachment-name{font-size:13px;font-weight:700;line-height:1.35;word-break:break-word;}' +
+        '.tm-chat-attachment-image{display:block;max-width:min(260px,100%);max-height:220px;border-radius:14px;border:1px solid rgba(148,163,184,.28);object-fit:cover;background:#fff;cursor:zoom-in;pointer-events:auto;position:relative;z-index:1;}' +
         '.tm-messenger-send{border:none;background:#1B5E20;color:#fff;border-radius:12px;padding:12px 14px;font-weight:900;cursor:pointer;min-width:86px;}' +
         '.tm-messenger-send:disabled{opacity:.6;cursor:not-allowed;}' +
         '.tm-messenger-overlay .chat-bubble{max-width:80%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;display:flex;flex-direction:column;gap:4px;box-shadow:0 1px 2px rgba(0,0,0,.04);}' +
@@ -1489,8 +2116,8 @@ var TMTicketModal = (function () {
           '.tm-messenger-confirm-icon{width:72px;height:72px;font-size:40px;}' +
           '.tm-messenger-confirm-actions{width:100%;}' +
           '.tm-messenger-confirm-btn{flex:1 1 140px;min-height:44px;}' +
-          '.tm-messenger-compose{display:flex;gap:10px;padding:12px;border-top:1px solid #eee;background:#fff;position:sticky;bottom:0;}' +
-          '.tm-messenger-compose input{flex:1;border-radius:12px;padding:10px 12px;border:1px solid #ddd;min-height:44px;}' +
+          '.tm-messenger-compose{display:flex;gap:10px;padding:12px;border-top:1px solid #eee;background:#fff;position:sticky;bottom:0;flex-wrap:nowrap;padding-bottom:62px;}' +
+          '.tm-messenger-compose input{flex:1 1 auto;min-width:0;border-radius:12px;padding:10px 12px;border:1px solid #ddd;min-height:44px;}' +
           '.tm-messenger-send{padding:10px 16px;border-radius:10px;min-width:72px;min-height:44px;}' +
           '.tm-messenger-header-actions{width:auto;}' +
           '.tm-messenger-menu-btn{min-width:40px;min-height:40px;border-radius:10px;}' +
@@ -1522,15 +2149,18 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay.employee-style .tm-messenger-item{padding:13px 13px 12px;border-radius:16px;border:1px solid #e7edf3;background:#fff;box-shadow:0 6px 14px rgba(15,23,42,.04);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-item:hover{transform:none;border-color:#d9e2ec;background:#fbfdff;box-shadow:0 10px 18px rgba(15,23,42,.06);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-item.active{border-color:#d9efe0;background:linear-gradient(180deg,#fcfefd 0%,#f4fbf6 100%);box-shadow:inset 4px 0 0 #22a55a,0 10px 22px rgba(34,197,94,.10);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.locked-ticket{border-color:#e2e8f0;background:#ffffff;box-shadow:0 6px 14px rgba(15,23,42,.04);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.active-locked{border-color:#d9efe0;background:linear-gradient(180deg,#fcfefd 0%,#f4fbf6 100%);box-shadow:inset 4px 0 0 #22a55a,0 10px 22px rgba(34,197,94,.10);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-item.active .tm-messenger-item-subject{color:#0f172a;font-weight:700;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-item.active .tm-messenger-item-preview{color:#475569;font-weight:500;}' +
-        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat{border-color:#86efac;background:linear-gradient(180deg,#fbfffc 0%,#ecfdf3 100%);box-shadow:inset 5px 0 0 #16a34a,0 12px 24px rgba(22,163,74,.16);}' +
-        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat.active{border-color:#6ee7b7;background:linear-gradient(180deg,#f9fffb 0%,#e8fbef 100%);box-shadow:inset 5px 0 0 #16a34a,0 12px 24px rgba(22,163,74,.18);}' +
-        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat .tm-messenger-item-subject{color:#052e16;font-weight:900;}' +
-        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat .tm-messenger-item-preview{color:#14532d;font-weight:800;}' +
-        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat .tm-messenger-item-time{color:#14532d;font-weight:900;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat{border-color:#e7edf3;background:#fff;box-shadow:0 6px 14px rgba(15,23,42,.04);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat.active{border-color:#d9efe0;background:linear-gradient(180deg,#fcfefd 0%,#f4fbf6 100%);box-shadow:inset 4px 0 0 #22a55a,0 10px 22px rgba(34,197,94,.10);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat .tm-messenger-item-subject{color:#0f172a;font-weight:700;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat .tm-messenger-item-preview{color:#64748b;font-weight:500;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.unread-chat .tm-messenger-item-time{color:#475569;font-weight:800;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-item-subject{font-size:15px;font-weight:700;color:#0f172a;letter-spacing:-.02em;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-item-preview{margin-top:7px;font-size:13px;color:#64748b;line-height:1.42;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item-preview.locked{display:flex;align-items:center;gap:7px;color:#475569;font-weight:700;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-item-time{font-size:12px;font-weight:800;color:#475569;}' +
         '.tm-messenger-overlay.employee-style .unread-badge{width:10px;height:10px;min-width:10px;border-radius:999px;background:#16a34a;color:transparent;font-size:0;display:inline-flex;align-items:center;justify-content:center;padding:0;box-shadow:0 0 0 3px rgba(22,163,74,.14);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-right{background:linear-gradient(180deg,#ffffff 0%,#fbfcfd 100%);}' +
@@ -1550,9 +2180,22 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay.employee-style .tm-messenger-menu{top:calc(100% + 10px);min-width:208px;border-radius:18px;padding:10px;box-shadow:0 20px 46px rgba(15,23,42,.16);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-menu-item{padding:12px 14px;font-size:14px;font-weight:800;border-radius:12px;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-messages{padding:20px 22px 16px;background:linear-gradient(180deg,#ffffff 0%,#fbfbfd 100%);gap:14px;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble{max-width:min(66%,420px);padding:13px 15px;border-radius:20px;border:1px solid #e6edf3;box-shadow:0 10px 24px rgba(15,23,42,.06);gap:6px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble{position:relative;overflow:visible;display:flex;flex-direction:column;max-width:min(66%,420px);padding:13px 15px;border-radius:20px;border:1px solid #e6edf3;box-shadow:0 10px 24px rgba(15,23,42,.06);gap:6px;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.other{background:#ffffff;color:#0f172a;border-bottom-left-radius:10px;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.me{background:#174d1b;color:#fff;border-color:#174d1b;border-bottom-right-radius:10px;box-shadow:0 12px 28px rgba(23,77,27,.22);}' +
+        '.tm-messenger-overlay.employee-style .tm-msg-actions{position:absolute;top:50%;z-index:12;opacity:1;pointer-events:auto;transform:translateY(-50%);}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .tm-msg-actions{right:-38px;left:auto;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .tm-msg-actions{left:-38px;right:auto;}' +
+        '.tm-messenger-overlay.employee-style .tm-msg-actions-toggle{appearance:none;-webkit-appearance:none;width:28px;height:28px;border:none;border-radius:10px;background:#ffffff;color:#475569;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 8px 18px rgba(15,23,42,.14);transition:background .18s ease,color .18s ease,box-shadow .18s ease;}' +
+        '.tm-messenger-overlay.employee-style .tm-msg-actions-toggle:hover{background:#eef2f7;color:#0f172a;}' +
+        '.tm-messenger-overlay.employee-style .tm-msg-actions-menu{position:absolute;top:50%;min-width:132px;background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 18px 34px rgba(15,23,42,.16);display:none;padding:8px;transform:translateY(-50%);}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .tm-msg-actions-menu{left:36px;right:auto;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .tm-msg-actions-menu{right:36px;left:auto;}' +
+        '.tm-messenger-overlay.employee-style .tm-msg-actions-menu.show{display:flex;flex-direction:column;gap:4px;opacity:1;pointer-events:auto;}' +
+        '.tm-messenger-overlay.employee-style .tm-msg-actions-item{appearance:none;-webkit-appearance:none;width:100%;border:none;background:transparent;border-radius:10px;padding:10px 12px;text-align:left;font-size:13px;font-weight:700;color:#334155;cursor:pointer;white-space:nowrap;line-height:1.2;display:block;}' +
+        '.tm-messenger-overlay.employee-style .tm-msg-actions-item:hover{background:#f8fafc;}' +
+        '.tm-messenger-overlay.employee-style .tm-msg-actions-item.danger{color:#dc2626;}' +
+        '.tm-messenger-overlay.employee-style .tm-msg-actions-item.danger:hover{background:#fef2f2;}' +
         '.tm-messenger-overlay.employee-style .chat-sender{font-size:14px;font-weight:900;line-height:1.2;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-sender{color:#ffffff;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-sender{color:#0f172a;}' +
@@ -1563,16 +2206,24 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay.employee-style .tm-messenger-lock-title{font-size:16px;font-weight:500;color:#4b5563;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-lock-subtitle{font-size:14px;color:#475569;max-width:520px;line-height:1.55;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-lock-subtitle strong{color:#0f172a;}' +
-        '.tm-messenger-overlay.employee-style .tm-messenger-compose{padding:14px 14px 16px;border-top:1px solid #e5e7eb;background:#fff;gap:12px;}' +
-        '.tm-messenger-overlay.employee-style .tm-messenger-compose input{border-radius:16px;border:1.5px solid #86efac;padding:13px 16px;font-size:14px;min-height:50px;box-shadow:0 0 0 4px rgba(34,197,94,.08);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-compose{padding:14px 14px 16px;border-top:1px solid #e5e7eb;background:#fff;gap:12px;flex-wrap:nowrap;position:relative;padding-bottom:68px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-compose input{flex:1 1 auto;min-width:0;border-radius:16px;border:1.5px solid #86efac;padding:13px 16px;font-size:14px;min-height:50px;box-shadow:0 0 0 4px rgba(34,197,94,.08);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-compose input:focus{border-color:#22c55e;box-shadow:0 0 0 5px rgba(34,197,94,.12);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-compose input:disabled{border-color:#dbe3ec;background:#f8fafc;color:#64748b;box-shadow:none;cursor:not-allowed;opacity:.8;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-attach{width:50px;height:50px;border-radius:16px;background:#f8fafc;color:#475569;box-shadow:inset 0 0 0 1px #dbe3ec;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-attach:hover{background:#eef2f7;color:#0f172a;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-attach:disabled{background:#e2e8f0;color:#94a3b8;box-shadow:none;}' +
+        '.tm-messenger-overlay.employee-style .tm-chat-attachment-selected{left:76px;right:110px;bottom:8px;}' +
+        '.tm-messenger-overlay.employee-style .tm-chat-attachment-image{max-width:min(280px,100%);border-radius:16px;box-shadow:0 8px 18px rgba(15,23,42,.08);}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .tm-chat-attachment-icon{background:rgba(255,255,255,.16);color:#fff;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .tm-chat-attachment-name{color:#fff;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .tm-chat-attachment-name{color:#0f172a;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-send{min-width:96px;min-height:50px;padding:0 20px;border-radius:16px;background:linear-gradient(180deg,#1f5f23 0%,#174d1b 100%);font-size:14px;letter-spacing:.01em;box-shadow:0 14px 26px rgba(23,77,27,.22);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-send:hover{background:linear-gradient(180deg,#205d24 0%,#154819 100%);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-send:disabled{background:#cbd5e1;color:#fff;box-shadow:none;cursor:not-allowed;opacity:1;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-empty{font-size:15px;color:#94a3b8;}' +
         '@media (max-width: 980px){.tm-messenger-overlay.employee-style{padding:10px}.tm-messenger-overlay.employee-style .tm-messenger-panel{width:min(94vw,940px);height:min(84vh,720px);border-radius:20px}.tm-messenger-overlay.employee-style .tm-messenger-left{width:300px;min-width:300px;max-width:300px}.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:18px;font-weight:700}.tm-messenger-overlay.employee-style .chat-bubble{max-width:80%;}}' +
-        '@media (max-width: 768px){.tm-messenger-overlay.employee-style{padding:0;align-items:flex-end}.tm-messenger-overlay.employee-style .tm-messenger-panel{height:88vh;border-radius:22px 22px 0 0}.tm-messenger-overlay.employee-style .tm-messenger-panel::before{content:none;display:none}.tm-messenger-overlay.employee-style .tm-messenger-left{width:100%;min-width:0;max-width:none;height:40%}.tm-messenger-overlay.employee-style .tm-messenger-right{height:60%}.tm-messenger-overlay.employee-style .tm-messenger-left-header{padding:20px 16px 10px}.tm-messenger-overlay.employee-style .tm-messenger-right-header{padding:20px 16px 12px}.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:17px}.tm-messenger-overlay.employee-style .tm-messenger-search{padding:0 12px 10px}.tm-messenger-overlay.employee-style .tm-messenger-search::before{left:25px}.tm-messenger-overlay.employee-style .tm-messenger-filters{padding:0 12px 12px;gap:6px;overflow-x:auto;}.tm-messenger-overlay.employee-style .tm-messenger-filter-btn{padding:9px 12px;font-size:12px;border-radius:12px}.tm-messenger-overlay.employee-style .tm-messenger-messages{padding:16px 14px}.tm-messenger-overlay.employee-style .tm-messenger-compose{padding:12px 12px 14px}.tm-messenger-overlay.employee-style .tm-messenger-send{min-width:86px;min-height:48px;border-radius:15px;}}';
+        '@media (max-width: 768px){.tm-messenger-overlay.employee-style{padding:0;align-items:flex-end}.tm-messenger-overlay.employee-style .tm-messenger-panel{height:88vh;border-radius:22px 22px 0 0}.tm-messenger-overlay.employee-style .tm-messenger-panel::before{content:none;display:none}.tm-messenger-overlay.employee-style .tm-messenger-left{width:100%;min-width:0;max-width:none;height:40%}.tm-messenger-overlay.employee-style .tm-messenger-right{height:60%}.tm-messenger-overlay.employee-style .tm-messenger-left-header{padding:20px 16px 10px}.tm-messenger-overlay.employee-style .tm-messenger-right-header{padding:20px 16px 12px}.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:17px}.tm-messenger-overlay.employee-style .tm-messenger-search{padding:0 12px 10px}.tm-messenger-overlay.employee-style .tm-messenger-search::before{left:25px}.tm-messenger-overlay.employee-style .tm-messenger-filters{padding:0 12px 12px;gap:6px;overflow-x:auto;}.tm-messenger-overlay.employee-style .tm-messenger-filter-btn{padding:9px 12px;font-size:12px;border-radius:12px}.tm-messenger-overlay.employee-style .tm-messenger-messages{padding:16px 14px}.tm-messenger-overlay.employee-style .tm-messenger-compose{padding:12px 12px 14px;padding-bottom:64px}.tm-messenger-overlay.employee-style .tm-chat-attachment-selected{left:70px;right:100px}.tm-messenger-overlay.employee-style .tm-messenger-send{min-width:86px;min-height:48px;border-radius:15px;}}';
       document.head.appendChild(employeeStyle);
     }
 
@@ -1615,7 +2266,10 @@ var TMTicketModal = (function () {
       '    <div class="tm-messenger-messages" id="tmMessengerMessages"><div class="tm-messenger-empty">Select a ticket on the left.</div></div>' +
       '    <div class="tm-messenger-compose">' +
       '      <input type="hidden" id="tmMessengerTicketId" value="">' +
+      '      <input type="file" id="tmMessengerAttachmentInput" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" style="display:none;">' +
+      '      <button type="button" class="tm-messenger-attach" id="tmMessengerAttachBtn" aria-label="Attach file"><i class="fas fa-paperclip"></i></button>' +
       '      <input type="text" id="tmMessengerInput" placeholder="Type a message..." autocomplete="off" disabled>' +
+      '      <span id="tmMessengerAttachmentName" class="tm-chat-attachment-selected"></span>' +
       '      <button type="button" class="tm-messenger-send" id="tmMessengerSendBtn" disabled>Send</button>' +
       '    </div>' +
       '  </div>' +
@@ -1628,6 +2282,17 @@ var TMTicketModal = (function () {
     });
     var closeBtn = qs('tmMessengerCloseBtn');
     if (closeBtn) closeBtn.addEventListener('click', closeMessengerChat);
+    var attachBtn = qs('tmMessengerAttachBtn');
+    var attachInput = qs('tmMessengerAttachmentInput');
+    if (attachBtn && attachInput) {
+      attachBtn.addEventListener('click', function () {
+        if (!attachBtn.disabled) attachInput.click();
+      });
+      attachInput.addEventListener('change', function () {
+        var file = attachInput.files && attachInput.files[0] ? attachInput.files[0] : null;
+        setMessengerAttachment(file);
+      });
+    }
     var deleteBtn = qs('tmMessengerDeleteBtn');
     if (deleteBtn) deleteBtn.addEventListener('click', deleteMessengerConversation);
     var menuBtn = qs('tmMessengerMenuBtn');
@@ -1645,6 +2310,10 @@ var TMTicketModal = (function () {
       if (!messengerOpen) return;
       if (qs('tmMessengerConfirm') && qs('tmMessengerConfirm').style.display === 'flex') {
         if (e.key === 'Escape') hideMessengerConfirm();
+        return;
+      }
+      if (qs('tmMessengerEdit') && qs('tmMessengerEdit').style.display === 'flex') {
+        if (e.key === 'Escape') hideMessengerMessageEditor();
         return;
       }
       if (e.key === 'Escape' && qs('tmMessengerMenu') && qs('tmMessengerMenu').classList.contains('show')) {
@@ -1768,13 +2437,6 @@ var TMTicketModal = (function () {
         }
         window.__tmConversations = Array.isArray(data) ? data : [];
 
-        if (messengerTicketId) {
-          var has = window.__tmConversations.some(function (c) { return c && String(c.id) === String(messengerTicketId); });
-          if (!has) {
-            var subject = (lastTicketMeta && String(lastTicketMeta.id) === String(messengerTicketId) && lastTicketMeta.subject) ? String(lastTicketMeta.subject) : 'Ticket';
-            window.__tmConversations.unshift({ id: String(messengerTicketId), subject: subject, status: '', last_message_time: '', unread_count: 0, last_message: '', last_sender_name: '' });
-          }
-        }
         updateMessengerFilterButtons();
         renderConversations(searchEl ? searchEl.value : '');
         if (!messengerTicketId && window.__tmConversations.length) {
@@ -1816,6 +2478,32 @@ var TMTicketModal = (function () {
       list.innerHTML = '<div class="tm-messenger-empty">No conversations.</div>';
       return;
     }
+    function getCurrentMessengerUser() {
+      if (typeof window === 'undefined' || !window.TM_CURRENT_USER) return null;
+      return window.TM_CURRENT_USER;
+    }
+    function isLockedConversation(conv) {
+      if (!conv) return false;
+      if (conv.can_chat === false) return true;
+      if (conv.chat_locked_message && String(conv.chat_locked_message).trim() !== '') return true;
+
+      var currentUser = getCurrentMessengerUser();
+      if (!currentUser) return false;
+
+      var currentEmail = String(currentUser.email || '').trim().toLowerCase();
+      var currentName = String(currentUser.name || '').trim().toLowerCase();
+      var requesterEmail = String(conv.requester_email || '').trim().toLowerCase();
+      var assigneeName = String(conv.assigned_to_name || '').trim().toLowerCase();
+
+      if (currentEmail && requesterEmail && currentEmail === requesterEmail) {
+        return false;
+      }
+      if (currentName && assigneeName && currentName === assigneeName) {
+        return false;
+      }
+
+      return !!assigneeName;
+    }
     list.innerHTML = '';
     convs.forEach(function (c) {
       var unread = 0;
@@ -1823,11 +2511,22 @@ var TMTicketModal = (function () {
         unread = parseInt(String(c.unread_count), 10);
         if (isNaN(unread) || unread < 0) unread = 0;
       }
+      var isCurrent = !!(messengerTicketId && String(c.id) === String(messengerTicketId));
+      var isLockedByData = isLockedConversation(c);
+      var isLocked = isLockedByData || !!(isCurrent && messengerPermissionState.canChat === false && !messengerPermissionState.isChecking);
+      var hasVisibleMessage = !!(c && c.last_message && String(c.last_message).trim() !== '');
+      // Never show unread badge if this conversation is locked/restricted or has no visible message preview.
+      if (!hasVisibleMessage) unread = 0;
+      if (isLocked) unread = 0;
+      var previewText = isLocked
+        ? "You can't message. This ticket is already assigned."
+        : (c.last_message ? ((c.last_sender_name ? (String(c.last_sender_name) + ': ') : '') + String(c.last_message)) : 'No messages yet.');
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'tm-messenger-item' +
-        (unread > 0 ? ' unread-chat' : '') +
-        (messengerTicketId && String(c.id) === String(messengerTicketId) ? ' active' : '');
+        (isLocked ? ' locked-ticket' : '') +
+        ((!isLocked && unread > 0) ? ' unread-chat' : '') +
+        (isCurrent ? (isLocked ? ' active-locked' : ' active') : '');
       btn.dataset.ticketId = String(c.id);
       btn.innerHTML =
         '<div class="tm-messenger-item-top">' +
@@ -1837,7 +2536,12 @@ var TMTicketModal = (function () {
         (unread > 0 ? ('<span class="unread-badge">' + escapeHtml(String(unread)) + '</span>') : '') +
         '  </div>' +
         '</div>' +
-        '<div class="tm-messenger-item-preview">' + escapeHtml((c.last_message ? ((c.last_sender_name ? (String(c.last_sender_name) + ': ') : '') + String(c.last_message)) : 'No messages yet.')) + '</div>';
+        '<div class="tm-messenger-item-preview' + (isLocked ? ' locked' : '') + '">' +
+          (isLocked
+            ? '<span class="lock-icon"><i class="fas fa-lock"></i></span>'
+            : '') +
+          escapeHtml(previewText) +
+        '</div>';
       btn.addEventListener('click', function () {
         selectConversation(c);
       });
@@ -1883,6 +2587,8 @@ var TMTicketModal = (function () {
     if (idEl) idEl.value = '';
     var input = qs('tmMessengerInput');
     var sendBtn = qs('tmMessengerSendBtn');
+    var attachBtn = qs('tmMessengerAttachBtn');
+    var attachInput = qs('tmMessengerAttachmentInput');
     if (input) {
       input.value = '';
       input.disabled = true;
@@ -1894,6 +2600,9 @@ var TMTicketModal = (function () {
       input.style.pointerEvents = '';
     }
     if (sendBtn) sendBtn.disabled = true;
+    if (attachBtn) attachBtn.disabled = true;
+    if (attachInput) attachInput.value = '';
+    setMessengerAttachment(null);
     setMessengerHeader(null);
     var container = qs('tmMessengerMessages');
     if (container) container.innerHTML = '<div class="tm-messenger-empty">Select a ticket on the left.</div>';
@@ -1956,6 +2665,13 @@ var TMTicketModal = (function () {
     messages.forEach(function (msg) {
       var bubble = document.createElement('div');
       bubble.classList.add('chat-bubble', (msg.is_me ? 'me' : 'other'));
+      var ticketIdEl = qs('tmMessengerTicketId');
+      var ticketId = ticketIdEl ? String(ticketIdEl.value || '') : '';
+      var actionsNode = createMessageActionsNode(msg, ticketId, function () {
+        loadMessengerMessages(ticketId, false);
+        loadConversationsAndMaybeSelect();
+      });
+      if (actionsNode) bubble.appendChild(actionsNode);
       var senderLabel = '';
       if (msg && msg.sender_name && String(msg.sender_name).trim() !== '') {
         senderLabel = String(msg.sender_name);
@@ -1968,12 +2684,16 @@ var TMTicketModal = (function () {
         sDiv.textContent = senderLabel;
         bubble.appendChild(sDiv);
       }
-      var contentDiv = document.createElement('div');
-      contentDiv.textContent = msg.message;
+      if (msg && msg.message) {
+        var contentDiv = document.createElement('div');
+        contentDiv.textContent = msg.message;
+        bubble.appendChild(contentDiv);
+      }
+      var attachmentNode = createMessageAttachmentNode(msg && msg.attachment ? msg.attachment : null);
+      if (attachmentNode) bubble.appendChild(attachmentNode);
       var timeDiv = document.createElement('div');
       timeDiv.classList.add('chat-time');
       timeDiv.textContent = formatChatTimeDisplay(msg.created_at);
-      bubble.appendChild(contentDiv);
       bubble.appendChild(timeDiv);
       container.appendChild(bubble);
     });
@@ -2001,12 +2721,24 @@ var TMTicketModal = (function () {
       sDiv.textContent = senderName;
       bubble.appendChild(sDiv);
     }
-    var contentDiv = document.createElement('div');
-    contentDiv.textContent = message;
+    if (message) {
+      if (typeof message === 'object' && message.message) {
+        var contentDiv = document.createElement('div');
+        contentDiv.textContent = message.message;
+        bubble.appendChild(contentDiv);
+      } else if (typeof message === 'string' && message) {
+        var textDiv = document.createElement('div');
+        textDiv.textContent = message;
+        bubble.appendChild(textDiv);
+      }
+      if (typeof message === 'object' && message.attachment) {
+        var attachmentNode = createMessageAttachmentNode(message.attachment);
+        if (attachmentNode) bubble.appendChild(attachmentNode);
+      }
+    }
     var timeDiv = document.createElement('div');
     timeDiv.classList.add('chat-time');
     timeDiv.textContent = timeText || formatHHMM(new Date());
-    bubble.appendChild(contentDiv);
     bubble.appendChild(timeDiv);
     container.appendChild(bubble);
     container.scrollTop = container.scrollHeight;
@@ -2029,6 +2761,8 @@ var TMTicketModal = (function () {
   function setMessengerComposerState(canChat, lockedMessage) {
     var input = qs('tmMessengerInput');
     var btn = qs('tmMessengerSendBtn');
+    var attachBtn = qs('tmMessengerAttachBtn');
+    var attachInput = qs('tmMessengerAttachmentInput');
     var allowed = canChat === true;
     var waiting = !allowed && String(lockedMessage || '') === 'Checking ticket handler...';
     var handlerName = extractHandlerName(lockedMessage);
@@ -2054,6 +2788,12 @@ var TMTicketModal = (function () {
       btn.style.opacity = allowed ? '1' : '1';
       btn.style.pointerEvents = allowed ? 'auto' : 'none';
     }
+    if (attachBtn) attachBtn.disabled = !allowed;
+    if (attachInput) attachInput.disabled = !allowed;
+    if (!allowed) {
+      if (attachInput) attachInput.value = '';
+      setMessengerAttachment(null);
+    }
   }
   function renderMessengerLockedState(message) {
     var container = qs('tmMessengerMessages');
@@ -2072,31 +2812,40 @@ var TMTicketModal = (function () {
         if (!data || data.error) return;
         lastTicketMeta = {
           id: data && data.id != null ? data.id : ticketId,
-          subject: data && data.subject ? String(data.subject) : ''
+          subject: getDisplaySubject(data)
         };
         setMessengerComposerState(data && data.can_chat === true, data && data.chat_locked_message ? String(data.chat_locked_message) : '');
 
         var conv = Array.isArray(window.__tmConversations)
           ? window.__tmConversations.find(function (c) { return c && String(c.id) === String(ticketId); })
           : null;
+        var headerConv = conv;
         if (!conv) {
-          conv = {
+          headerConv = {
             id: String(ticketId),
-            subject: data && data.subject ? String(data.subject) : 'Ticket',
+            subject: getDisplaySubject(data),
             status: data && data.status ? String(data.status) : '',
             requester_email: data && data.created_by_email ? String(data.created_by_email) : ''
           };
-          if (!Array.isArray(window.__tmConversations)) window.__tmConversations = [];
-          window.__tmConversations.unshift(conv);
         }
-        if (data && data.subject) conv.subject = String(data.subject);
-        if (data && data.status) conv.status = String(data.status);
-        if (data && data.created_by_email) conv.requester_email = String(data.created_by_email);
-        conv.assigned_to_name = data && data.assigned_to_name ? String(data.assigned_to_name) : '';
-        messengerPermissionState.statusLabel = conv.status || '';
-        setMessengerHeader(conv);
-        updateMessengerFilterButtons();
-        renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
+        if (conv) {
+          conv.subject = getDisplaySubject(data);
+          if (data && data.status) conv.status = String(data.status);
+          if (data && data.created_by_email) conv.requester_email = String(data.created_by_email);
+          conv.assigned_to_name = data && data.assigned_to_name ? String(data.assigned_to_name) : '';
+          conv.can_chat = data && data.can_chat === true;
+          conv.chat_locked_message = data && data.chat_locked_message ? String(data.chat_locked_message) : '';
+        } else if (headerConv) {
+          headerConv.assigned_to_name = data && data.assigned_to_name ? String(data.assigned_to_name) : '';
+          headerConv.can_chat = data && data.can_chat === true;
+          headerConv.chat_locked_message = data && data.chat_locked_message ? String(data.chat_locked_message) : '';
+        }
+        messengerPermissionState.statusLabel = (headerConv && headerConv.status) ? headerConv.status : '';
+        setMessengerHeader(headerConv);
+        if (conv) {
+          updateMessengerFilterButtons();
+          renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
+        }
         if (messengerTicketId && String(messengerTicketId) === String(ticketId)) {
           if (messengerPermissionState.canChat === true) {
             loadMessengerMessages(ticketId, scrollBottom === true, true);
@@ -2111,26 +2860,27 @@ var TMTicketModal = (function () {
     var input = qs('tmMessengerInput');
     var ticketIdEl = qs('tmMessengerTicketId');
     var btn = qs('tmMessengerSendBtn');
+    var attachInput = qs('tmMessengerAttachmentInput');
     if (!input || !ticketIdEl) return;
     var ticketId = String(ticketIdEl.value || '');
     var message = input.value.trim();
-    if (!ticketId || !message) return;
+    if (!ticketId || (!message && !messengerAttachmentFile)) return;
     if (input.disabled || input.readOnly || messengerPermissionState.canChat !== true) return;
     if (btn && btn.disabled) return;
-    var senderName = (window.TM_CURRENT_USER && window.TM_CURRENT_USER.name) ? String(window.TM_CURRENT_USER.name) : 'You';
-    input.value = '';
-    var bubble = appendMessengerBubble(message, true, senderName, formatHHMM(new Date()));
-    updateConversationPreview(ticketId, message, senderName);
     if (btn) btn.disabled = true;
     var formData = new FormData();
     formData.append('ticket_id', ticketId);
     formData.append('message', message);
+    if (messengerAttachmentFile) formData.append('attachment', messengerAttachmentFile);
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
     postJson('chat_send.php', formData)
       .then(function (data) {
         if (btn) btn.disabled = false;
         if (data && data.success) {
+          input.value = '';
+          if (attachInput) attachInput.value = '';
+          setMessengerAttachment(null);
           setTimeout(function () { loadMessengerMessages(ticketId, true); }, 0);
           return;
         }
@@ -2212,6 +2962,7 @@ var TMTicketModal = (function () {
     open(ticketId);
   }
   function openMessengerChat() {
+    ensureTicketModalExists();
     ensureMessengerModalExists();
     var modal = qs('tmMessengerModal');
     if (!modal) return;
@@ -2225,6 +2976,7 @@ var TMTicketModal = (function () {
   }
   function openConversation(ticketId) {
     if (ticketId == null || ticketId === '') return;
+    ensureTicketModalExists();
     messengerTicketId = String(ticketId);
     setCurrentTicketId(messengerTicketId);
     close();
@@ -2240,27 +2992,32 @@ var TMTicketModal = (function () {
       list.innerHTML = '<div class="tm-messenger-empty">Loading...</div>';
     }
 
-    var subject = 'Ticket';
-    if (lastTicketMeta && String(lastTicketMeta.id) === String(ticketId) && lastTicketMeta.subject) {
-      subject = String(lastTicketMeta.subject);
+    var existing = Array.isArray(window.__tmConversations)
+      ? window.__tmConversations.find(function (c) { return c && String(c.id) === String(ticketId); })
+      : null;
+    if (existing) {
+      renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
+      selectConversation(existing, true);
+    } else {
+      var subject = (lastTicketMeta && String(lastTicketMeta.id) === String(ticketId) && lastTicketMeta.subject)
+        ? String(lastTicketMeta.subject)
+        : 'Ticket';
+      selectConversation({ id: String(ticketId), subject: subject }, true);
     }
-    var conv = { id: String(ticketId), subject: subject, last_message_time: '', unread_count: 0, last_message: '', last_sender_name: '' };
-    if (!Array.isArray(window.__tmConversations)) window.__tmConversations = [];
-    var existing = window.__tmConversations.find(function (c) { return c && String(c.id) === String(ticketId); });
-    if (!existing) window.__tmConversations.unshift(conv);
-    renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
-    selectConversation(existing || conv, true);
     setTimeout(function () { loadConversationsAndMaybeSelect(); }, 0);
   }
   function closeMessengerChat() {
     var modal = qs('tmMessengerModal');
     if (modal) modal.style.display = 'none';
+    hideMessengerMessageEditor();
+    hideMessengerConfirm();
     messengerOpen = false;
     messengerReturnContext = null;
     stopMessenger();
   }
   function restoreMessengerAfterTicketClose() {
     if (!messengerReturnContext || !messengerReturnContext.ticketId) return;
+    ensureTicketModalExists();
     ensureMessengerModalExists();
     var ticketId = String(messengerReturnContext.ticketId);
     messengerReturnContext = null;
@@ -2277,12 +3034,10 @@ var TMTicketModal = (function () {
     if (found) {
       selectConversation(found, true);
     } else {
-      var subject = (lastTicketMeta && String(lastTicketMeta.id) === String(ticketId) && lastTicketMeta.subject) ? String(lastTicketMeta.subject) : 'Ticket';
-      if (!Array.isArray(window.__tmConversations)) window.__tmConversations = [];
-      found = { id: ticketId, subject: subject, last_message_time: '', unread_count: 0, last_message: '', last_sender_name: '' };
-      window.__tmConversations.unshift(found);
-      renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
-      selectConversation(found, true);
+      var subject = (lastTicketMeta && String(lastTicketMeta.id) === String(ticketId) && lastTicketMeta.subject)
+        ? String(lastTicketMeta.subject)
+        : 'Ticket';
+      selectConversation({ id: ticketId, subject: subject }, true);
     }
     setTimeout(function () { loadConversationsAndMaybeSelect(); }, 0);
   }
@@ -2292,6 +3047,7 @@ var TMTicketModal = (function () {
     var modalContent = qs('modalContent');
     if (!modal || !modalContent) return;
     modal.style.display = 'flex';
+    setModalVariant(modalContent, 'default');
     modalContent.innerHTML = '<div style="padding:40px; text-align:center; color:#64748b;">Loading details...</div>';
     stopChat();
     ensureChatModalExists();
@@ -2300,11 +3056,18 @@ var TMTicketModal = (function () {
       .then(function (text) { return parseTicketDetailsResponse(text); })
       .then(function (data) {
         if (data && data.error) {
-          modalContent.innerHTML = '<div style="padding:40px; text-align:center; color:#ef4444;">' + escapeHtml(data.error) + '</div>';
+          if (data.error_code === 'ticket_reassigned') {
+            setModalVariant(modalContent, 'unavailable');
+            modalContent.innerHTML = buildUnavailableHtml(data);
+          } else {
+            setModalVariant(modalContent, 'default');
+            modalContent.innerHTML = '<div style="padding:40px; text-align:center; color:#ef4444;">' + escapeHtml(data.error) + '</div>';
+          }
           return;
         }
+        setModalVariant(modalContent, 'default');
         setCurrentTicketId(data && data.id != null ? data.id : id);
-        lastTicketMeta = { id: data && data.id != null ? data.id : id, subject: data && data.subject ? String(data.subject) : '' };
+        lastTicketMeta = { id: data && data.id != null ? data.id : id, subject: getDisplaySubject(data) };
         try {
           modalContent.innerHTML = buildHtml(data);
         } catch (renderError) {
@@ -2334,6 +3097,7 @@ var TMTicketModal = (function () {
       })
       .catch(function (err) {
         console.error('Ticket details load failed:', err);
+        setModalVariant(modalContent, 'default');
         modalContent.innerHTML = '<div style="padding:40px; text-align:center; color:#ef4444;">Failed to load details.</div>';
       });
     if (!modal.dataset.boundClose) {

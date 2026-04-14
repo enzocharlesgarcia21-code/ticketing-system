@@ -2,13 +2,38 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 
+function employee_login_safe_redirect($value): string
+{
+    $value = trim((string) $value);
+    if ($value === '') {
+        return '';
+    }
+
+    $value = str_replace('\\', '/', $value);
+    $value = basename($value);
+    $allowed = ['book_conference.php'];
+
+    return in_array($value, $allowed, true) ? $value : '';
+}
+
+$requestedRedirect = employee_login_safe_redirect($_GET['redirect'] ?? $_POST['redirect'] ?? '');
+if ($requestedRedirect !== '') {
+    $_SESSION['post_login_redirect'] = $requestedRedirect;
+}
+
 if (isset($_SESSION['user_id']) && isset($_SESSION['role'])) {
     if ($_SESSION['role'] === 'admin') {
+        if ($requestedRedirect === 'book_conference.php') {
+            header("Location: ../admin/conference_bookings.php");
+            exit();
+        }
         header("Location: ../admin/dashboard.php");
         exit();
     }
     if ($_SESSION['role'] === 'employee') {
-        header("Location: dashboard.php");
+        $destination = $requestedRedirect !== '' ? $requestedRedirect : 'dashboard.php';
+        unset($_SESSION['post_login_redirect']);
+        header("Location: $destination");
         exit();
     }
 }
@@ -80,6 +105,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $_SESSION['force_password_change'] = (int) ($user['force_password_change'] ?? 0);
 
                     if ($role === 'admin') {
+                        unset($_SESSION['post_login_redirect']);
+                        if ($requestedRedirect === 'book_conference.php') {
+                            header("Location: ../admin/conference_bookings.php");
+                            exit();
+                        }
                         header("Location: ../admin/dashboard.php");
                         exit();
                     }
@@ -89,7 +119,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         exit();
                     }
 
-                    header("Location: dashboard.php");
+                    $destination = $requestedRedirect !== '' ? $requestedRedirect : 'dashboard.php';
+                    unset($_SESSION['post_login_redirect']);
+                    header("Location: $destination");
                     exit();
                 } else {
                     $error = "Incorrect password.";
@@ -116,7 +148,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body>
+<body class="employee-login-page">
 <?php
     $password_invalid = isset($error) && $error === "Incorrect password.";
 ?>
@@ -127,6 +159,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <section class="auth-split-right" aria-label="Employee login">
         <div class="login-card">
             <a href="../index.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
+
+            <div class="login-brand" aria-hidden="true">
+                <img src="../assets/img/leads-logo.png" alt="">
+            </div>
 
             <h2>Login</h2>
 
@@ -144,6 +180,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             <form method="POST">
                 <?php echo csrf_field(); ?>
+                <input type="hidden" name="redirect" value="<?php echo htmlspecialchars($requestedRedirect, ENT_QUOTES, 'UTF-8'); ?>">
 
                 <div class="form-group">
                     <label>Email *</label>

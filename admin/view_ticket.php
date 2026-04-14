@@ -32,6 +32,97 @@ if (!$ticket) {
     die("Ticket not found.");
 }
 
+$conn->query("CREATE TABLE IF NOT EXISTS ticket_request_meta (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ticket_id INT NOT NULL,
+    meta_key VARCHAR(100) NOT NULL,
+    meta_value TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_ticket_meta (ticket_id, meta_key),
+    INDEX idx_ticket_request_meta_ticket (ticket_id),
+    CONSTRAINT fk_ticket_request_meta_ticket FOREIGN KEY (ticket_id) REFERENCES employee_tickets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+$ticketMeta = [];
+$metaStmt = $conn->prepare("SELECT meta_key, meta_value FROM ticket_request_meta WHERE ticket_id = ?");
+if ($metaStmt) {
+    $metaStmt->bind_param("i", $id);
+    $metaStmt->execute();
+    $metaRes = $metaStmt->get_result();
+    while ($metaRes && ($metaRow = $metaRes->fetch_assoc())) {
+        $metaKey = trim((string) ($metaRow['meta_key'] ?? ''));
+        if ($metaKey === '') continue;
+        $ticketMeta[$metaKey] = (string) ($metaRow['meta_value'] ?? '');
+    }
+    $metaStmt->close();
+}
+
+$ticketAttachments = [];
+if (!empty($ticket['attachment'])) {
+    $ticketAttachments[] = [
+        'stored_name' => (string) $ticket['attachment'],
+        'original_name' => (string) $ticket['attachment'],
+    ];
+}
+$attStmt = $conn->prepare("SELECT stored_name, original_name FROM ticket_attachments WHERE ticket_id = ? ORDER BY id ASC");
+if ($attStmt) {
+    $attStmt->bind_param("i", $id);
+    $attStmt->execute();
+    $attRes = $attStmt->get_result();
+    $seenAttachments = [];
+    foreach ($ticketAttachments as $attachmentSeed) {
+        $seedName = (string) ($attachmentSeed['stored_name'] ?? '');
+        if ($seedName !== '') {
+            $seenAttachments[$seedName] = true;
+        }
+    }
+    while ($attRes && ($attachmentRow = $attRes->fetch_assoc())) {
+        $storedName = (string) ($attachmentRow['stored_name'] ?? '');
+        if ($storedName === '' || isset($seenAttachments[$storedName])) {
+            continue;
+        }
+        $seenAttachments[$storedName] = true;
+        $ticketAttachments[] = [
+            'stored_name' => $storedName,
+            'original_name' => (string) ($attachmentRow['original_name'] ?? $storedName),
+        ];
+    }
+    $attStmt->close();
+}
+
+$hrConcernType = trim((string) ($ticketMeta['hr_concern_type'] ?? ''));
+$isLapcHrTicket = (strtolower(trim((string) ($ticket['assigned_company'] ?? ''))) === '@leadsagri.com'
+    && trim((string) ($ticket['assigned_group'] ?? ($ticket['assigned_department'] ?? ''))) === 'HR');
+$isSpecialHrCategory = in_array((string) ($ticket['category'] ?? ''), ['Attendance & Timekeeping', 'Leave Concern', 'SSS Sickness and Benefit Concern', 'Others'], true);
+$isHrSpecialTicket = $isLapcHrTicket && $isSpecialHrCategory;
+
+$groupedAttachments = [];
+foreach ($ticketAttachments as $attachmentItem) {
+    $storedName = (string) ($attachmentItem['stored_name'] ?? '');
+    if ($storedName === '') continue;
+    $displayName = (string) ($attachmentItem['original_name'] ?? $storedName);
+    $groupTitle = 'Attachment';
+    $itemName = $displayName;
+    if ((string) ($ticket['category'] ?? '') === 'SSS Sickness and Benefit Concern' && strpos($displayName, ' - ') !== false) {
+        [$prefixTitle, $restName] = explode(' - ', $displayName, 2);
+        $prefixTitle = trim((string) $prefixTitle);
+        $restName = trim((string) $restName);
+        if ($prefixTitle !== '') {
+            $groupTitle = $prefixTitle;
+        }
+        if ($restName !== '') {
+            $itemName = $restName;
+        }
+    }
+    if (!isset($groupedAttachments[$groupTitle])) {
+        $groupedAttachments[$groupTitle] = [];
+    }
+    $groupedAttachments[$groupTitle][] = [
+        'stored_name' => $storedName,
+        'display_name' => $itemName,
+    ];
+}
+
 /* Update status & department */
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
@@ -145,17 +236,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <p><strong>Assigned Department:</strong> <?= htmlspecialchars($ticket['assigned_department']); ?></p>
 <p><strong>Date Created:</strong> <?= date("M d, Y h:i A", strtotime($ticket['created_at'])); ?></p>
 
+<?php if ($isHrSpecialTicket && $hrConcernType !== '') { ?>
+    <p><strong>Type of Concern:</strong> <?= htmlspecialchars($hrConcernType); ?></p>
+<?php } ?>
+
 <?php if (!empty($ticket['description'])) { ?>
-    <p><strong>Description:</strong><br>
+    <p><strong><?= htmlspecialchars(in_array((string) ($ticket['category'] ?? ''), ['Leave Concern', 'Others'], true) ? 'Detailed Description of Request or Concern' : 'Description'); ?>:</strong><br>
     <?= nl2br(htmlspecialchars($ticket['description'])); ?></p>
 <?php } ?>
 
-<?php if (!empty($ticket['attachment'])) { ?>
-    <p><strong>Attachment:</strong>
-        <a href="../uploads/<?= $ticket['attachment']; ?>" target="_blank">
-            View Attachment
-        </a>
-    </p>
+<?php if (!empty($groupedAttachments)) { ?>
+    <?php foreach ($groupedAttachments as $groupTitle => $groupItems) { ?>
+        <p><strong><?= htmlspecialchars($groupTitle); ?>:</strong></p>
+        <ul style="margin-top: 8px; margin-bottom: 14px;">
+            <?php foreach ($groupItems as $groupItem) { ?>
+                <li>
+                    <a href="../uploads/<?= htmlspecialchars((string) $groupItem['stored_name']); ?>" target="_blank">
+                        <?= htmlspecialchars((string) $groupItem['display_name']); ?>
+                    </a>
+                </li>
+            <?php } ?>
+        </ul>
+    <?php } ?>
 <?php } ?>
 
 <hr style="margin:25px 0;">

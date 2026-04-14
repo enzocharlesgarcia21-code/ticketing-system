@@ -599,6 +599,8 @@ function openModal(id, mode = 'full') {
                 </div>
             `;
 
+            const hr = data && data.hr_display && data.hr_display.is_hr_special ? data.hr_display : null;
+
             // Extra Fields: Impact, Urgency, Attachment (Only render if NOT empty/null/-)
             if (data.impact && data.impact !== '-') {
                 html += `
@@ -618,36 +620,76 @@ function openModal(id, mode = 'full') {
                 `;
             }
 
-            var attList = Array.isArray(data.attachments) && data.attachments.length ? data.attachments : (data.attachment ? [{ stored_name: data.attachment, original_name: data.attachment }] : []);
-            if (attList.length) {
-                html += `
-                    <div class="modal-info-group" style="grid-column: span 2;">
-                        <span class="modal-info-label">Attachments</span>
-                        <span class="modal-info-value" style="display:flex; flex-wrap:wrap; gap:10px;">
-                            ${attList.map(function (a) {
-                                var filename = a && a.stored_name ? String(a.stored_name) : '';
-                                if (!filename) return '';
-                                return `
-                                    <a href="../uploads/${filename}" target="_blank" style="color:#1B5E20; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
-                                        <i class="fas fa-paperclip"></i> ${escapeHtml((a.original_name || filename))}
-                                    </a>
-                                `;
-                            }).join('')}
-                        </span>
-                    </div>
-                `;
+            if (hr) {
+                const summaryFields = Array.isArray(hr.summary_fields) ? hr.summary_fields : [];
+                if (!summaryFields.length && hr.category) {
+                    html += `
+                        <div class="modal-info-group" style="grid-column: span 2;">
+                            <span class="modal-info-label">Category</span>
+                            <span class="modal-info-value">${escapeHtml(String(hr.category))}</span>
+                        </div>
+                    `;
+                } else {
+                    summaryFields.forEach(function (field) {
+                        html += `
+                            <div class="modal-info-group">
+                                <span class="modal-info-label">${escapeHtml(String(field.label))}</span>
+                                <span class="modal-info-value">${escapeHtml(String(field.value))}</span>
+                            </div>
+                        `;
+                    });
+                }
             }
+
+            var structuredAttachments = renderStructuredAttachments(data);
 
                 html += `</div>`; // End Grid
             }
 
             // --- SECTION 3: DESCRIPTION (Actions) ---
             if (showActions) {
+                const descriptionTitle = hr && hr.request_section_title ? hr.request_section_title : 'Description';
+                const descriptionText = hr && typeof hr.detail_text !== 'undefined'
+                    ? String(hr.detail_text || '')
+                    : String(data.description || '');
+                const hrAttachmentGroups = hr && Array.isArray(hr.attachment_groups) ? hr.attachment_groups : [];
+                const summaryFields = hr && Array.isArray(hr.summary_fields) ? hr.summary_fields : [];
                 html += `
                 <div class="modal-description-section">
                     <div class="modal-description-card">
-                         <span class="modal-info-label" style="display:block; margin-bottom:12px;">Description</span>
-                        <div class="modal-description-text">${escapeHtml(data.description)}</div>
+                         <span class="modal-info-label" style="display:block; margin-bottom:12px;">${escapeHtml(descriptionTitle)}</span>
+                        ${hr ? `
+                            ${summaryFields.map(function (field) {
+                                return `
+                                    <div class="modal-info-group" style="margin-bottom:12px;">
+                                        <span class="modal-info-label">${escapeHtml(String(field.label))}</span>
+                                        <span class="modal-info-value">${escapeHtml(String(field.value))}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                            ${descriptionText ? `
+                                <div style="margin-top: 14px;">
+                                    <span class="modal-info-label" style="display:block; margin-bottom:10px;">${escapeHtml(String(hr.detail_label || 'Description'))}</span>
+                                    <div class="modal-info-value">${escapeHtml(descriptionText).replace(/\n/g, '<br>')}</div>
+                                </div>
+                            ` : ''}
+                        ` : (descriptionText ? `<div class="modal-description-text">${escapeHtml(descriptionText).replace(/\n/g, '<br>')}</div>` : '')}
+                        ${(hrAttachmentGroups.length ? hrAttachmentGroups.map(function (group) {
+                            const helperText = group.helper_text
+                                ? `<div class="tm-hr-upload-help">${escapeHtml(String(group.helper_text))}</div>`
+                                : '';
+                            return `
+                                <div class="tm-hr-upload-card">
+                                    <div class="tm-hr-upload-head">
+                                        <div class="tm-hr-upload-title">${escapeHtml(String(group.title || 'Attachments'))}</div>
+                                        ${helperText}
+                                    </div>
+                                    <div class="tm-hr-upload-body">
+                                        ${renderStructuredAttachments({ attachments: group.attachments || [] })}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('') : structuredAttachments)}
                     </div>
                 </div>
             `;
@@ -706,6 +748,71 @@ function escapeHtml(text) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+function isImageAttachment(filename) {
+    const ext = String(filename || '').split('.').pop().toLowerCase();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+}
+
+function renderStructuredAttachments(data) {
+    const list = Array.isArray(data.attachments) && data.attachments.length
+        ? data.attachments
+        : (data.attachment ? [{ stored_name: data.attachment, original_name: data.attachment }] : []);
+
+    if (!list.length) return '';
+
+    const images = [];
+    const files = [];
+
+    list.forEach(function (a) {
+        const filename = a && a.stored_name ? String(a.stored_name) : '';
+        if (!filename) return;
+        const displayName = a && a.original_name ? String(a.original_name) : filename;
+        if (isImageAttachment(filename)) {
+            images.push({ filename, displayName });
+        } else {
+            files.push({ filename, displayName });
+        }
+    });
+
+    let html = '';
+
+    if (images.length) {
+        html += `
+            <div class="tm-attachment-section">
+                <div class="tm-attachment-section-title">Images</div>
+                <div class="tm-attachment-gallery">
+                    ${images.map(function (item) {
+                        return `
+                            <button type="button" class="tm-attachment-thumb" data-src="../uploads/${escapeHtml(item.filename)}" onclick="viewImage(this.dataset.src)">
+                                <img class="tm-attachment-img" src="../uploads/${escapeHtml(item.filename)}" alt="${escapeHtml(item.displayName)}">
+                            </button>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    if (files.length) {
+        html += `
+            <div class="tm-attachment-section">
+                <div class="tm-attachment-section-title">Files</div>
+                <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                    ${files.map(function (item) {
+                        return `
+                            <a href="../uploads/${escapeHtml(item.filename)}" target="_blank" style="color:#1B5E20; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                                <i class="fas fa-paperclip"></i> ${escapeHtml(item.displayName)}
+                            </a>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    return html;
 }
 
 function bindChatUiOnce() {

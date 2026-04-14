@@ -23,6 +23,7 @@ $csrfToken = csrf_token();
         <a href="all_tickets.php" class="admin-nav-link <?= ($current_page == 'all_tickets.php' || $current_page == 'view_ticket.php') ? 'active' : '' ?>">All Tickets</a>
         <a href="analytics.php" class="admin-nav-link <?= $current_page == 'analytics.php' ? 'active' : '' ?>">Analytics</a>
         <a href="create_admin.php" class="admin-nav-link <?= ($current_page == 'create_admin.php' || $current_page == 'manage_users.php') ? 'active' : '' ?>">Admin Management</a>
+        <a href="conference_bookings.php" class="admin-nav-link <?= ($current_page == 'conference_bookings.php' || $current_page == 'manage_rooms.php') ? 'active' : '' ?>">Conference Bookings</a>
         <a href="manage_kb.php" class="admin-nav-link <?= ($current_page == 'manage_kb.php' || $current_page == 'edit_kb.php' || $current_page == 'add_kb.php') ? 'active' : '' ?>">Knowledge Base</a>
     </nav>
 
@@ -49,7 +50,7 @@ $csrfToken = csrf_token();
         </div>
 
         <div class="admin-user-dropdown">
-            <button class="admin-user-pill" aria-label="<?= htmlspecialchars($_SESSION['email'] ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?>">
+            <button type="button" class="admin-user-pill" aria-label="<?= htmlspecialchars($_SESSION['email'] ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?>" aria-expanded="false">
                 <span class="admin-user-icon"><i class="fas fa-user"></i></span>
                 <span class="admin-arrow"><i class="fas fa-chevron-down" style="font-size: 10px;"></i></span>
             </button>
@@ -169,15 +170,27 @@ document.addEventListener('DOMContentLoaded', function() {
     overflow-y: auto;
     background: #fff;
 }
+.notif-section-label {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 10px 16px 8px;
+    background: #ffffff;
+    border-bottom: 1px solid #eef2f7;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #475569;
+}
 .notif-item {
+    --notif-accent: transparent;
     position: relative;
     display: flex;
     align-items: flex-start;
-    padding: 16px 20px 16px 22px;
+    padding: 16px 40px 16px 26px;
     border-bottom: 1px solid #f1f5f9;
     cursor: pointer;
     transition: all 0.2s ease;
-    gap: 15px;
+    gap: 0;
 }
 .notif-item::before {
     content: "";
@@ -186,24 +199,61 @@ document.addEventListener('DOMContentLoaded', function() {
     top: 0;
     bottom: 0;
     width: 5px;
-    background: transparent;
+    background: var(--notif-accent);
 }
-.notif-item.type-card-assigned::before { background: #2563eb; }
-.notif-item.type-card-updated::before { background: #0ea5e9; }
-.notif-item.type-card-reassigned::before { background: #9333ea; }
-.notif-item.type-card-closed::before { background: #16a34a; }
-.notif-item.type-card-note::before { background: #ca8a04; }
+.notif-item.variant-assign::before,
+.notif-item.variant-close::before,
+.notif-item.variant-low::before { --notif-accent: #43A047; }
+.notif-item.variant-note::before,
+.notif-item.variant-high::before { --notif-accent: #f59e0b; }
+.notif-item.variant-critical::before { --notif-accent: #E53935; }
+.notif-item.variant-update::before { --notif-accent: #2563eb; }
+.notif-item.variant-booking::before { --notif-accent: #0f766e; }
+.notif-item.variant-reassign::before { --notif-accent: #9333ea; }
 .notif-item:hover {
     background-color: #f8fafc;
 }
 .notif-item.unread {
-        background-color: #f0f9f3;
+    background-color: #ffffff;
+}
+.notif-item.unread::after {
+    content: "";
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #5aa364;
+    transform: translateY(-50%);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.96);
+}
+.notif-item.unread.variant-assign,
+.notif-item.unread.variant-close,
+.notif-item.unread.variant-low {
+    background: #f1fbf3;
+}
+.notif-item.unread.variant-note,
+.notif-item.unread.variant-high {
+    background: #fff8ef;
+}
+.notif-item.unread.variant-critical {
+    background: #fff4f5;
+}
+.notif-item.unread.variant-update {
+    background: #f3f8ff;
+}
+.notif-item.unread.variant-booking {
+    background: #f0fdfa;
+}
+.notif-item.unread.variant-reassign {
+    background: #faf5ff;
 }
 .notif-item.priority-escalation {
     position: relative;
-    gap: 15px;
+    gap: 0;
     margin: 0;
-    padding: 16px 20px 16px 22px;
+    padding: 16px 40px 16px 26px;
     border: 0;
     border-bottom: 1px solid #f1f5f9;
     border-radius: 0;
@@ -217,118 +267,118 @@ document.addEventListener('DOMContentLoaded', function() {
     left: 0;
     top: 0;
     bottom: 0;
-    width: 7px;
-    border-radius: 7px;
-    background: #94a3b8;
+    width: 5px;
+    border-radius: 0;
+    background: var(--notif-accent, #94a3b8);
 }
-.notif-item.priority-escalation.priority-low::before { background: #43A047; }
-.notif-item.priority-escalation.priority-high::before { background: #FB8C00; }
-.notif-item.priority-escalation.priority-critical::before { background: #E53935; }
+.notif-item.priority-escalation.priority-low::before { --notif-accent: #43A047; }
+.notif-item.priority-escalation.priority-high::before { --notif-accent: #f59e0b; }
+.notif-item.priority-escalation.priority-critical::before { --notif-accent: #E53935; }
 
-.notif-icon {
-    flex-shrink: 0;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    color: #ffffff;
-}
-.notif-icon.type-assigned { background: #2563eb; }
-.notif-icon.type-updated { background: #2563eb; }
-.notif-icon.type-reassigned { background: #9333ea; }
-.notif-icon.type-closed { background: #16a34a; }
-.notif-icon.type-note { background: #ca8a04; }
-.notif-icon.type-priority-alert { background: linear-gradient(135deg, #dc2626, #fb7185); }
-.notif-icon.type-neutral { background: #94a3b8; }
-.notif-item.type-card-assigned .notif-icon,
-.notif-item.type-card-updated .notif-icon,
-.notif-item.type-card-reassigned .notif-icon,
-.notif-item.type-card-closed .notif-icon,
-.notif-item.type-card-note .notif-icon {
-    border-radius: 10px;
-}
-.notif-item.priority-escalation .notif-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    font-size: 16px;
-    box-shadow: none;
-}
-.notif-item.priority-escalation.priority-low .notif-icon {
-    background: linear-gradient(135deg, #c8f1d0, #e9f9ed);
-    color: #2f855a;
-}
-.notif-item.priority-escalation.priority-high .notif-icon {
-    background: linear-gradient(135deg, #fde5c6, #fff3df);
-    color: #f59e0b;
-}
-.notif-item.priority-escalation.priority-critical .notif-icon {
-    background: linear-gradient(135deg, #ef4355, #ff6b7d);
-    color: #ffffff;
-}
-
-.priority-badge{
-    padding:4px 10px;
-    border-radius:6px;
-    font-size:12px;
-    font-weight:600;
-    color:white;
-    margin-right:6px;
-    display: inline-block;
-    vertical-align: middle;
-}
-.priority-badge.priority-critical { background:#E53935; }
-.priority-badge.priority-high { background:#FB8C00; }
-.priority-badge.priority-medium { background:#FBC02D; }
-.priority-badge.priority-low { background:#43A047; }
-.priority-badge.priority-neutral { background:#94a3b8; }
-.notif-item.priority-escalation .priority-badge {
+.notif-pill {
     display: inline-flex;
     align-items: center;
-    min-height: 24px;
-    margin: 0;
-    padding: 3px 10px;
-    border-radius: 10px;
+    border-radius: 11px;
     border: 2px solid currentColor;
     background: #ffffff;
-    font-size: 12px;
+    color: #64748b;
+    overflow: hidden;
+    min-height: 26px;
+}
+.notif-pill-icon {
+    width: 28px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: #ffffff;
     font-weight: 800;
+}
+.notif-pill-text {
+    padding: 0 16px 0 12px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
     line-height: 1;
 }
-.notif-item.priority-escalation .priority-badge.priority-low {
+.notif-pill.variant-assign,
+.notif-pill.variant-close,
+.notif-pill.variant-low {
     color: #43A047;
-    background: #f8fff9;
+    background: #f9fff9;
 }
-.notif-item.priority-escalation .priority-badge.priority-high {
-    color: #d97706;
+.notif-pill.variant-assign .notif-pill-icon,
+.notif-pill.variant-close .notif-pill-icon,
+.notif-pill.variant-low .notif-pill-icon {
+    background: linear-gradient(135deg, #7cd992, #43A047);
+}
+.notif-pill.variant-note,
+.notif-pill.variant-high {
+    color: #f59e0b;
     background: #fff8ef;
 }
-.notif-item.priority-escalation .priority-badge.priority-critical {
-    color: #dc2626;
-    background: #fff5f5;
+.notif-pill.variant-note .notif-pill-icon,
+.notif-pill.variant-high .notif-pill-icon {
+    background: linear-gradient(135deg, #fcd34d, #f59e0b);
+}
+.notif-pill.variant-critical {
+    color: #E53935;
+    background: #fff4f5;
+}
+.notif-pill.variant-critical .notif-pill-icon {
+    background: linear-gradient(135deg, #ff7d7d, #E53935);
+}
+.notif-pill.variant-update {
+    color: #2563eb;
+    background: #f4f8ff;
+}
+.notif-pill.variant-update .notif-pill-icon {
+    background: linear-gradient(135deg, #7db2ff, #2563eb);
+}
+.notif-pill.variant-booking {
+    color: #0f766e;
+    background: #f0fdfa;
+}
+.notif-pill.variant-booking .notif-pill-icon {
+    background: linear-gradient(135deg, #34d399, #0f766e);
+}
+.notif-pill.variant-reassign {
+    color: #9333ea;
+    background: #faf5ff;
+}
+.notif-pill.variant-reassign .notif-pill-icon {
+    background: linear-gradient(135deg, #c084fc, #9333ea);
+}
+.notif-pill.variant-follow-up {
+    color: #7c4a03;
+    background: #fff6d8;
+}
+.notif-pill.variant-follow-up .notif-pill-icon {
+    background: linear-gradient(135deg, #fde68a, #f59e0b);
 }
 .notif-content {
     flex: 1;
     min-width: 0;
 }
+.notif-item.priority-escalation .notif-content {
+    padding-left: 0;
+}
 .notif-title {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
+    gap: 6px;
+    margin-bottom: 5px;
     flex-wrap: wrap;
 }
 .notif-title-text {
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     font-weight: 700;
     line-height: 1.3;
     color: #111827;
 }
 .notif-msg {
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     color: #334155;
     line-height: 1.4;
     margin-bottom: 6px;
@@ -603,6 +653,15 @@ body .tm-global-chat-fab,
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const userButton = document.querySelector('.admin-user-pill');
+    const userMenu = document.querySelector('.admin-dropdown-menu');
+
+    function closeUserMenu() {
+        if (!userButton || !userMenu) return;
+        userMenu.classList.remove('show');
+        userButton.setAttribute('aria-expanded', 'false');
+    }
+
     function setGlobalChatBadge(n) {
         const badge = document.getElementById('globalChatBadge');
         if (!badge) return;
@@ -673,6 +732,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    if (userButton && userMenu) {
+        userButton.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const notifDropdown = document.getElementById('notifDropdown');
+            if (notifDropdown) {
+                notifDropdown.classList.remove('show');
+            }
+            const isOpen = userMenu.classList.toggle('show');
+            userButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+    }
+
     fetchAdminNotifications();
     setInterval(fetchAdminNotifications, 5000);
     setInterval(updateRelativeTimes, 60000);
@@ -687,32 +759,23 @@ document.addEventListener('DOMContentLoaded', function() {
         if (wrapper && !wrapper.contains(e.target)) {
             dropdown.classList.remove('show');
         }
+        if (userButton && userMenu && !userButton.contains(e.target) && !userMenu.contains(e.target)) {
+            closeUserMenu();
+        }
     });
 });
 
 function toggleNotifications() {
     const userMenu = document.querySelector('.admin-dropdown-menu');
-    if (userMenu) userMenu.style.display = 'none';
+    const userButton = document.querySelector('.admin-user-pill');
+    if (userMenu) userMenu.classList.remove('show');
+    if (userButton) userButton.setAttribute('aria-expanded', 'false');
     const dropdown = document.getElementById('notifDropdown');
-    const isOpening = dropdown && !dropdown.classList.contains('show');
     if (dropdown) dropdown.classList.toggle('show');
-    if (isOpening) {
-        const dot = document.getElementById('notifDot');
-        const badge = document.getElementById('notifBadge');
-        if (dot) dot.style.display = 'none';
-        if (badge) badge.style.display = 'none';
-        const formData = new FormData();
-        formData.append('mark_all', '1');
-        formData.append('csrf_token', <?php echo json_encode(csrf_token()); ?>);
-        fetch('mark_notification_read.php', {
-            method: 'POST',
-            body: formData
-        }).catch(function () {});
-    }
 }
 
 function fetchAdminNotifications() {
-    fetch('fetch_notifications.php')
+    fetch('fetch_notifications.php?_=' + Date.now(), { cache: 'no-store' })
         .then(response => {
             if (response.status === 403) {
                 // Session expired
@@ -737,13 +800,19 @@ function fetchAdminNotifications() {
             } else {
                 dot.style.display = 'none';
                 badge.style.display = 'none';
+                badge.textContent = '';
             }
 
-            // Update List
             if (data.notifications.length === 0) {
                 list.innerHTML = '<div class="notif-empty">No new notifications</div>';
             } else {
+                let currentSection = '';
                 list.innerHTML = data.notifications.map(n => {
+                    const sectionLabel = getNotifSectionLabel(n.created_at);
+                    const sectionHtml = sectionLabel !== currentSection
+                        ? `<div class="notif-section-label">${escapeHtml(sectionLabel)}</div>`
+                        : '';
+                    currentSection = sectionLabel;
                     const actionType = (n.action_type || '').toString().toLowerCase() || (function (legacyType) {
                         if (legacyType === 'dept_assigned' || legacyType === 'new_ticket') return 'assign';
                         if (legacyType === 'reassigned') return 'reassign';
@@ -751,40 +820,68 @@ function fetchAdminNotifications() {
                         if (legacyType === 'status_update' || legacyType === 'note_added') return 'update';
                         return '';
                     })((n.type || '').toString());
+                    const isPriorityEscalation = (n.type || '').toString() === 'priority_escalated';
                     const rawPriority = (n.priority || '').toString().toLowerCase();
                     const allowed = ['critical', 'high', 'medium', 'low'];
-                    const priorityKey = allowed.includes(rawPriority) ? rawPriority : '';
-                    const priorityClass = priorityKey ? `priority-${priorityKey}` : 'priority-neutral';
-                    const priorityLabel = (n.type !== 'note_added' && priorityKey) ? `<span class="priority-badge ${priorityClass}">${escapeHtml(priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1))}</span>` : '';
-                    const isPriorityEscalation = (n.type || '').toString() === 'priority_escalated';
-                    const titleText = getNotificationTitle(actionType, (n.type || '').toString(), priorityKey);
-                    let iconClass = 'fa-ticket';
-                    let iconTypeClass = 'type-neutral';
-                    if ((n.type || '').toString() === 'priority_escalated') iconClass = 'fa-exclamation';
-                    else if (actionType === 'update' && n.type === 'note_added') iconClass = 'fa-sticky-note';
-                    else if (actionType === 'update') iconClass = 'fa-sync-alt';
-                    else if (actionType === 'close') iconClass = 'fa-check-circle';
-                    else if (actionType === 'reassign') iconClass = 'fa-exchange-alt';
-                    else if (actionType === 'assign') iconClass = 'fa-inbox';
-                    if ((n.type || '').toString() === 'priority_escalated') iconTypeClass = 'type-priority-alert';
-                    else if (actionType === 'update' && n.type === 'note_added') iconTypeClass = 'type-note';
-                    else if (actionType === 'update') iconTypeClass = 'type-updated';
-                    else if (actionType === 'close') iconTypeClass = 'type-closed';
-                    else if (actionType === 'reassign') iconTypeClass = 'type-reassigned';
-                    else if (actionType === 'assign') iconTypeClass = 'type-assigned';
-                    let itemTypeClass = '';
-                    if (!isPriorityEscalation) {
-                        if (actionType === 'update' && n.type === 'note_added') itemTypeClass = 'type-card-note';
-                        else if (actionType === 'update') itemTypeClass = 'type-card-updated';
-                        else if (actionType === 'close') itemTypeClass = 'type-card-closed';
-                        else if (actionType === 'reassign') itemTypeClass = 'type-card-reassigned';
-                        else if (actionType === 'assign') itemTypeClass = 'type-card-assigned';
+                    const priorityKey = isPriorityEscalation
+                        ? escalationPriorityFromMessage(n.message)
+                        : (allowed.includes(rawPriority) ? rawPriority : '');
+                    const notificationType = (n.type || '').toString();
+                    const titleText = getNotificationTitle(actionType, notificationType, priorityKey, (n.title || '').toString());
+                    const isFollowUp = notificationType === 'follow_up';
+                    const isChatPending = notificationType === 'hr_chat_pending';
+                    let variantClass = 'variant-update';
+                    let pillText = 'Updated';
+                    let pillIcon = 'fa-rotate';
+                    if (isChatPending) {
+                        variantClass = 'variant-update';
+                        pillText = 'Chat';
+                        pillIcon = 'fa-comments';
+                    } else if (isFollowUp) {
+                        variantClass = 'variant-follow-up';
+                        pillText = 'Follow Up';
+                        pillIcon = 'fa-rotate';
+                        accentColor = '#d4a017';
+                        dotColor = '#d4a017';
+                    } else if (priorityKey === 'critical') {
+                        variantClass = 'variant-critical';
+                        pillText = 'Critical';
+                        pillIcon = 'fa-exclamation';
+                    } else if (priorityKey === 'high') {
+                        variantClass = 'variant-high';
+                        pillText = 'High';
+                        pillIcon = 'fa-plus';
+                    } else if (priorityKey === 'low') {
+                        variantClass = 'variant-low';
+                        pillText = 'Low';
+                        pillIcon = 'fa-check';
+                    } else if (actionType === 'assign') {
+                        variantClass = 'variant-assign';
+                        pillText = 'Assigned';
+                        pillIcon = 'fa-check';
+                    } else if (actionType === 'reassign') {
+                        variantClass = 'variant-reassign';
+                        pillText = 'Reassigned';
+                        pillIcon = 'fa-right-left';
+                    } else if (actionType === 'close') {
+                        variantClass = 'variant-close';
+                        pillText = 'Closed';
+                        pillIcon = 'fa-check';
+                    } else if (notificationType === 'conference_booking') {
+                        variantClass = 'variant-booking';
+                        pillText = 'Booking';
+                        pillIcon = 'fa-calendar-check';
+                    } else if (actionType === 'update' && n.type === 'note_added') {
+                        variantClass = 'variant-note';
+                        pillText = 'Private Note';
+                        pillIcon = 'fa-plus';
                     }
-                    const messageHtml = `<div class="notif-title">${priorityLabel}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
+                    const pillHtml = `<span class="notif-pill ${variantClass}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span><span class="notif-pill-text">${escapeHtml(pillText)}</span></span>`;
+                    const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
                     
                     return `
-                    <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${isPriorityEscalation ? `priority-escalation ${priorityClass}` : itemTypeClass}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="handleNotificationClick(${n.id}, ${n.ticket_id})">
-                        <div class="notif-icon ${iconTypeClass}"><i class="fas ${iconClass}"></i></div>
+                    ${sectionHtml}
+                    <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="handleNotificationClick(${n.id}, ${n.ticket_id}, ${JSON.stringify(notificationType)})">
                         <div class="notif-content">
                             ${messageHtml}
                             <time class="notif-time" data-timestamp="${n.created_at}">${n.time_ago || ''}</time>
@@ -817,7 +914,19 @@ function fetchAdminNotifications() {
         .catch(err => console.error('Error fetching notifications:', err));
 }
 
-function handleNotificationClick(notifId, ticketId) {
+function getNotifSectionLabel(ts) {
+    const value = new Date(String(ts).replace(' ', 'T'));
+    if (Number.isNaN(value.getTime())) return 'Older';
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const itemDay = new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    const diffDays = Math.round((today - itemDay) / 86400000);
+    if (diffDays <= 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    return 'Older';
+}
+
+function handleNotificationClick(notifId, ticketId, type) {
     // Mark as read
     const formData = new FormData();
     formData.append('id', notifId);
@@ -827,7 +936,10 @@ function handleNotificationClick(notifId, ticketId) {
         method: 'POST',
         body: formData
     }).then(() => {
-        // Redirect to all_tickets.php with ticket ID to auto-open
+        if ((type || '').toString() === 'conference_booking') {
+            window.location.href = 'conference_bookings.php';
+            return;
+        }
         window.location.href = `all_tickets.php?ticket_id=${ticketId}`;
     });
 }
@@ -849,14 +961,22 @@ function getPriorityNotificationTitle(priorityKey) {
     return 'Ticket Update';
 }
 
-function getNotificationTitle(actionType, type, priorityKey) {
+function getNotificationTitle(actionType, type, priorityKey, customTitle) {
+    if ((customTitle || '').trim() !== '') return customTitle;
     if (type === 'priority_escalated') return getPriorityNotificationTitle(priorityKey);
+    if (type === 'conference_booking') return 'Conference Booking';
     if (actionType === 'assign') return 'Ticket Assigned';
     if (actionType === 'reassign') return 'Ticket Reassigned';
     if (actionType === 'close') return 'Ticket Closed';
+    if (type === 'follow_up') return 'Follow Up Request';
     if (actionType === 'update' && type === 'note_added') return 'Ticket Note';
     if (actionType === 'update') return 'Status Update';
     return 'Ticket Update';
+}
+
+function escalationPriorityFromMessage(message) {
+    const match = String(message || '').match(/escalated to\s+(critical|high|medium|low)\b/i);
+    return match ? String(match[1] || '').toLowerCase() : '';
 }
 
 function highlightNotificationMessage(text) {

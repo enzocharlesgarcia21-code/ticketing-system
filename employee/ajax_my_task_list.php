@@ -93,6 +93,7 @@ if ($user_email === '') {
 
 $search = trim((string) ($_GET['search'] ?? ''));
 $department = trim((string) ($_GET['department'] ?? ''));
+$company_email = trim((string) ($_GET['company_email'] ?? ''));
 $status = trim((string) ($_GET['status'] ?? ''));
 $page = (int) ($_GET['page'] ?? 1);
 $limit = (int) ($_GET['limit'] ?? 10);
@@ -101,10 +102,51 @@ if ($limit < 1) $limit = 1;
 if ($limit > 100) $limit = 100;
 $offset = ($page - 1) * $limit;
 
-$allowed_departments = ticket_standard_assigned_departments();
-$allowed_statuses = ['Open', 'In Progress', 'Resolved'];
-if (!in_array($department, $allowed_departments, true)) $department = '';
+$allowed_departments = ticket_lapc_departments();
+$company_filter_options = [
+    '@leads-farmex.com' => 'FARMEX (@leads-farmex.com)',
+    '@farmasee.ph' => 'FARMASEE (@farmasee.ph)',
+    '@gpsci.net' => 'GPSCI (@gpsci.net)',
+    '@leadsanimalhealth.com' => 'LAH (@leadsanimalhealth.com)',
+    '@leadsagri.com' => 'LAPC (@leadsagri.com)',
+    '@leads-eh.com' => 'LEH (@leads-eh.com)',
+    '@leadsav.com' => 'LAV (@leadsav.com)',
+    '@malvedaholdings.com' => 'MHC (@malvedaholdings.com)',
+    '@malvedaproperties.com' => 'MPDC (@malvedaproperties.com)',
+    '@leadstech-corp.com' => 'LTC (@leadstech-corp.com)',
+    '@lingapleads.org' => 'LINGAP (@lingapleads.org)',
+    '@primestocks.ph' => 'PCC (@primestocks.ph)',
+];
+$allowed_statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
+if ($company_email !== '@leadsagri.com' || !in_array($department, $allowed_departments, true)) $department = '';
+if (!array_key_exists($company_email, $company_filter_options)) $company_email = '';
 if (!in_array($status, $allowed_statuses, true)) $status = '';
+
+function task_source_label(array $row): string
+{
+    $sourceEmail = trim((string) (($row['requester_email'] ?? '') !== '' ? $row['requester_email'] : ($row['user_email'] ?? '')));
+    $sourceCompanyRaw = (string) (($row['company'] ?? '') !== '' ? $row['company'] : ($row['user_company'] ?? ''));
+    if ($sourceCompanyRaw === '' && $sourceEmail !== '' && strpos($sourceEmail, '@') !== false) {
+        $sourceCompanyRaw = '@' . strtolower(substr(strrchr($sourceEmail, '@'), 1));
+    }
+    $sourceCompany = ticket_normalize_company($sourceCompanyRaw);
+    $sourceDept = trim((string) (($row['department'] ?? '') !== '' ? $row['department'] : ($row['user_department'] ?? '')));
+
+    if ($sourceCompany === '@leadsagri.com' && $sourceDept !== '') {
+        return ticket_department_display_name($sourceDept);
+    }
+
+    $companyLabel = ticket_company_display_name($sourceCompanyRaw);
+    if ($companyLabel !== '') {
+        return $companyLabel;
+    }
+
+    if ($sourceDept !== '') {
+        return ticket_department_display_name($sourceDept);
+    }
+
+    return '-';
+}
 
 $where = [];
 $params = [];
@@ -121,6 +163,9 @@ $companyAliasCond = count($companyAliases) > 0
     : "(1=0)";
 $companyCond = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND $companyAliasCond))";
 $taskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), NULLIF(t.assigned_department, ''), NULLIF(t.department, ''), NULLIF(u.department, ''))";
+$sourceDeptExpr = "COALESCE(NULLIF(t.department, ''), NULLIF(u.department, ''))";
+$sourceEmailExpr = "COALESCE(NULLIF(t.requester_email, ''), NULLIF(u.email, ''))";
+$sourceCompanyExpr = "COALESCE(NULLIF(t.company, ''), NULLIF(u.company, ''), CASE WHEN $sourceEmailExpr LIKE '%@%' THEN CONCAT('@', LOWER(SUBSTRING_INDEX($sourceEmailExpr, '@', -1))) ELSE '' END)";
 $groupCond = "$taskDeptExpr = ?";
 $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
 
@@ -142,8 +187,6 @@ $types .= "s";
 $params[] = $user_department;
 $types .= "s";
 
-$where[] = "t.status != 'Closed'";
-
 if ($search !== '') {
     $term = "%$search%";
     $searchId = preg_replace('/[^0-9]/', '', $search);
@@ -162,8 +205,26 @@ if ($search !== '') {
 }
 
 if ($department !== '') {
-    $where[] = "$taskDeptExpr = ?";
-    $params[] = $department;
+    $deptKey = ticket_department_key_from_value((string) $department);
+    $deptAliases = ticket_department_aliases_for_key($deptKey);
+    $deptAliases[] = $deptKey;
+    $deptAliases = array_values(array_unique(array_filter(array_map('strtoupper', array_map('trim', $deptAliases)), static function ($v) {
+        return is_string($v) && $v !== '';
+    })));
+    if (count($deptAliases) > 0) {
+        $deptConds = [];
+        foreach ($deptAliases as $a) {
+            $deptConds[] = "UPPER($sourceDeptExpr) = ?";
+            $params[] = $a;
+            $types .= "s";
+        }
+        $where[] = "(" . implode(" OR ", $deptConds) . ")";
+    }
+}
+
+if ($company_email !== '') {
+    $where[] = "LOWER($sourceCompanyExpr) = ?";
+    $params[] = strtolower((string) $company_email);
     $types .= "s";
 }
 
@@ -173,7 +234,7 @@ if ($status !== '') {
     $types .= "s";
 }
 
-$sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department,
+$sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department, u.company as user_company,
                $taskDeptExpr AS task_department
         FROM employee_tickets t 
         JOIN users u ON t.user_id = u.id";
@@ -253,15 +314,15 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '<td class="task-ticket-id">#' . str_pad((string) $row['id'], 6, '0', STR_PAD_LEFT) . '</td>';
         $rowsHtml .= '<td class="subject-cell task-ticket-category"><strong>' . h((string) $row['category']) . '</strong></td>';
         $rowsHtml .= '<td class="task-ticket-requester"><div class="user-info"><strong>' . h((string) $dispName) . '</strong><br><small>' . h((string) $dispEmail) . '</small></div></td>';
-        $rowsHtml .= '<td class="task-ticket-department">' . h((string) (!empty($row['task_department']) ? $row['task_department'] : (!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales')))) . '</td>';
+        $rowsHtml .= '<td class="task-ticket-department">' . h(task_source_label($row)) . '</td>';
         $rowsHtml .= '<td class="task-ticket-status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', (string) $row['status'])) . '">' . h((string) $row['status']) . '</span></td>';
         $rowsHtml .= '<td class="task-ticket-date">' . h(date("M d, Y", strtotime((string) $row['created_at']))) . '</td>';
         $rowsHtml .= '<td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>';
         $rowsHtml .= '</tr>';
     }
 } else {
-    $rowsHtml = '<tr><td colspan="6" style="text-align:center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tasks found for your department.</p></div></td></tr>';
-}
+    $rowsHtml = '<tr><td colspan="7" style="text-align:center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tickets available for the selected filters.</p></div></td></tr>';
+  }
 $stmt->close();
 $showingFrom = $total > 0 ? ($offset + 1) : 0;
 $showingTo = min($offset + $limit, $total);

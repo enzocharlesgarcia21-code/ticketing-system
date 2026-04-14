@@ -106,6 +106,7 @@ if ($flashError !== '' && stripos($flashError, 'No assignee available') !== fals
 
 $search = $_GET['search'] ?? '';
 $department = $_GET['department'] ?? '';
+$company_email = $_GET['company_email'] ?? '';
 $status = $_GET['status'] ?? '';
  $userCompanyNorm = ticket_normalize_company((string) $user_company);
  $userEmailNorm = strtolower(trim((string) $user_email));
@@ -113,33 +114,57 @@ $status = $_GET['status'] ?? '';
     || (company_code((string) $user_company) === 'LAPC')
     || ($userEmailNorm !== '' && str_ends_with($userEmailNorm, '@leadsagri.com'));
 
-$allowed_departments = [
-    'Admin & Legal',
-    'Banana Farm Operations',
-    'Diagnostics / Lingap',
-    'Digital Agri Solutions and Innovations',
-    'E-Commerce',
-    'Executive',
-    'Finance and Accounting',
-    'HR',
-    'Institutional Sales',
-    'Management',
-    'Marketing',
-    'New Business Segment',
-    'Seed Production',
-    'Supply Chain',
-    'Supply Chain Innovation',
-    'Technical',
+$allowed_departments = ticket_lapc_departments();
+$company_filter_options = [
+    '@leads-farmex.com' => 'FARMEX (@leads-farmex.com)',
+    '@farmasee.ph' => 'FARMASEE (@farmasee.ph)',
+    '@gpsci.net' => 'GPSCI (@gpsci.net)',
+    '@leadsanimalhealth.com' => 'LAH (@leadsanimalhealth.com)',
+    '@leadsagri.com' => 'LAPC (@leadsagri.com)',
+    '@leads-eh.com' => 'LEH (@leads-eh.com)',
+    '@leadsav.com' => 'LAV (@leadsav.com)',
+    '@malvedaholdings.com' => 'MHC (@malvedaholdings.com)',
+    '@malvedaproperties.com' => 'MPDC (@malvedaproperties.com)',
+    '@leadstech-corp.com' => 'LTC (@leadstech-corp.com)',
+    '@lingapleads.org' => 'LINGAP (@lingapleads.org)',
+    '@primestocks.ph' => 'PCC (@primestocks.ph)',
 ];
-natcasesort($allowed_departments);
-$allowed_departments = array_values($allowed_departments);
-$allowed_statuses = ['Open','In Progress','Resolved'];
+$allowed_statuses = ['Open','In Progress','Resolved','Closed'];
 
-if (!$show_department_filter || !in_array($department, $allowed_departments, true)) {
+if (!$show_department_filter || $company_email !== '@leadsagri.com' || !in_array($department, $allowed_departments, true)) {
     $department = '';
+}
+if (!array_key_exists((string) $company_email, $company_filter_options)) {
+    $company_email = '';
 }
 if (!in_array($status, $allowed_statuses, true)) {
     $status = '';
+}
+
+function task_source_label(array $row): string
+{
+    $sourceEmail = trim((string) (($row['requester_email'] ?? '') !== '' ? $row['requester_email'] : ($row['user_email'] ?? '')));
+    $sourceCompanyRaw = (string) (($row['company'] ?? '') !== '' ? $row['company'] : ($row['user_company'] ?? ''));
+    if ($sourceCompanyRaw === '' && $sourceEmail !== '' && strpos($sourceEmail, '@') !== false) {
+        $sourceCompanyRaw = '@' . strtolower(substr(strrchr($sourceEmail, '@'), 1));
+    }
+    $sourceCompany = ticket_normalize_company($sourceCompanyRaw);
+    $sourceDept = trim((string) (($row['department'] ?? '') !== '' ? $row['department'] : ($row['user_department'] ?? '')));
+
+    if ($sourceCompany === '@leadsagri.com' && $sourceDept !== '') {
+        return ticket_department_display_name($sourceDept);
+    }
+
+    $companyLabel = ticket_company_display_name($sourceCompanyRaw);
+    if ($companyLabel !== '') {
+        return $companyLabel;
+    }
+
+    if ($sourceDept !== '') {
+        return ticket_department_display_name($sourceDept);
+    }
+
+    return '-';
 }
 
 // --- PAGINATION LOGIC ---
@@ -165,6 +190,9 @@ $companyAliasCond = count($companyAliases) > 0
     : "(1=0)";
 $companyCond = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND $companyAliasCond))";
 $taskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), NULLIF(t.assigned_department, ''), NULLIF(t.department, ''), NULLIF(u.department, ''))";
+$sourceDeptExpr = "COALESCE(NULLIF(t.department, ''), NULLIF(u.department, ''))";
+$sourceEmailExpr = "COALESCE(NULLIF(t.requester_email, ''), NULLIF(u.email, ''))";
+$sourceCompanyExpr = "COALESCE(NULLIF(t.company, ''), NULLIF(u.company, ''), CASE WHEN $sourceEmailExpr LIKE '%@%' THEN CONCAT('@', LOWER(SUBSTRING_INDEX($sourceEmailExpr, '@', -1))) ELSE '' END)";
 $groupCond = "$taskDeptExpr = ?";
 $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
 
@@ -185,8 +213,6 @@ $params[] = $user_department;
 $types .= "s";
 $params[] = $user_department;
 $types .= "s";
-
-$where[] = "t.status != 'Closed'";
 
 // 1. Search
 if (!empty($search)) {
@@ -218,8 +244,26 @@ if (!empty($search)) {
 }
 
 if ($department !== '') {
-    $where[] = "$taskDeptExpr = ?";
-    $params[] = $department;
+    $deptKey = ticket_department_key_from_value((string) $department);
+    $deptAliases = ticket_department_aliases_for_key($deptKey);
+    $deptAliases[] = $deptKey;
+    $deptAliases = array_values(array_unique(array_filter(array_map('strtoupper', array_map('trim', $deptAliases)), static function ($v) {
+        return is_string($v) && $v !== '';
+    })));
+    if (count($deptAliases) > 0) {
+        $deptConds = [];
+        foreach ($deptAliases as $a) {
+            $deptConds[] = "UPPER($sourceDeptExpr) = ?";
+            $params[] = $a;
+            $types .= "s";
+        }
+        $where[] = "(" . implode(" OR ", $deptConds) . ")";
+    }
+}
+
+if ($company_email !== '') {
+    $where[] = "LOWER($sourceCompanyExpr) = ?";
+    $params[] = strtolower((string) $company_email);
     $types .= "s";
 }
 
@@ -230,7 +274,7 @@ if ($status !== '') {
 }
 
 // Construct SQL
-$sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department,
+$sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department, u.company as user_company,
                $taskDeptExpr AS task_department
         FROM employee_tickets t 
         JOIN users u ON t.user_id = u.id";
@@ -671,10 +715,19 @@ $showing_to = min($offset + $limit, (int) $total_records);
                     </div>
 
                     <div class="filters-wrapper">
+                        <div class="select-wrapper small">
+                            <select name="company_email" class="filter-select" id="filterCompany">
+                                <option value="" <?= $company_email === '' ? 'selected' : '' ?>>All Company</option>
+                                <?php foreach ($company_filter_options as $companyValue => $companyLabel): ?>
+                                    <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $company_email === $companyValue ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
                         <?php if ($show_department_filter): ?>
                         <div class="select-wrapper small">
-                            <select name="department" class="filter-select" id="filterDepartment">
-                                <option value="" disabled selected hidden<?= $department === '' ? 'selected' : '' ?>> All Department</option>
+                            <select name="department" class="filter-select" id="filterDepartment" <?= $company_email === '@leadsagri.com' ? '' : 'disabled' ?>>
+                                <option value="" <?= $department === '' ? 'selected' : '' ?>>All Department</option>
                                 <?php foreach ($allowed_departments as $d): ?>
                                     <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $department === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                                 <?php endforeach; ?>
@@ -705,9 +758,10 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                 <th>ID</th>
                                 <th>Category</th>
                                 <th>Requested By</th>
-                                <th>Department</th>
+                                <th>From</th>
                                 <th>Status</th>
                                 <th>Date Created</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody id="tasksTbody">
@@ -739,7 +793,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                             <small><?= htmlspecialchars($dispEmail, ENT_QUOTES, 'UTF-8'); ?></small>
                                         </div>
                                     </td>
-                                    <td class="task-ticket-department"><?= htmlspecialchars(!empty($row['task_department']) ? $row['task_department'] : (!empty($row['department']) ? $row['department'] : ($row['user_department'] ?? 'Sales')), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td class="task-ticket-department"><?= htmlspecialchars(task_source_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
 
                                     <td class="task-ticket-status">
                                         <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
@@ -751,12 +805,12 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                     <td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>
                                 </tr>
                                 <?php } ?>
-                            <?php else: ?>
+                                <?php else: ?>
                                 <tr>
-                                    <td colspan="6" style="text-align:center; color: #94a3b8; padding: 40px;">
+                                    <td colspan="7" style="text-align:center; color: #94a3b8; padding: 40px;">
                                         <div class="empty-state">
                                             <i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i>
-                                            <p>No tasks found for your department.</p>
+                                            <p>No tickets available for the selected filters.</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -771,7 +825,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 <div class="pagination-glass">
                     <div class="pagination-summary">Showing <?= number_format($showing_from) ?> - <?= number_format($showing_to) ?> of <?= number_format((int) $total_records) ?> tickets</div>
                     <?php if ($total_pages > 1): ?>
-                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
                        data-page="<?= max(1, $page - 1) ?>"
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
                         &lsaquo; Previous
@@ -779,7 +833,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
                     <div class="page-numbers">
                         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
+                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
                                data-page="<?= $i ?>"
                                class="page-btn <?= ($i == $page) ? 'active' : ''; ?>">
                                 <?= $i; ?>
@@ -787,7 +841,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                         <?php endfor; ?>
                     </div>
 
-                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
                        data-page="<?= min($total_pages, $page + 1) ?>"
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
                         Next &rsaquo;
@@ -859,8 +913,6 @@ $showing_to = min($offset + $limit, (int) $total_records);
     </script>
     <script>
         window.TM_HIDE_QUICK_TAGS = true;
-        window.TM_FORCE_LAPC_DEPARTMENTS = true;
-        window.TM_FORCE_DEPARTMENT_PLACEHOLDER = true;
         window.TM_DEPARTMENT_LABEL_TEXT = 'Assigned Department';
         window.TM_DEPARTMENT_REQUIRED = true;
     </script>
@@ -909,6 +961,18 @@ $showing_to = min($offset + $limit, (int) $total_records);
             refreshTasks(currentTasksPage, false);
         }
 
+        function syncTaskDepartmentFilter() {
+            var companyEl = document.getElementById('filterCompany');
+            var departmentEl = document.getElementById('filterDepartment');
+            if (!companyEl || !departmentEl) return;
+            var selectedCompany = String(companyEl.value || '').toLowerCase();
+            var isLapc = selectedCompany === '@leadsagri.com';
+            if (!isLapc) {
+                departmentEl.value = '';
+            }
+            departmentEl.disabled = !isLapc;
+        }
+
         if (searchInput) {
             searchInput.addEventListener("input", function () {
                 clearTimeout(typingTimer);
@@ -918,14 +982,30 @@ $showing_to = min($offset + $limit, (int) $total_records);
             });
         }
 
-        ['filterDepartment', 'filterStatus'].forEach(function(id) {
-            var el = document.getElementById(id);
-            if (el) {
-                el.addEventListener('change', function() {
-                    refreshTasks(1);
-                });
-            }
-        });
+        var filterCompanyEl = document.getElementById('filterCompany');
+        var filterDepartmentEl = document.getElementById('filterDepartment');
+        var filterStatusEl = document.getElementById('filterStatus');
+
+        if (filterCompanyEl) {
+            filterCompanyEl.addEventListener('change', function() {
+                syncTaskDepartmentFilter();
+                refreshTasks(1);
+            });
+        }
+
+        if (filterDepartmentEl) {
+            filterDepartmentEl.addEventListener('change', function() {
+                refreshTasks(1);
+            });
+        }
+
+        if (filterStatusEl) {
+            filterStatusEl.addEventListener('change', function() {
+                refreshTasks(1);
+            });
+        }
+
+        syncTaskDepartmentFilter();
 
         document.addEventListener('click', function (e) {
             var row = e.target && e.target.closest ? e.target.closest('.ticket-row') : null;
@@ -945,8 +1025,13 @@ $showing_to = min($offset + $limit, (int) $total_records);
         
         var params = new URLSearchParams(window.location.search);
         var tid = params.get('ticket_id') || params.get('id');
+        var openChat = params.get('chat') === '1';
         if (tid) {
-            TMTicketModal.open(tid);
+            if (openChat && window.TMTicketModal && typeof window.TMTicketModal.openConversation === 'function') {
+                TMTicketModal.openConversation(tid);
+            } else {
+                TMTicketModal.open(tid);
+            }
         }
         setInterval(scheduleTasksRefresh, tasksAutoRefreshMs);
         document.addEventListener('visibilitychange', function () {

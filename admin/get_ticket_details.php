@@ -51,6 +51,206 @@ function parseLegacyRequesterInfo($text) {
     return [$name, $email, $desc];
 }
 
+function ticket_attachment_is_image(string $filename): bool
+{
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    return in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
+}
+
+function ticket_sort_attachments(array $attachments): array
+{
+    usort($attachments, static function ($a, $b) {
+        $aStored = (string) ($a['stored_name'] ?? '');
+        $bStored = (string) ($b['stored_name'] ?? '');
+        $aName = strtolower(trim((string) ($a['original_name'] ?? $aStored)));
+        $bName = strtolower(trim((string) ($b['original_name'] ?? $bStored)));
+        $aImage = ticket_attachment_is_image($aStored) ? 0 : 1;
+        $bImage = ticket_attachment_is_image($bStored) ? 0 : 1;
+        if ($aImage !== $bImage) {
+            return $aImage <=> $bImage;
+        }
+        return $aName <=> $bName;
+    });
+    return $attachments;
+}
+
+function ticket_request_meta_ensure_table(mysqli $conn): void
+{
+    $conn->query("CREATE TABLE IF NOT EXISTS ticket_request_meta (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ticket_id INT NOT NULL,
+        meta_key VARCHAR(100) NOT NULL,
+        meta_value TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_ticket_meta (ticket_id, meta_key),
+        INDEX idx_ticket_request_meta_ticket (ticket_id),
+        CONSTRAINT fk_ticket_request_meta_ticket FOREIGN KEY (ticket_id) REFERENCES employee_tickets(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+function ticket_request_meta_load(mysqli $conn, int $ticketId): array
+{
+    ticket_request_meta_ensure_table($conn);
+    $meta = [];
+    $stmt = $conn->prepare("SELECT meta_key, meta_value FROM ticket_request_meta WHERE ticket_id = ?");
+    if (!$stmt) {
+        return $meta;
+    }
+    $stmt->bind_param("i", $ticketId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($res && ($row = $res->fetch_assoc())) {
+        $key = trim((string) ($row['meta_key'] ?? ''));
+        if ($key === '') continue;
+        $meta[$key] = (string) ($row['meta_value'] ?? '');
+    }
+    $stmt->close();
+    return $meta;
+}
+
+function ticket_hr_attachment_groups(array $attachments, bool $isSssCategory): array
+{
+    $groups = [];
+    $order = [];
+    $preferredTitles = $isSssCategory
+        ? [
+            'Accomplished SSS Sickness Form',
+            'Medical Procedures',
+            'Laboratory Results',
+            'Medical Certificates',
+            'Discharge Summary/Proof',
+        ]
+        : [];
+    $groupMeta = $isSssCategory
+        ? [
+            'Accomplished SSS Sickness Form' => ['helper_text' => 'Upload 1 supported file. Max 10 MB.'],
+            'Medical Procedures' => ['helper_text' => 'Upload up to 5 supported files. Max 10 MB per file.'],
+            'Laboratory Results' => ['helper_text' => 'Upload up to 5 supported files. Max 10 MB per file.'],
+            'Medical Certificates' => ['helper_text' => 'Upload up to 5 supported files. Max 10 MB per file.'],
+            'Discharge Summary/Proof' => ['helper_text' => 'Upload up to 5 supported files. Max 10 MB per file.'],
+        ]
+        : [];
+
+    foreach ($attachments as $attachment) {
+        $stored = (string) ($attachment['stored_name'] ?? '');
+        if ($stored === '') continue;
+        $display = (string) ($attachment['original_name'] ?? $stored);
+        $groupTitle = 'Attachment';
+        $itemName = $display;
+
+        if ($isSssCategory && strpos($display, ' - ') !== false) {
+            [$prefix, $rest] = explode(' - ', $display, 2);
+            $prefix = trim((string) $prefix);
+            $rest = trim((string) $rest);
+            if ($prefix !== '') {
+                $groupTitle = $prefix;
+                if ($rest !== '') {
+                    $itemName = $rest;
+                }
+            }
+        }
+
+        if (
+            $isSssCategory
+            && $groupTitle === 'Attachment'
+            && !isset($groups['Accomplished SSS Sickness Form'])
+        ) {
+            $groupTitle = 'Accomplished SSS Sickness Form';
+        }
+
+        if (!isset($groups[$groupTitle])) {
+            $groups[$groupTitle] = [];
+            $order[] = $groupTitle;
+        }
+
+        $groups[$groupTitle][] = [
+            'stored_name' => $stored,
+            'original_name' => $itemName,
+        ];
+    }
+
+    $result = [];
+    $sortedOrder = $order;
+    if (!empty($preferredTitles)) {
+        $sortedOrder = [];
+        foreach ($preferredTitles as $preferredTitle) {
+            if (isset($groups[$preferredTitle])) {
+                $sortedOrder[] = $preferredTitle;
+            }
+        }
+        foreach ($order as $title) {
+            if (!in_array($title, $sortedOrder, true)) {
+                $sortedOrder[] = $title;
+            }
+        }
+    }
+
+    foreach ($sortedOrder as $title) {
+        $result[] = [
+            'title' => $title,
+            'attachments' => ticket_sort_attachments($groups[$title]),
+            'helper_text' => (string) ($groupMeta[$title]['helper_text'] ?? ''),
+        ];
+    }
+    return $result;
+}
+
+function ticket_build_hr_display(array $row, array $attachments, array $meta): array
+{
+    $assignedCompany = strtolower(trim((string) ($row['assigned_company'] ?? '')));
+    $assignedGroup = trim((string) ($row['assigned_group'] ?? ($row['assigned_department'] ?? '')));
+    $category = trim((string) ($row['category'] ?? ''));
+    $subject = trim((string) ($row['subject'] ?? ''));
+    $priority = trim((string) ($row['priority'] ?? ''));
+    $description = trim((string) ($row['description'] ?? ''));
+    $concernType = trim((string) ($meta['hr_concern_type'] ?? ''));
+    $defaultSubject = $category !== '' ? ($category . ' Concern') : '';
+    $subjectTitle = ($subject !== '' && strcasecmp($subject, $defaultSubject) !== 0) ? $subject : '';
+    $descriptionText = $description;
+    if ($category === 'SSS Sickness and Benefit Concern' && strcasecmp($description, 'SSS Notification and Benefits Concern submission.') === 0) {
+        $descriptionText = '';
+    }
+
+    $isLapcHr = ($assignedCompany === '@leadsagri.com' && $assignedGroup === 'HR');
+    $isSpecialCategory = in_array($category, ['Attendance & Timekeeping', 'Leave Concern', 'SSS Sickness and Benefit Concern', 'Others'], true);
+    $isHrSpecial = ($isLapcHr && $isSpecialCategory);
+    $summarySubjectValue = $subjectTitle !== ''
+        ? $subjectTitle
+        : (($category === 'Leave Concern') ? $category : '');
+    $summaryFields = [];
+
+    if ($isHrSpecial && $concernType !== '') {
+        $summaryFields[] = ['label' => 'Type of Concern', 'value' => $concernType];
+    }
+    if ($isHrSpecial && $summarySubjectValue !== '') {
+        $summaryFields[] = ['label' => 'Subject/Title of Request', 'value' => $summarySubjectValue];
+    }
+
+    $sectionTitle = 'Request Details';
+    if ($category === 'Attendance & Timekeeping') {
+        $sectionTitle = 'Attendance and Timekeeping (KAMI)';
+    } elseif ($category === 'SSS Sickness and Benefit Concern') {
+        $sectionTitle = 'SSS Notification and Benefits Concern';
+    }
+
+    return [
+        'is_hr_special' => $isHrSpecial,
+        'request_section_title' => $sectionTitle,
+        'category' => $category,
+        'priority' => $priority,
+        'concern_type' => $concernType,
+        'subject_title' => $subjectTitle,
+        'summary_fields' => $summaryFields,
+        'detail_label' => in_array($category, ['Leave Concern', 'Others'], true)
+            ? 'Detailed Description of Request or Concern'
+            : 'Description',
+        'detail_text' => $descriptionText,
+        'attachment_groups' => $isHrSpecial
+            ? ticket_hr_attachment_groups($attachments, $category === 'SSS Sickness and Benefit Concern')
+            : [],
+    ];
+}
+
 // 🟢 START TIMER LOGIC (Only for Admin)
 // If admin views the ticket and started_at is NULL, set it to NOW()
 $checkStmt = $conn->prepare("SELECT started_at FROM employee_tickets WHERE id = ?");
@@ -65,11 +265,15 @@ $stmt = $conn->prepare("
         u.email as created_by_email, 
         u.company as user_company,
         u.department as user_department,
+        assignee.name AS assignee_name,
+        assignee.email AS assignee_email,
+        assignee.department AS assignee_department,
         handler.name AS assigned_to_name,
         handler.email AS assigned_to_email,
         handler.department AS assigned_to_department
     FROM employee_tickets t 
     JOIN users u ON t.user_id = u.id 
+    LEFT JOIN users assignee ON assignee.id = t.assigned_user_id
     LEFT JOIN users handler ON handler.id = t.assigned_to
     WHERE t.id = ?
 ");
@@ -103,6 +307,7 @@ if ($row = $result->fetch_assoc()) {
     if ($requester_name !== '') $row['created_by_name'] = $requester_name;
     if ($requester_email !== '') $row['created_by_email'] = $requester_email;
     $row['description'] = $clean_desc;
+    $row = ticket_chat_apply_effective_handler($row);
     $userContext = ticket_build_user_context($conn, $currentUserId, $_SESSION);
     $row['can_chat'] = ticket_user_can_chat($row, $currentUserId, $userContext);
     $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
@@ -143,7 +348,15 @@ if ($row = $result->fetch_assoc()) {
         }
         $attStmt->close();
     }
-    $row['attachments'] = $attachments;
+    $row['attachments'] = ticket_sort_attachments($attachments);
+    $row['request_meta'] = ticket_request_meta_load($conn, $id);
+    $row['hr_display'] = ticket_build_hr_display($row, $row['attachments'], $row['request_meta']);
+    $row['subject_display'] = (
+        !empty($row['hr_display']['is_hr_special'])
+        && in_array((string) ($row['category'] ?? ''), ['Leave Concern', 'Others'], true)
+    )
+        ? (string) ($row['category'] ?? $row['subject'])
+        : (string) ($row['subject'] ?? '');
     
     // Calculate Duration
     $duration = "Not Started";

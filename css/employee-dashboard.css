@@ -34,6 +34,7 @@ body {
     position: sticky;
     top: 0;
     z-index: 1000;
+    border-bottom: 4px solid var(--accent-yellow);
 }
 
 .nav-left {
@@ -693,6 +694,12 @@ tr:hover td {
     background-color: #dbeafe;
     color: #1d4ed8;
     border: 1px solid #bfdbfe;
+}
+
+.status-closed {
+    background-color: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #e5e7eb;
 }
 
 /* Priority Badges */

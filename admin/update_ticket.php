@@ -49,12 +49,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $oldCompany = ticket_normalize_company((string) (($old_data['assigned_company'] ?? '') !== '' ? $old_data['assigned_company'] : ($old_data['company'] ?? '')));
     $normalizeGroupForCompany = static function (string $group, string $company): string {
         $group = trim($group);
-        if ($group === '') return '';
         $company = ticket_normalize_company($company);
         if ($company === '@leadsagri.com' || strtoupper($company) === 'LAPC') {
             return $group;
         }
-        return ticket_department_key_from_value($group);
+        return '';
     };
     $oldDeptRaw = (string) ($old_data['assigned_group'] ?? ($old_data['assigned_department'] ?? ''));
     $oldDept = $normalizeGroupForCompany($oldDeptRaw, $oldCompany);
@@ -66,8 +65,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $effective_company = (string) (($old_data['assigned_company'] ?? '') !== '' ? $old_data['assigned_company'] : ($old_data['company'] ?? ''));
     }
     $effective_company = ticket_normalize_company($effective_company);
+    $effective_company_requires_department = ($effective_company === '@leadsagri.com' || strtoupper($effective_company) === 'LAPC');
 
-    $effective_group = $new_department !== '' ? $new_department : $oldDeptRaw;
+    $effective_group = $new_department !== '' ? $new_department : ($effective_company_requires_department ? $oldDeptRaw : '');
     $effective_group = $normalizeGroupForCompany($effective_group, $effective_company);
 
     // Normalize and validate status, prevent blank status
@@ -86,8 +86,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $assigned_user_id = $oldAssignedUserId > 0 ? $oldAssignedUserId : null;
     $assigned_to = isset($old_data['assigned_to']) ? (int) $old_data['assigned_to'] : null;
     $assignmentChanged = ($newCompanyNorm !== $oldCompany) || ($newDeptNorm !== $oldDept);
-    if ($assignmentChanged && $newCompanyNorm !== '' && $newDeptNorm !== '') {
-        if (!ticket_is_valid_company($newCompanyNorm) || !ticket_is_valid_group_for_company($newCompanyNorm, $newDeptNorm)) {
+    if ($assignmentChanged && $newCompanyNorm !== '') {
+        if (!ticket_is_valid_company($newCompanyNorm) || ($effective_company_requires_department && !ticket_is_valid_group_for_company($newCompanyNorm, $newDeptNorm))) {
             $_SESSION['error'] = 'Invalid company/group selection.';
             header("Location: all_tickets.php");
             exit();
@@ -95,7 +95,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $assigneeIds = ticket_find_assignee_ids($conn, $newCompanyNorm, $newDeptNorm);
         $assignee = count($assigneeIds) > 0 ? (int) $assigneeIds[0] : null;
         if (!$assignee) {
-            $_SESSION['error'] = 'No assignee available for the selected company and group.';
+            $_SESSION['error'] = $effective_company_requires_department
+                ? 'No assignee available for the selected company and group.'
+                : 'No assignee available for the selected recipient.';
             header("Location: all_tickets.php");
             exit();
         }
@@ -111,6 +113,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     if ($new_status === 'Open') {
         $assigned_to = null;
+    } elseif ($new_status === 'In Progress' && (int) $assigned_to <= 0) {
+        if ((int) $assigned_user_id <= 0) {
+            $assigned_user_id = (int) ($_SESSION['user_id'] ?? 0);
+        }
+        if ((int) $assigned_user_id > 0) {
+            $assigned_to = (int) $assigned_user_id;
+        }
     }
     if ($new_status === $oldStatus && $newCompanyNorm === $oldCompany && $newDeptNorm === $oldDept && trim($newNoteNorm) === trim($oldNote)) {
         $_SESSION['success'] = "No changes were made.";
@@ -175,10 +184,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             if ($requesterAssignmentChanged) {
                 $assignmentActionType = $oldAssignedUserId === 0 ? 'assign' : 'reassign';
+                $notifyTargetLabel = notif_assignment_target_label((string) $newCompanyNorm, (string) $newDeptNorm, 'the selected recipient');
                 $requesterNotification = [
                     'msg' => $assignmentActionType === 'assign'
-                        ? "Your ticket #$id was assigned to $new_department" . ($effective_company !== '' ? (" at $effective_company") : "") . "."
-                        : "Your ticket #$id was reassigned to $new_department" . ($effective_company !== '' ? (" at $effective_company") : "") . ".",
+                        ? "Your ticket #$id was assigned to $notifyTargetLabel."
+                        : "Your ticket #$id was reassigned to $notifyTargetLabel.",
                     'type' => 'reassigned',
                     'action_type' => $assignmentActionType
                 ];
@@ -186,7 +196,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 foreach (($assigneeIds ?? []) as $notifyUserId) {
                     $notifyUserId = (int) $notifyUserId;
                     if ($notifyUserId <= 0) continue;
-                    notif_insert_system($conn, $notifyUserId, (int) $id, "New ticket #$id was assigned to your group.", 'dept_assigned', 10, $assignmentActionType);
+                    $assigneeMessage = $assignmentActionType === 'assign'
+                        ? "New ticket #$id was assigned to your group."
+                        : "The ticket #$id was reassigned to $notifyTargetLabel.";
+                    notif_insert_system($conn, $notifyUserId, (int) $id, $assigneeMessage, 'dept_assigned', 10, $assignmentActionType);
                 }
             } elseif ($noteChanged) {
                 $requesterNotification = [

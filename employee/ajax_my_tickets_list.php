@@ -19,6 +19,58 @@ function h(string $value): string
     return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 }
 
+function submitted_ticket_target_label(array $row): string
+{
+    $assignedCompanyRaw = (string) (($row['assigned_company'] ?? '') !== '' ? $row['assigned_company'] : ($row['company'] ?? ''));
+    $assignedCompany = ticket_normalize_company($assignedCompanyRaw);
+    $assignedGroup = trim((string) (($row['assigned_group'] ?? '') !== '' ? $row['assigned_group'] : ($row['assigned_department'] ?? '')));
+
+    if ($assignedCompany === '@leadsagri.com' && $assignedGroup !== '') {
+        return ticket_department_display_name($assignedGroup) . ' (LAPC)';
+    }
+
+    $companyLabel = ticket_company_display_name($assignedCompanyRaw);
+    if ($companyLabel !== '') {
+        return $companyLabel;
+    }
+
+    if ($assignedGroup !== '') {
+        return ticket_department_display_name($assignedGroup);
+    }
+
+    return '-';
+}
+
+function can_follow_up_ticket_status(string $status): bool
+{
+    $status = strtoupper(trim($status));
+    return $status === 'OPEN' || $status === 'IN PROGRESS';
+}
+
+function follow_up_button_html(array $row): string
+{
+    if (!can_follow_up_ticket_status((string) ($row['status'] ?? ''))) {
+        return '';
+    }
+
+    $ticketId = (int) ($row['id'] ?? 0);
+    $followUpInCooldown = !empty($row['follow_up_in_cooldown']);
+    $followUpAvailableAt = trim((string) ($row['follow_up_available_at'] ?? ''));
+    $class = 'follow-up-btn' . ($followUpInCooldown ? ' is-sent' : '');
+    $label = $followUpInCooldown ? 'Follow Up Sent' : 'Follow Up';
+    $aria = $followUpInCooldown ? 'Follow up is on cooldown for ticket #' . $ticketId : 'Follow up ticket #' . $ticketId;
+    $disabled = $followUpInCooldown ? ' disabled' : '';
+    $title = '';
+    if ($followUpInCooldown && $followUpAvailableAt !== '') {
+        $timestamp = strtotime($followUpAvailableAt);
+        if ($timestamp !== false) {
+            $title = ' title="' . h('Available again on ' . date('M d, Y h:i A', $timestamp)) . '"';
+        }
+    }
+
+    return '<button type="button" class="' . $class . '" data-ticket-id="' . $ticketId . '" aria-label="' . h($aria) . '"' . $title . $disabled . '>' . $label . '</button>';
+}
+
 ticket_apply_sla_priority($conn);
 
 $user_id = (int) ($_SESSION['user_id'] ?? 0);
@@ -53,10 +105,28 @@ if ($page > $totalPages) $page = $totalPages;
 $offset = ($page - 1) * $limit;
 
 $stmt = $conn->prepare("
-    SELECT *
-    FROM employee_tickets
-    WHERE user_id = ?
-    ORDER BY created_at DESC
+    SELECT
+        t.*,
+        fu.last_follow_up_sent_at,
+        fu.follow_up_available_at,
+        CASE
+            WHEN fu.last_follow_up_sent_at IS NOT NULL
+             AND fu.follow_up_available_at > NOW()
+            THEN 1
+            ELSE 0
+        END AS follow_up_in_cooldown
+    FROM employee_tickets t
+    LEFT JOIN (
+        SELECT
+            ticket_id,
+            MAX(created_at) AS last_follow_up_sent_at,
+            DATE_ADD(MAX(created_at), INTERVAL 2 DAY) AS follow_up_available_at
+        FROM notifications
+        WHERE type = 'follow_up'
+        GROUP BY ticket_id
+    ) fu ON fu.ticket_id = t.id
+    WHERE t.user_id = ?
+    ORDER BY t.created_at DESC
     LIMIT ?, ?
 ");
 if (!$stmt) {
@@ -76,18 +146,15 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '<td data-label="ID">#' . (int) $row['id'] . '</td>';
         $rowsHtml .= '<td data-label="Category" class="subject-cell"><strong>' . h((string) ($row['category'] ?? '')) . '</strong></td>';
         $rowsHtml .= '<td data-label="Status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', (string) ($row['status'] ?? ''))) . '">' . h((string) ($row['status'] ?? '')) . '</span></td>';
-        $rowsHtml .= '<td data-label="Attachment">';
-        if (!empty($row['attachment'])) {
-            $rowsHtml .= '<a href="../uploads/' . rawurlencode((string) $row['attachment']) . '" target="_blank" class="attachment-link"><i class="fas fa-paperclip"></i> View</a>';
-        } else {
-            $rowsHtml .= '<span class="no-file">-</span>';
-        }
-        $rowsHtml .= '</td>';
+        $rowsHtml .= '<td data-label="Passed To">' . h(submitted_ticket_target_label($row)) . '</td>';
         $rowsHtml .= '<td data-label="Date">' . h(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now')))) . '</td>';
+        $rowsHtml .= '<td data-label="Action" class="follow-up-cell">';
+        $rowsHtml .= follow_up_button_html($row);
+        $rowsHtml .= '</td>';
         $rowsHtml .= '</tr>';
     }
 } else {
-    $rowsHtml = '<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-ticket-alt" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tickets submitted yet.</p></div></td></tr>';
+    $rowsHtml = '<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-ticket-alt" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tickets submitted yet.</p></div></td></tr>';
 }
 $stmt->close();
 

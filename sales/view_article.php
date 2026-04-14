@@ -31,29 +31,7 @@ if ($registered_view) {
     $article['views'] = (int) ($article['views'] ?? 0) + 1;
 }
 $article_image_urls = kb_resolve_asset_urls($article['image_path'] ?? '');
-$back_category = trim((string) ($article['category'] ?? ''));
-$back_subcategory = trim((string) ($article['sub_category'] ?? ''));
-if ($back_category === '') {
-    $back_category = 'Documentation';
-}
-
-$standard_kb_categories = [
-    'Documentation',
-    'Email',
-    'Hardware',
-    'Internet Concerns',
-    'Procurement',
-    'Software',
-    'Technical Support',
-];
-
-if (strcasecmp($back_category, 'Others') === 0 && $back_subcategory !== '') {
-    $back_url = 'knowledge_base.php?category=Others&sub=' . urlencode($back_subcategory);
-} elseif ($back_category !== '' && !in_array($back_category, $standard_kb_categories, true)) {
-    $back_url = 'knowledge_base.php?category=Others&sub=' . urlencode($back_category);
-} else {
-    $back_url = 'knowledge_base.php?category=' . urlencode($back_category);
-}
+$back_url = 'knowledge_base.php';
 
 // Fetch Related Articles
 $relatedStmt = $conn->prepare("

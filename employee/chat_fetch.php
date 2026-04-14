@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/notification_service.php';
 
 header('Content-Type: application/json');
 
@@ -23,14 +24,84 @@ ticket_ensure_assignment_columns($conn);
 ticket_ensure_chat_tables($conn);
 
 $current_user_id = $_SESSION['user_id'];
+$userContext = ticket_build_user_context($conn, $current_user_id, $_SESSION);
+$current_user_email = strtolower(trim((string) ($userContext['email'] ?? '')));
+$current_user_department = ticket_department_key_from_value((string) ($userContext['department'] ?? ''));
+$companyAliases = ticket_company_aliases((string) ($userContext['company'] ?? ''));
+if (count($companyAliases) === 0) {
+    $rawCompany = trim((string) ($userContext['company'] ?? ''));
+    if ($rawCompany !== '') {
+        $companyAliases = [$rawCompany];
+    }
+}
+
+function normalize_domain(string $value): string
+{
+    $v = strtolower(trim($value));
+    if ($v === '') {
+        return '';
+    }
+    if ($v[0] !== '@') {
+        $v = '@' . $v;
+    }
+    return $v;
+}
+
+function has_unread_hr_chat_reminder(mysqli $conn, int $userId, int $ticketId): bool
+{
+    $stmt = $conn->prepare("
+        SELECT id
+        FROM notifications
+        WHERE user_id = ?
+          AND ticket_id = ?
+          AND type = 'hr_chat_pending'
+          AND is_read = 0
+        LIMIT 1
+    ");
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param("ii", $userId, $ticketId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $exists = $res && $res->fetch_assoc();
+    $stmt->close();
+    return (bool) $exists;
+}
+
+function maybe_send_hr_chat_reminder(mysqli $conn, int $ticketId, int $viewerUserId): void
+{
+    return;
+}
 
 if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
+    $companyCol = "COALESCE(NULLIF(t.assigned_company, ''), t.company)";
+    $taskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), NULLIF(t.assigned_department, ''), NULLIF(t.department, ''), NULLIF(requester.department, ''))";
+    $companyAliasCond = count($companyAliases) > 0
+        ? ("(" . implode(" OR ", array_fill(0, count($companyAliases), "$companyCol = ?")) . ")")
+        : "(1=0)";
+    $companyMatchClause = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND $companyAliasCond))";
+    $requiresGroupClause = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
+    $sharedHrClause = "(LOWER($companyCol) = '@leadsagri.com' AND UPPER(COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department)) = 'HR')";
+
     $sql = "
         SELECT
             t.id,
             t.subject,
+            t.category,
+            t.user_id,
+            t.assigned_user_id,
+            t.assigned_to,
+            t.assigned_company,
+            t.assigned_group,
+            t.assigned_department,
+            t.company,
             t.status,
             COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email,
+            assignee.name AS assignee_name,
+            assignee.email AS assignee_email,
+            assignee.department AS assignee_department,
+            handler.name AS assigned_to_name,
             MAX(tm.created_at) AS last_message_time,
             COALESCE(SUM(CASE WHEN tm.id IS NOT NULL AND tm.is_read = 0 AND tm.sender_id <> ? THEN 1 ELSE 0 END), 0) AS unread_count,
             SUBSTRING_INDEX(GROUP_CONCAT(tm.message ORDER BY tm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_message,
@@ -40,18 +111,47 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
         LEFT JOIN ticket_messages tm ON t.id = tm.ticket_id
         LEFT JOIN users u ON tm.sender_id = u.id
         LEFT JOIN users requester ON t.user_id = requester.id
+        LEFT JOIN users assignee ON assignee.id = t.assigned_user_id
+        LEFT JOIN users handler ON handler.id = t.assigned_to
     ";
     $params = [$current_user_id];
     $types = 'i';
 
-    $sql .= " WHERE (t.user_id = ? OR t.assigned_to = ?) AND t.status IN ('Open', 'In Progress') ";
+    $sql .= " WHERE (t.user_id = ? OR t.assigned_to = ? OR t.assigned_user_id = ?";
     $params[] = $current_user_id;
     $types .= 'i';
     $params[] = $current_user_id;
     $types .= 'i';
+    $params[] = $current_user_id;
+    $types .= 'i';
+    if ($current_user_email !== '') {
+        $sql .= " OR LOWER(COALESCE(NULLIF(t.requester_email, ''), requester.email, '')) = ? ";
+        $params[] = $current_user_email;
+        $types .= 's';
+    }
+    $sql .= " OR (
+        t.user_id <> ?
+        AND $companyMatchClause
+        AND ((NOT $requiresGroupClause) OR (? = '' OR $taskDeptExpr = ?))
+        AND (t.assigned_to IS NULL OR $sharedHrClause)
+    )";
+    $params[] = $current_user_id;
+    $types .= 'i';
+    $params[] = $current_user_email;
+    $types .= 's';
+    foreach ($companyAliases as $alias) {
+        $params[] = $alias;
+        $types .= 's';
+    }
+    $params[] = $current_user_department;
+    $types .= 's';
+    $params[] = $current_user_department;
+    $types .= 's';
+    $sql .= ") AND t.status IN ('Open', 'In Progress') ";
 
     $sql .= "
-        GROUP BY t.id, t.subject, t.status
+        GROUP BY t.id, t.subject, t.category, t.user_id, t.assigned_user_id, t.assigned_to, t.assigned_company, t.assigned_group, t.assigned_department, t.company, t.status, assignee.name, assignee.email, assignee.department, handler.name
+        HAVING COUNT(tm.id) > 0
         ORDER BY COALESCE(MAX(tm.created_at), MAX(t.created_at)) DESC
         LIMIT 50
     ";
@@ -74,16 +174,30 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $res = $stmt->get_result();
     $rows = [];
     while ($r = $res->fetch_assoc()) {
+        maybe_send_hr_chat_reminder($conn, (int) ($r['id'] ?? 0), $current_user_id);
+        $ticketRow = ticket_chat_apply_effective_handler($r);
+        $canChat = ticket_user_can_chat($ticketRow, $current_user_id, $userContext);
+        $category = trim((string) ($r['category'] ?? ''));
+        $assignedCompany = strtolower(trim((string) ($r['assigned_company'] ?? '')));
+        $assignedGroup = trim((string) ($r['assigned_group'] ?? ($r['assigned_department'] ?? '')));
+        $subjectDisplay = ($assignedCompany === '@leadsagri.com'
+            && $assignedGroup === 'HR'
+            && in_array($category, ['Leave Concern', 'Others'], true))
+            ? $category
+            : (string) ($r['subject'] ?? '');
         $rows[] = [
             'id' => (int) $r['id'],
             'subject' => (string) $r['subject'],
+            'subject_display' => $subjectDisplay,
             'status' => (string) $r['status'],
             'requester_email' => (string) $r['requester_email'],
             'last_message_time' => (string) $r['last_message_time'],
             'ticket_created_at' => (string) $r['ticket_created_at'],
-            'unread_count' => (int) $r['unread_count'],
-            'last_message' => (string) $r['last_message'],
-            'last_sender_name' => (string) $r['last_sender_name']
+            'unread_count' => $canChat ? (int) $r['unread_count'] : 0,
+            'last_message' => $canChat ? (string) $r['last_message'] : '',
+            'last_sender_name' => $canChat ? (string) $r['last_sender_name'] : '',
+            'can_chat' => $canChat,
+            'chat_locked_message' => $canChat ? '' : "You can't message. This ticket is already assigned."
         ];
     }
     echo json_encode($rows);
@@ -109,8 +223,12 @@ $check = $conn->prepare("
         t.assigned_group,
         t.assigned_company,
         t.company,
+        assignee.name AS assignee_name,
+        assignee.email AS assignee_email,
+        assignee.department AS assignee_department,
         handler.name AS assigned_to_name
     FROM employee_tickets t
+    LEFT JOIN users assignee ON assignee.id = t.assigned_user_id
     LEFT JOIN users handler ON handler.id = t.assigned_to
     WHERE t.id = ? LIMIT 1
 ");
@@ -126,10 +244,10 @@ if (!$ticket) {
     echo json_encode(['error' => 'Ticket not found']);
     exit;
 }
+$ticket = ticket_chat_apply_effective_handler($ticket);
 $requesterId = (int) ($ticket['user_id'] ?? 0);
-$handlerId = (int) ($ticket['assigned_to'] ?? 0);
+$handlerId = ticket_chat_effective_handler_id($ticket);
 $handlerName = trim((string) ($ticket['assigned_to_name'] ?? ''));
-$userContext = ticket_build_user_context($conn, $current_user_id, $_SESSION);
 if (!ticket_user_can_chat($ticket, $current_user_id, $userContext)) {
     http_response_code(403);
     echo json_encode([
@@ -140,8 +258,24 @@ if (!ticket_user_can_chat($ticket, $current_user_id, $userContext)) {
     exit;
 }
 
+$canManageChat = ticket_user_can_chat($ticket, $current_user_id, $userContext);
+$isRequester = ticket_user_matches_requester($ticket, $current_user_id, $userContext);
+$isCurrentAssignee = ((int) ($ticket['assigned_to'] ?? 0) === $current_user_id)
+    || ((int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id);
+$hasSentInConversation = false;
+$msgPermStmt = $conn->prepare("SELECT id FROM ticket_messages WHERE ticket_id = ? AND sender_id = ? LIMIT 1");
+if ($msgPermStmt) {
+    $msgPermStmt->bind_param("ii", $ticket_id, $current_user_id);
+    $msgPermStmt->execute();
+    $msgPermRes = $msgPermStmt->get_result();
+    $hasSentInConversation = (bool) ($msgPermRes && $msgPermRes->fetch_assoc());
+    $msgPermStmt->close();
+}
+$canDeleteAnyMessage = $canManageChat || $isRequester || $isCurrentAssignee || $hasSentInConversation;
+
 $mark = $conn->prepare("UPDATE ticket_messages SET is_read = 1 WHERE ticket_id = ? AND sender_id <> ? AND is_read = 0");
 if ($mark) {
+    maybe_send_hr_chat_reminder($conn, $ticket_id, $current_user_id);
     $mark->bind_param("ii", $ticket_id, $current_user_id);
     $mark->execute();
     $mark->close();
@@ -149,7 +283,7 @@ if ($mark) {
 
 // Fetch messages
 $stmt = $conn->prepare("
-    SELECT tm.id, tm.ticket_id, tm.sender_id, tm.message, tm.created_at, u.name as sender_name, u.role as sender_role
+    SELECT tm.id, tm.ticket_id, tm.sender_id, tm.message, tm.attachment_stored_name, tm.attachment_original_name, tm.created_at, u.name as sender_name, u.role as sender_role
     FROM ticket_messages tm
     JOIN users u ON tm.sender_id = u.id
     WHERE tm.ticket_id = ?
@@ -162,14 +296,22 @@ $result = $stmt->get_result();
 
 $messages = [];
 while ($row = $result->fetch_assoc()) {
+    $isMine = ((int) $row['sender_id'] === $current_user_id);
     $messages[] = [
         'id' => $row['id'],
         'sender_id' => $row['sender_id'],
         'sender_name' => $row['sender_name'],
         'message' => $row['message'],
+        'attachment' => !empty($row['attachment_stored_name']) ? [
+            'stored_name' => (string) $row['attachment_stored_name'],
+            'original_name' => (string) ($row['attachment_original_name'] ?? $row['attachment_stored_name']),
+            'is_image' => ticket_chat_attachment_is_image((string) $row['attachment_stored_name']),
+        ] : null,
         'created_at' => date('H:i', strtotime($row['created_at'])),
-        'is_me' => ($row['sender_id'] == $current_user_id),
-        'role' => $row['sender_role']
+        'is_me' => $isMine,
+        'role' => $row['sender_role'],
+        'can_edit' => $isMine,
+        'can_delete' => $isMine
     ];
 }
 

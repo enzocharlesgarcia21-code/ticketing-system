@@ -2,6 +2,20 @@
     box-sizing: border-box;
 }
 
+:root {
+    --auth-card-max-width: 520px;
+    --auth-card-min-height: 530px;
+    --auth-card-radius: 28px;
+    --auth-card-padding: 43px 48px 46px;
+    --auth-card-mobile-max-width: 360px;
+    --auth-card-mobile-radius: 18px;
+    --auth-card-mobile-padding: 24px 26px 26px;
+    --auth-shell-max-width: 1680px;
+    --auth-shell-right-padding: 132px;
+    --auth-shell-left-padding: 64px;
+    --auth-panel-width: 580px;
+}
+
 :where(img) {
     max-width: 100%;
     height: auto;
@@ -31,13 +45,13 @@ body::before {
 .login-container {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     height: 100vh;
     width: 100%;
-    max-width: 1360px;
+    max-width: var(--auth-shell-max-width);
     margin: 0 auto;
-    padding: 64px;
-    gap: 40px;
+    padding: 64px var(--auth-shell-right-padding) 64px var(--auth-shell-left-padding);
+    gap: 0;
     background: transparent;
     position: relative;
     z-index: 1;
@@ -47,44 +61,39 @@ body::before {
 .auth-wrapper {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     height: 100vh;
     width: 100%;
-    max-width: 1360px;
+    max-width: var(--auth-shell-max-width);
     margin: 0 auto;
-    padding: 64px;
-    gap: 40px;
+    padding: 64px var(--auth-shell-right-padding) 64px var(--auth-shell-left-padding);
+    gap: 0;
     background: transparent;
     position: relative;
     z-index: 1;
 }
 
 .auth-split-left {
-    flex: 1 1 auto;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    height: 100%;
-    min-width: 0;
+    display: none;
 }
 
 .auth-split-right {
-    width: 560px;
+    width: var(--auth-panel-width);
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100%;
     padding: 0;
-    flex: 0 0 560px;
+    flex: 0 0 var(--auth-panel-width);
 }
 
 .login-card {
-    width: min(100%, 520px);
-    max-width: 520px;
-    min-height: 500px;
+    width: min(100%, var(--auth-card-max-width));
+    max-width: var(--auth-card-max-width);
+    min-height: var(--auth-card-min-height);
     height: auto;
-    padding: 34px 48px 46px;
-    border-radius: 28px;
+    padding: var(--auth-card-padding);
+    border-radius: var(--auth-card-radius);
     background: rgba(255, 255, 255, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.72);
     box-shadow:
@@ -93,13 +102,16 @@ body::before {
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
 }
 
 .login-card::before {
     content: "";
     position: absolute;
     inset: 0;
-    border-radius: 28px;
+    border-radius: inherit;
     padding: 1px;
     background: linear-gradient(135deg, rgba(22, 163, 74, 0.25), rgba(255, 255, 255, 0.0) 45%, rgba(15, 23, 42, 0.08));
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -108,10 +120,27 @@ body::before {
     pointer-events: none;
 }
 
-@media (min-width: 1100px) {
-    .login-card {
-        transform: translateX(20px);
-    }
+body.employee-login-page .login-container,
+body.employee-login-page .auth-container,
+body.employee-login-page .auth-wrapper {
+    justify-content: flex-end;
+    gap: 0;
+}
+
+body.employee-login-page .auth-split-left {
+    display: none;
+}
+
+body.employee-login-page .auth-split-right {
+    width: min(var(--auth-panel-width), 100%);
+    flex: 0 0 var(--auth-panel-width);
+}
+
+body.employee-login-page .login-card {
+    width: min(100%, 520px);
+    max-width: 520px;
+    min-height: 600px;
+    padding: 40px 36px 42px;
 }
 
 .back-btn {
@@ -129,8 +158,24 @@ body::before {
     color: #1B5E20;
 }
 
+.login-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 6px 0 10px;
+}
+
+.login-brand img {
+    display: block;
+    width: auto;
+    max-width: 170px;
+    max-height: 72px;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 18px rgba(2, 6, 23, 0.08));
+}
+
 .login-card h2 {
-    margin: 8px 0 28px;
+    margin: 0 0 28px;
     text-align: center;
     font-size: 30px;
     line-height: 1.12;
@@ -463,24 +508,78 @@ body::before {
     color: #dc2626;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 900px) {
     .login-container,
     .auth-container,
     .auth-wrapper {
+        height: auto;
+        min-height: 100vh;
+        flex-direction: column;
+        justify-content: center;
         max-width: none;
+        margin: 0;
         padding: 24px 18px 44px;
+        gap: 26px;
+    }
+
+    .auth-split-left {
+        width: 100%;
+        height: auto;
+        justify-content: center;
+    }
+
+    .auth-split-right {
+        width: min(560px, 100%);
+        padding: 0;
+        flex: 0 0 auto;
+    }
+
+    .login-card {
+        min-height: 0;
+        padding: 40px 24px 34px;
+    }
+
+    body.employee-login-page .auth-split-right {
+        width: min(520px, 100%);
+        flex: 0 0 auto;
+    }
+
+    body.employee-login-page .login-card {
+        width: min(100%, 520px);
+        max-width: 520px;
+        min-height: 0;
+        padding: 40px 24px 34px;
     }
 }
 
 @media (max-width: 768px) {
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        padding: 20px;
+    }
+
+    body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.15);
+        pointer-events: none;
+        z-index: 0;
+    }
+
     .login-container,
     .auth-container,
     .auth-wrapper {
-        min-height: 100vh;
-        height: auto;
-        flex-direction: column;
+        width: 100%;
+        display: flex;
+        align-items: center;
         justify-content: center;
-        padding: 24px 16px;
+        height: auto;
+        min-height: 0;
+        padding: 0;
         gap: 0;
     }
 
@@ -496,10 +595,23 @@ body::before {
 
     .login-card {
         width: 100%;
-        max-width: 360px;
+        max-width: var(--auth-card-mobile-max-width);
         height: auto;
-        padding: 28px 24px 34px;
-        border-radius: 24px;
+        min-height: 0;
+        padding: var(--auth-card-mobile-padding);
+        border-radius: var(--auth-card-mobile-radius);
+    }
+
+    body.employee-login-page .auth-split-right {
+        width: 100%;
+    }
+
+    body.employee-login-page .login-card {
+        width: 100%;
+        max-width: var(--auth-card-mobile-max-width);
+        min-height: 0;
+        padding: var(--auth-card-mobile-padding);
+        border-radius: var(--auth-card-mobile-radius);
     }
 
     .password-validation ul {
@@ -521,9 +633,16 @@ body::before {
 
     .login-card {
         width: 100%;
-        max-width: 360px;
-        padding: 22px 18px 28px;
-        border-radius: 20px;
+        max-width: var(--auth-card-mobile-max-width);
+        padding: var(--auth-card-mobile-padding);
+        border-radius: var(--auth-card-mobile-radius);
+    }
+
+    body.employee-login-page .login-card {
+        width: 100%;
+        max-width: var(--auth-card-mobile-max-width);
+        padding: var(--auth-card-mobile-padding);
+        border-radius: var(--auth-card-mobile-radius);
     }
 
     .back-btn {

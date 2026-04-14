@@ -35,9 +35,24 @@ $resolved = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE s
 /* ===== DEPARTMENT DATA ===== */
 
 $deptQuery = $conn->query("
-    SELECT assigned_department, COUNT(*) as count
+    SELECT
+        COALESCE(
+            NULLIF(TRIM(assigned_department), ''),
+            NULLIF(TRIM(assigned_group), ''),
+            NULLIF(TRIM(department), ''),
+            'Unassigned'
+        ) AS assigned_department,
+        COUNT(*) as count
     FROM employee_tickets
-    GROUP BY assigned_department
+    GROUP BY
+        COALESCE(
+            NULLIF(TRIM(assigned_department), ''),
+            NULLIF(TRIM(assigned_group), ''),
+            NULLIF(TRIM(department), ''),
+            'Unassigned'
+        )
+    ORDER BY count DESC, assigned_department ASC
+    LIMIT 5
 ");
 
 $departments = [];
@@ -64,6 +79,28 @@ $priorityCounts = [
     (int) ($priorityAgg['high_count'] ?? 0),
     (int) ($priorityAgg['critical_count'] ?? 0),
 ];
+$priorityColors = ['#43A047', '#FB8C00', '#E53935'];
+$priorityTotal = array_sum($priorityCounts);
+$priorityLegendItems = [];
+foreach ($priorities as $index => $priorityLabel) {
+    $count = (int) ($priorityCounts[$index] ?? 0);
+    $percent = $priorityTotal > 0 ? round(($count / $priorityTotal) * 100) : 0;
+    $priorityLegendItems[] = [
+        'label' => $priorityLabel,
+        'count' => $count,
+        'percent' => $percent,
+        'color' => $priorityColors[$index] ?? '#94a3b8',
+    ];
+}
+$priorityLeadIndex = 0;
+if ($priorityTotal > 0) {
+    $priorityLeadIndex = (int) array_search(max($priorityCounts), $priorityCounts, true);
+    if ($priorityLeadIndex < 0) {
+        $priorityLeadIndex = 0;
+    }
+}
+$priorityCenterPercent = (int) ($priorityLegendItems[$priorityLeadIndex]['percent'] ?? 0);
+$priorityCenterLabel = ($priorities[$priorityLeadIndex] ?? 'Low') . ' Priority';
 
 $recentTickets = [];
 $recentRes = $conn->query("
@@ -256,6 +293,68 @@ if ($recentRes) {
         .priority-chart-card .chart-container{
             max-width: 420px;
             margin: 0 auto;
+            position: relative;
+            padding-bottom: 52px;
+        }
+        .priority-chart-card {
+            position: relative;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at 22% 26%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.92) 34%, rgba(244, 248, 251, 0.92) 100%);
+        }
+        .priority-chart-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 28% 76%, rgba(67, 160, 71, 0.08), transparent 22%),
+                radial-gradient(circle at 76% 28%, rgba(251, 192, 45, 0.08), transparent 18%);
+            pointer-events: none;
+        }
+        .priority-chart-card > * {
+            position: relative;
+            z-index: 1;
+        }
+        .priority-chart-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .priority-chart-header h3 {
+            margin: 0;
+        }
+        .priority-chart-legend {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            max-width: 100%;
+        }
+        .priority-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #374151;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .priority-legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            display: inline-block;
+            flex: 0 0 10px;
+        }
+        .priority-legend-percent {
+            color: #111827;
+            font-weight: 800;
         }
         .admin-analytics-section.admin-analytics-full{
             grid-template-columns: 1fr;
@@ -315,9 +414,20 @@ if ($recentRes) {
                 </div>
 
                 <div class="admin-card priority-chart-card">
-                    <h3>Tickets by Priority</h3>
+                    <div class="priority-chart-header">
+                        <h3>Tickets by Priority</h3>
+                    </div>
                     <div class="chart-container">
                         <canvas id="priorityChart"></canvas>
+                        <div class="priority-chart-legend">
+                            <?php foreach ($priorityLegendItems as $item): ?>
+                                <span class="priority-legend-item">
+                                    <span class="priority-legend-dot" style="background: <?= htmlspecialchars($item['color'], ENT_QUOTES, 'UTF-8') ?>;"></span>
+                                    <span><?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    <span class="priority-legend-percent"><?= (int) $item['percent'] ?>%</span>
+                                </span>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -417,6 +527,27 @@ if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
         Chart.plugins.register(ChartDataLabels);
     }
 }
+const priorityCenterTextPlugin = {
+    id: 'priorityCenterText',
+    afterDatasetsDraw(chart) {
+        if (chart.canvas.id !== 'priorityChart') return;
+        const meta = chart.getDatasetMeta(0);
+        if (!meta || !meta.data || !meta.data.length) return;
+        const x = meta.data[0].x;
+        const y = meta.data[0].y;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#1f2937';
+        ctx.font = '700 24px Inter, sans-serif';
+        ctx.fillText('<?= $priorityCenterPercent ?>%', x, y - 8);
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '500 13px Inter, sans-serif';
+        ctx.fillText('<?= htmlspecialchars($priorityCenterLabel, ENT_QUOTES, 'UTF-8') ?>', x, y + 18);
+        ctx.restore();
+    }
+};
 new Chart(document.getElementById('deptChart'), {
     type: 'bar',
     data: {
@@ -459,11 +590,7 @@ new Chart(document.getElementById('priorityChart'), {
         labels: <?= json_encode($priorities); ?>,
         datasets: [{
             data: <?= json_encode($priorityCounts); ?>,
-            backgroundColor: [
-                '#43A047',
-                '#FB8C00',
-                '#E53935'
-            ],
+            backgroundColor: <?= json_encode($priorityColors); ?>,
             borderWidth: 2,
             borderColor: '#ffffff'
         }]
@@ -472,14 +599,14 @@ new Chart(document.getElementById('priorityChart'), {
         responsive: true,
         maintainAspectRatio: false,
         aspectRatio: 1,
-        cutout: '60%',
+        cutout: '66%',
         devicePixelRatio: window.devicePixelRatio || 2,
         layout: {
             padding: {
-                top: 10,
-                bottom: 20,
-                left: 10,
-                right: 10
+                top: 6,
+                bottom: 12,
+                left: 8,
+                right: 8
             }
         },
         plugins: { 
@@ -500,40 +627,10 @@ new Chart(document.getElementById('priorityChart'), {
                     return context.dataset.data[context.dataIndex] > 0;
                 }
             },
-            legend: { 
-                position: 'top',
-                labels: { 
-                    usePointStyle: true,
-                    boxWidth: 8,
-                    padding: 20,
-                    generateLabels: function(chart) {
-                        const labels = Array.isArray(chart.data.labels) ? chart.data.labels : [];
-                        const colors = (chart.data.datasets[0] && Array.isArray(chart.data.datasets[0].backgroundColor)) ? chart.data.datasets[0].backgroundColor : [];
-                        const data = (chart.data.datasets[0] && Array.isArray(chart.data.datasets[0].data)) ? chart.data.datasets[0].data : [];
-                        const total = data.reduce((sum, v) => sum + (Number(v) || 0), 0);
-                        return labels.map((label, i) => {
-                            const val = Number(data[i]) || 0;
-                            const pct = total ? Math.round((val / total) * 100) : 0;
-                            return {
-                                text: `${label} ${pct}%`,
-                                fillStyle: colors[i],
-                                strokeStyle: colors[i],
-                                lineWidth: 0,
-                                pointStyle: 'circle',
-                                hidden: chart.getDataVisibility ? !chart.getDataVisibility(i) : false,
-                                index: i
-                            };
-                        });
-                    },
-                    font: { 
-                        size: 13, 
-                        weight: '500',
-                        family: "'Inter', sans-serif"
-                    } 
-                } 
-            } 
+            legend: { display: false }
         }
-    }
+    },
+    plugins: [priorityCenterTextPlugin]
 });
 </script>
 </body>

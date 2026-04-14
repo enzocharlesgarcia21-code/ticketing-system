@@ -80,6 +80,7 @@ function notif_action_type_from_legacy_type(string $type): string
             return 'close';
         case 'status_update':
         case 'note_added':
+        case 'conference_booking':
             return 'update';
         default:
             return '';
@@ -142,6 +143,41 @@ function notif_replace_company_domains(string $message): string
         return strlen((string) $b) <=> strlen((string) $a);
     });
     return str_ireplace(array_keys($map), array_values($map), $message);
+}
+
+function notif_company_requires_department(string $company): bool
+{
+    $company = strtolower(trim($company));
+    return in_array($company, ['@leadsagri.com', 'leadsagri.com', 'lapc'], true);
+}
+
+function notif_assignment_target_label(string $company, string $department = '', string $fallback = 'the selected recipient'): string
+{
+    $company = trim($company);
+    $department = trim($department);
+    $companyLabel = trim(notif_replace_company_domains($company));
+    if ($companyLabel !== '' && strpos($companyLabel, '@') === 0) {
+        $companyLabel = ltrim($companyLabel, '@');
+    }
+
+    if (notif_company_requires_department($company)) {
+        if ($department !== '' && $companyLabel !== '') {
+            return $department . ' at ' . $companyLabel;
+        }
+        if ($department !== '') {
+            return $department;
+        }
+    }
+
+    if ($companyLabel !== '') {
+        return $companyLabel;
+    }
+
+    if ($department !== '') {
+        return $department;
+    }
+
+    return trim($fallback) !== '' ? trim($fallback) : 'the selected recipient';
 }
 
 function notif_base_url(): string
@@ -243,11 +279,88 @@ function notif_insert_system(mysqli $conn, int $userId, int $ticketId, string $m
     return (bool) $ok;
 }
 
-function notif_insert_admins(mysqli $conn, int $ticketId, string $message, string $type = 'ticket', string $actionType = ''): void
+function notif_insert_system_at(mysqli $conn, int $userId, int $ticketId, string $message, string $createdAt, string $type = 'ticket', string $actionType = '', string $title = ''): bool
+{
+    $userId = (int) $userId;
+    $ticketId = (int) $ticketId;
+    $createdAt = trim($createdAt);
+    if ($userId <= 0 || $ticketId <= 0 || trim($message) === '' || $createdAt === '') {
+        return false;
+    }
+
+    $type = trim($type) !== '' ? trim($type) : 'ticket';
+    $actionType = notif_normalize_action_type($actionType, $type);
+    notif_ensure_action_type_column($conn);
+    notif_ensure_title_column($conn);
+    $title = trim($title);
+
+    $existsStmt = $conn->prepare("
+        SELECT id
+        FROM notifications
+        WHERE user_id = ? AND ticket_id = ? AND type = ? AND message = ? AND COALESCE(action_type, '') = ?
+          AND COALESCE(title, '') = ?
+        LIMIT 1
+    ");
+    if ($existsStmt) {
+        $existsStmt->bind_param("iissss", $userId, $ticketId, $type, $message, $actionType, $title);
+        $existsStmt->execute();
+        $existsRes = $existsStmt->get_result();
+        $exists = $existsRes && $existsRes->fetch_assoc();
+        $existsStmt->close();
+        if ($exists) return true;
+    }
+
+    $stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, title, message, type, action_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    if (!$stmt) {
+        error_log('Notification insert prepare failed | userId=' . (string) $userId . ' ticketId=' . (string) $ticketId . ' err=' . (string) $conn->error);
+        return false;
+    }
+    $stmt->bind_param("iisssss", $userId, $ticketId, $title, $message, $type, $actionType, $createdAt);
+    $ok = $stmt->execute();
+    if (!$ok) {
+        error_log('Notification insert failed | userId=' . (string) $userId . ' ticketId=' . (string) $ticketId . ' err=' . (string) $stmt->error);
+    }
+    $stmt->close();
+    return (bool) $ok;
+}
+
+function notif_has_system_record(mysqli $conn, int $userId, int $ticketId, string $message, string $type = 'ticket', string $actionType = '', string $title = ''): bool
+{
+    $userId = (int) $userId;
+    $ticketId = (int) $ticketId;
+    if ($userId <= 0 || $ticketId <= 0 || trim($message) === '') {
+        return false;
+    }
+
+    $type = trim($type) !== '' ? trim($type) : 'ticket';
+    $actionType = notif_normalize_action_type($actionType, $type);
+    notif_ensure_action_type_column($conn);
+    notif_ensure_title_column($conn);
+    $title = trim($title);
+
+    $stmt = $conn->prepare("
+        SELECT id
+        FROM notifications
+        WHERE user_id = ? AND ticket_id = ? AND type = ? AND message = ? AND COALESCE(action_type, '') = ?
+          AND COALESCE(title, '') = ?
+        LIMIT 1
+    ");
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param("iissss", $userId, $ticketId, $type, $message, $actionType, $title);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $exists = $res && $res->fetch_assoc();
+    $stmt->close();
+    return (bool) $exists;
+}
+
+function notif_insert_admins(mysqli $conn, int $ticketId, string $message, string $type = 'ticket', string $actionType = '', string $title = ''): void
 {
     $ids = notif_admin_user_ids($conn);
     foreach ($ids as $id) {
-        notif_insert_system($conn, (int) $id, $ticketId, $message, $type, 10, $actionType);
+        notif_insert_system($conn, (int) $id, $ticketId, $message, $type, 10, $actionType, $title);
     }
 }
 
@@ -344,10 +457,16 @@ function notif_ticket_email_attachments(mysqli $conn, int $ticketId, string $leg
                 continue;
             }
             $name = trim((string) ($row['original_name'] ?? ''));
-            $key = strtolower($path) . '|' . strtolower($name);
+            $pathKey = strtolower($path);
+            $nameKey = strtolower($name);
+            if (isset($seen[$pathKey])) {
+                continue;
+            }
+            $key = $pathKey . '|' . $nameKey;
             if (isset($seen[$key])) {
                 continue;
             }
+            $seen[$pathKey] = true;
             $seen[$key] = true;
             $attachments[] = [
                 'path' => $path,
@@ -361,12 +480,15 @@ function notif_ticket_email_attachments(mysqli $conn, int $ticketId, string $leg
     if ($legacyAttachment !== '') {
         $legacyPath = realpath(__DIR__ . '/../uploads/' . $legacyAttachment);
         if ($legacyPath !== false && is_file($legacyPath)) {
-            $key = strtolower($legacyPath) . '|' . strtolower(basename($legacyPath));
-            if (!isset($seen[$key])) {
+            $pathKey = strtolower($legacyPath);
+            $key = $pathKey . '|' . strtolower(basename($legacyPath));
+            if (!isset($seen[$pathKey]) && !isset($seen[$key])) {
                 $attachments[] = [
                     'path' => $legacyPath,
                     'name' => basename($legacyPath),
                 ];
+                $seen[$pathKey] = true;
+                $seen[$key] = true;
             }
         }
     }
@@ -403,6 +525,7 @@ function notif_compact_email_lines(array $lines): array
 {
     $out = [];
     $seenCategory = false;
+    $seenStatus = false;
 
     foreach ($lines as $line) {
         $line = trim((string) $line);
@@ -422,15 +545,23 @@ function notif_compact_email_lines(array $lines): array
             continue;
         }
 
-        if (stripos($line, 'Current status:') === 0) {
-            continue;
-        }
-
         if (stripos($line, 'Category:') === 0) {
             if ($seenCategory) {
                 continue;
             }
             $seenCategory = true;
+        }
+
+        if (stripos($line, 'Priority:') === 0) {
+            continue;
+        }
+
+        if (stripos($line, 'Current status:') === 0) {
+            if ($seenStatus) {
+                continue;
+            }
+            $line = 'Ticket Status:' . substr($line, strlen('Current status:'));
+            $seenStatus = true;
         }
 
         $out[] = $line;
@@ -456,12 +587,12 @@ function getUsersToNotify(mysqli $conn, array $ticket): array
     return notif_unique_user_ids($ids);
 }
 
-function sendPriorityEscalationNotification(mysqli $conn, array $ticket, array $userIds, string $newPriority, string $oldPriority = ''): array
+function sendPriorityEscalationNotification(mysqli $conn, array $ticket, array $userIds, string $newPriority, string $oldPriority = '', array $options = []): array
 {
     $ticketId = (int) ($ticket['id'] ?? 0);
     $newPriority = trim($newPriority);
-    if ($ticketId <= 0 || $newPriority === '' || count($userIds) === 0) {
-        return ['inserted' => 0, 'emailed' => 0];
+    if ($ticketId <= 0 || $newPriority === '') {
+        return ['inserted' => 0, 'notified' => 0, 'emailed' => 0];
     }
 
     $title = 'Ticket Priority Escalated';
@@ -469,20 +600,37 @@ function sendPriorityEscalationNotification(mysqli $conn, array $ticket, array $
     $type = 'priority_escalated';
     $actionType = 'update';
     $inserted = 0;
+    $notified = 0;
+    $notificationCreatedAt = trim((string) ($options['notification_created_at'] ?? ''));
 
     foreach (notif_unique_user_ids($userIds) as $userId) {
-        if (notif_insert_system($conn, (int) $userId, $ticketId, $message, $type, 86400, $actionType, $title)) {
-            $inserted++;
+        $alreadyExists = notif_has_system_record($conn, (int) $userId, $ticketId, $message, $type, $actionType, $title);
+        $ok = $notificationCreatedAt !== ''
+            ? notif_insert_system_at($conn, (int) $userId, $ticketId, $message, $notificationCreatedAt, $type, $actionType, $title)
+            : notif_insert_system($conn, (int) $userId, $ticketId, $message, $type, 86400, $actionType, $title);
+        if ($ok) {
+            $notified++;
+            if (!$alreadyExists) {
+                $inserted += 1;
+            }
         }
     }
 
-    $emails = [];
-    foreach (notif_unique_user_ids($userIds) as $userId) {
-        $contact = notif_user_contact($conn, (int) $userId);
-        $email = trim((string) ($contact['email'] ?? ''));
-        if ($email !== '') $emails[] = $email;
+    $emails = isset($options['email_recipients']) && is_array($options['email_recipients']) ? $options['email_recipients'] : [];
+    if (count($emails) === 0) {
+        foreach (notif_unique_user_ids($userIds) as $userId) {
+            $contact = notif_user_contact($conn, (int) $userId);
+            $email = trim((string) ($contact['email'] ?? ''));
+            if ($email !== '') {
+                $emails[] = $email;
+            }
+        }
     }
-    $emails = array_values(array_unique($emails));
+    $emails = array_values(array_unique(array_filter(array_map(static function ($email) {
+        return strtolower(trim((string) $email));
+    }, $emails), static function ($email) {
+        return $email !== '';
+    })));
 
     $emailed = 0;
     if (count($emails) > 0) {
@@ -496,13 +644,17 @@ function sendPriorityEscalationNotification(mysqli $conn, array $ticket, array $
         if (!empty($ticket['subject'])) {
             $lines[] = 'Subject: ' . (string) $ticket['subject'];
         }
-        $mail = notif_email_simple($title, $lines, 'View Ticket', notif_ticket_link_admin($ticketId));
+        $ctaUrl = trim((string) ($options['email_cta_url'] ?? ''));
+        if ($ctaUrl === '') {
+            $ctaUrl = notif_ticket_link_admin($ticketId);
+        }
+        $mail = notif_email_simple($title, $lines, 'View Ticket', $ctaUrl);
         if (notif_email_send($emails, $title, (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''))) {
             $emailed = count($emails);
         }
     }
 
-    return ['inserted' => $inserted, 'emailed' => $emailed];
+    return ['inserted' => $inserted, 'notified' => $notified, 'emailed' => $emailed];
 }
 
 function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $oldStatus, string $newStatus, string $updatedBy = '', array $options = []): array
@@ -614,10 +766,32 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
     foreach ($lines as $l) {
         $line = (string) $l;
         $lineText .= $line . "\n";
-        $lineHtml .= '<div style="margin:0 0 6px 0">' . nl2br(htmlspecialchars($line, ENT_QUOTES, 'UTF-8')) . '</div>';
+        $safeLine = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
+        if (preg_match('/^([A-Za-z][A-Za-z\s&]+:)(\s*.*)$/s', $safeLine, $matches)) {
+            $safeLine = '<strong>' . $matches[1] . '</strong>' . $matches[2];
+        }
+        $lineHtml .= '<div style="margin:0 0 6px 0">' . nl2br($safeLine) . '</div>';
     }
     $ctaLabelSafe = htmlspecialchars($ctaLabel, ENT_QUOTES, 'UTF-8');
     $ctaUrlSafe = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
+    $ctaBlock = '';
+    if ($ctaLabelSafe !== '' && $ctaUrlSafe !== '') {
+        $ctaBlock = '
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:18px 0 0 0">
+                        <tr>
+                            <td align="left" style="padding:0;">
+                                <a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="display:inline-block; background:#1B5E20; border:1px solid #1B5E20; border-radius:12px; padding:12px 18px; color:#ffffff; text-decoration:none; font-weight:800; font-size:15px; line-height:1.2;">
+                                    ' . $ctaLabelSafe . '
+                                </a>
+                            </td>
+                        </tr>
+                    </table>';
+        $ctaBlock .= '
+                    <div style="margin-top:10px;font-size:13px;line-height:1.4;color:#475569">
+                        If the button does not appear, use this link:
+                        <a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="color:#1B5E20;text-decoration:underline;font-weight:700">' . $ctaLabelSafe . '</a>
+                    </div>';
+    }
     $bodyHtml = "
         <div style='font-family:Arial, sans-serif; color:#0f172a; line-height:1.5'>
             <div style='max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden'>
@@ -627,9 +801,7 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
                 </div>
                 <div style='padding:18px 20px'>
                     $lineHtml
-                    <div style='margin-top:14px'>
-                        <a href='$ctaUrlSafe' style='display:inline-block;background:#1B5E20;color:#ffffff;text-decoration:none;font-weight:800;border-radius:12px;padding:10px 14px'>$ctaLabelSafe</a>
-                    </div>
+                    $ctaBlock
                 </div>
             </div>
         </div>

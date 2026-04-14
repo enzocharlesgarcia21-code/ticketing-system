@@ -412,14 +412,104 @@ function openModal(id) {
 
                 let html = '';
                 if (images.length) {
-                    html += '<div class="tm-attachment-gallery">';
+                    html += '<div class="tm-attachment-section"><div class="tm-attachment-section-title">Images</div><div class="tm-attachment-gallery">';
                     html += images.map(i => `<button type="button" class="tm-attachment-thumb" data-src="../uploads/${escapeHtml(i.filename)}" onclick="viewImage(this.dataset.src)"><img class="tm-attachment-img" src="../uploads/${escapeHtml(i.filename)}" alt=""></button>`).join('');
-                    html += '</div>';
+                    html += '</div></div>';
                 }
                 if (others.length) {
-                    html += others.map(f => renderAttachment(f)).join('');
+                    html += `<div class="tm-attachment-section"><div class="tm-attachment-section-title">Files</div>${others.map(f => renderAttachment(f)).join('')}</div>`;
                 }
                 return html;
+            };
+
+            const renderHrRequestDetails = (data) => {
+                const hr = data && data.hr_display && data.hr_display.is_hr_special ? data.hr_display : null;
+                if (!hr) return '';
+                const items = [];
+                const summaryFields = Array.isArray(hr.summary_fields) ? hr.summary_fields : [];
+                summaryFields.forEach((field) => {
+                    if (!field || !field.label || !field.value) return;
+                    items.push(`
+                        <div class="tm-info-label">${escapeHtml(String(field.label)).toUpperCase()}</div>
+                        <div class="tm-info-value">${escapeHtml(String(field.value))}</div>
+                    `);
+                });
+                if (!items.length && hr.category) {
+                    items.push(`
+                        <div class="tm-info-label">CATEGORY</div>
+                        <div class="tm-info-value">${escapeHtml(String(hr.category))}</div>
+                    `);
+                }
+                const description = typeof hr.detail_text !== 'undefined' ? String(hr.detail_text || '') : '';
+                const descriptionHtml = description ? `
+                    <div class="tm-hr-section">
+                        <div class="tm-info-label">${escapeHtml(String(hr.detail_label || 'Description')).toUpperCase()}</div>
+                        <div class="tm-info-value">${escapeHtml(description).replace(/\n/g, '<br>')}</div>
+                    </div>
+                ` : '';
+                const groupedAttachments = Array.isArray(hr.attachment_groups) ? hr.attachment_groups : [];
+                const attachmentsHtml = groupedAttachments.map((group) => {
+                    if (!group || !Array.isArray(group.attachments) || !group.attachments.length) return '';
+                    const helperText = group.helper_text
+                        ? `<div class="tm-hr-upload-help">${escapeHtml(String(group.helper_text))}</div>`
+                        : '';
+                    return `
+                        <div class="tm-hr-upload-card">
+                            <div class="tm-hr-upload-head">
+                                <div class="tm-hr-upload-title">${escapeHtml(String(group.title || 'Attachment'))}</div>
+                                ${helperText}
+                            </div>
+                            <div class="tm-hr-upload-body">
+                                ${renderAttachments({ attachments: group.attachments })}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                if (!items.length && !descriptionHtml && !attachmentsHtml) return '';
+                return `
+                    <div class="tm-card">
+                        <div class="tm-card-header">
+                            <span class="tm-card-title">${escapeHtml(String(hr.request_section_title || 'Request Details'))}</span>
+                        </div>
+                        <div class="tm-card-body">
+                            ${items.length ? `<div class="tm-info-grid tm-info-grid-compact">${items.join('')}</div>` : ''}
+                            ${descriptionHtml}
+                            ${attachmentsHtml}
+                        </div>
+                    </div>
+                `;
+            };
+
+            const renderDescriptionCard = (data) => {
+                const hr = data && data.hr_display && data.hr_display.is_hr_special ? data.hr_display : null;
+                if (hr) return '';
+                const title = hr && hr.detail_label ? String(hr.detail_label) : 'Description';
+                const description = hr && typeof hr.detail_text !== 'undefined'
+                    ? String(hr.detail_text || '')
+                    : String(data.description || '');
+                const descriptionHtml = description
+                    ? `<div class="tm-desc-text">${escapeHtml(description).replace(/\n/g, '<br>')}</div>`
+                    : '';
+                const attachmentsHtml = renderAttachments(data);
+                const emptyHtml = (!descriptionHtml && !attachmentsHtml)
+                    ? '<div class="tm-info-value">-</div>'
+                    : '';
+                return `
+                    <div class="tm-card">
+                        <div class="tm-card-header">
+                            <span class="tm-card-title">${escapeHtml(title)}</span>
+                        </div>
+                        <div class="tm-card-body">
+                            ${descriptionHtml}
+                            ${attachmentsHtml}
+                            ${emptyHtml}
+                        </div>
+                    </div>
+                `;
+            };
+
+            const renderHrAttachmentCards = (data) => {
+                return '';
             };
 
             const formatTimelineTime = (dateLike) => {
@@ -529,15 +619,9 @@ function openModal(id) {
                     </div>
 
                     <div class="tm-desc-col">
-                        <div class="tm-card">
-                            <div class="tm-card-header">
-                                <span class="tm-card-title">Description</span>
-                            </div>
-                            <div class="tm-card-body">
-                                <div class="tm-desc-text">${escapeHtml(data.description)}</div>
-                                ${renderAttachments(data)}
-                            </div>
-                        </div>
+                        ${renderHrRequestDetails(data)}
+                        ${renderDescriptionCard(data)}
+                        ${renderHrAttachmentCards(data)}
 
                         ${(data.impact && data.impact !== '-') ? `
                             <div class="tm-card">
