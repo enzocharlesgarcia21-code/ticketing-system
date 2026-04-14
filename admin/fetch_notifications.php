@@ -2,6 +2,10 @@
 require_once '../config/database.php';
 require_once '../includes/notification_service.php';
 require_once '../includes/ticket_assignment.php';
+header('Content-Type: application/json');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 
 notif_ensure_action_type_column($conn);
 ticket_apply_sla_priority($conn);
@@ -30,7 +34,7 @@ if (!$count_result) {
     echo json_encode(['error' => 'SQL Error', 'details' => $conn->error]);
     exit;
 }
-$unread_count = $count_result->fetch_assoc()['count'];
+$unread_count = (int) ($count_result->fetch_assoc()['count'] ?? 0);
 
 // Get latest 10 notifications
 $query = "SELECT n.*, t.priority, TIMESTAMPDIFF(SECOND, n.created_at, NOW()) as seconds_ago 
@@ -70,7 +74,7 @@ while ($row = $result->fetch_assoc()) {
 }
 
 echo json_encode([
-    'unread_count' => $unread_count,
+    'unread_count' => (int) $unread_count,
     'notifications' => $notifications
 ]);
 ?>

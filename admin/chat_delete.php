@@ -32,7 +32,17 @@ $current_user_id = (int) ($_SESSION['user_id'] ?? 0);
 $is_admin = (($_SESSION['role'] ?? '') === 'admin');
 
 $ticket = null;
-$stmt = $conn->prepare("SELECT user_id, assigned_to FROM employee_tickets WHERE id = ? LIMIT 1");
+$stmt = $conn->prepare("
+    SELECT
+        t.user_id,
+        t.assigned_user_id,
+        t.assigned_to,
+        COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email
+    FROM employee_tickets t
+    LEFT JOIN users requester ON requester.id = t.user_id
+    WHERE t.id = ?
+    LIMIT 1
+");
 if ($stmt) {
     $stmt->bind_param("i", $ticket_id);
     $stmt->execute();
@@ -48,13 +58,24 @@ if (!$ticket) {
 }
 
 $requesterId = (int) ($ticket['user_id'] ?? 0);
-$canManageChat = ticket_user_can_chat($ticket, $current_user_id);
-if (!$is_admin && !$canManageChat) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Access Denied']);
-    exit;
+$userContext = ticket_build_user_context($conn, $current_user_id, $_SESSION);
+$isRequester = ticket_user_matches_requester($ticket, $current_user_id, $userContext);
+$isCurrentAssignee = ((int) ($ticket['assigned_to'] ?? 0) === $current_user_id)
+    || ((int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id);
+
+$hasSentInConversation = false;
+$msgStmt = $conn->prepare("SELECT id FROM ticket_messages WHERE ticket_id = ? AND sender_id = ? LIMIT 1");
+if ($msgStmt) {
+    $msgStmt->bind_param("ii", $ticket_id, $current_user_id);
+    $msgStmt->execute();
+    $msgRes = $msgStmt->get_result();
+    $hasSentInConversation = (bool) ($msgRes && $msgRes->fetch_assoc());
+    $msgStmt->close();
 }
-if ($is_admin && !$canManageChat) {
+
+// Admins can always delete. Non-admins can delete if they own the request,
+// participated in the conversation, or are currently assigned to the ticket.
+if (!$is_admin && !$isRequester && !$isCurrentAssignee && !$hasSentInConversation) {
     http_response_code(403);
     echo json_encode(['error' => 'Access Denied']);
     exit;

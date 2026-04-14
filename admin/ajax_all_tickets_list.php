@@ -92,6 +92,34 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     return '<span class="badge badge-low">On Track</span>';
 }
 
+function assigned_target_label(array $row): string
+{
+    $assignedCompany = ticket_normalize_company((string) (($row['assigned_company'] ?? '') !== '' ? $row['assigned_company'] : ($row['company'] ?? '')));
+    $assignedGroup = trim((string) (($row['assigned_group'] ?? '') !== '' ? $row['assigned_group'] : ($row['assigned_department'] ?? '')));
+    $assignedDept = trim((string) ($row['assigned_department'] ?? ''));
+
+    if ($assignedGroup === '' && $assignedDept !== '') {
+        $assignedGroup = $assignedDept;
+    }
+
+    $companyLabel = ticket_company_display_name($assignedCompany);
+    $isLapc = ($assignedCompany === '@leadsagri.com' || strtoupper($assignedCompany) === 'LAPC');
+
+    if ($isLapc && $assignedGroup !== '') {
+        return $assignedGroup . ($companyLabel !== '' ? " ($companyLabel)" : '');
+    }
+
+    if ($companyLabel !== '') {
+        return $companyLabel;
+    }
+
+    if ($assignedGroup !== '') {
+        return $assignedGroup;
+    }
+
+    return '-';
+}
+
 $search = trim((string) ($_GET['search'] ?? ''));
 $department = trim((string) ($_GET['department'] ?? ''));
 $priority = trim((string) ($_GET['priority'] ?? ''));
@@ -116,7 +144,11 @@ if (!in_array($view, $allowedViews, true)) $view = '';
 if ($view === 'closed') {
     $where[] = "t.status IN ('Closed','Trash')";
 } else {
-    $where[] = "COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')";
+    if ($status === 'Closed') {
+        $where[] = "t.status IN ('Closed','Trash')";
+    } else {
+        $where[] = "COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')";
+    }
 }
 if ($view !== '') {
     if ($view === 'my_open') {
@@ -151,9 +183,13 @@ if ($priority !== '') {
     $types .= 's';
 }
 
-if ($status !== '' && $view !== 'closed') {
+if ($status !== '') {
     if ($status === 'unread') {
         $where[] = "t.is_read = 0";
+    } elseif ($status === 'Closed') {
+        if ($view !== 'closed') {
+            // already handled above to include both Closed and Trash in the closed-status filter
+        }
     } else {
         $where[] = "t.status = ?";
         $params[] = $status;
@@ -255,6 +291,7 @@ while ($res && ($row = $res->fetch_assoc())) {
     }
 
     $origDept = (string) (($row['department'] ?? '') !== '' ? $row['department'] : (($row['user_department'] ?? '') !== '' ? $row['user_department'] : 'Sales'));
+    $origDeptDisplay = $origDept !== 'Sales' ? ticket_department_display_name($origDept) : 'Sales';
     $assignedDept = ticket_department_key_from_value((string) ($row['assigned_department'] ?? ''));
     $isUnread = (int) ($row['is_read'] ?? 1) === 0;
     $id = (int) ($row['id'] ?? 0);
@@ -263,23 +300,15 @@ while ($res && ($row = $res->fetch_assoc())) {
     $createdAt = (string) ($row['created_at'] ?? '');
     $dateStr = $createdAt !== '' ? time_ago_days($createdAt) : '';
     $slaHtml = sla_badge_html($createdAt, $statusVal, (string) ($row['priority'] ?? ''));
-    $assignedCompanyDisplay = strtolower(trim((string) ($row['assigned_company'] ?? '')));
-    $assignedToDisplay = trim((string) ($row['assigned_department'] ?? ''));
-    if ($assignedCompanyDisplay !== '@leadsagri.com' && $assignedCompanyDisplay !== 'lapc') {
-        $assignedToDisplay = trim((string) ($row['assigned_company'] ?? ''));
-    }
-    if ($assignedToDisplay === '') {
-        $assignedToDisplay = trim((string) ($row['assigned_department'] ?? ''));
-    }
     $rowsHtml .= '<tr class="ticket-row" data-id="' . (string) $id . '" style="cursor:pointer;' . ($isUnread ? 'background:rgba(27, 94, 32, 0.08);' : '') . '">';
     $rowsHtml .= '<td data-label="ID">#' . str_pad((string) $id, 6, '0', STR_PAD_LEFT) . '</td>';
     $rowsHtml .= '<td data-label="Requested By"><div class="user-info"><strong>' . h($dispName) . '</strong><br><small>' . h($dispEmail) . '</small></div></td>';
     $rowsHtml .= '<td data-label="Priority"><span class="badge badge-' . h(strtolower($priorityVal)) . '">' . h($priorityVal) . '</span></td>';
     $rowsHtml .= '<td data-label="Status"><span class="status-' . h(strtolower(str_replace(' ', '-', $statusVal))) . '">' . h($statusVal) . '</span>' . ($isUnread ? '<span class="new-badge">NEW</span>' : '') . '</td>';
-    $rowsHtml .= '<td data-label="Original Dept">' . h($origDept) . '</td>';
+    $rowsHtml .= '<td data-label="Original Dept">' . h($origDeptDisplay) . '</td>';
     $rowsHtml .= '<td data-label="Date">' . h($dateStr) . '</td>';
     $rowsHtml .= '<td data-label="SLA">' . $slaHtml . '</td>';
-    $rowsHtml .= '<td data-label="Assign To">' . h(ticket_company_display_name((string) $assignedToDisplay)) . '</td>';
+    $rowsHtml .= '<td data-label="Assign To">' . h(assigned_target_label($row)) . '</td>';
     $rowsHtml .= '</tr>';
 }
 $stmt->close();

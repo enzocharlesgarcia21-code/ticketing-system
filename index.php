@@ -8,8 +8,35 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        :where(img) {
+            max-width: 100%;
+            height: auto;
+        }
+
+        :root {
+            --auth-card-max-width: 520px;
+            --auth-card-min-height: 600px;
+            --auth-card-radius: 28px;
+            --auth-card-padding: 40px 36px 42px;
+            --auth-card-mobile-max-width: 360px;
+            --auth-card-mobile-radius: 18px;
+            --auth-card-mobile-padding: 24px 26px 26px;
+            --auth-shell-max-width: 1680px;
+            --auth-shell-right-padding: 132px;
+            --auth-shell-left-padding: 64px;
+            --auth-panel-width: 580px;
+        }
+
         body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
             margin: 0;
+            padding: 0;
             background-color: #e7f0f7;
             background: url('assets/img/try.png') no-repeat 15% center fixed;
             background-size: cover;
@@ -27,51 +54,47 @@
             z-index: 0;
         }
 
-        .auth-container,
-        .auth-wrapper {
+        body.portal-home-page .auth-container,
+        body.portal-home-page .auth-wrapper {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-end;
             height: 100vh;
             width: 100%;
-            max-width: 1360px;
+            max-width: var(--auth-shell-max-width);
             margin: 0 auto;
-            padding: 64px;
-            gap: 40px;
+            padding: 64px var(--auth-shell-right-padding) 64px var(--auth-shell-left-padding);
+            gap: 0;
             background: transparent;
             position: relative;
             z-index: 1;
         }
 
-        .auth-split-left {
-            flex: 1 1 auto;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            height: 100%;
-            min-width: 0;
+        body.portal-home-page .auth-split-left {
+            display: none;
         }
 
         .auth-brand-wrap {
             display: none;
         }
 
-        .auth-split-right {
-            width: 560px;
+        body.portal-home-page .auth-split-right {
+            width: min(var(--auth-panel-width), 100%);
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100%;
             padding: 0;
-            flex: 0 0 560px;
+            flex: 0 0 var(--auth-panel-width);
         }
 
         .auth-card {
-            width: min(100%, 520px);
-            max-width: 520px;
-            height: 500px;
-            padding: 34px 48px 46px;
-            border-radius: 28px;
+            width: min(100%, var(--auth-card-max-width));
+            max-width: var(--auth-card-max-width);
+            min-height: var(--auth-card-min-height);
+            height: auto;
+            padding: var(--auth-card-padding);
+            border-radius: var(--auth-card-radius);
             background: rgba(255, 255, 255, 0.88);
             border: 1px solid rgba(255, 255, 255, 0.72);
             box-shadow:
@@ -87,7 +110,7 @@
             content: "";
             position: absolute;
             inset: 0;
-            border-radius: 28px;
+            border-radius: inherit;
             padding: 1px;
             background: linear-gradient(135deg, rgba(22, 163, 74, 0.25), rgba(255, 255, 255, 0.0) 45%, rgba(15, 23, 42, 0.08));
             -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -100,7 +123,6 @@
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
-            padding-top: 43px;
         }
 
         .auth-card .card-title {
@@ -181,13 +203,9 @@
             box-shadow: 0 14px 30px rgba(2, 6, 23, 0.14);
         }
 
-        @media (min-width: 1100px) {
-            .auth-split-right { transform: translateX(20px); }
-        }
-
         @media (max-width: 900px) {
-            .auth-container,
-            .auth-wrapper {
+            body.portal-home-page .auth-container,
+            body.portal-home-page .auth-wrapper {
                 height: auto;
                 min-height: 100vh;
                 flex-direction: column;
@@ -198,7 +216,7 @@
                 gap: 26px;
             }
 
-            .auth-split-left {
+            body.portal-home-page .auth-split-left {
                 width: 100%;
                 height: auto;
                 justify-content: center;
@@ -208,11 +226,10 @@
                 display: none;
             }
 
-            .auth-split-right {
-                width: min(560px, 100%);
+            body.portal-home-page .auth-split-right {
+                width: min(520px, 100%);
                 padding: 0;
                 flex: 0 0 auto;
-                transform: none;
             }
 
             .auth-card {
@@ -239,8 +256,8 @@
                 z-index: 0;
             }
 
-            .auth-container,
-            .auth-wrapper {
+            body.portal-home-page .auth-container,
+            body.portal-home-page .auth-wrapper {
                 width: 100%;
                 display: flex;
                 align-items: center;
@@ -251,11 +268,11 @@
                 gap: 0;
             }
 
-            .auth-split-left {
+            body.portal-home-page .auth-split-left {
                 display: none;
             }
 
-            .auth-split-right {
+            body.portal-home-page .auth-split-right {
                 width: 100%;
                 flex: 0 0 auto;
                 height: auto;
@@ -263,17 +280,13 @@
 
             .auth-card {
                 width: 100%;
-                max-width: 360px;
-                padding: 24px 26px 26px;
-                border-radius: 18px;
+                max-width: var(--auth-card-mobile-max-width);
+                min-height: 0;
+                padding: var(--auth-card-mobile-padding);
+                border-radius: var(--auth-card-mobile-radius);
                 text-align: center;
                 box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
             }
-
-            .auth-card::before {
-                border-radius: 18px;
-            }
-
             .auth-title,
             .auth-card .card-title {
                 gap: 6px;
@@ -333,7 +346,7 @@
         }
     </style>
 </head>
-<body>
+<body class="portal-home-page">
 
 <div class="auth-wrapper auth-container">
     <section class="auth-split-left" aria-label="Leads Agri branding">
@@ -360,6 +373,13 @@
                     <span class="btn-label">Sales Department</span>
                     <span class="btn-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
                 </a>
+
+                <a href="conference_booking.php" class="auth-btn">
+                    <span class="btn-icon" aria-hidden="true"><i class="fa-solid fa-calendar-check"></i></span>
+                    <span class="btn-label">Book Conference Room</span>
+                    <span class="btn-arrow" aria-hidden="true"><i class="fa-solid fa-arrow-right"></i></span>
+                </a>
+
             </div>
 
             <div class="auth-extra auth-extra-hidden">

@@ -63,6 +63,34 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     return '<span class="badge badge-low">On Track</span>';
 }
 
+function assigned_target_label(array $row): string
+{
+    $assignedCompany = ticket_normalize_company((string) (($row['assigned_company'] ?? '') !== '' ? $row['assigned_company'] : ($row['company'] ?? '')));
+    $assignedGroup = trim((string) (($row['assigned_group'] ?? '') !== '' ? $row['assigned_group'] : ($row['assigned_department'] ?? '')));
+    $assignedDept = trim((string) ($row['assigned_department'] ?? ''));
+
+    if ($assignedGroup === '' && $assignedDept !== '') {
+        $assignedGroup = $assignedDept;
+    }
+
+    $companyLabel = ticket_company_display_name($assignedCompany);
+    $isLapc = ($assignedCompany === '@leadsagri.com' || strtoupper($assignedCompany) === 'LAPC');
+
+    if ($isLapc && $assignedGroup !== '') {
+        return $assignedGroup . ($companyLabel !== '' ? " ($companyLabel)" : '');
+    }
+
+    if ($companyLabel !== '') {
+        return $companyLabel;
+    }
+
+    if ($assignedGroup !== '') {
+        return $assignedGroup;
+    }
+
+    return '-';
+}
+
 // Ensure email is in session (fix for existing sessions)
 if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
     $u_stmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
@@ -131,7 +159,7 @@ if ($view !== '') {
         $query .= " AND employee_tickets.status IN ('Closed','Trash')";
     }
 }
-if ($view !== 'closed') {
+if ($view !== 'closed' && $status !== 'Closed') {
     $query .= " AND COALESCE(NULLIF(employee_tickets.status,''),'') NOT IN ('Closed','Trash')";
 }
 
@@ -156,9 +184,11 @@ if (!empty($priority)) {
     $query .= " AND employee_tickets.priority = '$priority'";
 }
 
-if (!empty($status) && $view !== 'closed') {
+if (!empty($status)) {
     if ($status === 'unread') {
         $query .= " AND employee_tickets.is_read = 0";
+    } elseif ($status === 'Closed') {
+        $query .= " AND employee_tickets.status IN ('Closed','Trash')";
     } else {
         $status = $conn->real_escape_string($status);
         $query .= " AND employee_tickets.status = '$status'";
@@ -385,6 +415,11 @@ $result = $stmt->get_result();
             border-color: #bfdbfe !important;
             color: #1d4ed8 !important;
         }
+        .status-closed {
+            background: #f3f4f6 !important;
+            border-color: #e5e7eb !important;
+            color: #4b5563 !important;
+        }
         @media (max-width: 1100px) {
             .at-sidebar { display: none; }
             .at-layout { max-width: 1200px; }
@@ -514,7 +549,7 @@ $result = $stmt->get_result();
                                value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
 
                         <select id="recipientFilterSelect" class="filter-select">
-                            <option value="" disabled selected hidden>All Company</option>
+                            <option value="" <?= $company_email === '' ? 'selected' : '' ?>>All Company</option>
                             <option value="@leads-farmex.com">FARMEX (@leads-farmex.com)</option>
                             <option value="@farmasee.ph">FARMASEE (@farmasee.ph)</option>
                             <option value="@gpsci.net">GPSCI (@gpsci.net)</option>
@@ -522,9 +557,10 @@ $result = $stmt->get_result();
                             <option value="@leadsagri.com">LAPC (@leadsagri.com)</option>
                             <option value="@leads-eh.com">LEH (@leads-eh.com)</option>
                             <option value="@leadsav.com">LAV (@leadsav.com)</option>
+                            <option value="@malvedaholdings.com">MHC (@malvedaholdings.com)</option>
+                            <option value="@malvedaproperties.com">MPDC (@malvedaproperties.com)</option>
                             <option value="@leadstech-corp.com">LTC (@leadstech-corp.com)</option>
                             <option value="@lingapleads.org">LINGAP (@lingapleads.org)</option>
-                            <option value="@malvedaproperties.com">MHC (@malvedaproperties.com)</option>
                             <option value="@primestocks.ph">PCC (@primestocks.ph)</option>
                         </select>
 
@@ -627,21 +663,11 @@ $result = $stmt->get_result();
                                 </td>
                                 <td data-label="Original Dept"><?php 
                                     $origDept = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
-                                    echo htmlspecialchars($origDept !== '' ? $origDept : 'Sales');
+                                    echo htmlspecialchars($origDept !== '' ? ticket_department_display_name((string) $origDept) : 'Sales');
                                 ?></td>
                                 <td data-label="Date"><?= htmlspecialchars(time_ago_days((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td data-label="SLA"><?= sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
-                                <td data-label="Assign To"><?php
-                                    $assignedCompanyDisplay = strtolower(trim((string) ($row['assigned_company'] ?? '')));
-                                    $assignedToDisplay = trim((string) ($row['assigned_department'] ?? ''));
-                                    if ($assignedCompanyDisplay !== '@leadsagri.com' && $assignedCompanyDisplay !== 'lapc') {
-                                        $assignedToDisplay = trim((string) ($row['assigned_company'] ?? ''));
-                                    }
-                                    if ($assignedToDisplay === '') {
-                                        $assignedToDisplay = trim((string) ($row['assigned_department'] ?? ''));
-                                    }
-                                    echo htmlspecialchars(ticket_company_display_name($assignedToDisplay), ENT_QUOTES, 'UTF-8');
-                                ?></td>
+                                <td data-label="Assign To"><?= htmlspecialchars(assigned_target_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
                             </tr>
                             <?php } ?>
                         </tbody>
@@ -786,6 +812,9 @@ function syncRecipientFilters() {
     var currentCompany = String(companyEmailFilterValue.value || '').toLowerCase();
     var currentDepartment = String(departmentFilterValue.value || '');
     recipientFilterSelect.value = currentCompany;
+    if (recipientFilterSelect.value !== currentCompany) {
+        recipientFilterSelect.value = '';
+    }
 
     if (currentCompany === lapcDomainValue) {
         departmentFilterWrap.classList.remove('is-disabled');
@@ -821,6 +850,7 @@ function handleRecipientFilterChange() {
         departmentFilterSelect.value = '';
         departmentFilterSelect.disabled = false;
         departmentFilterWrap.classList.remove('is-disabled');
+        submitForm(1);
         return;
     }
 

@@ -630,49 +630,54 @@ if ($showCategoryView) {
         .category-card {
             display: flex;
             align-items: center;
-            gap: 14px;
-            padding: 16px 18px;
-            background: white;
-            border: 1px solid #E5E7EB;
-            border-radius: 14px;
+            gap: 16px;
+            padding: 18px 20px;
+            background: rgba(255, 255, 255, 0.97);
+            border: 1px solid rgba(222, 232, 224, 0.95);
+            border-radius: 18px;
             text-decoration: none;
-            color: #111827;
+            color: #1F2937;
             cursor: pointer;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, background 0.2s ease;
         }
 
         .category-card:hover {
-            border-color: #1B5E20;
-            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+            border-color: rgba(27, 94, 32, 0.22);
+            box-shadow: 0 14px 32px rgba(15, 23, 42, 0.09);
             transform: translateY(-2px);
         }
 
         .category-card.active {
-            border-color: #1B5E20;
-            background: #E8F5E9;
+            border-color: rgba(27, 94, 32, 0.26);
+            background: rgba(255, 255, 255, 0.99);
         }
 
         .category-icon {
-            width: 54px;
-            height: 54px;
+            width: 48px;
+            height: 48px;
             border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 22px;
-            color: #ffffff;
+            font-size: 21px;
+            color: #1E6A2D;
             flex: 0 0 auto;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+            background: #EDF8EF;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
         }
 
-        .tone-teal .category-icon { background: linear-gradient(135deg, #6fd0c3 0%, #4099a0 100%); }
-        .tone-sand .category-icon { background: linear-gradient(135deg, #f0d48f 0%, #d9b764 100%); }
-        .tone-violet .category-icon { background: linear-gradient(135deg, #b895ff 0%, #8668f1 100%); }
-        .tone-blue .category-icon { background: linear-gradient(135deg, #74b7ff 0%, #4f86ff 100%); }
-        .tone-emerald .category-icon { background: linear-gradient(135deg, #5fd1b4 0%, #1ca57d 100%); }
-        .tone-sky .category-icon { background: linear-gradient(135deg, #7eb9ff 0%, #5d8fff 100%); }
-        .tone-mint .category-icon { background: linear-gradient(135deg, #6fd8da 0%, #43b4c5 100%); }
-        .tone-slate .category-icon { background: linear-gradient(135deg, #b5bfd0 0%, #7d8ca5 100%); }
+        .tone-teal .category-icon,
+        .tone-sand .category-icon,
+        .tone-violet .category-icon,
+        .tone-blue .category-icon,
+        .tone-emerald .category-icon,
+        .tone-sky .category-icon,
+        .tone-mint .category-icon,
+        .tone-slate .category-icon {
+            background: #EDF8EF;
+            color: #1E6A2D;
+        }
 
         .category-info h4 {
             margin: 0 0 4px;
@@ -1098,7 +1103,7 @@ if ($showCategoryView) {
                         </div>
                     <?php endif; ?>
                 <?php else: ?>
-                    <a href="<?= $activeCategory === 'Others' ? 'knowledge_base.php?category=Others' : 'knowledge_base.php' ?>" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
+                    <a href="knowledge_base.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
                     <h2 class="articles-heading"><?= htmlspecialchars($activeCategory === 'Others' ? ($selectedSubCategory !== '' ? $selectedSubCategory : 'Others') : $categoryViewTitle) ?> Articles</h2>
                     <?php if (empty($categoryArticles)): ?>
                         <div class="no-results">

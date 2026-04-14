@@ -573,95 +573,97 @@ unset($recent_articles_query['recent_page']);
         .kb-category-tile {
             width: 100%;
             text-align: left;
-            border: 1px solid rgba(224, 228, 241, 0.95);
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.76);
+            border: 1px solid rgba(222, 232, 224, 0.95);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.97);
             padding: 18px 20px;
             cursor: pointer;
-            box-shadow: 0 10px 26px rgba(66, 58, 99, 0.07);
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
             transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
             display: grid;
-            grid-template-columns: 54px minmax(0, 1fr);
-            gap: 14px;
+            grid-template-columns: 48px minmax(0, 1fr);
+            gap: 16px;
             align-items: center;
         }
 
         .kb-category-tile:hover {
             transform: translateY(-2px);
-            box-shadow: 0 14px 30px rgba(66, 58, 99, 0.11);
-            border-color: rgba(120, 140, 210, 0.45);
+            box-shadow: 0 14px 32px rgba(15, 23, 42, 0.09);
+            border-color: rgba(27, 94, 32, 0.22);
         }
 
         .kb-category-tile.is-active {
-            border-color: rgba(92, 132, 255, 0.36);
-            background: rgba(245, 247, 255, 0.92);
-            box-shadow: 0 16px 32px rgba(88, 105, 182, 0.14);
+            border-color: rgba(27, 94, 32, 0.26);
+            background: rgba(255, 255, 255, 0.99);
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.1);
         }
 
         .kb-category-tile-icon {
-            width: 54px;
-            height: 54px;
+            width: 48px;
+            height: 48px;
             border-radius: 16px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 22px;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+            font-size: 21px;
+            background: #EDF8EF;
+            color: #1E6A2D;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
         }
 
         .tone-teal .kb-category-tile-icon,
         .tone-teal.badge-category {
-            background: linear-gradient(135deg, #6fd0c3 0%, #4099a0 100%);
-            color: #fff;
+            background: #EDF8EF;
+            color: #1E6A2D;
             border-color: transparent;
         }
 
         .tone-sand .kb-category-tile-icon,
         .tone-sand.badge-category {
-            background: linear-gradient(135deg, #f0d48f 0%, #d9b764 100%);
-            color: #fff;
+            background: #EDF8EF;
+            color: #1E6A2D;
             border-color: transparent;
         }
 
         .tone-violet .kb-category-tile-icon,
         .tone-violet.badge-category {
-            background: linear-gradient(135deg, #b895ff 0%, #8668f1 100%);
-            color: #fff;
+            background: #EDF8EF;
+            color: #1E6A2D;
             border-color: transparent;
         }
 
         .tone-blue .kb-category-tile-icon,
         .tone-blue.badge-category {
-            background: linear-gradient(135deg, #74b7ff 0%, #4f86ff 100%);
-            color: #fff;
+            background: #EDF8EF;
+            color: #1E6A2D;
             border-color: transparent;
         }
 
         .tone-emerald .kb-category-tile-icon,
         .tone-emerald.badge-category {
-            background: linear-gradient(135deg, #5fd1b4 0%, #1ca57d 100%);
-            color: #fff;
+            background: #EDF8EF;
+            color: #1E6A2D;
             border-color: transparent;
         }
 
         .tone-sky .kb-category-tile-icon,
         .tone-sky.badge-category {
-            background: linear-gradient(135deg, #7eb9ff 0%, #5d8fff 100%);
-            color: #fff;
+            background: #EDF8EF;
+            color: #1E6A2D;
             border-color: transparent;
         }
 
         .tone-mint .kb-category-tile-icon,
         .tone-mint.badge-category {
-            background: linear-gradient(135deg, #6fd8da 0%, #43b4c5 100%);
-            color: #fff;
+            background: #EDF8EF;
+            color: #1E6A2D;
             border-color: transparent;
         }
 
         .tone-slate .kb-category-tile-icon,
         .tone-slate.badge-category {
-            background: linear-gradient(135deg, #b5bfd0 0%, #7d8ca5 100%);
-            color: #fff;
+            background: #EDF8EF;
+            color: #1E6A2D;
             border-color: transparent;
         }
 

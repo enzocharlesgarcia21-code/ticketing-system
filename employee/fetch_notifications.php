@@ -3,6 +3,9 @@ require_once '../config/database.php';
 require_once '../includes/notification_service.php';
 require_once '../includes/ticket_assignment.php';
 header('Content-Type: application/json');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 
 notif_ensure_action_type_column($conn);
 ticket_apply_sla_priority($conn);
@@ -15,6 +18,15 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
 
 $user_id = (int) $_SESSION['user_id'];
 
+function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
+{
+    return;
+}
+
+employee_send_due_hr_chat_reminders($conn, $user_id);
+
+$conn->query("UPDATE notifications SET is_read = 1 WHERE user_id = $user_id AND type = 'hr_chat_pending' AND is_read = 0");
+
 // Unread count
 $count_result = $conn->query("
     SELECT COUNT(*) as count
@@ -23,6 +35,7 @@ $count_result = $conn->query("
     WHERE n.user_id = $user_id
       AND n.is_read = 0
       AND n.type <> 'chat_message'
+      AND n.type <> 'hr_chat_pending'
       AND (n.type <> 'note_added' OR t.user_id = n.user_id)
 ");
 if (!$count_result) {
@@ -41,6 +54,7 @@ $query = "SELECT n.id, n.ticket_id, n.title, n.message, n.type, n.is_read, n.cre
           LEFT JOIN employee_tickets t ON n.ticket_id = t.id
           WHERE n.user_id = $user_id
             AND n.type <> 'chat_message'
+            AND n.type <> 'hr_chat_pending'
             AND (n.type <> 'note_added' OR t.user_id = n.user_id)
           ORDER BY n.created_at DESC
           LIMIT 10";
@@ -79,7 +93,7 @@ while ($row = $result->fetch_assoc()) {
 }
 
 echo json_encode([
-    'unread_count' => $unread_count,
+    'unread_count' => (int) $unread_count,
     'notifications' => $notifications
 ]);
 ?>

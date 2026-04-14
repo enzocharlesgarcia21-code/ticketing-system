@@ -2,6 +2,20 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 
+function force_password_redirect_target($value): string
+{
+    $value = trim((string) $value);
+    if ($value === '') {
+        return '';
+    }
+
+    $value = str_replace('\\', '/', $value);
+    $value = basename($value);
+    $allowed = ['book_conference.php'];
+
+    return in_array($value, $allowed, true) ? $value : '';
+}
+
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Expires: 0');
@@ -12,6 +26,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
 }
 
 $userId = (int) ($_SESSION['user_id'] ?? 0);
+$postLoginRedirect = force_password_redirect_target($_SESSION['post_login_redirect'] ?? '');
 
 $stmt = $conn->prepare("SELECT force_password_change FROM users WHERE id = ? LIMIT 1");
 $mustChange = 0;
@@ -26,6 +41,11 @@ if ($stmt) {
 
 if ($mustChange !== 1) {
     unset($_SESSION['force_password_change']);
+    if ($postLoginRedirect !== '') {
+        unset($_SESSION['post_login_redirect']);
+        header("Location: $postLoginRedirect");
+        exit();
+    }
     header("Location: dashboard.php");
     exit();
 }
@@ -48,6 +68,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if ($update->execute()) {
                 $update->close();
                 unset($_SESSION['force_password_change']);
+                if ($postLoginRedirect !== '') {
+                    unset($_SESSION['post_login_redirect']);
+                    header("Location: $postLoginRedirect");
+                    exit();
+                }
                 header("Location: dashboard.php");
                 exit();
             }

@@ -8,11 +8,12 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
 }
 
 $startedAt = microtime(true);
-ticket_apply_sla_priority($conn);
+$report = ticket_apply_sla_priority($conn, true);
 
 echo json_encode([
     'ok' => true,
     'message' => 'Automatic priority escalation check completed.',
     'finished_at' => date('Y-m-d H:i:s'),
     'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+    'report' => $report,
 ], JSON_PRETTY_PRINT);

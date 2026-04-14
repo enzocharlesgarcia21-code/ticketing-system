@@ -101,6 +101,10 @@ window.TM_MESSENGER_STYLE = 'employee';
 </button>
 
 <style>
+.navbar {
+    border-bottom: 4px solid #F4C430;
+}
+
 /* Notification Styles */
 .notification-wrapper {
     position: relative;
@@ -180,16 +184,28 @@ window.TM_MESSENGER_STYLE = 'employee';
     overflow-y: auto;
     background: #fff;
 }
+.notif-section-label {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 10px 16px 8px;
+    background: #ffffff;
+    border-bottom: 1px solid #eef2f7;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #475569;
+}
 
 .notif-item {
+    --notif-accent: transparent;
     position: relative;
     display: flex;
     align-items: flex-start;
-    padding: 16px 20px 16px 22px;
+    padding: 16px 40px 16px 26px;
     border-bottom: 1px solid #f1f5f9;
     cursor: pointer;
     transition: all 0.2s ease;
-    gap: 15px;
+    gap: 0;
 }
 .notif-item::before {
     content: "";
@@ -198,26 +214,97 @@ window.TM_MESSENGER_STYLE = 'employee';
     top: 0;
     bottom: 0;
     width: 5px;
-    background: transparent;
+    background: var(--notif-accent);
 }
-.notif-item.type-card-assigned::before { background: #2563eb; }
-.notif-item.type-card-updated::before { background: #0ea5e9; }
-.notif-item.type-card-reassigned::before { background: #9333ea; }
-.notif-item.type-card-closed::before { background: #16a34a; }
-.notif-item.type-card-note::before { background: #ca8a04; }
+.notif-item.variant-assign::before,
+.notif-item.variant-close::before,
+.notif-item.variant-low::before { --notif-accent: #43A047; }
+.notif-item.variant-note::before,
+.notif-item.variant-high::before { --notif-accent: #f59e0b; }
+.notif-item.variant-critical::before { --notif-accent: #E53935; }
+.notif-item.variant-update::before { --notif-accent: #2563eb; }
+.notif-item.variant-reassign::before { --notif-accent: #9333ea; }
 
 .notif-item:hover {
     background-color: #f8fafc;
 }
+.notif-item.notif-chat-pending {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    margin: 0;
+    padding: 16px 40px 16px 26px;
+    border: 0;
+    border-bottom: 1px solid #f1f5f9;
+    border-radius: 0;
+    box-shadow: none;
+    background: #ffffff;
+    overflow: hidden;
+}
+.notif-item.notif-chat-pending:hover {
+    background-color: #f8fbff;
+}
+.notif-item.notif-chat-pending::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    background: var(--notif-accent, #2563eb);
+    border-radius: 0;
+}
+.notif-item.notif-chat-pending.unread::after {
+    content: "";
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #2563eb;
+    transform: translateY(-50%);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.96);
+}
 
 .notif-item.unread {
-    background-color: #f0f9f3;
+    background-color: #ffffff;
+}
+.notif-item.unread::after {
+    content: "";
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #5aa364;
+    transform: translateY(-50%);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.96);
+}
+.notif-item.unread.variant-assign,
+.notif-item.unread.variant-close,
+.notif-item.unread.variant-low {
+    background: #f1fbf3;
+}
+.notif-item.unread.variant-note,
+.notif-item.unread.variant-high {
+    background: #fff8ef;
+}
+.notif-item.unread.variant-critical {
+    background: #fff4f5;
+}
+.notif-item.unread.variant-update {
+    background: #f3f8ff;
+}
+.notif-item.unread.variant-reassign {
+    background: #faf5ff;
 }
 .notif-item.priority-escalation {
     position: relative;
-    gap: 15px;
+    gap: 0;
     margin: 0;
-    padding: 16px 20px 16px 22px;
+    padding: 16px 40px 16px 26px;
     border: 0;
     border-bottom: 1px solid #f1f5f9;
     border-radius: 0;
@@ -231,123 +318,169 @@ window.TM_MESSENGER_STYLE = 'employee';
     left: 0;
     top: 0;
     bottom: 0;
-    width: 7px;
-    border-radius: 7px;
-    background: #94a3b8;
+    width: 5px;
+    border-radius: 0;
+    background: var(--notif-accent, #94a3b8);
 }
-.notif-item.priority-escalation.priority-low::before { background: #43A047; }
-.notif-item.priority-escalation.priority-high::before { background: #FB8C00; }
-.notif-item.priority-escalation.priority-critical::before { background: #E53935; }
+.notif-item.priority-escalation.priority-low::before { --notif-accent: #43A047; }
+.notif-item.priority-escalation.priority-high::before { --notif-accent: #f59e0b; }
+.notif-item.priority-escalation.priority-critical::before { --notif-accent: #E53935; }
 
-.notif-icon {
-    flex-shrink: 0;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    color: #ffffff;
-}
-.notif-icon.type-assigned { background: #2563eb; }
-.notif-icon.type-updated { background: #2563eb; }
-.notif-icon.type-reassigned { background: #9333ea; }
-.notif-icon.type-closed { background: #16a34a; }
-.notif-icon.type-note { background: #ca8a04; }
-.notif-icon.type-priority-alert { background: linear-gradient(135deg, #dc2626, #fb7185); }
-.notif-icon.type-neutral { background: #94a3b8; }
-.notif-item.type-card-assigned .notif-icon,
-.notif-item.type-card-updated .notif-icon,
-.notif-item.type-card-reassigned .notif-icon,
-.notif-item.type-card-closed .notif-icon,
-.notif-item.type-card-note .notif-icon {
-    border-radius: 10px;
-}
-.notif-item.priority-escalation .notif-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    font-size: 16px;
-    box-shadow: none;
-}
-.notif-item.priority-escalation.priority-low .notif-icon {
-    background: linear-gradient(135deg, #c8f1d0, #e9f9ed);
-    color: #2f855a;
-}
-.notif-item.priority-escalation.priority-high .notif-icon {
-    background: linear-gradient(135deg, #fde5c6, #fff3df);
-    color: #f59e0b;
-}
-.notif-item.priority-escalation.priority-critical .notif-icon {
-    background: linear-gradient(135deg, #ef4355, #ff6b7d);
-    color: #ffffff;
-}
-
-.priority-badge{
-    padding:4px 10px;
-    border-radius:6px;
-    font-size:12px;
-    font-weight:600;
-    color:white;
-    margin-right:6px;
-    display: inline-block;
-    vertical-align: middle;
-}
-.priority-badge.priority-critical { background:#E53935; }
-.priority-badge.priority-high { background:#FB8C00; }
-.priority-badge.priority-medium { background:#FBC02D; }
-.priority-badge.priority-low { background:#43A047; }
-.priority-badge.priority-neutral { background:#94a3b8; }
-.notif-item.priority-escalation .priority-badge {
+.notif-pill {
     display: inline-flex;
     align-items: center;
-    min-height: 24px;
-    margin: 0;
-    padding: 3px 10px;
-    border-radius: 10px;
+    border-radius: 11px;
     border: 2px solid currentColor;
     background: #ffffff;
-    font-size: 12px;
+    color: #64748b;
+    overflow: hidden;
+    min-height: 26px;
+}
+.notif-pill-icon {
+    width: 28px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: #ffffff;
     font-weight: 800;
+}
+.notif-pill-text {
+    padding: 0 16px 0 12px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
     line-height: 1;
 }
-.notif-item.priority-escalation .priority-badge.priority-low {
+.notif-pill.variant-assign,
+.notif-pill.variant-close,
+.notif-pill.variant-low {
     color: #43A047;
-    background: #f8fff9;
+    background: #f9fff9;
 }
-.notif-item.priority-escalation .priority-badge.priority-high {
-    color: #d97706;
+.notif-pill.variant-assign .notif-pill-icon,
+.notif-pill.variant-close .notif-pill-icon,
+.notif-pill.variant-low .notif-pill-icon {
+    background: linear-gradient(135deg, #7cd992, #43A047);
+}
+.notif-pill.variant-note,
+.notif-pill.variant-high {
+    color: #f59e0b;
     background: #fff8ef;
 }
-.notif-item.priority-escalation .priority-badge.priority-critical {
-    color: #dc2626;
-    background: #fff5f5;
+.notif-pill.variant-note .notif-pill-icon,
+.notif-pill.variant-high .notif-pill-icon {
+    background: linear-gradient(135deg, #fcd34d, #f59e0b);
+}
+.notif-pill.variant-critical {
+    color: #E53935;
+    background: #fff4f5;
+}
+.notif-pill.variant-critical .notif-pill-icon {
+    background: linear-gradient(135deg, #ff7d7d, #E53935);
+}
+.notif-pill.variant-update {
+    color: #2563eb;
+    background: #f4f8ff;
+}
+.notif-pill.variant-update .notif-pill-icon {
+    background: linear-gradient(135deg, #7db2ff, #2563eb);
+}
+.notif-pill.variant-reassign {
+    color: #9333ea;
+    background: #faf5ff;
+}
+.notif-pill.variant-reassign .notif-pill-icon {
+    background: linear-gradient(135deg, #c084fc, #9333ea);
+}
+.notif-pill.variant-follow-up {
+    color: #7c4a03;
+    background: #fff6d8;
+}
+.notif-pill.variant-follow-up .notif-pill-icon {
+    background: linear-gradient(135deg, #fde68a, #f59e0b);
+}
+.notif-pill.notif-chat-pill {
+    min-height: 36px;
+    padding: 0 12px;
+    gap: 8px;
+    border: 0;
+    border-radius: 999px;
+    color: #ffffff;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    box-shadow: 0 6px 14px rgba(37, 99, 235, 0.18);
+}
+.notif-pill.notif-chat-pill .notif-pill-icon {
+    width: auto;
+    height: auto;
+    font-size: 16px;
+    background: transparent;
+}
+.notif-pill.notif-chat-pill .notif-pill-text {
+    padding: 0;
+    font-size: 0.88rem;
+    font-weight: 800;
 }
 
 .notif-content {
     flex: 1;
     min-width: 0;
 }
+.notif-item.priority-escalation .notif-content {
+    padding-left: 0;
+}
 .notif-title {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
+    gap: 6px;
+    margin-bottom: 5px;
     flex-wrap: wrap;
 }
+.notif-item.notif-chat-pending .notif-title {
+    gap: 10px;
+    margin-bottom: 6px;
+}
 .notif-title-text {
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     font-weight: 700;
     line-height: 1.3;
     color: #111827;
 }
+.notif-item.notif-chat-pending .notif-title-text {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #1f4e9c;
+    line-height: 1.3;
+}
+.notif-item.variant-follow-up {
+    background: linear-gradient(180deg, #fffdf4 0%, #fff9e7 100%);
+}
+.notif-item.variant-follow-up::before {
+    background: #f4c542;
+}
+.notif-item.variant-follow-up.unread::after {
+    background: #f4c542;
+}
+.notif-item.variant-follow-up .notif-title-text {
+    color: #111827;
+}
 
 .notif-msg {
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     color: #334155;
     line-height: 1.4;
     margin-bottom: 6px;
+}
+.notif-item.notif-chat-pending .notif-msg {
+    font-size: 0.9rem;
+    color: #23324f;
+    line-height: 1.45;
+    margin-bottom: 6px;
+}
+.notif-item.notif-chat-pending .notif-msg strong {
+    color: #1d4f9b;
+    font-weight: 700;
 }
 .notif-item.priority-escalation .notif-msg {
     font-size: 0.95rem;
@@ -397,6 +530,11 @@ window.TM_MESSENGER_STYLE = 'employee';
     font-size: 0.8rem;
     color: #94a3b8;
     display: block;
+}
+.notif-item.notif-chat-pending .notif-time {
+    font-size: 0.82rem;
+    color: #94a3b8;
+    letter-spacing: 0.01em;
 }
 .notif-item.priority-escalation .notif-time {
     font-size: 0.8rem;
@@ -502,6 +640,34 @@ window.TM_MESSENGER_STYLE = 'employee';
 .priority-escalation-toast.priority-critical .priority-escalation-toast-dot {
     background: #dc2626;
     box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12);
+}
+
+.priority-escalation-toast.employee-chat-toast {
+    background: linear-gradient(180deg, #f2f7ff 0%, #ffffff 100%);
+    color: #173a6b;
+    border-left-color: #2563eb;
+    box-shadow: 0 22px 48px rgba(37, 99, 235, 0.18);
+}
+
+.priority-escalation-toast.employee-chat-toast .priority-escalation-toast-icon {
+    background: linear-gradient(180deg, #60a5fa 0%, #2563eb 100%);
+}
+
+.priority-escalation-toast.employee-chat-toast .priority-escalation-toast-title {
+    color: #1d4f9b;
+}
+
+.priority-escalation-toast.employee-chat-toast .priority-escalation-toast-pill {
+    background: #2563eb;
+}
+
+.priority-escalation-toast.employee-chat-toast .priority-escalation-toast-message {
+    color: #1f3a63;
+}
+
+.priority-escalation-toast.employee-chat-toast .priority-escalation-toast-dot {
+    background: #2563eb;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
 }
 
 @media (max-width: 640px) {
@@ -684,23 +850,67 @@ document.addEventListener('DOMContentLoaded', function() {
     const list = document.getElementById('notifList');
     const userBtn = document.querySelector('.user-btn');
     const userDropdown = document.querySelector('.user-dropdown');
+    const chatReminderToastKey = 'tm_employee_seen_hr_chat_pending_notifications';
+    let chatReminderToastIds = new Set();
+
+    try {
+        const stored = sessionStorage.getItem(chatReminderToastKey);
+        if (stored) {
+            JSON.parse(stored).forEach((id) => {
+                chatReminderToastIds.add(String(id));
+            });
+        }
+    } catch (err) {
+        chatReminderToastIds = new Set();
+    }
+
+    function persistChatReminderToastIds() {
+        try {
+            sessionStorage.setItem(chatReminderToastKey, JSON.stringify(Array.from(chatReminderToastIds)));
+        } catch (err) {
+            // Ignore storage failures; the toast will still render once per poll cycle.
+        }
+    }
+
+    function showChatReminderToast(notification) {
+        const host = document.getElementById('priorityEscalationToastHost');
+        if (!host) return;
+
+        const toast = document.createElement('div');
+        toast.className = 'priority-escalation-toast employee-chat-toast';
+        toast.innerHTML = `
+            <div class="priority-escalation-toast-icon" aria-hidden="true">
+                <i class="fas fa-comments"></i>
+            </div>
+            <div class="priority-escalation-toast-body">
+                <div class="priority-escalation-toast-title">
+                    <span class="priority-escalation-toast-pill">Chat</span>
+                    <span>Pending Chat</span>
+                </div>
+                <div class="priority-escalation-toast-message">${escapeHtml(notification.message || 'You have a pending chat reply.')}</div>
+            </div>
+            <span class="priority-escalation-toast-dot" aria-hidden="true"></span>
+        `;
+        host.appendChild(toast);
+
+        window.setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-8px)';
+            toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+        }, 5600);
+
+        window.setTimeout(() => {
+            if (toast && toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 6200);
+    }
     
     // Toggle dropdown
     bell.addEventListener('click', function(e) {
         e.stopPropagation();
         if (userDropdown) userDropdown.classList.remove('show');
-        const isOpening = !dropdown.classList.contains('show');
         dropdown.classList.toggle('show');
-        if (isOpening) {
-            badge.style.display = 'none';
-            dot.style.display = 'none';
-            const body = 'mark_all=1' + (CSRF_TOKEN ? ('&csrf_token=' + encodeURIComponent(String(CSRF_TOKEN))) : '');
-            fetch('mark_notification_read.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: body
-            }).catch(function () {});
-        }
     });
 
     // Close dropdown when clicking outside
@@ -730,10 +940,21 @@ document.addEventListener('DOMContentLoaded', function() {
             el.textContent = toRelative(ts);
         });
     }
+    function getNotifSectionLabel(ts) {
+        const value = new Date(String(ts).replace(' ', 'T'));
+        if (Number.isNaN(value.getTime())) return 'Older';
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const itemDay = new Date(value.getFullYear(), value.getMonth(), value.getDate());
+        const diffDays = Math.round((today - itemDay) / 86400000);
+        if (diffDays <= 0) return 'Today';
+        if (diffDays === 1) return 'Yesterday';
+        return 'Older';
+    }
 
     // Fetch Notifications
     function fetchNotifications() {
-        fetch('fetch_notifications.php')
+        fetch('fetch_notifications.php?_=' + Date.now(), { cache: 'no-store' })
             .then(response => response.json())
             .then(data => {
                 const badge = document.getElementById('notifBadge');
@@ -746,13 +967,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     badge.style.display = 'block';
                     dot.style.display = 'block';
                 } else {
+                    badge.textContent = '';
                     badge.style.display = 'none';
                     dot.style.display = 'none';
                 }
 
                 // Update List
                 if (data.notifications && data.notifications.length > 0) {
+                    let currentSection = '';
                     list.innerHTML = data.notifications.map(n => {
+                        const sectionLabel = getNotifSectionLabel(n.created_at);
+                        const sectionHtml = sectionLabel !== currentSection
+                            ? `<div class="notif-section-label">${escapeHtml(sectionLabel)}</div>`
+                            : '';
+                        currentSection = sectionLabel;
                         const actionType = (n.action_type || '').toString().toLowerCase() || (function (legacyType) {
                             if (legacyType === 'dept_assigned' || legacyType === 'new_ticket') return 'assign';
                             if (legacyType === 'reassigned') return 'reassign';
@@ -760,39 +988,68 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (legacyType === 'status_update' || legacyType === 'note_added') return 'update';
                             return '';
                         })((n.type || '').toString());
+                        const isPriorityEscalation = (n.type || '').toString() === 'priority_escalated';
                         const rawPriority = (n.priority || '').toString().toLowerCase();
                         const allowed = ['critical', 'high', 'medium', 'low'];
-                        const priorityKey = allowed.includes(rawPriority) ? rawPriority : '';
-                        const priorityClass = priorityKey ? `priority-${priorityKey}` : 'priority-neutral';
-                        const priorityLabel = (n.type !== 'note_added' && priorityKey) ? `<span class="priority-badge ${priorityClass}">${escapeHtml(priorityKey.charAt(0).toUpperCase() + priorityKey.slice(1))}</span>` : '';
-                        const isPriorityEscalation = (n.type || '').toString() === 'priority_escalated';
-                        const titleText = getNotificationTitle(actionType, (n.type || '').toString(), priorityKey);
-                        let iconClass = 'fa-ticket';
-                        let iconTypeClass = 'type-neutral';
-                        if ((n.type || '').toString() === 'priority_escalated') iconClass = 'fa-exclamation';
-                        else if (actionType === 'update' && n.type === 'note_added') iconClass = 'fa-sticky-note';
-                        else if (actionType === 'update') iconClass = 'fa-sync-alt';
-                        else if (actionType === 'close') iconClass = 'fa-check-circle';
-                        else if (actionType === 'reassign') iconClass = 'fa-exchange-alt';
-                        else if (actionType === 'assign') iconClass = 'fa-inbox';
-                        if ((n.type || '').toString() === 'priority_escalated') iconTypeClass = 'type-priority-alert';
-                        else if (actionType === 'update' && n.type === 'note_added') iconTypeClass = 'type-note';
-                        else if (actionType === 'update') iconTypeClass = 'type-updated';
-                        else if (actionType === 'close') iconTypeClass = 'type-closed';
-                        else if (actionType === 'reassign') iconTypeClass = 'type-reassigned';
-                        else if (actionType === 'assign') iconTypeClass = 'type-assigned';
-                        let itemTypeClass = '';
-                        if (!isPriorityEscalation) {
-                            if (actionType === 'update' && n.type === 'note_added') itemTypeClass = 'type-card-note';
-                            else if (actionType === 'update') itemTypeClass = 'type-card-updated';
-                            else if (actionType === 'close') itemTypeClass = 'type-card-closed';
-                            else if (actionType === 'reassign') itemTypeClass = 'type-card-reassigned';
-                            else if (actionType === 'assign') itemTypeClass = 'type-card-assigned';
+                        const priorityKey = isPriorityEscalation
+                            ? escalationPriorityFromMessage(n.message)
+                            : (allowed.includes(rawPriority) ? rawPriority : '');
+                        const typeKey = (n.type || '').toString();
+                        const titleText = getNotificationTitle(actionType, typeKey, priorityKey);
+                        const isFollowUp = typeKey === 'follow_up';
+                        const isChatPending = typeKey === 'hr_chat_pending';
+                        let variantClass = 'variant-update';
+                        let pillText = 'Updated';
+                        let pillIcon = 'fa-rotate';
+                        if (isChatPending) {
+                            variantClass = 'variant-update';
+                            pillText = 'Chat';
+                            pillIcon = 'fa-comments';
+                        } else if (isFollowUp) {
+                            variantClass = 'variant-follow-up';
+                            pillText = 'Follow Up';
+                            pillIcon = 'fa-rotate';
+                            accentColor = '#d4a017';
+                            dotColor = '#d4a017';
+                        } else if (priorityKey === 'critical') {
+                            variantClass = 'variant-critical';
+                            pillText = 'Critical';
+                            pillIcon = 'fa-exclamation';
+                        } else if (priorityKey === 'high') {
+                            variantClass = 'variant-high';
+                            pillText = 'High';
+                            pillIcon = 'fa-plus';
+                        } else if (priorityKey === 'low') {
+                            variantClass = 'variant-low';
+                            pillText = 'Low';
+                            pillIcon = 'fa-check';
+                        } else if (actionType === 'assign') {
+                            variantClass = 'variant-assign';
+                            pillText = 'Assigned';
+                            pillIcon = 'fa-check';
+                        } else if (actionType === 'reassign') {
+                            variantClass = 'variant-reassign';
+                            pillText = 'Reassigned';
+                            pillIcon = 'fa-right-left';
+                        } else if (actionType === 'close') {
+                            variantClass = 'variant-close';
+                            pillText = 'Closed';
+                            pillIcon = 'fa-check';
+                        } else if (actionType === 'update' && n.type === 'note_added') {
+                            variantClass = 'variant-note';
+                            pillText = 'Private Note';
+                            pillIcon = 'fa-plus';
                         }
-                        const messageHtml = `<div class="notif-title">${priorityLabel}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
+                        if (isChatPending && Number(n.is_read) === 0 && !chatReminderToastIds.has(String(n.id))) {
+                            chatReminderToastIds.add(String(n.id));
+                            persistChatReminderToastIds();
+                            showChatReminderToast(n);
+                        }
+                        const pillHtml = `<span class="notif-pill ${variantClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span><span class="notif-pill-text">${escapeHtml(pillText)}</span></span>`;
+                        const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
                         return `
-                            <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${isPriorityEscalation ? `priority-escalation ${priorityClass}` : itemTypeClass}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${n.type || ''}')">
-                                <div class="notif-icon ${iconTypeClass}"><i class="fas ${iconClass}"></i></div>
+                            ${sectionHtml}
+                            <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''} ${isChatPending ? 'notif-chat-pending' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${n.type || ''}')">
                                 <div class="notif-content">
                                     ${messageHtml}
                                     <time class="notif-time" data-timestamp="${n.created_at}">${n.time_ago || ''}</time>
@@ -827,12 +1084,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getNotificationTitle(actionType, type, priorityKey) {
         if (type === 'priority_escalated') return getPriorityNotificationTitle(priorityKey);
+        if (type === 'conference_booking_deleted') return 'Conference Booking Deleted';
         if (actionType === 'assign') return 'Ticket Assigned';
         if (actionType === 'reassign') return 'Ticket Reassigned';
         if (actionType === 'close') return 'Ticket Closed';
+        if (type === 'follow_up') return 'Follow Up Request';
+        if (type === 'hr_chat_pending') return 'Pending Chat';
         if (actionType === 'update' && type === 'note_added') return 'Ticket Note';
         if (actionType === 'update') return 'Status Update';
         return 'Ticket Update';
+    }
+
+    function escalationPriorityFromMessage(message) {
+        const match = String(message || '').match(/escalated to\s+(critical|high|medium|low)\b/i);
+        return match ? String(match[1] || '').toLowerCase() : '';
     }
 
     function highlightNotificationMessage(text) {
@@ -868,8 +1133,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.location.href = 'notifications.php';
                 return;
             }
-            const taskTypes = new Set(['dept_assigned', 'reassigned', 'priority_escalated', 'new_ticket']);
-            if (taskTypes.has(String(type || ''))) {
+            const notifType = String(type || '');
+            if (notifType === 'hr_chat_pending') {
+                window.location.href = `my_task.php?ticket_id=${ticketId}&chat=1`;
+                return;
+            }
+            const taskTypes = new Set(['dept_assigned', 'reassigned', 'priority_escalated', 'new_ticket', 'follow_up', 'hr_chat_pending']);
+            if (taskTypes.has(notifType)) {
                 window.location.href = `my_task.php?ticket_id=${ticketId}`;
             } else {
                 window.location.href = `my_tickets.php?ticket_id=${ticketId}`;

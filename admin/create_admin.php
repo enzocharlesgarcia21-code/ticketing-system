@@ -1118,6 +1118,21 @@ $lapc_department_options = ticket_lapc_departments();
             border-color: #d9f0cd !important;
         }
 
+        .swal-admin-alert-icon.swal2-success .swal2-success-ring,
+        .swal-admin-alert-icon.swal2-success [class^="swal2-success-line"],
+        .swal-admin-alert-icon.swal2-success [class*=" swal2-success-line"] {
+            display: none !important;
+        }
+
+        .swal-admin-alert-icon.swal2-success .swal2-icon-content {
+            color: #8dcf6f !important;
+            font-size: 34px !important;
+            line-height: 1 !important;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+        }
+
         .swal-admin-alert-icon.swal2-error {
             color: #e54559 !important;
             border-color: #f2b3bc !important;
@@ -2467,6 +2482,7 @@ $lapc_department_options = ticket_lapc_departments();
     <?php if (isset($_SESSION['admin_added'])): ?>
         Swal.fire({
             icon: 'success',
+            iconHtml: '<i class="fa-solid fa-check"></i>',
             title: 'Admin added',
             html: 'The selected user is now an admin.',
             width: '420px',
@@ -2487,6 +2503,7 @@ $lapc_department_options = ticket_lapc_departments();
     <?php if (isset($_SESSION['admin_removed'])): ?>
         Swal.fire({
             icon: 'success',
+            iconHtml: '<i class="fa-solid fa-check"></i>',
             title: 'Admin removed',
             html: 'The admin has been removed successfully.',
             width: '420px',
