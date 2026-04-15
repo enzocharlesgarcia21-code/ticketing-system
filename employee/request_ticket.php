@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -1316,6 +1316,7 @@ $requestTicketCompanyOptions = [
             margin: 0;
             padding: 18px 24px;
             background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 800;
@@ -1552,6 +1553,7 @@ $requestTicketCompanyOptions = [
             margin: 0;
             padding: 18px 24px;
             background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
@@ -2191,6 +2193,7 @@ $requestTicketCompanyOptions = [
             margin: 0;
             padding: 18px 24px;
             background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
@@ -2670,7 +2673,7 @@ $requestTicketCompanyOptions = [
 </head>
 <body class="employee-request-ticket-page">
 
-    <!-- 2️⃣ TOP NAVIGATION BAR -->
+    <!-- 2ï¸âƒ£ TOP NAVIGATION BAR -->
     <?php include '../includes/employee_navbar.php'; ?>
 
     <div class="dashboard-container">
@@ -2682,7 +2685,7 @@ $requestTicketCompanyOptions = [
                 <?php unset($_SESSION['error']); ?>
             <?php endif; ?>
 
-            <!-- 4️⃣ REQUEST TICKET PAGE – REDESIGN -->
+            <!-- 4ï¸âƒ£ REQUEST TICKET PAGE â€“ REDESIGN -->
             <div class="page-header" style="text-align: center; margin-bottom: 40px;">
                 <h1 class="page-title">Create a Ticket</h1>
                 <p class="page-subtitle">Please fill out the form below.</p>
@@ -2693,7 +2696,7 @@ $requestTicketCompanyOptions = [
                     <?php echo csrf_field(); ?>
                     <div class="alert alert-error" id="ajaxError" style="background:#fee2e2;color:#991b1b;padding:15px;border-radius:8px;margin-bottom:20px;border:1px solid #fecaca;font-weight:700; display:none;"></div>
                     
-                    <!-- 🔹 Request Information -->
+                    <!-- ðŸ”¹ Request Information -->
                     <h3 class="form-section-title">Request Information</h3>
 
                     <div class="request-grid-row is-single" id="recipientDepartmentRow">
@@ -3301,7 +3304,7 @@ $requestTicketCompanyOptions = [
     <div id="successModal" class="ticket-modal" aria-hidden="true">
         <div class="ticket-modal-content" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
             <div class="ticket-modal-spinner" aria-hidden="true"></div>
-            <div class="ticket-modal-icon success" id="ticketModalSuccessIcon">✓</div>
+            <div class="ticket-modal-icon success" id="ticketModalSuccessIcon">âœ“</div>
             <div class="ticket-modal-icon error" id="ticketModalErrorIcon">!</div>
             <h3 id="successModalTitle">Submitting Ticket</h3>
             <p id="successModalDesc">Almost there. We are finalizing your request...</p>
@@ -4269,7 +4272,7 @@ $requestTicketCompanyOptions = [
 
                 var removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
-                removeBtn.textContent = '×';
+                removeBtn.textContent = 'Ã—';
                 removeBtn.style.border = '1px solid #e2e8f0';
                 removeBtn.style.background = '#ffffff';
                 removeBtn.style.color = '#ef4444';
@@ -4838,3 +4841,5 @@ $requestTicketCompanyOptions = [
     </script>
 </body>
 </html>
+
+
