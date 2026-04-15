@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -1535,6 +1535,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             margin: 0;
             padding: 18px 24px;
             background: linear-gradient(135deg, #67c86f, #57b861);
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
@@ -1562,6 +1563,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             margin: 0;
             padding: 18px 24px;
             background: linear-gradient(135deg, #67c86f, #57b861);
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
@@ -2019,6 +2021,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             margin: 0;
             padding: 18px 24px;
             background: linear-gradient(135deg, #67c86f, #57b861);
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
@@ -3045,7 +3048,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 <div id="successModal" class="ticket-modal" aria-hidden="true">
     <div class="ticket-modal-content" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
         <div class="ticket-modal-spinner" aria-hidden="true"></div>
-        <div class="ticket-modal-icon success" id="ticketModalSuccessIcon">✓</div>
+        <div class="ticket-modal-icon success" id="ticketModalSuccessIcon">âœ“</div>
         <div class="ticket-modal-icon error" id="ticketModalErrorIcon">!</div>
         <h3 id="successModalTitle">Submitting Ticket</h3>
         <p id="successModalDesc">Almost there. We are finalizing your request...</p>
@@ -3729,7 +3732,7 @@ function syncFiles() {
         var right = document.createElement('div');
         var removeBtn = document.createElement('button');
         removeBtn.type = 'button';
-        removeBtn.textContent = '×';
+        removeBtn.textContent = 'Ã—';
         removeBtn.style.border = '1px solid #e2e8f0';
         removeBtn.style.background = '#ffffff';
         removeBtn.style.color = '#ef4444';
@@ -4309,3 +4312,4 @@ function closeModal(){
 
 </body>
 </html>
+
