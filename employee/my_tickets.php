@@ -367,12 +367,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
 
     $cooldownWindow = follow_up_cooldown_window($conn, $ticketId);
     if (!empty($cooldownWindow['in_cooldown'])) {
+        $availableAtValue = trim((string) ($cooldownWindow['available_at'] ?? ''));
+        $availableAtTimestamp = $availableAtValue !== '' ? strtotime($availableAtValue) : false;
         http_response_code(429);
         echo json_encode([
             'ok' => false,
             'error' => follow_up_cooldown_message($cooldownWindow),
             'cooldown_active' => true,
-            'available_at' => $cooldownWindow['available_at'] ?? null,
+            'available_at' => $availableAtValue !== '' ? $availableAtValue : null,
+            'available_at_ts' => $availableAtTimestamp !== false ? (int) $availableAtTimestamp : null,
         ]);
         exit;
     }
@@ -391,12 +394,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
         exit;
     }
 
+    $newCooldownWindow = follow_up_cooldown_window($conn, $ticketId);
+    $newAvailableAtValue = trim((string) ($newCooldownWindow['available_at'] ?? ''));
+    $newAvailableAtTimestamp = $newAvailableAtValue !== '' ? strtotime($newAvailableAtValue) : false;
     $responsePayload = [
         'ok' => true,
         'message' => 'Follow up sent successfully.',
         'notifications_sent' => $inserted,
         'emails_sent' => 0,
-        'cooldown_active' => true,
+        'cooldown_active' => !empty($newCooldownWindow['in_cooldown']),
+        'available_at' => $newAvailableAtValue !== '' ? $newAvailableAtValue : null,
+        'available_at_ts' => $newAvailableAtTimestamp !== false ? (int) $newAvailableAtTimestamp : null,
     ];
     finish_follow_up_response($responsePayload);
 
@@ -563,7 +571,7 @@ $successMessage = '';
         body.employee-my-tickets-page .table-responsive.my-tickets-table-responsive {
             flex: 1 1 auto;
             overflow-x: auto;
-            overflow-y: hidden;
+            overflow-y: visible;
         }
         body.employee-my-tickets-page .my-tickets-table-responsive table {
             table-layout: fixed;
@@ -597,6 +605,7 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .follow-up-cell {
             text-align: center;
+            overflow: visible;
         }
         body.employee-my-tickets-page .follow-up-btn {
             display: inline-flex;
@@ -605,6 +614,7 @@ $successMessage = '';
             min-width: 112px;
             min-height: 38px;
             padding: 0 18px;
+            position: relative;
             border: 0;
             border-radius: 999px;
             background: linear-gradient(180deg, #1f7a36 0%, #16602a 100%);
@@ -634,6 +644,74 @@ $successMessage = '';
             cursor: default;
             opacity: 1;
             transform: none;
+        }
+        body.employee-my-tickets-page .follow-up-btn.follow-up-cooldown {
+            cursor: not-allowed;
+            transition: all 0.2s ease;
+            overflow: visible;
+            z-index: 0;
+            isolation: isolate;
+        }
+        body.employee-my-tickets-page .follow-up-btn.follow-up-cooldown::before {
+            content: attr(data-cooldown-label);
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 12px);
+            transform: translateX(-50%) translateY(5px);
+            padding: 7px 12px;
+            border-radius: 10px;
+            background: linear-gradient(180deg, rgba(247, 245, 236, 0.98) 0%, rgba(240, 237, 225, 0.98) 100%);
+            border: 1px solid rgba(208, 204, 183, 0.9);
+            box-shadow: 0 8px 18px rgba(58, 91, 65, 0.1);
+            color: #5a5f58;
+            font-size: 11px;
+            font-weight: 500;
+            line-height: 1.15;
+            letter-spacing: 0.01em;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: all 0.2s ease;
+        }
+        body.employee-my-tickets-page .follow-up-btn.follow-up-cooldown::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 5px);
+            width: 11px;
+            height: 11px;
+            transform: translateX(-50%) rotate(45deg) translateY(5px);
+            background: linear-gradient(180deg, rgba(247, 245, 236, 0.98) 0%, rgba(240, 237, 225, 0.98) 100%);
+            border-right: 1px solid rgba(208, 204, 183, 0.9);
+            border-bottom: 1px solid rgba(208, 204, 183, 0.9);
+            box-shadow: 0 0 0 0 rgba(15, 122, 42, 0), 0 8px 16px rgba(58, 91, 65, 0);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: all 0.2s ease;
+        }
+        body.employee-my-tickets-page .follow-up-btn.is-sent.follow-up-cooldown:hover,
+        body.employee-my-tickets-page .follow-up-btn.is-sent.follow-up-cooldown:focus-visible {
+            cursor: not-allowed;
+            z-index: 1;
+            box-shadow: 0 0 0 2px rgba(133, 182, 138, 0.85), 0 0 0 6px rgba(133, 182, 138, 0.2), 0 12px 28px rgba(113, 160, 118, 0.18);
+        }
+        body.employee-my-tickets-page .follow-up-btn.is-sent.follow-up-cooldown:hover::before,
+        body.employee-my-tickets-page .follow-up-btn.is-sent.follow-up-cooldown:focus-visible::before,
+        body.employee-my-tickets-page .follow-up-btn.is-sent.follow-up-cooldown:hover::after,
+        body.employee-my-tickets-page .follow-up-btn.is-sent.follow-up-cooldown:focus-visible::after {
+            opacity: 1;
+            visibility: visible;
+        }
+        body.employee-my-tickets-page .follow-up-btn.is-sent.follow-up-cooldown:hover::before,
+        body.employee-my-tickets-page .follow-up-btn.is-sent.follow-up-cooldown:focus-visible::before {
+            transform: translateX(-50%) translateY(0);
+        }
+        body.employee-my-tickets-page .follow-up-btn.is-sent.follow-up-cooldown:hover::after,
+        body.employee-my-tickets-page .follow-up-btn.is-sent.follow-up-cooldown:focus-visible::after {
+            transform: translateX(-50%) rotate(45deg) translateY(0);
+            box-shadow: 0 0 0 0 rgba(15, 122, 42, 0), 0 8px 16px rgba(58, 91, 65, 0.07);
         }
         body.employee-my-tickets-page #myTicketsPagination {
             margin-top: auto;
@@ -934,18 +1012,23 @@ $successMessage = '';
                                             <?php
                                                 $followUpInCooldown = !empty($row['follow_up_in_cooldown']);
                                                 $followUpAvailableAt = trim((string) ($row['follow_up_available_at'] ?? ''));
-                                                $followUpTitle = '';
+                                                $followUpAvailableTs = 0;
                                                 if ($followUpInCooldown && $followUpAvailableAt !== '') {
-                                                    $followUpTitle = 'Available again on ' . date('M d, Y h:i A', strtotime($followUpAvailableAt));
+                                                    $followUpTimestamp = strtotime($followUpAvailableAt);
+                                                    if ($followUpTimestamp !== false) {
+                                                        $followUpAvailableTs = (int) $followUpTimestamp;
+                                                    }
                                                 }
                                             ?>
                                             <button
                                                 type="button"
-                                                class="follow-up-btn<?= $followUpInCooldown ? ' is-sent' : ''; ?>"
+                                                class="follow-up-btn<?= $followUpInCooldown ? ' is-sent follow-up-cooldown' : ''; ?>"
                                                 data-ticket-id="<?= (int) $row['id']; ?>"
                                                 aria-label="<?= $followUpInCooldown ? 'Follow up is on cooldown for ticket #' : 'Follow up ticket #'; ?><?= (int) $row['id']; ?>"
-                                                <?= $followUpTitle !== '' ? 'title="' . htmlspecialchars($followUpTitle, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>
-                                                <?= $followUpInCooldown ? 'disabled' : ''; ?>
+                                                <?= $followUpInCooldown ? 'aria-disabled="true" tabindex="-1"' : ''; ?>
+                                                <?= $followUpInCooldown && $followUpAvailableAt !== '' ? 'data-available-at="' . htmlspecialchars($followUpAvailableAt, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>
+                                                <?= $followUpInCooldown && $followUpAvailableTs > 0 ? 'data-available-at-ts="' . $followUpAvailableTs . '"' : ''; ?>
+                                                <?= $followUpInCooldown ? 'data-cooldown-label="Available in 48 hours"' : ''; ?>
                                             ><?= $followUpInCooldown ? 'Follow Up Sent' : 'Follow Up'; ?></button>
                                         <?php endif; ?>
                                     </td>
@@ -1040,6 +1123,7 @@ $successMessage = '';
     var followUpFeedbackBtn = document.getElementById('followUpFeedbackBtn');
     var followUpFeedbackClose = document.getElementById('followUpFeedbackClose');
     var followUpFeedbackState = '';
+    var followUpCooldownTimers = {};
 
     function getMyTicketsCsrfToken() {
         var meta = document.querySelector('meta[name="csrf-token"]');
@@ -1069,12 +1153,108 @@ $successMessage = '';
                 myTicketsBodyEl.innerHTML = data.rows_html || '';
                 myTicketsPaginationEl.innerHTML = data.pagination_html || '';
                 myTicketsCurrentPage = parseInt(data.page || nextPage, 10) || 1;
+                initializeFollowUpCooldownButtons(myTicketsBodyEl);
                 if (updateHistory === false) return;
                 var url = new URL(window.location.href);
                 url.searchParams.set('page', String(myTicketsCurrentPage));
                 history.replaceState({}, '', url.toString());
             })
             .catch(function () {});
+    }
+
+    function parseFollowUpTimestamp(value) {
+        var timestamp = parseInt(value || '', 10);
+        return timestamp > 0 ? timestamp * 1000 : 0;
+    }
+
+    function parseFollowUpAvailableAt(value) {
+        var normalized = String(value || '').trim();
+        if (!normalized) return 0;
+        var match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+        if (!match) return 0;
+        return new Date(
+            parseInt(match[1], 10),
+            parseInt(match[2], 10) - 1,
+            parseInt(match[3], 10),
+            parseInt(match[4], 10),
+            parseInt(match[5], 10),
+            parseInt(match[6] || '0', 10)
+        ).getTime();
+    }
+
+    function formatFollowUpCooldownLabel(availableTimeMs) {
+        if (!availableTimeMs || availableTimeMs <= 0) return 'Available in 48 hours';
+        var remainingMs = Math.max(availableTimeMs - Date.now(), 0);
+        var totalMinutes = Math.ceil(remainingMs / 60000);
+        if (totalMinutes <= 1) return 'Available in 1 minute';
+        if (totalMinutes < 60) return 'Available in ' + totalMinutes + ' minutes';
+        var totalHours = Math.ceil(totalMinutes / 60);
+        if (totalHours <= 48) return 'Available in ' + totalHours + ' hour' + (totalHours === 1 ? '' : 's');
+        var totalDays = Math.ceil(totalHours / 24);
+        return 'Available in ' + totalDays + ' day' + (totalDays === 1 ? '' : 's');
+    }
+
+    function clearFollowUpCooldownTimer(buttonEl) {
+        if (!buttonEl) return;
+        var ticketId = parseInt(buttonEl.getAttribute('data-ticket-id') || '', 10);
+        if (ticketId > 0 && followUpCooldownTimers[ticketId]) {
+            window.clearTimeout(followUpCooldownTimers[ticketId]);
+            delete followUpCooldownTimers[ticketId];
+        }
+    }
+
+    function restoreFollowUpButtonActive(buttonEl) {
+        if (!buttonEl) return;
+        clearFollowUpCooldownTimer(buttonEl);
+        buttonEl.disabled = false;
+        buttonEl.removeAttribute('disabled');
+        buttonEl.classList.remove('is-sent', 'follow-up-cooldown');
+        buttonEl.removeAttribute('aria-disabled');
+        buttonEl.removeAttribute('tabindex');
+        buttonEl.removeAttribute('data-available-at');
+        buttonEl.removeAttribute('data-available-at-ts');
+        buttonEl.removeAttribute('data-cooldown-label');
+        buttonEl.textContent = buttonEl.getAttribute('data-default-text') || 'Follow Up';
+        var ticketId = parseInt(buttonEl.getAttribute('data-ticket-id') || '', 10);
+        if (ticketId > 0) {
+            buttonEl.setAttribute('aria-label', 'Follow up ticket #' + ticketId);
+        }
+    }
+
+    function scheduleFollowUpCooldown(buttonEl) {
+        if (!buttonEl || !buttonEl.classList.contains('follow-up-cooldown')) return;
+        clearFollowUpCooldownTimer(buttonEl);
+        var availableTimeMs = parseFollowUpTimestamp(buttonEl.getAttribute('data-available-at-ts'));
+        if (!availableTimeMs) {
+            availableTimeMs = parseFollowUpAvailableAt(buttonEl.getAttribute('data-available-at'));
+        }
+        if (!availableTimeMs) return;
+        var delay = availableTimeMs - Date.now();
+        if (delay <= 0) {
+            restoreFollowUpButtonActive(buttonEl);
+            return;
+        }
+        var ticketId = parseInt(buttonEl.getAttribute('data-ticket-id') || '', 10);
+        if (ticketId <= 0) return;
+        followUpCooldownTimers[ticketId] = window.setTimeout(function () {
+            delete followUpCooldownTimers[ticketId];
+            if (!document.body.contains(buttonEl)) return;
+            restoreFollowUpButtonActive(buttonEl);
+        }, delay + 200);
+    }
+
+    function initializeFollowUpCooldownButtons(rootEl) {
+        var scope = rootEl && rootEl.querySelectorAll ? rootEl : document;
+        var cooldownButtons = scope.querySelectorAll('.follow-up-btn.follow-up-cooldown');
+        cooldownButtons.forEach(function (buttonEl) {
+            if (!buttonEl.getAttribute('data-default-text')) {
+                buttonEl.setAttribute('data-default-text', 'Follow Up');
+            }
+            var availableTimeMs = parseFollowUpTimestamp(buttonEl.getAttribute('data-available-at-ts'))
+                || parseFollowUpAvailableAt(buttonEl.getAttribute('data-available-at'));
+            buttonEl.setAttribute('data-cooldown-label', formatFollowUpCooldownLabel(availableTimeMs));
+            scheduleFollowUpCooldown(buttonEl);
+        });
     }
 
     function scheduleMyTicketsRefresh() {
@@ -1124,6 +1304,7 @@ $successMessage = '';
 
     function setFollowUpButtonSending(buttonEl) {
         if (!buttonEl) return;
+        clearFollowUpCooldownTimer(buttonEl);
         if (!buttonEl.getAttribute('data-default-text')) {
             buttonEl.setAttribute('data-default-text', buttonEl.textContent || 'Follow Up');
         }
@@ -1134,18 +1315,31 @@ $successMessage = '';
     function resetFollowUpButton(buttonEl) {
         if (!buttonEl) return;
         buttonEl.disabled = false;
+        buttonEl.removeAttribute('aria-disabled');
+        buttonEl.removeAttribute('tabindex');
         buttonEl.textContent = buttonEl.getAttribute('data-default-text') || 'Follow Up';
     }
 
-    function markFollowUpButtonSent(buttonEl) {
+    function setFollowUpButtonCooldown(buttonEl, availableAt, availableAtTs) {
         if (!buttonEl) return;
-        buttonEl.disabled = true;
-        buttonEl.classList.add('is-sent');
+        buttonEl.disabled = false;
+        buttonEl.removeAttribute('disabled');
+        buttonEl.classList.add('is-sent', 'follow-up-cooldown');
+        buttonEl.setAttribute('aria-disabled', 'true');
+        buttonEl.setAttribute('tabindex', '-1');
         buttonEl.textContent = 'Follow Up Sent';
+        if (availableAt) {
+            buttonEl.setAttribute('data-available-at', availableAt);
+        }
+        if (availableAtTs) {
+            buttonEl.setAttribute('data-available-at-ts', String(availableAtTs));
+        }
+        buttonEl.setAttribute('data-cooldown-label', formatFollowUpCooldownLabel(parseFollowUpTimestamp(availableAtTs) || parseFollowUpAvailableAt(availableAt)));
         var ticketId = parseInt(buttonEl.getAttribute('data-ticket-id') || '', 10);
         if (ticketId > 0) {
-            buttonEl.setAttribute('aria-label', 'Follow up already sent for ticket #' + ticketId);
+            buttonEl.setAttribute('aria-label', 'Follow up is on cooldown for ticket #' + ticketId);
         }
+        scheduleFollowUpCooldown(buttonEl);
     }
 
     function sendFollowUp(ticketId, buttonEl) {
@@ -1184,14 +1378,14 @@ $successMessage = '';
             .then(function (data) {
                 if (!data || !data.ok) {
                     if (data && data.cooldown_active && buttonEl) {
-                        markFollowUpButtonSent(buttonEl);
+                        setFollowUpButtonCooldown(buttonEl, data.available_at || '', data.available_at_ts || '');
                         showFollowUpFeedback('error', 'Follow Up Cooldown', data.error || 'Follow up can be sent again after 2 days.');
                         return;
                     }
                     showFollowUpFeedback('error', 'Follow Up Failed', (data && data.error) ? data.error : 'Unable to send follow up right now.');
                     return;
                 }
-                markFollowUpButtonSent(buttonEl);
+                setFollowUpButtonCooldown(buttonEl, data.available_at || '', data.available_at_ts || '');
                 showFollowUpFeedback('success', 'Follow Up Sent', data.message || 'Follow up sent successfully.');
                 refreshMyTickets(myTicketsCurrentPage, false);
             })
@@ -1211,6 +1405,9 @@ $successMessage = '';
         if (followUpBtn) {
             e.preventDefault();
             e.stopPropagation();
+            if (followUpBtn.disabled || followUpBtn.classList.contains('follow-up-cooldown') || followUpBtn.getAttribute('aria-disabled') === 'true') {
+                return;
+            }
             var followUpTicketId = parseInt(followUpBtn.getAttribute('data-ticket-id') || '', 10);
             if (followUpTicketId > 0) {
                 sendFollowUp(followUpTicketId, followUpBtn);
@@ -1248,6 +1445,7 @@ $successMessage = '';
             }
         });
     }
+    initializeFollowUpCooldownButtons(document);
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && followUpFeedbackOverlay && followUpFeedbackOverlay.classList.contains('is-visible')) {
             closeFollowUpFeedback();
