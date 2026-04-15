@@ -56,19 +56,28 @@ function follow_up_button_html(array $row): string
     $ticketId = (int) ($row['id'] ?? 0);
     $followUpInCooldown = !empty($row['follow_up_in_cooldown']);
     $followUpAvailableAt = trim((string) ($row['follow_up_available_at'] ?? ''));
-    $class = 'follow-up-btn' . ($followUpInCooldown ? ' is-sent' : '');
+    $class = 'follow-up-btn' . ($followUpInCooldown ? ' is-sent follow-up-cooldown' : '');
     $label = $followUpInCooldown ? 'Follow Up Sent' : 'Follow Up';
     $aria = $followUpInCooldown ? 'Follow up is on cooldown for ticket #' . $ticketId : 'Follow up ticket #' . $ticketId;
-    $disabled = $followUpInCooldown ? ' disabled' : '';
-    $title = '';
+    $attrs = $followUpInCooldown ? ' aria-disabled="true" tabindex="-1"' : '';
+    $availableTs = 0;
     if ($followUpInCooldown && $followUpAvailableAt !== '') {
         $timestamp = strtotime($followUpAvailableAt);
         if ($timestamp !== false) {
-            $title = ' title="' . h('Available again on ' . date('M d, Y h:i A', $timestamp)) . '"';
+            $availableTs = (int) $timestamp;
         }
     }
+    if ($followUpInCooldown && $followUpAvailableAt !== '') {
+        $attrs .= ' data-available-at="' . h($followUpAvailableAt) . '"';
+    }
+    if ($followUpInCooldown && $availableTs > 0) {
+        $attrs .= ' data-available-at-ts="' . $availableTs . '"';
+    }
+    if ($followUpInCooldown) {
+        $attrs .= ' data-cooldown-label="' . h('Available in 48 hours') . '"';
+    }
 
-    return '<button type="button" class="' . $class . '" data-ticket-id="' . $ticketId . '" aria-label="' . h($aria) . '"' . $title . $disabled . '>' . $label . '</button>';
+    return '<button type="button" class="' . $class . '" data-ticket-id="' . $ticketId . '" aria-label="' . h($aria) . '"' . $attrs . '>' . $label . '</button>';
 }
 
 ticket_apply_sla_priority($conn);
