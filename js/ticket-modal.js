@@ -638,9 +638,35 @@ var TMTicketModal = (function () {
     if (hr && hr.is_hr_special) return '';
     var title = 'Description';
     var descriptionText = String((data && data.description) || '');
-    var descriptionHtml = descriptionText
-      ? '<div class="tm-desc-text">' + escapeHtml(descriptionText).replace(/\n/g, '<br>') + '</div>'
-      : '';
+    var descriptionHtml = '';
+    if (descriptionText) {
+      var lines = descriptionText.split(/\r?\n/).map(function (line) { return String(line || '').trim(); }).filter(function (line) { return line !== ''; });
+      var assignedCompany = String((data && data.assigned_company) || '').trim().toLowerCase();
+      var assignedGroup = String((data && (data.assigned_group || data.assigned_department)) || '').trim();
+      var isLapcHrTicket = assignedCompany === '@leadsagri.com' && assignedGroup === 'HR';
+      if (isLapcHrTicket && lines.length > 1 && lines[0].indexOf(':') === -1) {
+        title = lines[0];
+        lines = lines.slice(1);
+      }
+      if (lines.length > 0) {
+        descriptionHtml = '<div class="tm-desc-text">';
+        lines.forEach(function (line, index) {
+          var colonIndex = line.indexOf(':');
+          if (colonIndex > 0 && colonIndex < line.length - 1) {
+            var label = line.slice(0, colonIndex).trim();
+            var value = line.slice(colonIndex + 1).trim();
+            descriptionHtml += ''
+              + '<div class="tm-desc-row">'
+              + '  <span class="tm-desc-label">' + escapeHtml(label) + ':</span>'
+              + '  <span class="tm-desc-value">' + escapeHtml(value) + '</span>'
+              + '</div>';
+          } else {
+            descriptionHtml += '<div class="tm-desc-lead' + (index > 0 ? ' is-muted' : '') + '">' + escapeHtml(line) + '</div>';
+          }
+        });
+        descriptionHtml += '</div>';
+      }
+    }
     var attachmentsHtml = renderAttachmentsBlock(data);
     var emptyHtml = (!descriptionHtml && !attachmentsHtml) ? '<div class="tm-info-value">-</div>' : '';
     return '<div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(title) + '</span></div><div class="tm-card-body">' + descriptionHtml + attachmentsHtml + emptyHtml + '</div></div>';
