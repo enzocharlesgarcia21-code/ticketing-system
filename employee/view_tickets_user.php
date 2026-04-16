@@ -399,6 +399,7 @@ const CURRENT_USER_ID = <?php echo isset($_SESSION['user_id']) ? $_SESSION['user
 let chatInterval;
 let chatUiBound = false;
 let attachmentCategorySeq = 0;
+let sapDisplaySeq = 0;
 
 // Chat Functions
 function startChat(ticketId) {
@@ -660,6 +661,7 @@ function openModal(id, mode = 'full') {
                 const descriptionText = hr && typeof hr.detail_text !== 'undefined'
                     ? String(hr.detail_text || '')
                     : String(data.description || '');
+                const sapDescriptionHtml = (!hr && descriptionText) ? renderSapDescriptionHtml(data, descriptionText) : '';
                 const hrAttachmentGroups = hr && Array.isArray(hr.attachment_groups) ? hr.attachment_groups : [];
                 const summaryFields = hr && Array.isArray(hr.summary_fields) ? hr.summary_fields : [];
                 html += `
@@ -681,7 +683,7 @@ function openModal(id, mode = 'full') {
                                     <div class="modal-info-value">${escapeHtml(descriptionText).replace(/\n/g, '<br>')}</div>
                                 </div>
                             ` : ''}
-                        ` : (descriptionText ? `<div class="modal-description-text">${escapeHtml(descriptionText).replace(/\n/g, '<br>')}</div>` : '')}
+                        ` : (sapDescriptionHtml || (descriptionText ? `<div class="modal-description-text">${escapeHtml(descriptionText).replace(/\n/g, '<br>')}</div>` : ''))}
                         ${(hrAttachmentGroups.length ? renderHrAttachmentCategoryCarousel(hrAttachmentGroups) : structuredAttachments)}
                     </div>
                 </div>
@@ -746,6 +748,109 @@ function escapeHtml(text) {
 function isImageAttachment(filename) {
     const ext = String(filename || '').split('.').pop().toLowerCase();
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+}
+
+function isSapTicket(data, descriptionText) {
+    const assignedCompany = String((data && data.assigned_company) || '').trim().toLowerCase();
+    const assignedGroup = String((data && (data.assigned_group || data.assigned_department)) || '').trim().toLowerCase();
+    const category = String((data && data.category) || '').trim().toLowerCase();
+    const subject = String((data && data.subject) || '').trim().toLowerCase();
+    const text = String(descriptionText || '').trim().toLowerCase();
+    return assignedCompany === '@leadsagri.com'
+        && assignedGroup === 'it'
+        && (category === 'sap' || subject === 'sap' || text.indexOf('sap form') === 0);
+}
+
+function parseSapDescription(descriptionText) {
+    const lines = String(descriptionText || '').split(/\r?\n/).map(function (line) {
+        return String(line || '').trim();
+    }).filter(function (line) {
+        return line !== '';
+    });
+    const reports = [];
+    let current = null;
+    lines.forEach(function (line) {
+        if (/^sap form$/i.test(line)) return;
+        const employeeMatch = line.match(/^Employee Details(?:\s+(\d+))?$/i);
+        if (employeeMatch) {
+            current = { index: employeeMatch[1] || String(reports.length + 1), fields: {} };
+            reports.push(current);
+            return;
+        }
+        const colonIndex = line.indexOf(':');
+        if (colonIndex > 0) {
+            if (!current) {
+                current = { index: String(reports.length + 1), fields: {} };
+                reports.push(current);
+            }
+            const label = line.slice(0, colonIndex).trim();
+            const value = line.slice(colonIndex + 1).trim();
+            current.fields[label.toLowerCase()] = value;
+        }
+    });
+    return reports;
+}
+
+function renderSapDescriptionHtml(data, descriptionText) {
+    if (!isSapTicket(data, descriptionText)) return '';
+    const reports = parseSapDescription(descriptionText);
+    if (!reports.length) return '';
+    const carouselId = `tmSapDisplay-${++sapDisplaySeq}`;
+    const fieldConfig = [
+        { key: 'full name', label: 'Full Name' },
+        { key: 'position', label: 'Position' },
+        { key: 'immediate supervisor', label: 'Supervisor' },
+        { key: 'company', label: 'Company' },
+        { key: 'department', label: 'Department', wide: true }
+    ];
+    return `
+        <div class="tm-sap-display">
+            <div class="tm-sap-title">SAP Form</div>
+            <div class="tm-sap-carousel" id="${carouselId}" data-index="0">
+            ${reports.map(function (report, reportIndex) {
+                return `
+                    <div class="tm-sap-card${reportIndex === 0 ? ' is-active' : ''}" data-index="${reportIndex}" aria-hidden="${reportIndex === 0 ? 'false' : 'true'}">
+                        <div class="tm-sap-card-title">Employee Details${reports.length > 1 ? ' ' + escapeHtml(report.index) : ''}</div>
+                        <div class="tm-sap-field-grid">
+                            ${fieldConfig.map(function (field) {
+                                const value = report.fields[field.key] || '-';
+                                return `
+                                    <div class="tm-sap-field${field.wide ? ' is-wide' : ''}">
+                                        <div class="tm-sap-label">${escapeHtml(field.label)}</div>
+                                        <div class="tm-sap-value">${escapeHtml(value)}</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+            ${reports.length > 1 ? `
+                <div class="tm-sap-actions">
+                    <button type="button" class="tm-sap-nav-btn" onclick="stepSapDisplay('${carouselId}', -1)">← Previous</button>
+                    <button type="button" class="tm-sap-nav-btn primary" onclick="stepSapDisplay('${carouselId}', 1)">Next ›</button>
+                </div>
+            ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function stepSapDisplay(id, delta) {
+    const root = document.getElementById(String(id || ''));
+    if (!root) return;
+    const cards = root.querySelectorAll('.tm-sap-card');
+    if (!cards.length) return;
+    const total = cards.length;
+    let current = Number(root.getAttribute('data-index') || 0);
+    if (!Number.isFinite(current)) current = 0;
+    const nextIndex = ((current + Number(delta || 0)) % total + total) % total;
+    root.setAttribute('data-index', String(nextIndex));
+    cards.forEach(function (card, index) {
+        const active = index === nextIndex;
+        card.classList.toggle('is-active', active);
+        card.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
 }
 
 function getHrAttachmentSlides(groups) {

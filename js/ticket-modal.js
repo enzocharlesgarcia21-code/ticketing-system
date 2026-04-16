@@ -15,6 +15,7 @@ var TMTicketModal = (function () {
   var chatModalAttachmentFile = null;
   var messengerAttachmentFile = null;
   var attachmentCategorySeq = 0;
+  var sapDisplaySeq = 0;
   var chatPermissionState = { canChat: true, lockedMessage: '', handlerName: '', statusLabel: '' };
   var messengerPermissionState = { canChat: false, lockedMessage: '', handlerName: '', statusLabel: '', isChecking: false };
   function qs(id) { return document.getElementById(id); }
@@ -253,6 +254,7 @@ var TMTicketModal = (function () {
   function setModalVariant(modalContent, variant) {
     if (!modalContent || !modalContent.classList) return;
     modalContent.classList.remove('tm-unavailable-modal');
+    modalContent.classList.remove('tm-sap-ticket-modal');
     if (variant === 'unavailable') modalContent.classList.add('tm-unavailable-modal');
   }
   function buildUnavailableHtml(data) {
@@ -556,6 +558,99 @@ var TMTicketModal = (function () {
     if (data.subject) return normalizeDisplaySubject(data.subject);
     return 'Ticket';
   }
+  function isSapTicket(data, descriptionText) {
+    var assignedCompany = String((data && data.assigned_company) || '').trim().toLowerCase();
+    var assignedGroup = String((data && (data.assigned_group || data.assigned_department)) || '').trim().toLowerCase();
+    var category = String((data && data.category) || '').trim().toLowerCase();
+    var subject = String((data && data.subject) || '').trim().toLowerCase();
+    var text = String(descriptionText || '').trim().toLowerCase();
+    return assignedCompany === '@leadsagri.com'
+      && assignedGroup === 'it'
+      && (category === 'sap' || subject === 'sap' || text.indexOf('sap form') === 0);
+  }
+  function parseSapDescription(descriptionText) {
+    var lines = String(descriptionText || '').split(/\r?\n/).map(function (line) {
+      return String(line || '').trim();
+    }).filter(function (line) {
+      return line !== '';
+    });
+    var reports = [];
+    var current = null;
+    lines.forEach(function (line) {
+      if (/^sap form$/i.test(line)) return;
+      var employeeMatch = line.match(/^Employee Details(?:\s+(\d+))?$/i);
+      if (employeeMatch) {
+        current = { index: employeeMatch[1] || String(reports.length + 1), fields: {} };
+        reports.push(current);
+        return;
+      }
+      var colonIndex = line.indexOf(':');
+      if (colonIndex > 0) {
+        if (!current) {
+          current = { index: String(reports.length + 1), fields: {} };
+          reports.push(current);
+        }
+        var label = line.slice(0, colonIndex).trim();
+        var value = line.slice(colonIndex + 1).trim();
+        current.fields[label.toLowerCase()] = value;
+      }
+    });
+    return reports;
+  }
+  function renderSapDescriptionHtml(data, descriptionText) {
+    if (!isSapTicket(data, descriptionText)) return '';
+    var reports = parseSapDescription(descriptionText);
+    if (!reports.length) return '';
+    var carouselId = 'tmSapDisplay-' + String(++sapDisplaySeq);
+    var fieldConfig = [
+      { key: 'full name', label: 'Full Name' },
+      { key: 'position', label: 'Position' },
+      { key: 'immediate supervisor', label: 'Supervisor' },
+      { key: 'company', label: 'Company' },
+      { key: 'department', label: 'Department', wide: true }
+    ];
+    return '<div class="tm-sap-display">' +
+      '<div class="tm-sap-title">SAP Form</div>' +
+      '<div class="tm-sap-carousel" id="' + carouselId + '" data-index="0">' +
+      reports.map(function (report, reportIndex) {
+        return '<div class="tm-sap-card' + (reportIndex === 0 ? ' is-active' : '') + '" data-index="' + String(reportIndex) + '" aria-hidden="' + (reportIndex === 0 ? 'false' : 'true') + '">' +
+          '<div class="tm-sap-card-title">Employee Details' + (reports.length > 1 ? ' ' + escapeHtml(report.index) : '') + '</div>' +
+          '<div class="tm-sap-field-grid">' +
+          fieldConfig.map(function (field) {
+            var value = report.fields[field.key] || '-';
+            return '<div class="tm-sap-field' + (field.wide ? ' is-wide' : '') + '">' +
+              '<div class="tm-sap-label">' + escapeHtml(field.label) + '</div>' +
+              '<div class="tm-sap-value">' + escapeHtml(value) + '</div>' +
+              '</div>';
+          }).join('') +
+          '</div>' +
+          '</div>';
+      }).join('') +
+      (reports.length > 1
+        ? '<div class="tm-sap-actions">' +
+          '<button type="button" class="tm-sap-nav-btn" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', -1)">← Previous</button>' +
+          '<button type="button" class="tm-sap-nav-btn primary" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', 1)">Next ›</button>' +
+          '</div>'
+        : '') +
+      '</div>' +
+      '</div>';
+  }
+  function stepSapDisplay(id, delta) {
+    var root = document.getElementById(String(id || ''));
+    if (!root) return;
+    var cards = root.querySelectorAll('.tm-sap-card');
+    if (!cards.length) return;
+    var total = cards.length;
+    var current = Number(root.getAttribute('data-index') || 0);
+    if (!isFinite(current)) current = 0;
+    var nextIndex = ((current + Number(delta || 0)) % total + total) % total;
+    root.setAttribute('data-index', String(nextIndex));
+    cards.forEach(function (card, index) {
+      var active = index === nextIndex;
+      card.classList.toggle('is-active', active);
+      card.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+  }
   function getChatAttachmentUrl(storedName) {
     return '../uploads/' + encodeURIComponent(String(storedName || ''));
   }
@@ -722,6 +817,10 @@ var TMTicketModal = (function () {
     var descriptionText = String((data && data.description) || '');
     var descriptionHtml = '';
     if (descriptionText) {
+      var sapDescriptionHtml = renderSapDescriptionHtml(data, descriptionText);
+      if (sapDescriptionHtml) {
+        descriptionHtml = sapDescriptionHtml;
+      } else {
       var lines = descriptionText.split(/\r?\n/).map(function (line) { return String(line || '').trim(); }).filter(function (line) { return line !== ''; });
       var assignedCompany = String((data && data.assigned_company) || '').trim().toLowerCase();
       var assignedGroup = String((data && (data.assigned_group || data.assigned_department)) || '').trim();
@@ -747,6 +846,7 @@ var TMTicketModal = (function () {
           }
         });
         descriptionHtml += '</div>';
+      }
       }
     }
     var attachmentsHtml = renderAttachmentsBlock(data);
@@ -1235,8 +1335,9 @@ var TMTicketModal = (function () {
       '          <div class="tm-res-item"><div class="tm-res-label">Duration</div><div class="tm-res-value"><span class="tm-duration-dot"></span>' + (displayStr ? escapeHtml(displayStr) : '-') + '</div></div>' +
       '        </div>' +
       '      </div></div>';
+    var sapHeaderClass = isSapTicket(data, data && data.description ? data.description : '') ? ' tm-sap-header' : '';
     return '' +
-      '<div class="tm-header">' +
+      '<div class="tm-header' + sapHeaderClass + '">' +
       '  <div class="tm-header-left">' +
       '    <div class="tm-title">' + escapeHtml(getDisplaySubject(data)) + '</div>' +
       '    <div class="tm-chips">' +
@@ -3174,6 +3275,9 @@ var TMTicketModal = (function () {
           return;
         }
         setModalVariant(modalContent, 'default');
+        if (isSapTicket(data, data && data.description ? data.description : '')) {
+          modalContent.classList.add('tm-sap-ticket-modal');
+        }
         setCurrentTicketId(data && data.id != null ? data.id : id);
         lastTicketMeta = { id: data && data.id != null ? data.id : id, subject: getDisplaySubject(data) };
         try {
@@ -3252,6 +3356,7 @@ var TMTicketModal = (function () {
     closeMessengerChat: closeMessengerChat,
     updateStatusColor: updateStatusColor,
     stepHrAttachmentCategory: stepHrAttachmentCategory,
+    stepSapDisplay: stepSapDisplay,
     viewImage: viewImage,
     closeImagePreview: closeImagePreview,
     getCurrentTicketId: getCurrentTicketId
