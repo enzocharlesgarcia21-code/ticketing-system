@@ -359,9 +359,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             'Medical Cash Advance',
             'Request for Company Property',
             'SSS Sickness and Benefit Concern',
-            'SAP',
             'Training Request',
             'Others',
+        ],
+        'IT' => [
+            'Documentation',
+            'Email',
+            'Hardware',
+            'Internet Concerns',
+            'Procurement',
+            'SAP',
+            'Software',
+            'Technical Support',
         ],
     ];
     $category = trim((string) ($_POST['category'] ?? ''));
@@ -443,6 +452,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $assigned_department = $requiresDepartment ? $routing_group : 'IT';
     $description = trim((string) ($_POST['description'] ?? ''));
     $isLapcHrTicket = ($assigned_company === '@leadsagri.com' && $assigned_group === 'HR');
+    $isLapcItTicket = ($assigned_company === '@leadsagri.com' && $assigned_group === 'IT');
     $isHrAttendanceCategory = ($isLapcHrTicket && $category === 'Attendance & Timekeeping');
     $isHrLeaveOrOtherCategory = ($isLapcHrTicket && ($category === 'Leave Concern' || $category === 'Others'));
     $isHrSssCategory = ($isLapcHrTicket && $category === 'SSS Sickness and Benefit Concern');
@@ -451,7 +461,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $isHrCompanyPropertyRequest = ($isLapcHrTicket && $category === 'Request for Company Property');
     $isHrCertificateEmploymentRequest = ($isLapcHrTicket && $category === 'Certificate of Employment');
     $isHrCertificateLeaveRequest = ($isLapcHrTicket && $category === 'Certificate of Leave');
-    $isHrSapRequest = ($isLapcHrTicket && $category === 'SAP');
+    $isLapcItSapRequest = ($isLapcItTicket && $category === 'SAP');
     $requiresKamiAttachment = $isHrAttendanceCategory;
 
     if ($category === '' || !in_array($category, $allowed_categories, true)) {
@@ -664,7 +674,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             . "Date of Leave: " . $certificate_leave_date . "\n"
             . "Purpose of Leave: " . $certificateLeavePurposeLabel;
     }
-    if ($isHrSapRequest) {
+    if ($isLapcItSapRequest) {
         if (count($sap_reports) === 0) {
             if ($isAjax) {
                 header('Content-Type: application/json; charset=utf-8');
@@ -999,7 +1009,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $ticketMeta['certificate_leave_purpose_other'] = $certificate_leave_purpose_other;
         }
     }
-    if ($isHrSapRequest) {
+    if ($isLapcItSapRequest) {
         $ticketMeta['sap_name'] = $sap_name;
         $ticketMeta['sap_position'] = $sap_position;
         $ticketMeta['sap_immediate_head'] = $sap_immediate_head;
@@ -3413,9 +3423,18 @@ $requestTicketCompanyOptions = [
                 'Medical Cash Advance',
                 'Request for Company Property',
                 'SSS Sickness and Benefit Concern',
-                'SAP',
                 'Training Request',
                 'Others',
+            ],
+            'IT' => [
+                'Documentation',
+                'Email',
+                'Hardware',
+                'Internet Concerns',
+                'Procurement',
+                'SAP',
+                'Software',
+                'Technical Support',
             ],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         function populateDepartments(options) {
@@ -3502,6 +3521,11 @@ $requestTicketCompanyOptions = [
             const recipientValue = recipientDropdown ? String(recipientDropdown.value || '') : '';
             const departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
             return recipientValue === '@leadsagri.com' && departmentValue === 'HR';
+        }
+        function isLapcItSelection() {
+            const recipientValue = recipientDropdown ? String(recipientDropdown.value || '') : '';
+            const departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
+            return recipientValue === '@leadsagri.com' && departmentValue === 'IT';
         }
         function syncRequestGridRows() {
             if (recipientDepartmentRow && departmentContainer) {
@@ -3843,7 +3867,7 @@ $requestTicketCompanyOptions = [
             const shouldShowCompanyPropertyRequest = shouldShow && selectedCategory === 'Request for Company Property';
             const shouldShowCoeRequest = shouldShow && selectedCategory === 'Certificate of Employment';
             const shouldShowColRequest = shouldShow && selectedCategory === 'Certificate of Leave';
-            const shouldShowSapRequest = shouldShow && selectedCategory === 'SAP';
+            const shouldShowSapRequest = isLapcItSelection() && selectedCategory === 'SAP';
             const shouldRequireKamiAttachment = shouldShowConcernType;
             const shouldRequireMedicalAttachment = shouldShowMedicalCashAdvance;
             document.body.classList.toggle('kami-section-active', shouldShowConcernType);
@@ -4503,6 +4527,7 @@ $requestTicketCompanyOptions = [
             formEl.addEventListener('submit', function (e) {
                 var isKamiAttachmentRequired = false;
                 var isLapcHrSelected = false;
+                var isLapcItSelected = false;
                 var isHrSssSelected = false;
                 var selectedCategory = '';
                 if (recipientDropdown && departmentSelect && categorySelect) {
@@ -4510,6 +4535,9 @@ $requestTicketCompanyOptions = [
                     isLapcHrSelected =
                         String(recipientDropdown.value || '') === '@leadsagri.com' &&
                         String(departmentSelect.value || '') === 'HR';
+                    isLapcItSelected =
+                        String(recipientDropdown.value || '') === '@leadsagri.com' &&
+                        String(departmentSelect.value || '') === 'IT';
                     isKamiAttachmentRequired =
                         isLapcHrSelected &&
                         selectedCategory === 'Attendance & Timekeeping';
@@ -4639,7 +4667,7 @@ $requestTicketCompanyOptions = [
                         return;
                     }
                 }
-                if (isLapcHrSelected && selectedCategory === 'SAP') {
+                if (isLapcItSelected && selectedCategory === 'SAP') {
                     const sapCards = getSapCards();
                     let hasCompleteSapEntry = false;
                     for (let sapIndex = 0; sapIndex < sapCards.length; sapIndex++) {
