@@ -37,9 +37,18 @@ $lapcDepartmentCategories = [
         'Medical Cash Advance',
         'Request for Company Property',
         'SSS Sickness and Benefit Concern',
-        'SAP',
         'Training Request',
         'Others',
+    ],
+    'IT' => [
+        'Documentation',
+        'Email',
+        'Hardware',
+        'Internet Concerns',
+        'Procurement',
+        'SAP',
+        'Software',
+        'Technical Support',
     ],
 ];
 
@@ -50,6 +59,19 @@ $companies = [
     "FARMEX (@leads-farmex.com)",
     "MHC (@malvedaholdings.com)",
     "MPDC (@malvedaproperties.com)",
+];
+
+$requestTicketCompanyOptions = [
+    '@leads-farmex.com' => 'FARMEX (@leads-farmex.com)',
+    '@farmasee.ph' => 'FARMASEE (@farmasee.ph)',
+    '@gpsci.net' => 'GPSCI (@gpsci.net)',
+    '@leadsagri.com' => 'LAPC (@leadsagri.com)',
+    '@leadsav.com' => 'LAV (@leadsav.com)',
+    '@leadstech-corp.com' => 'LTC (@leadstech-corp.com)',
+    '@lingapleads.org' => 'LINGAP (@lingapleads.org)',
+    '@malvedaholdings.com' => 'MHC (@malvedaholdings.com)',
+    '@malvedaproperties.com' => 'MPDC (@malvedaproperties.com)',
+    '@primestocks.ph' => 'PCC (@primestocks.ph)',
 ];
 
 function derive_name_from_email(string $email): string
@@ -103,6 +125,61 @@ function find_sales_domain_recipient_ids(mysqli $conn, string $domain): array
     $stmt->close();
 
     return array_values(array_unique($ids));
+}
+
+function sales_request_blank_sap_report(): array
+{
+    return [
+        'name' => '',
+        'position' => '',
+        'immediate_head' => '',
+        'department' => '',
+        'company' => '',
+    ];
+}
+
+function sales_request_extract_sap_reports(array $source): array
+{
+    $reports = [];
+    $structuredReports = $source['sap_reports'] ?? null;
+
+    if (is_array($structuredReports)) {
+        foreach ($structuredReports as $report) {
+            if (!is_array($report)) {
+                continue;
+            }
+
+            $normalizedReport = [
+                'name' => trim((string) ($report['name'] ?? '')),
+                'position' => trim((string) ($report['position'] ?? '')),
+                'immediate_head' => trim((string) ($report['immediate_head'] ?? '')),
+                'department' => trim((string) ($report['department'] ?? '')),
+                'company' => trim((string) ($report['company'] ?? '')),
+            ];
+
+            if (implode('', $normalizedReport) === '') {
+                continue;
+            }
+
+            $reports[] = $normalizedReport;
+        }
+    }
+
+    if (count($reports) === 0) {
+        $legacyReport = [
+            'name' => trim((string) ($source['sap_name'] ?? '')),
+            'position' => trim((string) ($source['sap_position'] ?? '')),
+            'immediate_head' => trim((string) ($source['sap_immediate_head'] ?? '')),
+            'department' => trim((string) ($source['sap_department'] ?? '')),
+            'company' => trim((string) ($source['sap_company'] ?? '')),
+        ];
+
+        if (implode('', $legacyReport) !== '') {
+            $reports[] = $legacyReport;
+        }
+    }
+
+    return $reports;
 }
 
 function sales_request_upload_dir(): string
@@ -329,11 +406,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $certificate_leave_date = trim((string) ($_POST['certificate_leave_date'] ?? ''));
     $certificate_leave_purpose = trim((string) ($_POST['certificate_leave_purpose'] ?? ''));
     $certificate_leave_purpose_other = trim((string) ($_POST['certificate_leave_purpose_other'] ?? ''));
-    $sap_name = trim((string) ($_POST['sap_name'] ?? ''));
-    $sap_position = trim((string) ($_POST['sap_position'] ?? ''));
-    $sap_immediate_head = trim((string) ($_POST['sap_immediate_head'] ?? ''));
-    $sap_department = trim((string) ($_POST['sap_department'] ?? ''));
-    $sap_company = trim((string) ($_POST['sap_company'] ?? ''));
+    $sap_reports = sales_request_extract_sap_reports($_POST);
+    $sap_name = $sap_reports[0]['name'] ?? trim((string) ($_POST['sap_name'] ?? ''));
+    $sap_position = $sap_reports[0]['position'] ?? trim((string) ($_POST['sap_position'] ?? ''));
+    $sap_immediate_head = $sap_reports[0]['immediate_head'] ?? trim((string) ($_POST['sap_immediate_head'] ?? ''));
+    $sap_department = $sap_reports[0]['department'] ?? trim((string) ($_POST['sap_department'] ?? ''));
+    $sap_company = $sap_reports[0]['company'] ?? trim((string) ($_POST['sap_company'] ?? ''));
 
     $name = derive_name_from_email($email);
     $company = $company_id;
@@ -351,6 +429,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $assigned_company = $normalized_company_id;
     $assigned_group = $isLapcRecipient ? trim($assigned_department_selected) : 'IT';
     $isLapcHrRecipient = $isLapcRecipient && $assigned_department_selected === 'HR';
+    $isLapcItRecipient = $isLapcRecipient && $assigned_department_selected === 'IT';
     $isHrAttendanceCategory = ($isLapcHrRecipient && $category === 'Attendance & Timekeeping');
     $isHrLeaveOrOtherCategory = ($isLapcHrRecipient && ($category === 'Leave Concern' || $category === 'Others'));
     $isHrSssCategory = ($isLapcHrRecipient && $category === 'SSS Sickness and Benefit Concern');
@@ -359,7 +438,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $isHrCompanyPropertyRequest = ($isLapcHrRecipient && $category === 'Request for Company Property');
     $isHrCertificateEmploymentRequest = ($isLapcHrRecipient && $category === 'Certificate of Employment');
     $isHrCertificateLeaveRequest = ($isLapcHrRecipient && $category === 'Certificate of Leave');
-    $isHrSapRequest = ($isLapcHrRecipient && $category === 'SAP');
+    $isLapcItSapRequest = ($isLapcItRecipient && $category === 'SAP');
     $requiresKamiAttachment = $isHrAttendanceCategory;
     if ($isLapcRecipient) {
         $assigned_user_ids = ticket_find_assignee_ids($conn, $assigned_company, $assigned_group);
@@ -496,17 +575,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 . "Purpose of Leave: " . $certificateLeavePurposeLabel;
         }
     }
-    if ($error_msg === '' && $isHrSapRequest) {
-        if ($sap_name === '' || $sap_position === '' || $sap_immediate_head === '' || $sap_department === '' || $sap_company === '') {
+    if ($error_msg === '' && $isLapcItSapRequest) {
+        if (count($sap_reports) === 0) {
             $error_msg = "Please complete the SAP form.";
         } else {
+            $sap_name = $sap_reports[0]['name'] ?? $sap_name;
+            $sap_position = $sap_reports[0]['position'] ?? $sap_position;
+            $sap_immediate_head = $sap_reports[0]['immediate_head'] ?? $sap_immediate_head;
+            $sap_department = $sap_reports[0]['department'] ?? $sap_department;
+            $sap_company = $sap_reports[0]['company'] ?? $sap_company;
+            foreach ($sap_reports as $sap_report) {
+                $sapCompanyRequiresDepartment = ($sap_report['company'] === '@leadsagri.com');
+                if (
+                    $sap_report['name'] === ''
+                    || $sap_report['position'] === ''
+                    || $sap_report['immediate_head'] === ''
+                    || $sap_report['company'] === ''
+                    || ($sapCompanyRequiresDepartment && $sap_report['department'] === '')
+                ) {
+                    $error_msg = "Please complete each SAP employee report before submitting.";
+                    break;
+                }
+            }
+        }
+        if ($error_msg === '') {
             $subject = 'SAP';
-            $description = "SAP Form\n"
-                . "Name: " . $sap_name . "\n"
-                . "Position: " . $sap_position . "\n"
-                . "Immediate Head: " . $sap_immediate_head . "\n"
-                . "Department: " . $sap_department . "\n"
-                . "Company: " . $sap_company;
+            $description = "SAP Form";
+            foreach ($sap_reports as $index => $sap_report) {
+                $description .= "\n\nEmployee Details " . ($index + 1) . "\n"
+                    . "Full Name: " . $sap_report['name'] . "\n"
+                    . "Position: " . $sap_report['position'] . "\n"
+                    . "Immediate Supervisor: " . $sap_report['immediate_head'] . "\n"
+                    . "Department: " . $sap_report['department'] . "\n"
+                    . "Company: " . $sap_report['company'];
+            }
         }
     }
     if ($error_msg === '' && $isHrSssCategory && $description === '') {
@@ -863,12 +965,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         $ticketMeta['certificate_leave_purpose_other'] = $certificate_leave_purpose_other;
                     }
                 }
-                if ($isHrSapRequest) {
+                if ($isLapcItSapRequest) {
                     $ticketMeta['sap_name'] = $sap_name;
                     $ticketMeta['sap_position'] = $sap_position;
                     $ticketMeta['sap_immediate_head'] = $sap_immediate_head;
                     $ticketMeta['sap_department'] = $sap_department;
                     $ticketMeta['sap_company'] = $sap_company;
+                    $ticketMeta['sap_reports'] = json_encode($sap_reports, JSON_UNESCAPED_UNICODE);
                 }
                 if (count($ticketMeta) > 0) {
                     $metaStmt = $conn->prepare("INSERT INTO ticket_request_meta (ticket_id, meta_key, meta_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)");
@@ -1034,6 +1137,11 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => $error_msg !== '' ? $error_msg : 'Failed to submit ticket.'], JSON_UNESCAPED_UNICODE);
     exit;
+}
+
+$sapFormEntries = sales_request_extract_sap_reports($_POST);
+if (count($sapFormEntries) === 0) {
+    $sapFormEntries = [sales_request_blank_sap_report()];
 }
 ?>
 
@@ -1332,17 +1440,69 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         .required-asterisk {
             color: #dc2626;
         }
+        body.sales-request-ticket-page,
+        body.sales-request-ticket-page input,
+        body.sales-request-ticket-page select,
+        body.sales-request-ticket-page textarea,
+        body.sales-request-ticket-page button,
+        body.sales-request-ticket-page option {
+            font-family: 'Segoe UI', sans-serif;
+        }
+        body.sales-request-ticket-page .request-grid-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+            align-items: start;
+        }
+        body.sales-request-ticket-page .request-grid-row.is-single {
+            grid-template-columns: 1fr;
+        }
+        body.sales-request-ticket-page .request-grid-row > .full-width {
+            grid-column: 1 / -1;
+        }
+        body.sales-request-ticket-page .select-wrapper {
+            position: relative;
+        }
+        body.sales-request-ticket-page .select-wrapper .form-control,
+        body.sales-request-ticket-page .select-wrapper select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            min-height: 50px;
+            padding: 0 44px 0 16px;
+            border: 2px solid #73a66f;
+            border-radius: 16px;
+            background: #ffffff;
+            color: #0f172a;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+        }
+        body.sales-request-ticket-page .select-wrapper .form-control:focus,
+        body.sales-request-ticket-page .select-wrapper select:focus {
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
+        }
+        body.sales-request-ticket-page .select-wrapper .select-icon {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #374151;
+            font-size: 14px;
+            pointer-events: none;
+        }
         .sales-container {
             max-width: 920px;
             margin: 24px auto;
             background: white;
-            padding: 40px;
+            padding: 0 24px 24px;
             border-radius: 16px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+            overflow: hidden;
         }
         .header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 0;
+            padding: 32px 16px 26px;
         }
         .header h1 {
             color: #1B5E20;
@@ -1355,16 +1515,27 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         .header p {
             color: #6b7280;
         }
+        body.sales-request-ticket-page .form-card {
+            padding: 0 24px 24px;
+            overflow: hidden;
+            border-top: none !important;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+            border-radius: 16px;
+            background: #ffffff;
+        }
+        body.sales-request-ticket-page .form-section-title {
+            margin: 0 -24px 22px;
+            padding: 18px 24px;
+            background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.25;
+            font-family: inherit;
+        }
         .form-group {
             margin-bottom: 20px;
-        }
-        .form-row {
-            margin-bottom: 20px;
-        }
-        .form-row.two-col {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 18px;
         }
         .form-grid {
             display: flex;
@@ -1402,60 +1573,35 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             height: 50px;
             padding: 0 16px;
         }
-        #recipientRow select {
-            height: 50px;
-            padding: 0 46px 0 16px;
+        body.sales-request-ticket-page .form-control {
+            width: 100%;
             border: 2px solid #73a66f;
             border-radius: 16px;
             background-color: #ffffff;
             color: #0f172a;
-            font-size: 15px;
-            line-height: 1.2;
-            appearance: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            background-image:
-                linear-gradient(45deg, transparent 50%, #1B5E20 50%),
-                linear-gradient(135deg, #1B5E20 50%, transparent 50%);
-            background-position:
-                calc(100% - 22px) calc(50% - 3px),
-                calc(100% - 16px) calc(50% - 3px);
-            background-size: 6px 6px, 6px 6px;
-            background-repeat: no-repeat;
             box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+            box-sizing: border-box;
+            font-size: 14px;
         }
-        #recipientRow select:focus {
+        body.sales-request-ticket-page input.form-control,
+        body.sales-request-ticket-page select.form-control {
+            height: 50px;
+            padding: 0 16px;
+        }
+        body.sales-request-ticket-page textarea.form-control {
+            min-height: 120px;
+            padding: 14px 16px;
+            resize: vertical;
+        }
+        body.sales-request-ticket-page input.form-control:focus,
+        body.sales-request-ticket-page select.form-control:focus,
+        body.sales-request-ticket-page textarea.form-control:focus {
+            outline: none;
             border-color: #1B5E20;
             box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
         }
         input:focus, select:focus, textarea:focus {
             outline: none;
-            border-color: #1B5E20;
-            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
-        }
-        .category-select {
-            height: 50px;
-            padding: 0 46px 0 16px;
-            border: 2px solid #73a66f;
-            border-radius: 16px;
-            background-color: #ffffff;
-            color: #0f172a;
-            font-size: 15px;
-            line-height: 1.2;
-            appearance: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            background-image:
-                linear-gradient(45deg, transparent 50%, #1B5E20 50%),
-                linear-gradient(135deg, #1B5E20 50%, transparent 50%);
-            background-position:
-                calc(100% - 22px) calc(50% - 3px),
-                calc(100% - 16px) calc(50% - 3px);
-            background-size: 6px 6px, 6px 6px;
-            background-repeat: no-repeat;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-        }
-        .category-select:focus {
             border-color: #1B5E20;
             box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
         }
@@ -1489,29 +1635,8 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             align-items: center;
             gap: 12px;
         }
-        #recipientRow {
-            display: flex;
-            gap: 12px;
-        }
-        #recipientGroup {
-            flex: 1;
-            transition: all 0.3s ease;
-        }
-        #departmentGroup {
-            flex: 1;
-        }
         .hidden {
             display: none !important;
-        }
-        .full-width {
-            flex: 100% !important;
-        }
-        #salesCategoryRow {
-            display: flex;
-            gap: 12px;
-        }
-        #salesCategoryRow .form-group {
-            flex: 1;
         }
         body.sales-request-ticket-page .hr-extra-group {
             display: none;
@@ -1521,7 +1646,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.sales-request-ticket-page .kami-group {
             display: none;
-            margin-top: 16px;
+            margin-top: 0;
             border: 1px solid #dbe4ef;
             border-radius: 22px;
             background: #ffffff;
@@ -1530,24 +1655,36 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.sales-request-ticket-page .kami-group.is-visible {
             display: block;
+            margin-top: 16px;
         }
         body.sales-request-ticket-page .kami-banner-head {
             margin: 0;
             padding: 18px 24px;
-            background: linear-gradient(135deg, #67c86f, #57b861);
+            background: #1B5E20;
             box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
             line-height: 1.25;
+            font-family: inherit;
         }
         body.sales-request-ticket-page .kami-list {
             display: grid;
             gap: 14px;
             padding: 18px 24px 24px;
         }
-        body.sales-request-ticket-page .kami-list .form-group {
-            margin-bottom: 0;
+        body.sales-request-ticket-page .kami-list .hr-extra-group {
+            margin: 0;
+        }
+        body.sales-request-ticket-page .kami-list .hr-extra-group.is-visible {
+            display: block;
+        }
+        body.sales-request-ticket-page .kami-list .form-group label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        body.sales-request-ticket-page .kami-list .select-wrapper {
+            max-width: 100%;
         }
         body.sales-request-ticket-page .other-request-section {
             margin-top: 18px;
@@ -1562,12 +1699,13 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             display: block;
             margin: 0;
             padding: 18px 24px;
-            background: linear-gradient(135deg, #67c86f, #57b861);
+            background: #1B5E20;
             box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
             line-height: 1.25;
+            font-family: inherit;
         }
         body.sales-request-ticket-page.other-section-active .other-request-section {
             border: 1px solid #dbe4ef;
@@ -1625,7 +1763,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.sales-request-ticket-page .medical-cash-group {
             display: none;
-            margin-top: 18px;
+            margin-top: 0;
             border: 1px solid #dbe4ef;
             border-radius: 22px;
             background: #ffffff;
@@ -1634,10 +1772,11 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.sales-request-ticket-page .medical-cash-group.is-visible {
             display: block;
+            margin-top: 18px;
         }
         body.sales-request-ticket-page .training-request-group {
             display: none;
-            margin-top: 18px;
+            margin-top: 0;
             border: 1px solid #dbe4ef;
             border-radius: 22px;
             background: #ffffff;
@@ -1646,10 +1785,11 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.sales-request-ticket-page .training-request-group.is-visible {
             display: block;
+            margin-top: 18px;
         }
         body.sales-request-ticket-page .company-property-group {
             display: none;
-            margin-top: 18px;
+            margin-top: 0;
             border: 1px solid #dbe4ef;
             border-radius: 22px;
             background: #ffffff;
@@ -1658,10 +1798,11 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.sales-request-ticket-page .company-property-group.is-visible {
             display: block;
+            margin-top: 18px;
         }
         body.sales-request-ticket-page .coe-request-group {
             display: none;
-            margin-top: 18px;
+            margin-top: 0;
             border: 1px solid #dbe4ef;
             border-radius: 22px;
             background: #ffffff;
@@ -1670,10 +1811,11 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.sales-request-ticket-page .coe-request-group.is-visible {
             display: block;
+            margin-top: 18px;
         }
         body.sales-request-ticket-page .col-request-group {
             display: none;
-            margin-top: 18px;
+            margin-top: 0;
             border: 1px solid #dbe4ef;
             border-radius: 22px;
             background: #ffffff;
@@ -1682,10 +1824,11 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.sales-request-ticket-page .col-request-group.is-visible {
             display: block;
+            margin-top: 18px;
         }
         body.sales-request-ticket-page .sap-request-group {
             display: none;
-            margin-top: 18px;
+            margin-top: 0;
             border: 1px solid #dbe4ef;
             border-radius: 22px;
             background: #ffffff;
@@ -1694,60 +1837,73 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.sales-request-ticket-page .sap-request-group.is-visible {
             display: block;
+            margin-top: 18px;
         }
         body.sales-request-ticket-page .medical-cash-head {
             margin: 0;
             padding: 18px 24px;
-            background: linear-gradient(135deg, #67c86f, #57b861);
+            background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
             line-height: 1.25;
+            font-family: inherit;
         }
         body.sales-request-ticket-page .training-request-head {
             margin: 0;
             padding: 18px 24px;
-            background: linear-gradient(135deg, #67c86f, #57b861);
+            background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
             line-height: 1.25;
+            font-family: inherit;
         }
         body.sales-request-ticket-page .company-property-head {
             margin: 0;
             padding: 18px 24px;
-            background: linear-gradient(135deg, #67c86f, #57b861);
+            background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
             line-height: 1.25;
+            font-family: inherit;
         }
         body.sales-request-ticket-page .coe-request-head {
             margin: 0;
             padding: 18px 24px;
-            background: linear-gradient(135deg, #67c86f, #57b861);
+            background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
             line-height: 1.25;
+            font-family: inherit;
         }
         body.sales-request-ticket-page .col-request-head {
             margin: 0;
             padding: 18px 24px;
-            background: linear-gradient(135deg, #67c86f, #57b861);
+            background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
             line-height: 1.25;
+            font-family: inherit;
         }
         body.sales-request-ticket-page .sap-request-head {
             margin: 0;
             padding: 18px 24px;
-            background: linear-gradient(135deg, #67c86f, #57b861);
+            background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
             line-height: 1.25;
+            font-family: inherit;
         }
         body.sales-request-ticket-page .medical-cash-list {
             display: grid;
@@ -1781,9 +1937,68 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         }
         body.sales-request-ticket-page .sap-request-list {
             display: grid;
-            gap: 14px;
-            padding: 18px 24px 24px;
-            background: transparent;
+            gap: 18px;
+            padding: 22px 32px 16px;
+            background: #ffffff;
+            border-top: 1px solid rgba(15, 23, 42, 0.10);
+        }
+        body.sales-request-ticket-page .sap-request-panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            padding: 22px 32px 14px;
+        }
+        body.sales-request-ticket-page .sap-request-panel-copy {
+            min-width: 0;
+            display: grid;
+            gap: 8px;
+            justify-items: start;
+            text-align: left;
+        }
+        body.sales-request-ticket-page .sap-request-counter {
+            margin: 0;
+            color: #0f172a;
+            font-size: 18px;
+            font-weight: 800;
+            line-height: 1.3;
+        }
+        body.sales-request-ticket-page .sap-request-panel-tools {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        body.sales-request-ticket-page .sap-request-switcher {
+            min-width: 236px;
+        }
+        body.sales-request-ticket-page .sap-request-switcher-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #334155;
+            font-size: 16px;
+            pointer-events: none;
+        }
+        body.sales-request-ticket-page .sap-request-switcher .form-control {
+            min-height: 48px;
+            padding-left: 44px;
+            padding-right: 44px;
+            border: 1px solid #d4ddec;
+            border-radius: 16px;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+            font-weight: 700;
+            font-size: 15px;
+            color: #0f172a;
+            background: #ffffff;
+        }
+        body.sales-request-ticket-page .sap-request-copy {
+            margin: 0;
+            padding: 0;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.6;
         }
         body.sales-request-ticket-page .training-request-inline-row {
             display: grid;
@@ -1836,18 +2051,126 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
         }
         body.sales-request-ticket-page .sap-request-card {
-            border: 1px solid #dbe4ef;
-            border-radius: 14px;
-            background: #ffffff;
-            padding: 20px 24px;
-            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            padding: 0;
+            box-shadow: none;
         }
         body.sales-request-ticket-page .sap-request-card .form-group {
             margin: 0;
         }
         body.sales-request-ticket-page .sap-request-card label {
             display: block;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
+        }
+        body.sales-request-ticket-page .sap-request-card-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        body.sales-request-ticket-page .sap-request-card-title {
+            margin: 0;
+            color: #0f172a;
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+        body.sales-request-ticket-page .sap-request-card-delete {
+            min-width: 72px;
+            height: 38px;
+            padding: 0 12px;
+            border: 1px solid #f3b8b8;
+            border-radius: 10px;
+            background: #fff8f8;
+            color: #c24141;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+            transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        }
+        body.sales-request-ticket-page .sap-request-card-delete i {
+            margin-right: 6px;
+        }
+        body.sales-request-ticket-page .sap-request-card .form-control {
+            border: 2px solid #73a66f;
+            border-radius: 18px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+            min-height: 50px;
+            padding: 0 16px;
+            font-size: 15px;
+        }
+        body.sales-request-ticket-page .sap-request-card .form-control:focus {
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
+        }
+        body.sales-request-ticket-page .sap-request-inline-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 22px;
+            margin-bottom: 18px;
+        }
+        body.sales-request-ticket-page .sap-request-company-row {
+            margin-top: 2px;
+            display: block;
+        }
+        body.sales-request-ticket-page .sap-request-field {
+            min-width: 0;
+        }
+        body.sales-request-ticket-page .sap-request-department-wrap {
+            display: none;
+            width: 100%;
+        }
+        body.sales-request-ticket-page .sap-request-department-wrap.is-visible {
+            display: block;
+        }
+        body.sales-request-ticket-page .sap-request-department-field {
+            display: none;
+        }
+        body.sales-request-ticket-page .sap-request-department-field.is-visible {
+            display: block;
+        }
+        body.sales-request-ticket-page .sap-request-actions {
+            padding: 20px 20px 20px 0;
+            margin-top: 0;
+            display: flex;
+            justify-content: flex-end;
+        }
+        body.sales-request-ticket-page .sap-request-actions-group {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 16px;
+            flex-wrap: wrap;
+            width: auto;
+        }
+        body.sales-request-ticket-page .sap-request-add-btn {
+            min-height: 40px;
+            min-width: 168px;
+            padding: 0 16px;
+            border: 0;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #1B5E20 0%, #144a1e 100%);
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(27, 94, 32, 0.18);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+        }
+        body.sales-request-ticket-page .sap-request-add-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 22px rgba(27, 94, 32, 0.22);
+            filter: brightness(1.03);
+        }
+        body.sales-request-ticket-page .sap-request-add-btn i {
+            margin-right: 8px;
         }
         body.sales-request-ticket-page .col-request-card .form-group {
             margin: 0;
@@ -1865,6 +2188,10 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             margin: 0;
         }
         body.sales-request-ticket-page .col-request-inline-row .col-request-card {
+            min-width: 0;
+            margin: 0;
+        }
+        body.sales-request-ticket-page .sap-request-inline-row .sap-request-field {
             min-width: 0;
             margin: 0;
         }
@@ -2004,6 +2331,28 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             body.sales-request-ticket-page .col-request-inline-row {
                 grid-template-columns: 1fr;
             }
+            body.sales-request-ticket-page .sap-request-inline-row,
+            body.sales-request-ticket-page .sap-request-company-row {
+                grid-template-columns: 1fr;
+            }
+            body.sales-request-ticket-page .sap-request-card-top {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            body.sales-request-ticket-page .sap-request-panel-head {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            body.sales-request-ticket-page .sap-request-switcher {
+                min-width: 0;
+                width: 100%;
+            }
+            body.sales-request-ticket-page .sap-request-add-btn {
+                width: 100%;
+            }
+            body.sales-request-ticket-page .sap-request-actions {
+                padding: 16px 0 16px;
+            }
         }
         body.sales-request-ticket-page .sss-benefits-group {
             display: none;
@@ -2020,12 +2369,13 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         body.sales-request-ticket-page .sss-benefits-note-head {
             margin: 0;
             padding: 18px 24px;
-            background: linear-gradient(135deg, #67c86f, #57b861);
+            background: #1B5E20;
             box-shadow: inset 0 4px 0 #F4C430;
             color: #ffffff;
             font-size: 16px;
             font-weight: 700;
             line-height: 1.25;
+            font-family: inherit;
         }
         body.sales-request-ticket-page .sss-benefits-note-body {
             padding: 18px 24px 20px;
@@ -2179,39 +2529,88 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             background: #f3f4f6;
             border-color: #14532d;
         }
-        .file-control {
+        body.sales-request-ticket-page .attachment-upload-shell {
+            width: 100%;
             display: flex;
             align-items: center;
-            gap: 12px;
-            background: #f8faf9;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 10px 12px;
+            gap: 14px;
+            padding: 12px 14px;
+            border: 1px solid #dbe4ef;
+            border-radius: 16px;
+            background: #f8fafc;
+            box-sizing: border-box;
+            flex-wrap: wrap;
+            position: relative;
+        }
+        body.sales-request-ticket-page .attachment-upload-shell:hover {
+            border-color: rgba(27, 94, 32, 0.24);
+            background: #ffffff;
+        }
+        body.sales-request-ticket-page .attachment-upload-shell.is-dragover {
+            border-color: #67c86f;
+            background: #f4fbf5;
+            box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.12);
+        }
+        .file-control {
+            display: flex;
         }
         .file-button {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            justify-content: center;
+            gap: 10px;
+            min-width: 132px;
+            height: 48px;
+            padding: 0 18px;
             background: #ecfdf5;
-            color: #1B5E20;
+            color: #17643a;
             border: 1px solid #bbf7d0;
-            border-radius: 10px;
-            padding: 8px 12px;
-            font-weight: 600;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
             cursor: pointer;
+            position: relative;
+            z-index: 1;
+            pointer-events: auto;
+            box-sizing: border-box;
+            transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
         }
         .file-button:hover {
-            background: #d1fae5;
+            background: #e6fbef;
             border-color: #86efac;
         }
+        .file-button[aria-disabled="true"] {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
         .file-name {
-            color: #6b7280;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            color: #475569;
+            font-size: 14px;
+            text-align: left;
+            word-break: break-word;
+            flex: 1 1 180px;
+            min-width: 0;
         }
         .file-hidden {
-            display: none;
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+        body.sales-request-ticket-page .attachment-help-text {
+            display: block;
+            margin-top: 8px;
+            color: #666666;
+            font-size: 13px;
+            text-align: left;
+            line-height: 1.5;
         }
         .back-link {
             display: block;
@@ -2473,11 +2872,9 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             to { transform: rotate(360deg); }
         }
         @media (max-width: 768px) {
-            #recipientRow {
-                flex-direction: column;
-            }
-            #salesCategoryRow {
-                flex-direction: column;
+            body.sales-request-ticket-page .request-grid-row {
+                grid-template-columns: 1fr;
+                gap: 0;
             }
             body.sales-request-ticket-page .ticket-modal-content {
                 width: 100%;
@@ -2505,6 +2902,45 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
             }
             body.sales-request-ticket-page .ticket-modal-icon {
                 font-size: 24px;
+            }
+            .sales-container {
+                margin: 16px auto;
+                padding: 0 16px 16px;
+                border-radius: 14px;
+                max-width: calc(100vw - 32px);
+            }
+            .header {
+                padding: 24px 8px 18px;
+            }
+            body.sales-request-ticket-page .form-card {
+                padding: 0 16px 16px;
+                border-radius: 14px;
+                margin: 0;
+            }
+            body.sales-request-ticket-page .form-section-title {
+                margin: 0 -16px 18px;
+                padding: 14px 16px;
+                border-radius: 14px 14px 0 0;
+                font-size: 16px;
+            }
+            body.sales-request-ticket-page .attachment-upload-shell {
+                padding: 10px;
+                border-radius: 10px;
+                border-style: dashed;
+                justify-content: center;
+                gap: 10px;
+            }
+            .file-button {
+                width: 100%;
+                min-width: 0;
+                height: 50px;
+                padding: 0 14px;
+                border-radius: 14px;
+            }
+            .file-name {
+                width: 100%;
+                text-align: center;
+                flex-basis: 100%;
             }
         }
 
@@ -2597,58 +3033,71 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
         <?php if($error_msg): ?>
             <div class="alert alert-error" id="pageError"><?= htmlspecialchars($error_msg, ENT_QUOTES, 'UTF-8'); ?></div>
         <?php endif; ?>
-        <div class="alert alert-error" id="ajaxError" style="display:none;"></div>
-
+        <div class="form-card">
         <form id="ticketForm" method="POST" enctype="multipart/form-data">
             <?php echo csrf_field(); ?>
+            <div class="alert alert-error" id="ajaxError" style="display:none;"></div>
+            <h3 class="form-section-title">Request Information</h3>
 
             <div class="form-grid">
             <div class="form-group">
                 <label>Your Email <span class="required-asterisk">*</span></label>
-                <input type="email" name="email" required value="<?= htmlspecialchars($email ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                <input type="email" name="email" class="form-control" required value="<?= htmlspecialchars($email ?? '', ENT_QUOTES, 'UTF-8'); ?>">
             </div>
 
-            <div class="form-row" id="recipientRow">
+            <div class="request-grid-row is-single" id="recipientRow">
                 <div class="form-group" id="recipientGroup">
                     <label>Ticket Recipient <span class="required-asterisk">*</span></label>
-                    <select name="company_id" id="ticket_recipient" required>
-                        <option value="" disabled selected hidden>Select Recipient</option>
-                        <?php foreach ($companies as $c): ?>
-                            <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= (isset($company_id) && $company_id === $c) ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <div class="select-wrapper">
+                        <select name="company_id" id="ticket_recipient" class="form-control" required>
+                            <option value="" disabled selected hidden>Select Recipient</option>
+                            <?php foreach ($companies as $c): ?>
+                                <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= (isset($company_id) && $company_id === $c) ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <i class="fas fa-chevron-down select-icon"></i>
+                    </div>
                 </div>
 
                 <div class="form-group hidden" id="departmentGroup">
-                    <label>Department <span class="required-asterisk">*</span></label>
-                    <select name="assigned_department" id="department" required disabled>
-                        <option value="" disabled <?= $assigned_department_selected === '' ? 'selected' : '' ?> hidden>Select Department</option>
-                        <?php foreach ($lapcDepartments as $d): ?>
-                            <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $assigned_department_selected === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <label>Assigned Department <span class="required-asterisk">*</span></label>
+                    <div class="select-wrapper">
+                        <select name="assigned_department" id="department" class="form-control" required disabled data-selected="<?= htmlspecialchars((string) $assigned_department_selected, ENT_QUOTES, 'UTF-8'); ?>">
+                            <option value="" disabled <?= $assigned_department_selected === '' ? 'selected' : '' ?> hidden>Choose department</option>
+                            <?php foreach ($lapcDepartments as $d): ?>
+                                <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $assigned_department_selected === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <i class="fas fa-chevron-down select-icon"></i>
+                    </div>
                 </div>
             </div>
 
-            <div class="form-row" id="salesCategoryRow">
+            <div class="request-grid-row is-single" id="salesCategoryRow">
                 <div class="form-group" id="categoryContainer">
                     <label>Category <span class="required-asterisk">*</span></label>
-                    <select name="category" id="sales_category" class="category-select" required data-selected="<?= htmlspecialchars((string) ($category ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                        <option value="" disabled hidden <?= ($category ?? '') === '' ? 'selected' : '' ?>>Choose category</option>
-                        <?php foreach (($normalized_company_id === '@malvedaproperties.com' ? $mpdcCategories : $defaultCategories) as $categoryOption): ?>
-                            <option value="<?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?>" <?= ($category ?? '') === $categoryOption ? 'selected' : '' ?>><?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <div class="select-wrapper">
+                        <select name="category" id="sales_category" class="form-control category-select" required data-selected="<?= htmlspecialchars((string) ($category ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <option value="" disabled hidden <?= ($category ?? '') === '' ? 'selected' : '' ?>>Choose category</option>
+                            <?php foreach (($normalized_company_id === '@malvedaproperties.com' ? $mpdcCategories : $defaultCategories) as $categoryOption): ?>
+                                <option value="<?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?>" <?= ($category ?? '') === $categoryOption ? 'selected' : '' ?>><?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <i class="fas fa-chevron-down select-icon"></i>
+                    </div>
                 </div>
 
                 <div class="form-group hidden" id="priorityGroup">
                     <label>Level of Urgency <span class="required-asterisk">*</span></label>
-                    <select name="priority" id="sales_priority" class="category-select" disabled data-selected="<?= htmlspecialchars((string) ($priority_selected ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                        <option value="" disabled hidden <?= ($priority_selected ?? '') === '' ? 'selected' : '' ?>>Choose level of urgency</option>
-                        <option value="Low" <?= ($priority_selected ?? '') === 'Low' ? 'selected' : '' ?>>Low - General Inquiry</option>
-                        <option value="Medium" <?= ($priority_selected ?? '') === 'Medium' ? 'selected' : '' ?>>Medium - Needs action within a few days</option>
-                        <option value="High" <?= ($priority_selected ?? '') === 'High' ? 'selected' : '' ?>>High - Time-sensitive or urgent</option>
-                    </select>
+                    <div class="select-wrapper">
+                        <select name="priority" id="sales_priority" class="form-control category-select" disabled data-selected="<?= htmlspecialchars((string) ($priority_selected ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <option value="" disabled hidden <?= ($priority_selected ?? '') === '' ? 'selected' : '' ?>>Choose level of urgency</option>
+                            <option value="Low" <?= ($priority_selected ?? '') === 'Low' ? 'selected' : '' ?>>Low - General Inquiry</option>
+                            <option value="Medium" <?= ($priority_selected ?? '') === 'Medium' ? 'selected' : '' ?>>Medium - Needs action within a few days</option>
+                            <option value="High" <?= ($priority_selected ?? '') === 'High' ? 'selected' : '' ?>>High - Time-sensitive or urgent</option>
+                        </select>
+                        <i class="fas fa-chevron-down select-icon"></i>
+                    </div>
                 </div>
             </div>
 
@@ -2657,18 +3106,21 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="kami-list">
                     <div class="form-group hr-extra-group" id="concernTypeContainer">
                         <label>Type of Concern <span class="required-asterisk">*</span></label>
-                        <select name="hr_concern_type" id="hr_concern_type" class="category-select" data-selected="<?= htmlspecialchars((string) ($hr_concern_type ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                            <option value="" disabled hidden <?= ($hr_concern_type ?? '') === '' ? 'selected' : '' ?>>Choose type of concern</option>
-                            <option value="KAMI Error: Check IN/OUT" <?= ($hr_concern_type ?? '') === 'KAMI Error: Check IN/OUT' ? 'selected' : '' ?>>KAMI Error: Check IN/OUT</option>
-                            <option value="KAMI Error: Failed log in attempts" <?= ($hr_concern_type ?? '') === 'KAMI Error: Failed log in attempts' ? 'selected' : '' ?>>KAMI Error: Failed log in attempts</option>
-                            <option value="Unpaid salary" <?= ($hr_concern_type ?? '') === 'Unpaid salary' ? 'selected' : '' ?>>Unpaid salary</option>
-                            <option value="Unpaid leave/overtime pay" <?= ($hr_concern_type ?? '') === 'Unpaid leave/overtime pay' ? 'selected' : '' ?>>Unpaid leave/overtime pay</option>
-                            <option value="Other" <?= ($hr_concern_type ?? '') === 'Other' ? 'selected' : '' ?>>Other</option>
-                        </select>
+                        <div class="select-wrapper">
+                            <select name="hr_concern_type" id="hr_concern_type" class="form-control category-select" data-selected="<?= htmlspecialchars((string) ($hr_concern_type ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                <option value="" disabled hidden <?= ($hr_concern_type ?? '') === '' ? 'selected' : '' ?>>Choose type of concern</option>
+                                <option value="KAMI Error: Check IN/OUT" <?= ($hr_concern_type ?? '') === 'KAMI Error: Check IN/OUT' ? 'selected' : '' ?>>KAMI Error: Check IN/OUT</option>
+                                <option value="KAMI Error: Failed log in attempts" <?= ($hr_concern_type ?? '') === 'KAMI Error: Failed log in attempts' ? 'selected' : '' ?>>KAMI Error: Failed log in attempts</option>
+                                <option value="Unpaid salary" <?= ($hr_concern_type ?? '') === 'Unpaid salary' ? 'selected' : '' ?>>Unpaid salary</option>
+                                <option value="Unpaid leave/overtime pay" <?= ($hr_concern_type ?? '') === 'Unpaid leave/overtime pay' ? 'selected' : '' ?>>Unpaid leave/overtime pay</option>
+                                <option value="Other" <?= ($hr_concern_type ?? '') === 'Other' ? 'selected' : '' ?>>Other</option>
+                            </select>
+                            <i class="fas fa-chevron-down select-icon"></i>
+                        </div>
                     </div>
                     <div class="form-group hr-extra-group" id="concernTypeOtherContainer">
                         <label for="hr_concern_type_other">Please specify the type of concern <span class="required-asterisk">*</span></label>
-                        <input type="text" name="hr_concern_type_other" id="hr_concern_type_other" value="<?= htmlspecialchars((string) ($hr_concern_type_other ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Enter type of concern">
+                        <input type="text" name="hr_concern_type_other" id="hr_concern_type_other" class="form-control" value="<?= htmlspecialchars((string) ($hr_concern_type_other ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Enter type of concern">
                     </div>
                 </div>
             </section>
@@ -2682,6 +3134,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
                             type="text"
                             name="request_subject_title"
                             id="request_subject_title"
+                            class="form-control"
                             value="<?= htmlspecialchars((string) ($request_subject_title ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                             placeholder="Enter subject/title of request"
                         >
@@ -2867,11 +3320,14 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
                         <section class="col-request-card">
                             <div class="form-group">
                                 <label for="certificate_leave_purpose">Purpose <span class="required-asterisk">*</span></label>
-                                <select name="certificate_leave_purpose" id="certificate_leave_purpose" class="form-control">
-                                    <option value="" disabled hidden <?= (($_POST['certificate_leave_purpose'] ?? '') === '') ? 'selected' : ''; ?>>Choose purpose of leave</option>
-                                    <option value="Travel" <?= (($_POST['certificate_leave_purpose'] ?? '') === 'Travel') ? 'selected' : ''; ?>>Travel</option>
-                                    <option value="Others" <?= (($_POST['certificate_leave_purpose'] ?? '') === 'Others') ? 'selected' : ''; ?>>Others</option>
-                                </select>
+                                <div class="select-wrapper">
+                                    <select name="certificate_leave_purpose" id="certificate_leave_purpose" class="form-control">
+                                        <option value="" disabled hidden <?= (($_POST['certificate_leave_purpose'] ?? '') === '') ? 'selected' : ''; ?>>Choose purpose of leave</option>
+                                        <option value="Travel" <?= (($_POST['certificate_leave_purpose'] ?? '') === 'Travel') ? 'selected' : ''; ?>>Travel</option>
+                                        <option value="Others" <?= (($_POST['certificate_leave_purpose'] ?? '') === 'Others') ? 'selected' : ''; ?>>Others</option>
+                                    </select>
+                                    <i class="fas fa-chevron-down select-icon"></i>
+                                </div>
                             </div>
                         </section>
                     </div>
@@ -2886,40 +3342,113 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 
             <section class="sap-request-group" id="sapRequestSection">
                 <h3 class="sap-request-head">SAP Form</h3>
-                <div class="sap-request-list">
-                    <section class="sap-request-card">
-                        <div class="form-group">
-                            <label for="sap_name">Name <span class="required-asterisk">*</span></label>
-                            <input type="text" name="sap_name" id="sap_name" class="form-control" value="<?= htmlspecialchars((string) ($_POST['sap_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer">
+                <div class="sap-request-panel-head">
+                    <div class="sap-request-panel-copy">
+                        <p class="sap-request-counter" id="sapRequestCounter">Employee 1 of <?= count($sapFormEntries); ?></p>
+                        <p class="sap-request-copy">Add one or more employee reports under a single SAP ticket.</p>
+                    </div>
+                    <div class="sap-request-panel-tools">
+                        <div class="select-wrapper sap-request-switcher">
+                            <span class="sap-request-switcher-icon" aria-hidden="true"><i class="fas fa-users"></i></span>
+                            <select id="sapEmployeeSwitcher" class="form-control">
+                                <?php foreach ($sapFormEntries as $sapIndex => $sapEntry): ?>
+                                    <?php $sapDisplayName = trim((string) ($sapEntry['name'] ?? '')); ?>
+                                    <option value="<?= $sapIndex; ?>">
+                                        <?= htmlspecialchars($sapDisplayName !== '' ? $sapDisplayName : ('Employee ' . ($sapIndex + 1)), ENT_QUOTES, 'UTF-8'); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <i class="fas fa-chevron-down select-icon"></i>
                         </div>
-                    </section>
-                    <section class="sap-request-card">
-                        <div class="form-group">
-                            <label for="sap_position">Position <span class="required-asterisk">*</span></label>
-                            <input type="text" name="sap_position" id="sap_position" class="form-control" value="<?= htmlspecialchars((string) ($_POST['sap_position'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer">
-                        </div>
-                    </section>
-                    <section class="sap-request-card">
-                        <div class="form-group">
-                            <label for="sap_immediate_head">Immediate Head <span class="required-asterisk">*</span></label>
-                            <input type="text" name="sap_immediate_head" id="sap_immediate_head" class="form-control" value="<?= htmlspecialchars((string) ($_POST['sap_immediate_head'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer">
-                        </div>
-                    </section>
-                    <section class="sap-request-card">
-                        <div class="form-group">
-                            <label for="sap_department">Department <span class="required-asterisk">*</span></label>
-                            <input type="text" name="sap_department" id="sap_department" class="form-control" value="<?= htmlspecialchars((string) ($_POST['sap_department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer">
-                        </div>
-                    </section>
-                    <section class="sap-request-card">
-                        <div class="form-group">
-                            <label for="sap_company">Company <span class="required-asterisk">*</span></label>
-                            <input type="text" name="sap_company" id="sap_company" class="form-control" value="<?= htmlspecialchars((string) ($_POST['sap_company'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer">
-                        </div>
-                    </section>
+                    </div>
+                </div>
+                <div class="sap-request-list" id="sapRequestList">
+                    <?php $visibleSapEntry = $sapFormEntries[count($sapFormEntries) - 1] ?? sales_request_blank_sap_report(); ?>
+                    <div id="sapSavedReportsHost">
+                        <?php for ($savedSapIndex = 0; $savedSapIndex < max(0, count($sapFormEntries) - 1); $savedSapIndex += 1): ?>
+                            <?php $savedSapEntry = $sapFormEntries[$savedSapIndex]; ?>
+                            <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][name]" value="<?= htmlspecialchars((string) ($savedSapEntry['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][position]" value="<?= htmlspecialchars((string) ($savedSapEntry['position'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][immediate_head]" value="<?= htmlspecialchars((string) ($savedSapEntry['immediate_head'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][company]" value="<?= htmlspecialchars((string) ($savedSapEntry['company'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][department]" value="<?= htmlspecialchars((string) ($savedSapEntry['department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                        <?php endfor; ?>
+                    </div>
+                    <section class="sap-request-card sap-employee-card is-active" data-sap-card>
+                            <div class="sap-request-card-top">
+                                <h4 class="sap-request-card-title" data-sap-report-title>Employee Details</h4>
+                                <button type="button" class="sap-request-card-delete" data-remove-sap-report aria-label="Delete employee">
+                                    <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                                    <span>Remove</span>
+                                </button>
+                            </div>
+                            <div class="sap-request-inline-row">
+                                <section class="sap-request-field">
+                                    <div class="form-group">
+                                        <label for="sap_name_current">Full Name <span class="required-asterisk">*</span></label>
+                                        <input type="text" name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][name]" id="sap_name_current" class="form-control" value="<?= htmlspecialchars((string) ($visibleSapEntry['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="name">
+                                    </div>
+                                </section>
+                                <section class="sap-request-field">
+                                    <div class="form-group">
+                                        <label for="sap_position_current">Position <span class="required-asterisk">*</span></label>
+                                        <input type="text" name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][position]" id="sap_position_current" class="form-control" value="<?= htmlspecialchars((string) ($visibleSapEntry['position'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="position">
+                                    </div>
+                                </section>
+                            </div>
+                            <div class="sap-request-inline-row">
+                                <section class="sap-request-field">
+                                    <div class="form-group">
+                                        <label for="sap_immediate_head_current">Immediate Supervisor <span class="required-asterisk">*</span></label>
+                                        <input type="text" name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][immediate_head]" id="sap_immediate_head_current" class="form-control" value="<?= htmlspecialchars((string) ($visibleSapEntry['immediate_head'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="immediate_head">
+                                    </div>
+                                </section>
+                                <section class="sap-request-field">
+                                    <div class="form-group">
+                                        <label for="sap_company_current">Company <span class="required-asterisk">*</span></label>
+                                        <div class="select-wrapper">
+                                            <select name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][company]" id="sap_company_current" class="form-control" data-sap-field="company">
+                                                <option value="" disabled <?= (($visibleSapEntry['company'] ?? '') === '') ? 'selected' : ''; ?>>Choose company</option>
+                                                <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
+                                                    <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (($visibleSapEntry['company'] ?? '') === $companyValue) ? 'selected' : ''; ?>>
+                                                        <?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <i class="fas fa-chevron-down select-icon"></i>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                            <div class="sap-request-company-row">
+                                <section class="sap-request-field sap-request-department-wrap <?= (($visibleSapEntry['company'] ?? '') === '@leadsagri.com') ? 'is-visible' : ''; ?>" data-sap-department-wrap>
+                                    <div class="form-group">
+                                        <label for="sap_department_current">Department <span class="required-asterisk">*</span></label>
+                                        <div class="select-wrapper sap-request-department-field <?= (($visibleSapEntry['company'] ?? '') === '@leadsagri.com') ? 'is-visible' : ''; ?>" data-sap-department-field>
+                                            <select name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][department]" id="sap_department_current" class="form-control" data-sap-field="department" <?= (($visibleSapEntry['company'] ?? '') === '@leadsagri.com') ? '' : 'disabled'; ?>>
+                                                <option value="" disabled <?= (($visibleSapEntry['department'] ?? '') === '') ? 'selected' : ''; ?>>Choose department</option>
+                                                <?php foreach ($lapcDepartments as $sapDepartmentOption): ?>
+                                                    <option value="<?= htmlspecialchars($sapDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($visibleSapEntry['department'] ?? '') === $sapDepartmentOption) ? 'selected' : ''; ?>>
+                                                        <?= htmlspecialchars($sapDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <i class="fas fa-chevron-down select-icon"></i>
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                        </section>
+                </div>
+                <div class="sap-request-actions">
+                    <div class="sap-request-actions-group">
+                        <button type="button" class="sap-request-add-btn" id="sapAddEmployeeBtn">
+                            <i class="fas fa-plus"></i>
+                            Add Employee
+                        </button>
+                    </div>
                 </div>
             </section>
-
             <div class="sss-benefits-group" id="sssBenefitsContainer">
                 <section class="sss-benefits-note">
                     <div class="sss-benefits-note-head">SSS Notification and Benefits Concern</div>
@@ -2932,7 +3461,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
                 <div class="sss-benefits-list">
                     <section class="sss-benefits-card">
                         <h4 class="sss-benefits-card-title">Accomplished SSS Sickness Form <span class="required-asterisk">*</span></h4>
-                        <p class="sss-benefits-card-copy">Upload 1 supported file. Max 10 MB.</p>
+                        <p class="sss-benefits-card-copy">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files).</p>
                         <div class="sss-benefits-upload-row">
                             <label class="sss-benefits-upload-btn" for="sssSicknessFormInput">
                                 <i class="fas fa-upload"></i>
@@ -2947,7 +3476,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 
                     <section class="sss-benefits-card">
                         <h4 class="sss-benefits-card-title">Medical Procedures <span class="required-asterisk">*</span></h4>
-                        <p class="sss-benefits-card-copy">Upload up to 5 supported files. Max 10 MB per file.</p>
+                        <p class="sss-benefits-card-copy">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files).</p>
                         <div class="sss-benefits-upload-row">
                             <label class="sss-benefits-upload-btn" for="sssMedicalProceduresInput">
                                 <i class="fas fa-upload"></i>
@@ -2962,7 +3491,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 
                     <section class="sss-benefits-card">
                         <h4 class="sss-benefits-card-title">Laboratory Results <span class="required-asterisk">*</span></h4>
-                        <p class="sss-benefits-card-copy">Upload up to 5 supported files. Max 10 MB per file.</p>
+                        <p class="sss-benefits-card-copy">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files).</p>
                         <div class="sss-benefits-upload-row">
                             <label class="sss-benefits-upload-btn" for="sssLaboratoryResultsInput">
                                 <i class="fas fa-upload"></i>
@@ -2977,7 +3506,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 
                     <section class="sss-benefits-card">
                         <h4 class="sss-benefits-card-title">Medical Certificates <span class="required-asterisk">*</span></h4>
-                        <p class="sss-benefits-card-copy">Upload up to 5 supported files. Max 10 MB per file.</p>
+                        <p class="sss-benefits-card-copy">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files).</p>
                         <div class="sss-benefits-upload-row">
                             <label class="sss-benefits-upload-btn" for="sssMedicalCertificatesInput">
                                 <i class="fas fa-upload"></i>
@@ -2992,7 +3521,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 
                     <section class="sss-benefits-card">
                         <h4 class="sss-benefits-card-title">Discharge Summary/Proof <span class="required-asterisk">*</span></h4>
-                        <p class="sss-benefits-card-copy">Upload up to 5 supported files. Max 10 MB per file.</p>
+                        <p class="sss-benefits-card-copy">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files).</p>
                         <div class="sss-benefits-upload-row">
                             <label class="sss-benefits-upload-btn" for="sssDischargeSummaryInput">
                                 <i class="fas fa-upload"></i>
@@ -3017,18 +3546,17 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
                     <div id="attachmentOriginalHost"></div>
                     <div class="form-group" id="attachmentContainer">
                         <label><span id="attachmentLabelText">Attachment</span> <span id="attachmentOptionalText">(Optional)</span><span id="attachmentRequiredAsterisk" class="required-asterisk" style="display:none;">*</span></label>
-                        <p class="medical-cash-card-copy" id="medicalCashAttachmentIntro" style="display:none;">Please upload any medical document relevant your request as attachment. Thank you.</p>
-                        <div class="file-control">
+                        <div class="attachment-upload-shell file-control">
                             <button type="button" id="choose-file-btn" class="file-button" aria-label="Choose file">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                     <path d="M20 17.5A3.5 3.5 0 0 1 16.5 21H7a5 5 0 0 1-1-9.9V11a6 6 0 0 1 11.53-1.999.75.75 0 1 1-1.4.55A4.5 4.5 0 0 0 7.75 11v.77a.75.75 0 0 1-.63.74A3.5 3.5 0 0 0 7 19.5h9.5A2 2 0 0 0 18.5 15a.75.75 0 1 1 1.5 0zM12 7.5a.75.75 0 0 1 .75.75V12h1.94a.75.75 0 1 1 0 1.5H12.75v1.94a.75.75 0 0 1-1.5 0V13.5H9.31a.75.75 0 1 1 0-1.5h1.94V8.25A.75.75 0 0 1 12 7.5z"/>
                                 </svg>
                                 <span id="chooseFileBtnText">Choose File</span>
                             </button>
-                            <span id="file-name" class="file-name">No file chosen</span>
                             <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx">
+                            <span id="file-name" class="attachment-file-name file-name">No file chosen</span>
                         </div>
-                        <small id="attachmentHelpText" class="form-text" style="display:block; margin-top:5px; color:#666;">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files)</small>
+                        <small id="attachmentHelpText" class="form-text attachment-help-text">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files)</small>
                         <div id="attachment-error" style="display:none;margin-top:10px;background:#fee2e2;color:#991b1b;padding:10px 12px;border-radius:10px;border:1px solid #fecaca;font-weight:700;"></div>
                         <div id="attachment-toast" role="alert" aria-live="assertive" style="position:fixed;top:18px;right:18px;z-index:9999;display:none;max-width:min(420px, calc(100vw - 36px));background:#991b1b;color:#ffffff;padding:12px 14px;border-radius:12px;box-shadow:0 16px 40px rgba(2,6,23,0.22);font-weight:800;font-size:13px;"></div>
                         <div id="attachment-preview" style="margin-top: 10px;"></div>
@@ -3041,6 +3569,7 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
                 <button type="submit" class="submit-btn">Submit Ticket</button>
             </div>
         </form>
+        </div>
 
     <?php endif; ?>
 </div>
@@ -3062,10 +3591,13 @@ if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
 
 <script>
 var recipient = document.getElementById('ticket_recipient');
+var recipientRow = document.getElementById('recipientRow');
 var departmentGroup = document.getElementById('departmentGroup');
 var recipientGroup = document.getElementById('recipientGroup');
 var departmentSelect = document.getElementById('department');
+var salesCategoryRow = document.getElementById('salesCategoryRow');
 var categorySelect = document.getElementById('sales_category');
+var categoryContainer = document.getElementById('categoryContainer');
 var priorityGroup = document.getElementById('priorityGroup');
 var prioritySelect = document.getElementById('sales_priority');
 var kamiBannerContainer = document.getElementById('kamiBannerContainer');
@@ -3103,11 +3635,11 @@ var certificateLeavePurposeSelect = document.getElementById('certificate_leave_p
 var certificateLeavePurposeOtherContainer = document.getElementById('certificateLeavePurposeOtherContainer');
 var certificateLeavePurposeOtherInput = document.getElementById('certificate_leave_purpose_other');
 var sapRequestSection = document.getElementById('sapRequestSection');
-var sapNameInput = document.getElementById('sap_name');
-var sapPositionInput = document.getElementById('sap_position');
-var sapImmediateHeadInput = document.getElementById('sap_immediate_head');
-var sapDepartmentInput = document.getElementById('sap_department');
-var sapCompanyInput = document.getElementById('sap_company');
+var sapRequestList = document.getElementById('sapRequestList');
+var sapSavedReportsHost = document.getElementById('sapSavedReportsHost');
+var sapAddEmployeeBtn = document.getElementById('sapAddEmployeeBtn');
+var sapEmployeeSwitcher = document.getElementById('sapEmployeeSwitcher');
+var sapRequestCounter = document.getElementById('sapRequestCounter');
 var otherRequestDetailsSection = document.getElementById('otherRequestDetailsSection');
 var otherDescriptionSection = document.getElementById('otherDescriptionSection');
 var requestSubjectLabel = document.getElementById('requestSubjectLabel');
@@ -3124,6 +3656,7 @@ var attachmentRequiredAsterisk = document.getElementById('attachmentRequiredAste
 var attachmentHelpText = document.getElementById('attachmentHelpText');
 var chooseFileBtnText = document.getElementById('chooseFileBtnText');
 var ajaxErrorBanner = document.getElementById('ajaxError');
+var lapcDepartments = <?= json_encode(array_values($lapcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var defaultCategories = <?= json_encode($defaultCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var mpdcCategories = <?= json_encode($mpdcCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var lapcDepartmentCategories = <?= json_encode($lapcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
@@ -3137,22 +3670,246 @@ var sssUploadConfigs = [
 ];
 var sssUploadState = {};
 
+function getSapCards() {
+    if (!sapRequestList) return [];
+    return Array.from(sapRequestList.querySelectorAll('[data-sap-card]'));
+}
+
+function getCurrentSapCard() {
+    var cards = getSapCards();
+    return cards.length > 0 ? cards[0] : null;
+}
+
+function getSapField(fieldName) {
+    var currentCard = getCurrentSapCard();
+    return currentCard ? currentCard.querySelector('[data-sap-field="' + fieldName + '"]') : null;
+}
+
+function getCurrentSapReportValues() {
+    var departmentInput = getSapField('department');
+    return {
+        name: String((getSapField('name') || {}).value || '').trim(),
+        position: String((getSapField('position') || {}).value || '').trim(),
+        immediate_head: String((getSapField('immediate_head') || {}).value || '').trim(),
+        company: String((getSapField('company') || {}).value || '').trim(),
+        department: String((departmentInput && departmentInput.value) || '').trim()
+    };
+}
+
+function getSapCardDisplayName(report, index) {
+    var displayName = report ? String(report.name || '').trim() : '';
+    return displayName !== '' ? displayName : ('Employee ' + (index + 1));
+}
+
+var savedSapReports = [];
+
+function createHiddenSapInput(index, fieldName, value) {
+    if (!sapSavedReportsHost) return;
+    var input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'sap_reports[' + index + '][' + fieldName + ']';
+    input.value = value || '';
+    sapSavedReportsHost.appendChild(input);
+}
+
+function renderSavedSapReports() {
+    if (!sapSavedReportsHost) return;
+    sapSavedReportsHost.innerHTML = '';
+    savedSapReports.forEach(function(report, index) {
+        createHiddenSapInput(index, 'name', report.name);
+        createHiddenSapInput(index, 'position', report.position);
+        createHiddenSapInput(index, 'immediate_head', report.immediate_head);
+        createHiddenSapInput(index, 'company', report.company);
+        createHiddenSapInput(index, 'department', report.department);
+    });
+}
+
+function updateCurrentSapFieldNames() {
+    var currentIndex = savedSapReports.length;
+    ['name', 'position', 'immediate_head', 'company', 'department'].forEach(function(fieldName) {
+        var input = getSapField(fieldName);
+        if (input) {
+            input.name = 'sap_reports[' + currentIndex + '][' + fieldName + ']';
+        }
+    });
+}
+
+function clearCurrentSapForm() {
+    ['name', 'position', 'immediate_head', 'company'].forEach(function(fieldName) {
+        var input = getSapField(fieldName);
+        if (input) {
+            input.value = '';
+        }
+    });
+    var departmentInput = getSapField('department');
+    if (departmentInput) {
+        departmentInput.value = '';
+    }
+    syncSapDepartmentVisibility(getCurrentSapCard());
+}
+
+function syncCurrentSapDepartment() {
+    syncSapDepartmentVisibility(getCurrentSapCard());
+}
+
+function syncSapDepartmentVisibility(card) {
+    if (!card) return;
+    var companyInput = card.querySelector('[data-sap-field="company"]');
+    var departmentWrap = card.querySelector('[data-sap-department-wrap]');
+    var departmentField = card.querySelector('[data-sap-department-field]');
+    var departmentInput = card.querySelector('[data-sap-field="department"]');
+    var sapSectionActive = !sapRequestSection || sapRequestSection.classList.contains('is-visible');
+    var shouldShowDepartment = sapSectionActive && companyInput && String(companyInput.value || '') === '@leadsagri.com';
+    if (departmentWrap) {
+        departmentWrap.classList.toggle('is-visible', shouldShowDepartment);
+    }
+    if (departmentField) {
+        departmentField.classList.toggle('is-visible', shouldShowDepartment);
+    }
+    if (departmentInput) {
+        departmentInput.disabled = !shouldShowDepartment;
+        if (shouldShowDepartment) {
+            departmentInput.setAttribute('required', 'required');
+        } else {
+            departmentInput.removeAttribute('required');
+            departmentInput.value = '';
+        }
+    }
+}
+
+function syncSapCardState() {
+    var currentReport = getCurrentSapReportValues();
+    var totalEmployees = savedSapReports.length + 1;
+    var currentEmployeeNumber = totalEmployees;
+    if (sapRequestCounter) {
+        sapRequestCounter.textContent = 'Employee ' + currentEmployeeNumber + ' of ' + totalEmployees;
+    }
+    if (sapEmployeeSwitcher) {
+        sapEmployeeSwitcher.innerHTML = '';
+        savedSapReports.forEach(function(report, reportIndex) {
+            var option = document.createElement('option');
+            option.value = String(reportIndex);
+            option.textContent = getSapCardDisplayName(report, reportIndex);
+            sapEmployeeSwitcher.appendChild(option);
+        });
+        var currentOption = document.createElement('option');
+        currentOption.value = 'current';
+        currentOption.textContent = getSapCardDisplayName(currentReport, savedSapReports.length);
+        currentOption.selected = true;
+        sapEmployeeSwitcher.appendChild(currentOption);
+    }
+    var currentCard = getCurrentSapCard();
+    if (currentCard) {
+        currentCard.classList.add('is-active');
+        var removeButtons = Array.from(currentCard.querySelectorAll('[data-remove-sap-report]'));
+        removeButtons.forEach(function(button) {
+            button.style.display = savedSapReports.length > 0 ? '' : 'none';
+        });
+        syncSapDepartmentVisibility(currentCard);
+    }
+    updateCurrentSapFieldNames();
+}
+
+function initializeSavedSapReportsFromDom() {
+    if (!sapSavedReportsHost) return;
+    var grouped = {};
+    Array.from(sapSavedReportsHost.querySelectorAll('input[type="hidden"]')).forEach(function(input) {
+        var match = input.name.match(/^sap_reports\[(\d+)\]\[(name|position|immediate_head|company|department)\]$/);
+        if (!match) return;
+        var index = match[1];
+        var fieldName = match[2];
+        if (!grouped[index]) {
+            grouped[index] = { name: '', position: '', immediate_head: '', company: '', department: '' };
+        }
+        grouped[index][fieldName] = input.value || '';
+    });
+    savedSapReports = Object.keys(grouped).sort(function(a, b) {
+        return parseInt(a, 10) - parseInt(b, 10);
+    }).map(function(index) {
+        return grouped[index];
+    });
+    renderSavedSapReports();
+}
+
+function saveCurrentSapEmployee() {
+    var report = getCurrentSapReportValues();
+    if (!report.name || !report.position || !report.immediate_head || !report.company || (report.company === '@leadsagri.com' && !report.department)) {
+        setInlineFormError('Please complete the current SAP employee report before adding another employee.');
+        return false;
+    }
+    savedSapReports.push(report);
+    renderSavedSapReports();
+    clearCurrentSapForm();
+    syncSapCardState();
+    var firstInput = getSapField('name');
+    if (firstInput) {
+        firstInput.focus();
+    }
+    setInlineFormError('');
+    return true;
+}
+
+function removeLastSavedSapEmployee() {
+    if (savedSapReports.length === 0) return;
+    savedSapReports.pop();
+    renderSavedSapReports();
+    syncSapCardState();
+}
+
+function addSapCard() {
+    saveCurrentSapEmployee();
+}
+
+function syncRequestGridRows() {
+    if (recipientRow && departmentGroup) {
+        var departmentVisible = departmentGroup.style.display !== 'none' && !departmentGroup.classList.contains('hidden');
+        recipientRow.classList.toggle('is-single', !departmentVisible);
+    }
+    if (salesCategoryRow && categoryContainer && priorityGroup) {
+        var urgencyVisible = !priorityGroup.classList.contains('hidden');
+        salesCategoryRow.classList.toggle('is-single', !urgencyVisible);
+    }
+}
+
+function isLapcRecipientValue(value) {
+    return String(value || '') === 'LAPC (@leadsagri.com)' || String(value || '') === '@leadsagri.com';
+}
+
+function populateDepartments(options) {
+    if (!departmentSelect) return;
+    var selectedValue = String(departmentSelect.getAttribute('data-selected') || departmentSelect.value || '');
+    departmentSelect.innerHTML = '<option value="" disabled selected hidden>Choose department</option>';
+    options.forEach(function(optionValue) {
+        var option = document.createElement('option');
+        option.value = optionValue;
+        option.textContent = optionValue;
+        if (selectedValue !== '' && selectedValue === optionValue) {
+            option.selected = true;
+        }
+        departmentSelect.appendChild(option);
+    });
+}
+
 function toggleDepartmentField() {
     if (!recipient || !departmentGroup || !recipientGroup || !departmentSelect) return;
-    var value = recipient.value;
+    var value = String(recipient.value || '');
 
-    if (value === 'LAPC (@leadsagri.com)') {
+    if (isLapcRecipientValue(value)) {
+        populateDepartments(lapcDepartments);
+        departmentGroup.style.display = 'block';
         departmentGroup.classList.remove('hidden');
         recipientGroup.classList.remove('full-width');
         departmentSelect.disabled = false;
-        departmentSelect.setAttribute('required', 'true');
+        departmentSelect.setAttribute('required', 'required');
     } else {
+        departmentGroup.style.display = 'none';
         departmentGroup.classList.add('hidden');
         recipientGroup.classList.add('full-width');
         departmentSelect.value = '';
         departmentSelect.disabled = true;
         departmentSelect.removeAttribute('required');
     }
+    syncRequestGridRows();
 }
 
 function populateSalesCategories(options) {
@@ -3181,7 +3938,7 @@ function toggleCategoryField() {
     var options = defaultCategories;
     if (value === 'MPDC (@malvedaproperties.com)') {
         options = mpdcCategories;
-    } else if (value === 'LAPC (@leadsagri.com)' && lapcDepartmentCategories[departmentValue]) {
+    } else if (isLapcRecipientValue(value) && lapcDepartmentCategories[departmentValue]) {
         options = lapcDepartmentCategories[departmentValue];
     }
     populateSalesCategories(options);
@@ -3191,7 +3948,7 @@ function togglePriorityField() {
     if (!priorityGroup || !prioritySelect || !recipient) return;
     var recipientValue = String(recipient.value || '');
     var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
-    var shouldShow = recipientValue === 'LAPC (@leadsagri.com)' && departmentValue === 'HR';
+    var shouldShow = isLapcRecipientValue(recipientValue) && departmentValue === 'HR';
 
     if (shouldShow) {
         priorityGroup.classList.remove('hidden');
@@ -3203,12 +3960,19 @@ function togglePriorityField() {
         prioritySelect.disabled = true;
         prioritySelect.removeAttribute('required');
     }
+    syncRequestGridRows();
 }
 
 function isLapcHrSelection() {
     var recipientValue = recipient ? String(recipient.value || '') : '';
     var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
-    return recipientValue === 'LAPC (@leadsagri.com)' && departmentValue === 'HR';
+    return isLapcRecipientValue(recipientValue) && departmentValue === 'HR';
+}
+
+function isLapcItSelection() {
+    var recipientValue = recipient ? String(recipient.value || '') : '';
+    var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
+    return isLapcRecipientValue(recipientValue) && departmentValue === 'IT';
 }
 
 function setInlineFormError(message) {
@@ -3251,10 +4015,6 @@ function updateSssUploadSummary(config) {
     if (!listNode) return;
     listNode.innerHTML = '';
     if (files.length === 0) {
-        var empty = document.createElement('span');
-        empty.className = 'sss-benefits-file-empty';
-        empty.textContent = 'No file chosen';
-        listNode.appendChild(empty);
         return;
     }
 
@@ -3386,7 +4146,7 @@ function toggleHrExtraFields() {
     var shouldShowCompanyPropertyRequest = shouldShow && selectedCategory === 'Request for Company Property';
     var shouldShowCoeRequest = shouldShow && selectedCategory === 'Certificate of Employment';
     var shouldShowColRequest = shouldShow && selectedCategory === 'Certificate of Leave';
-    var shouldShowSapRequest = shouldShow && selectedCategory === 'SAP';
+    var shouldShowSapRequest = isLapcItSelection() && selectedCategory === 'SAP';
     var shouldRequireKamiAttachment = shouldShowConcernType;
     var shouldRequireMedicalAttachment = shouldShowMedicalCashAdvance;
 
@@ -3422,7 +4182,7 @@ function toggleHrExtraFields() {
     if (sssBenefitsContainer) sssBenefitsContainer.classList.toggle('is-visible', shouldShowSssBenefits);
 
     if (descriptionContainer) descriptionContainer.style.display = (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest) ? 'none' : '';
-    if (attachmentContainer) attachmentContainer.style.display = shouldShowSssBenefits ? 'none' : '';
+    if (attachmentContainer) attachmentContainer.style.display = (shouldShowSssBenefits || shouldShowSapRequest) ? 'none' : '';
     if (otherDescriptionSection) otherDescriptionSection.style.display = shouldShowSssBenefits ? 'none' : '';
 
     if (attachmentInput) attachmentInput.disabled = shouldShowSssBenefits;
@@ -3517,11 +4277,14 @@ function toggleHrExtraFields() {
             certificateLeavePurposeOtherInput.value = '';
         }
     }
-    [sapNameInput, sapPositionInput, sapImmediateHeadInput, sapDepartmentInput, sapCompanyInput].forEach(function(input) {
-        if (!input) return;
-        if (shouldShowSapRequest) input.setAttribute('required', 'required');
-        else input.removeAttribute('required');
-    });
+    if (sapRequestList) {
+        Array.from(sapRequestList.querySelectorAll('[data-sap-field]')).forEach(function(input) {
+            if (!(input instanceof HTMLElement)) return;
+            if (shouldShowSapRequest) input.setAttribute('required', 'required');
+            else input.removeAttribute('required');
+        });
+        syncSapDepartmentVisibility(getCurrentSapCard());
+    }
     if (coeRequestReasonOtherInput) {
         var otherCoeSelected = coeRequestReasonInputs.some(function(input) { return input.checked && input.value === 'Other'; });
         if (shouldShowCoeRequest && otherCoeSelected) coeRequestReasonOtherInput.setAttribute('required', 'required');
@@ -3568,6 +4331,7 @@ if (recipient) recipient.addEventListener('change', function() {
 if (departmentSelect) departmentSelect.addEventListener('change', function() {
     toggleCategoryField();
     toggleHrExtraFields();
+    syncCurrentSapDepartment();
 });
 if (categorySelect) categorySelect.addEventListener('change', function() {
     toggleHrExtraFields();
@@ -3581,6 +4345,44 @@ if (certificateLeavePurposeSelect) certificateLeavePurposeSelect.addEventListene
 toggleDepartmentField();
 toggleCategoryField();
 toggleHrExtraFields();
+initializeSavedSapReportsFromDom();
+syncSapCardState();
+
+if (sapAddEmployeeBtn) {
+    sapAddEmployeeBtn.addEventListener('click', function() {
+        addSapCard();
+    });
+}
+if (sapEmployeeSwitcher) {
+    sapEmployeeSwitcher.addEventListener('change', function() {
+        sapEmployeeSwitcher.value = 'current';
+        syncSapCardState();
+    });
+}
+if (sapRequestList) {
+    sapRequestList.addEventListener('click', function(event) {
+        var target = event.target;
+        if (!(target instanceof Element)) return;
+        var removeButton = target.closest('[data-remove-sap-report]');
+        if (!removeButton) return;
+        removeLastSavedSapEmployee();
+    });
+    sapRequestList.addEventListener('input', function(event) {
+        var target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.matches('[data-sap-field="name"]')) {
+            syncSapCardState();
+        }
+    });
+    sapRequestList.addEventListener('change', function(event) {
+        var target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.matches('[data-sap-field="company"]')) {
+            syncSapDepartmentVisibility(target.closest('[data-sap-card]'));
+            syncSapCardState();
+        }
+    });
+}
 
 if (concernTypeSelect) {
     var selectedConcernType = String(concernTypeSelect.getAttribute('data-selected') || '');
@@ -3930,6 +4732,7 @@ if (formEl) {
     formEl.addEventListener('submit', function (e) {
         var selectedCategory = categorySelect ? String(categorySelect.value || '') : '';
         var isLapcHrSelected = isLapcHrSelection();
+        var isLapcItSelected = isLapcItSelection();
         var isKamiAttachmentRequired = isLapcHrSelected && selectedCategory === 'Attendance & Timekeeping';
         var isHrSssSelected = isLapcHrSelected && selectedCategory === 'SSS Sickness and Benefit Concern';
         var isHrMedicalCashAdvanceSelected = isLapcHrSelected && selectedCategory === 'Medical Cash Advance';
@@ -4057,31 +4860,34 @@ if (formEl) {
                 return;
             }
         }
-        if (isLapcHrSelected && selectedCategory === 'SAP') {
-            if (sapNameInput && !String(sapNameInput.value || '').trim()) {
-                e.preventDefault();
-                setInlineFormError('Please complete the SAP form.');
-                return;
-            }
-            if (sapPositionInput && !String(sapPositionInput.value || '').trim()) {
-                e.preventDefault();
-                setInlineFormError('Please complete the SAP form.');
-                return;
-            }
-            if (sapImmediateHeadInput && !String(sapImmediateHeadInput.value || '').trim()) {
-                e.preventDefault();
-                setInlineFormError('Please complete the SAP form.');
-                return;
-            }
-            if (sapDepartmentInput && !String(sapDepartmentInput.value || '').trim()) {
-                e.preventDefault();
-                setInlineFormError('Please complete the SAP form.');
-                return;
-            }
-            if (sapCompanyInput && !String(sapCompanyInput.value || '').trim()) {
-                e.preventDefault();
-                setInlineFormError('Please complete the SAP form.');
-                return;
+        if (isLapcItSelected && selectedCategory === 'SAP') {
+            var sapCards = getSapCards();
+            for (var sapIndex = 0; sapIndex < sapCards.length; sapIndex += 1) {
+                var sapCard = sapCards[sapIndex];
+                var requiredSapFields = ['name', 'position', 'immediate_head', 'company'];
+                for (var fieldIndex = 0; fieldIndex < requiredSapFields.length; fieldIndex += 1) {
+                    var fieldName = requiredSapFields[fieldIndex];
+                    var sapInput = sapCard ? sapCard.querySelector('[data-sap-field="' + fieldName + '"]') : null;
+                    if (sapInput && !String(sapInput.value || '').trim()) {
+                        e.preventDefault();
+                        setInlineFormError('Please complete each SAP employee report before submitting.');
+                        try { sapInput.focus(); } catch (focusError) {}
+                        return;
+                    }
+                }
+                var sapCompanyInput = sapCard ? sapCard.querySelector('[data-sap-field="company"]') : null;
+                var sapDepartmentInput = sapCard ? sapCard.querySelector('[data-sap-field="department"]') : null;
+                if (
+                    sapCompanyInput
+                    && String(sapCompanyInput.value || '') === '@leadsagri.com'
+                    && sapDepartmentInput
+                    && !String(sapDepartmentInput.value || '').trim()
+                ) {
+                    e.preventDefault();
+                    setInlineFormError('Please complete each SAP employee report before submitting.');
+                    try { sapDepartmentInput.focus(); } catch (focusError) {}
+                    return;
+                }
             }
         }
         if (isHrSssSelected) {
