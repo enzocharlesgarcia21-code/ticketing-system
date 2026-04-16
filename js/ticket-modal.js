@@ -14,6 +14,7 @@ var TMTicketModal = (function () {
   var lastTicketMeta = null;
   var chatModalAttachmentFile = null;
   var messengerAttachmentFile = null;
+  var attachmentCategorySeq = 0;
   var chatPermissionState = { canChat: true, lockedMessage: '', handlerName: '', statusLabel: '' };
   var messengerPermissionState = { canChat: false, lockedMessage: '', handlerName: '', statusLabel: '', isChecking: false };
   function qs(id) { return document.getElementById(id); }
@@ -419,6 +420,80 @@ var TMTicketModal = (function () {
     var ext = String(filename || '').split('.').pop().toLowerCase();
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
   }
+  function getHrAttachmentSlides(groups) {
+    return (Array.isArray(groups) ? groups : []).map(function (group) {
+      var attachments = Array.isArray(group && group.attachments) ? group.attachments.map(function (att) {
+        var n = normalizeAttachment(att);
+        if (!n.filename) return null;
+        return {
+          filename: String(n.filename),
+          displayName: String(n.displayName || n.filename),
+          isImage: isImageFile(n.filename)
+        };
+      }).filter(function (att) { return !!att; }) : [];
+      if (!attachments.length) return null;
+      return {
+        title: String((group && group.title) || 'Attachment'),
+        attachments: attachments
+      };
+    }).filter(function (group) { return !!group; });
+  }
+  function renderHrAttachmentCategoryCarousel(groups) {
+    var slides = getHrAttachmentSlides(groups);
+    if (!slides.length) return '';
+    var carouselId = 'tmHrAttachmentCategory-' + String(++attachmentCategorySeq);
+    return '<div class="tm-hr-category-carousel" id="' + carouselId + '" data-index="0">' +
+      slides.map(function (group, index) {
+        var activeClass = index === 0 ? ' is-active' : '';
+        return '<section class="tm-hr-category-slide' + activeClass + '" data-index="' + String(index) + '" aria-hidden="' + (index === 0 ? 'false' : 'true') + '">' +
+          '<div class="tm-hr-category-card">' +
+          '<div class="tm-hr-category-top">' +
+          '<div class="tm-hr-category-title">' + escapeHtml(group.title) + '</div>' +
+          '</div>' +
+          '<div class="tm-hr-category-media-grid' + (group.attachments.length === 1 ? ' is-single' : '') + '">' +
+          group.attachments.map(function (item) {
+            var src = '../uploads/' + encodeURIComponent(item.filename);
+            if (item.isImage) {
+              return '<button type="button" class="tm-hr-category-media is-image" data-src="' + src + '" onclick="TMTicketModal.viewImage(this.dataset.src)">' +
+                '<img class="tm-hr-category-image" src="' + src + '" alt="' + escapeHtml(item.displayName) + '">' +
+                '</button>';
+            }
+            return '<a class="tm-hr-category-media is-file" href="' + src + '" target="_blank" rel="noopener noreferrer">' +
+              '<span class="tm-hr-category-file-icon"><i class="fas fa-file-alt"></i></span>' +
+              '<span class="tm-hr-category-file-name">' + escapeHtml(item.displayName) + '</span>' +
+              '</a>';
+          }).join('') +
+          '</div>' +
+          '<div class="tm-hr-category-bottom">' +
+          '<div></div>' +
+          (slides.length > 1
+            ? '<div class="tm-hr-category-nav">' +
+              '<button type="button" class="tm-hr-category-arrow" aria-label="Previous attachment category" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', -1)"><span aria-hidden="true">‹</span></button>' +
+              '<button type="button" class="tm-hr-category-arrow" aria-label="Next attachment category" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', 1)"><span aria-hidden="true">›</span></button>' +
+              '</div>'
+            : '') +
+          '</div>' +
+          '</div>' +
+          '</section>';
+      }).join('') +
+      '</div>';
+  }
+  function stepHrAttachmentCategory(id, delta) {
+    var root = document.getElementById(String(id || ''));
+    if (!root) return;
+    var slides = root.querySelectorAll('.tm-hr-category-slide');
+    if (!slides.length) return;
+    var total = slides.length;
+    var current = Number(root.getAttribute('data-index') || 0);
+    if (!isFinite(current)) current = 0;
+    var nextIndex = ((current + Number(delta || 0)) % total + total) % total;
+    root.setAttribute('data-index', String(nextIndex));
+    slides.forEach(function (slide, index) {
+      var active = index === nextIndex;
+      slide.classList.toggle('is-active', active);
+      slide.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+  }
   function renderAttachmentsBlock(data, options) {
     options = options && typeof options === 'object' ? options : {};
     var hideSectionTitles = !!options.hideSectionTitles;
@@ -632,15 +707,7 @@ var TMTicketModal = (function () {
       ? '<div class="tm-hr-section"><div class="tm-info-label">' + escapeHtml(String(hr.detail_label || 'Description')).toUpperCase() + '</div><div class="tm-info-value">' + escapeHtml(descriptionText).replace(/\n/g, '<br>') + '</div></div>'
       : '';
     var attachmentGroups = Array.isArray(hr.attachment_groups) ? hr.attachment_groups : [];
-    var attachmentsHtml = attachmentGroups.map(function (group) {
-      if (!group || !Array.isArray(group.attachments) || !group.attachments.length) return '';
-      return '<div class="tm-hr-upload-card">' +
-        '<div class="tm-hr-upload-head">' +
-        '<div class="tm-hr-upload-title">' + escapeHtml(String(group.title || 'Attachment')) + '</div>' +
-        '</div>' +
-        '<div class="tm-hr-upload-body">' + renderAttachmentsBlock({ attachments: group.attachments }, { hideSectionTitles: true }) + '</div>' +
-      '</div>';
-    }).join('');
+    var attachmentsHtml = renderHrAttachmentCategoryCarousel(attachmentGroups);
     if (!items.length && !descriptionHtml && !attachmentsHtml) return '';
     return '<div class="tm-card tm-card-request-details"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(String(hr.request_section_title || 'Request Details')) + '</span></div><div class="tm-card-body">' +
       (items.length ? '<div class="tm-info-grid tm-info-grid-compact">' + items.join('') + '</div>' : '') +
@@ -3184,6 +3251,7 @@ var TMTicketModal = (function () {
     openMessengerChat: openMessengerChat,
     closeMessengerChat: closeMessengerChat,
     updateStatusColor: updateStatusColor,
+    stepHrAttachmentCategory: stepHrAttachmentCategory,
     viewImage: viewImage,
     closeImagePreview: closeImagePreview,
     getCurrentTicketId: getCurrentTicketId

@@ -386,11 +386,19 @@ $result = $stmt->get_result();
     </div>
 </div>
 
+<div id="imagePreviewModal" class="image-preview-modal" onclick="closeImagePreview(event)">
+    <div class="preview-content">
+        <button type="button" class="preview-close" onclick="closeImagePreview(event)">&times;</button>
+        <img id="previewImage" class="preview-image" src="" alt="Attachment preview">
+    </div>
+</div>
+
 <script>
 // Chat Global Variables
 const CURRENT_USER_ID = <?php echo isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0; ?>;
 let chatInterval;
 let chatUiBound = false;
+let attachmentCategorySeq = 0;
 
 // Chat Functions
 function startChat(ticketId) {
@@ -674,22 +682,7 @@ function openModal(id, mode = 'full') {
                                 </div>
                             ` : ''}
                         ` : (descriptionText ? `<div class="modal-description-text">${escapeHtml(descriptionText).replace(/\n/g, '<br>')}</div>` : '')}
-                        ${(hrAttachmentGroups.length ? hrAttachmentGroups.map(function (group) {
-                            const helperText = group.helper_text
-                                ? `<div class="tm-hr-upload-help">${escapeHtml(String(group.helper_text))}</div>`
-                                : '';
-                            return `
-                                <div class="tm-hr-upload-card">
-                                    <div class="tm-hr-upload-head">
-                                        <div class="tm-hr-upload-title">${escapeHtml(String(group.title || 'Attachments'))}</div>
-                                        ${helperText}
-                                    </div>
-                                    <div class="tm-hr-upload-body">
-                                        ${renderStructuredAttachments({ attachments: group.attachments || [] })}
-                                    </div>
-                                </div>
-                            `;
-                        }).join('') : structuredAttachments)}
+                        ${(hrAttachmentGroups.length ? renderHrAttachmentCategoryCarousel(hrAttachmentGroups) : structuredAttachments)}
                     </div>
                 </div>
             `;
@@ -755,6 +748,92 @@ function isImageAttachment(filename) {
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
 }
 
+function getHrAttachmentSlides(groups) {
+    return (Array.isArray(groups) ? groups : []).map(function (group) {
+        const attachments = Array.isArray(group && group.attachments) ? group.attachments.map(function (item) {
+            const filename = item && item.stored_name ? String(item.stored_name) : '';
+            const displayName = item && item.original_name ? String(item.original_name) : filename;
+            if (!filename) return null;
+            return {
+                filename,
+                displayName: displayName || filename,
+                isImage: isImageAttachment(filename)
+            };
+        }).filter(Boolean) : [];
+        if (!attachments.length) return null;
+        return {
+            title: String((group && group.title) || 'Attachment'),
+            attachments
+        };
+    }).filter(Boolean);
+}
+
+function renderHrAttachmentCategoryCarousel(groups) {
+    const slides = getHrAttachmentSlides(groups);
+    if (!slides.length) return '';
+    const carouselId = `tmHrAttachmentCategory-${++attachmentCategorySeq}`;
+    return `
+        <div class="tm-hr-category-carousel" id="${carouselId}" data-index="0">
+            ${slides.map(function (group, index) {
+                const activeClass = index === 0 ? ' is-active' : '';
+                return `
+                    <section class="tm-hr-category-slide${activeClass}" data-index="${index}" aria-hidden="${index === 0 ? 'false' : 'true'}">
+                        <div class="tm-hr-category-card">
+                            <div class="tm-hr-category-top">
+                                <div class="tm-hr-category-title">${escapeHtml(group.title)}</div>
+                            </div>
+                            <div class="tm-hr-category-media-grid${group.attachments.length === 1 ? ' is-single' : ''}">
+                                ${group.attachments.map(function (item) {
+                                    const src = `../uploads/${encodeURIComponent(item.filename)}`;
+                                    if (item.isImage) {
+                                        return `
+                                            <button type="button" class="tm-hr-category-media is-image" data-src="${src}" onclick="viewImage(this.dataset.src)">
+                                                <img class="tm-hr-category-image" src="${src}" alt="${escapeHtml(item.displayName)}">
+                                            </button>
+                                        `;
+                                    }
+                                    return `
+                                        <a class="tm-hr-category-media is-file" href="${src}" target="_blank" rel="noopener noreferrer">
+                                            <span class="tm-hr-category-file-icon"><i class="fas fa-file-alt"></i></span>
+                                            <span class="tm-hr-category-file-name">${escapeHtml(item.displayName)}</span>
+                                        </a>
+                                    `;
+                                }).join('')}
+                            </div>
+                            <div class="tm-hr-category-bottom">
+                                <div></div>
+                                ${slides.length > 1 ? `
+                                    <div class="tm-hr-category-nav">
+                                        <button type="button" class="tm-hr-category-arrow" aria-label="Previous attachment category" onclick="stepHrAttachmentCategory('${carouselId}', -1)"><span aria-hidden="true">‹</span></button>
+                                        <button type="button" class="tm-hr-category-arrow" aria-label="Next attachment category" onclick="stepHrAttachmentCategory('${carouselId}', 1)"><span aria-hidden="true">›</span></button>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </section>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function stepHrAttachmentCategory(id, delta) {
+    const root = document.getElementById(String(id || ''));
+    if (!root) return;
+    const slides = root.querySelectorAll('.tm-hr-category-slide');
+    if (!slides.length) return;
+    const total = slides.length;
+    let current = Number(root.getAttribute('data-index') || 0);
+    if (!Number.isFinite(current)) current = 0;
+    const nextIndex = ((current + Number(delta || 0)) % total + total) % total;
+    root.setAttribute('data-index', String(nextIndex));
+    slides.forEach(function (slide, index) {
+        const active = index === nextIndex;
+        slide.classList.toggle('is-active', active);
+        slide.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+}
+
 function renderStructuredAttachments(data) {
     const list = Array.isArray(data.attachments) && data.attachments.length
         ? data.attachments
@@ -813,6 +892,29 @@ function renderStructuredAttachments(data) {
     }
 
     return html;
+}
+
+function viewImage(src) {
+    const modal = document.getElementById('imagePreviewModal');
+    const image = document.getElementById('previewImage');
+    if (!modal || !image) {
+        window.open(src, '_blank', 'noopener');
+        return;
+    }
+    image.src = src;
+    modal.classList.add('show');
+}
+
+function closeImagePreview(event) {
+    const modal = document.getElementById('imagePreviewModal');
+    const image = document.getElementById('previewImage');
+    if (!modal) return;
+    if (!event || event.target === modal || event.target.classList.contains('preview-close')) {
+        modal.classList.remove('show');
+        window.setTimeout(function () {
+            if (image) image.src = '';
+        }, 300);
+    }
 }
 
 function bindChatUiOnce() {
