@@ -3732,7 +3732,7 @@ function syncFiles() {
         var right = document.createElement('div');
         var removeBtn = document.createElement('button');
         removeBtn.type = 'button';
-        removeBtn.textContent = 'Ã—';
+        removeBtn.textContent = 'x';
         removeBtn.style.border = '1px solid #e2e8f0';
         removeBtn.style.background = '#ffffff';
         removeBtn.style.color = '#ef4444';
