@@ -419,7 +419,9 @@ var TMTicketModal = (function () {
     var ext = String(filename || '').split('.').pop().toLowerCase();
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
   }
-  function renderAttachmentsBlock(data) {
+  function renderAttachmentsBlock(data, options) {
+    options = options && typeof options === 'object' ? options : {};
+    var hideSectionTitles = !!options.hideSectionTitles;
     var list = [];
     if (data && Array.isArray(data.attachments) && data.attachments.length) {
       list = data.attachments.slice();
@@ -437,7 +439,11 @@ var TMTicketModal = (function () {
     });
     var html = '';
     if (images.length) {
-      html += '<div class="tm-attachment-section"><div class="tm-attachment-section-title">Images</div><div class="tm-attachment-gallery">';
+      html += '<div class="tm-attachment-section">';
+      if (!hideSectionTitles) {
+        html += '<div class="tm-attachment-section-title">Images</div>';
+      }
+      html += '<div class="tm-attachment-gallery">';
       html += images.map(function (n) {
         var src = '../uploads/' + escapeHtml(n.filename);
         return '<button type="button" class="tm-attachment-thumb" data-src="' + src + '" onclick="TMTicketModal.viewImage(this.dataset.src)">' +
@@ -447,7 +453,11 @@ var TMTicketModal = (function () {
       html += '</div></div>';
     }
     if (others.length) {
-      html += '<div class="tm-attachment-section"><div class="tm-attachment-section-title">Files</div>' + others.map(function (a) { return renderAttachment(a); }).join('') + '</div>';
+      html += '<div class="tm-attachment-section">';
+      if (!hideSectionTitles) {
+        html += '<div class="tm-attachment-section-title">Files</div>';
+      }
+      html += others.map(function (a) { return renderAttachment(a); }).join('') + '</div>';
     }
     return html;
   }
@@ -455,10 +465,20 @@ var TMTicketModal = (function () {
     if (!data || !data.hr_display || typeof data.hr_display !== 'object') return null;
     return data.hr_display;
   }
+  function normalizeDisplaySubject(subject) {
+    var text = subject == null ? '' : String(subject).trim();
+    if (!text) return 'Ticket';
+    var previous = '';
+    while (text !== previous) {
+      previous = text;
+      text = text.replace(/\b([A-Za-z]+)\s+\1\b$/i, '$1').trim();
+    }
+    return text || 'Ticket';
+  }
   function getDisplaySubject(data) {
     if (!data || typeof data !== 'object') return 'Ticket';
-    if (data.subject_display) return String(data.subject_display);
-    if (data.subject) return String(data.subject);
+    if (data.subject_display) return normalizeDisplaySubject(data.subject_display);
+    if (data.subject) return normalizeDisplaySubject(data.subject);
     return 'Ticket';
   }
   function getChatAttachmentUrl(storedName) {
@@ -605,9 +625,6 @@ var TMTicketModal = (function () {
       if (!field || !field.label || !field.value) return;
       items.push('<div class="tm-info-label">' + escapeHtml(String(field.label)).toUpperCase() + '</div><div class="tm-info-value">' + escapeHtml(String(field.value)) + '</div>');
     });
-    if (!items.length && hr.category) {
-      items.push('<div class="tm-info-label">CATEGORY</div><div class="tm-info-value">' + escapeHtml(String(hr.category)) + '</div>');
-    }
     var descriptionText = hr && typeof hr.detail_text !== 'undefined'
       ? String(hr.detail_text || '')
       : String((data && data.description) || '');
@@ -617,13 +634,11 @@ var TMTicketModal = (function () {
     var attachmentGroups = Array.isArray(hr.attachment_groups) ? hr.attachment_groups : [];
     var attachmentsHtml = attachmentGroups.map(function (group) {
       if (!group || !Array.isArray(group.attachments) || !group.attachments.length) return '';
-      var helperText = group.helper_text ? '<div class="tm-hr-upload-help">' + escapeHtml(String(group.helper_text)) + '</div>' : '';
       return '<div class="tm-hr-upload-card">' +
         '<div class="tm-hr-upload-head">' +
         '<div class="tm-hr-upload-title">' + escapeHtml(String(group.title || 'Attachment')) + '</div>' +
-        helperText +
         '</div>' +
-        '<div class="tm-hr-upload-body">' + renderAttachmentsBlock({ attachments: group.attachments }) + '</div>' +
+        '<div class="tm-hr-upload-body">' + renderAttachmentsBlock({ attachments: group.attachments }, { hideSectionTitles: true }) + '</div>' +
       '</div>';
     }).join('');
     if (!items.length && !descriptionHtml && !attachmentsHtml) return '';

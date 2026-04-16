@@ -71,7 +71,72 @@ function has_unread_hr_chat_reminder(mysqli $conn, int $userId, int $ticketId): 
 
 function maybe_send_hr_chat_reminder(mysqli $conn, int $ticketId, int $viewerUserId): void
 {
-    return;
+    $ticketId = (int) $ticketId;
+    $viewerUserId = (int) $viewerUserId;
+    if ($ticketId <= 0 || $viewerUserId <= 0) {
+        return;
+    }
+
+    $thresholdSeconds = 8 * 3600;
+    $stmt = $conn->prepare("
+        SELECT
+            t.id,
+            t.subject,
+            MAX(CASE
+                WHEN tm.sender_id <> ? AND tm.is_read = 0 THEN tm.created_at
+                ELSE NULL
+            END) AS last_unread_message_at
+        FROM employee_tickets t
+        LEFT JOIN ticket_messages tm ON tm.ticket_id = t.id
+        WHERE t.id = ?
+          AND t.status IN ('Open', 'In Progress')
+          AND (t.user_id = ? OR t.assigned_user_id = ? OR t.assigned_to = ?)
+        GROUP BY t.id, t.subject
+        HAVING last_unread_message_at IS NOT NULL
+           AND TIMESTAMPDIFF(SECOND, last_unread_message_at, NOW()) >= ?
+        LIMIT 1
+    ");
+    if (!$stmt) {
+        return;
+    }
+    $stmt->bind_param("iiiiii", $viewerUserId, $ticketId, $viewerUserId, $viewerUserId, $viewerUserId, $thresholdSeconds);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    if (!$row) {
+        $clearStmt = $conn->prepare("
+            UPDATE notifications
+            SET is_read = 1
+            WHERE user_id = ?
+              AND ticket_id = ?
+              AND type = 'hr_chat_pending'
+              AND is_read = 0
+        ");
+        if ($clearStmt) {
+            $clearStmt->bind_param("ii", $viewerUserId, $ticketId);
+            $clearStmt->execute();
+            $clearStmt->close();
+        }
+        return;
+    }
+
+    if (has_unread_hr_chat_reminder($conn, $viewerUserId, $ticketId)) {
+        return;
+    }
+
+    $ticketNumber = notif_ticket_number($ticketId);
+    $subject = trim((string) ($row['subject'] ?? ''));
+    $message = 'You have a pending chat reply on ticket #' . $ticketNumber . '. Please check the conversation.';
+    if ($subject !== '') {
+        $message = 'You have a pending chat reply on ticket #' . $ticketNumber . ' (' . $subject . ').';
+    }
+
+    notif_insert_system($conn, $viewerUserId, $ticketId, $message, 'hr_chat_pending', 300, 'update', 'Pending Chat');
+    if (has_unread_hr_chat_reminder($conn, $viewerUserId, $ticketId)) {
+        notif_send_pending_chat_email($conn, $viewerUserId, $ticketId, $subject);
+    }
 }
 
 if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
@@ -279,6 +344,12 @@ if ($mark) {
     $mark->bind_param("ii", $ticket_id, $current_user_id);
     $mark->execute();
     $mark->close();
+}
+$clearReminder = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND ticket_id = ? AND type = 'hr_chat_pending' AND is_read = 0");
+if ($clearReminder) {
+    $clearReminder->bind_param("ii", $current_user_id, $ticket_id);
+    $clearReminder->execute();
+    $clearReminder->close();
 }
 
 // Fetch messages

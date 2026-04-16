@@ -200,6 +200,11 @@ function notif_ticket_link_employee_tasks(int $ticketId): string
     return notif_base_url() . '/ticketing/employee/my_task.php?ticket_id=' . urlencode((string) $ticketId);
 }
 
+function notif_ticket_link_employee_chat(int $ticketId): string
+{
+    return notif_base_url() . '/ticketing/employee/my_task.php?ticket_id=' . urlencode((string) $ticketId) . '&chat=1';
+}
+
 function notif_ticket_link_employee_tickets(int $ticketId): string
 {
     return notif_base_url() . '/ticketing/employee/my_tickets.php?ticket_id=' . urlencode((string) $ticketId);
@@ -756,6 +761,34 @@ function notif_email_send(array $toEmails, string $subjectLine, string $bodyHtml
         error_log('Email send failed | subject=' . (string) $subjectLine . ' to=' . implode(',', $to));
     }
     return (bool) $ok;
+}
+
+function notif_send_pending_chat_email(mysqli $conn, int $userId, int $ticketId, string $ticketSubject = ''): bool
+{
+    $userId = (int) $userId;
+    $ticketId = (int) $ticketId;
+    if ($userId <= 0 || $ticketId <= 0) {
+        return false;
+    }
+
+    $contact = notif_user_contact($conn, $userId);
+    $email = strtolower(trim((string) ($contact['email'] ?? '')));
+    if ($email === '') {
+        return false;
+    }
+
+    $ticketNumber = notif_ticket_number($ticketId);
+    $ticketSubject = trim($ticketSubject);
+    $lines = [
+        'Ticket ID: #' . $ticketNumber,
+        'You have a pending chat reply that needs your attention.',
+    ];
+    if ($ticketSubject !== '') {
+        $lines[] = 'Subject: ' . $ticketSubject;
+    }
+
+    $mail = notif_email_simple('Pending Chat', $lines, 'Open Chat', notif_ticket_link_employee_chat($ticketId));
+    return notif_email_send([$email], 'Pending Chat (#' . $ticketNumber . ')', (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''));
 }
 
 function notif_email_simple(string $title, array $lines, string $ctaLabel, string $ctaUrl): array

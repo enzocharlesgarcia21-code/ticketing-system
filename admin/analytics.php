@@ -1719,6 +1719,7 @@ if ($ticketsStmt) {
                 tension: 0.28,
                 fill: true,
                 spanGaps: true,
+                clip: false,
                 pointRadius: 5,
                 pointHoverRadius: 6,
                 pointBackgroundColor: '#ffffff',
@@ -1731,10 +1732,10 @@ if ($ticketsStmt) {
             maintainAspectRatio: false,
             layout: {
                 padding: {
-                    top: 6,
-                    right: 8,
-                    left: 4,
-                    bottom: 0
+                    top: 12,
+                    right: 14,
+                    left: 14,
+                    bottom: 8
                 }
             },
             plugins: { legend: { display: false }, datalabels: { display: false } },
@@ -1743,6 +1744,7 @@ if ($ticketsStmt) {
                     beginAtZero: true,
                     min: 0,
                     max: trendMaxHours,
+                    grace: '6%',
                     border: { display: false },
                     grid: {
                         color: gridColor,
@@ -1752,17 +1754,20 @@ if ($ticketsStmt) {
                     ticks: {
                         color: textColor,
                         stepSize: 2,
+                        precision: 0,
                         padding: 10,
                         font: {
                             size: 13,
                             weight: 600
                         },
                         callback: function(value) {
-                            return value === 0 ? '0' : value + 'h';
+                            var rounded = Math.round(Number(value) || 0);
+                            return rounded === 0 ? '0' : rounded + 'h';
                         }
                     }
                 },
                 x: {
+                    offset: true,
                     border: { display: false },
                     grid: { display: false },
                     ticks: {

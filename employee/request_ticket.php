@@ -44,6 +44,23 @@ function request_ticket_upload_dir(): string
     return __DIR__ . '/../uploads';
 }
 
+function request_ticket_debug_log(string $message, array $context = []): void
+{
+    $logDir = request_ticket_upload_dir();
+    if (!is_dir($logDir) && !@mkdir($logDir, 0777, true) && !is_dir($logDir)) {
+        return;
+    }
+
+    $line = '[' . date('Y-m-d H:i:s') . '] ' . $message;
+    if (count($context) > 0) {
+        $json = json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json !== false) {
+            $line .= ' ' . $json;
+        }
+    }
+    @file_put_contents($logDir . '/request_ticket_upload_debug.log', $line . PHP_EOL, FILE_APPEND);
+}
+
 function request_ticket_cleanup_uploaded_files(array $files): void
 {
     foreach ($files as $file) {
@@ -75,8 +92,20 @@ function request_ticket_process_upload_field(
     int $maxFiles,
     int $maxFileBytes,
     array $allowedTypes,
-    array $allowedMimes
+    array $allowedMimes,
+    ?int $maxTotalBytes = null,
+    ?string $unsupportedTypeError = null,
+    ?string $oversizeError = null
 ): array {
+    $unsupportedTypeError = trim((string) $unsupportedTypeError);
+    if ($unsupportedTypeError === '') {
+        $unsupportedTypeError = 'Please upload only JPG, PNG, PDF, DOC, or DOCX files for ' . $label . '.';
+    }
+    $oversizeError = trim((string) $oversizeError);
+    if ($oversizeError === '') {
+        $oversizeError = 'Each ' . $label . ' file must be 10 MB or smaller.';
+    }
+
     if (!isset($_FILES[$fieldName])) {
         if ($required) {
             return ['ok' => false, 'error' => 'Please upload the ' . $label . '.'];
@@ -127,6 +156,7 @@ function request_ticket_process_upload_field(
 
     $finfo = class_exists('finfo') ? new finfo(FILEINFO_MIME_TYPE) : null;
     $uploadedFiles = [];
+    $totalUploadedBytes = 0;
 
     foreach ($names as $index => $originalName) {
         $errorCode = (int) ($errors[$index] ?? UPLOAD_ERR_NO_FILE);
@@ -136,7 +166,7 @@ function request_ticket_process_upload_field(
 
         if ($errorCode === UPLOAD_ERR_INI_SIZE || $errorCode === UPLOAD_ERR_FORM_SIZE) {
             request_ticket_cleanup_uploaded_files($uploadedFiles);
-            return ['ok' => false, 'error' => 'Each ' . $label . ' file must be 10 MB or smaller.'];
+            return ['ok' => false, 'error' => $oversizeError];
         }
 
         if ($errorCode !== UPLOAD_ERR_OK) {
@@ -151,12 +181,17 @@ function request_ticket_process_upload_field(
 
         if ($fileName === '' || !in_array($fileExt, $allowedTypes, true)) {
             request_ticket_cleanup_uploaded_files($uploadedFiles);
-            return ['ok' => false, 'error' => 'Please upload only JPG, PNG, PDF, DOC, or DOCX files for ' . $label . '.'];
+            return ['ok' => false, 'error' => $unsupportedTypeError];
         }
 
         if ($fileSize <= 0 || $fileSize > $maxFileBytes) {
             request_ticket_cleanup_uploaded_files($uploadedFiles);
-            return ['ok' => false, 'error' => 'Each ' . $label . ' file must be 10 MB or smaller.'];
+            return ['ok' => false, 'error' => $oversizeError];
+        }
+
+        if ($maxTotalBytes !== null && ($totalUploadedBytes + $fileSize) > $maxTotalBytes) {
+            request_ticket_cleanup_uploaded_files($uploadedFiles);
+            return ['ok' => false, 'error' => $oversizeError];
         }
 
         if ($finfo && $fileTmp !== '' && is_file($fileTmp)) {
@@ -164,7 +199,7 @@ function request_ticket_process_upload_field(
             $allowed = $allowedMimes[$fileExt] ?? [];
             if ($mime !== '' && count($allowed) > 0 && !in_array($mime, $allowed, true)) {
                 request_ticket_cleanup_uploaded_files($uploadedFiles);
-                return ['ok' => false, 'error' => 'Please upload only JPG, PNG, PDF, DOC, or DOCX files for ' . $label . '.'];
+                return ['ok' => false, 'error' => $unsupportedTypeError];
             }
         }
 
@@ -181,6 +216,7 @@ function request_ticket_process_upload_field(
             'original_name' => $label . ' - ' . $fileName,
             'stored_path' => $uploadPath,
         ];
+        $totalUploadedBytes += $fileSize;
     }
 
     if ($required && count($uploadedFiles) === 0) {
@@ -294,6 +330,14 @@ function finish_ticket_submit_response(bool $isAjax, array $payload = []): void
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    request_ticket_debug_log('Employee request POST received', [
+        'is_ajax' => $isAjax,
+        'post_keys' => array_values(array_keys($_POST)),
+        'file_keys' => array_values(array_keys($_FILES)),
+        'attachments_present' => isset($_FILES['attachments']),
+        'attachment_names' => isset($_FILES['attachments']['name']) ? array_values((array) $_FILES['attachments']['name']) : [],
+        'attachment_errors' => isset($_FILES['attachments']['error']) ? array_values((array) $_FILES['attachments']['error']) : [],
+    ]);
     csrf_validate();
 
     ticket_ensure_assignment_columns($conn);
@@ -773,120 +817,59 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     /* ================= FILE UPLOAD ================= */
 
     if (isset($_FILES['attachments']) && isset($_FILES['attachments']['name']) && is_array($_FILES['attachments']['name'])) {
-        $error_msg = '';
-        $maxBytes = 5 * 1024 * 1024;
-        $maxFiles = 5;
-        $selectedFiles = 0;
-        $totalBytes = 0;
-        $allowedTypes = ['jpg', 'jpeg', 'png', 'pdf', 'docx'];
-        $allowedMimes = [
-            'jpg' => ['image/jpeg'],
-            'jpeg' => ['image/jpeg'],
-            'png' => ['image/png'],
-            'pdf' => ['application/pdf'],
-            'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
-        ];
-        $finfo = null;
-        if (class_exists('finfo')) {
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-        }
-        $movedPaths = [];
-        $count = count($_FILES['attachments']['name']);
-        for ($i = 0; $i < $count; $i++) {
-            $err = $_FILES['attachments']['error'][$i] ?? UPLOAD_ERR_NO_FILE;
-            if ($err === UPLOAD_ERR_NO_FILE) continue;
-            $selectedFiles++;
-        }
-        if ($selectedFiles > $maxFiles) {
+        request_ticket_debug_log('Employee attachment upload received', [
+            'names' => array_values((array) ($_FILES['attachments']['name'] ?? [])),
+            'sizes' => array_values((array) ($_FILES['attachments']['size'] ?? [])),
+            'errors' => array_values((array) ($_FILES['attachments']['error'] ?? [])),
+        ]);
+
+        $attachmentUploadResult = request_ticket_process_upload_field(
+            'attachments',
+            'Attachment',
+            false,
+            5,
+            5 * 1024 * 1024,
+            ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
+            [
+                'jpg' => ['image/jpeg'],
+                'jpeg' => ['image/jpeg'],
+                'png' => ['image/png'],
+                'pdf' => ['application/pdf'],
+                'doc' => ['application/msword', 'application/octet-stream'],
+                'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
+            ],
+            5 * 1024 * 1024,
+            $unsupportedAttachmentMessage,
+            'Attachment too large. Maximum total size is 5 MB.'
+        );
+
+        if (empty($attachmentUploadResult['ok'])) {
+            request_ticket_debug_log('Employee attachment upload failed', [
+                'error' => trim((string) ($attachmentUploadResult['error'] ?? 'Attachment upload failed.')),
+            ]);
             if ($isAjax) {
                 header('Content-Type: application/json; charset=utf-8');
                 http_response_code(400);
-                echo json_encode(['ok' => false, 'error' => 'Maximum 5 attachments allowed.'], JSON_UNESCAPED_UNICODE);
+                echo json_encode(['ok' => false, 'error' => trim((string) ($attachmentUploadResult['error'] ?? 'Attachment upload failed.'))], JSON_UNESCAPED_UNICODE);
                 exit();
             }
-            $_SESSION['error'] = 'Maximum 5 attachments allowed.';
+            $_SESSION['error'] = trim((string) ($attachmentUploadResult['error'] ?? 'Attachment upload failed.'));
             header("Location: request_ticket.php");
             exit();
         }
-        for ($i = 0; $i < $count; $i++) {
-            $err = $_FILES['attachments']['error'][$i] ?? UPLOAD_ERR_NO_FILE;
-            if ($err === UPLOAD_ERR_NO_FILE) {
-                continue;
-            }
-            if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
-                $error_msg = 'Attachment too large. Max 5MB total.';
-                break;
-            }
-            if ($err !== UPLOAD_ERR_OK) {
-                $error_msg = 'Attachment upload failed. Please try again.';
-                break;
-            }
 
-            $fileName = (string)($_FILES['attachments']['name'][$i] ?? '');
-            $fileTmp = (string)($_FILES['attachments']['tmp_name'][$i] ?? '');
-            $fileSize = (int)($_FILES['attachments']['size'][$i] ?? 0);
-            $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-
-            if (!in_array($fileExt, $allowedTypes, true)) {
-                $error_msg = $unsupportedAttachmentMessage;
-                break;
-            }
-            if ($fileSize <= 0 || $fileSize > $maxBytes) {
-                $error_msg = 'Attachment too large. Max 5MB total.';
-                break;
-            }
-            if (($totalBytes + $fileSize) > $maxBytes) {
-                $error_msg = 'Attachment too large. Max 5MB total.';
-                break;
-            }
-            if ($finfo && $fileTmp !== '' && is_file($fileTmp)) {
-                $mime = (string) $finfo->file($fileTmp);
-                $allowed = $allowedMimes[$fileExt] ?? [];
-                if ($mime !== '' && count($allowed) > 0 && !in_array($mime, $allowed, true)) {
-                    $error_msg = $unsupportedAttachmentMessage;
-                    break;
-                }
-            }
-
-            if (!is_dir("../uploads")) {
-                mkdir("../uploads", 0777, true);
-            }
-
-            $newFileName = time() . "_" . uniqid() . "." . $fileExt;
-            $uploadPath  = "../uploads/" . $newFileName;
-
-            if (move_uploaded_file($fileTmp, $uploadPath)) {
-                $movedPaths[] = $uploadPath;
-                $totalBytes += $fileSize;
-                $uploadedFiles[] = [
-                    'stored_name' => $newFileName,
-                    'original_name' => $fileName,
-                    'stored_path' => $uploadPath,
-                ];
-                if ($attachmentName === NULL) {
-                    $attachmentName = $newFileName;
-                }
-            } else {
-                $error_msg = 'Failed to save attachment. Please try again.';
-                break;
+        foreach ((array) ($attachmentUploadResult['files'] ?? []) as $uploadedAttachmentFile) {
+            $uploadedFiles[] = $uploadedAttachmentFile;
+            if ($attachmentName === NULL) {
+                $attachmentName = (string) ($uploadedAttachmentFile['stored_name'] ?? '');
             }
         }
-        if ($error_msg !== '') {
-            foreach ($movedPaths as $p) {
-                if (is_string($p) && $p !== '' && file_exists($p)) {
-                    unlink($p);
-                }
-            }
-            if ($isAjax) {
-                header('Content-Type: application/json; charset=utf-8');
-                http_response_code(400);
-                echo json_encode(['ok' => false, 'error' => $error_msg], JSON_UNESCAPED_UNICODE);
-                exit();
-            }
-            $_SESSION['error'] = $error_msg;
-            header("Location: request_ticket.php");
-            exit();
-        }
+
+        request_ticket_debug_log('Employee attachment upload saved', [
+            'stored_names' => array_values(array_map(static function ($file): string {
+                return (string) ($file['stored_name'] ?? '');
+            }, (array) ($attachmentUploadResult['files'] ?? []))),
+        ]);
     }
 
     if ($isHrSssCategory) {
@@ -1426,69 +1409,87 @@ $requestTicketCompanyOptions = [
             white-space: nowrap;
         }
         body.employee-request-ticket-page .attachment-upload-shell {
-            border: 1px dashed #d9e6db;
-            border-radius: 16px;
-            background: #ffffff;
-            padding: 10px;
-        }
-        body.employee-request-ticket-page .attachment-dropzone {
+            width: 100%;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            gap: 8px;
-            min-height: 96px;
-            border: 1px dashed #e3e8ef;
-            border-radius: 14px;
-            background: linear-gradient(180deg, #ffffff 0%, #fbfdfb 100%);
-            text-align: center;
-            cursor: pointer;
-            transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+            gap: 14px;
+            padding: 12px 14px;
+            border: 1px solid #dbe4ef;
+            border-radius: 16px;
+            background: #f8fafc;
+            box-sizing: border-box;
+            flex-wrap: wrap;
+            position: relative;
         }
-        body.employee-request-ticket-page .attachment-dropzone:hover {
-            border-color: #b7d8bf;
-            background: #fcfffd;
-            box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.06);
+        body.employee-request-ticket-page .attachment-upload-shell:hover {
+            border-color: rgba(27, 94, 32, 0.24);
+            background: #ffffff;
         }
-        body.employee-request-ticket-page .attachment-dropzone.is-dragover {
+        body.employee-request-ticket-page .attachment-upload-shell.is-dragover {
             border-color: #67c86f;
             background: #f4fbf5;
             box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.12);
         }
-        body.employee-request-ticket-page .attachment-dropzone-icon {
-            width: 34px;
-            height: 34px;
-            border-radius: 999px;
+        body.employee-request-ticket-page .file-button {
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            gap: 10px;
+            min-width: 132px;
+            height: 48px;
+            padding: 0 18px;
+            border: 1px solid #bbf7d0;
+            border-radius: 14px;
+            background: #ecfdf5;
             color: #17643a;
-            background: #f0faf2;
-            font-size: 18px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            position: relative;
+            z-index: 1;
+            pointer-events: auto;
+            box-sizing: border-box;
+            transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
         }
-        body.employee-request-ticket-page .attachment-dropzone-copy {
-            color: #0f172a;
-            font-size: 13px;
-            line-height: 1.45;
-            font-weight: 500;
+        body.employee-request-ticket-page .file-button:hover {
+            background: #e6fbef;
+            border-color: #86efac;
         }
-        body.employee-request-ticket-page .attachment-hidden-button {
-            display: none;
+        body.employee-request-ticket-page .file-button[aria-disabled="true"] {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        body.employee-request-ticket-page .file-button svg {
+            flex: 0 0 auto;
+        }
+        body.employee-request-ticket-page .file-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+            opacity: 0;
+            pointer-events: none;
         }
         body.employee-request-ticket-page .attachment-file-name {
-            margin-top: 10px;
-            color: #64748b;
-            font-size: 12px;
-            text-align: center;
+            color: #475569;
+            font-size: 14px;
+            text-align: left;
             word-break: break-word;
+            flex: 1 1 180px;
+            min-width: 0;
         }
         body.employee-request-ticket-page .attachment-help-text {
             display: block;
-            margin-top: 10px;
-            color: #64748b;
-            font-size: 11px;
-            text-align: center;
-            line-height: 1.45;
+            margin-top: 8px;
+            color: #666666;
+            font-size: 13px;
+            text-align: left;
+            line-height: 1.5;
         }
         body.employee-request-ticket-page .sss-benefits-file-chip-link {
             border: none;
@@ -3020,8 +3021,9 @@ $requestTicketCompanyOptions = [
                                     <span class="sap-request-switcher-icon" aria-hidden="true"><i class="fas fa-users"></i></span>
                                     <select id="sapEmployeeSwitcher" class="form-control">
                                         <?php foreach ($sapFormEntries as $sapIndex => $sapEntry): ?>
+                                            <?php $sapDisplayName = trim((string) ($sapEntry['name'] ?? '')); ?>
                                             <option value="<?= $sapIndex; ?>">
-                                                Employee <?= $sapIndex + 1; ?><?= trim((string) ($sapEntry['name'] ?? '')) !== '' ? (' - ' . trim((string) $sapEntry['name'])) : ''; ?>
+                                                <?= htmlspecialchars($sapDisplayName !== '' ? $sapDisplayName : ('Employee ' . ($sapIndex + 1)), ENT_QUOTES, 'UTF-8'); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -3274,15 +3276,14 @@ $requestTicketCompanyOptions = [
                                 <label><span id="attachmentLabelText">Attachment</span> <span id="attachmentOptionalText">(Optional)</span><span id="attachmentRequiredAsterisk" class="required-asterisk" style="display:none;">*</span></label>
                                 <p class="medical-cash-card-copy" id="medicalCashAttachmentIntro" style="display:none;"></p>
                                 <div class="attachment-upload-shell file-control">
-                                    <div class="attachment-dropzone" id="choose-file-btn" tabindex="0" role="button" aria-label="Drag and drop files or click to upload">
-                                        <span class="attachment-dropzone-icon"><i class="fas fa-cloud-upload-alt"></i></span>
-                                        <div class="attachment-dropzone-copy">Drag &amp; drop files or click to upload</div>
-                                    </div>
-                                    <button type="button" class="attachment-hidden-button" aria-hidden="true" tabindex="-1">
+                                    <button type="button" id="choose-file-btn" class="file-button" aria-label="Choose file">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                            <path d="M20 17.5A3.5 3.5 0 0 1 16.5 21H7a5 5 0 0 1-1-9.9V11a6 6 0 0 1 11.53-1.999.75.75 0 1 1-1.4.55A4.5 4.5 0 0 0 7.75 11v.77a.75.75 0 0 1-.63.74A3.5 3.5 0 0 0 7 19.5h9.5A2 2 0 0 0 18.5 15a.75.75 0 1 1 1.5 0zM12 7.5a.75.75 0 0 1 .75.75V12h1.94a.75.75 0 1 1 0 1.5H12.75v1.94a.75.75 0 0 1-1.5 0V13.5H9.31a.75.75 0 1 1 0-1.5h1.94V8.25A.75.75 0 0 1 12 7.5z"/>
+                                        </svg>
                                         <span id="chooseFileBtnText">Choose File</span>
                                     </button>
-                                    <div id="file-name" class="attachment-file-name file-name">No file chosen</div>
-                                    <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.docx" style="display:none;">
+                                    <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" aria-label="Choose attachment files">
+                                    <span id="file-name" class="attachment-file-name file-name">No file chosen</span>
                                 </div>
                                 <small class="form-text attachment-help-text" id="attachmentHelpText">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files)</small>
                                 <div id="attachment-error" style="display:none;margin-top:10px;background:#fee2e2;color:#991b1b;padding:10px 12px;border-radius:10px;border:1px solid #fecaca;font-weight:700;"></div>
@@ -3304,7 +3305,7 @@ $requestTicketCompanyOptions = [
     <div id="successModal" class="ticket-modal" aria-hidden="true">
         <div class="ticket-modal-content" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
             <div class="ticket-modal-spinner" aria-hidden="true"></div>
-            <div class="ticket-modal-icon success" id="ticketModalSuccessIcon">âœ“</div>
+            <div class="ticket-modal-icon success" id="ticketModalSuccessIcon" aria-hidden="true">&#10003;</div>
             <div class="ticket-modal-icon error" id="ticketModalErrorIcon">!</div>
             <h3 id="successModalTitle">Submitting Ticket</h3>
             <p id="successModalDesc">Almost there. We are finalizing your request...</p>
@@ -3687,7 +3688,7 @@ $requestTicketCompanyOptions = [
         function getSapCardDisplayName(card, index) {
             const nameInput = card ? card.querySelector('[data-sap-field="name"]') : null;
             const displayName = nameInput ? String(nameInput.value || '').trim() : '';
-            return 'Employee ' + (index + 1) + (displayName !== '' ? (' - ' + displayName) : '');
+            return displayName !== '' ? displayName : ('Employee ' + (index + 1));
         }
         let activeSapCardIndex = 0;
         function setActiveSapCard(index) {
@@ -3921,7 +3922,8 @@ $requestTicketCompanyOptions = [
                 attachmentFieldInput.disabled = shouldShowSssBenefits;
             }
             if (attachmentFieldButton) {
-                attachmentFieldButton.disabled = shouldShowSssBenefits;
+                attachmentFieldButton.setAttribute('aria-disabled', shouldShowSssBenefits ? 'true' : 'false');
+                attachmentFieldButton.tabIndex = shouldShowSssBenefits ? -1 : 0;
             }
             if (attachmentOptionalText) {
                 attachmentOptionalText.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment) ? 'none' : '';
@@ -4049,11 +4051,13 @@ $requestTicketCompanyOptions = [
                     certificateLeavePurposeOtherInput.value = '';
                 }
             }
-            [sapNameInput, sapPositionInput, sapImmediateHeadInput, sapDepartmentInput, sapCompanyInput].forEach(function(input) {
-                if (!input) return;
-                if (shouldShowSapRequest) input.setAttribute('required', 'required');
-                else input.removeAttribute('required');
-            });
+            if (sapRequestList) {
+                Array.from(sapRequestList.querySelectorAll('[data-sap-field]')).forEach(function(input) {
+                    if (!input) return;
+                    if (shouldShowSapRequest) input.setAttribute('required', 'required');
+                    else input.removeAttribute('required');
+                });
+            }
             if (coeRequestReasonOtherInput) {
                 const otherSelected = coeRequestReasonInputs.some(function(input) {
                     return input.checked && input.value === 'Other';
@@ -4141,6 +4145,7 @@ $requestTicketCompanyOptions = [
         toggleCategories();
         toggleHrExtraFields();
         syncRequestGridRows();
+        var attachmentShell = document.querySelector('#attachmentContainer .attachment-upload-shell');
         var attachmentInput = document.getElementById('attachments');
         var chooseBtn = document.getElementById('choose-file-btn');
         var fileNameEl = document.getElementById('file-name');
@@ -4151,25 +4156,55 @@ $requestTicketCompanyOptions = [
         var objectUrls = [];
         var MAX_BYTES = 5 * 1024 * 1024;
         var MAX_FILES = 5;
-        var ALLOWED_EXT = ['jpg','jpeg','png','pdf','docx'];
+        var ALLOWED_EXT = ['jpg','jpeg','png','pdf','doc','docx'];
         var SSS_ALLOWED_EXT = ['jpg','jpeg','png','pdf','doc','docx'];
         var SSS_MAX_FILE_BYTES = 10 * 1024 * 1024;
         var UNSUPPORTED_FILE_MESSAGE = 'Please insert supported files only.';
         var toastTimer = null;
 
+        function openAttachmentPicker() {
+            if (!attachmentInput || attachmentInput.disabled) return;
+            try {
+                if (typeof attachmentInput.showPicker === 'function') {
+                    attachmentInput.showPicker();
+                    return;
+                }
+            } catch (e) {}
+            attachmentInput.click();
+        }
+
         if (chooseBtn) {
-            chooseBtn.addEventListener('click', function () {
-                if (attachmentInput) attachmentInput.click();
+            chooseBtn.addEventListener('click', function (event) {
+                event.preventDefault();
+                openAttachmentPicker();
             });
+            chooseBtn.addEventListener('keydown', function (event) {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                openAttachmentPicker();
+            });
+        }
+
+        if (attachmentShell) {
             ['dragenter', 'dragover'].forEach(function(eventName) {
-                chooseBtn.addEventListener(eventName, function () {
-                    chooseBtn.classList.add('is-dragover');
+                attachmentShell.addEventListener(eventName, function(event) {
+                    if (!attachmentInput || attachmentInput.disabled) return;
+                    event.preventDefault();
+                    attachmentShell.classList.add('is-dragover');
                 });
             });
-            ['dragleave', 'drop'].forEach(function(eventName) {
-                chooseBtn.addEventListener(eventName, function () {
-                    chooseBtn.classList.remove('is-dragover');
+            ['dragleave', 'dragend', 'drop'].forEach(function(eventName) {
+                attachmentShell.addEventListener(eventName, function(event) {
+                    if (!attachmentInput || attachmentInput.disabled) return;
+                    event.preventDefault();
+                    attachmentShell.classList.remove('is-dragover');
                 });
+            });
+            attachmentShell.addEventListener('drop', function(event) {
+                if (!attachmentInput || attachmentInput.disabled) return;
+                var droppedFiles = event.dataTransfer ? event.dataTransfer.files : null;
+                if (!droppedFiles || !droppedFiles.length) return;
+                addAttachmentFiles(droppedFiles);
             });
         }
 
@@ -4194,10 +4229,7 @@ $requestTicketCompanyOptions = [
             attachmentInput.files = dt.files;
             if (fileNameEl) {
                 var n = dt.files.length;
-                var isKamiMode = !!(attachmentLabelText && attachmentLabelText.textContent === 'Supporting Information');
-                fileNameEl.textContent = n === 0
-                    ? (isKamiMode ? '' : 'No file chosen')
-                    : (n === 1 ? dt.files[0].name : (n + ' files selected'));
+                fileNameEl.textContent = n === 0 ? 'No file chosen' : (n === 1 ? dt.files[0].name : (n + ' files selected'));
             }
             if (!preview) return;
             clearObjectUrls();
@@ -4272,7 +4304,7 @@ $requestTicketCompanyOptions = [
 
                 var removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
-                removeBtn.textContent = 'Ã—';
+                removeBtn.textContent = 'x';
                 removeBtn.style.border = '1px solid #e2e8f0';
                 removeBtn.style.background = '#ffffff';
                 removeBtn.style.color = '#ef4444';
@@ -4291,6 +4323,7 @@ $requestTicketCompanyOptions = [
                         if (i !== idx) ndt.items.add(f);
                     });
                     dt = ndt;
+                    if (attachmentInput) attachmentInput.value = '';
                     syncFiles();
                 });
 
@@ -4338,6 +4371,7 @@ $requestTicketCompanyOptions = [
 
         window.TMEmployeeResetAttachments = function () {
             dt = new DataTransfer();
+            if (attachmentInput) attachmentInput.value = '';
             syncFiles();
             showError('');
         };
@@ -4350,51 +4384,55 @@ $requestTicketCompanyOptions = [
             return parts.length > 1 ? parts.pop() : '';
         }
 
-        if (attachmentInput) {
-            attachmentInput.addEventListener('change', function (e) {
-                var selectedFiles = Array.from(e.target.files || []);
-                var blockedMax = false;
-                var hasUnsupportedType = false;
-                var validFiles = [];
+        function addAttachmentFiles(selectedFiles) {
+            var blockedMax = false;
+            var hasUnsupportedType = false;
+            var validFiles = [];
 
-                selectedFiles.forEach(function (file) {
-                    var ext = getExt(file && file.name);
-                    if (ALLOWED_EXT.indexOf(ext) === -1) {
-                        hasUnsupportedType = true;
-                        return;
-                    }
-                    validFiles.push(file);
-                });
-
-                if (hasUnsupportedType) {
-                    attachmentInput.value = '';
-                    showError(UNSUPPORTED_FILE_MESSAGE);
+            Array.from(selectedFiles || []).forEach(function (file) {
+                var ext = getExt(file && file.name);
+                if (ALLOWED_EXT.indexOf(ext) === -1) {
+                    hasUnsupportedType = true;
                     return;
                 }
+                validFiles.push(file);
+            });
 
-                validFiles.forEach(function (file) {
-                    if (dt.files.length >= MAX_FILES) {
-                        blockedMax = true;
-                        return;
-                    }
-                    var nextTotal = (file && file.size || 0);
-                    Array.from(dt.files).forEach(function (f) { nextTotal += (f && f.size) ? f.size : 0; });
-                    if (nextTotal > MAX_BYTES) {
-                        showError('Attachment too large. Max 5MB total.');
-                        return;
-                    }
-                    var exists = Array.from(dt.files).some(function (f) {
-                        return f.name === file.name && f.size === file.size && f.lastModified === file.lastModified;
-                    });
-                    if (!exists) dt.items.add(file);
-                });
-                attachmentInput.value = '';
-                if (blockedMax) {
-                    showError('Maximum 5 attachments allowed. Extra files were not added.');
-                } else {
-                    showError('');
+            if (hasUnsupportedType) {
+                if (attachmentInput) attachmentInput.value = '';
+                showError(UNSUPPORTED_FILE_MESSAGE);
+                return;
+            }
+
+            validFiles.forEach(function (file) {
+                if (dt.files.length >= MAX_FILES) {
+                    blockedMax = true;
+                    return;
                 }
-                syncFiles();
+                var nextTotal = (file && file.size || 0);
+                Array.from(dt.files).forEach(function (f) { nextTotal += (f && f.size) ? f.size : 0; });
+                if (nextTotal > MAX_BYTES) {
+                    showError('Attachment too large. Max 5MB total.');
+                    return;
+                }
+                var exists = Array.from(dt.files).some(function (f) {
+                    return f.name === file.name && f.size === file.size && f.lastModified === file.lastModified;
+                });
+                if (!exists) dt.items.add(file);
+            });
+
+            if (attachmentInput) attachmentInput.value = '';
+            if (blockedMax) {
+                showError('Maximum 5 attachments allowed. Extra files were not added.');
+            } else {
+                showError('');
+            }
+            syncFiles();
+        }
+
+        if (attachmentInput) {
+            attachmentInput.addEventListener('change', function (e) {
+                addAttachmentFiles(e.target.files || []);
             });
         }
 
