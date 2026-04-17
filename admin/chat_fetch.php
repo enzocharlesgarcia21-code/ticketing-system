@@ -3,7 +3,7 @@ require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
@@ -125,7 +125,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             'chat_locked_message' => $canChat ? '' : "You can't message. This ticket is already assigned."
         ];
     }
-    echo json_encode($rows);
+    echo json_encode($rows, JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -239,5 +239,5 @@ while ($row = $result->fetch_assoc()) {
     ];
 }
 
-echo json_encode($messages);
+echo json_encode($messages, JSON_UNESCAPED_UNICODE);
 ?>
