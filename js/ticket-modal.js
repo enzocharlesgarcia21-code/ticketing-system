@@ -1,4 +1,4 @@
-var TMTicketModal = (function () {
+﻿var TMTicketModal = (function () {
   var chatInterval = null;
   var chatBadgeInterval = null;
   var messageActionMenusBound = false;
@@ -45,7 +45,7 @@ var TMTicketModal = (function () {
       imageModal.setAttribute('onclick', 'TMTicketModal.closeImagePreview(event)');
       imageModal.innerHTML =
         '<div class="image-preview-content">' +
-        '  <button class="preview-close" onclick="TMTicketModal.closeImagePreview(event)">×</button>' +
+        '  <button class="preview-close" onclick="TMTicketModal.closeImagePreview(event)">Ã—</button>' +
         '  <img id="previewImage" src="" alt="Preview">' +
         '</div>';
       document.body.appendChild(imageModal);
@@ -470,8 +470,8 @@ var TMTicketModal = (function () {
           '<div></div>' +
           (slides.length > 1
             ? '<div class="tm-hr-category-nav">' +
-              '<button type="button" class="tm-hr-category-arrow" aria-label="Previous attachment category" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', -1)"><span aria-hidden="true">‹</span></button>' +
-              '<button type="button" class="tm-hr-category-arrow" aria-label="Next attachment category" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', 1)"><span aria-hidden="true">›</span></button>' +
+              '<button type="button" class="tm-hr-category-arrow" aria-label="Previous attachment category" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', -1)"><span aria-hidden="true">â€¹</span></button>' +
+              '<button type="button" class="tm-hr-category-arrow" aria-label="Next attachment category" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', 1)"><span aria-hidden="true">â€º</span></button>' +
               '</div>'
             : '') +
           '</div>' +
@@ -597,9 +597,66 @@ var TMTicketModal = (function () {
     });
     return reports;
   }
+  function parseSapReportsFromMeta(data) {
+    var raw = data && data.request_meta ? data.request_meta.sap_reports : '';
+    if (!raw) return [];
+    var decoded = null;
+    try {
+      decoded = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch (e) {
+      decoded = null;
+    }
+    if (!Array.isArray(decoded)) return [];
+    return decoded.map(function (report, index) {
+      if (!report || typeof report !== 'object') return null;
+      var fields = {
+        'full name': String(report.name || '').trim(),
+        'position': String(report.position || '').trim(),
+        'immediate supervisor': String(report.immediate_head || report.immediate_supervisor || '').trim(),
+        'company': String(report.company || '').trim(),
+        'department': String(report.department || '').trim()
+      };
+      var hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
+      if (!hasValue) return null;
+      return { index: String(index + 1), fields: fields };
+    }).filter(function (report) { return !!report; });
+  }
+  function getSapFieldValue(report, keys) {
+    var fields = report && report.fields ? report.fields : {};
+    for (var i = 0; i < keys.length; i++) {
+      var value = fields[String(keys[i]).toLowerCase()];
+      if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim();
+    }
+    return '';
+  }
+  function dashIfUnknown(value) {
+    var text = String(value == null ? '' : value).trim();
+    return (!text || text.toLowerCase() === 'unknown') ? '-' : text;
+  }
+  function formatSapCompanyValue(value, departmentValue) {
+    var company = String(value || '').trim();
+    var department = String(departmentValue || '').trim();
+    if (!company && department && department !== '-' && department.toLowerCase() !== 'unknown') company = '@leadsagri.com';
+    if (!company) return '-';
+    var normalized = company.toLowerCase();
+    var labels = {
+      '@leads-farmex.com': 'FARMEX (@leads-farmex.com)',
+      '@farmasee.ph': 'FARMASEE (@farmasee.ph)',
+      '@gpsci.net': 'GPSCI (@gpsci.net)',
+      '@leadsagri.com': 'LAPC (@leadsagri.com)',
+      '@leadsav.com': 'LAV (@leadsav.com)',
+      '@leadstech-corp.com': 'LTC (@leadstech-corp.com)',
+      '@lingapleads.org': 'LINGAP (@lingapleads.org)',
+      '@malvedaholdings.com': 'MHC (@malvedaholdings.com)',
+      '@malvedaproperties.com': 'MPDC (@malvedaproperties.com)',
+      '@primestocks.ph': 'PCC (@primestocks.ph)'
+    };
+    return labels[normalized] || company;
+  }
   function renderSapDescriptionHtml(data, descriptionText) {
     if (!isSapTicket(data, descriptionText)) return '';
-    var reports = parseSapDescription(descriptionText);
+    var reports = parseSapReportsFromMeta(data);
+    if (!reports.length) reports = parseSapDescription(descriptionText);
     if (!reports.length) return '';
     var carouselId = 'tmSapDisplay-' + String(++sapDisplaySeq);
     var fieldConfig = [
@@ -610,14 +667,18 @@ var TMTicketModal = (function () {
       { key: 'department', label: 'Department', wide: true }
     ];
     return '<div class="tm-sap-display">' +
-      '<div class="tm-sap-title">SAP Form</div>' +
       '<div class="tm-sap-carousel" id="' + carouselId + '" data-index="0">' +
       reports.map(function (report, reportIndex) {
+        var rawDepartmentValue = getSapFieldValue(report, ['department', 'dept']);
+        var departmentValue = dashIfUnknown(rawDepartmentValue);
+        var companyValue = formatSapCompanyValue(getSapFieldValue(report, ['company', 'company name', 'company domain']), rawDepartmentValue);
         return '<div class="tm-sap-card' + (reportIndex === 0 ? ' is-active' : '') + '" data-index="' + String(reportIndex) + '" aria-hidden="' + (reportIndex === 0 ? 'false' : 'true') + '">' +
           '<div class="tm-sap-card-title">Employee Details' + (reports.length > 1 ? ' ' + escapeHtml(report.index) : '') + '</div>' +
           '<div class="tm-sap-field-grid">' +
           fieldConfig.map(function (field) {
-            var value = report.fields[field.key] || '-';
+            var value = field.key === 'company'
+              ? companyValue
+              : (field.key === 'department' ? departmentValue : (getSapFieldValue(report, [field.key]) || '-'));
             return '<div class="tm-sap-field' + (field.wide ? ' is-wide' : '') + '">' +
               '<div class="tm-sap-label">' + escapeHtml(field.label) + '</div>' +
               '<div class="tm-sap-value">' + escapeHtml(value) + '</div>' +
@@ -628,8 +689,9 @@ var TMTicketModal = (function () {
       }).join('') +
       (reports.length > 1
         ? '<div class="tm-sap-actions">' +
-          '<button type="button" class="tm-sap-nav-btn" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', -1)">← Previous</button>' +
-          '<button type="button" class="tm-sap-nav-btn primary" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', 1)">Next ›</button>' +
+          '<button type="button" class="tm-sap-nav-btn" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', -1)">Previous</button>' +
+          '<span class="tm-sap-counter" data-sap-counter>1 of ' + String(reports.length) + '</span>' +
+          '<button type="button" class="tm-sap-nav-btn primary" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', 1)">Next</button>' +
           '</div>'
         : '') +
       '</div>' +
@@ -650,6 +712,8 @@ var TMTicketModal = (function () {
       card.classList.toggle('is-active', active);
       card.setAttribute('aria-hidden', active ? 'false' : 'true');
     });
+    var counter = root.querySelector('[data-sap-counter]');
+    if (counter) counter.textContent = String(nextIndex + 1) + ' of ' + String(total);
   }
   function getChatAttachmentUrl(storedName) {
     return '../uploads/' + encodeURIComponent(String(storedName || ''));
@@ -819,6 +883,7 @@ var TMTicketModal = (function () {
     if (descriptionText) {
       var sapDescriptionHtml = renderSapDescriptionHtml(data, descriptionText);
       if (sapDescriptionHtml) {
+        title = 'SAP Form';
         descriptionHtml = sapDescriptionHtml;
       } else {
       var lines = descriptionText.split(/\r?\n/).map(function (line) { return String(line || '').trim(); }).filter(function (line) { return line !== ''; });
@@ -1359,7 +1424,7 @@ var TMTicketModal = (function () {
       '      <div class="tm-card tm-card-ticket-info"><div class="tm-card-header"><span class="tm-card-title">Ticket Information</span></div><div class="tm-card-body"><div class="tm-info-grid">' +
       '        <div class="tm-info-label">CREATED BY</div><div class="tm-info-value">' + (data.created_by_name ? escapeHtml(String(data.created_by_name)) : '-') + '</div>' +
       '        <div class="tm-info-label">EMAIL</div><div class="tm-info-value">' + (data.created_by_email ? escapeHtml(String(data.created_by_email)) : '-') + '</div>' +
-      '        <div class="tm-info-label">DEPARTMENT</div><div class="tm-info-value">' + (data.department ? escapeHtml(String(data.department)) : '-') + '</div>' +
+      '        <div class="tm-info-label">DEPARTMENT</div><div class="tm-info-value">' + escapeHtml(dashIfUnknown(data.department)) + '</div>' +
       '        <div class="tm-info-label">CREATED AT</div><div class="tm-info-value">' + (data.created_at ? formatTimelineTime(data.created_at) : '-') + '</div>' +
       '        <div class="tm-info-label">LAST UPDATED</div><div class="tm-info-value">' + (data.updated_at ? formatTimelineTime(data.updated_at) : '-') + '</div>' +
       '        <div class="tm-info-label">ASSIGNED TO</div><div class="tm-info-value">' + buildAssignedTargetHtml(data) + '</div>' +
@@ -1586,7 +1651,7 @@ var TMTicketModal = (function () {
       '      <div class="modal-title">Ticket Conversation</div>' +
       '      <div id="chatModalMeta" class="chat-modal-meta"></div>' +
       '    </div>' +
-      '    <button class="modal-close" onclick="TMTicketModal.closeChatModal()">×</button>' +
+      '    <button class="modal-close" onclick="TMTicketModal.closeChatModal()">Ã—</button>' +
       '  </div>' +
       '  <div class="modal-body">' +
       '    <div class="ticket-chat-container">' +
@@ -1702,7 +1767,7 @@ var TMTicketModal = (function () {
     if (p && p.department) parts.push(String(p.department));
     if (p && p.company) parts.push(String(p.company));
     if (p && p.email) parts.push(String(p.email));
-    return parts.filter(function (x) { return x && String(x).trim() !== ''; }).join(' • ');
+    return parts.filter(function (x) { return x && String(x).trim() !== ''; }).join(' â€¢ ');
   }
   function setChatModalMetaHtml(html) {
     var el = qs('chatModalMeta');
@@ -1774,7 +1839,7 @@ var TMTicketModal = (function () {
   function loadChatModalMeta(ticketId, silentRefresh) {
     if (silentRefresh !== true) {
       setChatComposerState(false, 'Checking ticket handler...');
-      setChatModalMetaHtml('<span class="chat-meta-loading">Loading details…</span>');
+      setChatModalMetaHtml('<span class="chat-meta-loading">Loading detailsâ€¦</span>');
     }
     fetch('get_ticket_details.php?id=' + ticketId)
       .then(function (r) { return r.json(); })
@@ -1817,8 +1882,8 @@ var TMTicketModal = (function () {
         if (isRequesterPOV) {
           setChatModalMetaHtml(
             headerHtml +
-            (assigneeHtml ? ('<span class="chat-meta-dot">•</span>' + assigneeHtml) : '') +
-            (handlerParts.length ? ('<span class="chat-meta-dot">•</span><span class="chat-meta-details">' + escapeHtml(handlerParts.join(' • ')) + '</span>') : '')
+            (assigneeHtml ? ('<span class="chat-meta-dot">â€¢</span>' + assigneeHtml) : '') +
+            (handlerParts.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">' + escapeHtml(handlerParts.join(' â€¢ ')) + '</span>') : '')
           );
           return;
         }
@@ -1827,9 +1892,9 @@ var TMTicketModal = (function () {
         if (!adminParts.length && data.status === 'Open') adminParts.push('Waiting for IT');
         setChatModalMetaHtml(
           headerHtml +
-          (assigneeHtml ? ('<span class="chat-meta-dot">•</span>' + assigneeHtml) : '') +
-          (isLockedForViewer ? '' : (adminParts.length ? ('<span class="chat-meta-dot">•</span><span class="chat-meta-details">' + escapeHtml(adminParts.join(' • ')) + '</span>') : '')) +
-          (isLockedForViewer ? '' : (requesterMeta.length ? ('<span class="chat-meta-dot">•</span><span class="chat-meta-details">' + escapeHtml(requesterName + ' • ' + requesterMeta.join(' • ')) + '</span>') : ''))
+          (assigneeHtml ? ('<span class="chat-meta-dot">â€¢</span>' + assigneeHtml) : '') +
+          (isLockedForViewer ? '' : (adminParts.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">' + escapeHtml(adminParts.join(' â€¢ ')) + '</span>') : '')) +
+          (isLockedForViewer ? '' : (requesterMeta.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">' + escapeHtml(requesterName + ' â€¢ ' + requesterMeta.join(' â€¢ ')) + '</span>') : ''))
         );
         return;
 
@@ -1845,7 +1910,7 @@ var TMTicketModal = (function () {
             var rest = assignedParts.slice(1);
             setChatModalMetaHtml(
               '<span class="chat-meta-with">Chat with <span class="chat-meta-name">' + escapeHtml(main) + '</span></span>' +
-              (rest.length ? ('<span class="chat-meta-dot">•</span><span class="chat-meta-details">' + escapeHtml(rest.join(' • ')) + '</span>') : '')
+              (rest.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">' + escapeHtml(rest.join(' â€¢ ')) + '</span>') : '')
             );
           } else {
             setChatModalMetaHtml('<span class="chat-meta-with">Chat with <span class="chat-meta-name">Support</span></span>');
@@ -1854,8 +1919,8 @@ var TMTicketModal = (function () {
           // Admin/Assigned POV: show requester and their details, keep assigned context compact
           setChatModalMetaHtml(
             '<span class="chat-meta-with">Chat with <span class="chat-meta-name">' + escapeHtml(requesterName) + '</span></span>' +
-            (requesterMeta.length ? ('<span class="chat-meta-dot">•</span><span class="chat-meta-details">' + escapeHtml(requesterMeta.join(' • ')) + '</span>') : '') +
-            (assignedParts.length ? ('<span class="chat-meta-dot">•</span><span class="chat-meta-details">Assigned: ' + escapeHtml(assignedParts.join(' • ')) + '</span>') : '')
+            (requesterMeta.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">' + escapeHtml(requesterMeta.join(' â€¢ ')) + '</span>') : '') +
+            (assignedParts.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">Assigned: ' + escapeHtml(assignedParts.join(' â€¢ ')) + '</span>') : '')
           );
         }
       })
@@ -2739,7 +2804,7 @@ var TMTicketModal = (function () {
       btn.dataset.ticketId = String(c.id);
       btn.innerHTML =
         '<div class="tm-messenger-item-top">' +
-        '  <div class="tm-messenger-item-subject" title="' + escapeHtml(c.subject) + '">#' + String(c.id).padStart(6, '0') + ' • ' + escapeHtml(c.subject) + '</div>' +
+        '  <div class="tm-messenger-item-subject" title="' + escapeHtml(c.subject) + '">#' + String(c.id).padStart(6, '0') + ' â€¢ ' + escapeHtml(c.subject) + '</div>' +
         '  <div class="tm-messenger-item-right">' +
         '    <div class="tm-messenger-item-time">' + escapeHtml(toRelative(c.last_message_time || c.ticket_created_at)) + '</div>' +
         (unread > 0 ? ('<span class="unread-badge">' + escapeHtml(String(unread)) + '</span>') : '') +
@@ -2761,7 +2826,7 @@ var TMTicketModal = (function () {
     var title = qs('tmMessengerHeaderTitle');
     var sub = qs('tmMessengerHeaderSub');
     var menuBtn = qs('tmMessengerMenuBtn');
-    if (title) title.textContent = conv ? ('#' + String(conv.id).padStart(6, '0') + ' • ' + String(conv.subject || '')) : 'Select a conversation';
+    if (title) title.textContent = conv ? ('#' + String(conv.id).padStart(6, '0') + ' â€¢ ' + String(conv.subject || '')) : 'Select a conversation';
     if (sub) {
       if (conv) {
         if (typeof window !== 'undefined' && window.TM_MESSENGER_STYLE === 'employee') {
@@ -2773,8 +2838,8 @@ var TMTicketModal = (function () {
             '<span class="tm-messenger-status-pill ' + messengerStatusClass(statusLabel) + '">' + escapeHtml(statusLabel) + '</span>' +
             (assignedName
               ? ('<span class="tm-messenger-assignee">Assigned to: <strong>' + escapeHtml(assignedName) + '</strong></span>')
-              : ((rel ? ('<span class="tm-messenger-sub-sep">•</span><span>' + escapeHtml(rel) + '</span>') : '') +
-                (requesterEmail ? ('<span class="tm-messenger-sub-sep">•</span><span>' + escapeHtml(requesterEmail) + '</span>') : '')));
+              : ((rel ? ('<span class="tm-messenger-sub-sep">â€¢</span><span>' + escapeHtml(rel) + '</span>') : '') +
+                (requesterEmail ? ('<span class="tm-messenger-sub-sep">â€¢</span><span>' + escapeHtml(requesterEmail) + '</span>') : '')));
         } else {
           sub.textContent = conv.last_message_time ? ('Last message: ' + String(conv.last_message_time)) : '';
         }

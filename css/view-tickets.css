@@ -173,8 +173,8 @@
     content: "";
     position: absolute;
     inset: 0 0 auto 0;
-    height: 8px;
-    background: #f2d54b;
+    height: 3px;
+    background: #F4C430;
     border-radius: 22px 22px 0 0;
     z-index: 3;
 }
@@ -300,6 +300,18 @@
     position: sticky;
     top: 0;
     z-index: 10;
+}
+
+.tm-header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #F4C430;
+    border-radius: 22px 22px 0 0;
+    pointer-events: none;
 }
 
 .tm-header-left {
@@ -1710,7 +1722,7 @@
 }
 
 .tm-sap-value {
-    min-height: 38px;
+    height: 56px;
     display: flex;
     align-items: center;
     border: 1px solid #dfe5ee;
@@ -1719,9 +1731,11 @@
     color: #111827;
     font-size: 14px;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.35;
     padding: 8px 11px;
-    word-break: break-word;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    word-break: normal;
 }
 
 .tm-sap-actions {
@@ -1752,6 +1766,15 @@
     background: linear-gradient(180deg, #2b6b45 0%, #1f5f3a 100%);
     color: #ffffff;
     box-shadow: 0 10px 20px rgba(31, 95, 58, 0.16);
+}
+
+.tm-sap-counter {
+    flex: 1 1 auto;
+    text-align: center;
+    color: #334155;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
 }
 
 .tm-card-header-actions {
