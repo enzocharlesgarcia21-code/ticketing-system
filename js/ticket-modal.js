@@ -16,6 +16,8 @@
   var messengerAttachmentFile = null;
   var attachmentCategorySeq = 0;
   var sapDisplaySeq = 0;
+  var imagePreviewSources = [];
+  var imagePreviewIndex = -1;
   var chatPermissionState = { canChat: true, lockedMessage: '', handlerName: '', statusLabel: '' };
   var messengerPermissionState = { canChat: false, lockedMessage: '', handlerName: '', statusLabel: '', isChecking: false };
   function qs(id) { return document.getElementById(id); }
@@ -45,11 +47,14 @@
       imageModal.setAttribute('onclick', 'TMTicketModal.closeImagePreview(event)');
       imageModal.innerHTML =
         '<div class="image-preview-content">' +
-        '  <button class="preview-close" onclick="TMTicketModal.closeImagePreview(event)">Ã—</button>' +
+        '  <button type="button" class="preview-close" onclick="TMTicketModal.closeImagePreview(event)" aria-label="Close preview">X</button>' +
+        '  <button type="button" class="preview-nav preview-prev" onclick="TMTicketModal.stepImagePreview(-1)" aria-label="Previous attachment"><i class="fas fa-chevron-left"></i></button>' +
         '  <img id="previewImage" src="" alt="Preview">' +
+        '  <button type="button" class="preview-nav preview-next" onclick="TMTicketModal.stepImagePreview(1)" aria-label="Next attachment"><i class="fas fa-chevron-right"></i></button>' +
         '</div>';
       document.body.appendChild(imageModal);
     }
+    ensureImagePreviewControls();
   }
   function getCsrfToken() {
     var meta = document.querySelector('meta[name="csrf-token"]');
@@ -467,11 +472,10 @@
           }).join('') +
           '</div>' +
           '<div class="tm-hr-category-bottom">' +
-          '<div></div>' +
           (slides.length > 1
             ? '<div class="tm-hr-category-nav">' +
-              '<button type="button" class="tm-hr-category-arrow" aria-label="Previous attachment category" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', -1)"><span aria-hidden="true">â€¹</span></button>' +
-              '<button type="button" class="tm-hr-category-arrow" aria-label="Next attachment category" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', 1)"><span aria-hidden="true">â€º</span></button>' +
+              '<button type="button" class="tm-hr-category-arrow" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', -1)">Previous</button>' +
+              '<button type="button" class="tm-hr-category-arrow primary" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', 1)">Next</button>' +
               '</div>'
             : '') +
           '</div>' +
@@ -801,6 +805,7 @@
       link.className = 'tm-chat-attachment-link tm-chat-attachment-button';
       link.setAttribute('role', 'button');
       link.setAttribute('aria-label', 'Preview image attachment');
+      link.setAttribute('data-src', attachmentUrl);
       var openPreview = function (event) {
         event.preventDefault();
         event.stopPropagation();
@@ -1651,7 +1656,7 @@
       '      <div class="modal-title">Ticket Conversation</div>' +
       '      <div id="chatModalMeta" class="chat-modal-meta"></div>' +
       '    </div>' +
-      '    <button class="modal-close" onclick="TMTicketModal.closeChatModal()">Ã—</button>' +
+      '    <button class="modal-close" onclick="TMTicketModal.closeChatModal()">&times;</button>' +
       '  </div>' +
       '  <div class="modal-body">' +
       '    <div class="ticket-chat-container">' +
@@ -1767,7 +1772,7 @@
     if (p && p.department) parts.push(String(p.department));
     if (p && p.company) parts.push(String(p.company));
     if (p && p.email) parts.push(String(p.email));
-    return parts.filter(function (x) { return x && String(x).trim() !== ''; }).join(' â€¢ ');
+    return parts.filter(function (x) { return x && String(x).trim() !== ''; }).join(' \u2022 ');
   }
   function setChatModalMetaHtml(html) {
     var el = qs('chatModalMeta');
@@ -1839,7 +1844,7 @@
   function loadChatModalMeta(ticketId, silentRefresh) {
     if (silentRefresh !== true) {
       setChatComposerState(false, 'Checking ticket handler...');
-      setChatModalMetaHtml('<span class="chat-meta-loading">Loading detailsâ€¦</span>');
+      setChatModalMetaHtml('<span class="chat-meta-loading">Loading details&hellip;</span>');
     }
     fetch('get_ticket_details.php?id=' + ticketId)
       .then(function (r) { return r.json(); })
@@ -1882,8 +1887,8 @@
         if (isRequesterPOV) {
           setChatModalMetaHtml(
             headerHtml +
-            (assigneeHtml ? ('<span class="chat-meta-dot">â€¢</span>' + assigneeHtml) : '') +
-            (handlerParts.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">' + escapeHtml(handlerParts.join(' â€¢ ')) + '</span>') : '')
+            (assigneeHtml ? ('<span class="chat-meta-dot">&bull;</span>' + assigneeHtml) : '') +
+            (handlerParts.length ? ('<span class="chat-meta-dot">&bull;</span><span class="chat-meta-details">' + escapeHtml(handlerParts.join(' \u2022 ')) + '</span>') : '')
           );
           return;
         }
@@ -1892,9 +1897,9 @@
         if (!adminParts.length && data.status === 'Open') adminParts.push('Waiting for IT');
         setChatModalMetaHtml(
           headerHtml +
-          (assigneeHtml ? ('<span class="chat-meta-dot">â€¢</span>' + assigneeHtml) : '') +
-          (isLockedForViewer ? '' : (adminParts.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">' + escapeHtml(adminParts.join(' â€¢ ')) + '</span>') : '')) +
-          (isLockedForViewer ? '' : (requesterMeta.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">' + escapeHtml(requesterName + ' â€¢ ' + requesterMeta.join(' â€¢ ')) + '</span>') : ''))
+          (assigneeHtml ? ('<span class="chat-meta-dot">&bull;</span>' + assigneeHtml) : '') +
+          (isLockedForViewer ? '' : (adminParts.length ? ('<span class="chat-meta-dot">&bull;</span><span class="chat-meta-details">' + escapeHtml(adminParts.join(' \u2022 ')) + '</span>') : '')) +
+          (isLockedForViewer ? '' : (requesterMeta.length ? ('<span class="chat-meta-dot">&bull;</span><span class="chat-meta-details">' + escapeHtml(requesterName + ' \u2022 ' + requesterMeta.join(' \u2022 ')) + '</span>') : ''))
         );
         return;
 
@@ -1910,7 +1915,7 @@
             var rest = assignedParts.slice(1);
             setChatModalMetaHtml(
               '<span class="chat-meta-with">Chat with <span class="chat-meta-name">' + escapeHtml(main) + '</span></span>' +
-              (rest.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">' + escapeHtml(rest.join(' â€¢ ')) + '</span>') : '')
+              (rest.length ? ('<span class="chat-meta-dot">&bull;</span><span class="chat-meta-details">' + escapeHtml(rest.join(' \u2022 ')) + '</span>') : '')
             );
           } else {
             setChatModalMetaHtml('<span class="chat-meta-with">Chat with <span class="chat-meta-name">Support</span></span>');
@@ -1919,8 +1924,8 @@
           // Admin/Assigned POV: show requester and their details, keep assigned context compact
           setChatModalMetaHtml(
             '<span class="chat-meta-with">Chat with <span class="chat-meta-name">' + escapeHtml(requesterName) + '</span></span>' +
-            (requesterMeta.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">' + escapeHtml(requesterMeta.join(' â€¢ ')) + '</span>') : '') +
-            (assignedParts.length ? ('<span class="chat-meta-dot">â€¢</span><span class="chat-meta-details">Assigned: ' + escapeHtml(assignedParts.join(' â€¢ ')) + '</span>') : '')
+            (requesterMeta.length ? ('<span class="chat-meta-dot">&bull;</span><span class="chat-meta-details">' + escapeHtml(requesterMeta.join(' \u2022 ')) + '</span>') : '') +
+            (assignedParts.length ? ('<span class="chat-meta-dot">&bull;</span><span class="chat-meta-details">Assigned: ' + escapeHtml(assignedParts.join(' \u2022 ')) + '</span>') : '')
           );
         }
       })
@@ -2804,7 +2809,7 @@
       btn.dataset.ticketId = String(c.id);
       btn.innerHTML =
         '<div class="tm-messenger-item-top">' +
-        '  <div class="tm-messenger-item-subject" title="' + escapeHtml(c.subject) + '">#' + String(c.id).padStart(6, '0') + ' â€¢ ' + escapeHtml(c.subject) + '</div>' +
+        '  <div class="tm-messenger-item-subject" title="' + escapeHtml(c.subject) + '">#' + String(c.id).padStart(6, '0') + ' &bull; ' + escapeHtml(c.subject) + '</div>' +
         '  <div class="tm-messenger-item-right">' +
         '    <div class="tm-messenger-item-time">' + escapeHtml(toRelative(c.last_message_time || c.ticket_created_at)) + '</div>' +
         (unread > 0 ? ('<span class="unread-badge">' + escapeHtml(String(unread)) + '</span>') : '') +
@@ -2826,7 +2831,7 @@
     var title = qs('tmMessengerHeaderTitle');
     var sub = qs('tmMessengerHeaderSub');
     var menuBtn = qs('tmMessengerMenuBtn');
-    if (title) title.textContent = conv ? ('#' + String(conv.id).padStart(6, '0') + ' â€¢ ' + String(conv.subject || '')) : 'Select a conversation';
+    if (title) title.textContent = conv ? ('#' + String(conv.id).padStart(6, '0') + ' \u2022 ' + String(conv.subject || '')) : 'Select a conversation';
     if (sub) {
       if (conv) {
         if (typeof window !== 'undefined' && window.TM_MESSENGER_STYLE === 'employee') {
@@ -2838,8 +2843,8 @@
             '<span class="tm-messenger-status-pill ' + messengerStatusClass(statusLabel) + '">' + escapeHtml(statusLabel) + '</span>' +
             (assignedName
               ? ('<span class="tm-messenger-assignee">Assigned to: <strong>' + escapeHtml(assignedName) + '</strong></span>')
-              : ((rel ? ('<span class="tm-messenger-sub-sep">â€¢</span><span>' + escapeHtml(rel) + '</span>') : '') +
-                (requesterEmail ? ('<span class="tm-messenger-sub-sep">â€¢</span><span>' + escapeHtml(requesterEmail) + '</span>') : '')));
+              : ((rel ? ('<span class="tm-messenger-sub-sep">&bull;</span><span>' + escapeHtml(rel) + '</span>') : '') +
+                (requesterEmail ? ('<span class="tm-messenger-sub-sep">&bull;</span><span>' + escapeHtml(requesterEmail) + '</span>') : '')));
         } else {
           sub.textContent = conv.last_message_time ? ('Last message: ' + String(conv.last_message_time)) : '';
         }
@@ -3390,21 +3395,101 @@
     closeChatModal();
     restoreMessengerAfterTicketClose();
   }
+  function isPreviewableImageSrc(src) {
+    var clean = String(src || '').split('?')[0].split('#')[0].toLowerCase();
+    return /\.(jpe?g|png|gif|webp|bmp)$/i.test(clean);
+  }
+  function ensureImagePreviewControls() {
+    var modal = qs('imagePreviewModal');
+    if (!modal) return;
+    var content = modal.querySelector('.preview-content, .image-preview-content');
+    if (!content) return;
+    var closeBtn = content.querySelector('.preview-close');
+    if (closeBtn) {
+      closeBtn.setAttribute('type', 'button');
+      closeBtn.setAttribute('aria-label', 'Close preview');
+      closeBtn.textContent = 'X';
+    }
+    if (!content.querySelector('.preview-prev')) {
+      var prev = document.createElement('button');
+      prev.type = 'button';
+      prev.className = 'preview-nav preview-prev';
+      prev.setAttribute('aria-label', 'Previous attachment');
+      prev.innerHTML = '<i class="fas fa-chevron-left"></i>';
+      prev.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        stepImagePreview(-1);
+      });
+      content.insertBefore(prev, content.querySelector('img') || content.firstChild);
+    }
+    if (!content.querySelector('.preview-next')) {
+      var next = document.createElement('button');
+      next.type = 'button';
+      next.className = 'preview-nav preview-next';
+      next.setAttribute('aria-label', 'Next attachment');
+      next.innerHTML = '<i class="fas fa-chevron-right"></i>';
+      next.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        stepImagePreview(1);
+      });
+      content.appendChild(next);
+    }
+  }
+  function collectImagePreviewSources(activeSrc) {
+    var seen = {};
+    var sources = [];
+    var nodes = document.querySelectorAll('.tm-attachment-thumb[data-src], .tm-hr-category-media.is-image[data-src], .tm-view-btn[data-src], .tm-chat-attachment-button[data-src]');
+    Array.prototype.forEach.call(nodes, function (node) {
+      var src = node.getAttribute('data-src') || '';
+      if (!src || !isPreviewableImageSrc(src) || seen[src]) return;
+      seen[src] = true;
+      sources.push(src);
+    });
+    if (activeSrc && !seen[activeSrc]) {
+      sources.push(activeSrc);
+    }
+    return sources;
+  }
+  function setImagePreviewSource(src) {
+    var img = qs('previewImage');
+    if (img) img.src = src;
+    var modal = qs('imagePreviewModal');
+    if (!modal) return;
+    var hasMultiple = imagePreviewSources.length > 1;
+    var prev = modal.querySelector('.preview-prev');
+    var next = modal.querySelector('.preview-next');
+    if (prev) prev.hidden = !hasMultiple;
+    if (next) next.hidden = !hasMultiple;
+  }
   function viewImage(src) {
     var modal = qs('imagePreviewModal');
     var img = qs('previewImage');
     if (!modal || !img) return;
-    img.src = src;
+    ensureImagePreviewControls();
+    imagePreviewSources = collectImagePreviewSources(src);
+    imagePreviewIndex = imagePreviewSources.indexOf(src);
+    if (imagePreviewIndex < 0) imagePreviewIndex = imagePreviewSources.length - 1;
+    setImagePreviewSource(src);
     modal.classList.add('show');
+  }
+  function stepImagePreview(delta) {
+    if (!imagePreviewSources.length) return;
+    var total = imagePreviewSources.length;
+    imagePreviewIndex = ((imagePreviewIndex + Number(delta || 0)) % total + total) % total;
+    setImagePreviewSource(imagePreviewSources[imagePreviewIndex]);
   }
   function closeImagePreview(e) {
     var modal = qs('imagePreviewModal');
     if (!modal) return;
-    if (!e || e.target.id === 'imagePreviewModal' || (e.target && e.target.classList.contains('preview-close'))) {
+    if (!e || e.target.id === 'imagePreviewModal' || (e.target && e.target.closest && e.target.closest('.preview-close'))) {
       modal.classList.remove('show');
       setTimeout(function () {
         var img = qs('previewImage');
         if (img) img.src = '';
+        imagePreviewSources = [];
+        imagePreviewIndex = -1;
       }, 300);
     }
   }
@@ -3423,6 +3508,7 @@
     stepHrAttachmentCategory: stepHrAttachmentCategory,
     stepSapDisplay: stepSapDisplay,
     viewImage: viewImage,
+    stepImagePreview: stepImagePreview,
     closeImagePreview: closeImagePreview,
     getCurrentTicketId: getCurrentTicketId
   };

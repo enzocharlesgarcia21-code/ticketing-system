@@ -379,7 +379,7 @@ $result = $stmt->get_result();
                 <div class="chat-input-area">
                     <input type="hidden" id="chatTicketId" value="">
                     <input type="text" id="chatInput" placeholder="Type a message..." autocomplete="off">
-                    <button id="chatSendBtn" type="button">âž¤</button>
+                    <button id="chatSendBtn" type="button">&#10148;</button>
                 </div>
             </div>
         </div>
@@ -388,8 +388,10 @@ $result = $stmt->get_result();
 
 <div id="imagePreviewModal" class="image-preview-modal" onclick="closeImagePreview(event)">
     <div class="preview-content">
-        <button type="button" class="preview-close" onclick="closeImagePreview(event)">&times;</button>
+        <button type="button" class="preview-close" onclick="closeImagePreview(event)" aria-label="Close preview">X</button>
+        <button type="button" class="preview-nav preview-prev" onclick="stepImagePreview(-1)" aria-label="Previous attachment"><i class="fas fa-chevron-left"></i></button>
         <img id="previewImage" class="preview-image" src="" alt="Attachment preview">
+        <button type="button" class="preview-nav preview-next" onclick="stepImagePreview(1)" aria-label="Next attachment"><i class="fas fa-chevron-right"></i></button>
     </div>
 </div>
 
@@ -400,6 +402,8 @@ let chatInterval;
 let chatUiBound = false;
 let attachmentCategorySeq = 0;
 let sapDisplaySeq = 0;
+let imagePreviewSources = [];
+let imagePreviewIndex = -1;
 
 // Chat Functions
 function startChat(ticketId) {
@@ -973,11 +977,10 @@ function renderHrAttachmentCategoryCarousel(groups) {
                                 }).join('')}
                             </div>
                             <div class="tm-hr-category-bottom">
-                                <div></div>
                                 ${slides.length > 1 ? `
                                     <div class="tm-hr-category-nav">
-                                        <button type="button" class="tm-hr-category-arrow" aria-label="Previous attachment category" onclick="stepHrAttachmentCategory('${carouselId}', -1)"><span aria-hidden="true">â€¹</span></button>
-                                        <button type="button" class="tm-hr-category-arrow" aria-label="Next attachment category" onclick="stepHrAttachmentCategory('${carouselId}', 1)"><span aria-hidden="true">â€º</span></button>
+                                        <button type="button" class="tm-hr-category-arrow" onclick="stepHrAttachmentCategory('${carouselId}', -1)">Previous</button>
+                                        <button type="button" class="tm-hr-category-arrow primary" onclick="stepHrAttachmentCategory('${carouselId}', 1)">Next</button>
                                     </div>
                                 ` : ''}
                             </div>
@@ -1073,18 +1076,62 @@ function viewImage(src) {
         window.open(src, '_blank', 'noopener');
         return;
     }
-    image.src = src;
+    imagePreviewSources = collectImagePreviewSources(src);
+    imagePreviewIndex = imagePreviewSources.indexOf(src);
+    if (imagePreviewIndex < 0) imagePreviewIndex = imagePreviewSources.length - 1;
+    setImagePreviewSource(src);
     modal.classList.add('show');
+}
+
+function isPreviewableImageSrc(src) {
+    const clean = String(src || '').split('?')[0].split('#')[0].toLowerCase();
+    return /\.(jpe?g|png|gif|webp|bmp)$/i.test(clean);
+}
+
+function collectImagePreviewSources(activeSrc) {
+    const seen = {};
+    const sources = [];
+    document.querySelectorAll('.tm-attachment-thumb[data-src], .tm-hr-category-media.is-image[data-src]').forEach(function(node) {
+        const src = node.getAttribute('data-src') || '';
+        if (!src || !isPreviewableImageSrc(src) || seen[src]) return;
+        seen[src] = true;
+        sources.push(src);
+    });
+    if (activeSrc && !seen[activeSrc]) {
+        sources.push(activeSrc);
+    }
+    return sources;
+}
+
+function setImagePreviewSource(src) {
+    const modal = document.getElementById('imagePreviewModal');
+    const image = document.getElementById('previewImage');
+    if (image) image.src = src;
+    if (!modal) return;
+    const hasMultiple = imagePreviewSources.length > 1;
+    const prev = modal.querySelector('.preview-prev');
+    const next = modal.querySelector('.preview-next');
+    if (prev) prev.hidden = !hasMultiple;
+    if (next) next.hidden = !hasMultiple;
+}
+
+function stepImagePreview(delta) {
+    if (!imagePreviewSources.length) return;
+    const total = imagePreviewSources.length;
+    imagePreviewIndex = ((imagePreviewIndex + Number(delta || 0)) % total + total) % total;
+    setImagePreviewSource(imagePreviewSources[imagePreviewIndex]);
 }
 
 function closeImagePreview(event) {
     const modal = document.getElementById('imagePreviewModal');
     const image = document.getElementById('previewImage');
     if (!modal) return;
-    if (!event || event.target === modal || event.target.classList.contains('preview-close')) {
+    if (!event || event.target === modal || (event.target && event.target.closest && event.target.closest('.preview-close'))) {
         modal.classList.remove('show');
         window.setTimeout(function () {
             if (image) image.src = '';
+            imagePreviewSources = [];
+            imagePreviewIndex = -1;
         }, 300);
     }
 }

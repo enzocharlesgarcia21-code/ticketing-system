@@ -820,27 +820,76 @@ chatModal.addEventListener('click', function(event) {
 <!-- Image Preview Modal -->
 <div id="imagePreviewModal" class="image-preview-modal" onclick="closeImagePreview(event)">
     <div class="preview-content">
-        <button class="preview-close" onclick="closeImagePreview(event)">×</button>
+        <button type="button" class="preview-close" onclick="closeImagePreview(event)" aria-label="Close preview">X</button>
+        <button type="button" class="preview-nav preview-prev" onclick="stepImagePreview(-1)" aria-label="Previous attachment"><i class="fas fa-chevron-left"></i></button>
         <img id="previewImage" src="" alt="Preview" class="preview-image">
+        <button type="button" class="preview-nav preview-next" onclick="stepImagePreview(1)" aria-label="Next attachment"><i class="fas fa-chevron-right"></i></button>
     </div>
 </div>
 
 <script>
 // Image Preview Logic
+let imagePreviewSources = [];
+let imagePreviewIndex = -1;
+
+function isPreviewableImageSrc(src) {
+    const clean = String(src || '').split('?')[0].split('#')[0].toLowerCase();
+    return /\.(jpe?g|png|gif|webp|bmp)$/i.test(clean);
+}
+
+function collectImagePreviewSources(activeSrc) {
+    const seen = {};
+    const sources = [];
+    document.querySelectorAll('.tm-attachment-thumb[data-src], .tm-view-btn[data-src]').forEach(function(node) {
+        const src = node.getAttribute('data-src') || '';
+        if (!src || !isPreviewableImageSrc(src) || seen[src]) return;
+        seen[src] = true;
+        sources.push(src);
+    });
+    if (activeSrc && !seen[activeSrc]) {
+        sources.push(activeSrc);
+    }
+    return sources;
+}
+
+function setImagePreviewSource(src) {
+    const modal = document.getElementById('imagePreviewModal');
+    const img = document.getElementById('previewImage');
+    if (img) img.src = src;
+    if (!modal) return;
+    const hasMultiple = imagePreviewSources.length > 1;
+    const prev = modal.querySelector('.preview-prev');
+    const next = modal.querySelector('.preview-next');
+    if (prev) prev.hidden = !hasMultiple;
+    if (next) next.hidden = !hasMultiple;
+}
+
 function viewImage(src) {
     const modal = document.getElementById('imagePreviewModal');
     const img = document.getElementById('previewImage');
-    img.src = src;
+    imagePreviewSources = collectImagePreviewSources(src);
+    imagePreviewIndex = imagePreviewSources.indexOf(src);
+    if (imagePreviewIndex < 0) imagePreviewIndex = imagePreviewSources.length - 1;
+    setImagePreviewSource(src);
     modal.classList.add('show');
+}
+
+function stepImagePreview(delta) {
+    if (!imagePreviewSources.length) return;
+    const total = imagePreviewSources.length;
+    imagePreviewIndex = ((imagePreviewIndex + Number(delta || 0)) % total + total) % total;
+    setImagePreviewSource(imagePreviewSources[imagePreviewIndex]);
 }
 
 function closeImagePreview(e) {
     // Close if clicked on overlay (ID match) or Close Button
-    if (e.target.id === 'imagePreviewModal' || e.target.classList.contains('preview-close')) {
+    if (!e || e.target.id === 'imagePreviewModal' || (e.target && e.target.closest && e.target.closest('.preview-close'))) {
         const modal = document.getElementById('imagePreviewModal');
         modal.classList.remove('show');
         setTimeout(() => {
             document.getElementById('previewImage').src = '';
+            imagePreviewSources = [];
+            imagePreviewIndex = -1;
         }, 300); // Wait for transition
     }
 }

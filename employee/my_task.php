@@ -866,8 +866,10 @@ $showing_to = min($offset + $limit, (int) $total_records);
     <!-- Image Preview Modal -->
     <div id="imagePreviewModal" class="image-preview-modal" onclick="TMTicketModal.closeImagePreview(event)">
         <div class="preview-content">
-            <button class="preview-close" onclick="TMTicketModal.closeImagePreview(event)">×</button>
+            <button type="button" class="preview-close" onclick="TMTicketModal.closeImagePreview(event)" aria-label="Close preview">X</button>
+            <button type="button" class="preview-nav preview-prev" onclick="TMTicketModal.stepImagePreview(-1)" aria-label="Previous attachment"><i class="fas fa-chevron-left"></i></button>
             <img id="previewImage" src="" alt="Preview" class="preview-image">
+            <button type="button" class="preview-nav preview-next" onclick="TMTicketModal.stepImagePreview(1)" aria-label="Next attachment"><i class="fas fa-chevron-right"></i></button>
         </div>
     </div>
     
