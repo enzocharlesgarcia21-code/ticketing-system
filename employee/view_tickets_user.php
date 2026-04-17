@@ -395,6 +395,19 @@ $result = $stmt->get_result();
     </div>
 </div>
 
+<div id="filePreviewModal" class="file-preview-modal">
+    <div class="file-preview-shell">
+        <div class="file-preview-head">
+            <div class="file-preview-title-wrap">
+                <div id="filePreviewTitle" class="file-preview-title">Attachment</div>
+                <a id="filePreviewDownload" class="file-preview-download" href="#" download><i class="fas fa-download"></i><span>Download</span></a>
+            </div>
+            <button type="button" class="file-preview-close" onclick="closeFilePreview()" aria-label="Close preview">X</button>
+        </div>
+        <iframe id="filePreviewFrame" class="file-preview-frame" src="" title="Attachment preview"></iframe>
+    </div>
+</div>
+
 <script>
 // Chat Global Variables
 const CURRENT_USER_ID = <?php echo isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0; ?>;
@@ -980,6 +993,7 @@ function renderHrAttachmentCategoryCarousel(groups) {
                                 ${slides.length > 1 ? `
                                     <div class="tm-hr-category-nav">
                                         <button type="button" class="tm-hr-category-arrow" onclick="stepHrAttachmentCategory('${carouselId}', -1)">Previous</button>
+                                        <span class="tm-hr-category-counter">${index + 1} of ${slides.length}</span>
                                         <button type="button" class="tm-hr-category-arrow primary" onclick="stepHrAttachmentCategory('${carouselId}', 1)">Next</button>
                                     </div>
                                 ` : ''}
@@ -1053,12 +1067,21 @@ function renderStructuredAttachments(data) {
         html += `
             <div class="tm-attachment-section">
                 <div class="tm-attachment-section-title">Files</div>
-                <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                <div>
                     ${files.map(function (item) {
+                        const src = `../uploads/${encodeURIComponent(item.filename)}`;
                         return `
-                            <a href="../uploads/${escapeHtml(item.filename)}" target="_blank" style="color:#1B5E20; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
-                                <i class="fas fa-paperclip"></i> ${escapeHtml(item.displayName)}
-                            </a>
+                            <div class="tm-attachment tm-attachment-clickable" data-src="${escapeHtml(src)}" data-name="${escapeHtml(item.displayName)}" onclick="openFilePreviewFromCard(this)">
+                                <div class="tm-att-icon"><i class="fas fa-paperclip"></i></div>
+                                <div class="tm-att-details">
+                                    <div class="tm-att-name" title="${escapeHtml(item.displayName)}">${escapeHtml(item.displayName)}</div>
+                                    <div class="tm-att-actions">
+                                        <a href="${escapeHtml(src)}" class="tm-action-btn tm-download-btn" download onclick="event.stopPropagation()">
+                                            <i class="fas fa-download"></i> Download
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
                         `;
                     }).join('')}
                 </div>
@@ -1134,6 +1157,40 @@ function closeImagePreview(event) {
             imagePreviewIndex = -1;
         }, 300);
     }
+}
+
+function openFilePreview(src, name) {
+    const modal = document.getElementById('filePreviewModal');
+    const frame = document.getElementById('filePreviewFrame');
+    const title = document.getElementById('filePreviewTitle');
+    const download = document.getElementById('filePreviewDownload');
+    if (!modal || !frame) {
+        window.location.href = src;
+        return;
+    }
+    const fileName = String(name || '').trim() || String(src || '').split('/').pop() || 'Attachment';
+    if (title) title.textContent = fileName;
+    if (download) {
+        download.href = src;
+        download.setAttribute('download', fileName);
+    }
+    frame.src = src;
+    modal.classList.add('show');
+}
+
+function openFilePreviewFromCard(card) {
+    if (!card) return;
+    openFilePreview(card.getAttribute('data-src') || '', card.getAttribute('data-name') || '');
+}
+
+function closeFilePreview() {
+    const modal = document.getElementById('filePreviewModal');
+    const frame = document.getElementById('filePreviewFrame');
+    if (!modal) return;
+    modal.classList.remove('show');
+    window.setTimeout(function () {
+        if (frame) frame.src = '';
+    }, 250);
 }
 
 function bindChatUiOnce() {

@@ -371,22 +371,23 @@ function openModal(id) {
                 if (isImage) {
                     // We use onclick with the full path
                     viewBtn = `
-                        <button class="tm-view-btn" data-src="../uploads/${escapeHtml(filename)}" onclick="viewImage(this.dataset.src)">
+                        <button class="tm-view-btn" data-src="../uploads/${escapeHtml(filename)}" onclick="event.stopPropagation(); viewImage(this.dataset.src)">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:4px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                             View
                         </button>
                     `;
                 }
 
+                const fileSrc = `../uploads/${encodeURIComponent(filename)}`;
                 return `
-                <div class="tm-attachment">
+                <div class="tm-attachment tm-attachment-clickable" data-src="${escapeHtml(fileSrc)}" data-name="${escapeHtml(filename)}" onclick="openFilePreviewFromCard(this)">
                     <div class="tm-file-info">
                         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                         <span>${escapeHtml(filename)}</span>
                     </div>
                     <div class="tm-actions">
                         ${viewBtn}
-                        <a href="../uploads/${filename}" class="tm-download-btn" download>Download</a>
+                        <a href="${escapeHtml(fileSrc)}" class="tm-download-btn" download onclick="event.stopPropagation()">Download</a>
                     </div>
                 </div>
             `;
@@ -827,6 +828,19 @@ chatModal.addEventListener('click', function(event) {
     </div>
 </div>
 
+<div id="filePreviewModal" class="file-preview-modal">
+    <div class="file-preview-shell">
+        <div class="file-preview-head">
+            <div class="file-preview-title-wrap">
+                <div id="filePreviewTitle" class="file-preview-title">Attachment</div>
+                <a id="filePreviewDownload" class="file-preview-download" href="#" download><i class="fas fa-download"></i><span>Download</span></a>
+            </div>
+            <button type="button" class="file-preview-close" onclick="closeFilePreview()" aria-label="Close preview">X</button>
+        </div>
+        <iframe id="filePreviewFrame" class="file-preview-frame" src="" title="Attachment preview"></iframe>
+    </div>
+</div>
+
 <script>
 // Image Preview Logic
 let imagePreviewSources = [];
@@ -892,6 +906,40 @@ function closeImagePreview(e) {
             imagePreviewIndex = -1;
         }, 300); // Wait for transition
     }
+}
+
+function openFilePreview(src, name) {
+    const modal = document.getElementById('filePreviewModal');
+    const frame = document.getElementById('filePreviewFrame');
+    const title = document.getElementById('filePreviewTitle');
+    const download = document.getElementById('filePreviewDownload');
+    if (!modal || !frame) {
+        window.location.href = src;
+        return;
+    }
+    const fileName = String(name || '').trim() || String(src || '').split('/').pop() || 'Attachment';
+    if (title) title.textContent = fileName;
+    if (download) {
+        download.href = src;
+        download.setAttribute('download', fileName);
+    }
+    frame.src = src;
+    modal.classList.add('show');
+}
+
+function openFilePreviewFromCard(card) {
+    if (!card) return;
+    openFilePreview(card.getAttribute('data-src') || '', card.getAttribute('data-name') || '');
+}
+
+function closeFilePreview() {
+    const modal = document.getElementById('filePreviewModal');
+    const frame = document.getElementById('filePreviewFrame');
+    if (!modal) return;
+    modal.classList.remove('show');
+    setTimeout(() => {
+        if (frame) frame.src = '';
+    }, 250);
 }
 
 function updateStatusColor(select) {
