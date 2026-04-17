@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/notification_service.php';
+require_once __DIR__ . '/pdf_thumbnail.php';
 
 function ticket_company_group_map(): array
 {
@@ -800,7 +801,9 @@ function ticket_chat_store_attachment(array $file): array
         return ['ok' => false, 'error' => 'Unable to upload the attachment right now.'];
     }
 
-    $originalName = trim((string) ($file['name'] ?? ''));
+    $originalName = function_exists('ticket_pdf_sanitize_original_name')
+        ? ticket_pdf_sanitize_original_name((string) ($file['name'] ?? ''))
+        : basename(str_replace('\\', '/', trim((string) ($file['name'] ?? ''))));
     $tmpPath = trim((string) ($file['tmp_name'] ?? ''));
     $size = (int) ($file['size'] ?? 0);
     $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
@@ -834,11 +837,17 @@ function ticket_chat_store_attachment(array $file): array
     if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0777, true) && !is_dir($uploadDir)) {
         return ['ok' => false, 'error' => 'Unable to prepare chat uploads right now.'];
     }
+    if (function_exists('ticket_pdf_ensure_upload_guards')) {
+        ticket_pdf_ensure_upload_guards();
+    }
 
     $storedName = 'chat_' . time() . '_' . uniqid('', true) . '.' . $ext;
     $targetPath = $uploadDir . DIRECTORY_SEPARATOR . $storedName;
     if (!move_uploaded_file($tmpPath, $targetPath)) {
         return ['ok' => false, 'error' => 'Unable to save the attachment right now.'];
+    }
+    if ($ext === 'pdf' && function_exists('ticket_pdf_generate_thumbnail')) {
+        ticket_pdf_generate_thumbnail($storedName);
     }
 
     return [

@@ -403,6 +403,39 @@
            '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>' +
            'View</button>';
   }
+  function isPdfFile(filename) {
+    var clean = String(filename || '').split('?')[0].split('#')[0].toLowerCase();
+    return /\.pdf$/i.test(clean);
+  }
+  function isWordFile(filename) {
+    var clean = String(filename || '').split('?')[0].split('#')[0].toLowerCase();
+    return /\.(doc|docx)$/i.test(clean);
+  }
+  function wordFileType(filename) {
+    var ext = String(filename || '').split('.').pop().toLowerCase();
+    return ext === 'doc' ? 'DOC' : 'DOCX';
+  }
+  function attachmentStoredName(filename) {
+    return String(filename || '').split(/[\\/]/).pop();
+  }
+  function pdfPreviewHtml(att, displayName) {
+    var thumbnailUrl = String((att && (att.thumbnail_url || att.thumbnailUrl)) || '').trim();
+    if (thumbnailUrl) {
+      return '<div class="tm-file-card-preview">' +
+        '<img class="tm-file-card-thumb" src="' + escapeHtml(thumbnailUrl) + '" alt="' + escapeHtml(displayName || 'PDF preview') + '">' +
+        '</div>';
+    }
+    var pdfSrc = String((att && (att.pdf_src || att.pdfSrc)) || '').trim();
+    return '<div class="tm-file-card-preview is-fallback" data-pdf-src="' + escapeHtml(pdfSrc) + '">' +
+      '<canvas class="tm-file-card-canvas" aria-label="' + escapeHtml(displayName || 'PDF preview') + '"></canvas>' +
+      '<div class="tm-file-card-icon"><i class="fas fa-file-pdf"></i><span>PDF</span></div>' +
+      '</div>';
+  }
+  function wordPreviewHtml(displayName, typeLabel) {
+    return '<div class="tm-file-card-preview tm-word-preview">' +
+      '<div class="tm-file-card-icon tm-word-icon"><i class="fas fa-file-word"></i><span>' + escapeHtml(typeLabel || 'WORD') + '</span></div>' +
+      '</div>';
+  }
   function renderAttachment(att) {
     var filename = '';
     var displayName = '';
@@ -414,33 +447,69 @@
       displayName = att.original_name || att.display_name || filename;
     }
     if (!filename) return '';
+    filename = attachmentStoredName(filename);
     var src = '../uploads/' + encodeURIComponent(filename);
+    var isPdf = (att && att.is_pdf) || isPdfFile(filename);
+    var isWord = isWordFile(filename);
+    var wordType = wordFileType(filename);
+    var downloadButton = '<a href="' + escapeHtml(src) + '" class="tm-action-btn tm-download-btn" download onclick="event.stopPropagation()">' +
+      '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>' +
+      'Download</a>';
+    if (isPdf) {
+      var pdfAtt = att && typeof att === 'object' ? att : {};
+      pdfAtt.pdf_src = src;
+      return '<article class="tm-file-card tm-pdf-card tm-attachment-clickable" data-src="' + escapeHtml(src) + '" data-name="' + escapeHtml(displayName) + '" onclick="TMTicketModal.openFilePreviewFromCard(this)">' +
+        pdfPreviewHtml(pdfAtt, displayName) +
+        '<div class="tm-file-card-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</div>' +
+        '<div class="tm-file-card-actions"><span class="tm-file-card-type"><i class="fas fa-file-pdf"></i>PDF</span></div>' +
+        '</article>';
+    }
+    if (isWord) {
+      return '<article class="tm-file-card tm-word-card tm-attachment-clickable" data-src="' + escapeHtml(src) + '" data-name="' + escapeHtml(displayName) + '" onclick="TMTicketModal.openFilePreviewFromCard(this)">' +
+        wordPreviewHtml(displayName, wordType) +
+        '<div class="tm-file-card-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</div>' +
+        '<div class="tm-file-card-actions"><span class="tm-file-card-type tm-file-card-type-word"><i class="fas fa-file-word"></i>' + escapeHtml(wordType) + '</span></div>' +
+        '</article>';
+    }
     return '<div class="tm-attachment tm-attachment-clickable" data-src="' + escapeHtml(src) + '" data-name="' + escapeHtml(displayName) + '" onclick="TMTicketModal.openFilePreviewFromCard(this)">' +
-           '  <div class="tm-att-icon">' +
-           '    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>' +
-           '  </div>' +
-           '  <div class="tm-att-details">' +
-           '    <div class="tm-att-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</div>' +
-           '    <div class="tm-att-actions">' +
-           viewButtonIfImage(filename) +
-           '      <a href="' + escapeHtml(src) + '" class="tm-action-btn tm-download-btn" download onclick="event.stopPropagation()">' +
-           '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>' +
-           'Download</a>' +
-           '    </div>' +
-           '  </div>' +
-           '</div>';
+      '  <div class="tm-att-icon">' +
+      '    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>' +
+      '  </div>' +
+      '  <div class="tm-att-details">' +
+      '    <div class="tm-att-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</div>' +
+      '    <div class="tm-att-actions">' +
+      viewButtonIfImage(filename) +
+      downloadButton +
+      '    </div>' +
+      '  </div>' +
+      '</div>';
   }
   function normalizeAttachment(att) {
     var filename = '';
     var displayName = '';
+    var thumbnailUrl = '';
+    var thumbnailAvailable = false;
+    var isPdf = false;
+    var isWord = false;
     if (typeof att === 'string') {
       filename = att;
       displayName = att;
     } else if (att && typeof att === 'object') {
       filename = att.stored_name || att.filename || att.file || '';
       displayName = att.original_name || att.display_name || filename;
+      thumbnailUrl = att.thumbnail_url || att.thumbnailUrl || '';
+      thumbnailAvailable = !!att.thumbnail_available;
+      isPdf = !!att.is_pdf;
+      isWord = !!att.is_word;
     }
-    return { filename: filename, displayName: displayName };
+    return {
+      filename: attachmentStoredName(filename),
+      displayName: displayName,
+      thumbnailUrl: thumbnailUrl,
+      thumbnail_available: thumbnailAvailable,
+      isPdf: isPdf || isPdfFile(filename),
+      isWord: isWord || isWordFile(filename)
+    };
   }
   function isImageFile(filename) {
     var ext = String(filename || '').split('.').pop().toLowerCase();
@@ -454,7 +523,10 @@
         return {
           filename: String(n.filename),
           displayName: String(n.displayName || n.filename),
-          isImage: isImageFile(n.filename)
+          isImage: isImageFile(n.filename),
+          isPdf: n.isPdf,
+          isWord: n.isWord,
+          thumbnailUrl: n.thumbnailUrl
         };
       }).filter(function (att) { return !!att; }) : [];
       if (!attachments.length) return null;
@@ -478,14 +550,18 @@
           '</div>' +
           '<div class="tm-hr-category-media-grid' + (group.attachments.length === 1 ? ' is-single' : '') + '">' +
           group.attachments.map(function (item) {
-            var src = '../uploads/' + encodeURIComponent(item.filename);
+            var src = '../uploads/' + encodeURIComponent(attachmentStoredName(item.filename));
             if (item.isImage) {
               return '<button type="button" class="tm-hr-category-media is-image" data-src="' + src + '" onclick="TMTicketModal.viewImage(this.dataset.src)">' +
                 '<img class="tm-hr-category-image" src="' + src + '" alt="' + escapeHtml(item.displayName) + '">' +
                 '</button>';
             }
-            return '<a class="tm-hr-category-media is-file" href="' + src + '" target="_blank" rel="noopener noreferrer">' +
-              '<span class="tm-hr-category-file-icon"><i class="fas fa-file-alt"></i></span>' +
+            return '<a class="tm-hr-category-media is-file' + (item.isPdf ? ' is-pdf' : (item.isWord ? ' is-word' : '')) + '" href="' + src + '" target="_blank" rel="noopener noreferrer">' +
+              (item.isPdf
+                ? pdfPreviewHtml({ thumbnail_url: item.thumbnailUrl, pdf_src: src }, item.displayName)
+                : item.isWord
+                  ? wordPreviewHtml(item.displayName, wordFileType(item.filename))
+                : '<span class="tm-hr-category-file-icon"><i class="fas fa-file-alt"></i></span>') +
               '<span class="tm-hr-category-file-name">' + escapeHtml(item.displayName) + '</span>' +
               '</a>';
           }).join('') +
@@ -531,11 +607,13 @@
     }
     if (!list.length) return '';
     var images = [];
+    var fileCards = [];
     var others = [];
     list.forEach(function (att) {
       var n = normalizeAttachment(att);
       if (!n.filename) return;
       if (isImageFile(n.filename)) images.push(n);
+      else if (n.isPdf || n.isWord) fileCards.push(att);
       else others.push(att);
     });
     var html = '';
@@ -553,6 +631,15 @@
       }).join('');
       html += '</div></div>';
     }
+    if (fileCards.length) {
+      html += '<div class="tm-attachment-section">';
+      if (!hideSectionTitles) {
+        html += '<div class="tm-attachment-section-title">Files</div>';
+      }
+      html += '<div class="tm-file-card-grid">';
+      html += fileCards.map(function (a) { return renderAttachment(a); }).join('');
+      html += '</div></div>';
+    }
     if (others.length) {
       html += '<div class="tm-attachment-section">';
       if (!hideSectionTitles) {
@@ -561,6 +648,75 @@
       html += others.map(function (a) { return renderAttachment(a); }).join('') + '</div>';
     }
     return html;
+  }
+  var pdfJsLoadPromise = null;
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (pdfJsLoadPromise) return pdfJsLoadPromise;
+
+    pdfJsLoadPromise = new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.async = true;
+      script.onload = function () {
+        if (!window.pdfjsLib) {
+          reject(new Error('PDF renderer failed to load.'));
+          return;
+        }
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        resolve(window.pdfjsLib);
+      };
+      script.onerror = function () {
+        reject(new Error('PDF renderer failed to load.'));
+      };
+      document.head.appendChild(script);
+    });
+
+    return pdfJsLoadPromise;
+  }
+  function renderPdfThumbnailNode(preview) {
+    if (!preview || preview.dataset.rendered === '1') return;
+    var src = preview.getAttribute('data-pdf-src') || '';
+    var canvas = preview.querySelector('.tm-file-card-canvas');
+    if (!src || !canvas) return;
+    preview.dataset.rendered = '1';
+
+    loadPdfJs()
+      .then(function (pdfjsLib) {
+        return pdfjsLib.getDocument(src).promise;
+      })
+      .then(function (pdf) {
+        return pdf.getPage(1);
+      })
+      .then(function (page) {
+        var cssSize = Math.max(120, Math.round(preview.getBoundingClientRect().width || 148));
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var outputSize = Math.round(cssSize * dpr);
+        var baseViewport = page.getViewport({ scale: 1 });
+        var scale = Math.min(outputSize / baseViewport.width, outputSize / baseViewport.height);
+        var viewport = page.getViewport({ scale: scale });
+        var temp = document.createElement('canvas');
+        var tempCtx = temp.getContext('2d');
+        temp.width = Math.max(1, Math.ceil(viewport.width));
+        temp.height = Math.max(1, Math.ceil(viewport.height));
+        return page.render({ canvasContext: tempCtx, viewport: viewport }).promise.then(function () {
+          var ctx = canvas.getContext('2d');
+          canvas.width = outputSize;
+          canvas.height = outputSize;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, outputSize, outputSize);
+          ctx.drawImage(temp, Math.round((outputSize - temp.width) / 2), Math.round((outputSize - temp.height) / 2));
+          preview.classList.add('is-rendered');
+        });
+      })
+      .catch(function () {
+        preview.dataset.rendered = '0';
+      });
+  }
+  function renderPdfCardThumbnails(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    var previews = scope.querySelectorAll('.tm-file-card-preview[data-pdf-src]');
+    Array.prototype.forEach.call(previews, renderPdfThumbnailNode);
   }
   function getHrDisplay(data) {
     if (!data || !data.hr_display || typeof data.hr_display !== 'object') return null;
@@ -3390,6 +3546,11 @@
           bindDepartmentOptions(modalContent, data);
         } catch (deptBindError) {
           console.error('Ticket modal department binding failed:', deptBindError, data);
+        }
+        try {
+          renderPdfCardThumbnails(modalContent);
+        } catch (pdfThumbError) {
+          console.error('PDF thumbnail rendering failed:', pdfThumbError);
         }
         setTimeout(function () {
           var statusSelect = modalContent.querySelector('.tm-status-select');

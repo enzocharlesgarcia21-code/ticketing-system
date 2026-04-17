@@ -383,7 +383,9 @@ if ($showCategoryView) {
         }
 
         .most-visited-card {
-            background: rgba(255, 255, 255, 0.96);
+            background:
+                linear-gradient(rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.92)),
+                url('../assets/img/kbkb.jpg') center / cover no-repeat;
             border: 1px solid #E5E7EB;
             border-radius: 16px;
             overflow: hidden;
@@ -407,7 +409,7 @@ if ($showCategoryView) {
         }
 
         .most-visited-item:hover {
-            background: #F8FAFC;
+            background: rgba(248, 250, 252, 0.76);
         }
 
         .most-visited-main {
@@ -616,7 +618,9 @@ if ($showCategoryView) {
         .kb-card {
             text-decoration: none;
             color: inherit;
-            background: white;
+            background:
+                linear-gradient(rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.92)),
+                url('../assets/img/kbkb.jpg') center / cover no-repeat;
             border-radius: 16px;
             border: 1px solid #E5E7EB;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -698,7 +702,7 @@ if ($showCategoryView) {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background-color: #FAFAFA;
+            background-color: rgba(250, 250, 250, 0.72);
         }
 
         .kb-views {

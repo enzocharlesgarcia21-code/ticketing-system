@@ -279,11 +279,16 @@ if (!empty(array_filter($trendAvgHours, static fn ($value) => $value !== null)))
     }
 }
 
-$categoryLabels = [];
-$categoryCounts = [];
+$companyChartLabels = [];
+$companyChartCounts = [];
 $catWhere = ["DATE(t.created_at) BETWEEN ? AND ?"];
 $catParams = [$start_date, $end_date];
 $catTypes = "ss";
+if ($category_filter !== '') {
+    $catWhere[] = "t.category = ?";
+    $catParams[] = $category_filter;
+    $catTypes .= "s";
+}
 if ($company_filter !== '') {
     $catWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
     $catParams[] = $company_filter;
@@ -299,7 +304,13 @@ if ($status_filter !== '') {
     $catParams[] = $status_filter;
     $catTypes .= "s";
 }
-$catSql2 = "SELECT t.category, COUNT(*) as total FROM employee_tickets t WHERE " . implode(" AND ", $catWhere) . " GROUP BY t.category ORDER BY total DESC";
+$catSql2 = "
+    SELECT COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''), '') AS company_value, COUNT(*) as total
+    FROM employee_tickets t
+    WHERE " . implode(" AND ", $catWhere) . "
+    GROUP BY company_value
+    ORDER BY total DESC
+";
 $catStmt2 = $conn->prepare($catSql2);
 if ($catStmt2) {
     $bind = [];
@@ -311,10 +322,11 @@ if ($catStmt2) {
     $catStmt2->execute();
     $catRes2 = $catStmt2->get_result();
     while ($r = $catRes2->fetch_assoc()) {
-        $label = (string) ($r['category'] ?? '');
-        if ($label === '') $label = 'Uncategorized';
-        $categoryLabels[] = $label;
-        $categoryCounts[] = (int) ($r['total'] ?? 0);
+        $companyValue = (string) ($r['company_value'] ?? '');
+        $label = ticket_company_display_name($companyValue);
+        if ($label === '') $label = 'Unknown Company';
+        $companyChartLabels[] = $label;
+        $companyChartCounts[] = (int) ($r['total'] ?? 0);
     }
     $catStmt2->close();
 }
@@ -371,17 +383,17 @@ if ($asStmt) {
     $asStmt->close();
 }
 
-$categoryPalette = ['#2f8cff', '#2fa36b', '#ff9f1c', '#ef4444', '#9b7bf4', '#21b7d8', '#88d05f', '#f97316', '#14b8a6', '#eab308'];
-$categoryTotal = array_sum($categoryCounts);
-$categoryLegendItems = [];
-foreach ($categoryLabels as $idx => $label) {
-    $count = (int) ($categoryCounts[$idx] ?? 0);
-    $percent = $categoryTotal > 0 ? round(($count / $categoryTotal) * 100) : 0;
-    $categoryLegendItems[] = [
+$companyPalette = ['#2f8cff', '#2fa36b', '#ff9f1c', '#ef4444', '#9b7bf4', '#21b7d8', '#88d05f', '#f97316', '#14b8a6', '#eab308'];
+$companyChartTotal = array_sum($companyChartCounts);
+$companyLegendItems = [];
+foreach ($companyChartLabels as $idx => $label) {
+    $count = (int) ($companyChartCounts[$idx] ?? 0);
+    $percent = $companyChartTotal > 0 ? round(($count / $companyChartTotal) * 100) : 0;
+    $companyLegendItems[] = [
         'label' => $label,
         'count' => $count,
         'percent' => $percent,
-        'color' => $categoryPalette[$idx % count($categoryPalette)],
+        'color' => $companyPalette[$idx % count($companyPalette)],
     ];
 }
 
@@ -1330,7 +1342,7 @@ if ($ticketsStmt) {
                                 <option value="" <?= $company_filter === '' ? 'selected' : '' ?>>All Company</option>
                                 <?php foreach ($company_options as $companyOption): ?>
                                     <option value="<?= htmlspecialchars($companyOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $company_filter === $companyOption ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars(ticket_company_display_name($companyOption) . ' (' . $companyOption . ')', ENT_QUOTES, 'UTF-8'); ?>
+                                        <?= htmlspecialchars(ticket_company_display_name($companyOption), ENT_QUOTES, 'UTF-8'); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -1404,15 +1416,15 @@ if ($ticketsStmt) {
             <div class="analytics-charts">
                 <div class="chart-card category-card">
                     <div class="chart-header">
-                        <div class="chart-title">Tickets per Category</div>
-                        <p class="chart-subtitle">Distribution by ticket type</p>
+                        <div class="chart-title">Tickets per Company</div>
+                        <p class="chart-subtitle">Distribution by company</p>
                     </div>
                     <div class="chart-container">
                         <canvas id="categoryChart"></canvas>
                     </div>
-                    <?php if (count($categoryLegendItems) > 0): ?>
+                    <?php if (count($companyLegendItems) > 0): ?>
                         <div class="category-legend-grid">
-                            <?php foreach ($categoryLegendItems as $item): ?>
+                            <?php foreach ($companyLegendItems as $item): ?>
                                 <div class="category-legend-item">
                                     <span class="category-legend-dot" style="background: <?= htmlspecialchars($item['color'], ENT_QUOTES, 'UTF-8') ?>;"></span>
                                     <div class="category-legend-text">
@@ -1658,18 +1670,18 @@ if ($ticketsStmt) {
 
     const textColor = '#7b8798';
     const gridColor = '#e7edf5';
-    const categoryLabels = <?= json_encode($categoryLabels) ?>;
-    const categoryCounts = <?= json_encode($categoryCounts) ?>;
-    const categoryTotal = categoryCounts.reduce(function(sum, value) { return sum + (Number(value) || 0); }, 0);
+    const companyChartLabels = <?= json_encode($companyChartLabels) ?>;
+    const companyChartCounts = <?= json_encode($companyChartCounts) ?>;
+    const companyChartTotal = companyChartCounts.reduce(function(sum, value) { return sum + (Number(value) || 0); }, 0);
 
     const catCtx = document.getElementById('categoryChart').getContext('2d');
     new Chart(catCtx, {
         type: 'doughnut',
         data: {
-            labels: categoryLabels,
+            labels: companyChartLabels,
             datasets: [{
-                data: categoryCounts,
-                backgroundColor: <?= json_encode($categoryPalette) ?>,
+                data: companyChartCounts,
+                backgroundColor: <?= json_encode($companyPalette) ?>,
                 borderWidth: 0
             }]
         },
@@ -1682,7 +1694,7 @@ if ($ticketsStmt) {
                     callbacks: {
                         label: function(context) {
                             var value = Number(context.raw || 0);
-                            var pct = categoryTotal > 0 ? Math.round((value / categoryTotal) * 100) : 0;
+                            var pct = companyChartTotal > 0 ? Math.round((value / companyChartTotal) * 100) : 0;
                             return context.label + ': ' + value + ' (' + pct + '%)';
                         }
                     }
@@ -1691,8 +1703,8 @@ if ($ticketsStmt) {
                     color: '#ffffff',
                     font: { weight: '800', size: 12 },
                     formatter: function(value) {
-                        if (!categoryTotal || !value) return '';
-                        var pct = Math.round((Number(value) / categoryTotal) * 100);
+                        if (!companyChartTotal || !value) return '';
+                        var pct = Math.round((Number(value) / companyChartTotal) * 100);
                         return pct + '%';
                     }
                 }
