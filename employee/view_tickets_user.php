@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once '../config/database.php';
 
 /* Protect page */
@@ -29,7 +29,7 @@ $where = [];
 $params = [];
 $types = "";
 
-// 🎯 SECURITY: Only show tickets assigned to employee's department
+// ðŸŽ¯ SECURITY: Only show tickets assigned to employee's department
 $my_department = $_SESSION['department'];
 $where[] = "t.assigned_department = ?";
 $params[] = $my_department;
@@ -135,13 +135,13 @@ $result = $stmt->get_result();
 </head>
 <body>
 
-    <!-- 2️⃣ TOP NAVIGATION BAR -->
+    <!-- 2ï¸âƒ£ TOP NAVIGATION BAR -->
     <?php include '../includes/employee_navbar.php'; ?>
 
     <div class="dashboard-container">
         <div class="content-wrapper">
 
-            <!-- 5️⃣ VIEW TICKETS PAGE – REDESIGN -->
+            <!-- 5ï¸âƒ£ VIEW TICKETS PAGE â€“ REDESIGN -->
             <div class="page-header">
                 <h1 class="page-title">All Tickets</h1>
             </div>
@@ -379,7 +379,7 @@ $result = $stmt->get_result();
                 <div class="chat-input-area">
                     <input type="hidden" id="chatTicketId" value="">
                     <input type="text" id="chatInput" placeholder="Type a message..." autocomplete="off">
-                    <button id="chatSendBtn" type="button">➤</button>
+                    <button id="chatSendBtn" type="button">âž¤</button>
                 </div>
             </div>
         </div>
@@ -581,7 +581,7 @@ function openModal(id, mode = 'full') {
             html += `
                 <div class="modal-info-group">
                     <span class="modal-info-label">Department</span>
-                    <span class="modal-info-value">${escapeHtml(data.department)}</span>
+                    <span class="modal-info-value">${escapeHtml(dashIfUnknown(data.department))}</span>
                 </div>
             `;
 
@@ -657,11 +657,11 @@ function openModal(id, mode = 'full') {
 
             // --- SECTION 3: DESCRIPTION (Actions) ---
             if (showActions) {
-                const descriptionTitle = hr && hr.request_section_title ? hr.request_section_title : 'Description';
                 const descriptionText = hr && typeof hr.detail_text !== 'undefined'
                     ? String(hr.detail_text || '')
                     : String(data.description || '');
                 const sapDescriptionHtml = (!hr && descriptionText) ? renderSapDescriptionHtml(data, descriptionText) : '';
+                const descriptionTitle = sapDescriptionHtml ? 'SAP Form' : (hr && hr.request_section_title ? hr.request_section_title : 'Description');
                 const hrAttachmentGroups = hr && Array.isArray(hr.attachment_groups) ? hr.attachment_groups : [];
                 const summaryFields = hr && Array.isArray(hr.summary_fields) ? hr.summary_fields : [];
                 html += `
@@ -791,9 +791,69 @@ function parseSapDescription(descriptionText) {
     return reports;
 }
 
+function parseSapReportsFromMeta(data) {
+    const raw = data && data.request_meta ? data.request_meta.sap_reports : '';
+    if (!raw) return [];
+    let decoded = null;
+    try {
+        decoded = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch (e) {
+        decoded = null;
+    }
+    if (!Array.isArray(decoded)) return [];
+    return decoded.map(function (report, index) {
+        if (!report || typeof report !== 'object') return null;
+        const fields = {
+            'full name': String(report.name || '').trim(),
+            'position': String(report.position || '').trim(),
+            'immediate supervisor': String(report.immediate_head || report.immediate_supervisor || '').trim(),
+            'company': String(report.company || '').trim(),
+            'department': String(report.department || '').trim()
+        };
+        const hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
+        if (!hasValue) return null;
+        return { index: String(index + 1), fields: fields };
+    }).filter(function (report) { return !!report; });
+}
+
+function getSapFieldValue(report, keys) {
+    const fields = report && report.fields ? report.fields : {};
+    for (let i = 0; i < keys.length; i++) {
+        const value = fields[String(keys[i]).toLowerCase()];
+        if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim();
+    }
+    return '';
+}
+
+function dashIfUnknown(value) {
+    const text = String(value == null ? '' : value).trim();
+    return (!text || text.toLowerCase() === 'unknown') ? '-' : text;
+}
+
+function formatSapCompanyValue(value, departmentValue) {
+    let company = String(value || '').trim();
+    const department = String(departmentValue || '').trim();
+    if (!company && department && department !== '-' && department.toLowerCase() !== 'unknown') company = '@leadsagri.com';
+    if (!company) return '-';
+    const labels = {
+        '@leads-farmex.com': 'FARMEX (@leads-farmex.com)',
+        '@farmasee.ph': 'FARMASEE (@farmasee.ph)',
+        '@gpsci.net': 'GPSCI (@gpsci.net)',
+        '@leadsagri.com': 'LAPC (@leadsagri.com)',
+        '@leadsav.com': 'LAV (@leadsav.com)',
+        '@leadstech-corp.com': 'LTC (@leadstech-corp.com)',
+        '@lingapleads.org': 'LINGAP (@lingapleads.org)',
+        '@malvedaholdings.com': 'MHC (@malvedaholdings.com)',
+        '@malvedaproperties.com': 'MPDC (@malvedaproperties.com)',
+        '@primestocks.ph': 'PCC (@primestocks.ph)'
+    };
+    return labels[company.toLowerCase()] || company;
+}
+
 function renderSapDescriptionHtml(data, descriptionText) {
     if (!isSapTicket(data, descriptionText)) return '';
-    const reports = parseSapDescription(descriptionText);
+    let reports = parseSapReportsFromMeta(data);
+    if (!reports.length) reports = parseSapDescription(descriptionText);
     if (!reports.length) return '';
     const carouselId = `tmSapDisplay-${++sapDisplaySeq}`;
     const fieldConfig = [
@@ -805,15 +865,19 @@ function renderSapDescriptionHtml(data, descriptionText) {
     ];
     return `
         <div class="tm-sap-display">
-            <div class="tm-sap-title">SAP Form</div>
             <div class="tm-sap-carousel" id="${carouselId}" data-index="0">
             ${reports.map(function (report, reportIndex) {
+                const rawDepartmentValue = getSapFieldValue(report, ['department', 'dept']);
+                const departmentValue = dashIfUnknown(rawDepartmentValue);
+                const companyValue = formatSapCompanyValue(getSapFieldValue(report, ['company', 'company name', 'company domain']), rawDepartmentValue);
                 return `
                     <div class="tm-sap-card${reportIndex === 0 ? ' is-active' : ''}" data-index="${reportIndex}" aria-hidden="${reportIndex === 0 ? 'false' : 'true'}">
                         <div class="tm-sap-card-title">Employee Details${reports.length > 1 ? ' ' + escapeHtml(report.index) : ''}</div>
                         <div class="tm-sap-field-grid">
                             ${fieldConfig.map(function (field) {
-                                const value = report.fields[field.key] || '-';
+                                const value = field.key === 'company'
+                                    ? companyValue
+                                    : (field.key === 'department' ? departmentValue : (getSapFieldValue(report, [field.key]) || '-'));
                                 return `
                                     <div class="tm-sap-field${field.wide ? ' is-wide' : ''}">
                                         <div class="tm-sap-label">${escapeHtml(field.label)}</div>
@@ -827,8 +891,9 @@ function renderSapDescriptionHtml(data, descriptionText) {
             }).join('')}
             ${reports.length > 1 ? `
                 <div class="tm-sap-actions">
-                    <button type="button" class="tm-sap-nav-btn" onclick="stepSapDisplay('${carouselId}', -1)">← Previous</button>
-                    <button type="button" class="tm-sap-nav-btn primary" onclick="stepSapDisplay('${carouselId}', 1)">Next ›</button>
+                    <button type="button" class="tm-sap-nav-btn" onclick="stepSapDisplay('${carouselId}', -1)">Previous</button>
+                    <span class="tm-sap-counter" data-sap-counter>1 of ${reports.length}</span>
+                    <button type="button" class="tm-sap-nav-btn primary" onclick="stepSapDisplay('${carouselId}', 1)">Next</button>
                 </div>
             ` : ''}
             </div>
@@ -851,6 +916,8 @@ function stepSapDisplay(id, delta) {
         card.classList.toggle('is-active', active);
         card.setAttribute('aria-hidden', active ? 'false' : 'true');
     });
+    const counter = root.querySelector('[data-sap-counter]');
+    if (counter) counter.textContent = String(nextIndex + 1) + ' of ' + String(total);
 }
 
 function getHrAttachmentSlides(groups) {
@@ -909,8 +976,8 @@ function renderHrAttachmentCategoryCarousel(groups) {
                                 <div></div>
                                 ${slides.length > 1 ? `
                                     <div class="tm-hr-category-nav">
-                                        <button type="button" class="tm-hr-category-arrow" aria-label="Previous attachment category" onclick="stepHrAttachmentCategory('${carouselId}', -1)"><span aria-hidden="true">‹</span></button>
-                                        <button type="button" class="tm-hr-category-arrow" aria-label="Next attachment category" onclick="stepHrAttachmentCategory('${carouselId}', 1)"><span aria-hidden="true">›</span></button>
+                                        <button type="button" class="tm-hr-category-arrow" aria-label="Previous attachment category" onclick="stepHrAttachmentCategory('${carouselId}', -1)"><span aria-hidden="true">â€¹</span></button>
+                                        <button type="button" class="tm-hr-category-arrow" aria-label="Next attachment category" onclick="stepHrAttachmentCategory('${carouselId}', 1)"><span aria-hidden="true">â€º</span></button>
                                     </div>
                                 ` : ''}
                             </div>
