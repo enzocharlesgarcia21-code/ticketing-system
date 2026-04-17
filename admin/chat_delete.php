@@ -3,7 +3,7 @@ require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
@@ -37,9 +37,22 @@ $stmt = $conn->prepare("
         t.user_id,
         t.assigned_user_id,
         t.assigned_to,
-        COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email
+        t.status,
+        t.assigned_company,
+        t.assigned_group,
+        t.assigned_department,
+        t.company,
+        COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email,
+        assignee.name AS assignee_name,
+        assignee.email AS assignee_email,
+        assignee.department AS assignee_department,
+        handler.name AS assigned_to_name,
+        handler.email AS assigned_to_email,
+        handler.department AS assigned_to_department
     FROM employee_tickets t
     LEFT JOIN users requester ON requester.id = t.user_id
+    LEFT JOIN users assignee ON assignee.id = t.assigned_user_id
+    LEFT JOIN users handler ON handler.id = t.assigned_to
     WHERE t.id = ?
     LIMIT 1
 ");
@@ -57,11 +70,12 @@ if (!$ticket) {
     exit;
 }
 
-$requesterId = (int) ($ticket['user_id'] ?? 0);
 $userContext = ticket_build_user_context($conn, $current_user_id, $_SESSION);
+$ticket = ticket_chat_apply_effective_handler($ticket);
 $isRequester = ticket_user_matches_requester($ticket, $current_user_id, $userContext);
 $isCurrentAssignee = ((int) ($ticket['assigned_to'] ?? 0) === $current_user_id)
     || ((int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id);
+$canChat = ticket_user_can_chat($ticket, $current_user_id, $userContext);
 
 $hasSentInConversation = false;
 $msgStmt = $conn->prepare("SELECT id FROM ticket_messages WHERE ticket_id = ? AND sender_id = ? LIMIT 1");
@@ -74,8 +88,9 @@ if ($msgStmt) {
 }
 
 // Admins can always delete. Non-admins can delete if they own the request,
-// participated in the conversation, or are currently assigned to the ticket.
-if (!$is_admin && !$isRequester && !$isCurrentAssignee && !$hasSentInConversation) {
+// participated in the conversation, can chat on it, or are currently assigned
+// to the ticket.
+if (!$is_admin && !$isRequester && !$isCurrentAssignee && !$hasSentInConversation && !$canChat) {
     http_response_code(403);
     echo json_encode(['error' => 'Access Denied']);
     exit;

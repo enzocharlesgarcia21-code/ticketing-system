@@ -710,7 +710,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                name="search"
                                id="searchInput"
                                class="search-input"
-                               placeholder="Search name, email or subject..."
+                               placeholder="Search by ID, name, email or subject..."
                                value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
                     </div>
 
