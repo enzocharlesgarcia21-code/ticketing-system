@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/pdf_thumbnail.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     http_response_code(403);
@@ -136,6 +137,19 @@ function ticket_sort_attachments(array $attachments): array
     return $attachments;
 }
 
+function ticket_enrich_attachment_preview(array $attachment): array
+{
+    $storedName = (string) ($attachment['stored_name'] ?? '');
+    if ($storedName !== '' && function_exists('ticket_pdf_attachment_meta')) {
+        $attachment = array_merge($attachment, ticket_pdf_attachment_meta($storedName, '../'));
+    } else {
+        $attachment['is_pdf'] = false;
+        $attachment['thumbnail_available'] = false;
+        $attachment['thumbnail_url'] = '';
+    }
+    return $attachment;
+}
+
 function ticket_request_meta_ensure_table(mysqli $conn): void
 {
     $conn->query("CREATE TABLE IF NOT EXISTS ticket_request_meta (
@@ -225,10 +239,10 @@ function ticket_hr_attachment_groups(array $attachments, bool $isSssCategory): a
             $order[] = $groupTitle;
         }
 
-        $groups[$groupTitle][] = [
-            'stored_name' => $stored,
-            'original_name' => $itemName,
-        ];
+        $groupAttachment = $attachment;
+        $groupAttachment['stored_name'] = $stored;
+        $groupAttachment['original_name'] = $itemName;
+        $groups[$groupTitle][] = $groupAttachment;
     }
 
     $result = [];
@@ -489,7 +503,7 @@ if ($row = $result->fetch_assoc()) {
         }
         $attStmt->close();
     }
-    $row['attachments'] = ticket_sort_attachments($attachments);
+    $row['attachments'] = array_map('ticket_enrich_attachment_preview', ticket_sort_attachments($attachments));
     $row['request_meta'] = ticket_request_meta_load($conn, $id);
     $row['hr_display'] = ticket_build_hr_display($row, $row['attachments'], $row['request_meta']);
     $row['subject_display'] = (

@@ -3001,10 +3001,11 @@ if (count($sapFormEntries) === 0) {
             position: fixed;
             inset: 0;
             display: none;
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
-            padding: 24px;
-            background: rgba(15, 23, 42, 0.62);
+            padding: 104px 138px 40px;
+            background: rgba(0, 0, 0, 0.84);
+            backdrop-filter: blur(2px);
             z-index: 10000;
             box-sizing: border-box;
         }
@@ -3014,73 +3015,86 @@ if (count($sapFormEntries) === 0) {
         body.sales-request-ticket-page .attachment-preview-nav {
             position: absolute;
             top: 50%;
-            width: 54px;
-            height: 54px;
+            width: 60px;
+            height: 60px;
             transform: translateY(-50%);
             display: inline-flex;
             align-items: center;
             justify-content: center;
             border: 1px solid rgba(255, 255, 255, 0.28);
             border-radius: 999px;
-            background: rgba(15, 23, 42, 0.48);
+            background: rgba(15, 23, 42, 0.72);
             color: #ffffff;
             font-size: 0;
             line-height: 1;
             cursor: pointer;
-            z-index: 1;
-            transition: background 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
+            z-index: 2;
+            box-shadow: 0 16px 34px rgba(0, 0, 0, 0.24);
+            transition: background 0.18s ease, border-color 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
         }
         body.sales-request-ticket-page .attachment-preview-nav::before {
             content: "";
             display: block;
-            width: 14px;
-            height: 14px;
-            border-top: 4px solid currentColor;
-            border-right: 4px solid currentColor;
+            width: 16px;
+            height: 16px;
+            border: solid currentColor;
+            border-width: 0 4px 4px 0;
             box-sizing: border-box;
         }
         body.sales-request-ticket-page .attachment-preview-prev::before {
-            transform: rotate(-135deg);
-            margin-left: 5px;
+            transform: rotate(135deg);
+            margin-left: 7px;
         }
         body.sales-request-ticket-page .attachment-preview-next::before {
-            transform: rotate(45deg);
-            margin-right: 5px;
+            transform: rotate(-45deg);
+            margin-right: 7px;
         }
         body.sales-request-ticket-page .attachment-preview-nav:hover {
-            background: rgba(15, 23, 42, 0.72);
+            background: #16a34a;
+            border-color: rgba(187, 247, 208, 0.72);
+            color: #ffffff;
             transform: translateY(-50%) scale(1.04);
         }
         body.sales-request-ticket-page .attachment-preview-nav:disabled {
             display: none;
         }
         body.sales-request-ticket-page .attachment-preview-prev {
-            left: max(24px, calc((100vw - 980px) / 2 - 76px));
+            left: 40px;
         }
         body.sales-request-ticket-page .attachment-preview-next {
-            right: max(24px, calc((100vw - 980px) / 2 - 76px));
+            right: 40px;
         }
         body.sales-request-ticket-page .attachment-preview-dialog {
-            width: min(980px, 100%);
-            max-height: min(760px, calc(100vh - 48px));
+            position: relative;
+            width: min(1386px, 100%);
+            max-height: calc(100vh - 144px);
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-            border-radius: 18px;
-            background: #ffffff;
-            box-shadow: 0 26px 80px rgba(15, 23, 42, 0.28);
+            overflow: visible;
+            border-radius: 8px;
+            background: transparent;
+            box-shadow: none;
+        }
+        body.sales-request-ticket-page .attachment-preview-modal[data-preview-kind="image"] .attachment-preview-dialog {
+            width: fit-content;
+            max-width: calc(100vw - 276px);
         }
         body.sales-request-ticket-page .attachment-preview-head {
+            position: absolute;
+            top: -22px;
+            right: -22px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 14px;
-            padding: 16px 18px;
-            border-bottom: 1px solid #e5e7eb;
-            background: #f8fafc;
+            justify-content: flex-end;
+            gap: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            z-index: 3;
+            pointer-events: none;
         }
         body.sales-request-ticket-page .attachment-preview-title {
-            min-width: 0;
+            display: none;
         }
         body.sales-request-ticket-page .attachment-preview-title strong,
         body.sales-request-ticket-page .attachment-preview-title span {
@@ -3101,40 +3115,58 @@ if (count($sapFormEntries) === 0) {
             font-weight: 700;
         }
         body.sales-request-ticket-page .attachment-preview-close {
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             padding: 0;
-            border: 1px solid #dbe4ef;
-            border-radius: 12px;
-            background: #ffffff;
-            color: #ef4444;
-            font-size: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.92);
+            color: #ffffff;
+            font-size: 26px;
             font-weight: 900;
             line-height: 1;
             cursor: pointer;
             flex: 0 0 auto;
+            box-shadow: 0 16px 34px rgba(0, 0, 0, 0.30);
+            pointer-events: auto;
+            text-transform: uppercase;
+            transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+        }
+        body.sales-request-ticket-page .attachment-preview-close:hover {
+            background: #dc2626;
+            border-color: rgba(254, 202, 202, 0.78);
+            color: #ffffff;
+            transform: scale(1.04);
         }
         body.sales-request-ticket-page .attachment-preview-body {
-            min-height: 280px;
+            min-height: min(280px, calc(100vh - 144px));
             overflow: auto;
-            background: #0f172a;
+            background: transparent;
+            border-radius: 8px;
+        }
+        body.sales-request-ticket-page .attachment-preview-modal[data-preview-kind="image"] .attachment-preview-body {
+            overflow: visible;
         }
         body.sales-request-ticket-page .attachment-preview-body img {
             display: block;
-            max-width: 100%;
-            max-height: calc(100vh - 190px);
+            max-width: calc(100vw - 276px);
+            max-height: calc(100vh - 144px);
             margin: 0 auto;
             object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 28px 72px rgba(0, 0, 0, 0.38);
         }
         body.sales-request-ticket-page .attachment-preview-body iframe {
             display: block;
             width: 100%;
-            height: min(660px, calc(100vh - 170px));
+            height: min(760px, calc(100vh - 144px));
             border: 0;
             background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 28px 72px rgba(0, 0, 0, 0.38);
         }
         body.sales-request-ticket-page .attachment-preview-unavailable {
-            min-height: 280px;
+            min-height: min(520px, calc(100vh - 144px));
             display: flex;
             align-items: center;
             justify-content: center;
@@ -3145,14 +3177,51 @@ if (count($sapFormEntries) === 0) {
             text-align: center;
             line-height: 1.5;
         }
+        body.sales-request-ticket-page .attachment-preview-word {
+            display: block;
+            width: 100%;
+            min-height: min(760px, calc(100vh - 144px));
+            padding: 34px 42px;
+            overflow: auto;
+            background: #f8fafc;
+            color: #111827;
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 1.75;
+            text-align: left;
+            border-radius: 8px;
+            box-shadow: 0 28px 72px rgba(0, 0, 0, 0.38);
+        }
+        body.sales-request-ticket-page .attachment-preview-word p {
+            max-width: 820px;
+            margin: 0 auto 16px;
+            white-space: pre-wrap;
+        }
         @media (max-width: 720px) {
             body.sales-request-ticket-page .attachment-preview-modal {
-                padding: 18px;
+                padding: 72px 68px 28px;
+            }
+            body.sales-request-ticket-page .attachment-preview-modal[data-preview-kind="image"] .attachment-preview-dialog {
+                max-width: calc(100vw - 136px);
             }
             body.sales-request-ticket-page .attachment-preview-nav {
                 width: 44px;
                 height: 44px;
                 font-size: 26px;
+            }
+            body.sales-request-ticket-page .attachment-preview-body img {
+                max-width: calc(100vw - 136px);
+                max-height: calc(100vh - 100px);
+            }
+            body.sales-request-ticket-page .attachment-preview-head {
+                top: -18px;
+                right: -18px;
+            }
+            body.sales-request-ticket-page .attachment-preview-close {
+                width: 42px;
+                height: 42px;
+                font-size: 22px;
             }
             body.sales-request-ticket-page .attachment-preview-prev {
                 left: 12px;
@@ -5458,13 +5527,137 @@ function getAttachmentPreviewKind(file) {
     if (type === 'application/pdf' || ext === 'pdf') {
         return 'pdf';
     }
+    if (['doc', 'docx'].indexOf(ext) !== -1 || type === 'application/msword' || type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        return 'word';
+    }
     return 'unsupported';
+}
+
+function readBlobAsArrayBuffer(blob) {
+    return new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function() { resolve(reader.result); };
+        reader.onerror = function() { reject(reader.error || new Error('Unable to read file.')); };
+        reader.readAsArrayBuffer(blob);
+    });
+}
+
+function readZipUint16(bytes, offset) {
+    return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+function readZipUint32(bytes, offset) {
+    return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+}
+
+function findDocxEntry(bytes, entryName) {
+    var minOffset = Math.max(0, bytes.length - 66000);
+    var eocdOffset = -1;
+    for (var i = bytes.length - 22; i >= minOffset; i -= 1) {
+        if (readZipUint32(bytes, i) === 0x06054b50) {
+            eocdOffset = i;
+            break;
+        }
+    }
+    if (eocdOffset < 0) return null;
+
+    var centralDirectorySize = readZipUint32(bytes, eocdOffset + 12);
+    var centralDirectoryOffset = readZipUint32(bytes, eocdOffset + 16);
+    var centralDirectoryEnd = centralDirectoryOffset + centralDirectorySize;
+    var decoder = new TextDecoder('utf-8');
+
+    for (var offset = centralDirectoryOffset; offset < centralDirectoryEnd;) {
+        if (readZipUint32(bytes, offset) !== 0x02014b50) break;
+
+        var method = readZipUint16(bytes, offset + 10);
+        var compressedSize = readZipUint32(bytes, offset + 20);
+        var uncompressedSize = readZipUint32(bytes, offset + 24);
+        var nameLength = readZipUint16(bytes, offset + 28);
+        var extraLength = readZipUint16(bytes, offset + 30);
+        var commentLength = readZipUint16(bytes, offset + 32);
+        var localHeaderOffset = readZipUint32(bytes, offset + 42);
+        var nameStart = offset + 46;
+        var name = decoder.decode(bytes.subarray(nameStart, nameStart + nameLength));
+
+        if (name === entryName) {
+            if (readZipUint32(bytes, localHeaderOffset) !== 0x04034b50) return null;
+            var localNameLength = readZipUint16(bytes, localHeaderOffset + 26);
+            var localExtraLength = readZipUint16(bytes, localHeaderOffset + 28);
+            var dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
+            return {
+                method: method,
+                compressedSize: compressedSize,
+                uncompressedSize: uncompressedSize,
+                data: bytes.subarray(dataStart, dataStart + compressedSize)
+            };
+        }
+
+        offset += 46 + nameLength + extraLength + commentLength;
+    }
+    return null;
+}
+
+function inflateDocxEntry(entry) {
+    if (!entry) return Promise.reject(new Error('Document content was not found.'));
+    if (entry.method === 0) {
+        return Promise.resolve(entry.data);
+    }
+    if (entry.method !== 8 || typeof DecompressionStream !== 'function') {
+        return Promise.reject(new Error('Word preview is not supported by this browser.'));
+    }
+    var stream = new Blob([entry.data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Response(stream).arrayBuffer().then(function(buffer) {
+        return new Uint8Array(buffer);
+    });
+}
+
+function renderDocxTextPreview(file, target) {
+    var ext = getExt(file && file.name);
+    if (ext !== 'docx') {
+        target.textContent = 'Preview is available for DOCX files only. This DOC file remains attached to this ticket.';
+        return;
+    }
+
+    target.textContent = 'Loading Word preview...';
+    readBlobAsArrayBuffer(file)
+        .then(function(buffer) {
+            var bytes = new Uint8Array(buffer);
+            return inflateDocxEntry(findDocxEntry(bytes, 'word/document.xml'));
+        })
+        .then(function(xmlBytes) {
+            var xml = new TextDecoder('utf-8').decode(xmlBytes);
+            var xmlDoc = new DOMParser().parseFromString(xml, 'application/xml');
+            var paragraphs = Array.from(xmlDoc.getElementsByTagName('w:p')).map(function(paragraph) {
+                return Array.from(paragraph.getElementsByTagName('w:t')).map(function(node) {
+                    return node.textContent || '';
+                }).join('');
+            }).filter(function(text) {
+                return String(text || '').trim() !== '';
+            });
+
+            target.textContent = '';
+            target.classList.add('attachment-preview-word');
+            if (paragraphs.length === 0) {
+                target.textContent = 'This Word document has no readable text preview, but it remains attached to this ticket.';
+                return;
+            }
+
+            paragraphs.forEach(function(text) {
+                var p = document.createElement('p');
+                p.textContent = text;
+                target.appendChild(p);
+            });
+        })
+        .catch(function() {
+            target.textContent = 'Unable to generate a Word preview in this browser, but the file remains attached to this ticket.';
+        });
 }
 
 function closeInlineAttachmentPreview() {
     if (attachmentPreviewModal) {
         attachmentPreviewModal.classList.remove('is-visible');
         attachmentPreviewModal.setAttribute('aria-hidden', 'true');
+        attachmentPreviewModal.removeAttribute('data-preview-kind');
     }
     if (attachmentPreviewBody) {
         attachmentPreviewBody.innerHTML = '';
@@ -5509,6 +5702,7 @@ function openInlineAttachmentPreview(file, url, isTemporaryUrl, galleryItems, ga
     }
 
     var kind = getAttachmentPreviewKind(file);
+    attachmentPreviewModal.setAttribute('data-preview-kind', kind);
     if (kind === 'image') {
         var img = document.createElement('img');
         img.src = url;
@@ -5519,6 +5713,11 @@ function openInlineAttachmentPreview(file, url, isTemporaryUrl, galleryItems, ga
         frame.src = url;
         frame.title = (file && file.name) ? file.name : 'Attachment preview';
         attachmentPreviewBody.appendChild(frame);
+    } else if (kind === 'word') {
+        var wordPreview = document.createElement('div');
+        wordPreview.className = 'attachment-preview-unavailable attachment-preview-word';
+        attachmentPreviewBody.appendChild(wordPreview);
+        renderDocxTextPreview(file, wordPreview);
     } else {
         var message = document.createElement('div');
         message.className = 'attachment-preview-unavailable';

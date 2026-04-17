@@ -455,7 +455,9 @@ if ($stmt) {
         }
 
         .article-card {
-            background: #fff;
+            background:
+                linear-gradient(rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.92)),
+                url('../assets/img/kbkb.jpg') center / cover no-repeat;
             border-radius: 16px;
             border: 1px solid #E5E7EB;
             transition: all 0.25s ease;
@@ -515,7 +517,7 @@ if ($stmt) {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: #FAFAFA;
+            background: rgba(250, 250, 250, 0.72);
             color: #6B7280;
             font-size: 13px;
         }

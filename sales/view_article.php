@@ -116,7 +116,13 @@ function renderArticleContent($text) {
     <style>
         body {
             margin: 0;
-            background-color: #F9FAFB;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.16)),
+                url('../assets/img/kbkb.jpg');
+            background-repeat: no-repeat;
+            background-position: center top;
+            background-attachment: fixed;
+            background-size: cover;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
@@ -277,7 +283,9 @@ function renderArticleContent($text) {
         }
 
         .article-card {
-            background: white;
+            background:
+                linear-gradient(rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.92)),
+                url('../assets/img/kbkb.jpg') center / cover no-repeat;
             border-radius: 16px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
             border: 1px solid #E5E7EB;
@@ -287,7 +295,7 @@ function renderArticleContent($text) {
         .article-header {
             padding: 40px 40px 30px;
             border-bottom: 1px solid #F3F4F6;
-            background-color: #FFFFFF;
+            background-color: rgba(255, 255, 255, 0.62);
         }
 
         .article-meta {
@@ -330,6 +338,20 @@ function renderArticleContent($text) {
             color: #374151;
             line-height: 1.8;
             font-size: 16px;
+            background-color: rgba(255, 255, 255, 0.58);
+        }
+
+        .article-resources,
+        .related-articles-section {
+            background:
+                linear-gradient(rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.86)),
+                url('../assets/img/kbkb.jpg') center / cover no-repeat !important;
+        }
+
+        .related-card {
+            background:
+                linear-gradient(rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.9)),
+                url('../assets/img/kbkb.jpg') center / cover no-repeat !important;
         }
 
         /* Typography for content */

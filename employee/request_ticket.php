@@ -8,6 +8,7 @@ require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/notification_service.php';
+require_once '../includes/pdf_thumbnail.php';
 
 $lapcDepartments = ticket_lapc_departments();
 
@@ -153,6 +154,9 @@ function request_ticket_process_upload_field(
     if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0777, true) && !is_dir($uploadDir)) {
         return ['ok' => false, 'error' => 'Unable to prepare the upload folder right now.'];
     }
+    if (function_exists('ticket_pdf_ensure_upload_guards')) {
+        ticket_pdf_ensure_upload_guards();
+    }
 
     $finfo = class_exists('finfo') ? new finfo(FILEINFO_MIME_TYPE) : null;
     $uploadedFiles = [];
@@ -174,7 +178,9 @@ function request_ticket_process_upload_field(
             return ['ok' => false, 'error' => 'Unable to upload the ' . $label . ' file right now.'];
         }
 
-        $fileName = trim((string) $originalName);
+        $fileName = function_exists('ticket_pdf_sanitize_original_name')
+            ? ticket_pdf_sanitize_original_name((string) $originalName)
+            : basename(str_replace('\\', '/', trim((string) $originalName)));
         $fileTmp = trim((string) ($tmpNames[$index] ?? ''));
         $fileSize = (int) ($sizes[$index] ?? 0);
         $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
@@ -209,6 +215,10 @@ function request_ticket_process_upload_field(
         if (!move_uploaded_file($fileTmp, $uploadPath)) {
             request_ticket_cleanup_uploaded_files($uploadedFiles);
             return ['ok' => false, 'error' => 'Unable to save the ' . $label . ' file right now.'];
+        }
+
+        if ($fileExt === 'pdf' && function_exists('ticket_pdf_generate_thumbnail')) {
+            ticket_pdf_generate_thumbnail($newFileName);
         }
 
         $uploadedFiles[] = [
@@ -659,6 +669,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             exit();
         }
         $subject = $request_subject_title;
+    }
+    if ($isLapcItEmailRequest && $email_request_type === 'creation of email') {
+        $subject = 'Creation of email';
+        $description = "Email Request\n"
+            . "Email Request Type: Creation of email\n"
+            . "Name: " . $email_creation_name . "\n"
+            . "Department: " . $email_creation_department . "\n"
+            . "Designation: " . $email_creation_designation;
     }
 
     if ($isHrMedicalCashAdvance) {
@@ -2240,6 +2258,9 @@ $requestTicketCompanyOptions = [
         body.employee-request-ticket-page .email-creation-fields.is-visible {
             display: grid;
         }
+        body.employee-request-ticket-page .email-description-host {
+            margin-top: 18px;
+        }
         body.employee-request-ticket-page .email-creation-inline-row {
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -2614,10 +2635,11 @@ $requestTicketCompanyOptions = [
             position: fixed;
             inset: 0;
             display: none;
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
-            padding: 24px;
-            background: rgba(15, 23, 42, 0.62);
+            padding: 104px 138px 40px;
+            background: rgba(0, 0, 0, 0.84);
+            backdrop-filter: blur(2px);
             z-index: 10000;
             box-sizing: border-box;
         }
@@ -2627,21 +2649,22 @@ $requestTicketCompanyOptions = [
         body.employee-request-ticket-page .attachment-preview-nav {
             position: absolute;
             top: 50%;
-            width: 54px;
-            height: 54px;
+            width: 60px;
+            height: 60px;
             transform: translateY(-50%);
             display: inline-flex;
             align-items: center;
             justify-content: center;
             border: 1px solid rgba(255, 255, 255, 0.28);
             border-radius: 999px;
-            background: rgba(15, 23, 42, 0.48);
+            background: rgba(15, 23, 42, 0.72);
             color: #ffffff;
             font-size: 0;
             line-height: 1;
             cursor: pointer;
-            z-index: 1;
-            transition: background 0.18s ease, transform 0.18s ease;
+            z-index: 2;
+            box-shadow: 0 16px 34px rgba(0, 0, 0, 0.24);
+            transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
         }
         body.employee-request-ticket-page .attachment-preview-nav::before {
             content: "";
@@ -2653,10 +2676,10 @@ $requestTicketCompanyOptions = [
             box-sizing: border-box;
         }
         body.employee-request-ticket-page .attachment-preview-prev {
-            left: max(24px, calc((100vw - 980px) / 2 - 76px));
+            left: 40px;
         }
         body.employee-request-ticket-page .attachment-preview-next {
-            right: max(24px, calc((100vw - 980px) / 2 - 76px));
+            right: 40px;
         }
         body.employee-request-ticket-page .attachment-preview-prev::before {
             transform: rotate(-135deg);
@@ -2667,33 +2690,45 @@ $requestTicketCompanyOptions = [
             margin-right: 5px;
         }
         body.employee-request-ticket-page .attachment-preview-nav:hover {
-            background: rgba(15, 23, 42, 0.72);
+            background: #16a34a;
+            border-color: rgba(187, 247, 208, 0.72);
+            color: #ffffff;
             transform: translateY(-50%) scale(1.04);
         }
         body.employee-request-ticket-page .attachment-preview-nav:disabled {
             display: none;
         }
         body.employee-request-ticket-page .attachment-preview-dialog {
-            width: min(980px, 100%);
-            max-height: min(760px, calc(100vh - 48px));
+            position: relative;
+            width: min(1386px, 100%);
+            max-height: calc(100vh - 144px);
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-            border-radius: 18px;
-            background: #ffffff;
-            box-shadow: 0 26px 80px rgba(15, 23, 42, 0.28);
+            overflow: visible;
+            border-radius: 8px;
+            background: transparent;
+            box-shadow: none;
+        }
+        body.employee-request-ticket-page .attachment-preview-modal[data-preview-kind="image"] .attachment-preview-dialog {
+            width: fit-content;
+            max-width: calc(100vw - 276px);
         }
         body.employee-request-ticket-page .attachment-preview-head {
+            position: absolute;
+            top: -22px;
+            right: -22px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 14px;
-            padding: 16px 18px;
-            border-bottom: 1px solid #e5e7eb;
-            background: #f8fafc;
+            justify-content: flex-end;
+            gap: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            z-index: 3;
+            pointer-events: none;
         }
         body.employee-request-ticket-page .attachment-preview-title {
-            min-width: 0;
+            display: none;
         }
         body.employee-request-ticket-page .attachment-preview-title strong,
         body.employee-request-ticket-page .attachment-preview-title span {
@@ -2714,40 +2749,58 @@ $requestTicketCompanyOptions = [
             font-weight: 700;
         }
         body.employee-request-ticket-page .attachment-preview-close {
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             padding: 0;
-            border: 1px solid #dbe4ef;
-            border-radius: 12px;
-            background: #ffffff;
-            color: #ef4444;
-            font-size: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.92);
+            color: #ffffff;
+            font-size: 26px;
             font-weight: 900;
             line-height: 1;
             cursor: pointer;
             flex: 0 0 auto;
+            box-shadow: 0 16px 34px rgba(0, 0, 0, 0.30);
+            pointer-events: auto;
+            text-transform: uppercase;
+            transition: background 0.18s ease, transform 0.18s ease;
+        }
+        body.employee-request-ticket-page .attachment-preview-close:hover {
+            background: #dc2626;
+            border-color: rgba(254, 202, 202, 0.78);
+            color: #ffffff;
+            transform: scale(1.04);
         }
         body.employee-request-ticket-page .attachment-preview-body {
-            min-height: 280px;
+            min-height: min(280px, calc(100vh - 144px));
             overflow: auto;
-            background: #0f172a;
+            background: transparent;
+            border-radius: 8px;
+        }
+        body.employee-request-ticket-page .attachment-preview-modal[data-preview-kind="image"] .attachment-preview-body {
+            overflow: visible;
         }
         body.employee-request-ticket-page .attachment-preview-body img {
             display: block;
-            max-width: 100%;
-            max-height: calc(100vh - 190px);
+            max-width: calc(100vw - 276px);
+            max-height: calc(100vh - 144px);
             margin: 0 auto;
             object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 28px 72px rgba(0, 0, 0, 0.38);
         }
         body.employee-request-ticket-page .attachment-preview-body iframe {
             display: block;
             width: 100%;
-            height: min(660px, calc(100vh - 170px));
+            height: min(760px, calc(100vh - 144px));
             border: 0;
             background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 28px 72px rgba(0, 0, 0, 0.38);
         }
         body.employee-request-ticket-page .attachment-preview-unavailable {
-            min-height: 280px;
+            min-height: min(520px, calc(100vh - 144px));
             display: flex;
             align-items: center;
             justify-content: center;
@@ -2757,6 +2810,27 @@ $requestTicketCompanyOptions = [
             font-weight: 700;
             text-align: center;
             line-height: 1.5;
+        }
+        body.employee-request-ticket-page .attachment-preview-word {
+            display: block;
+            width: 100%;
+            min-height: min(760px, calc(100vh - 144px));
+            padding: 34px 42px;
+            overflow: auto;
+            background: #f8fafc;
+            color: #111827;
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 1.75;
+            text-align: left;
+            border-radius: 8px;
+            box-shadow: 0 28px 72px rgba(0, 0, 0, 0.38);
+        }
+        body.employee-request-ticket-page .attachment-preview-word p {
+            max-width: 820px;
+            margin: 0 auto 16px;
+            white-space: pre-wrap;
         }
         @media (max-width: 768px) {
             body.employee-request-ticket-page .medical-cash-inline-row {
@@ -2771,6 +2845,16 @@ $requestTicketCompanyOptions = [
             body.employee-request-ticket-page .marketing-request-inline-row {
                 grid-template-columns: 1fr;
             }
+            body.employee-request-ticket-page .attachment-preview-modal {
+                padding: 72px 68px 28px;
+            }
+            body.employee-request-ticket-page .attachment-preview-modal[data-preview-kind="image"] .attachment-preview-dialog {
+                max-width: calc(100vw - 136px);
+            }
+            body.employee-request-ticket-page .attachment-preview-body img {
+                max-width: calc(100vw - 136px);
+                max-height: calc(100vh - 100px);
+            }
             body.employee-request-ticket-page .attachment-preview-nav {
                 width: 44px;
                 height: 44px;
@@ -2780,6 +2864,15 @@ $requestTicketCompanyOptions = [
             }
             body.employee-request-ticket-page .attachment-preview-next {
                 right: 12px;
+            }
+            body.employee-request-ticket-page .attachment-preview-head {
+                top: -18px;
+                right: -18px;
+            }
+            body.employee-request-ticket-page .attachment-preview-close {
+                width: 42px;
+                height: 42px;
+                font-size: 22px;
             }
         }
         body.employee-request-ticket-page .other-request-section {
@@ -3650,6 +3743,7 @@ $requestTicketCompanyOptions = [
                                         <input type="text" name="email_creation_designation" id="email_creation_designation" class="form-control" value="<?= htmlspecialchars((string) ($_POST['email_creation_designation'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer">
                                     </div>
                                 </div>
+                                <div class="email-description-host" id="emailDescriptionHost"></div>
                             </section>
                         </div>
                     </section>
@@ -4017,6 +4111,7 @@ $requestTicketCompanyOptions = [
 
                     <section class="other-request-section" id="otherDescriptionSection">
                         <div class="other-request-section-body">
+                            <div id="descriptionOriginalHost"></div>
                             <div class="form-group" id="descriptionContainer">
                                 <label id="descriptionLabel">Description <span class="required-asterisk">*</span></label>
                                 <textarea name="description" id="descriptionField" class="form-control" placeholder="Describe your issue in detail..." style="resize:none;" required></textarea>
@@ -4156,6 +4251,8 @@ $requestTicketCompanyOptions = [
         const requestSubjectLabel = document.getElementById('requestSubjectLabel');
         const descriptionLabel = document.getElementById('descriptionLabel');
         const sssBenefitsContainer = document.getElementById('sssBenefitsContainer');
+        const descriptionOriginalHost = document.getElementById('descriptionOriginalHost');
+        const emailDescriptionHost = document.getElementById('emailDescriptionHost');
         const descriptionContainer = document.getElementById('descriptionContainer');
         const descriptionField = document.getElementById('descriptionField');
         const attachmentOriginalHost = document.getElementById('attachmentOriginalHost');
@@ -4503,6 +4600,12 @@ $requestTicketCompanyOptions = [
                 targetHost.appendChild(attachmentContainer);
             }
         }
+        function moveDescriptionContainer(targetHost) {
+            if (!descriptionContainer || !targetHost) return;
+            if (descriptionContainer.parentNode !== targetHost) {
+                targetHost.appendChild(descriptionContainer);
+            }
+        }
         function syncAttachmentCopy(mode) {
             const modeKey = String(mode || 'default');
             if (attachmentLabelText) {
@@ -4809,6 +4912,10 @@ $requestTicketCompanyOptions = [
             const shouldShowCoeRequest = shouldShow && selectedCategory === 'Certificate of Employment';
             const shouldShowColRequest = shouldShow && selectedCategory === 'Certificate of Leave';
             const shouldShowEmailRequest = isLapcItSelection() && selectedCategory === 'Email';
+            const shouldShowEmailCreation = shouldShowEmailRequest && emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === 'creation of email';
+            const shouldShowEmailDefault = shouldShowEmailRequest && emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === '';
+            const shouldShowEmailForgotPassword = shouldShowEmailRequest && emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === 'forgot password';
+            const shouldShowEmailBackup = shouldShowEmailRequest && emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === 'backup of email';
             const shouldShowSapRequest = isLapcItSelection() && selectedCategory === 'SAP';
             const shouldRequireKamiAttachment = shouldShowConcernType;
             const shouldRequireMedicalAttachment = shouldShowMedicalCashAdvance;
@@ -4866,6 +4973,11 @@ $requestTicketCompanyOptions = [
             if (otherDescriptionSection) {
                 otherDescriptionSection.style.display = shouldShowSssBenefits ? 'none' : '';
             }
+            if ((shouldShowEmailDefault || shouldShowEmailForgotPassword || shouldShowEmailBackup) && emailDescriptionHost) {
+                moveDescriptionContainer(emailDescriptionHost);
+            } else if (descriptionOriginalHost) {
+                moveDescriptionContainer(descriptionOriginalHost);
+            }
             if (requestSubjectLabel) {
                 requestSubjectLabel.innerHTML = 'Subject/Title of Request <span class="required-asterisk">*</span>';
             }
@@ -4888,7 +5000,7 @@ $requestTicketCompanyOptions = [
                 }
             });
             if (descriptionContainer) {
-                descriptionContainer.style.display = (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest) ? 'none' : '';
+                descriptionContainer.style.display = (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest || shouldShowEmailCreation) ? 'none' : '';
             }
             if (attachmentContainer) {
                 attachmentContainer.style.display = (shouldShowSssBenefits || shouldShowSapRequest) ? 'none' : '';
@@ -4943,7 +5055,7 @@ $requestTicketCompanyOptions = [
                 }
             }
             if (descriptionField) {
-                if (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest) {
+                if (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest || shouldShowEmailCreation) {
                     descriptionField.removeAttribute('required');
                     if (shouldShowSssBenefits && descriptionField.value.trim() === '') {
                         descriptionField.value = sssAutoDescription;
@@ -5136,7 +5248,7 @@ $requestTicketCompanyOptions = [
         }
         if (emailRequestTypeSelect) {
             emailRequestTypeSelect.addEventListener('change', function() {
-                syncEmailCreationFields();
+                toggleHrExtraFields();
             });
         }
         requestedMaterialsInputs.forEach(function(input) {
@@ -5278,13 +5390,137 @@ $requestTicketCompanyOptions = [
             if (type === 'application/pdf' || ext === 'pdf') {
                 return 'pdf';
             }
+            if (['doc', 'docx'].indexOf(ext) !== -1 || type === 'application/msword' || type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                return 'word';
+            }
             return 'unsupported';
+        }
+
+        function readBlobAsArrayBuffer(blob) {
+            return new Promise(function(resolve, reject) {
+                var reader = new FileReader();
+                reader.onload = function() { resolve(reader.result); };
+                reader.onerror = function() { reject(reader.error || new Error('Unable to read file.')); };
+                reader.readAsArrayBuffer(blob);
+            });
+        }
+
+        function readZipUint16(bytes, offset) {
+            return bytes[offset] | (bytes[offset + 1] << 8);
+        }
+
+        function readZipUint32(bytes, offset) {
+            return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+        }
+
+        function findDocxEntry(bytes, entryName) {
+            var minOffset = Math.max(0, bytes.length - 66000);
+            var eocdOffset = -1;
+            for (var i = bytes.length - 22; i >= minOffset; i -= 1) {
+                if (readZipUint32(bytes, i) === 0x06054b50) {
+                    eocdOffset = i;
+                    break;
+                }
+            }
+            if (eocdOffset < 0) return null;
+
+            var centralDirectorySize = readZipUint32(bytes, eocdOffset + 12);
+            var centralDirectoryOffset = readZipUint32(bytes, eocdOffset + 16);
+            var centralDirectoryEnd = centralDirectoryOffset + centralDirectorySize;
+            var decoder = new TextDecoder('utf-8');
+
+            for (var offset = centralDirectoryOffset; offset < centralDirectoryEnd;) {
+                if (readZipUint32(bytes, offset) !== 0x02014b50) break;
+
+                var method = readZipUint16(bytes, offset + 10);
+                var compressedSize = readZipUint32(bytes, offset + 20);
+                var uncompressedSize = readZipUint32(bytes, offset + 24);
+                var nameLength = readZipUint16(bytes, offset + 28);
+                var extraLength = readZipUint16(bytes, offset + 30);
+                var commentLength = readZipUint16(bytes, offset + 32);
+                var localHeaderOffset = readZipUint32(bytes, offset + 42);
+                var nameStart = offset + 46;
+                var name = decoder.decode(bytes.subarray(nameStart, nameStart + nameLength));
+
+                if (name === entryName) {
+                    if (readZipUint32(bytes, localHeaderOffset) !== 0x04034b50) return null;
+                    var localNameLength = readZipUint16(bytes, localHeaderOffset + 26);
+                    var localExtraLength = readZipUint16(bytes, localHeaderOffset + 28);
+                    var dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
+                    return {
+                        method: method,
+                        compressedSize: compressedSize,
+                        uncompressedSize: uncompressedSize,
+                        data: bytes.subarray(dataStart, dataStart + compressedSize)
+                    };
+                }
+
+                offset += 46 + nameLength + extraLength + commentLength;
+            }
+            return null;
+        }
+
+        function inflateDocxEntry(entry) {
+            if (!entry) return Promise.reject(new Error('Document content was not found.'));
+            if (entry.method === 0) {
+                return Promise.resolve(entry.data);
+            }
+            if (entry.method !== 8 || typeof DecompressionStream !== 'function') {
+                return Promise.reject(new Error('Word preview is not supported by this browser.'));
+            }
+            var stream = new Blob([entry.data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+            return new Response(stream).arrayBuffer().then(function(buffer) {
+                return new Uint8Array(buffer);
+            });
+        }
+
+        function renderDocxTextPreview(file, target) {
+            var ext = getExt(file && file.name);
+            if (ext !== 'docx') {
+                target.textContent = 'Preview is available for DOCX files only. This DOC file remains attached to this ticket.';
+                return;
+            }
+
+            target.textContent = 'Loading Word preview...';
+            readBlobAsArrayBuffer(file)
+                .then(function(buffer) {
+                    var bytes = new Uint8Array(buffer);
+                    return inflateDocxEntry(findDocxEntry(bytes, 'word/document.xml'));
+                })
+                .then(function(xmlBytes) {
+                    var xml = new TextDecoder('utf-8').decode(xmlBytes);
+                    var xmlDoc = new DOMParser().parseFromString(xml, 'application/xml');
+                    var paragraphs = Array.from(xmlDoc.getElementsByTagName('w:p')).map(function(paragraph) {
+                        return Array.from(paragraph.getElementsByTagName('w:t')).map(function(node) {
+                            return node.textContent || '';
+                        }).join('');
+                    }).filter(function(text) {
+                        return String(text || '').trim() !== '';
+                    });
+
+                    target.textContent = '';
+                    target.classList.add('attachment-preview-word');
+                    if (paragraphs.length === 0) {
+                        target.textContent = 'This Word document has no readable text preview, but it remains attached to this ticket.';
+                        return;
+                    }
+
+                    paragraphs.forEach(function(text) {
+                        var p = document.createElement('p');
+                        p.textContent = text;
+                        target.appendChild(p);
+                    });
+                })
+                .catch(function() {
+                    target.textContent = 'Unable to generate a Word preview in this browser, but the file remains attached to this ticket.';
+                });
         }
 
         function closeInlineAttachmentPreview() {
             if (attachmentPreviewModal) {
                 attachmentPreviewModal.classList.remove('is-visible');
                 attachmentPreviewModal.setAttribute('aria-hidden', 'true');
+                attachmentPreviewModal.removeAttribute('data-preview-kind');
             }
             if (attachmentPreviewBody) {
                 attachmentPreviewBody.innerHTML = '';
@@ -5325,6 +5561,7 @@ $requestTicketCompanyOptions = [
             }
 
             var kind = getAttachmentPreviewKind(file);
+            attachmentPreviewModal.setAttribute('data-preview-kind', kind);
             if (kind === 'image') {
                 var img = document.createElement('img');
                 img.src = url;
@@ -5335,6 +5572,11 @@ $requestTicketCompanyOptions = [
                 frame.src = url;
                 frame.title = (file && file.name) ? file.name : 'Attachment preview';
                 attachmentPreviewBody.appendChild(frame);
+            } else if (kind === 'word') {
+                var wordPreview = document.createElement('div');
+                wordPreview.className = 'attachment-preview-unavailable attachment-preview-word';
+                attachmentPreviewBody.appendChild(wordPreview);
+                renderDocxTextPreview(file, wordPreview);
             } else {
                 var message = document.createElement('div');
                 message.className = 'attachment-preview-unavailable';
