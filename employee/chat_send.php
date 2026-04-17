@@ -32,14 +32,61 @@ if (!isset($_POST['ticket_id'])) {
 $ticket_id = (int)$_POST['ticket_id'];
 $message = trim((string) ($_POST['message'] ?? ''));
 $sender_id = $_SESSION['user_id'];
-$attachmentUpload = ticket_chat_store_attachment($_FILES['attachment'] ?? []);
+
+function chat_uploaded_files_from_field(string $field): array
+{
+    if (empty($_FILES[$field]) || !is_array($_FILES[$field])) {
+        return [];
+    }
+    $raw = $_FILES[$field];
+    if (!is_array($raw['name'] ?? null)) {
+        return [$raw];
+    }
+    $files = [];
+    $count = count($raw['name']);
+    for ($i = 0; $i < $count; $i++) {
+        $files[] = [
+            'name' => $raw['name'][$i] ?? '',
+            'type' => $raw['type'][$i] ?? '',
+            'tmp_name' => $raw['tmp_name'][$i] ?? '',
+            'error' => $raw['error'][$i] ?? UPLOAD_ERR_NO_FILE,
+            'size' => $raw['size'][$i] ?? 0,
+        ];
+    }
+    return $files;
+}
+
+function chat_store_uploaded_attachments(): array
+{
+    $files = chat_uploaded_files_from_field('attachments');
+    if (count($files) === 0) {
+        $files = chat_uploaded_files_from_field('attachment');
+    }
+
+    $stored = [];
+    foreach ($files as $file) {
+        $upload = ticket_chat_store_attachment($file);
+        if (empty($upload['ok'])) {
+            return ['ok' => false, 'error' => (string) ($upload['error'] ?? 'Unable to upload attachment')];
+        }
+        if (!empty($upload['has_file'])) {
+            $stored[] = $upload;
+        }
+    }
+
+    return ['ok' => true, 'attachments' => $stored];
+}
+
+$attachmentUpload = chat_store_uploaded_attachments();
+$attachmentUploads = $attachmentUpload['attachments'] ?? [];
+$hasAttachments = count($attachmentUploads) > 0;
 
 if (empty($attachmentUpload['ok'])) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => (string) ($attachmentUpload['error'] ?? 'Unable to upload attachment')]);
     exit;
 }
-if ($message === '' && empty($attachmentUpload['has_file'])) {
+if ($message === '' && !$hasAttachments) {
     echo json_encode(['success' => false, 'error' => 'Empty message']);
     exit;
 }
@@ -144,25 +191,43 @@ if ($sender_id !== $requesterId && $sender_id !== $handlerId) {
     exit;
 }
 
-// Insert Message
-$storedAttachment = !empty($attachmentUpload['has_file']) ? (string) ($attachmentUpload['stored_name'] ?? '') : null;
-$originalAttachment = !empty($attachmentUpload['has_file']) ? (string) ($attachmentUpload['original_name'] ?? '') : null;
-$stmt = $conn->prepare("INSERT INTO ticket_messages (ticket_id, sender_id, message, attachment_stored_name, attachment_original_name, is_read) VALUES (?, ?, ?, ?, ?, 0)");
-$stmt->bind_param("iisss", $ticket_id, $sender_id, $message, $storedAttachment, $originalAttachment);
+$messageGroupId = function_exists('random_bytes') ? bin2hex(random_bytes(8)) : uniqid('chat_', true);
+$stmt = $conn->prepare("INSERT INTO ticket_messages (ticket_id, sender_id, message, message_group_id, attachment_stored_name, attachment_original_name, is_read) VALUES (?, ?, ?, ?, ?, ?, 0)");
+if (!$stmt) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Database Error']);
+    exit;
+}
+$insertRows = $hasAttachments ? $attachmentUploads : [null];
+$insertedAll = true;
+foreach ($insertRows as $index => $upload) {
+    $rowMessage = ((int) $index === 0) ? $message : '';
+    $storedAttachment = is_array($upload) ? (string) ($upload['stored_name'] ?? '') : null;
+    $originalAttachment = is_array($upload) ? (string) ($upload['original_name'] ?? '') : null;
+    $stmt->bind_param("iissss", $ticket_id, $sender_id, $rowMessage, $messageGroupId, $storedAttachment, $originalAttachment);
+    if (!$stmt->execute()) {
+        $insertedAll = false;
+        break;
+    }
+}
+$stmt->close();
 
-if ($stmt->execute()) {
-    $stmt->close();
+if ($insertedAll) {
     if ($sender_id === $handlerId) {
         ticket_promote_status_on_first_handler_reply($conn, $ticket_id, $sender_id);
     }
     ticket_record_chat_activity($conn, $ticket_id);
+    $responseAttachments = array_map(static function ($upload) {
+        return [
+            'stored_name' => (string) ($upload['stored_name'] ?? ''),
+            'original_name' => (string) ($upload['original_name'] ?? ''),
+            'is_image' => !empty($upload['is_image']),
+        ];
+    }, $attachmentUploads);
     echo json_encode([
         'success' => true,
-        'attachment' => !empty($attachmentUpload['has_file']) ? [
-            'stored_name' => $storedAttachment,
-            'original_name' => $originalAttachment,
-            'is_image' => !empty($attachmentUpload['is_image']),
-        ] : null
+        'attachments' => $responseAttachments,
+        'attachment' => $responseAttachments[0] ?? null
     ]);
     if (session_status() === PHP_SESSION_ACTIVE) {
         session_write_close();
@@ -202,8 +267,10 @@ if ($stmt->execute()) {
         }
         $ticketNumber = notif_ticket_number((int) $ticket_id);
         $messagePreview = trim($message);
-        if ($messagePreview === '' && !empty($attachmentUpload['has_file'])) {
-            $messagePreview = '[Attachment] ' . $originalAttachment;
+        if ($messagePreview === '' && $hasAttachments) {
+            $messagePreview = count($attachmentUploads) === 1
+                ? '[Attachment] ' . (string) ($attachmentUploads[0]['original_name'] ?? '')
+                : '[Attachments] ' . count($attachmentUploads) . ' files';
         }
         if (function_exists('mb_strlen')) {
             if (mb_strlen($messagePreview) > 80) {
