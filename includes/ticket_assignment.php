@@ -52,6 +52,7 @@ function ticket_lapc_departments(): array
     return [
         'Admin & Legal',
         'Banana Farm Operations',
+        'Bidding',
         'Diagnostics / Lingap',
         'Digital Agri Solutions and Innovations',
         'E-Commerce',

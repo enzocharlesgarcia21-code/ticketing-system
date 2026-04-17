@@ -29,6 +29,15 @@ $lapcDepartmentCategories = [
         'FleetCard Request',
         'Supplies',
     ],
+    'Bidding' => [
+        'Documentation',
+        'Email',
+        'Hardware',
+        'Internet Concerns',
+        'Procurement',
+        'Software',
+        'Technical Support',
+    ],
     'HR' => [
         'Attendance & Timekeeping',
         'Certificate of Employment',
@@ -49,6 +58,9 @@ $lapcDepartmentCategories = [
         'SAP',
         'Software',
         'Technical Support',
+    ],
+    'Marketing' => [
+        'Marketing Request',
     ],
 ];
 
@@ -180,6 +192,64 @@ function sales_request_extract_sap_reports(array $source): array
     }
 
     return $reports;
+}
+
+function sales_request_clean_string_array($value): array
+{
+    $items = is_array($value) ? $value : [];
+    $clean = [];
+    foreach ($items as $item) {
+        $item = trim((string) $item);
+        if ($item !== '') {
+            $clean[] = $item;
+        }
+    }
+    return array_values(array_unique($clean));
+}
+
+function sales_request_min_working_deadline(int $workingDays = 3): string
+{
+    $date = new DateTimeImmutable('today');
+    $count = 0;
+    while ($count < $workingDays) {
+        $date = $date->modify('+1 day');
+        if ((int) $date->format('N') < 6) {
+            $count++;
+        }
+    }
+    return $date->format('Y-m-d');
+}
+
+function sales_request_working_days_between_today(string $targetDate): int
+{
+    try {
+        $target = new DateTimeImmutable($targetDate);
+    } catch (Exception $e) {
+        return -1;
+    }
+
+    $today = new DateTimeImmutable('today');
+    if ($target <= $today) {
+        return 0;
+    }
+
+    $days = 0;
+    for ($date = $today->modify('+1 day'); $date <= $target; $date = $date->modify('+1 day')) {
+        if ((int) $date->format('N') < 6) {
+            $days++;
+        }
+    }
+    return $days;
+}
+
+function sales_request_is_weekend_date(string $targetDate): bool
+{
+    try {
+        $date = new DateTimeImmutable($targetDate);
+    } catch (Exception $e) {
+        return true;
+    }
+    return (int) $date->format('N') >= 6;
 }
 
 function sales_request_upload_dir(): string
@@ -382,6 +452,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $allowed_categories = $defaultCategories;
     $category   = trim((string)($_POST['category'] ?? ''));
     $description = trim((string)($_POST['description'] ?? ''));
+    $email_request_type = trim((string) ($_POST['email_request_type'] ?? ''));
     $request_subject_title = trim((string)($_POST['request_subject_title'] ?? ''));
     $hr_concern_type = trim((string)($_POST['hr_concern_type'] ?? ''));
     $hr_concern_type_other = trim((string)($_POST['hr_concern_type_other'] ?? ''));
@@ -406,6 +477,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $certificate_leave_date = trim((string) ($_POST['certificate_leave_date'] ?? ''));
     $certificate_leave_purpose = trim((string) ($_POST['certificate_leave_purpose'] ?? ''));
     $certificate_leave_purpose_other = trim((string) ($_POST['certificate_leave_purpose_other'] ?? ''));
+    $project_name = trim((string) ($_POST['project_name'] ?? ''));
+    $area_code = trim((string) ($_POST['area_code'] ?? ''));
+    $marketing_department = trim((string) ($_POST['marketing_department'] ?? ''));
+    $requested_materials = sales_request_clean_string_array($_POST['requested_materials'] ?? []);
+    $requested_materials_other = trim((string) ($_POST['requested_materials_other'] ?? ''));
+    $material_size = trim((string) ($_POST['material_size'] ?? ''));
+    $project_deadline = trim((string) ($_POST['project_deadline'] ?? ''));
+    $crop = sales_request_clean_string_array($_POST['crop'] ?? []);
+    $crop_other = trim((string) ($_POST['crop_other'] ?? ''));
     $sap_reports = sales_request_extract_sap_reports($_POST);
     $sap_name = $sap_reports[0]['name'] ?? trim((string) ($_POST['sap_name'] ?? ''));
     $sap_position = $sap_reports[0]['position'] ?? trim((string) ($_POST['sap_position'] ?? ''));
@@ -430,6 +510,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $assigned_group = $isLapcRecipient ? trim($assigned_department_selected) : 'IT';
     $isLapcHrRecipient = $isLapcRecipient && $assigned_department_selected === 'HR';
     $isLapcItRecipient = $isLapcRecipient && $assigned_department_selected === 'IT';
+    $isLapcMarketingRecipient = $isLapcRecipient && $assigned_department_selected === 'Marketing';
     $isHrAttendanceCategory = ($isLapcHrRecipient && $category === 'Attendance & Timekeeping');
     $isHrLeaveOrOtherCategory = ($isLapcHrRecipient && ($category === 'Leave Concern' || $category === 'Others'));
     $isHrSssCategory = ($isLapcHrRecipient && $category === 'SSS Sickness and Benefit Concern');
@@ -438,6 +519,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $isHrCompanyPropertyRequest = ($isLapcHrRecipient && $category === 'Request for Company Property');
     $isHrCertificateEmploymentRequest = ($isLapcHrRecipient && $category === 'Certificate of Employment');
     $isHrCertificateLeaveRequest = ($isLapcHrRecipient && $category === 'Certificate of Leave');
+    $isLapcItEmailRequest = ($isLapcItRecipient && $category === 'Email');
     $isLapcItSapRequest = ($isLapcItRecipient && $category === 'SAP');
     $requiresKamiAttachment = $isHrAttendanceCategory;
     if ($isLapcRecipient) {
@@ -472,11 +554,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $priority = $priority_selected;
         }
     }
+    if ($error_msg === '' && $isLapcMarketingRecipient) {
+        if ($priority_selected === '') {
+            $error_msg = "Please choose the urgency level.";
+        } elseif (!in_array($priority_selected, ['1', '2', '3'], true)) {
+            $error_msg = "Invalid urgency level selected.";
+        } else {
+            $priority = $priority_selected;
+        }
+    }
     if ($error_msg === '' && $isHrAttendanceCategory && $hr_concern_type === '') {
         $error_msg = "Please choose the type of concern.";
     }
     if ($error_msg === '' && $isHrAttendanceCategory && $hr_concern_type === 'Other' && $hr_concern_type_other === '') {
         $error_msg = "Please enter the type of concern.";
+    }
+    if ($error_msg === '' && $isLapcItEmailRequest) {
+        $allowedEmailRequestTypes = ['creation of email', 'forgot password', 'backup of email'];
+        if (!in_array($email_request_type, $allowedEmailRequestTypes, true)) {
+            $error_msg = "Please choose the email request type.";
+        }
     }
     if ($error_msg === '' && $isHrLeaveOrOtherCategory) {
         if ($request_subject_title === '') {
@@ -608,6 +705,102 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     . "Immediate Supervisor: " . $sap_report['immediate_head'] . "\n"
                     . "Department: " . $sap_report['department'] . "\n"
                     . "Company: " . $sap_report['company'];
+            }
+        }
+    }
+    if ($error_msg === '' && $isLapcMarketingRecipient) {
+        $allowedAreaCodes = [
+            '811A', '811B', '812', '813A', '813B', '814A', '814B', '815A', '815B', '815C',
+            '821A', '821B', '821C', '822A', '822B', '831A', '831B', '832A', '832B', '833',
+            'HEAD OFFICE',
+        ];
+        $allowedMarketingDepartments = [
+            'Marketing Ops',
+            'Sales',
+            'Technical',
+            'Human Resources',
+            'PCC/GPCI',
+            'Farmex',
+            'Farmasee',
+            'LTC',
+            'MPDC',
+            'IT',
+            'Admin',
+            'Leads AH/EH',
+            'Executive/Management',
+        ];
+        $allowedRequestedMaterials = [
+            'Social Media Graphics',
+            'Print Materials (Flyers, Brochures)',
+            'Video (Short-form)',
+            'Banners/Taffetas',
+            'Labels',
+            'Tarpaulin/Poster',
+            'Invitation',
+            'Coupons',
+            'Sintraboard design',
+            'Plotsigns',
+            'Promats Design (shirt, cap, etc)',
+            'Other',
+        ];
+        $allowedCrops = [
+            'Rice',
+            'Lowland Vegetable',
+            'Upland Vegetable',
+            'Sugarcane',
+            'Corn',
+            'Mango',
+            'Other',
+        ];
+
+        $invalidMarketingFields = (
+            $project_name === ''
+            || !in_array($area_code, $allowedAreaCodes, true)
+            || !in_array($marketing_department, $allowedMarketingDepartments, true)
+            || count($requested_materials) === 0
+            || count(array_diff($requested_materials, $allowedRequestedMaterials)) > 0
+            || (in_array('Other', $requested_materials, true) && $requested_materials_other === '')
+            || $material_size === ''
+            || $project_deadline === ''
+            || count($crop) === 0
+            || count(array_diff($crop, $allowedCrops)) > 0
+            || (in_array('Other', $crop, true) && $crop_other === '')
+            || $description === ''
+        );
+
+        if ($invalidMarketingFields) {
+            $error_msg = "Please complete the LAPC Marketing request form.";
+        } else {
+            $deadlineTimestamp = strtotime($project_deadline);
+            if ($deadlineTimestamp === false || date('Y-m-d', $deadlineTimestamp) !== $project_deadline) {
+                $error_msg = "Please select a valid project deadline.";
+            } elseif (sales_request_is_weekend_date($project_deadline) || sales_request_working_days_between_today($project_deadline) < 3) {
+                $minimumDeadline = sales_request_min_working_deadline(3);
+                $error_msg = 'Project Deadline must be at least 3 working days from today. Earliest valid date is ' . date('F j, Y', strtotime($minimumDeadline)) . '.';
+            } else {
+                $requestedMaterialsDisplay = array_values(array_filter($requested_materials, static function($item) {
+                    return $item !== 'Other';
+                }));
+                if (in_array('Other', $requested_materials, true) && $requested_materials_other !== '') {
+                    $requestedMaterialsDisplay[] = 'Other: ' . $requested_materials_other;
+                }
+                $cropDisplay = array_values(array_filter($crop, static function($item) {
+                    return $item !== 'Other';
+                }));
+                if (in_array('Other', $crop, true) && $crop_other !== '') {
+                    $cropDisplay[] = 'Other: ' . $crop_other;
+                }
+
+                $subject = 'Marketing Request - ' . $project_name;
+                $description = "LAPC Marketing Request\n"
+                    . "Project Name: " . $project_name . "\n"
+                    . "Area Code: " . $area_code . "\n"
+                    . "Department: " . $marketing_department . "\n"
+                    . "Requested Materials: " . implode(', ', $requestedMaterialsDisplay) . "\n"
+                    . "Size of Material: " . $material_size . "\n"
+                    . "Project Deadline: " . $project_deadline . "\n"
+                    . "Crop: " . implode(', ', $cropDisplay) . "\n"
+                    . "Brief Description of Request: " . trim((string) ($_POST['description'] ?? ''));
             }
         }
     }
@@ -972,6 +1165,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $ticketMeta['sap_department'] = $sap_department;
                     $ticketMeta['sap_company'] = $sap_company;
                     $ticketMeta['sap_reports'] = json_encode($sap_reports, JSON_UNESCAPED_UNICODE);
+                }
+                if ($isLapcItEmailRequest) {
+                    $ticketMeta['email_request_type'] = $email_request_type;
+                }
+                if ($isLapcMarketingRecipient) {
+                    $ticketMeta['project_name'] = $project_name;
+                    $ticketMeta['area_code'] = $area_code;
+                    $ticketMeta['marketing_department'] = $marketing_department;
+                    $ticketMeta['requested_materials'] = json_encode($requested_materials, JSON_UNESCAPED_UNICODE);
+                    $ticketMeta['requested_materials_other'] = $requested_materials_other;
+                    $ticketMeta['material_size'] = $material_size;
+                    $ticketMeta['project_deadline'] = $project_deadline;
+                    $ticketMeta['crop'] = json_encode($crop, JSON_UNESCAPED_UNICODE);
+                    $ticketMeta['crop_other'] = $crop_other;
                 }
                 if (count($ticketMeta) > 0) {
                     $metaStmt = $conn->prepare("INSERT INTO ticket_request_meta (ticket_id, meta_key, meta_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)");
@@ -1686,6 +1893,9 @@ if (count($sapFormEntries) === 0) {
         body.sales-request-ticket-page .kami-list .select-wrapper {
             max-width: 100%;
         }
+        body.sales-request-ticket-page .kami-continuation {
+            display: none;
+        }
         body.sales-request-ticket-page .other-request-section {
             margin-top: 18px;
         }
@@ -1694,6 +1904,9 @@ if (count($sapFormEntries) === 0) {
         }
         body.sales-request-ticket-page .other-request-section-body {
             display: block;
+        }
+        body.sales-request-ticket-page .other-request-continuation {
+            display: none;
         }
         body.sales-request-ticket-page.other-section-active .other-request-section-head {
             display: block;
@@ -1717,49 +1930,62 @@ if (count($sapFormEntries) === 0) {
         body.sales-request-ticket-page.other-section-active .other-request-section-body {
             padding: 20px 24px 24px;
         }
+        body.sales-request-ticket-page.other-section-active #otherRequestContinuationHost {
+            display: block;
+            padding: 0 24px 24px;
+            background: #ffffff;
+        }
         body.sales-request-ticket-page.other-section-active #otherRequestDetailsSection {
             margin-bottom: 0;
-            border-bottom: none;
-            border-bottom-left-radius: 0;
-            border-bottom-right-radius: 0;
         }
         body.sales-request-ticket-page.other-section-active #otherDescriptionSection {
+            display: none !important;
+        }
+        body.sales-request-ticket-page.other-section-active #otherRequestContinuationHost #descriptionContainer,
+        body.sales-request-ticket-page.other-section-active #otherRequestContinuationHost #attachmentContainer {
             margin-top: 0;
-            border-top: none;
-            border-top-left-radius: 0;
-            border-top-right-radius: 0;
+            margin-bottom: 0;
+            padding-left: 0;
+            padding-right: 0;
+            border: 0;
+            background: #ffffff;
+            box-shadow: none;
         }
-        body.sales-request-ticket-page.other-section-active #otherDescriptionSection .other-request-section-body {
-            padding-top: 0;
-        }
-        body.sales-request-ticket-page.other-section-active #otherDescriptionSection #attachmentContainer {
-            margin-top: 18px;
+        body.sales-request-ticket-page.other-section-active #otherRequestContinuationHost #attachmentContainer {
+            padding-top: 24px;
         }
         body.sales-request-ticket-page.kami-section-active #kamiBannerContainer {
             margin-bottom: 0;
-            border-bottom-left-radius: 0;
-            border-bottom-right-radius: 0;
-            border-bottom: none;
+        }
+        body.sales-request-ticket-page.kami-section-active #kamiBannerContainer .kami-list {
+            gap: 0;
+            padding-bottom: 0;
+        }
+        body.sales-request-ticket-page.kami-section-active #kamiContinuationHost {
+            display: block;
+            padding: 0 24px 24px;
+            background: #ffffff;
         }
         body.sales-request-ticket-page.kami-section-active #otherDescriptionSection {
-            margin-top: 0;
+            display: none !important;
         }
+        body.sales-request-ticket-page.kami-section-active #kamiContinuationHost #descriptionContainer,
+        body.sales-request-ticket-page.kami-section-active #kamiContinuationHost #attachmentContainer,
         body.sales-request-ticket-page.kami-section-active #descriptionContainer,
         body.sales-request-ticket-page.kami-section-active #attachmentContainer {
             margin-top: 0;
             margin-bottom: 0;
-            padding: 18px 24px 0;
-            border-left: 1px solid #dbe4ef;
-            border-right: 1px solid #dbe4ef;
+            padding-left: 0;
+            padding-right: 0;
+            border: 0;
             background: #ffffff;
             box-shadow: none;
         }
-        body.sales-request-ticket-page.kami-section-active #attachmentContainer {
-            padding-bottom: 24px;
-            border-bottom: 1px solid #dbe4ef;
-            border-bottom-left-radius: 22px;
-            border-bottom-right-radius: 22px;
-            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+        body.sales-request-ticket-page.kami-section-active #kamiContinuationHost #attachmentContainer {
+            padding-top: 24px;
+        }
+        body.sales-request-ticket-page.kami-section-active #kamiContinuationHost #descriptionContainer {
+            padding-top: 18px;
         }
         body.sales-request-ticket-page .medical-cash-group {
             display: none;
@@ -1839,6 +2065,34 @@ if (count($sapFormEntries) === 0) {
             display: block;
             margin-top: 18px;
         }
+        body.sales-request-ticket-page .email-request-group {
+            display: none;
+            margin-top: 0;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #dbe4ef;
+            border-radius: 22px;
+            background: #ffffff;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+            overflow: hidden;
+        }
+        body.sales-request-ticket-page .email-request-group.is-visible {
+            display: block;
+            margin-top: 18px;
+        }
+        body.sales-request-ticket-page .marketing-request-group {
+            display: none;
+            margin-top: 0;
+            border: 1px solid #dbe4ef;
+            border-radius: 22px;
+            background: #ffffff;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+            overflow: hidden;
+        }
+        body.sales-request-ticket-page .marketing-request-group.is-visible {
+            display: block;
+            margin-top: 18px;
+        }
         body.sales-request-ticket-page .medical-cash-head {
             margin: 0;
             padding: 18px 24px;
@@ -1905,6 +2159,28 @@ if (count($sapFormEntries) === 0) {
             line-height: 1.25;
             font-family: inherit;
         }
+        body.sales-request-ticket-page .email-request-head {
+            margin: 0;
+            padding: 18px 24px;
+            background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.25;
+            font-family: inherit;
+        }
+        body.sales-request-ticket-page .marketing-request-head {
+            margin: 0;
+            padding: 18px 24px;
+            background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.25;
+            font-family: inherit;
+        }
         body.sales-request-ticket-page .medical-cash-list {
             display: grid;
             gap: 14px;
@@ -1941,6 +2217,18 @@ if (count($sapFormEntries) === 0) {
             padding: 22px 32px 16px;
             background: #ffffff;
             border-top: 1px solid rgba(15, 23, 42, 0.10);
+        }
+        body.sales-request-ticket-page .email-request-list {
+            display: grid;
+            gap: 14px;
+            padding: 22px 30px 30px;
+            background: transparent;
+        }
+        body.sales-request-ticket-page .marketing-request-list {
+            display: grid;
+            gap: 14px;
+            padding: 18px 24px 24px;
+            background: transparent;
         }
         body.sales-request-ticket-page .sap-request-panel-head {
             display: flex;
@@ -2015,6 +2303,11 @@ if (count($sapFormEntries) === 0) {
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             gap: 14px;
         }
+        body.sales-request-ticket-page .marketing-request-inline-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 14px;
+        }
         body.sales-request-ticket-page .medical-cash-card {
             border: 1px solid #dbe4ef;
             border-radius: 14px;
@@ -2049,6 +2342,91 @@ if (count($sapFormEntries) === 0) {
             background: #ffffff;
             padding: 20px 24px;
             box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+        }
+        body.sales-request-ticket-page .marketing-request-card {
+            border: 1px solid #dbe4ef;
+            border-radius: 14px;
+            background: #ffffff;
+            padding: 20px 24px;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+        }
+        body.sales-request-ticket-page .marketing-request-card .form-group {
+            margin: 0;
+        }
+        body.sales-request-ticket-page .marketing-request-card label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        body.sales-request-ticket-page .marketing-request-card-title {
+            display: block;
+            margin-bottom: 16px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        body.sales-request-ticket-page .marketing-request-option-list {
+            display: grid;
+            gap: 14px;
+        }
+        body.sales-request-ticket-page .marketing-request-option,
+        body.sales-request-ticket-page .marketing-request-other-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 0;
+            font-weight: 500;
+            color: #111827;
+            cursor: pointer;
+        }
+        body.sales-request-ticket-page .marketing-request-option input[type="checkbox"],
+        body.sales-request-ticket-page .marketing-request-other-row input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+            accent-color: #16a34a;
+            flex: 0 0 auto;
+        }
+        body.sales-request-ticket-page .marketing-request-other-row .form-control {
+            display: none;
+            min-width: 0;
+        }
+        body.sales-request-ticket-page .marketing-request-other-row.is-visible .form-control {
+            display: block;
+        }
+        body.sales-request-ticket-page .marketing-request-help {
+            display: block;
+            margin-top: 8px;
+            color: #64748b;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        body.sales-request-ticket-page .marketing-request-error {
+            display: none;
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid #fecaca;
+            background: #fff1f2;
+            color: #b91c1c;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.45;
+        }
+        body.sales-request-ticket-page .marketing-request-error.is-visible {
+            display: block;
+        }
+        body.sales-request-ticket-page .email-request-card {
+            border: 1px solid #dbe4ef;
+            border-radius: 14px;
+            background: #ffffff;
+            padding: 24px 30px;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+        }
+        body.sales-request-ticket-page .email-request-card .form-group {
+            margin: 0;
+        }
+        body.sales-request-ticket-page .email-request-card label {
+            display: block;
+            margin-bottom: 10px;
         }
         body.sales-request-ticket-page .sap-request-card {
             border: 0;
@@ -2321,6 +2699,10 @@ if (count($sapFormEntries) === 0) {
         body.sales-request-ticket-page.sap-request-section-active #descriptionContainer {
             display: none !important;
         }
+        body.sales-request-ticket-page.marketing-request-section-active #attachmentContainer label {
+            display: block;
+            margin-bottom: 10px;
+        }
         @media (max-width: 768px) {
             body.sales-request-ticket-page .medical-cash-inline-row {
                 grid-template-columns: 1fr;
@@ -2329,6 +2711,9 @@ if (count($sapFormEntries) === 0) {
                 grid-template-columns: 1fr;
             }
             body.sales-request-ticket-page .col-request-inline-row {
+                grid-template-columns: 1fr;
+            }
+            body.sales-request-ticket-page .marketing-request-inline-row {
                 grid-template-columns: 1fr;
             }
             body.sales-request-ticket-page .sap-request-inline-row,
@@ -2612,6 +2997,170 @@ if (count($sapFormEntries) === 0) {
             text-align: left;
             line-height: 1.5;
         }
+        body.sales-request-ticket-page .attachment-preview-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(15, 23, 42, 0.62);
+            z-index: 10000;
+            box-sizing: border-box;
+        }
+        body.sales-request-ticket-page .attachment-preview-modal.is-visible {
+            display: flex;
+        }
+        body.sales-request-ticket-page .attachment-preview-nav {
+            position: absolute;
+            top: 50%;
+            width: 54px;
+            height: 54px;
+            transform: translateY(-50%);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.48);
+            color: #ffffff;
+            font-size: 0;
+            line-height: 1;
+            cursor: pointer;
+            z-index: 1;
+            transition: background 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
+        }
+        body.sales-request-ticket-page .attachment-preview-nav::before {
+            content: "";
+            display: block;
+            width: 14px;
+            height: 14px;
+            border-top: 4px solid currentColor;
+            border-right: 4px solid currentColor;
+            box-sizing: border-box;
+        }
+        body.sales-request-ticket-page .attachment-preview-prev::before {
+            transform: rotate(-135deg);
+            margin-left: 5px;
+        }
+        body.sales-request-ticket-page .attachment-preview-next::before {
+            transform: rotate(45deg);
+            margin-right: 5px;
+        }
+        body.sales-request-ticket-page .attachment-preview-nav:hover {
+            background: rgba(15, 23, 42, 0.72);
+            transform: translateY(-50%) scale(1.04);
+        }
+        body.sales-request-ticket-page .attachment-preview-nav:disabled {
+            display: none;
+        }
+        body.sales-request-ticket-page .attachment-preview-prev {
+            left: max(24px, calc((100vw - 980px) / 2 - 76px));
+        }
+        body.sales-request-ticket-page .attachment-preview-next {
+            right: max(24px, calc((100vw - 980px) / 2 - 76px));
+        }
+        body.sales-request-ticket-page .attachment-preview-dialog {
+            width: min(980px, 100%);
+            max-height: min(760px, calc(100vh - 48px));
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-radius: 18px;
+            background: #ffffff;
+            box-shadow: 0 26px 80px rgba(15, 23, 42, 0.28);
+        }
+        body.sales-request-ticket-page .attachment-preview-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 16px 18px;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f8fafc;
+        }
+        body.sales-request-ticket-page .attachment-preview-title {
+            min-width: 0;
+        }
+        body.sales-request-ticket-page .attachment-preview-title strong,
+        body.sales-request-ticket-page .attachment-preview-title span {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        body.sales-request-ticket-page .attachment-preview-title strong {
+            color: #0f172a;
+            font-size: 15px;
+            font-weight: 800;
+        }
+        body.sales-request-ticket-page .attachment-preview-title span {
+            margin-top: 3px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        body.sales-request-ticket-page .attachment-preview-close {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            border: 1px solid #dbe4ef;
+            border-radius: 12px;
+            background: #ffffff;
+            color: #ef4444;
+            font-size: 20px;
+            font-weight: 900;
+            line-height: 1;
+            cursor: pointer;
+            flex: 0 0 auto;
+        }
+        body.sales-request-ticket-page .attachment-preview-body {
+            min-height: 280px;
+            overflow: auto;
+            background: #0f172a;
+        }
+        body.sales-request-ticket-page .attachment-preview-body img {
+            display: block;
+            max-width: 100%;
+            max-height: calc(100vh - 190px);
+            margin: 0 auto;
+            object-fit: contain;
+        }
+        body.sales-request-ticket-page .attachment-preview-body iframe {
+            display: block;
+            width: 100%;
+            height: min(660px, calc(100vh - 170px));
+            border: 0;
+            background: #ffffff;
+        }
+        body.sales-request-ticket-page .attachment-preview-unavailable {
+            min-height: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: 700;
+            text-align: center;
+            line-height: 1.5;
+        }
+        @media (max-width: 720px) {
+            body.sales-request-ticket-page .attachment-preview-modal {
+                padding: 18px;
+            }
+            body.sales-request-ticket-page .attachment-preview-nav {
+                width: 44px;
+                height: 44px;
+                font-size: 26px;
+            }
+            body.sales-request-ticket-page .attachment-preview-prev {
+                left: 12px;
+            }
+            body.sales-request-ticket-page .attachment-preview-next {
+                right: 12px;
+            }
+        }
         .back-link {
             display: block;
             text-align: center;
@@ -2637,6 +3186,20 @@ if (count($sapFormEntries) === 0) {
             background: #fef2f2;
             color: #991b1b;
             border: 1px solid #fecaca;
+        }
+        body.sales-request-ticket-page #ajaxError.alert-error {
+            width: 100%;
+            box-sizing: border-box;
+            margin: 0 0 20px;
+            padding: 18px 20px;
+            border-radius: 8px;
+            background: #fff1f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            text-align: center;
+            font-size: 18px;
+            font-weight: 500;
+            line-height: 1.35;
         }
         body.sales-request-ticket-page .ticket-modal {
             position: fixed;
@@ -2705,17 +3268,20 @@ if (count($sapFormEntries) === 0) {
             height: 66px;
             margin: 0 auto 24px;
             border-radius: 999px;
-            background: transparent;
-            border: 3px solid #d9f0cd;
+            background: #f0fdf4;
+            border: 3px solid #bbf7d0;
             color: #1B5E20;
             display: none;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 28px;
             font-weight: 900;
-            box-shadow: none;
+            box-shadow: 0 12px 26px rgba(22, 101, 52, 0.12);
             position: relative;
             z-index: 1;
+        }
+        body.sales-request-ticket-page .ticket-modal-icon.success i {
+            line-height: 1;
         }
         body.sales-request-ticket-page .ticket-modal-icon.error {
             background: #fef2f2;
@@ -3123,6 +3689,7 @@ if (count($sapFormEntries) === 0) {
                         <input type="text" name="hr_concern_type_other" id="hr_concern_type_other" class="form-control" value="<?= htmlspecialchars((string) ($hr_concern_type_other ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Enter type of concern">
                     </div>
                 </div>
+                <div class="kami-continuation" id="kamiContinuationHost"></div>
             </section>
 
             <section class="other-request-section" id="otherRequestDetailsSection">
@@ -3140,6 +3707,7 @@ if (count($sapFormEntries) === 0) {
                         >
                     </div>
                 </div>
+                <div class="other-request-continuation" id="otherRequestContinuationHost"></div>
             </section>
 
             <section class="medical-cash-group" id="medicalCashAdvanceSection">
@@ -3449,6 +4017,110 @@ if (count($sapFormEntries) === 0) {
                     </div>
                 </div>
             </section>
+            <section class="marketing-request-group" id="marketingRequestSection">
+                <h3 class="marketing-request-head">LAPC Marketing Request</h3>
+                <div class="marketing-request-list">
+                    <section class="marketing-request-card">
+                        <div class="form-group">
+                            <label for="project_name">Project Name <span class="required-asterisk">*</span></label>
+                            <input type="text" name="project_name" id="project_name" class="form-control" value="<?= htmlspecialchars((string) ($_POST['project_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer">
+                        </div>
+                    </section>
+
+                    <div class="marketing-request-inline-row">
+                        <section class="marketing-request-card">
+                            <div class="form-group">
+                                <label for="area_code">Area Code <span class="required-asterisk">*</span></label>
+                                <div class="select-wrapper">
+                                    <select name="area_code" id="area_code" class="form-control category-select" data-selected="<?= htmlspecialchars((string) ($_POST['area_code'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                        <option value="" disabled selected hidden>Choose area code</option>
+                                        <?php foreach (['811A', '811B', '812', '813A', '813B', '814A', '814B', '815A', '815B', '815C', '821A', '821B', '821C', '822A', '822B', '831A', '831B', '832A', '832B', '833', 'HEAD OFFICE'] as $areaCodeOption): ?>
+                                            <option value="<?= htmlspecialchars($areaCodeOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($_POST['area_code'] ?? '') === $areaCodeOption) ? 'selected' : ''; ?>>
+                                                <?= htmlspecialchars($areaCodeOption, ENT_QUOTES, 'UTF-8'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <i class="fas fa-chevron-down select-icon"></i>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="marketing-request-card">
+                            <div class="form-group">
+                                <label for="marketing_department">Department <span class="required-asterisk">*</span></label>
+                                <div class="select-wrapper">
+                                    <select name="marketing_department" id="marketing_department" class="form-control category-select" data-selected="<?= htmlspecialchars((string) ($_POST['marketing_department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                        <option value="" disabled selected hidden>Choose department</option>
+                                        <?php foreach (['Marketing Ops', 'Sales', 'Technical', 'Human Resources', 'PCC/GPCI', 'Farmex', 'Farmasee', 'LTC', 'MPDC', 'IT', 'Admin', 'Leads AH/EH', 'Executive/Management'] as $marketingDepartmentOption): ?>
+                                            <option value="<?= htmlspecialchars($marketingDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($_POST['marketing_department'] ?? '') === $marketingDepartmentOption) ? 'selected' : ''; ?>>
+                                                <?= htmlspecialchars($marketingDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <i class="fas fa-chevron-down select-icon"></i>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <section class="marketing-request-card">
+                        <span class="marketing-request-card-title">Requested Materials <span class="required-asterisk">*</span></span>
+                        <div class="marketing-request-option-list" id="requestedMaterialsGroup">
+                            <?php $selectedRequestedMaterials = sales_request_clean_string_array($_POST['requested_materials'] ?? []); ?>
+                            <?php foreach (['Social Media Graphics', 'Print Materials (Flyers, Brochures)', 'Video (Short-form)', 'Banners/Taffetas', 'Labels', 'Tarpaulin/Poster', 'Invitation', 'Coupons', 'Sintraboard design', 'Plotsigns', 'Promats Design (shirt, cap, etc)'] as $materialOption): ?>
+                                <label class="marketing-request-option">
+                                    <input type="checkbox" name="requested_materials[]" value="<?= htmlspecialchars($materialOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($materialOption, $selectedRequestedMaterials, true) ? 'checked' : ''; ?>>
+                                    <span><?= htmlspecialchars($materialOption, ENT_QUOTES, 'UTF-8'); ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                            <div class="marketing-request-other-row" id="requestedMaterialsOtherRow">
+                                <label class="marketing-request-option">
+                                    <input type="checkbox" name="requested_materials[]" value="Other" <?= in_array('Other', $selectedRequestedMaterials, true) ? 'checked' : ''; ?>>
+                                    <span>Other:</span>
+                                </label>
+                                <input type="text" name="requested_materials_other" id="requested_materials_other" class="form-control" value="<?= htmlspecialchars((string) ($_POST['requested_materials_other'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Please specify">
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="marketing-request-inline-row">
+                        <section class="marketing-request-card">
+                            <div class="form-group">
+                                <label for="material_size">Size of Material <span class="required-asterisk">*</span></label>
+                                <input type="text" name="material_size" id="material_size" class="form-control" value="<?= htmlspecialchars((string) ($_POST['material_size'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="w = ___ ; h = ___">
+                                <small class="marketing-request-help">Specify size in inches, feet, or centimeters</small>
+                            </div>
+                        </section>
+                        <section class="marketing-request-card">
+                            <div class="form-group">
+                                <label for="project_deadline">Project Deadline <span class="required-asterisk">*</span></label>
+                                <input type="date" name="project_deadline" id="project_deadline" class="form-control" value="<?= htmlspecialchars((string) ($_POST['project_deadline'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                <small class="marketing-request-help" id="projectDeadlineHelp">Must be at least 3 working days from today.</small>
+                                <div class="marketing-request-error" id="projectDeadlineError"></div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <section class="marketing-request-card">
+                        <span class="marketing-request-card-title">Crop <span class="required-asterisk">*</span></span>
+                        <div class="marketing-request-option-list" id="cropGroup">
+                            <?php $selectedCrops = sales_request_clean_string_array($_POST['crop'] ?? []); ?>
+                            <?php foreach (['Rice', 'Lowland Vegetable', 'Upland Vegetable', 'Sugarcane', 'Corn', 'Mango'] as $cropOption): ?>
+                                <label class="marketing-request-option">
+                                    <input type="checkbox" name="crop[]" value="<?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($cropOption, $selectedCrops, true) ? 'checked' : ''; ?>>
+                                    <span><?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                            <div class="marketing-request-other-row" id="cropOtherRow">
+                                <label class="marketing-request-option">
+                                    <input type="checkbox" name="crop[]" value="Other" <?= in_array('Other', $selectedCrops, true) ? 'checked' : ''; ?>>
+                                    <span>Other:</span>
+                                </label>
+                                <input type="text" name="crop_other" id="crop_other" class="form-control" value="<?= htmlspecialchars((string) ($_POST['crop_other'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Please specify">
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </section>
             <div class="sss-benefits-group" id="sssBenefitsContainer">
                 <section class="sss-benefits-note">
                     <div class="sss-benefits-note-head">SSS Notification and Benefits Concern</div>
@@ -3536,6 +4208,26 @@ if (count($sapFormEntries) === 0) {
                 </div>
             </div>
 
+            <section class="email-request-group" id="emailRequestSection">
+                <h3 class="email-request-head">Email Request</h3>
+                <div class="email-request-list">
+                    <section class="email-request-card">
+                        <div class="form-group">
+                            <label for="email_request_type">Email Request Type <span class="required-asterisk">*</span></label>
+                            <div class="select-wrapper">
+                                <select name="email_request_type" id="email_request_type" class="form-control" data-selected="<?= htmlspecialchars((string) ($_POST['email_request_type'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                    <option value="" disabled selected hidden>Choose email request type</option>
+                                    <option value="creation of email" <?= (($_POST['email_request_type'] ?? '') === 'creation of email') ? 'selected' : ''; ?>>Creation of email</option>
+                                    <option value="forgot password" <?= (($_POST['email_request_type'] ?? '') === 'forgot password') ? 'selected' : ''; ?>>Forgot password</option>
+                                    <option value="backup of email" <?= (($_POST['email_request_type'] ?? '') === 'backup of email') ? 'selected' : ''; ?>>Backup of email</option>
+                                </select>
+                                <i class="fas fa-chevron-down select-icon"></i>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </section>
+
             <section class="other-request-section" id="otherDescriptionSection" style="display:block;">
                 <div class="other-request-section-body">
                     <div class="form-group" id="descriptionContainer">
@@ -3574,10 +4266,25 @@ if (count($sapFormEntries) === 0) {
     <?php endif; ?>
 </div>
 
+<div id="attachmentPreviewModal" class="attachment-preview-modal" aria-hidden="true">
+    <button type="button" class="attachment-preview-nav attachment-preview-prev" id="attachmentPreviewPrev" aria-label="Previous attachment"></button>
+    <button type="button" class="attachment-preview-nav attachment-preview-next" id="attachmentPreviewNext" aria-label="Next attachment"></button>
+    <div class="attachment-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="attachmentPreviewTitle">
+        <div class="attachment-preview-head">
+            <div class="attachment-preview-title">
+                <strong id="attachmentPreviewTitle">Attachment Preview</strong>
+                <span id="attachmentPreviewMeta"></span>
+            </div>
+            <button type="button" class="attachment-preview-close" id="attachmentPreviewClose" aria-label="Close attachment preview">x</button>
+        </div>
+        <div class="attachment-preview-body" id="attachmentPreviewBody"></div>
+    </div>
+</div>
+
 <div id="successModal" class="ticket-modal" aria-hidden="true">
     <div class="ticket-modal-content" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
         <div class="ticket-modal-spinner" aria-hidden="true"></div>
-        <div class="ticket-modal-icon success" id="ticketModalSuccessIcon">âœ“</div>
+        <div class="ticket-modal-icon success" id="ticketModalSuccessIcon"><i class="fas fa-check" aria-hidden="true"></i></div>
         <div class="ticket-modal-icon error" id="ticketModalErrorIcon">!</div>
         <h3 id="successModalTitle">Submitting Ticket</h3>
         <p id="successModalDesc">Almost there. We are finalizing your request...</p>
@@ -3640,8 +4347,27 @@ var sapSavedReportsHost = document.getElementById('sapSavedReportsHost');
 var sapAddEmployeeBtn = document.getElementById('sapAddEmployeeBtn');
 var sapEmployeeSwitcher = document.getElementById('sapEmployeeSwitcher');
 var sapRequestCounter = document.getElementById('sapRequestCounter');
+var emailRequestSection = document.getElementById('emailRequestSection');
+var emailRequestTypeSelect = document.getElementById('email_request_type');
+var marketingRequestSection = document.getElementById('marketingRequestSection');
+var projectNameInput = document.getElementById('project_name');
+var areaCodeSelect = document.getElementById('area_code');
+var marketingDepartmentSelect = document.getElementById('marketing_department');
+var requestedMaterialsInputs = Array.from(document.querySelectorAll('input[name="requested_materials[]"]'));
+var requestedMaterialsOtherRow = document.getElementById('requestedMaterialsOtherRow');
+var requestedMaterialsOtherInput = document.getElementById('requested_materials_other');
+var materialSizeInput = document.getElementById('material_size');
+var projectDeadlineInput = document.getElementById('project_deadline');
+var projectDeadlineHelp = document.getElementById('projectDeadlineHelp');
+var projectDeadlineError = document.getElementById('projectDeadlineError');
+var cropInputs = Array.from(document.querySelectorAll('input[name="crop[]"]'));
+var cropOtherRow = document.getElementById('cropOtherRow');
+var cropOtherInput = document.getElementById('crop_other');
 var otherRequestDetailsSection = document.getElementById('otherRequestDetailsSection');
 var otherDescriptionSection = document.getElementById('otherDescriptionSection');
+var otherDescriptionSectionBody = otherDescriptionSection ? otherDescriptionSection.querySelector('.other-request-section-body') : null;
+var kamiContinuationHost = document.getElementById('kamiContinuationHost');
+var otherRequestContinuationHost = document.getElementById('otherRequestContinuationHost');
 var requestSubjectLabel = document.getElementById('requestSubjectLabel');
 var descriptionLabel = document.getElementById('descriptionLabel');
 var sssBenefitsContainer = document.getElementById('sssBenefitsContainer');
@@ -3656,6 +4382,7 @@ var attachmentRequiredAsterisk = document.getElementById('attachmentRequiredAste
 var attachmentHelpText = document.getElementById('attachmentHelpText');
 var chooseFileBtnText = document.getElementById('chooseFileBtnText');
 var ajaxErrorBanner = document.getElementById('ajaxError');
+var priorityLabel = priorityGroup ? priorityGroup.querySelector('label') : null;
 var lapcDepartments = <?= json_encode(array_values($lapcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var defaultCategories = <?= json_encode($defaultCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var mpdcCategories = <?= json_encode($mpdcCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
@@ -3694,6 +4421,30 @@ function getCurrentSapReportValues() {
         company: String((getSapField('company') || {}).value || '').trim(),
         department: String((departmentInput && departmentInput.value) || '').trim()
     };
+}
+
+function getFirstIncompleteCurrentSapField() {
+    var currentCard = getCurrentSapCard();
+    if (!currentCard) return null;
+    var fieldOrder = ['name', 'position', 'immediate_head', 'company'];
+    for (var index = 0; index < fieldOrder.length; index += 1) {
+        var input = currentCard.querySelector('[data-sap-field="' + fieldOrder[index] + '"]');
+        if (input && !String(input.value || '').trim()) {
+            return input;
+        }
+    }
+    var companyInput = currentCard.querySelector('[data-sap-field="company"]');
+    var departmentInput = currentCard.querySelector('[data-sap-field="department"]');
+    if (
+        companyInput
+        && String(companyInput.value || '') === '@leadsagri.com'
+        && departmentInput
+        && !departmentInput.disabled
+        && !String(departmentInput.value || '').trim()
+    ) {
+        return departmentInput;
+    }
+    return null;
 }
 
 function getSapCardDisplayName(report, index) {
@@ -3832,11 +4583,13 @@ function initializeSavedSapReportsFromDom() {
 }
 
 function saveCurrentSapEmployee() {
-    var report = getCurrentSapReportValues();
-    if (!report.name || !report.position || !report.immediate_head || !report.company || (report.company === '@leadsagri.com' && !report.department)) {
+    var incompleteField = getFirstIncompleteCurrentSapField();
+    if (incompleteField) {
         setInlineFormError('Please complete the current SAP employee report before adding another employee.');
+        try { incompleteField.focus(); } catch (focusError) {}
         return false;
     }
+    var report = getCurrentSapReportValues();
     savedSapReports.push(report);
     renderSavedSapReports();
     clearCurrentSapForm();
@@ -3948,9 +4701,11 @@ function togglePriorityField() {
     if (!priorityGroup || !prioritySelect || !recipient) return;
     var recipientValue = String(recipient.value || '');
     var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
-    var shouldShow = isLapcRecipientValue(recipientValue) && departmentValue === 'HR';
+    var isMarketing = isLapcRecipientValue(recipientValue) && departmentValue === 'Marketing';
+    var shouldShow = isLapcRecipientValue(recipientValue) && (departmentValue === 'HR' || isMarketing);
 
     if (shouldShow) {
+        setPriorityOptions(isMarketing ? 'marketing' : 'hr');
         priorityGroup.classList.remove('hidden');
         prioritySelect.disabled = false;
         prioritySelect.setAttribute('required', 'true');
@@ -3975,6 +4730,61 @@ function isLapcItSelection() {
     return isLapcRecipientValue(recipientValue) && departmentValue === 'IT';
 }
 
+function isLapcMarketingSelection() {
+    var recipientValue = recipient ? String(recipient.value || '') : '';
+    var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
+    return isLapcRecipientValue(recipientValue) && departmentValue === 'Marketing';
+}
+
+function setPriorityOptions(mode) {
+    if (!prioritySelect) return;
+    var modeKey = String(mode || 'hr');
+    var desired = modeKey === 'marketing'
+        ? [
+            { value: '', text: 'Choose urgency level' },
+            { value: '1', text: '1' },
+            { value: '2', text: '2' },
+            { value: '3', text: '3' }
+        ]
+        : [
+            { value: '', text: 'Choose level of urgency' },
+            { value: 'Low', text: 'Low - General Inquiry' },
+            { value: 'Medium', text: 'Medium - Needs action within a few days' },
+            { value: 'High', text: 'High - Time-sensitive or urgent' }
+        ];
+    var currentSignature = Array.from(prioritySelect.options).map(function(option) {
+        return String(option.value || '') + ':' + String(option.textContent || '');
+    }).join('|');
+    var nextSignature = desired.map(function(option) {
+        return String(option.value || '') + ':' + String(option.text || '');
+    }).join('|');
+    if (currentSignature !== nextSignature) {
+        var selectedValue = String(prioritySelect.getAttribute('data-selected') || prioritySelect.value || '');
+        prioritySelect.innerHTML = '';
+        desired.forEach(function(optionConfig, index) {
+            var option = document.createElement('option');
+            option.value = optionConfig.value;
+            option.textContent = optionConfig.text;
+            if (index === 0) {
+                option.disabled = true;
+                option.hidden = true;
+                option.selected = true;
+            }
+            prioritySelect.appendChild(option);
+        });
+        prioritySelect.value = selectedValue;
+        if (prioritySelect.value !== selectedValue) {
+            prioritySelect.value = '';
+        }
+    }
+    prioritySelect.setAttribute('data-selected', '');
+    if (priorityLabel) {
+        priorityLabel.innerHTML = modeKey === 'marketing'
+            ? 'Urgency Level <span class="required-asterisk">*</span>'
+            : 'Level of Urgency <span class="required-asterisk">*</span>';
+    }
+}
+
 function setInlineFormError(message) {
     if (!ajaxErrorBanner) return;
     if (!message) {
@@ -3989,6 +4799,101 @@ function setInlineFormError(message) {
         ajaxErrorBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
         try { ajaxErrorBanner.focus({ preventScroll: true }); } catch (e) {}
     });
+}
+
+function formatIsoDate(date) {
+    var year = date.getFullYear();
+    var month = String(date.getMonth() + 1).padStart(2, '0');
+    var day = String(date.getDate()).padStart(2, '0');
+    return year + '-' + month + '-' + day;
+}
+
+function addWorkingDays(startDate, workingDays) {
+    var next = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    var count = 0;
+    while (count < workingDays) {
+        next.setDate(next.getDate() + 1);
+        var day = next.getDay();
+        if (day !== 0 && day !== 6) {
+            count++;
+        }
+    }
+    return next;
+}
+
+function workingDaysFromToday(deadlineValue) {
+    if (!deadlineValue) return -1;
+    var parts = String(deadlineValue).split('-').map(function(part) { return parseInt(part, 10); });
+    if (parts.length !== 3 || parts.some(function(part) { return !isFinite(part); })) return -1;
+    var target = new Date(parts[0], parts[1] - 1, parts[2]);
+    var today = new Date();
+    var cursor = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    if (target <= cursor) return 0;
+    var days = 0;
+    while (cursor < target) {
+        cursor.setDate(cursor.getDate() + 1);
+        var day = cursor.getDay();
+        if (day !== 0 && day !== 6) {
+            days++;
+        }
+    }
+    return days;
+}
+
+function validateProjectDeadline(showMessage) {
+    if (!projectDeadlineInput) return true;
+    var value = String(projectDeadlineInput.value || '');
+    var minimumDate = addWorkingDays(new Date(), 3);
+    var minimumIso = formatIsoDate(minimumDate);
+    projectDeadlineInput.min = minimumIso;
+    if (projectDeadlineHelp) {
+        projectDeadlineHelp.textContent = 'Must be at least 3 working days from today. Earliest valid date is ' + minimumDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) + '.';
+    }
+    var message = '';
+    if (value !== '') {
+        var parts = value.split('-').map(function(part) { return parseInt(part, 10); });
+        var target = parts.length === 3 ? new Date(parts[0], parts[1] - 1, parts[2]) : null;
+        var day = target ? target.getDay() : -1;
+        if (!target || !isFinite(target.getTime())) {
+            message = 'Please select a valid project deadline.';
+        } else if (day === 0 || day === 6 || workingDaysFromToday(value) < 3) {
+            message = 'Project Deadline must be at least 3 working days from today. Earliest valid date is ' + minimumDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) + '.';
+        }
+    }
+    if (projectDeadlineError) {
+        projectDeadlineError.textContent = message;
+        projectDeadlineError.classList.toggle('is-visible', message !== '' && showMessage !== false);
+    }
+    return message === '';
+}
+
+function syncMarketingOtherInputs() {
+    var requestedOtherSelected = requestedMaterialsInputs.some(function(input) {
+        return input.checked && input.value === 'Other';
+    });
+    var cropOtherSelected = cropInputs.some(function(input) {
+        return input.checked && input.value === 'Other';
+    });
+    if (requestedMaterialsOtherRow) {
+        requestedMaterialsOtherRow.classList.toggle('is-visible', requestedOtherSelected);
+    }
+    if (requestedMaterialsOtherInput) {
+        if (requestedOtherSelected) requestedMaterialsOtherInput.setAttribute('required', 'required');
+        else {
+            requestedMaterialsOtherInput.removeAttribute('required');
+            requestedMaterialsOtherInput.value = '';
+        }
+    }
+    if (cropOtherRow) {
+        cropOtherRow.classList.toggle('is-visible', cropOtherSelected);
+    }
+    if (cropOtherInput) {
+        if (cropOtherSelected) cropOtherInput.setAttribute('required', 'required');
+        else {
+            cropOtherInput.removeAttribute('required');
+            cropOtherInput.value = '';
+        }
+    }
 }
 
 function setSssUploadError(config, message) {
@@ -4067,13 +4972,7 @@ function removeSssUploadFile(config, index) {
 function openSssUploadPreview(file) {
     if (!file) return;
     var previewUrl = URL.createObjectURL(file);
-    var previewWindow = window.open(previewUrl, '_blank');
-    if (!previewWindow) {
-        window.location.href = previewUrl;
-    }
-    window.setTimeout(function() {
-        try { URL.revokeObjectURL(previewUrl); } catch (e) {}
-    }, 60000);
+    openInlineAttachmentPreview(file, previewUrl, true);
 }
 
 function mergeSssUploadFiles(config, incomingFiles) {
@@ -4113,28 +5012,47 @@ function moveAttachmentContainer(targetHost) {
     }
 }
 
+function moveDescriptionContainer(targetHost) {
+    if (!descriptionContainer || !targetHost) return;
+    if (descriptionContainer.parentNode !== targetHost) {
+        targetHost.appendChild(descriptionContainer);
+    }
+}
+
+function restoreDescriptionContainer() {
+    if (!descriptionContainer || !otherDescriptionSectionBody) return;
+    if (descriptionContainer.parentNode !== otherDescriptionSectionBody) {
+        otherDescriptionSectionBody.insertBefore(descriptionContainer, attachmentOriginalHost || null);
+    }
+}
+
 function syncAttachmentCopy(mode) {
     var modeKey = String(mode || 'default');
     if (attachmentLabelText) {
-        attachmentLabelText.textContent = (modeKey === 'kami' || modeKey === 'medical') ? 'Supporting Information' : 'Attachment';
+        attachmentLabelText.textContent = modeKey === 'marketing'
+            ? 'Attach File'
+            : ((modeKey === 'kami' || modeKey === 'medical') ? 'Supporting Information' : 'Attachment');
     }
     if (attachmentHelpText) {
-        attachmentHelpText.textContent = modeKey === 'kami'
+        attachmentHelpText.textContent = modeKey === 'marketing'
+            ? 'Supported formats: JPG, PNG, PDF, DOCX (Max 5 files)'
+            : (modeKey === 'kami'
             ? 'Upload up to 5 supported files. Max 10 MB per file.'
             : (modeKey === 'medical'
                 ? 'Please upload any medical document relevant to your request. Supported formats: JPG, PNG, PDF, DOCX (Max 5 files).'
-                : 'Supported formats: JPG, PNG, PDF, DOCX (Max 5 files)');
+                : 'Supported formats: JPG, PNG, PDF, DOCX (Max 5 files)'));
     }
     if (medicalCashAttachmentIntro) {
         medicalCashAttachmentIntro.style.display = modeKey === 'medical' ? 'block' : 'none';
     }
     if (chooseFileBtnText) {
-        chooseFileBtnText.textContent = (modeKey === 'kami' || modeKey === 'medical') ? 'Add file' : 'Choose File';
+        chooseFileBtnText.textContent = (modeKey === 'kami' || modeKey === 'medical' || modeKey === 'marketing') ? 'Add file' : 'Choose File';
     }
 }
 
 function toggleHrExtraFields() {
     var shouldShow = isLapcHrSelection();
+    var shouldShowMarketingRequest = isLapcMarketingSelection();
     var selectedCategory = categorySelect ? String(categorySelect.value || '') : '';
     var shouldShowConcernType = shouldShow && selectedCategory === 'Attendance & Timekeeping';
     var shouldShowConcernTypeOther = shouldShowConcernType && concernTypeSelect && String(concernTypeSelect.value || '') === 'Other';
@@ -4146,6 +5064,7 @@ function toggleHrExtraFields() {
     var shouldShowCompanyPropertyRequest = shouldShow && selectedCategory === 'Request for Company Property';
     var shouldShowCoeRequest = shouldShow && selectedCategory === 'Certificate of Employment';
     var shouldShowColRequest = shouldShow && selectedCategory === 'Certificate of Leave';
+    var shouldShowEmailRequest = isLapcItSelection() && selectedCategory === 'Email';
     var shouldShowSapRequest = isLapcItSelection() && selectedCategory === 'SAP';
     var shouldRequireKamiAttachment = shouldShowConcernType;
     var shouldRequireMedicalAttachment = shouldShowMedicalCashAdvance;
@@ -4157,7 +5076,9 @@ function toggleHrExtraFields() {
     document.body.classList.toggle('company-property-section-active', shouldShowCompanyPropertyRequest);
     document.body.classList.toggle('coe-request-section-active', shouldShowCoeRequest);
     document.body.classList.toggle('col-request-section-active', shouldShowColRequest);
+    document.body.classList.toggle('email-request-section-active', shouldShowEmailRequest);
     document.body.classList.toggle('sap-request-section-active', shouldShowSapRequest);
+    document.body.classList.toggle('marketing-request-section-active', shouldShowMarketingRequest);
 
     togglePriorityField();
 
@@ -4168,16 +5089,20 @@ function toggleHrExtraFields() {
     if (coeRequestSection) coeRequestSection.classList.toggle('is-visible', shouldShowCoeRequest);
     if (colRequestSection) colRequestSection.classList.toggle('is-visible', shouldShowColRequest);
     var shouldShowCertificateLeavePurposeOther = shouldShowColRequest && certificateLeavePurposeSelect && String(certificateLeavePurposeSelect.value || '') === 'Others';
+    if (emailRequestSection) emailRequestSection.classList.toggle('is-visible', shouldShowEmailRequest);
     if (sapRequestSection) sapRequestSection.classList.toggle('is-visible', shouldShowSapRequest);
+    if (marketingRequestSection) marketingRequestSection.classList.toggle('is-visible', shouldShowMarketingRequest);
     if (concernTypeContainer) concernTypeContainer.classList.toggle('is-visible', shouldShowConcernType);
     if (concernTypeOtherContainer) concernTypeOtherContainer.classList.toggle('is-visible', shouldShowConcernTypeOther);
     if (leaveSubjectContainer) leaveSubjectContainer.classList.toggle('is-visible', shouldShowLeaveSubject);
     if (otherRequestDetailsSection) otherRequestDetailsSection.style.display = shouldShowLeaveSubject ? '' : 'none';
     if (requestSubjectLabel) requestSubjectLabel.innerHTML = 'Subject/Title of Request <span class="required-asterisk">*</span>';
     if (descriptionLabel) {
-        descriptionLabel.innerHTML = shouldShowOtherDetailsStyle
-            ? 'Detailed Description of Request or Concern <span class="required-asterisk">*</span>'
-            : 'Description <span class="required-asterisk">*</span>';
+        descriptionLabel.innerHTML = shouldShowMarketingRequest
+            ? 'Brief Description of Request <span class="required-asterisk">*</span>'
+            : (shouldShowOtherDetailsStyle
+                ? 'Detailed Description of Request or Concern <span class="required-asterisk">*</span>'
+                : 'Description <span class="required-asterisk">*</span>');
     }
     if (sssBenefitsContainer) sssBenefitsContainer.classList.toggle('is-visible', shouldShowSssBenefits);
 
@@ -4188,8 +5113,9 @@ function toggleHrExtraFields() {
     if (attachmentInput) attachmentInput.disabled = shouldShowSssBenefits;
     if (chooseBtn) chooseBtn.disabled = shouldShowSssBenefits;
     if (attachmentOptionalText) attachmentOptionalText.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment) ? 'none' : '';
+    if (attachmentOptionalText && shouldShowMarketingRequest) attachmentOptionalText.style.display = 'none';
     if (attachmentRequiredAsterisk) attachmentRequiredAsterisk.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment) ? '' : 'none';
-    syncAttachmentCopy(shouldShowMedicalCashAdvance ? 'medical' : (shouldRequireKamiAttachment ? 'kami' : 'default'));
+    syncAttachmentCopy(shouldShowMarketingRequest ? 'marketing' : (shouldShowMedicalCashAdvance ? 'medical' : (shouldRequireKamiAttachment ? 'kami' : 'default')));
 
     if (concernTypeSelect) {
         if (shouldShowConcernType) {
@@ -4285,10 +5211,40 @@ function toggleHrExtraFields() {
         });
         syncSapDepartmentVisibility(getCurrentSapCard());
     }
+    if (emailRequestTypeSelect) {
+        if (shouldShowEmailRequest) {
+            emailRequestTypeSelect.disabled = false;
+            emailRequestTypeSelect.setAttribute('required', 'required');
+        } else {
+            emailRequestTypeSelect.disabled = true;
+            emailRequestTypeSelect.removeAttribute('required');
+            emailRequestTypeSelect.value = '';
+        }
+    }
     if (coeRequestReasonOtherInput) {
         var otherCoeSelected = coeRequestReasonInputs.some(function(input) { return input.checked && input.value === 'Other'; });
         if (shouldShowCoeRequest && otherCoeSelected) coeRequestReasonOtherInput.setAttribute('required', 'required');
         else coeRequestReasonOtherInput.removeAttribute('required');
+    }
+    [projectNameInput, areaCodeSelect, marketingDepartmentSelect, materialSizeInput, projectDeadlineInput].forEach(function(input) {
+        if (!input) return;
+        if (shouldShowMarketingRequest) input.setAttribute('required', 'required');
+        else input.removeAttribute('required');
+    });
+    requestedMaterialsInputs.forEach(function(input) {
+        input.disabled = !shouldShowMarketingRequest;
+    });
+    cropInputs.forEach(function(input) {
+        input.disabled = !shouldShowMarketingRequest;
+    });
+    if (projectDeadlineInput) {
+        projectDeadlineInput.disabled = !shouldShowMarketingRequest;
+        validateProjectDeadline(false);
+    }
+    syncMarketingOtherInputs();
+    if (!shouldShowMarketingRequest) {
+        if (requestedMaterialsOtherInput) requestedMaterialsOtherInput.removeAttribute('required');
+        if (cropOtherInput) cropOtherInput.removeAttribute('required');
     }
 
     sssUploadConfigs.forEach(function(config) {
@@ -4316,8 +5272,22 @@ function toggleHrExtraFields() {
         }
     }
 
+    if (shouldShowConcernType && kamiContinuationHost) {
+        moveDescriptionContainer(kamiContinuationHost);
+        moveAttachmentContainer(kamiContinuationHost);
+    } else if (shouldShowOtherDetailsStyle && otherRequestContinuationHost) {
+        moveDescriptionContainer(otherRequestContinuationHost);
+        moveAttachmentContainer(otherRequestContinuationHost);
+    } else {
+        restoreDescriptionContainer();
+    }
+
     if (shouldShowMedicalCashAdvance && medicalCashAttachmentHost) {
         moveAttachmentContainer(medicalCashAttachmentHost);
+    } else if (shouldShowConcernType && kamiContinuationHost) {
+        moveAttachmentContainer(kamiContinuationHost);
+    } else if (shouldShowOtherDetailsStyle && otherRequestContinuationHost) {
+        moveAttachmentContainer(otherRequestContinuationHost);
     } else if (attachmentOriginalHost) {
         moveAttachmentContainer(attachmentOriginalHost);
     }
@@ -4342,6 +5312,21 @@ if (concernTypeSelect) concernTypeSelect.addEventListener('change', function() {
 if (certificateLeavePurposeSelect) certificateLeavePurposeSelect.addEventListener('change', function() {
     toggleHrExtraFields();
 });
+requestedMaterialsInputs.forEach(function(input) {
+    input.addEventListener('change', function() {
+        syncMarketingOtherInputs();
+    });
+});
+cropInputs.forEach(function(input) {
+    input.addEventListener('change', function() {
+        syncMarketingOtherInputs();
+    });
+});
+if (projectDeadlineInput) {
+    projectDeadlineInput.addEventListener('change', function() {
+        validateProjectDeadline(true);
+    });
+}
 toggleDepartmentField();
 toggleCategoryField();
 toggleHrExtraFields();
@@ -4349,7 +5334,13 @@ initializeSavedSapReportsFromDom();
 syncSapCardState();
 
 if (sapAddEmployeeBtn) {
-    sapAddEmployeeBtn.addEventListener('click', function() {
+    sapAddEmployeeBtn.addEventListener('click', function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (getFirstIncompleteCurrentSapField()) {
+            saveCurrentSapEmployee();
+            return;
+        }
         addSapCard();
     });
 }
@@ -4414,8 +5405,20 @@ var fileNameEl = document.getElementById('file-name');
 var preview = document.getElementById('attachment-preview');
 var errorEl = document.getElementById('attachment-error');
 var toastEl = document.getElementById('attachment-toast');
+var attachmentPreviewModal = document.getElementById('attachmentPreviewModal');
+var attachmentPreviewBody = document.getElementById('attachmentPreviewBody');
+var attachmentPreviewTitle = document.getElementById('attachmentPreviewTitle');
+var attachmentPreviewMeta = document.getElementById('attachmentPreviewMeta');
+var attachmentPreviewClose = document.getElementById('attachmentPreviewClose');
+var attachmentPreviewPrev = document.getElementById('attachmentPreviewPrev');
+var attachmentPreviewNext = document.getElementById('attachmentPreviewNext');
 var dt = new DataTransfer();
 var objectUrls = [];
+var normalAttachmentPreviewItems = [];
+var activeAttachmentPreviewItems = [];
+var activeAttachmentPreviewIndex = -1;
+var activeAttachmentPreviewUrl = '';
+var activeAttachmentPreviewIsTemporary = false;
 var MAX_BYTES = 5 * 1024 * 1024;
 var MAX_FILES = 5;
 var ALLOWED_EXT = ['jpg','jpeg','png','pdf','doc','docx'];
@@ -4430,6 +5433,7 @@ if (chooseBtn) {
 }
 
 function clearObjectUrls() {
+    closeInlineAttachmentPreview();
     while (objectUrls.length) {
         try { URL.revokeObjectURL(objectUrls.pop()); } catch (e) {}
     }
@@ -4445,6 +5449,146 @@ function formatSize(bytes) {
     return (Math.round(mb * 10) / 10) + ' MB';
 }
 
+function getAttachmentPreviewKind(file) {
+    var ext = getExt(file && file.name);
+    var type = String((file && file.type) || '').toLowerCase();
+    if (type.indexOf('image/') === 0 || ['jpg', 'jpeg', 'png'].indexOf(ext) !== -1) {
+        return 'image';
+    }
+    if (type === 'application/pdf' || ext === 'pdf') {
+        return 'pdf';
+    }
+    return 'unsupported';
+}
+
+function closeInlineAttachmentPreview() {
+    if (attachmentPreviewModal) {
+        attachmentPreviewModal.classList.remove('is-visible');
+        attachmentPreviewModal.setAttribute('aria-hidden', 'true');
+    }
+    if (attachmentPreviewBody) {
+        attachmentPreviewBody.innerHTML = '';
+    }
+    if (activeAttachmentPreviewIsTemporary && activeAttachmentPreviewUrl) {
+        try { URL.revokeObjectURL(activeAttachmentPreviewUrl); } catch (e) {}
+    }
+    activeAttachmentPreviewUrl = '';
+    activeAttachmentPreviewIsTemporary = false;
+    activeAttachmentPreviewItems = [];
+    activeAttachmentPreviewIndex = -1;
+}
+
+function updateAttachmentPreviewNav() {
+    var hasMultipleFiles = activeAttachmentPreviewItems.length > 1;
+    if (attachmentPreviewPrev) {
+        attachmentPreviewPrev.disabled = !hasMultipleFiles;
+    }
+    if (attachmentPreviewNext) {
+        attachmentPreviewNext.disabled = !hasMultipleFiles;
+    }
+}
+
+function openInlineAttachmentPreview(file, url, isTemporaryUrl, galleryItems, galleryIndex) {
+    if (!attachmentPreviewModal || !attachmentPreviewBody || !url) return;
+    closeInlineAttachmentPreview();
+
+    activeAttachmentPreviewUrl = url;
+    activeAttachmentPreviewIsTemporary = !!isTemporaryUrl;
+    activeAttachmentPreviewItems = Array.isArray(galleryItems) ? galleryItems : [];
+    activeAttachmentPreviewIndex = Number.isInteger(galleryIndex) ? galleryIndex : -1;
+
+    if (attachmentPreviewTitle) {
+        attachmentPreviewTitle.textContent = (file && file.name) ? file.name : 'Attachment Preview';
+    }
+    if (attachmentPreviewMeta) {
+        var metaText = file ? formatSize(file.size || 0) : '';
+        if (activeAttachmentPreviewItems.length > 1 && activeAttachmentPreviewIndex >= 0) {
+            metaText += ' - ' + (activeAttachmentPreviewIndex + 1) + ' of ' + activeAttachmentPreviewItems.length;
+        }
+        attachmentPreviewMeta.textContent = metaText;
+    }
+
+    var kind = getAttachmentPreviewKind(file);
+    if (kind === 'image') {
+        var img = document.createElement('img');
+        img.src = url;
+        img.alt = (file && file.name) ? file.name : 'Attachment preview';
+        attachmentPreviewBody.appendChild(img);
+    } else if (kind === 'pdf') {
+        var frame = document.createElement('iframe');
+        frame.src = url;
+        frame.title = (file && file.name) ? file.name : 'Attachment preview';
+        attachmentPreviewBody.appendChild(frame);
+    } else {
+        var message = document.createElement('div');
+        message.className = 'attachment-preview-unavailable';
+        message.textContent = 'Preview is not available for this file type, but it remains attached to this ticket.';
+        attachmentPreviewBody.appendChild(message);
+    }
+
+    attachmentPreviewModal.classList.add('is-visible');
+    attachmentPreviewModal.setAttribute('aria-hidden', 'false');
+    updateAttachmentPreviewNav();
+}
+
+function openAttachmentPreviewAt(index) {
+    if (!activeAttachmentPreviewItems.length) return;
+    var nextIndex = (index + activeAttachmentPreviewItems.length) % activeAttachmentPreviewItems.length;
+    var item = activeAttachmentPreviewItems[nextIndex];
+    if (!item || !item.url) return;
+    openInlineAttachmentPreview(item.file, item.url, false, activeAttachmentPreviewItems, nextIndex);
+}
+
+function openNormalAttachmentPreviewAt(index) {
+    if (!normalAttachmentPreviewItems.length) return;
+    var item = normalAttachmentPreviewItems[index];
+    if (!item || !item.url) return;
+    openInlineAttachmentPreview(item.file, item.url, false, normalAttachmentPreviewItems, index);
+}
+
+function showPreviousAttachmentPreview() {
+    if (activeAttachmentPreviewIndex < 0) return;
+    openAttachmentPreviewAt(activeAttachmentPreviewIndex - 1);
+}
+
+function showNextAttachmentPreview() {
+    if (activeAttachmentPreviewIndex < 0) return;
+    openAttachmentPreviewAt(activeAttachmentPreviewIndex + 1);
+}
+
+if (attachmentPreviewClose) {
+    attachmentPreviewClose.addEventListener('click', closeInlineAttachmentPreview);
+}
+if (attachmentPreviewPrev) {
+    attachmentPreviewPrev.addEventListener('click', function(event) {
+        event.stopPropagation();
+        showPreviousAttachmentPreview();
+    });
+}
+if (attachmentPreviewNext) {
+    attachmentPreviewNext.addEventListener('click', function(event) {
+        event.stopPropagation();
+        showNextAttachmentPreview();
+    });
+}
+if (attachmentPreviewModal) {
+    attachmentPreviewModal.addEventListener('click', function(event) {
+        if (event.target === attachmentPreviewModal) {
+            closeInlineAttachmentPreview();
+        }
+    });
+}
+document.addEventListener('keydown', function(event) {
+    if (!attachmentPreviewModal || !attachmentPreviewModal.classList.contains('is-visible')) return;
+    if (event.key === 'Escape') {
+        closeInlineAttachmentPreview();
+    } else if (event.key === 'ArrowLeft') {
+        showPreviousAttachmentPreview();
+    } else if (event.key === 'ArrowRight') {
+        showNextAttachmentPreview();
+    }
+});
+
 function syncFiles() {
     if (!attachmentInput) return;
     attachmentInput.files = dt.files;
@@ -4454,10 +5598,12 @@ function syncFiles() {
     }
     if (!preview) return;
     clearObjectUrls();
+    normalAttachmentPreviewItems = [];
     preview.innerHTML = '';
     Array.from(dt.files).forEach(function (file, idx) {
         var url = URL.createObjectURL(file);
         objectUrls.push(url);
+        normalAttachmentPreviewItems.push({ file: file, url: url });
 
         var row = document.createElement('div');
         row.style.display = 'flex';
@@ -4470,17 +5616,21 @@ function syncFiles() {
         row.style.background = '#f8fafc';
         row.style.marginBottom = '10px';
 
-        var left = document.createElement('a');
-        left.href = url;
-        left.target = '_blank';
-        left.rel = 'noopener';
+        var left = document.createElement('button');
+        left.type = 'button';
         left.style.display = 'flex';
         left.style.alignItems = 'center';
         left.style.gap = '10px';
         left.style.minWidth = '0';
         left.style.flex = '1 1 auto';
-        left.style.textDecoration = 'none';
+        left.style.padding = '0';
+        left.style.border = '0';
+        left.style.background = 'transparent';
+        left.style.textAlign = 'left';
         left.style.cursor = 'pointer';
+        left.addEventListener('click', function () {
+            openNormalAttachmentPreviewAt(idx);
+        });
 
         var icon = document.createElement('div');
         icon.style.width = '36px';
@@ -4733,6 +5883,7 @@ if (formEl) {
         var selectedCategory = categorySelect ? String(categorySelect.value || '') : '';
         var isLapcHrSelected = isLapcHrSelection();
         var isLapcItSelected = isLapcItSelection();
+        var isLapcMarketingSelected = isLapcMarketingSelection();
         var isKamiAttachmentRequired = isLapcHrSelected && selectedCategory === 'Attendance & Timekeeping';
         var isHrSssSelected = isLapcHrSelected && selectedCategory === 'SSS Sickness and Benefit Concern';
         var isHrMedicalCashAdvanceSelected = isLapcHrSelected && selectedCategory === 'Medical Cash Advance';
@@ -4749,6 +5900,67 @@ if (formEl) {
             e.preventDefault();
             setInlineFormError('Please choose the level of urgency.');
             return;
+        }
+        if (isLapcMarketingSelected) {
+            var hasRequestedMaterial = requestedMaterialsInputs.some(function(input) { return input.checked; });
+            var hasCrop = cropInputs.some(function(input) { return input.checked; });
+            var requestedOtherSelected = requestedMaterialsInputs.some(function(input) { return input.checked && input.value === 'Other'; });
+            var cropOtherSelected = cropInputs.some(function(input) { return input.checked && input.value === 'Other'; });
+            if (!String((projectNameInput && projectNameInput.value) || '').trim()) {
+                e.preventDefault();
+                setInlineFormError('Please enter the Project Name.');
+                return;
+            }
+            if (!String((areaCodeSelect && areaCodeSelect.value) || '').trim()) {
+                e.preventDefault();
+                setInlineFormError('Please choose the Area Code.');
+                return;
+            }
+            if (!String((marketingDepartmentSelect && marketingDepartmentSelect.value) || '').trim()) {
+                e.preventDefault();
+                setInlineFormError('Please choose the Department.');
+                return;
+            }
+            if (!hasRequestedMaterial) {
+                e.preventDefault();
+                setInlineFormError('Please choose at least one Requested Materials option.');
+                return;
+            }
+            if (requestedOtherSelected && requestedMaterialsOtherInput && !String(requestedMaterialsOtherInput.value || '').trim()) {
+                e.preventDefault();
+                setInlineFormError('Please specify the other requested material.');
+                return;
+            }
+            if (!String((materialSizeInput && materialSizeInput.value) || '').trim()) {
+                e.preventDefault();
+                setInlineFormError('Please enter the Size of Material.');
+                return;
+            }
+            if (!String((projectDeadlineInput && projectDeadlineInput.value) || '').trim() || !validateProjectDeadline(true)) {
+                e.preventDefault();
+                setInlineFormError('Project Deadline must be at least 3 working days from today.');
+                return;
+            }
+            if (!hasCrop) {
+                e.preventDefault();
+                setInlineFormError('Please choose at least one Crop option.');
+                return;
+            }
+            if (cropOtherSelected && cropOtherInput && !String(cropOtherInput.value || '').trim()) {
+                e.preventDefault();
+                setInlineFormError('Please specify the other crop.');
+                return;
+            }
+            if (descriptionFieldEl && !String(descriptionFieldEl.value || '').trim()) {
+                e.preventDefault();
+                setInlineFormError('Please enter the Brief Description of Request.');
+                return;
+            }
+            if (prioritySelect && !String(prioritySelect.value || '').trim()) {
+                e.preventDefault();
+                setInlineFormError('Please choose the Urgency Level.');
+                return;
+            }
         }
         if (isKamiAttachmentRequired && concernTypeSelect && !String(concernTypeSelect.value || '').trim()) {
             e.preventDefault();
@@ -4859,6 +6071,11 @@ if (formEl) {
                 setInlineFormError('Please complete the Certificate of Leave form.');
                 return;
             }
+        }
+        if (isLapcItSelected && selectedCategory === 'Email' && emailRequestTypeSelect && !String(emailRequestTypeSelect.value || '').trim()) {
+            e.preventDefault();
+            setInlineFormError('Please choose the email request type.');
+            return;
         }
         if (isLapcItSelected && selectedCategory === 'SAP') {
             var sapCards = getSapCards();
@@ -5002,6 +6219,10 @@ function closeModal(){
 
     function validateDescription() {
         if (!descriptionField) return true;
+        if (!descriptionField.hasAttribute('required')) {
+            descriptionField.setCustomValidity('');
+            return true;
+        }
         var value = String(descriptionField.value || '').trim();
         descriptionField.setCustomValidity(value === '' ? 'Description is required.' : '');
         return value !== '';
