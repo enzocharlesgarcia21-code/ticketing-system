@@ -55,6 +55,24 @@
       document.body.appendChild(imageModal);
     }
     ensureImagePreviewControls();
+
+    if (!qs('filePreviewModal')) {
+      var fileModal = document.createElement('div');
+      fileModal.id = 'filePreviewModal';
+      fileModal.className = 'file-preview-modal';
+      fileModal.innerHTML =
+        '<div class="file-preview-shell">' +
+        '  <div class="file-preview-head">' +
+        '    <div class="file-preview-title-wrap">' +
+        '      <div id="filePreviewTitle" class="file-preview-title">Attachment</div>' +
+        '      <a id="filePreviewDownload" class="file-preview-download" href="#" download><i class="fas fa-download"></i><span>Download</span></a>' +
+        '    </div>' +
+        '    <button type="button" class="file-preview-close" onclick="TMTicketModal.closeFilePreview()" aria-label="Close preview">X</button>' +
+        '  </div>' +
+        '  <iframe id="filePreviewFrame" class="file-preview-frame" src="" title="Attachment preview"></iframe>' +
+        '</div>';
+      document.body.appendChild(fileModal);
+    }
   }
   function getCsrfToken() {
     var meta = document.querySelector('meta[name="csrf-token"]');
@@ -381,7 +399,7 @@
     var isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
     if (!isImage) return '';
     var src = '../uploads/' + escapeHtml(filename);
-    return '<button type="button" class="tm-action-btn tm-view-btn" data-src="' + src + '" onclick="TMTicketModal.viewImage(this.dataset.src)">' +
+    return '<button type="button" class="tm-action-btn tm-view-btn" data-src="' + src + '" onclick="event.stopPropagation(); TMTicketModal.viewImage(this.dataset.src)">' +
            '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>' +
            'View</button>';
   }
@@ -396,7 +414,8 @@
       displayName = att.original_name || att.display_name || filename;
     }
     if (!filename) return '';
-    return '<div class="tm-attachment">' +
+    var src = '../uploads/' + encodeURIComponent(filename);
+    return '<div class="tm-attachment tm-attachment-clickable" data-src="' + escapeHtml(src) + '" data-name="' + escapeHtml(displayName) + '" onclick="TMTicketModal.openFilePreviewFromCard(this)">' +
            '  <div class="tm-att-icon">' +
            '    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>' +
            '  </div>' +
@@ -404,7 +423,7 @@
            '    <div class="tm-att-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</div>' +
            '    <div class="tm-att-actions">' +
            viewButtonIfImage(filename) +
-           '      <a href="../uploads/' + filename + '" class="tm-action-btn tm-download-btn" download>' +
+           '      <a href="' + escapeHtml(src) + '" class="tm-action-btn tm-download-btn" download onclick="event.stopPropagation()">' +
            '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>' +
            'Download</a>' +
            '    </div>' +
@@ -475,6 +494,7 @@
           (slides.length > 1
             ? '<div class="tm-hr-category-nav">' +
               '<button type="button" class="tm-hr-category-arrow" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', -1)">Previous</button>' +
+              '<span class="tm-hr-category-counter">' + String(index + 1) + ' of ' + String(slides.length) + '</span>' +
               '<button type="button" class="tm-hr-category-arrow primary" onclick="TMTicketModal.stepHrAttachmentCategory(\'' + carouselId + '\', 1)">Next</button>' +
               '</div>'
             : '') +
@@ -3493,6 +3513,38 @@
       }, 300);
     }
   }
+  function openFilePreview(src, name) {
+    ensureTicketModalExists();
+    var modal = qs('filePreviewModal');
+    var frame = qs('filePreviewFrame');
+    var title = qs('filePreviewTitle');
+    var download = qs('filePreviewDownload');
+    if (!modal || !frame) {
+      window.location.href = src;
+      return;
+    }
+    var fileName = String(name || '').trim() || String(src || '').split('/').pop() || 'Attachment';
+    if (title) title.textContent = fileName;
+    if (download) {
+      download.href = src;
+      download.setAttribute('download', fileName);
+    }
+    frame.src = src;
+    modal.classList.add('show');
+  }
+  function openFilePreviewFromCard(card) {
+    if (!card) return;
+    openFilePreview(card.getAttribute('data-src') || '', card.getAttribute('data-name') || '');
+  }
+  function closeFilePreview() {
+    var modal = qs('filePreviewModal');
+    var frame = qs('filePreviewFrame');
+    if (!modal) return;
+    modal.classList.remove('show');
+    setTimeout(function () {
+      if (frame) frame.src = '';
+    }, 250);
+  }
   return {
     open: open,
     close: close,
@@ -3510,6 +3562,9 @@
     viewImage: viewImage,
     stepImagePreview: stepImagePreview,
     closeImagePreview: closeImagePreview,
+    openFilePreview: openFilePreview,
+    openFilePreviewFromCard: openFilePreviewFromCard,
+    closeFilePreview: closeFilePreview,
     getCurrentTicketId: getCurrentTicketId
   };
 })(); 
