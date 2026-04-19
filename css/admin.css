@@ -161,9 +161,12 @@ body {
 }
 
 .admin-page-title {
-    font-size: 26px;
-    font-weight: 700;
+    font-size: 2.05rem;
+    font-weight: 600;
     color: var(--text-dark);
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin: 0;
 }
 
 .admin-page-subtitle {

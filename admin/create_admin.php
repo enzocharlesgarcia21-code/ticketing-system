@@ -370,9 +370,11 @@ $lapc_department_options = ticket_lapc_departments();
         }
         .admin-mgmt-header h1 {
             margin: 0;
-            font-size: 22px;
-            font-weight: 800;
-            color: #0f172a;
+            font-size: 2.05rem;
+            font-weight: 600;
+            color: #111827;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
         }
         .admin-mgmt-grid {
             display: grid;
@@ -605,11 +607,15 @@ $lapc_department_options = ticket_lapc_departments();
             display: flex;
             gap: 10px;
             flex: 0 0 auto;
+            align-items: center;
         }
         .users-company-inline {
             display: flex;
             gap: 10px;
             align-items: center;
+        }
+        .users-dept-filter.is-hidden {
+            display: none;
         }
         .users-table {
             width: 100%;
@@ -1225,17 +1231,17 @@ $lapc_department_options = ticket_lapc_departments();
                             <input type="text" class="search-input" id="usersSearch" placeholder="Search user...">
                         </div>
                         <div class="users-filters">
-                            <select class="domain-select" id="usersDept">
-                                <option value="all" selected>All Departments</option>
-                                <?php foreach ($lapc_department_options as $d): ?>
-                                    <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
                             <div class="users-company-inline">
                                 <select class="domain-select" id="usersCompany">
                                     <option value="all" selected>All Companies</option>
                                     <?php foreach ($company_domain_options as $opt => $label): ?>
                                         <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($label . ' (' . $opt . ')', ENT_QUOTES, 'UTF-8'); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <select class="domain-select users-dept-filter" id="usersDept">
+                                    <option value="all" selected>All Departments</option>
+                                    <?php foreach ($lapc_department_options as $d): ?>
+                                        <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                                 <button type="button" class="btn btn-auto" id="clearUsersFilters">Clear</button>
@@ -1729,6 +1735,7 @@ $lapc_department_options = ticket_lapc_departments();
         var companyEl = document.getElementById('usersCompany');
         if (!deptEl || !companyEl) return;
         var isLapc = companyEl.value === '@leadsagri.com';
+        deptEl.classList.toggle('is-hidden', !isLapc);
         deptEl.disabled = !isLapc;
         if (!isLapc) {
             deptEl.value = 'all';

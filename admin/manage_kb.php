@@ -330,10 +330,11 @@ unset($recent_articles_query['recent_page']);
         }
 
         .page-title {
-            font-size: 28px;
-            font-weight: 800;
-            color: #172033;
+            font-size: 2.05rem;
+            font-weight: 600;
+            color: #111827;
             letter-spacing: -0.03em;
+            line-height: 1.1;
             margin: 0;
         }
 

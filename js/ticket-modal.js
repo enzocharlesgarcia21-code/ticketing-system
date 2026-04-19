@@ -729,6 +729,7 @@
     while (text !== previous) {
       previous = text;
       text = text.replace(/\b([A-Za-z]+)\s+\1\b$/i, '$1').trim();
+      text = text.replace(/\b(Concerns?)\s+Concern\b$/i, '$1').trim();
     }
     return text || 'Ticket';
   }
@@ -1301,6 +1302,7 @@
   var lapcDeptOptions = [
     { value: 'Admin & Legal', label: 'Admin & Legal' },
     { value: 'Banana Farm Operations', label: 'Banana Farm Operations' },
+    { value: 'Bidding', label: 'Bidding' },
     { value: 'Diagnostics / Lingap', label: 'Diagnostics / Lingap' },
     { value: 'Digital Agri Solutions and Innovations', label: 'Digital Agri Solutions and Innovations' },
     { value: 'E-Commerce', label: 'E-Commerce' },

@@ -9,6 +9,80 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 ticket_apply_sla_priority($conn);
 
+function time_ago_days(string $dateTime): string
+{
+    $dateTime = trim($dateTime);
+    if ($dateTime === '') return '-';
+    try {
+        $created = new DateTimeImmutable($dateTime);
+    } catch (Throwable $e) {
+        return '-';
+    }
+    $now = new DateTimeImmutable('now');
+    $createdDay = $created->setTime(0, 0, 0);
+    $nowDay = $now->setTime(0, 0, 0);
+    $diff = $nowDay->diff($createdDay);
+    $days = (int) ($diff->days ?? 0);
+    if ($diff->invert !== 1) $days = 0;
+    if ($days <= 0) return 'Today';
+    return $created->format('M d, Y');
+}
+
+function sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+{
+    $statusKey = strtolower(trim($status));
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
+    $priorityKey = strtolower(trim($priority));
+    if ($priorityKey === 'critical') {
+        return '<span class="badge badge-critical">Breached</span>';
+    }
+    if ($priorityKey === 'high') {
+        return '<span class="badge badge-high">At Risk</span>';
+    }
+    if ($createdAt === '') return '-';
+    try {
+        $created = new DateTimeImmutable($createdAt);
+    } catch (Throwable $e) {
+        return '-';
+    }
+    $now = new DateTimeImmutable('now');
+    $createdDay = $created->setTime(0, 0, 0);
+    $nowDay = $now->setTime(0, 0, 0);
+    $diff = $nowDay->diff($createdDay);
+    $days = (int) ($diff->days ?? 0);
+    if ($diff->invert !== 1) $days = 0;
+
+    if ($days >= 7) {
+        return '<span class="badge badge-critical">Breached</span>';
+    }
+    if ($days >= 4) {
+        return '<span class="badge badge-high">At Risk</span>';
+    }
+    return '<span class="badge badge-low">On Track</span>';
+}
+
+function assigned_target_label(array $row): string
+{
+    $assignedCompany = ticket_normalize_company((string) (($row['assigned_company'] ?? '') !== '' ? $row['assigned_company'] : ($row['company'] ?? '')));
+    $assignedGroup = trim((string) (($row['assigned_group'] ?? '') !== '' ? $row['assigned_group'] : ($row['assigned_department'] ?? '')));
+    $assignedDept = trim((string) ($row['assigned_department'] ?? ''));
+
+    if ($assignedCompany !== '') {
+        $companyLabel = ticket_company_display_name($assignedCompany);
+        if ($assignedGroup !== '') {
+            return $assignedGroup . ($companyLabel !== '' ? " ($companyLabel)" : '');
+        }
+        if ($assignedDept !== '') {
+            return $assignedDept . ($companyLabel !== '' ? " ($companyLabel)" : '');
+        }
+        if ($companyLabel !== '') return $companyLabel;
+    }
+
+    if ($assignedGroup !== '') return $assignedGroup;
+    if ($assignedDept !== '') return $assignedDept;
+    return '-';
+}
+
 // Ensure email is in session (fix for existing sessions)
 if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
     $u_stmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
@@ -108,11 +182,16 @@ $recentRes = $conn->query("
         t.id,
         u.name AS requester_name,
         u.email AS requester_email,
-        t.department AS original_dept,
-        t.assigned_department AS assigned_dept,
+        t.department,
+        u.department AS user_department,
+        t.company,
+        t.assigned_company,
+        t.assigned_group,
+        t.assigned_department,
         t.priority,
         t.status,
-        t.created_at
+        t.created_at,
+        t.is_read
     FROM employee_tickets t
     JOIN users u ON t.user_id = u.id
     ORDER BY t.created_at DESC
@@ -131,63 +210,18 @@ if ($recentRes) {
 <head>
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         .admin-content{
             max-width: 1460px;
         }
 
-        .recent-tickets-card .card-header{
-            display:flex;
-            align-items:center;
-            justify-content:space-between;
-            gap:12px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .recent-tickets-card .card-header h3{
-            margin:0;
+        .recent-tickets-title{
+            margin: 0 0 12px;
             font-size: 1.05rem;
+            font-weight: 700;
             color: #0f172a;
-        }
-        .recent-tickets-card .card-menu{
-            color:#64748b;
-            cursor:pointer;
-            padding:6px 8px;
-            border-radius:8px;
-            transition: background-color .15s ease;
-        }
-        .recent-tickets-card .card-menu:hover{
-            background:#f1f5f9;
-        }
-        .card-body{
-            padding-top: 12px;
-        }
-        .recent-ticket-table, .recent-tickets-table{
-            width:100%;
-            border-collapse:collapse;
-        }
-        .recent-ticket-table th, .recent-tickets-table th{
-            text-align:left;
-            font-size:12px;
-            letter-spacing:.08em;
-            color:#166534;
-            padding:12px 14px;
-            border-bottom:2px solid #166534;
-            white-space:nowrap;
-            text-transform:uppercase;
-        }
-        .recent-ticket-table td, .recent-tickets-table td{
-            padding:16px 14px;
-            border-bottom:1px solid #f1f5f9;
-            color:#0f172a;
-            vertical-align:middle;
-        }
-        .recent-ticket-table tbody tr, .recent-tickets-table tbody tr{
-            transition:background-color .15s ease;
-        }
-        .recent-ticket-table tbody tr:hover, .recent-tickets-table tbody tr:hover{
-            background:#f8fafc;
         }
         .recent-ticket-link{
             color:#1B5E20;
@@ -196,6 +230,9 @@ if ($recentRes) {
         }
         .recent-ticket-link:hover{
             text-decoration:underline;
+        }
+        .recent-tickets-card .ticket-row{
+            cursor: pointer;
         }
         .create-ticket-btn{
             display:inline-flex;
@@ -216,63 +253,25 @@ if ($recentRes) {
             background:#166534;
             transform: translateY(-1px);
         }
-        .rt-priority, .rt-status{
-            display:inline-block;
-            padding:4px 10px;
-            border-radius:999px;
-            font-size:12px;
-            font-weight:700;
-            line-height:1;
-            white-space:nowrap;
-        }
-        .rt-priority-critical{ background:#fee2e2; color:#b91c1c; }
-        .rt-priority-high{ background:#ffe4e6; color:#be123c; }
-        .rt-priority-medium{ background:#ffedd5; color:#c2410c; }
-        .rt-priority-low{ background:#e2e8f0; color:#0f172a; }
-        .rt-priority-default{ background:#e2e8f0; color:#0f172a; }
-        .rt-status-open{ background:#fef9c3; color:#a16207; }
-        .rt-status-in-progress{ background:#dbeafe; color:#1d4ed8; }
-        .rt-status-resolved{ background:#dcfce7; color:#166534; }
-        .rt-status-closed{ background:#e2e8f0; color:#334155; }
-        .recent-tickets-table-wrap{
+        .recent-tickets-card.table-card .table-responsive{
             width:100%;
             overflow-x:auto;
         }
-        .rt-requester{
-            display:flex;
-            flex-direction:column;
-            gap:2px;
-            min-width: 260px;
+        .status-resolved {
+            background: #dbeafe !important;
+            border-color: #bfdbfe !important;
+            color: #1d4ed8 !important;
         }
-        .rt-requester-name{
-            font-weight:800;
-            color:#0f172a;
-            line-height:1.2;
+        .status-closed {
+            background: #f3f4f6 !important;
+            border-color: #e5e7eb !important;
+            color: #4b5563 !important;
         }
-        .rt-requester-email{
-            font-size:13px;
-            font-weight:600;
-            color:#64748b;
-            line-height:1.2;
-        }
-        .rt-new{
-            display:inline-flex;
-            align-items:center;
-            justify-content:center;
-            padding:4px 10px;
-            border-radius:999px;
-            background:#14532d;
-            color:#ffffff;
-            font-size:11px;
-            font-weight:900;
-            margin-left:8px;
-            line-height:1;
-        }
-        .recent-ticket-table, .recent-tickets-table{
+        .recent-tickets-card .admin-table{
             min-width: 1100px;
         }
         @media (max-width: 600px){
-            .recent-ticket-table, .recent-tickets-table{
+            .recent-tickets-card .admin-table{
                 min-width: 980px;
             }
         }
@@ -433,79 +432,81 @@ if ($recentRes) {
             </section>
 
             <section class="admin-analytics-section admin-analytics-full">
-                <div class="admin-card recent-tickets-card">
-                    <div class="card-header">
-                        <h3>Recent Tickets</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="recent-tickets-table-wrap">
-                            <table class="recent-ticket-table">
+                <h3 class="recent-tickets-title">Recent Tickets</h3>
+                <div class="admin-card table-card recent-tickets-card">
+                    <div class="table-responsive">
+                            <table class="admin-table">
                                 <thead>
                                     <tr>
                                         <th>ID</th>
                                         <th>Requested By</th>
-                                        <th>Original Dept</th>
-                                        <th>Assigned Dept</th>
                                         <th>Priority</th>
                                         <th>Status</th>
-                                        <th>Date</th>
+                                        <th>Department</th>
+                                        <th>Created</th>
+                                        <th>SLA</th>
+                                        <th>Assign To</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php if (count($recentTickets) > 0): ?>
                                         <?php foreach ($recentTickets as $t): ?>
-                                            <?php
-                                                $prioritySlug = strtolower((string) ($t['priority'] ?? ''));
-                                                if (!in_array($prioritySlug, ['critical', 'high', 'medium', 'low'], true)) {
-                                                    $prioritySlug = 'default';
-                                                }
+                                        <?php
+                                            $priorityValue = (string) ($t['priority'] ?? '-');
+                                            $prioritySlug = strtolower($priorityValue);
+                                            if (!in_array($prioritySlug, ['critical', 'high', 'medium', 'low'], true)) {
+                                                $prioritySlug = 'medium';
+                                            }
 
-                                                $statusSlug = strtolower((string) ($t['status'] ?? ''));
-                                                $statusSlug = str_replace(' ', '-', $statusSlug);
-                                                if (!in_array($statusSlug, ['open', 'in-progress', 'resolved', 'closed'], true)) {
-                                                    $statusSlug = 'resolved';
-                                                }
-                                                $createdAt = (string) ($t['created_at'] ?? '');
-                                                $dateLabel = $createdAt ? date('M j, Y', strtotime($createdAt)) : '-';
-                                            ?>
-                                            <tr>
-                                                <td>
+                                            $statusValue = (string) ($t['status'] ?? '-');
+                                            $statusSlug = strtolower(str_replace(' ', '-', $statusValue));
+                                            if (!in_array($statusSlug, ['open', 'in-progress', 'resolved', 'closed'], true)) {
+                                                $statusSlug = 'open';
+                                            }
+                                            $createdAt = (string) ($t['created_at'] ?? '');
+                                            $dateLabel = $createdAt ? date('M j, Y', strtotime($createdAt)) : '-';
+                                        ?>
+                                            <tr class="ticket-row" data-id="<?= (int) $t['id'] ?>" tabindex="0" role="link" aria-label="Open ticket #<?= str_pad((string) $t['id'], 6, '0', STR_PAD_LEFT) ?>">
+                                                <td data-label="ID">
                                                     <a class="recent-ticket-link" href="all_tickets.php?ticket_id=<?= (int) $t['id'] ?>">
                                                         #<?= str_pad((string) $t['id'], 6, '0', STR_PAD_LEFT) ?>
                                                     </a>
-                                                </td>
-                                                <td>
-                                                    <div class="rt-requester">
-                                                        <div class="rt-requester-name"><?= htmlspecialchars((string) ($t['requester_name'] ?? '-')) ?></div>
-                                                        <div class="rt-requester-email"><?= htmlspecialchars((string) ($t['requester_email'] ?? '')) ?></div>
+                                            </td>
+                                            <td data-label="Requested By">
+                                                    <div class="user-info">
+                                                        <strong><?= htmlspecialchars((string) ($t['requester_name'] ?? '-')) ?></strong><br>
+                                                        <small><?= htmlspecialchars((string) ($t['requester_email'] ?? '')) ?></small>
                                                     </div>
                                                 </td>
-                                                <td><?= htmlspecialchars((string) ($t['original_dept'] ?? '-')) ?></td>
-                                                <td><?= htmlspecialchars((string) ($t['assigned_dept'] ?? '-')) ?></td>
-                                                <td>
-                                                    <span class="rt-priority rt-priority-<?= htmlspecialchars($prioritySlug) ?>">
-                                                        <?= htmlspecialchars((string) ($t['priority'] ?? '-')) ?>
+                                                <td data-label="Priority">
+                                                    <span class="badge badge-<?= htmlspecialchars($prioritySlug) ?>">
+                                                        <?= htmlspecialchars($priorityValue) ?>
                                                     </span>
                                                 </td>
-                                                <td>
-                                                    <span class="rt-status rt-status-<?= htmlspecialchars($statusSlug) ?>">
-                                                        <?= htmlspecialchars((string) ($t['status'] ?? '-')) ?>
+                                                <td data-label="Status">
+                                                    <span class="status-<?= htmlspecialchars($statusSlug) ?>">
+                                                        <?= htmlspecialchars($statusValue) ?>
                                                     </span>
-                                                    <?php if ($statusSlug === 'open'): ?>
-                                                        <span class="rt-new">NEW</span>
+                                                    <?php if (!empty($t['is_read']) && (int) $t['is_read'] === 0): ?>
+                                                        <span class="new-badge">NEW</span>
                                                     <?php endif; ?>
                                                 </td>
-                                                <td><?= htmlspecialchars($dateLabel) ?></td>
+                                                <td data-label="Department"><?php
+                                                    $origDept = !empty($t['department']) ? $t['department'] : ($t['user_department'] ?? '');
+                                                    echo htmlspecialchars($origDept !== '' ? ticket_department_display_name((string) $origDept) : 'Sales');
+                                                ?></td>
+                                                <td data-label="Created"><?= htmlspecialchars(time_ago_days((string) ($t['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') ?></td>
+                                                <td data-label="SLA"><?= sla_badge_html((string) ($t['created_at'] ?? ''), (string) ($t['status'] ?? ''), (string) ($t['priority'] ?? '')); ?></td>
+                                                <td data-label="Assign To"><?= htmlspecialchars(assigned_target_label($t), ENT_QUOTES, 'UTF-8'); ?></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     <?php else: ?>
                                         <tr>
-                                            <td colspan="7" style="color:#64748b; padding:16px;">No recent tickets found.</td>
+                                            <td colspan="8" style="color:#64748b; padding:16px;">No recent tickets found.</td>
                                         </tr>
                                     <?php endif; ?>
                                 </tbody>
                             </table>
-                        </div>
                     </div>
                 </div>
             </section>
@@ -527,6 +528,29 @@ if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
         Chart.plugins.register(ChartDataLabels);
     }
 }
+
+document.addEventListener('click', function (event) {
+    var row = event.target && event.target.closest ? event.target.closest('.recent-tickets-card .ticket-row') : null;
+    if (!row) return;
+    var anchor = event.target && event.target.closest ? event.target.closest('a') : null;
+    if (anchor) return;
+    var ticketId = row.getAttribute('data-id');
+    if (ticketId) {
+        window.location.href = 'all_tickets.php?ticket_id=' + encodeURIComponent(ticketId);
+    }
+});
+
+document.addEventListener('keydown', function (event) {
+    var row = event.target && event.target.closest ? event.target.closest('.recent-tickets-card .ticket-row') : null;
+    if (!row) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    var ticketId = row.getAttribute('data-id');
+    if (ticketId) {
+        window.location.href = 'all_tickets.php?ticket_id=' + encodeURIComponent(ticketId);
+    }
+});
+
 const priorityCenterTextPlugin = {
     id: 'priorityCenterText',
     afterDatasetsDraw(chart) {

@@ -334,8 +334,45 @@ if ($total > 0) {
     if ($totalPages > 1) {
         $paginationHtml .= '<a href="#" data-page="' . max(1, $page - 1) . '" class="page-btn prev' . ($page <= 1 ? ' disabled' : '') . '">&lsaquo; Previous</a>';
         $paginationHtml .= '<div class="page-numbers">';
-        for ($i = 1; $i <= $totalPages; $i++) {
-            $paginationHtml .= '<a href="#" data-page="' . $i . '" class="page-btn' . ($i === $page ? ' active' : '') . '">' . $i . '</a>';
+
+        $paginationItems = [];
+        if ($totalPages <= 5) {
+            for ($i = 1; $i <= $totalPages; $i++) {
+                $paginationItems[] = $i;
+            }
+        } else {
+            $paginationItems = [1];
+            $windowStart = max(2, $page - 1);
+            $windowEnd = min($totalPages - 1, $page + 1);
+
+            if ($page <= 3) {
+                $windowStart = 2;
+                $windowEnd = 3;
+            } elseif ($page >= $totalPages - 2) {
+                $windowStart = $totalPages - 2;
+                $windowEnd = $totalPages - 1;
+            }
+
+            if ($windowStart > 2) {
+                $paginationItems[] = 'ellipsis';
+            }
+            for ($i = $windowStart; $i <= $windowEnd; $i++) {
+                $paginationItems[] = $i;
+            }
+            if ($windowEnd < $totalPages - 1) {
+                $paginationItems[] = 'ellipsis';
+            }
+            $paginationItems[] = $totalPages;
+        }
+
+        foreach ($paginationItems as $paginationItem) {
+            if ($paginationItem === 'ellipsis') {
+                $paginationHtml .= '<span class="pagination-ellipsis">...</span>';
+                continue;
+            }
+
+            $item = (int) $paginationItem;
+            $paginationHtml .= '<a href="#" data-page="' . $item . '" class="page-btn' . ($item === $page ? ' active' : '') . '">' . $item . '</a>';
         }
         $paginationHtml .= '</div>';
         $paginationHtml .= '<a href="#" data-page="' . min($totalPages, $page + 1) . '" class="page-btn next' . ($page >= $totalPages ? ' disabled' : '') . '">Next &rsaquo;</a>';

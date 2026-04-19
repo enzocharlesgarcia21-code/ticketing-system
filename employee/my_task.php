@@ -335,10 +335,58 @@ $showing_to = min($offset + $limit, (int) $total_records);
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
+        body.employee-my-task-page .table-card {
+            padding: 18px 24px 20px;
+            overflow: hidden;
+            min-height: 592px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        body.employee-my-task-page .table-responsive {
+            margin: 0;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        body.employee-my-task-page .table-responsive .admin-table {
+            margin: 0;
+        }
+
+        body.employee-my-task-page .table-responsive .admin-table th,
+        body.employee-my-task-page .table-responsive .admin-table td {
+            padding-top: 16px;
+            padding-bottom: 16px;
+        }
+
+        body.employee-my-task-page #tasksPagination .pagination-glass {
+            margin: 14px 0 0;
+            justify-content: space-between;
+            gap: 14px;
+            flex: 0 0 auto;
+        }
+
+        body.employee-my-task-page #tasksPagination .pagination-summary {
+            margin-right: auto;
+            color: #64748b;
+            font-weight: 700;
+        }
+
         @media (max-width: 768px) {
             body.employee-my-task-page .filter-card {
                 padding: 16px;
                 border-radius: 14px;
+            }
+
+            body.employee-my-task-page .table-card {
+                padding: 14px;
+                min-height: 0;
+                display: block;
+            }
+
+            body.employee-my-task-page .table-responsive {
+                min-height: 0;
+                flex: none;
             }
 
             body.employee-my-task-page .filter-form {
@@ -685,6 +733,36 @@ $showing_to = min($offset + $limit, (int) $total_records);
         body.employee-my-task-page #ticketModal .tm-control-label-department .tm-required-star {
             color: #dc2626;
         }
+
+        body.employee-my-task-page #tasksPagination .pagination-glass {
+            flex-wrap: nowrap;
+        }
+
+        body.employee-my-task-page #tasksPagination .page-numbers {
+            flex-wrap: nowrap;
+        }
+
+        body.employee-my-task-page #tasksPagination .pagination-ellipsis {
+            min-width: 18px;
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+        }
+
+        @media (max-width: 768px) {
+            body.employee-my-task-page #tasksPagination .pagination-glass {
+                max-width: 100%;
+                overflow-x: auto;
+                justify-content: flex-start;
+                padding-bottom: 4px;
+                margin-top: 12px;
+            }
+        }
     </style>
 </head>
 <body class="employee-my-task-page">
@@ -832,13 +910,48 @@ $showing_to = min($offset + $limit, (int) $total_records);
                     </a>
 
                     <div class="page-numbers">
-                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <a href="?page=<?= $i; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
-                               data-page="<?= $i ?>"
-                               class="page-btn <?= ($i == $page) ? 'active' : ''; ?>">
-                                <?= $i; ?>
-                            </a>
-                        <?php endfor; ?>
+                        <?php
+                            $pagination_pages = [];
+                            if ($total_pages <= 5) {
+                                for ($i = 1; $i <= $total_pages; $i++) {
+                                    $pagination_pages[] = $i;
+                                }
+                            } else {
+                                $pagination_pages = [1];
+                                $window_start = max(2, $page - 1);
+                                $window_end = min($total_pages - 1, $page + 1);
+
+                                if ($page <= 3) {
+                                    $window_start = 2;
+                                    $window_end = 3;
+                                } elseif ($page >= $total_pages - 2) {
+                                    $window_start = $total_pages - 2;
+                                    $window_end = $total_pages - 1;
+                                }
+
+                                if ($window_start > 2) {
+                                    $pagination_pages[] = 'ellipsis';
+                                }
+                                for ($i = $window_start; $i <= $window_end; $i++) {
+                                    $pagination_pages[] = $i;
+                                }
+                                if ($window_end < $total_pages - 1) {
+                                    $pagination_pages[] = 'ellipsis';
+                                }
+                                $pagination_pages[] = $total_pages;
+                            }
+                        ?>
+                        <?php foreach ($pagination_pages as $pagination_item): ?>
+                            <?php if ($pagination_item === 'ellipsis'): ?>
+                                <span class="pagination-ellipsis">...</span>
+                            <?php else: ?>
+                                <a href="?page=<?= $pagination_item; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>"
+                                   data-page="<?= $pagination_item ?>"
+                                   class="page-btn <?= ($pagination_item == $page) ? 'active' : ''; ?>">
+                                    <?= $pagination_item; ?>
+                                </a>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
                     </div>
 
                     <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 

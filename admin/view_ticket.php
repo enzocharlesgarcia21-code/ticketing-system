@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -279,6 +280,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <select name="assigned_department">
     <option <?= strtoupper((string)$ticket['assigned_department'])=='ACCOUNTING'?'selected':'' ?>>ACCOUNTING</option>
     <option <?= strtoupper((string)$ticket['assigned_department'])=='ADMIN'?'selected':'' ?>>ADMIN</option>
+    <option <?= strtoupper((string)$ticket['assigned_department'])=='BIDDING'?'selected':'' ?>>BIDDING</option>
     <option <?= strtoupper((string)$ticket['assigned_department'])=='E-COMM'?'selected':'' ?>>E-COMM</option>
     <option <?= strtoupper((string)$ticket['assigned_department'])=='HR'?'selected':'' ?>>HR</option>
     <option <?= strtoupper((string)$ticket['assigned_department'])=='IT'?'selected':'' ?>>IT</option>
