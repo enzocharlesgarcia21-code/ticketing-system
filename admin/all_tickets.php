@@ -301,8 +301,8 @@ $result = $stmt->get_result();
             padding: 10px 26px 10px 10px;
             flex: 0 0 auto;
         }
-        #filterForm #recipientFilterSelect { width: 210px; }
-        #filterForm #departmentFilterSelect { width: 210px; }
+        #filterForm #recipientFilterSelect { width: 290px; }
+        #filterForm #departmentFilterSelect { width: 340px; }
         #filterForm select[name="priority"] { width: 128px; }
         #filterForm select[name="status"] { width: 128px; }
         #filterForm .clear-btn {
@@ -310,6 +310,9 @@ $result = $stmt->get_result();
         }
         #filterForm .lapc-department-filter {
             flex: 0 0 auto;
+        }
+        #filterForm .lapc-department-filter.is-hidden {
+            display: none;
         }
         #filterForm .lapc-department-filter.is-disabled {
             opacity: 0.7;
@@ -564,17 +567,18 @@ $result = $stmt->get_result();
                             <option value="@primestocks.ph">PCC (@primestocks.ph)</option>
                         </select>
 
-                        <div id="departmentFilterWrap" class="lapc-department-filter is-disabled">
+                        <div id="departmentFilterWrap" class="lapc-department-filter is-hidden is-disabled">
                             <select id="departmentFilterSelect" class="filter-select" disabled>
                                 <option value="" disabled selected hidden>All Department</option>
                                 <option value="Admin &amp; Legal">Admin &amp; Legal</option>
                                 <option value="Banana Farm Operations">Banana Farm Operations</option>
+                                <option value="Bidding">Bidding</option>
                                 <option value="Diagnostics / Lingap">Diagnostics / Lingap</option>
                                 <option value="Digital Agri Solutions and Innovations">Digital Agri Solutions and Innovations</option>
                                 <option value="E-Commerce">E-Commerce</option>
                                 <option value="Executive">Executive</option>
                                 <option value="Finance and Accounting">Finance and Accounting</option>
-                            <option value="HR">HR</option>
+                                <option value="HR">HR</option>
                                 <option value="IT">IT</option>
                                 <option value="Institutional Sales">Institutional Sales</option>
                                 <option value="Management">Management</option>
@@ -817,6 +821,7 @@ function syncRecipientFilters() {
     }
 
     if (currentCompany === lapcDomainValue) {
+        departmentFilterWrap.classList.remove('is-hidden');
         departmentFilterWrap.classList.remove('is-disabled');
         departmentFilterSelect.disabled = false;
         if (departmentFilterSelect.options.length > 0) {
@@ -824,6 +829,7 @@ function syncRecipientFilters() {
         }
         departmentFilterSelect.value = currentDepartment;
     } else {
+        departmentFilterWrap.classList.add('is-hidden');
         departmentFilterWrap.classList.add('is-disabled');
         departmentFilterSelect.disabled = true;
         departmentFilterSelect.value = '';
@@ -840,6 +846,7 @@ function handleRecipientFilterChange() {
         departmentFilterValue.value = '';
         departmentFilterSelect.value = '';
         departmentFilterSelect.disabled = true;
+        departmentFilterWrap.classList.add('is-hidden');
         departmentFilterWrap.classList.add('is-disabled');
         submitForm(1);
         return;
@@ -849,6 +856,7 @@ function handleRecipientFilterChange() {
         departmentFilterValue.value = '';
         departmentFilterSelect.value = '';
         departmentFilterSelect.disabled = false;
+        departmentFilterWrap.classList.remove('is-hidden');
         departmentFilterWrap.classList.remove('is-disabled');
         submitForm(1);
         return;
@@ -857,6 +865,7 @@ function handleRecipientFilterChange() {
     departmentFilterValue.value = '';
     departmentFilterSelect.value = '';
     departmentFilterSelect.disabled = true;
+    departmentFilterWrap.classList.add('is-hidden');
     departmentFilterWrap.classList.add('is-disabled');
     submitForm(1);
 }

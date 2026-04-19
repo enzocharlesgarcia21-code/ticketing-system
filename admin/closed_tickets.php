@@ -695,6 +695,7 @@ function openModal(id) {
                                                 <option value="HR" ${data.assigned_department === 'HR' ? 'selected' : ''}>HR</option>
                                                 <option value="Marketing" ${data.assigned_department === 'Marketing' ? 'selected' : ''}>Marketing</option>
                                                 <option value="Admin" ${data.assigned_department === 'Admin' ? 'selected' : ''}>Admin</option>
+                                                <option value="Bidding" ${data.assigned_department === 'Bidding' ? 'selected' : ''}>Bidding</option>
                                                 <option value="Technical" ${data.assigned_department === 'Technical' ? 'selected' : ''}>Technical</option>
                                                 <option value="Accounting" ${data.assigned_department === 'Accounting' ? 'selected' : ''}>Accounting</option>
                                                 <option value="Supply Chain" ${data.assigned_department === 'Supply Chain' ? 'selected' : ''}>Supply Chain</option>

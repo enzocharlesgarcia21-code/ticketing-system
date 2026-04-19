@@ -279,56 +279,91 @@ if (!empty(array_filter($trendAvgHours, static fn ($value) => $value !== null)))
     }
 }
 
-$companyChartLabels = [];
-$companyChartCounts = [];
-$catWhere = ["DATE(t.created_at) BETWEEN ? AND ?"];
-$catParams = [$start_date, $end_date];
-$catTypes = "ss";
+$companyExpr = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''), '')";
+$departmentExpr = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,''), '')";
+$lapcCompanySql = "LOWER(TRIM($companyExpr)) IN ('@leadsagri.com', 'leadsagri.com', 'lapc', 'lapc (@leadsagri.com)', 'leads agricultural products corporation - lapc')";
+
+$companyChartWhere = ["DATE(t.created_at) BETWEEN ? AND ?"];
+$companyChartParams = [$start_date, $end_date];
+$companyChartTypes = "ss";
 if ($category_filter !== '') {
-    $catWhere[] = "t.category = ?";
-    $catParams[] = $category_filter;
-    $catTypes .= "s";
-}
-if ($company_filter !== '') {
-    $catWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
-    $catParams[] = $company_filter;
-    $catTypes .= "s";
-}
-if ($department_filter !== '') {
-    $catWhere[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
-    $catParams[] = $department_filter;
-    $catTypes .= "s";
+    $companyChartWhere[] = "t.category = ?";
+    $companyChartParams[] = $category_filter;
+    $companyChartTypes .= "s";
 }
 if ($status_filter !== '') {
-    $catWhere[] = "t.status = ?";
-    $catParams[] = $status_filter;
-    $catTypes .= "s";
+    $companyChartWhere[] = "t.status = ?";
+    $companyChartParams[] = $status_filter;
+    $companyChartTypes .= "s";
 }
-$catSql2 = "
-    SELECT COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''), '') AS company_value, COUNT(*) as total
+
+$lapcDepartmentLabels = [];
+$lapcDepartmentCounts = [];
+$lapcWhere = $companyChartWhere;
+$lapcWhere[] = $lapcCompanySql;
+if ($department_filter !== '') {
+    $lapcWhere[] = "$departmentExpr = ?";
+    $companyChartParamsForLapc = $companyChartParams;
+    $companyChartParamsForLapc[] = $department_filter;
+    $lapcTypes = $companyChartTypes . "s";
+} else {
+    $companyChartParamsForLapc = $companyChartParams;
+    $lapcTypes = $companyChartTypes;
+}
+$lapcDepartmentSql = "
+    SELECT COALESCE(NULLIF($departmentExpr, ''), 'Unspecified') AS department_value, COUNT(*) as total
     FROM employee_tickets t
-    WHERE " . implode(" AND ", $catWhere) . "
+    WHERE " . implode(" AND ", $lapcWhere) . "
+    GROUP BY department_value
+    ORDER BY total DESC
+";
+$lapcDepartmentStmt = $conn->prepare($lapcDepartmentSql);
+if ($lapcDepartmentStmt) {
+    $bind = [];
+    $bind[] = $lapcTypes;
+    foreach ($companyChartParamsForLapc as $k => $p) {
+        $bind[] = &$companyChartParamsForLapc[$k];
+    }
+    call_user_func_array([$lapcDepartmentStmt, 'bind_param'], $bind);
+    $lapcDepartmentStmt->execute();
+    $lapcDepartmentRes = $lapcDepartmentStmt->get_result();
+    while ($r = $lapcDepartmentRes->fetch_assoc()) {
+        $departmentValue = trim((string) ($r['department_value'] ?? ''));
+        $lapcDepartmentLabels[] = $departmentValue !== '' ? $departmentValue : 'Unspecified';
+        $lapcDepartmentCounts[] = (int) ($r['total'] ?? 0);
+    }
+    $lapcDepartmentStmt->close();
+}
+
+$otherCompanyLabels = [];
+$otherCompanyCounts = [];
+$otherCompanyWhere = $companyChartWhere;
+$otherCompanyWhere[] = "NOT ($lapcCompanySql)";
+$otherCompanySql = "
+    SELECT $companyExpr AS company_value, COUNT(*) as total
+    FROM employee_tickets t
+    WHERE " . implode(" AND ", $otherCompanyWhere) . "
     GROUP BY company_value
     ORDER BY total DESC
 ";
-$catStmt2 = $conn->prepare($catSql2);
-if ($catStmt2) {
+$otherCompanyStmt = $conn->prepare($otherCompanySql);
+if ($otherCompanyStmt) {
     $bind = [];
-    $bind[] = $catTypes;
-    foreach ($catParams as $k => $p) {
-        $bind[] = &$catParams[$k];
+    $bind[] = $companyChartTypes;
+    foreach ($companyChartParams as $k => $p) {
+        $bind[] = &$companyChartParams[$k];
     }
-    call_user_func_array([$catStmt2, 'bind_param'], $bind);
-    $catStmt2->execute();
-    $catRes2 = $catStmt2->get_result();
-    while ($r = $catRes2->fetch_assoc()) {
+    call_user_func_array([$otherCompanyStmt, 'bind_param'], $bind);
+    $otherCompanyStmt->execute();
+    $otherCompanyRes = $otherCompanyStmt->get_result();
+    while ($r = $otherCompanyRes->fetch_assoc()) {
         $companyValue = (string) ($r['company_value'] ?? '');
         $label = ticket_company_display_name($companyValue);
         if ($label === '') $label = 'Unknown Company';
-        $companyChartLabels[] = $label;
-        $companyChartCounts[] = (int) ($r['total'] ?? 0);
+        $otherCompanyLabels[] = $label;
+        $otherCompanyCounts[] = (int) ($r['total'] ?? 0);
     }
-    $catStmt2->close();
+    $otherCompanyStmt->close();
 }
 
 $assigneeLabels = [];
@@ -384,17 +419,37 @@ if ($asStmt) {
 }
 
 $companyPalette = ['#2f8cff', '#2fa36b', '#ff9f1c', '#ef4444', '#9b7bf4', '#21b7d8', '#88d05f', '#f97316', '#14b8a6', '#eab308'];
-$companyChartTotal = array_sum($companyChartCounts);
-$companyLegendItems = [];
-foreach ($companyChartLabels as $idx => $label) {
-    $count = (int) ($companyChartCounts[$idx] ?? 0);
-    $percent = $companyChartTotal > 0 ? round(($count / $companyChartTotal) * 100) : 0;
-    $companyLegendItems[] = [
-        'label' => $label,
-        'count' => $count,
-        'percent' => $percent,
-        'color' => $companyPalette[$idx % count($companyPalette)],
+$buildCompanyChartItems = static function (array $labels, array $counts) use ($companyPalette): array {
+    $items = [];
+    foreach ($labels as $idx => $label) {
+        $items[] = [
+            'label' => (string) $label,
+            'count' => (int) ($counts[$idx] ?? 0),
+            'color' => $companyPalette[$idx % count($companyPalette)],
+        ];
+    }
+    return $items;
+};
+$lapcDepartmentItems = $buildCompanyChartItems($lapcDepartmentLabels, $lapcDepartmentCounts);
+$otherCompanyItems = $buildCompanyChartItems($otherCompanyLabels, $otherCompanyCounts);
+
+$buildCompanyChartDataset = static function (array $items, string $title, string $subtitle): array {
+    return [
+        'title' => $title,
+        'subtitle' => $subtitle,
+        'labels' => array_values(array_map(static fn ($item) => (string) $item['label'], $items)),
+        'counts' => array_values(array_map(static fn ($item) => (int) $item['count'], $items)),
+        'colors' => array_values(array_map(static fn ($item) => (string) $item['color'], $items)),
     ];
+};
+$companyChartDatasets = [
+    'lapc' => $buildCompanyChartDataset($lapcDepartmentItems, 'Tickets per Company', 'LAPC tickets by department'),
+    'other' => $buildCompanyChartDataset($otherCompanyItems, 'Tickets per Company', 'Non-LAPC company distribution'),
+];
+$companyLegendItems = $lapcDepartmentItems;
+$companyChartTotal = array_sum(array_column($companyLegendItems, 'count'));
+foreach ($companyLegendItems as $idx => $item) {
+    $companyLegendItems[$idx]['percent'] = $companyChartTotal > 0 ? round(((int) $item['count'] / $companyChartTotal) * 100) : 0;
 }
 
 $assigneeAccentSets = [
@@ -836,6 +891,15 @@ if ($ticketsStmt) {
             margin-bottom: 18px;
             min-height: 52px;
         }
+        .category-card .chart-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .chart-heading {
+            min-width: 0;
+        }
         .chart-title {
             font-size: 1.05rem;
             font-weight: 800;
@@ -847,6 +911,40 @@ if ($ticketsStmt) {
             color: #8a94a6;
             font-size: 14px;
             font-weight: 600;
+        }
+        .company-chart-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            padding: 4px;
+            border: 1px solid #dbe3ef;
+            border-radius: 13px;
+            background: #f8fafc;
+            flex: 0 0 auto;
+        }
+        .company-chart-toggle-btn {
+            min-height: 34px;
+            border: 0;
+            border-radius: 9px;
+            padding: 0 12px;
+            background: transparent;
+            color: #556171;
+            font-size: 13px;
+            font-weight: 800;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .company-chart-toggle-btn:hover,
+        .company-chart-toggle-btn:focus-visible {
+            color: #1B5E20;
+            outline: none;
+        }
+        .company-chart-toggle-btn.active {
+            background: #1B5E20;
+            color: #ffffff;
+            box-shadow: 0 6px 14px rgba(27, 94, 32, 0.2);
         }
         .chart-container {
             position: relative;
@@ -1242,6 +1340,18 @@ if ($ticketsStmt) {
             .chart-header {
                 min-height: 0;
             }
+            .category-card .chart-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .company-chart-toggle {
+                width: 100%;
+                justify-content: stretch;
+            }
+            .company-chart-toggle-btn {
+                flex: 1 1 0;
+                padding: 0 8px;
+            }
             .category-legend-grid {
                 grid-template-columns: 1fr;
             }
@@ -1416,24 +1526,32 @@ if ($ticketsStmt) {
             <div class="analytics-charts">
                 <div class="chart-card category-card">
                     <div class="chart-header">
-                        <div class="chart-title">Tickets per Company</div>
-                        <p class="chart-subtitle">Distribution by company</p>
+                        <div class="chart-heading">
+                            <div class="chart-title" id="companyChartTitle">Tickets per Company</div>
+                            <p class="chart-subtitle" id="companyChartSubtitle">LAPC tickets by department</p>
+                        </div>
+                        <div class="company-chart-toggle" aria-label="Tickets per company view">
+                            <button type="button" class="company-chart-toggle-btn active" data-company-view="lapc" aria-pressed="true">LAPC</button>
+                            <button type="button" class="company-chart-toggle-btn" data-company-view="other" aria-pressed="false">Other Companies</button>
+                        </div>
                     </div>
                     <div class="chart-container">
                         <canvas id="categoryChart"></canvas>
                     </div>
                     <?php if (count($companyLegendItems) > 0): ?>
-                        <div class="category-legend-grid">
+                        <div class="category-legend-grid" id="companyChartLegend">
                             <?php foreach ($companyLegendItems as $item): ?>
                                 <div class="category-legend-item">
                                     <span class="category-legend-dot" style="background: <?= htmlspecialchars($item['color'], ENT_QUOTES, 'UTF-8') ?>;"></span>
                                     <div class="category-legend-text">
                                         <span class="category-legend-name"><?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?></span>
-                                        <span class="category-legend-percent"><?= (int) $item['percent'] ?>%</span>
+                                        <span class="category-legend-percent"><?= number_format((int) $item['count']) ?> (<?= (int) $item['percent'] ?>%)</span>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
                         </div>
+                    <?php else: ?>
+                        <div class="category-legend-grid" id="companyChartLegend"></div>
                     <?php endif; ?>
                 </div>
                 <div class="chart-card trend-card">
@@ -1670,18 +1788,60 @@ if ($ticketsStmt) {
 
     const textColor = '#7b8798';
     const gridColor = '#e7edf5';
-    const companyChartLabels = <?= json_encode($companyChartLabels) ?>;
-    const companyChartCounts = <?= json_encode($companyChartCounts) ?>;
-    const companyChartTotal = companyChartCounts.reduce(function(sum, value) { return sum + (Number(value) || 0); }, 0);
+    const companyChartDatasets = <?= json_encode($companyChartDatasets) ?>;
+    let activeCompanyChartData = companyChartDatasets.lapc || { title: 'Tickets per Company', subtitle: 'LAPC tickets by department', labels: [], counts: [], colors: [] };
+
+    function companyChartTotal(data) {
+        return (data.counts || []).reduce(function(sum, value) { return sum + (Number(value) || 0); }, 0);
+    }
+
+    function renderCompanyLegend(data) {
+        var legend = document.getElementById('companyChartLegend');
+        if (!legend) return;
+
+        var total = companyChartTotal(data);
+        var labels = data.labels || [];
+        var counts = data.counts || [];
+        var colors = data.colors || [];
+        legend.innerHTML = '';
+
+        labels.forEach(function(label, idx) {
+            var count = Number(counts[idx] || 0);
+            var percent = total > 0 ? Math.round((count / total) * 100) : 0;
+            var item = document.createElement('div');
+            item.className = 'category-legend-item';
+
+            var dot = document.createElement('span');
+            dot.className = 'category-legend-dot';
+            dot.style.background = colors[idx] || '#2f8cff';
+
+            var text = document.createElement('div');
+            text.className = 'category-legend-text';
+
+            var name = document.createElement('span');
+            name.className = 'category-legend-name';
+            name.textContent = label;
+
+            var pct = document.createElement('span');
+            pct.className = 'category-legend-percent';
+            pct.textContent = count.toLocaleString() + ' (' + percent + '%)';
+
+            text.appendChild(name);
+            text.appendChild(pct);
+            item.appendChild(dot);
+            item.appendChild(text);
+            legend.appendChild(item);
+        });
+    }
 
     const catCtx = document.getElementById('categoryChart').getContext('2d');
-    new Chart(catCtx, {
+    const companyChart = new Chart(catCtx, {
         type: 'doughnut',
         data: {
-            labels: companyChartLabels,
+            labels: activeCompanyChartData.labels,
             datasets: [{
-                data: companyChartCounts,
-                backgroundColor: <?= json_encode($companyPalette) ?>,
+                data: activeCompanyChartData.counts,
+                backgroundColor: activeCompanyChartData.colors,
                 borderWidth: 0
             }]
         },
@@ -1694,7 +1854,8 @@ if ($ticketsStmt) {
                     callbacks: {
                         label: function(context) {
                             var value = Number(context.raw || 0);
-                            var pct = companyChartTotal > 0 ? Math.round((value / companyChartTotal) * 100) : 0;
+                            var total = companyChartTotal(activeCompanyChartData);
+                            var pct = total > 0 ? Math.round((value / total) * 100) : 0;
                             return context.label + ': ' + value + ' (' + pct + '%)';
                         }
                     }
@@ -1703,8 +1864,10 @@ if ($ticketsStmt) {
                     color: '#ffffff',
                     font: { weight: '800', size: 12 },
                     formatter: function(value) {
-                        if (!companyChartTotal || !value) return '';
-                        var pct = Math.round((Number(value) / companyChartTotal) * 100);
+                        var total = companyChartTotal(activeCompanyChartData);
+                        if (!total || !value) return '';
+                        var pct = Math.round((Number(value) / total) * 100);
+                        if (pct < 2) return '';
                         return pct + '%';
                     }
                 }
@@ -1712,6 +1875,38 @@ if ($ticketsStmt) {
             cutout: '63%'
         }
     });
+
+    (function () {
+        var title = document.getElementById('companyChartTitle');
+        var subtitle = document.getElementById('companyChartSubtitle');
+        var buttons = document.querySelectorAll('.company-chart-toggle-btn[data-company-view]');
+
+        function setCompanyChartView(view) {
+            var nextData = companyChartDatasets[view] || companyChartDatasets.lapc || activeCompanyChartData;
+            activeCompanyChartData = nextData;
+            companyChart.data.labels = nextData.labels || [];
+            companyChart.data.datasets[0].data = nextData.counts || [];
+            companyChart.data.datasets[0].backgroundColor = nextData.colors || [];
+            companyChart.update();
+
+            if (title) title.textContent = nextData.title || 'Tickets per Company';
+            if (subtitle) subtitle.textContent = nextData.subtitle || '';
+            renderCompanyLegend(nextData);
+
+            buttons.forEach(function(button) {
+                var isActive = button.getAttribute('data-company-view') === view;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+        }
+
+        buttons.forEach(function(button) {
+            button.addEventListener('click', function() {
+                setCompanyChartView(button.getAttribute('data-company-view'));
+            });
+        });
+        setCompanyChartView('lapc');
+    })();
 
     const trendCtx = document.getElementById('trendChart').getContext('2d');
     const trendGradient = trendCtx.createLinearGradient(0, 0, 0, 286);

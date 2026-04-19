@@ -251,7 +251,7 @@ window.TM_MESSENGER_STYLE = 'employee';
     top: 0;
     bottom: 0;
     width: 5px;
-    background: var(--notif-accent, #2563eb);
+    background: var(--notif-accent, #1B5E20);
     border-radius: 0;
 }
 .notif-item.notif-chat-pending.unread::after {
@@ -262,7 +262,7 @@ window.TM_MESSENGER_STYLE = 'employee';
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: #2563eb;
+    background: #1B5E20;
     transform: translateY(-50%);
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.96);
 }
@@ -403,24 +403,23 @@ window.TM_MESSENGER_STYLE = 'employee';
 }
 .notif-pill.notif-chat-pill {
     min-height: 36px;
-    padding: 0 12px;
-    gap: 8px;
+    min-width: 36px;
+    padding: 0;
+    gap: 0;
     border: 0;
     border-radius: 999px;
     color: #ffffff;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    box-shadow: 0 6px 14px rgba(37, 99, 235, 0.18);
+    background: #1B5E20;
+    box-shadow: 0 6px 14px rgba(27, 94, 32, 0.2);
 }
 .notif-pill.notif-chat-pill .notif-pill-icon {
-    width: auto;
-    height: auto;
+    width: 36px;
+    height: 36px;
     font-size: 16px;
     background: transparent;
 }
 .notif-pill.notif-chat-pill .notif-pill-text {
-    padding: 0;
-    font-size: 0.88rem;
-    font-weight: 800;
+    display: none;
 }
 
 .notif-content {
@@ -450,7 +449,7 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-item.notif-chat-pending .notif-title-text {
     font-size: 0.92rem;
     font-weight: 700;
-    color: #1f4e9c;
+    color: #111827;
     line-height: 1.3;
 }
 .notif-item.variant-follow-up {
@@ -1045,7 +1044,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             persistChatReminderToastIds();
                             showChatReminderToast(n);
                         }
-                        const pillHtml = `<span class="notif-pill ${variantClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span><span class="notif-pill-text">${escapeHtml(pillText)}</span></span>`;
+                        const pillHtml = `<span class="notif-pill ${variantClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span>${isChatPending ? '' : `<span class="notif-pill-text">${escapeHtml(pillText)}</span>`}</span>`;
                         const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
                         return `
                             ${sectionHtml}

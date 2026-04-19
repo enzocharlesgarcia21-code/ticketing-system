@@ -462,8 +462,8 @@ function conference_admin_booking_status_text(string $status): string
         .conference-admin-title h1 {
             margin: 0 0 10px;
             color: #111827;
-            font-size: 42px;
-            line-height: 1.08;
+            font-size: 2.05rem;
+            line-height: 1.1;
             font-weight: 600;
             letter-spacing: -0.03em;
         }
@@ -957,40 +957,74 @@ function conference_admin_booking_status_text(string $status): string
         .conference-pagination-controls {
             display: inline-flex;
             align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
+            justify-content: flex-end;
+            min-width: 420px;
         }
-        .conference-pagination-btn {
-            min-width: 42px;
-            height: 42px;
-            padding: 0 14px;
-            border-radius: 14px;
-            border: 1px solid #d9e0e8;
+        .conference-pagination-controls .pagination-glass {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: nowrap;
+        }
+        .conference-pagination-controls .page-numbers {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 224px;
+            gap: 6px;
+        }
+        .conference-pagination-controls .page-btn {
+            min-width: 38px;
+            height: 38px;
+            padding: 0 13px;
+            border-radius: 999px;
+            border: 1px solid #d8e2ec;
             background: #ffffff;
             color: #334155;
-            font-size: 14px;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+            transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
         }
-        .conference-pagination-btn:hover:not(:disabled) {
-            border-color: #86efac;
-            color: #166534;
+        .conference-pagination-controls .page-btn.prev,
+        .conference-pagination-controls .page-btn.next {
+            min-width: 92px;
+            padding: 0 16px;
+            font-weight: 700;
+        }
+        .conference-pagination-controls .page-btn:hover:not(.active):not(.disabled) {
+            background: #f8fafc;
+            border-color: #cfd9e3;
             transform: translateY(-1px);
         }
-        .conference-pagination-btn.is-active {
-            background: linear-gradient(135deg, #166534, #15803d);
+        .conference-pagination-controls .page-btn.active {
+            background: #166534;
             border-color: #166534;
             color: #ffffff;
-            box-shadow: 0 12px 22px rgba(22, 101, 52, 0.18);
+            box-shadow: 0 8px 22px rgba(22, 101, 52, 0.18);
         }
-        .conference-pagination-btn:disabled {
-            opacity: 0.5;
+        .conference-pagination-controls .page-btn.disabled {
+            opacity: 0.45;
+            background: #ffffff;
+            border-color: #d8e2ec;
             cursor: not-allowed;
             transform: none;
+        }
+        .conference-pagination-controls .pagination-ellipsis {
+            min-width: 18px;
+            height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
         }
         .conference-pagination-empty {
             color: #9ca3af;
@@ -1983,7 +2017,7 @@ function conference_admin_booking_status_text(string $status): string
                 margin-top: 10px;
             }
             .conference-admin-title h1 {
-                font-size: 34px;
+                font-size: 2.05rem;
             }
             .conference-manage-btn {
                 width: 100%;
@@ -2015,10 +2049,38 @@ function conference_admin_booking_status_text(string $status): string
             }
             .conference-table-footer {
                 flex-direction: column;
-                align-items: stretch;
+                align-items: center;
             }
             .conference-pagination-controls {
-                justify-content: flex-start;
+                justify-content: center;
+                min-width: 0;
+                width: 100%;
+            }
+            .conference-pagination-controls .pagination-glass {
+                max-width: 100%;
+                gap: 8px;
+                overflow-x: auto;
+                padding-bottom: 4px;
+            }
+            .conference-pagination-controls .page-numbers {
+                min-width: 0;
+                gap: 8px;
+            }
+            .conference-pagination-controls .page-btn {
+                min-width: 38px;
+                height: 38px;
+                padding: 0 13px;
+                font-size: 13px;
+            }
+            .conference-pagination-controls .page-btn.prev,
+            .conference-pagination-controls .page-btn.next {
+                min-width: 92px;
+                padding: 0 14px;
+            }
+            .conference-pagination-controls .pagination-ellipsis {
+                min-width: 18px;
+                height: 38px;
+                font-size: 16px;
             }
             .conference-table-wrap {
                 overflow-x: auto;
@@ -3061,30 +3123,86 @@ function conference_admin_booking_status_text(string $status): string
 
                 conferencePaginationSummary.textContent = 'Showing ' + (startIndex + 1) + '-' + endIndex + ' of ' + totalRows + ' bookings';
 
-                function createPaginationButton(label, page, disabled, isActive) {
+                const paginationShell = document.createElement('div');
+                paginationShell.className = 'pagination-glass';
+                const pageNumbers = document.createElement('div');
+                pageNumbers.className = 'page-numbers';
+
+                function createPaginationButton(label, page, disabled, isActive, extraClass, target) {
                     const button = document.createElement('button');
                     button.type = 'button';
-                    button.className = 'conference-pagination-btn' + (isActive ? ' is-active' : '');
+                    button.className = 'page-btn' + (extraClass ? ' ' + extraClass : '') + (isActive ? ' active' : '') + (disabled ? ' disabled' : '');
                     button.textContent = label;
                     button.disabled = disabled;
-                    button.setAttribute('aria-label', 'Go to page ' + page);
+                    button.setAttribute('aria-label', isActive ? 'Current page, page ' + page : 'Go to page ' + page);
                     if (isActive) {
                         button.setAttribute('aria-current', 'page');
                     }
                     button.addEventListener('click', function () {
+                        if (disabled || page === currentBookingPage) {
+                            return;
+                        }
                         currentBookingPage = page;
                         renderBookingPagination(filteredRows);
                     });
-                    conferencePaginationControls.appendChild(button);
+                    target.appendChild(button);
                 }
 
-                createPaginationButton('Prev', Math.max(1, currentBookingPage - 1), currentBookingPage === 1, false);
-
-                for (let page = 1; page <= totalPages; page += 1) {
-                    createPaginationButton(String(page), page, false, page === currentBookingPage);
+                function appendEllipsis() {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.className = 'pagination-ellipsis';
+                    ellipsis.textContent = '...';
+                    pageNumbers.appendChild(ellipsis);
                 }
 
-                createPaginationButton('Next', Math.min(totalPages, currentBookingPage + 1), currentBookingPage === totalPages, false);
+                function paginationPages(page, totalPages) {
+                    const pages = [];
+                    if (totalPages <= 5) {
+                        for (let i = 1; i <= totalPages; i += 1) {
+                            pages.push(i);
+                        }
+                        return pages;
+                    }
+
+                    pages.push(1);
+                    let windowStart = Math.max(2, page - 1);
+                    let windowEnd = Math.min(totalPages - 1, page + 1);
+
+                    if (page <= 3) {
+                        windowStart = 2;
+                        windowEnd = 3;
+                    } else if (page >= totalPages - 2) {
+                        windowStart = totalPages - 2;
+                        windowEnd = totalPages - 1;
+                    }
+
+                    if (windowStart > 2) {
+                        pages.push('ellipsis');
+                    }
+                    for (let i = windowStart; i <= windowEnd; i += 1) {
+                        pages.push(i);
+                    }
+                    if (windowEnd < totalPages - 1) {
+                        pages.push('ellipsis');
+                    }
+                    pages.push(totalPages);
+                    return pages;
+                }
+
+                createPaginationButton('‹ Previous', Math.max(1, currentBookingPage - 1), currentBookingPage === 1, false, 'prev', paginationShell);
+
+                paginationPages(currentBookingPage, totalPages).forEach(function (paginationItem) {
+                    if (paginationItem === 'ellipsis') {
+                        appendEllipsis();
+                        return;
+                    }
+
+                    createPaginationButton(String(paginationItem), paginationItem, false, paginationItem === currentBookingPage, '', pageNumbers);
+                });
+
+                paginationShell.appendChild(pageNumbers);
+                createPaginationButton('Next ›', Math.min(totalPages, currentBookingPage + 1), currentBookingPage === totalPages, false, 'next', paginationShell);
+                conferencePaginationControls.appendChild(paginationShell);
             }
 
             function applyBookingFilters(resetPage) {

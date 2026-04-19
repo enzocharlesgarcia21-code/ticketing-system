@@ -978,22 +978,6 @@ $successMessage = '';
         #ticketSuccessOverlay {
             display: none !important;
         }
-        #ticketModal .modal-content {
-            width: min(96vw, 1220px);
-            max-width: 1220px;
-            height: min(92vh, 760px);
-            max-height: 92vh;
-        }
-                body.employee-my-tickets-page .tm-tab-content.active#tab-info > .tm-info-col,
-        body.employee-my-tickets-page .tm-tab-content.active#tab-info > .tm-desc-col {
-            display: flex;
-        }
-        body.employee-my-tickets-page .tm-tab-content.active#tab-info > .tm-info-col {
-            order: -1;
-        }
-        body.employee-my-tickets-page .tm-tab-content.active#tab-info > .tm-desc-col {
-            order: 1;
-        }
         .page-ellipsis {
             color: #94a3b8;
             font-weight: 700;

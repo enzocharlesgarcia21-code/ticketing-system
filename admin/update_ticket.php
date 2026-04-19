@@ -183,8 +183,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $requesterNotification = null;
 
             if ($requesterAssignmentChanged) {
-                $assignmentActionType = $oldAssignedUserId === 0 ? 'assign' : 'reassign';
+                $hadPreviousAssignment = $oldAssignedUserId > 0 || $oldCompany !== '' || $oldDept !== '';
+                $assignmentActionType = $hadPreviousAssignment ? 'reassign' : 'assign';
                 $notifyTargetLabel = notif_assignment_target_label((string) $newCompanyNorm, (string) $newDeptNorm, 'the selected recipient');
+                $adminAssignmentMessage = $assignmentActionType === 'assign'
+                    ? "Ticket #$id was assigned to $notifyTargetLabel."
+                    : "Ticket #$id was reassigned to $notifyTargetLabel.";
                 $requesterNotification = [
                     'msg' => $assignmentActionType === 'assign'
                         ? "Your ticket #$id was assigned to $notifyTargetLabel."
@@ -192,6 +196,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     'type' => 'reassigned',
                     'action_type' => $assignmentActionType
                 ];
+                notif_insert_admins(
+                    $conn,
+                    (int) $id,
+                    $adminAssignmentMessage,
+                    'reassigned',
+                    $assignmentActionType,
+                    $assignmentActionType === 'assign' ? 'Ticket Assigned' : 'Ticket Reassigned'
+                );
 
                 foreach (($assigneeIds ?? []) as $notifyUserId) {
                     $notifyUserId = (int) $notifyUserId;

@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/notification_service.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -26,6 +27,24 @@ $current_user_id = $_SESSION['user_id'];
 $is_admin = (($_SESSION['role'] ?? '') === 'admin');
 $userContext = ticket_build_user_context($conn, $current_user_id, $_SESSION);
 $current_user_email = strtolower(trim((string) ($userContext['email'] ?? '')));
+
+function admin_clear_hr_chat_reminder(mysqli $conn, int $userId, int $ticketId): void
+{
+    $stmt = $conn->prepare("
+        UPDATE notifications
+        SET is_read = 1
+        WHERE user_id = ?
+          AND ticket_id = ?
+          AND type = 'hr_chat_pending'
+          AND is_read = 0
+    ");
+    if (!$stmt) {
+        return;
+    }
+    $stmt->bind_param("ii", $userId, $ticketId);
+    $stmt->execute();
+    $stmt->close();
+}
 
 if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $sql = "
@@ -205,6 +224,7 @@ if ($mark) {
     $mark->execute();
     $mark->close();
 }
+admin_clear_hr_chat_reminder($conn, (int) $current_user_id, (int) $ticket_id);
 
 // Fetch messages
 $stmt = $conn->prepare("

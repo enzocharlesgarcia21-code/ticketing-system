@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/notification_service.php';
 
 header('Content-Type: application/json');
 
@@ -163,6 +164,13 @@ if ($stmt->execute()) {
         $recipientId = $handlerId > 0 ? $handlerId : $fallbackAssigneeId;
     } else {
         $recipientId = $requesterId;
+    }
+
+    $clearHrReminder = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ? AND ticket_id = ? AND type = 'hr_chat_pending' AND is_read = 0");
+    if ($clearHrReminder) {
+        $clearHrReminder->bind_param("ii", $sender_id, $ticket_id);
+        $clearHrReminder->execute();
+        $clearHrReminder->close();
     }
 
     exit;

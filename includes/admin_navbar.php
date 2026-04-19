@@ -210,8 +210,12 @@ document.addEventListener('DOMContentLoaded', function() {
 .notif-item.variant-update::before { --notif-accent: #2563eb; }
 .notif-item.variant-booking::before { --notif-accent: #0f766e; }
 .notif-item.variant-reassign::before { --notif-accent: #9333ea; }
+.notif-item.notif-chat-pending::before { --notif-accent: #1B5E20; }
 .notif-item:hover {
     background-color: #f8fafc;
+}
+.notif-item.notif-chat-pending.unread::after {
+    background: #1B5E20;
 }
 .notif-item.unread {
     background-color: #ffffff;
@@ -356,6 +360,26 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 .notif-pill.variant-follow-up .notif-pill-icon {
     background: linear-gradient(135deg, #fde68a, #f59e0b);
+}
+.notif-pill.notif-chat-pill {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 0;
+    gap: 0;
+    border: 0;
+    border-radius: 999px;
+    color: #ffffff;
+    background: #1B5E20;
+    box-shadow: 0 6px 14px rgba(27, 94, 32, 0.2);
+}
+.notif-pill.notif-chat-pill .notif-pill-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    background: transparent;
+}
+.notif-pill.notif-chat-pill .notif-pill-text {
+    display: none;
 }
 .notif-content {
     flex: 1;
@@ -752,6 +776,27 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchChatUnreadTotal();
     setInterval(fetchChatUnreadTotal, 7000);
 
+    const notifDropdown = document.getElementById('notifDropdown');
+    const notifList = document.getElementById('notifList');
+    if (notifDropdown) {
+        notifDropdown.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+    if (notifList) {
+        notifList.addEventListener('click', function(e) {
+            const item = e.target.closest('.notif-item[data-notif-id]');
+            if (!item) return;
+            e.preventDefault();
+            e.stopPropagation();
+            handleNotificationClick(
+                Number(item.getAttribute('data-notif-id') || 0),
+                Number(item.getAttribute('data-ticket-id') || 0),
+                item.getAttribute('data-notification-type') || ''
+            );
+        });
+    }
+
     // Close dropdown when clicking outside
     document.addEventListener('click', function(e) {
         const wrapper = document.querySelector('.notification-wrapper');
@@ -876,12 +921,12 @@ function fetchAdminNotifications() {
                         pillText = 'Private Note';
                         pillIcon = 'fa-plus';
                     }
-                    const pillHtml = `<span class="notif-pill ${variantClass}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span><span class="notif-pill-text">${escapeHtml(pillText)}</span></span>`;
+                    const pillHtml = `<span class="notif-pill ${variantClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span>${isChatPending ? '' : `<span class="notif-pill-text">${escapeHtml(pillText)}</span>`}</span>`;
                     const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
                     
                     return `
                     ${sectionHtml}
-                    <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="handleNotificationClick(${n.id}, ${n.ticket_id}, ${JSON.stringify(notificationType)})">
+                    <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''} ${isChatPending ? 'notif-chat-pending' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" data-notification-type="${escapeHtml(notificationType)}" role="button" tabindex="0" onclick="handleNotificationClick(${n.id}, ${n.ticket_id}, ${JSON.stringify(notificationType)})" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleNotificationClick(${n.id}, ${n.ticket_id}, ${JSON.stringify(notificationType)}); }">
                         <div class="notif-content">
                             ${messageHtml}
                             <time class="notif-time" data-timestamp="${n.created_at}">${n.time_ago || ''}</time>

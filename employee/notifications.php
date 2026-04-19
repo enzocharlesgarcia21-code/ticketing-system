@@ -174,13 +174,13 @@ function notif_priority_from_message(string $message): string
             align-items: flex-start;
             gap: 18px;
             background: #ffffff;
+            border-left: 7px solid #1B5E20;
         }
         .notif-item-row.notif-chat-pending:hover {
             background-color: #f8fbff;
         }
         .notif-item-row.notif-chat-pending::before {
-            display: block;
-            background: #2563eb;
+            display: none;
         }
         .notif-item-row.notif-chat-pending.unread {
             background: #f7fbff;
@@ -193,7 +193,7 @@ function notif_priority_from_message(string $message): string
             width: 11px;
             height: 11px;
             border-radius: 50%;
-            background: #2563eb;
+            background: #1B5E20;
             box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.96);
         }
         .notif-item-row.notif-follow-up {
@@ -294,7 +294,7 @@ function notif_priority_from_message(string $message): string
         .notif-chat-pending .notif-title {
             font-size: 1rem;
             font-weight: 700;
-            color: #1f4e9c;
+            color: #111827;
         }
         .notif-follow-up .notif-msg strong {
             color: #8a5b00;
@@ -812,10 +812,10 @@ function notif_priority_from_message(string $message): string
                                     $dotColor = '#d4a017';
                                 } elseif ($typeJs === 'hr_chat_pending') {
                                     $iconClass = 'fa-comments';
-                                    $bgClass = 'linear-gradient(135deg, #67c3ff, #2563eb)';
+                                    $bgClass = 'linear-gradient(135deg, #2f8f44, #1B5E20)';
                                     $colorClass = '#ffffff';
-                                    $accentColor = '#2563eb';
-                                    $dotColor = '#2563eb';
+                                    $accentColor = '#1B5E20';
+                                    $dotColor = '#1B5E20';
                                 }
                             }
                             $displayMessage = notif_display_message($typeJs, (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
@@ -860,7 +860,7 @@ function notif_priority_from_message(string $message): string
                             <div class="notif-content">
                                 <div class="notif-title-row">
                                     <?php if ($typeJs === 'hr_chat_pending'): ?>
-                                        <span class="notif-chat-pill"><i class="fas fa-comments"></i><span>Chat</span></span>
+                                        <span class="notif-chat-pill"><i class="fas fa-comments"></i></span>
                                     <?php elseif ($typeJs === 'follow_up'): ?>
                                         <span class="notif-chat-pill notif-follow-pill"><i class="fas fa-rotate"></i><span>Follow Up</span></span>
                                     <?php else: ?>

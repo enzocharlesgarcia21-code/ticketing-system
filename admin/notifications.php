@@ -165,6 +165,9 @@ function notif_priority_from_message(string $message): string
             color: inherit;
             background: #ffffff;
         }
+        .notif-item-row > * {
+            pointer-events: none;
+        }
         .notif-item-row:last-child {
             border-bottom: 0;
         }
@@ -179,6 +182,12 @@ function notif_priority_from_message(string $message): string
         }
         .notif-item-row:hover {
             background-color: #fbfdff;
+        }
+        .notif-item-row.notif-chat-pending {
+            border-left: 7px solid #1B5E20;
+        }
+        .notif-item-row.notif-chat-pending::before {
+            display: none;
         }
         .notif-item-row.unread {
             background-color: #ffffff;
@@ -579,7 +588,17 @@ function notif_priority_from_message(string $message): string
                                         $titleText = 'Ticket Assigned';
                                     }
                                 }
+                                if ($typeKey === 'hr_chat_pending') {
+                                    $iconClass = 'fa-comments';
+                                    $iconTypeClass = 'type-updated type-card';
+                                    $accentColor = '#1B5E20';
+                                    $dotColor = '#1B5E20';
+                                    $titleText = 'Pending Chat';
+                                }
                                 $displayMessage = notif_display_message($typeKey, (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
+                                $notificationHref = $typeKey === 'conference_booking'
+                                    ? 'conference_bookings.php'
+                                    : ($ticketIdJs ? ('all_tickets.php?ticket_id=' . (int) $ticketIdJs) : 'notifications.php');
                             ?>
                             <?php if ($sectionLabel !== $currentSection): ?>
                                 <?php if ($currentSection !== null): ?>
@@ -589,9 +608,13 @@ function notif_priority_from_message(string $message): string
                                 <div class="notif-section-card">
                                 <?php $currentSection = $sectionLabel; ?>
                             <?php endif; ?>
-                            <div class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?> <?= $typeKey === 'follow_up' ? 'notif-follow-up' : '' ?>" 
-                                 style="--notif-accent: <?= htmlspecialchars($accentColor, ENT_QUOTES, 'UTF-8') ?>; --notif-dot: <?= htmlspecialchars($dotColor, ENT_QUOTES, 'UTF-8') ?>;"
-                                 onclick="markAsRead(<?= (int) $row['id'] ?>, <?= json_encode($ticketIdJs) ?>, <?= json_encode($typeKey) ?>)">
+                            <a class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?> <?= $typeKey === 'follow_up' ? 'notif-follow-up' : '' ?> <?= $typeKey === 'hr_chat_pending' ? 'notif-chat-pending' : '' ?>"
+                               href="<?= htmlspecialchars($notificationHref, ENT_QUOTES, 'UTF-8') ?>"
+                               data-notification-id="<?= (int) $row['id'] ?>"
+                               data-ticket-id="<?= $ticketIdJs !== null ? (int) $ticketIdJs : '' ?>"
+                               data-notification-type="<?= htmlspecialchars($typeKey, ENT_QUOTES, 'UTF-8') ?>"
+                               style="--notif-accent: <?= htmlspecialchars($accentColor, ENT_QUOTES, 'UTF-8') ?>; --notif-dot: <?= htmlspecialchars($dotColor, ENT_QUOTES, 'UTF-8') ?>;"
+                               onclick="return handleNotificationRowClick(event, this);">
                                 <div class="notif-icon <?= htmlspecialchars($iconTypeClass, ENT_QUOTES, 'UTF-8') ?>"><i class="fas <?= htmlspecialchars($iconClass, ENT_QUOTES, 'UTF-8') ?>"></i></div>
                                 <div class="notif-content">
                                     <div class="notif-title-row">
@@ -605,7 +628,7 @@ function notif_priority_from_message(string $message): string
                                     <div class="notif-text"><?= notif_message_highlight_html($displayMessage) ?></div>
                                     <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
                                 </div>
-                            </div>
+                            </a>
                         <?php endwhile; ?>
                         <?php if ($currentSection !== null): ?>
                             </div>
@@ -681,20 +704,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
 const CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
 
+function handleNotificationRowClick(event, element) {
+    if (!element) {
+        return true;
+    }
+
+    if (event) {
+        event.preventDefault();
+    }
+
+    const notificationId = Number(element.getAttribute('data-notification-id') || 0);
+    const ticketIdValue = element.getAttribute('data-ticket-id') || '';
+    const ticketId = ticketIdValue === '' ? null : Number(ticketIdValue);
+    const notificationType = element.getAttribute('data-notification-type') || '';
+
+    markAsRead(notificationId, ticketId, notificationType, element.getAttribute('href') || 'notifications.php');
+    return false;
+}
+
 // Mark as Read & Redirect
-function markAsRead(id, ticketId, type) {
+function markAsRead(id, ticketId, type, fallbackHref) {
     // Send request to mark as read
     const formData = new FormData();
     formData.append('id', id);
     if (CSRF_TOKEN) formData.append('csrf_token', CSRF_TOKEN);
 
+    const dest = fallbackHref || ((type || '').toString() === 'conference_booking'
+        ? 'conference_bookings.php'
+        : (ticketId ? `all_tickets.php?ticket_id=${ticketId}` : 'notifications.php'));
+
     fetch('mark_notification_read.php', {
         method: 'POST',
         body: formData
-    }).then(() => {
-        const dest = (type || '').toString() === 'conference_booking'
-            ? 'conference_bookings.php'
-            : (ticketId ? `all_tickets.php?ticket_id=${ticketId}` : 'notifications.php');
+    }).catch(() => {
+        // Still open the target page even if the read update fails.
+    }).finally(() => {
         window.location.href = dest;
     });
 }
