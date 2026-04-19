@@ -228,7 +228,7 @@ admin_clear_hr_chat_reminder($conn, (int) $current_user_id, (int) $ticket_id);
 
 // Fetch messages
 $stmt = $conn->prepare("
-    SELECT tm.id, tm.ticket_id, tm.sender_id, tm.message, tm.attachment_stored_name, tm.attachment_original_name, tm.created_at, u.name as sender_name, u.role as sender_role
+    SELECT tm.id, tm.ticket_id, tm.sender_id, tm.message, tm.message_group_id, tm.attachment_stored_name, tm.attachment_original_name, tm.created_at, u.name as sender_name, u.role as sender_role
     FROM ticket_messages tm
     JOIN users u ON tm.sender_id = u.id
     WHERE tm.ticket_id = ?
@@ -246,6 +246,7 @@ while ($row = $result->fetch_assoc()) {
         'id' => $row['id'],
         'sender_id' => $row['sender_id'],
         'sender_name' => $row['sender_name'],
+        'message_group_id' => (string) ($row['message_group_id'] ?? ''),
         'message' => $row['message'], // XSS protection should be handled on frontend or here. JSON is safe, but rendering needs care.
         'attachment' => !empty($row['attachment_stored_name']) ? [
             'stored_name' => (string) $row['attachment_stored_name'],
