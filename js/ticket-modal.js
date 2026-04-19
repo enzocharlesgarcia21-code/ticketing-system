@@ -10,10 +10,12 @@
   var messengerConfirmAction = null;
   var messengerEditSubmitAction = null;
   var messengerReturnContext = null;
+  var messengerMessagesSignature = '';
+  var messengerComposerSignature = '';
   var currentTicketId = null;
   var lastTicketMeta = null;
   var chatModalAttachmentFile = null;
-  var messengerAttachmentFile = null;
+  var messengerAttachmentFiles = [];
   var attachmentCategorySeq = 0;
   var sapDisplaySeq = 0;
   var imagePreviewSources = [];
@@ -913,6 +915,16 @@
     var name = String(file.name || '').toLowerCase();
     return /\.(jpe?g|png|gif|webp|bmp)$/i.test(name);
   }
+  function getAttachmentFileIcon(file) {
+    var name = String((file && file.name) || '').toLowerCase();
+    if (/\.pdf$/i.test(name)) return 'fa-file-pdf';
+    if (/\.(doc|docx)$/i.test(name)) return 'fa-file-word';
+    if (/\.(xls|xlsx|csv)$/i.test(name)) return 'fa-file-excel';
+    if (/\.(ppt|pptx)$/i.test(name)) return 'fa-file-powerpoint';
+    if (/\.(zip|rar|7z)$/i.test(name)) return 'fa-file-archive';
+    if (/\.(txt|rtf)$/i.test(name)) return 'fa-file-lines';
+    return 'fa-file';
+  }
   function renderSelectedComposerAttachment(label, file, onRemove) {
     if (!label) return;
     var oldUrl = label.getAttribute('data-preview-url');
@@ -940,7 +952,7 @@
     } else {
       var icon = document.createElement('span');
       icon.className = 'tm-selected-attachment-file-icon';
-      icon.innerHTML = '<i class="fas fa-paperclip"></i>';
+      icon.innerHTML = '<i class="fas ' + getAttachmentFileIcon(file) + '"></i>';
       card.appendChild(icon);
     }
 
@@ -970,6 +982,87 @@
 
     label.classList.add('has-file');
     label.appendChild(card);
+  }
+  function renderSelectedComposerAttachments(label, files, onRemoveAt) {
+    if (!label) return;
+    if (typeof URL !== 'undefined' && URL.revokeObjectURL) {
+      label.querySelectorAll('[data-preview-url]').forEach(function (node) {
+        var oldUrl = node.getAttribute('data-preview-url');
+        if (oldUrl) {
+          try { URL.revokeObjectURL(oldUrl); } catch (e) { }
+        }
+      });
+    }
+    label.removeAttribute('data-preview-url');
+    label.innerHTML = '';
+    label.classList.remove('has-file', 'has-many');
+    files = Array.isArray(files) ? files.filter(Boolean) : [];
+    if (!files.length) return;
+    if (files.length > 1) label.classList.add('has-many');
+
+    files.forEach(function (file, index) {
+      var card = document.createElement('div');
+      var isImage = isImageAttachmentFile(file);
+      card.className = 'tm-selected-attachment is-compact' + (isImage ? ' is-image' : ' is-file');
+      card.title = String(file.name || 'Attachment');
+      var previewUrl = '';
+      if (typeof URL !== 'undefined' && URL.createObjectURL) {
+        previewUrl = URL.createObjectURL(file);
+        card.setAttribute('data-preview-url', previewUrl);
+      }
+      if (isImage) {
+        var thumb = document.createElement('img');
+        thumb.className = 'tm-selected-attachment-thumb';
+        thumb.alt = String(file.name || 'Attachment');
+        if (previewUrl) thumb.src = previewUrl;
+        card.appendChild(thumb);
+      } else {
+        var icon = document.createElement('span');
+        icon.className = 'tm-selected-attachment-file-icon';
+        icon.innerHTML = '<i class="fas ' + getAttachmentFileIcon(file) + '"></i>';
+        card.appendChild(icon);
+      }
+
+      if (!isImage) {
+        var meta = document.createElement('div');
+        meta.className = 'tm-selected-attachment-meta';
+        var name = document.createElement('div');
+        name.className = 'tm-selected-attachment-name';
+        name.textContent = String(file.name || 'Attachment');
+        var size = document.createElement('div');
+        size.className = 'tm-selected-attachment-size';
+        size.textContent = formatAttachmentSize(file.size || 0);
+        meta.appendChild(name);
+        meta.appendChild(size);
+        card.appendChild(meta);
+      }
+
+      card.addEventListener('click', function (e) {
+        if (!previewUrl || e.target.closest('.tm-selected-attachment-remove')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (isImage) {
+          viewImage(previewUrl);
+        } else {
+          window.open(previewUrl, '_blank', 'noopener,noreferrer');
+        }
+      });
+
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'tm-selected-attachment-remove';
+      removeBtn.setAttribute('aria-label', 'Remove attachment');
+      removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+      removeBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof onRemoveAt === 'function') onRemoveAt(index);
+      });
+      card.appendChild(removeBtn);
+      label.appendChild(card);
+    });
+
+    label.classList.add('has-file');
   }
   function createMessageAttachmentNode(attachment) {
     if (!attachment || !attachment.stored_name) return null;
@@ -1014,6 +1107,47 @@
     }
     return wrap;
   }
+  function groupMessengerMessages(messages) {
+    var grouped = [];
+    var byGroup = {};
+    (Array.isArray(messages) ? messages : []).forEach(function (msg) {
+      var groupId = msg && msg.message_group_id ? String(msg.message_group_id) : '';
+      var key = groupId || ('single-' + String(msg && msg.id != null ? msg.id : grouped.length));
+      var existing = groupId ? byGroup[key] : null;
+      if (!existing) {
+        existing = Object.assign({}, msg || {});
+        existing.id = msg && msg.id != null ? msg.id : key;
+        existing.message_ids = [];
+        existing.attachments = [];
+        grouped.push(existing);
+        if (groupId) byGroup[key] = existing;
+      }
+      if (msg && msg.id != null) existing.message_ids.push(msg.id);
+      if (!existing.message && msg && msg.message) existing.message = msg.message;
+      if (msg && msg.attachment) existing.attachments.push(msg.attachment);
+      if (msg && msg.created_at) existing.created_at = msg.created_at;
+      existing.can_edit = existing.can_edit && (!msg || msg.can_edit !== false);
+      existing.can_delete = existing.can_delete && (!msg || msg.can_delete !== false);
+    });
+    return grouped;
+  }
+  function createMessageAttachmentsNode(attachments) {
+    attachments = Array.isArray(attachments) ? attachments.filter(Boolean) : [];
+    if (!attachments.length) return null;
+    if (attachments.length === 1) return createMessageAttachmentNode(attachments[0]);
+
+    var group = document.createElement('div');
+    group.className = 'tm-chat-attachment-group';
+    attachments.forEach(function (attachment) {
+      var item = createMessageAttachmentNode(attachment);
+      if (item) group.appendChild(item);
+    });
+    var allFiles = attachments.every(function (attachment) {
+      return !(attachment && attachment.is_image);
+    });
+    group.classList.toggle('files-only', allFiles);
+    return group;
+  }
   function setChatModalAttachment(file) {
     chatModalAttachmentFile = file || null;
     var label = qs('chatModalAttachmentName');
@@ -1023,13 +1157,16 @@
       setChatModalAttachment(null);
     });
   }
-  function setMessengerAttachment(file) {
-    messengerAttachmentFile = file || null;
+  function setMessengerAttachments(files) {
+    messengerAttachmentFiles = Array.isArray(files) ? files.filter(Boolean) : [];
     var label = qs('tmMessengerAttachmentName');
-    renderSelectedComposerAttachment(label, messengerAttachmentFile, function () {
+    var compose = label ? label.closest('.tm-messenger-compose') : null;
+    if (compose) compose.classList.toggle('has-attachment', messengerAttachmentFiles.length > 0);
+    renderSelectedComposerAttachments(label, messengerAttachmentFiles, function (index) {
       var input = qs('tmMessengerAttachmentInput');
       if (input) input.value = '';
-      setMessengerAttachment(null);
+      var next = messengerAttachmentFiles.filter(function (_, i) { return i !== index; });
+      setMessengerAttachments(next);
     });
   }
   function renderHrRequestDetailsCard(data) {
@@ -2538,12 +2675,23 @@
         '.tm-selected-attachment-remove{width:28px;height:28px;border:none;border-radius:999px;background:#e2e8f0;color:#334155;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto;}' +
         '.tm-selected-attachment-remove:hover{background:#fecaca;color:#b91c1c;}' +
         '.tm-chat-attachment{display:flex;flex-direction:column;gap:8px;margin-top:2px;}' +
+        '.tm-chat-attachment-group{display:flex;flex-direction:row;align-items:stretch;gap:8px;margin-top:4px;max-width:min(430px,100%);overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding:2px 0 4px;}' +
+        '.tm-chat-attachment-group.files-only{flex-direction:column;align-items:stretch;gap:7px;max-width:min(330px,100%);overflow:visible;padding:2px 0;}' +
+        '.tm-chat-attachment-group .tm-chat-attachment{margin-top:0;min-width:112px;flex:0 0 112px;}' +
+        '.tm-chat-attachment-group.files-only .tm-chat-attachment{min-width:0;flex:0 0 auto;width:100%;line-height:1;}' +
+        '.tm-chat-attachment-group .tm-chat-attachment:has(.tm-chat-attachment-link:not(.tm-chat-attachment-button)){min-width:185px;flex-basis:185px;}' +
+        '.tm-chat-attachment-group.files-only .tm-chat-attachment:has(.tm-chat-attachment-link:not(.tm-chat-attachment-button)){min-width:0;flex-basis:auto;}' +
         '.tm-chat-attachment-link{display:inline-flex;align-items:center;gap:10px;color:inherit;text-decoration:none;max-width:100%;}' +
         '.tm-chat-attachment-button{appearance:none;-webkit-appearance:none;padding:0;border:none;background:transparent;cursor:zoom-in;position:relative;z-index:1;}' +
         '.tm-chat-attachment-icon{width:34px;height:34px;border-radius:12px;background:rgba(255,255,255,.18);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;}' +
         '.tm-messenger-overlay .chat-bubble.other .tm-chat-attachment-icon{background:#e2e8f0;color:#334155;}' +
         '.tm-chat-attachment-name{font-size:13px;font-weight:700;line-height:1.35;word-break:break-word;}' +
         '.tm-chat-attachment-image{display:block;max-width:min(260px,100%);max-height:220px;border-radius:14px;border:1px solid rgba(148,163,184,.28);object-fit:cover;background:#fff;cursor:zoom-in;pointer-events:auto;position:relative;z-index:1;}' +
+        '.tm-chat-attachment-group .tm-chat-attachment-image{width:112px;height:86px;max-width:none;max-height:none;object-fit:cover;border-radius:10px;}' +
+        '.tm-chat-attachment-group .tm-chat-attachment-link:not(.tm-chat-attachment-button){width:185px;min-height:54px;border-radius:12px;padding:8px 10px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);box-sizing:border-box;}' +
+        '.tm-chat-attachment-group.files-only .tm-chat-attachment-link:not(.tm-chat-attachment-button){width:100%;}' +
+        '.tm-chat-attachment-group .tm-chat-attachment-link:not(.tm-chat-attachment-button) .tm-chat-attachment-icon{width:34px;height:34px;border-radius:10px;}' +
+        '.tm-chat-attachment-group .tm-chat-attachment-link:not(.tm-chat-attachment-button) .tm-chat-attachment-name{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;line-height:1.25;}' +
         '.tm-messenger-send{border:none;background:#1B5E20;color:#fff;border-radius:12px;padding:12px 14px;font-weight:900;cursor:pointer;min-width:86px;}' +
         '.tm-messenger-send:disabled{opacity:.6;cursor:not-allowed;}' +
         '.tm-messenger-overlay .chat-bubble{max-width:80%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;display:flex;flex-direction:column;gap:4px;box-shadow:0 1px 2px rgba(0,0,0,.04);}' +
@@ -2684,6 +2832,73 @@
       document.head.appendChild(employeeStyle);
     }
 
+    if (!document.getElementById('tmMessengerUiPolishStyles')) {
+      var polishStyle = document.createElement('style');
+      polishStyle.id = 'tmMessengerUiPolishStyles';
+      polishStyle.textContent =
+        '.tm-messenger-overlay.employee-style{background:rgba(15,23,42,.54);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-panel{border-radius:20px;overflow:hidden;border:1px solid rgba(244,196,48,.74);border-top:3px solid #f4c430;box-shadow:0 32px 88px rgba(15,23,42,.34);background:#ffffff;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-panel::before{content:"";position:absolute;inset:0 0 auto 0;height:64px;background:#14521b;pointer-events:none;z-index:0;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-left,.tm-messenger-overlay.employee-style .tm-messenger-right{position:relative;z-index:1;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-left{background:#fbfcfd;border-right:1px solid rgba(148,163,184,.28);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-left-header{height:64px;padding:0 18px;border-bottom:none;background:#14521b;align-items:center;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-left-title{color:#ffffff;font-size:19px;font-family:Inter,Segoe UI,Arial,sans-serif;font-weight:600;letter-spacing:.01em;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-search{padding:12px 18px 10px;background:#ffffff;border-bottom:1px solid #eef2f7;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-search::before{left:32px;top:50%;color:#8aa19a;font-size:14px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-search input{height:42px;border-radius:12px;border:1px solid #dbe4ee;background:#ffffff;padding-left:38px;color:#1f2937;font-size:14px;box-shadow:inset 0 1px 2px rgba(15,23,42,.025);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-search input:focus{border-color:#86b996;box-shadow:0 0 0 4px rgba(22,101,52,.10);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-filters{padding:10px 16px 12px;background:#ffffff;border-bottom:1px solid #eef2f7;gap:8px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-filter-btn{height:38px;border-radius:18px;background:#ffffff;border:1px solid #e2e8f0;color:#334155;font-size:13px;font-weight:800;box-shadow:0 4px 10px rgba(15,23,42,.035);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-filter-btn.active{background:#173f2a;border-color:#173f2a;color:#ffffff;box-shadow:0 10px 22px rgba(23,63,42,.18);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-list{background:#f8fafb;padding:12px 10px 16px;gap:10px;scrollbar-color:#7c858f transparent;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item{border-radius:14px;border:1px solid #e2e8f0;background:#ffffff;padding:14px 16px;box-shadow:0 8px 18px rgba(15,23,42,.035);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item:hover{border-color:#c8d8cf;background:#fbfefd;box-shadow:0 12px 24px rgba(15,23,42,.07);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.active{border-color:#dcebe2;border-left:5px solid #2d8f4d;background:linear-gradient(180deg,#f3fbf6 0%,#edf8f1 100%);box-shadow:0 14px 28px rgba(34,101,52,.12);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.active .tm-messenger-item-subject{color:#10271d;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item.locked-ticket{background:#ffffff;border-color:#e2e8f0;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item-top{align-items:flex-start;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item-subject{font-size:15px;font-weight:850;color:#111827;letter-spacing:.01em;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item-time{font-size:13px;font-weight:800;color:#334155;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-item-preview{font-size:14px;color:#475569;line-height:1.35;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-right{background:#ffffff;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-right-header{height:64px;padding:0 20px 0 28px;background:#14521b;border-bottom:none;align-items:center;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:18px;font-family:Inter,Segoe UI,Arial,sans-serif;font-weight:600;color:#ffffff;letter-spacing:.03em;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-title-sub{position:absolute;left:28px;right:20px;top:64px;height:50px;padding:9px 0 8px;background:#ffffff;border-bottom:1px solid #e5e7eb;color:#344052;font-size:15px;z-index:3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-status-pill{height:29px;padding:0 14px;border-radius:999px;background:#eef8f1;border-color:#d6eadc;color:#183f2a;font-size:14px;font-weight:800;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-header-actions{position:absolute;right:20px;top:9px;z-index:5;display:flex;align-items:center;gap:10px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-menu-btn,.tm-messenger-overlay.employee-style .tm-messenger-close{width:46px;height:46px;border-radius:14px;background:#ffffff;color:#25302d;border:1px solid rgba(226,232,240,.95);box-shadow:0 12px 26px rgba(15,23,42,.12);}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-close{color:#b94a54;background:#fff7f7;border-color:#fecaca;font-size:28px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-menu-btn:hover{background:#f8fafc;color:#0f172a;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-close:hover{background:#fee2e2;color:#991b1b;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-messages{margin-top:50px;padding:18px 22px 16px;background:#ffffff;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-empty{height:100%;min-height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#64748b;font-size:18px;font-weight:750;letter-spacing:.02em;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-empty.no-messages::before{content:"\\f27a";font-family:"Font Awesome 6 Free";font-weight:400;width:64px;height:50px;border:1px solid #8faf9e;border-radius:22px 22px 22px 4px;color:#6f9c84;display:inline-flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:20px;background:#f4faf6;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-empty.no-messages::after{content:"Start the conversation...";display:block;margin-top:12px;color:#697586;font-size:16px;font-weight:400;letter-spacing:0;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-compose{background:#ffffff;border:1.5px solid #a7dcb5;border-radius:28px;margin:10px 18px 14px;padding:12px 14px;gap:10px 12px;display:grid;grid-template-columns:42px minmax(0,1fr) 112px;grid-template-rows:42px;align-items:center;box-shadow:0 14px 28px rgba(15,23,42,.07);position:relative;overflow:visible;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-compose.has-attachment{margin-top:58px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-compose:not(.has-attachment){grid-template-rows:42px;padding:10px 14px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-attach{grid-column:1;grid-row:1;width:42px;height:42px;border-radius:14px;background:#ffffff;color:#334155;border:1px solid #dbe4ee;box-shadow:0 5px 12px rgba(15,23,42,.055);font-size:18px;align-self:center;justify-self:start;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-compose input{grid-column:2;grid-row:1;min-height:42px;border-radius:21px;border:1px solid #dbe4ee;background:#ffffff;box-shadow:none;font-size:15px;color:#334155;line-height:20px;padding:11px 18px;box-sizing:border-box;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-compose.has-attachment input{padding-left:18px;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName.tm-chat-attachment-selected{position:absolute;left:0;right:0;top:-50px;min-height:0;width:auto;height:42px;z-index:2;pointer-events:auto;display:none;align-items:center;gap:10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding:3px 8px 3px 0;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName.tm-chat-attachment-selected.has-file{display:flex;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName.tm-chat-attachment-selected.has-many{width:100%;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment{position:relative;height:40px;min-height:40px;box-sizing:border-box;cursor:pointer;overflow:visible;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-image{width:48px;min-width:48px;max-width:48px;padding:0;border:1px solid #cfe8d6;border-radius:10px;background:#f6fbf7;box-shadow:0 5px 12px rgba(24,95,45,.10);}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-file{width:164px;min-width:164px;max-width:164px;border:1px solid #cfe8d6;border-radius:12px;background:#f6fbf7;color:#153f26;box-shadow:0 5px 12px rgba(24,95,45,.10);padding:6px 28px 6px 10px;gap:8px;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName.has-many .tm-selected-attachment.is-file{width:142px;min-width:142px;max-width:142px;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-image .tm-selected-attachment-thumb{width:46px;height:38px;border-radius:9px;border:none;object-fit:cover;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-file .tm-selected-attachment-file-icon{width:30px;height:30px;border-radius:999px;background:#e4f4e9;color:#185f2d;border:1px solid #c9e7d2;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-file .tm-selected-attachment-name{font-size:12px;line-height:1.15;color:#173f2a;font-weight:850;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-file .tm-selected-attachment-size{font-size:11px;line-height:1.1;color:#5d7164;font-weight:750;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment-remove{position:absolute;right:-7px;top:-7px;width:22px;height:22px;background:#e4f4e9;color:#185f2d;border:1px solid #c9e7d2;box-shadow:0 3px 8px rgba(24,95,45,.16);z-index:3;}' +
+        '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment-remove:hover{background:#fee2e2;color:#b91c1c;border-color:#fecaca;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-send{grid-column:3;grid-row:1;min-width:112px;min-height:42px;border-radius:21px;background:#185f2d;box-shadow:0 12px 22px rgba(24,95,45,.20);font-size:16px;font-weight:850;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-send:hover{background:#144f26;}' +
+        '@media (max-width:768px){.tm-messenger-overlay.employee-style .tm-messenger-panel::before{height:58px}.tm-messenger-overlay.employee-style .tm-messenger-left-header,.tm-messenger-overlay.employee-style .tm-messenger-right-header{height:58px}.tm-messenger-overlay.employee-style .tm-messenger-title-sub{top:58px;left:16px;right:16px;height:50px}.tm-messenger-overlay.employee-style .tm-messenger-header-actions{top:8px;right:12px;gap:8px}.tm-messenger-overlay.employee-style .tm-messenger-messages{margin-top:50px;padding:16px 14px}.tm-messenger-overlay.employee-style .tm-messenger-left-title{font-size:17px}.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:17px}.tm-messenger-overlay.employee-style .tm-messenger-menu-btn,.tm-messenger-overlay.employee-style .tm-messenger-close{width:42px;height:42px}.tm-messenger-overlay.employee-style .tm-messenger-empty{min-height:180px;font-size:16px}.tm-messenger-overlay.employee-style .tm-messenger-empty.no-messages::before{width:54px;height:44px;font-size:21px;margin-bottom:14px}}';
+      document.head.appendChild(polishStyle);
+    }
+
     var overlay = document.createElement('div');
     overlay.id = 'tmMessengerModal';
     overlay.className = 'tm-messenger-overlay' + ((typeof window !== 'undefined' && window.TM_MESSENGER_STYLE === 'employee') ? ' employee-style' : '');
@@ -2723,7 +2938,7 @@
       '    <div class="tm-messenger-messages" id="tmMessengerMessages"><div class="tm-messenger-empty">Select a ticket on the left.</div></div>' +
       '    <div class="tm-messenger-compose">' +
       '      <input type="hidden" id="tmMessengerTicketId" value="">' +
-      '      <input type="file" id="tmMessengerAttachmentInput" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" style="display:none;">' +
+      '      <input type="file" id="tmMessengerAttachmentInput" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" multiple style="display:none;">' +
       '      <button type="button" class="tm-messenger-attach" id="tmMessengerAttachBtn" aria-label="Attach file"><i class="fas fa-paperclip"></i></button>' +
       '      <input type="text" id="tmMessengerInput" placeholder="Type a message..." autocomplete="off" disabled>' +
       '      <span id="tmMessengerAttachmentName" class="tm-chat-attachment-selected"></span>' +
@@ -2746,8 +2961,8 @@
         if (!attachBtn.disabled) attachInput.click();
       });
       attachInput.addEventListener('change', function () {
-        var file = attachInput.files && attachInput.files[0] ? attachInput.files[0] : null;
-        setMessengerAttachment(file);
+        var selected = attachInput.files ? Array.prototype.slice.call(attachInput.files) : [];
+        setMessengerAttachments(messengerAttachmentFiles.concat(selected));
       });
     }
     var deleteBtn = qs('tmMessengerDeleteBtn');
@@ -2900,7 +3115,11 @@
           selectConversation(window.__tmConversations[0]);
         } else if (messengerTicketId) {
           var found = window.__tmConversations.find(function (c) { return String(c.id) === String(messengerTicketId); });
-          if (found) selectConversation(found, true);
+          if (found) {
+            setMessengerHeader(found);
+            updateMessengerFilterButtons();
+            renderConversations(searchEl ? searchEl.value : '');
+          }
         }
       })
       .catch(function () {
@@ -3040,6 +3259,7 @@
     messengerPermissionState.handlerName = '';
     messengerPermissionState.statusLabel = '';
     messengerPermissionState.isChecking = false;
+    messengerComposerSignature = '';
     var idEl = qs('tmMessengerTicketId');
     if (idEl) idEl.value = '';
     var input = qs('tmMessengerInput');
@@ -3059,10 +3279,11 @@
     if (sendBtn) sendBtn.disabled = true;
     if (attachBtn) attachBtn.disabled = true;
     if (attachInput) attachInput.value = '';
-    setMessengerAttachment(null);
+    setMessengerAttachments([]);
     setMessengerHeader(null);
     var container = qs('tmMessengerMessages');
     if (container) container.innerHTML = '<div class="tm-messenger-empty">Select a ticket on the left.</div>';
+    messengerMessagesSignature = '';
     hideMessengerMenu();
     renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
   }
@@ -3073,12 +3294,14 @@
     var idEl = qs('tmMessengerTicketId');
     if (idEl) idEl.value = messengerTicketId;
     setMessengerHeader(conv);
+    messengerComposerSignature = '';
     setMessengerComposerState(false, 'Checking ticket handler...');
+    messengerMessagesSignature = '';
 
     renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
     stopMessenger();
     loadMessengerMessages(messengerTicketId, true);
-    messengerInterval = setInterval(function () { loadMessengerMessages(messengerTicketId, false); }, 3000);
+    messengerInterval = setInterval(function () { loadMessengerMessages(messengerTicketId, false, true); }, 3000);
     if (!noReloadConversations) {
       setTimeout(function () { loadConversationsAndMaybeSelect(); }, 0);
     }
@@ -3113,13 +3336,38 @@
   function renderMessengerMessages(messages, scrollBottom) {
     var container = qs('tmMessengerMessages');
     if (!container) return;
-    var isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
-    container.innerHTML = '';
-    if (!messages || messages.length === 0) {
-      container.innerHTML = '<div class="tm-messenger-empty">No messages yet.</div>';
+    var groupedMessages = groupMessengerMessages(messages || []);
+    var nextSignature = JSON.stringify(groupedMessages.map(function (msg) {
+      return {
+        id: msg && msg.id != null ? String(msg.id) : '',
+        ids: Array.isArray(msg && msg.message_ids) ? msg.message_ids.map(String) : [],
+        group: msg && msg.message_group_id != null ? String(msg.message_group_id) : '',
+        sender: msg && msg.sender_id != null ? String(msg.sender_id) : '',
+        senderName: msg && msg.sender_name != null ? String(msg.sender_name) : '',
+        message: msg && msg.message != null ? String(msg.message) : '',
+        createdAt: msg && msg.created_at != null ? String(msg.created_at) : '',
+        isMe: !!(msg && msg.is_me),
+        attachments: Array.isArray(msg && msg.attachments) ? msg.attachments.map(function (att) {
+          return {
+            stored: String(att && att.stored_name || ''),
+            original: String(att && att.original_name || ''),
+            isImage: !!(att && att.is_image)
+          };
+        }) : []
+      };
+    }));
+    if (nextSignature === messengerMessagesSignature) {
+      if (scrollBottom) container.scrollTop = container.scrollHeight;
       return;
     }
-    messages.forEach(function (msg) {
+    messengerMessagesSignature = nextSignature;
+    var isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+    container.innerHTML = '';
+    if (!groupedMessages.length) {
+      container.innerHTML = '<div class="tm-messenger-empty no-messages">No messages yet</div>';
+      return;
+    }
+    groupedMessages.forEach(function (msg) {
       var bubble = document.createElement('div');
       bubble.classList.add('chat-bubble', (msg.is_me ? 'me' : 'other'));
       var ticketIdEl = qs('tmMessengerTicketId');
@@ -3146,7 +3394,7 @@
         contentDiv.textContent = msg.message;
         bubble.appendChild(contentDiv);
       }
-      var attachmentNode = createMessageAttachmentNode(msg && msg.attachment ? msg.attachment : null);
+      var attachmentNode = createMessageAttachmentsNode(msg && msg.attachments ? msg.attachments : (msg && msg.attachment ? [msg.attachment] : []));
       if (attachmentNode) bubble.appendChild(attachmentNode);
       var timeDiv = document.createElement('div');
       timeDiv.classList.add('chat-time');
@@ -3223,6 +3471,15 @@
     var allowed = canChat === true;
     var waiting = !allowed && String(lockedMessage || '') === 'Checking ticket handler...';
     var handlerName = extractHandlerName(lockedMessage);
+    var nextSignature = [allowed ? '1' : '0', waiting ? '1' : '0', String(lockedMessage || ''), handlerName].join('|');
+    if (nextSignature === messengerComposerSignature) {
+      messengerPermissionState.canChat = allowed;
+      messengerPermissionState.lockedMessage = String(lockedMessage || '');
+      messengerPermissionState.handlerName = handlerName;
+      messengerPermissionState.isChecking = waiting;
+      return;
+    }
+    messengerComposerSignature = nextSignature;
     messengerPermissionState.canChat = allowed;
     messengerPermissionState.lockedMessage = String(lockedMessage || '');
     messengerPermissionState.handlerName = handlerName;
@@ -3249,12 +3506,13 @@
     if (attachInput) attachInput.disabled = !allowed;
     if (!allowed) {
       if (attachInput) attachInput.value = '';
-      setMessengerAttachment(null);
+      setMessengerAttachments([]);
     }
   }
   function renderMessengerLockedState(message) {
     var container = qs('tmMessengerMessages');
     if (!container) return;
+    messengerMessagesSignature = '';
     var handlerName = extractHandlerName(message || messengerPermissionState.lockedMessage);
     container.innerHTML =
       '<div class="tm-messenger-locked-state">' +
@@ -3321,14 +3579,17 @@
     if (!input || !ticketIdEl) return;
     var ticketId = String(ticketIdEl.value || '');
     var message = input.value.trim();
-    if (!ticketId || (!message && !messengerAttachmentFile)) return;
+    var files = Array.isArray(messengerAttachmentFiles) ? messengerAttachmentFiles.slice() : [];
+    if (!ticketId || (!message && files.length === 0)) return;
     if (input.disabled || input.readOnly || messengerPermissionState.canChat !== true) return;
     if (btn && btn.disabled) return;
     if (btn) btn.disabled = true;
     var formData = new FormData();
     formData.append('ticket_id', ticketId);
     formData.append('message', message);
-    if (messengerAttachmentFile) formData.append('attachment', messengerAttachmentFile);
+    files.forEach(function (file) {
+      formData.append('attachments[]', file);
+    });
     var t = getCsrfToken();
     if (t) formData.append('csrf_token', t);
     postJson('chat_send.php', formData)
@@ -3337,15 +3598,16 @@
         if (data && data.success) {
           input.value = '';
           if (attachInput) attachInput.value = '';
-          setMessengerAttachment(null);
-          setTimeout(function () { loadMessengerMessages(ticketId, true); }, 0);
+          setMessengerAttachments([]);
+          messengerMessagesSignature = '';
+          setTimeout(function () { loadMessengerMessages(ticketId, true, true); }, 0);
           return;
         }
-        loadMessengerMessages(ticketId, false);
+        loadMessengerMessages(ticketId, false, true);
       })
       .catch(function () {
         if (btn) btn.disabled = false;
-        loadMessengerMessages(ticketId, false);
+        loadMessengerMessages(ticketId, false, true);
       });
   }
   function deleteMessengerConversation() {
@@ -3384,6 +3646,9 @@
                 return !(c && String(c.id) === String(ticketId));
               });
             }
+            if (deleteBtn) deleteBtn.disabled = false;
+            messengerMessagesSignature = '';
+            messengerComposerSignature = '';
             stopMessenger();
             clearMessengerSelection();
             var remaining = Array.isArray(window.__tmConversations) ? window.__tmConversations : [];

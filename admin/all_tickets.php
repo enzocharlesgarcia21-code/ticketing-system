@@ -548,7 +548,7 @@ $result = $stmt->get_result();
                                name="search"
                                id="searchInput"
                                class="filter-input"
-                               placeholder="Search name, email or subject..."
+                               placeholder="Search by ID, name, email or subject..."
                                value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
 
                         <select id="recipientFilterSelect" class="filter-select">
