@@ -169,7 +169,18 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             handler.name AS assigned_to_name,
             MAX(tm.created_at) AS last_message_time,
             COALESCE(SUM(CASE WHEN tm.id IS NOT NULL AND tm.is_read = 0 AND tm.sender_id <> ? THEN 1 ELSE 0 END), 0) AS unread_count,
-            SUBSTRING_INDEX(GROUP_CONCAT(tm.message ORDER BY tm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_message,
+            SUBSTRING_INDEX(
+                GROUP_CONCAT(
+                    CASE
+                        WHEN TRIM(COALESCE(tm.message, '')) <> '' THEN tm.message
+                        WHEN TRIM(COALESCE(tm.attachment_original_name, '')) <> '' THEN CONCAT('[Attachment] ', tm.attachment_original_name)
+                        ELSE ''
+                    END
+                    ORDER BY tm.created_at DESC SEPARATOR '\n'
+                ),
+                '\n',
+                1
+            ) AS last_message,
             SUBSTRING_INDEX(GROUP_CONCAT(u.name ORDER BY tm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_sender_name,
             MAX(t.created_at) AS ticket_created_at
         FROM employee_tickets t

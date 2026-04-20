@@ -106,6 +106,73 @@ $progress = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE s
 
 $resolved = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE status='Resolved'")
                  ->fetch_assoc()['count'];
+
+$weeklyOverview = $conn->query("
+    SELECT
+        SUM(created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_total,
+        SUM(created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)) AS previous_week_total,
+        SUM(status = 'Open' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_open,
+        SUM(status = 'In Progress' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_progress,
+        SUM(status = 'Resolved' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_resolved
+    FROM employee_tickets
+")->fetch_assoc();
+
+$currentWeekTotal = (int) ($weeklyOverview['current_week_total'] ?? 0);
+$previousWeekTotal = (int) ($weeklyOverview['previous_week_total'] ?? 0);
+$currentWeekOpen = (int) ($weeklyOverview['current_week_open'] ?? 0);
+$currentWeekProgress = (int) ($weeklyOverview['current_week_progress'] ?? 0);
+$currentWeekResolved = (int) ($weeklyOverview['current_week_resolved'] ?? 0);
+
+if ($previousWeekTotal > 0) {
+    $totalDeltaPercent = (int) round((($currentWeekTotal - $previousWeekTotal) / $previousWeekTotal) * 100);
+} elseif ($currentWeekTotal > 0) {
+    $totalDeltaPercent = 100;
+} else {
+    $totalDeltaPercent = 0;
+}
+
+$dashboardStats = [
+    [
+        'variant' => 'total',
+        'label' => 'Total Tickets',
+        'value' => (int) $total,
+        'subtitle' => 'All tickets in system',
+        'icon' => 'fa-stopwatch',
+        'trend_value' => abs($totalDeltaPercent) . '%',
+        'trend_caption' => 'vs last week',
+        'trend_direction' => $totalDeltaPercent >= 0 ? 'up' : 'down',
+    ],
+    [
+        'variant' => 'open',
+        'label' => 'Open',
+        'value' => (int) $open,
+        'subtitle' => 'Awaiting response',
+        'icon' => 'fa-folder-open',
+        'trend_value' => (string) $currentWeekOpen,
+        'trend_caption' => 'this week',
+        'trend_direction' => 'up',
+    ],
+    [
+        'variant' => 'progress',
+        'label' => 'In Progress',
+        'value' => (int) $progress,
+        'subtitle' => 'Currently being worked',
+        'icon' => 'fa-gear',
+        'trend_value' => (string) $currentWeekProgress,
+        'trend_caption' => 'this week',
+        'trend_direction' => 'down',
+    ],
+    [
+        'variant' => 'resolved',
+        'label' => 'Resolved',
+        'value' => (int) $resolved,
+        'subtitle' => 'Completed tickets',
+        'icon' => 'fa-circle-check',
+        'trend_value' => (string) $currentWeekResolved,
+        'trend_caption' => 'this week',
+        'trend_direction' => 'down',
+    ],
+];
 /* ===== DEPARTMENT DATA ===== */
 
 $deptQuery = $conn->query("
@@ -215,6 +282,162 @@ if ($recentRes) {
     <style>
         .admin-content{
             max-width: 1460px;
+        }
+
+        .admin-stats-grid{
+            gap: 20px;
+            margin-top: 10px;
+        }
+
+        .admin-stat-card{
+            display:flex;
+            flex-direction:column;
+            justify-content:center;
+            min-height:158px;
+            padding:20px 22px 18px;
+            border-radius:22px;
+            border:1px solid #e7edf5;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.07);
+            position:relative;
+            overflow:hidden;
+            background:
+                linear-gradient(90deg, var(--stat-accent, #4ade80) 0 6px, #ffffff 6px 100%);
+        }
+
+        .admin-stat-card::before{
+            content:none;
+        }
+
+        .admin-stat-card.total{
+            --stat-accent:#4ade80;
+            --stat-icon-bg:#ecfdf3;
+            --stat-icon-color:#22c55e;
+            --stat-chip-bg:#ecfdf3;
+            --stat-chip-color:#22c55e;
+        }
+
+        .admin-stat-card.open{
+            --stat-accent:#4fb7ff;
+            --stat-icon-bg:#e8f4ff;
+            --stat-icon-color:#36a3f6;
+            --stat-chip-bg:#edf7ff;
+            --stat-chip-color:#2d9bf0;
+        }
+
+        .admin-stat-card.progress{
+            --stat-accent:#9b6bff;
+            --stat-icon-bg:#f3ebff;
+            --stat-icon-color:#8b5cf6;
+            --stat-chip-bg:#f5edff;
+            --stat-chip-color:#7c3aed;
+        }
+
+        .admin-stat-card.resolved{
+            --stat-accent:#ffab2e;
+            --stat-icon-bg:#fff4e5;
+            --stat-icon-color:#f59e0b;
+            --stat-chip-bg:#fff4e8;
+            --stat-chip-color:#f97316;
+        }
+
+        .admin-stat-trend{
+            position:absolute;
+            top:16px;
+            right:18px;
+            display:inline-flex;
+            align-items:flex-start;
+            gap:8px;
+            padding:8px 12px;
+            border-radius:14px;
+            background:var(--stat-chip-bg, #f8fafc);
+            color:var(--stat-chip-color, #334155);
+            font-weight:700;
+            line-height:1;
+            white-space:nowrap;
+        }
+
+        .admin-stat-trend-icon{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            width:16px;
+            height:16px;
+            flex:0 0 16px;
+            margin-top:1px;
+        }
+
+        .admin-stat-trend i{
+            font-size:14px;
+        }
+
+        .admin-stat-trend-text{
+            display:flex;
+            flex-direction:column;
+            align-items:flex-start;
+            gap:4px;
+        }
+
+        .admin-stat-trend-value{
+            font-size:0.98rem;
+            font-weight:700;
+            line-height:1;
+        }
+
+        .admin-stat-trend-caption{
+            font-size:0.78rem;
+            font-weight:600;
+            color:#64748b;
+            line-height:1.05;
+        }
+
+        .admin-stat-main{
+            display:flex;
+            align-items:flex-start;
+            gap:16px;
+        }
+
+        .admin-stat-copy{
+            display:flex;
+            flex-direction:column;
+            align-items:flex-start;
+            gap:0;
+            min-width:0;
+        }
+
+        .admin-stat-icon{
+            width:54px;
+            height:54px;
+            border-radius:14px;
+            margin-bottom:0;
+            background:var(--stat-icon-bg, #f3f4f6);
+            color:var(--stat-icon-color, #0f172a);
+            font-size:22px;
+            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16);
+        }
+
+        .admin-stat-label{
+            font-size:13px;
+            font-weight:600;
+            color:#253047;
+            margin-bottom:6px;
+            line-height:1.2;
+            padding-top:4px;
+        }
+
+        .admin-stat-value{
+            font-size:2.55rem;
+            line-height:1;
+            font-weight:700;
+            letter-spacing:-0.03em;
+            color:#19233b;
+            margin-bottom:8px;
+        }
+
+        .admin-stat-subtext{
+            font-size:0.82rem;
+            color:#64748b;
+            font-weight:500;
+            margin-top:2px;
         }
 
         .recent-tickets-title{
@@ -358,6 +581,39 @@ if ($recentRes) {
         .admin-analytics-section.admin-analytics-full{
             grid-template-columns: 1fr;
         }
+
+        @media (max-width: 992px){
+            .admin-stat-card{
+                min-height:148px;
+            }
+
+            .admin-stat-value{
+                font-size:2.5rem;
+            }
+        }
+
+        @media (max-width: 640px){
+            .admin-stat-card{
+                padding:18px 18px 16px;
+                border-radius:18px;
+            }
+
+            .admin-stat-top{
+                flex-direction:column;
+                align-items:flex-start;
+            }
+
+            .admin-stat-icon{
+                width:48px;
+                height:48px;
+                font-size:20px;
+            }
+
+            .admin-stat-trend{
+                top:14px;
+                right:14px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -379,29 +635,29 @@ if ($recentRes) {
             </div>
 
             <section class="admin-stats-grid">
-                <div class="admin-stat-card">
-                    <div class="admin-stat-icon total">⏱</div>
-                    <div class="admin-stat-label">Total Tickets</div>
-                    <div class="admin-stat-value"><?= $total ?></div>
-                </div>
-
-                <div class="admin-stat-card">
-                    <div class="admin-stat-icon open">📂</div>
-                    <div class="admin-stat-label">Open</div>
-                    <div class="admin-stat-value"><?= $open ?></div>
-                </div>
-
-                <div class="admin-stat-card">
-                    <div class="admin-stat-icon progress">⚙️</div>
-                    <div class="admin-stat-label">In Progress</div>
-                    <div class="admin-stat-value"><?= $progress ?></div>
-                </div>
-
-                <div class="admin-stat-card">
-                    <div class="admin-stat-icon resolved">✅</div>
-                    <div class="admin-stat-label">Resolved</div>
-                    <div class="admin-stat-value"><?= $resolved ?></div>
-                </div>
+                <?php foreach ($dashboardStats as $stat): ?>
+                    <div class="admin-stat-card <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>">
+                        <div class="admin-stat-trend">
+                            <span class="admin-stat-trend-icon">
+                                <i class="fas <?= $stat['trend_direction'] === 'down' ? 'fa-arrow-down' : 'fa-arrow-up' ?>"></i>
+                            </span>
+                            <span class="admin-stat-trend-text">
+                                <span class="admin-stat-trend-value"><?= htmlspecialchars($stat['trend_value'], ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="admin-stat-trend-caption"><?= htmlspecialchars($stat['trend_caption'], ENT_QUOTES, 'UTF-8') ?></span>
+                            </span>
+                        </div>
+                        <div class="admin-stat-main">
+                            <div class="admin-stat-icon <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>">
+                                <i class="fas <?= htmlspecialchars($stat['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
+                            </div>
+                            <div class="admin-stat-copy">
+                                <div class="admin-stat-label"><?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="admin-stat-value"><?= (int) $stat['value'] ?></div>
+                            </div>
+                        </div>
+                        <div class="admin-stat-subtext"><?= htmlspecialchars($stat['subtitle'], ENT_QUOTES, 'UTF-8') ?></div>
+                    </div>
+                <?php endforeach; ?>
             </section>
 
             <section class="admin-analytics-section" style="margin-top: 32px;">

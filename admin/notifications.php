@@ -13,6 +13,19 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 $user_id = (int) $_SESSION['user_id'];
 
+$clearAdminPendingChat = $conn->prepare("
+    UPDATE notifications
+    SET is_read = 1
+    WHERE user_id = ?
+      AND type = 'hr_chat_pending'
+      AND is_read = 0
+");
+if ($clearAdminPendingChat) {
+    $clearAdminPendingChat->bind_param("i", $user_id);
+    $clearAdminPendingChat->execute();
+    $clearAdminPendingChat->close();
+}
+
 /* Mark all as read if requested */
 if (isset($_POST['mark_all_read'])) {
     csrf_validate();
@@ -32,6 +45,7 @@ $total_res = $conn->query("
     LEFT JOIN employee_tickets t ON n.ticket_id = t.id
     WHERE n.user_id = $user_id
       AND n.type <> 'chat_message'
+      AND n.type <> 'hr_chat_pending'
       AND (n.type <> 'note_added' OR t.user_id = n.user_id)
 ");
 if (!$total_res) {
@@ -48,6 +62,7 @@ $sql = "
     LEFT JOIN employee_tickets t ON n.ticket_id = t.id
     WHERE n.user_id = ?
       AND n.type <> 'chat_message'
+      AND n.type <> 'hr_chat_pending'
       AND (n.type <> 'note_added' OR t.user_id = n.user_id)
     ORDER BY n.created_at DESC
     LIMIT ? OFFSET ?

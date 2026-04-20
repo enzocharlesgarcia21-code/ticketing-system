@@ -279,6 +279,168 @@ if (!empty(array_filter($trendAvgHours, static fn ($value) => $value !== null)))
     }
 }
 
+$trendDayStats = [];
+foreach ($trendAvgHours as $idx => $hours) {
+    if ($hours === null) continue;
+    $trendDayStats[] = [
+        'index' => $idx,
+        'label' => $trendWeeks[$idx] ?? '',
+        'hours' => (float) $hours,
+    ];
+}
+
+$trendFastestDay = null;
+$trendPeakDay = null;
+if (!empty($trendDayStats)) {
+    $trendFastestDay = $trendDayStats[0];
+    $trendPeakDay = $trendDayStats[0];
+    foreach ($trendDayStats as $dayStat) {
+        if ($dayStat['hours'] < $trendFastestDay['hours']) {
+            $trendFastestDay = $dayStat;
+        }
+        if ($dayStat['hours'] > $trendPeakDay['hours']) {
+            $trendPeakDay = $dayStat;
+        }
+    }
+}
+
+$previousTrendEndDate = $trendStartDate->modify('-1 day');
+$previousTrendStartDate = $previousTrendEndDate->modify('-6 days');
+$previousTrendParams = [$previousTrendStartDate->format('Y-m-d'), $previousTrendEndDate->format('Y-m-d')];
+$previousTrendTypes = "ss";
+$previousTrendWhere = [
+    "t.status = 'Resolved'",
+    "t.started_at IS NOT NULL",
+    "t.resolved_at IS NOT NULL",
+    "$resolutionSecondsExpr >= 0",
+    "DATE(t.resolved_at) BETWEEN ? AND ?",
+];
+if ($category_filter !== '') {
+    $previousTrendWhere[] = "t.category = ?";
+    $previousTrendParams[] = $category_filter;
+    $previousTrendTypes .= "s";
+}
+if ($company_filter !== '') {
+    $previousTrendWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
+    $previousTrendParams[] = $company_filter;
+    $previousTrendTypes .= "s";
+}
+if ($department_filter !== '') {
+    $previousTrendWhere[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
+    $previousTrendParams[] = $department_filter;
+    $previousTrendTypes .= "s";
+}
+
+$previousTrendAverageSeconds = 0;
+$previousTrendStmt = $conn->prepare("
+    SELECT AVG($resolutionSecondsExpr) as avg_seconds
+    FROM employee_tickets t
+    WHERE " . implode(" AND ", $previousTrendWhere) . "
+");
+if ($previousTrendStmt) {
+    $bind = [];
+    $bind[] = $previousTrendTypes;
+    foreach ($previousTrendParams as $k => $p) {
+        $bind[] = &$previousTrendParams[$k];
+    }
+    call_user_func_array([$previousTrendStmt, 'bind_param'], $bind);
+    $previousTrendStmt->execute();
+    $previousTrendRow = $previousTrendStmt->get_result()->fetch_assoc();
+    $previousTrendAverageSeconds = (int) round((float) ($previousTrendRow['avg_seconds'] ?? 0));
+    $previousTrendStmt->close();
+}
+
+$trendDeltaPercent = 0;
+$trendDeltaDirection = 'flat';
+if ($previousTrendAverageSeconds > 0 && $trendAverageSeconds > 0) {
+    $trendDeltaPercent = (int) round((($trendAverageSeconds - $previousTrendAverageSeconds) / $previousTrendAverageSeconds) * 100);
+    if ($trendDeltaPercent < 0) {
+        $trendDeltaDirection = 'down';
+    } elseif ($trendDeltaPercent > 0) {
+        $trendDeltaDirection = 'up';
+    }
+} elseif ($trendAverageSeconds > 0 && $previousTrendAverageSeconds === 0) {
+    $trendDeltaPercent = 100;
+    $trendDeltaDirection = 'up';
+}
+
+$resolutionBucketCounts = [
+    'Under 1 hour' => 0,
+    '1-2 hours' => 0,
+    '2-4 hours' => 0,
+    'Over 4 hours' => 0,
+];
+$resolutionBucketWhere = [
+    "t.status = 'Resolved'",
+    "t.started_at IS NOT NULL",
+    "t.resolved_at IS NOT NULL",
+    "$resolutionSecondsExpr >= 0",
+    "DATE(t.resolved_at) BETWEEN ? AND ?",
+];
+$resolutionBucketParams = [$start_date, $end_date];
+$resolutionBucketTypes = "ss";
+if ($category_filter !== '') {
+    $resolutionBucketWhere[] = "t.category = ?";
+    $resolutionBucketParams[] = $category_filter;
+    $resolutionBucketTypes .= "s";
+}
+if ($company_filter !== '') {
+    $resolutionBucketWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
+    $resolutionBucketParams[] = $company_filter;
+    $resolutionBucketTypes .= "s";
+}
+if ($department_filter !== '') {
+    $resolutionBucketWhere[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
+    $resolutionBucketParams[] = $department_filter;
+    $resolutionBucketTypes .= "s";
+}
+$resolutionBucketStmt = $conn->prepare("
+    SELECT $resolutionSecondsExpr as duration_seconds
+    FROM employee_tickets t
+    WHERE " . implode(" AND ", $resolutionBucketWhere) . "
+");
+if ($resolutionBucketStmt) {
+    $bind = [];
+    $bind[] = $resolutionBucketTypes;
+    foreach ($resolutionBucketParams as $k => $p) {
+        $bind[] = &$resolutionBucketParams[$k];
+    }
+    call_user_func_array([$resolutionBucketStmt, 'bind_param'], $bind);
+    $resolutionBucketStmt->execute();
+    $resolutionBucketRes = $resolutionBucketStmt->get_result();
+    while ($bucketRow = $resolutionBucketRes->fetch_assoc()) {
+        $durationSeconds = (int) ($bucketRow['duration_seconds'] ?? 0);
+        if ($durationSeconds < 3600) {
+            $resolutionBucketCounts['Under 1 hour']++;
+        } elseif ($durationSeconds < 7200) {
+            $resolutionBucketCounts['1-2 hours']++;
+        } elseif ($durationSeconds < 14400) {
+            $resolutionBucketCounts['2-4 hours']++;
+        } else {
+            $resolutionBucketCounts['Over 4 hours']++;
+        }
+    }
+    $resolutionBucketStmt->close();
+}
+$resolutionBucketTotal = array_sum($resolutionBucketCounts);
+$resolutionTopBucketLabel = 'No resolved tickets in the selected range';
+$resolutionTopBucketPercent = 0;
+if ($resolutionBucketTotal > 0) {
+    arsort($resolutionBucketCounts);
+    $resolutionTopBucketLabel = (string) array_key_first($resolutionBucketCounts);
+    $resolutionTopBucketPercent = (int) round((current($resolutionBucketCounts) / $resolutionBucketTotal) * 100);
+}
+
+$trendSummaryBadgeClass = $trendDeltaDirection === 'down'
+    ? 'down'
+    : ($trendDeltaDirection === 'up' ? 'up' : 'flat');
+$trendSummaryBadgeIcon = $trendDeltaDirection === 'down'
+    ? 'fa-arrow-down'
+    : ($trendDeltaDirection === 'up' ? 'fa-arrow-up' : 'fa-minus');
+$trendSummaryBadgeText = !empty($trendDayStats) || $trendAverageSeconds > 0
+    ? ($trendDeltaPercent !== 0 ? abs($trendDeltaPercent) . '%' : '0%')
+    : 'No data';
+
 $companyExpr = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''), '')";
 $departmentExpr = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,''), '')";
 $lapcCompanySql = "LOWER(TRIM($companyExpr)) IN ('@leadsagri.com', 'leadsagri.com', 'lapc', 'lapc (@leadsagri.com)', 'leads agricultural products corporation - lapc')";
@@ -823,53 +985,105 @@ if ($ticketsStmt) {
         .analytics-metrics {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 18px;
-            margin-bottom: 24px;
+            gap: 16px;
+            margin-bottom: 22px;
         }
         .analytics-card {
-            padding: 20px 20px 18px;
+            position: relative;
+            padding: 16px 16px 14px;
             min-width: 0;
+            overflow: hidden;
+            border-radius: 20px;
+            background:
+                radial-gradient(circle at 18% 88%, rgba(102, 241, 168, 0.12), transparent 26%),
+                radial-gradient(circle at 82% 22%, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.9) 44%, rgba(246, 248, 252, 0.96) 100%);
+            box-shadow:
+                0 14px 30px rgba(148, 163, 184, 0.14),
+                inset 0 1px 0 rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(225, 232, 243, 0.95);
+        }
+        .analytics-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 8px;
+            border-radius: 0 10px 10px 0;
+            background: var(--metric-accent, #4ade80);
+            box-shadow: 1px 0 0 rgba(255, 255, 255, 0.48);
+        }
+        .analytics-card.received {
+            --metric-accent: #4ecb72;
+            --metric-label: #2eaf62;
+            --metric-icon-bg: linear-gradient(180deg, #effbf2 0%, #e3f5ea 100%);
+            --metric-icon-border: #cdecd7;
+            --metric-icon-color: #28a85b;
+        }
+        .analytics-card.resolved {
+            --metric-accent: #ffb427;
+            --metric-label: #dc8c00;
+            --metric-icon-bg: linear-gradient(180deg, #fff6e8 0%, #ffefd7 100%);
+            --metric-icon-border: #f6d8a1;
+            --metric-icon-color: #d99a00;
+        }
+        .analytics-card.closed {
+            --metric-accent: #8a95ab;
+            --metric-label: #7b839b;
+            --metric-icon-bg: linear-gradient(180deg, #f0f3fa 0%, #e6ebf4 100%);
+            --metric-icon-border: #d5ddeb;
+            --metric-icon-color: #6d7692;
+        }
+        .analytics-card.avg-time {
+            --metric-accent: #2196f3;
+            --metric-label: #2385db;
+            --metric-icon-bg: linear-gradient(180deg, #ebf6ff 0%, #dff1ff 100%);
+            --metric-icon-border: #bcdfff;
+            --metric-icon-color: #2388e7;
         }
         .analytics-card-top {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            gap: 12px;
+            gap: 10px;
         }
         .analytics-label {
-            font-size: 14px;
+            font-size: 0.88rem;
             font-weight: 500;
-            color: #111827;
+            color: var(--metric-label, #111827);
             letter-spacing: 0;
             text-transform: none;
-            margin-bottom: 4px;
+            margin-bottom: 16px;
+            line-height: 1.15;
         }
         .analytics-value {
-            font-size: 2.25rem;
-            font-weight: 800;
+            font-size: 2.55rem;
+            font-weight: 700;
             color: #111827;
             line-height: 1;
             letter-spacing: -0.04em;
         }
         .analytics-sub {
-            margin-top: 10px;
-            font-size: 0.98rem;
+            margin-top: 16px;
+            font-size: 0.88rem;
             color: #4b5563;
             font-weight: 500;
         }
         .analytics-icon {
-            width: 46px;
-            height: 46px;
-            border-radius: 14px;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(180deg, #eaf8ef 0%, #dff1e8 100%);
-            border: 1px solid #c7e7d0;
-            color: #26a14a;
+            background: var(--metric-icon-bg, linear-gradient(180deg, #eaf8ef 0%, #dff1e8 100%));
+            border: 1px solid var(--metric-icon-border, #c7e7d0);
+            color: var(--metric-icon-color, #26a14a);
             flex: 0 0 auto;
-            font-size: 19px;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+            font-size: 16px;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.78),
+                0 8px 18px rgba(226, 232, 240, 0.28);
         }
 
         .analytics-charts {
@@ -960,6 +1174,176 @@ if ($ticketsStmt) {
             margin-top: 2px;
             flex: 0 0 252px;
         }
+        .trend-card {
+            gap: 18px;
+        }
+        .trend-card .chart-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 0;
+            min-height: 0;
+        }
+        .trend-period-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 42px;
+            padding: 0 14px;
+            border-radius: 14px;
+            border: 1px solid #dce8f6;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            color: #475569;
+            font-size: 13px;
+            font-weight: 700;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+            white-space: nowrap;
+        }
+        .trend-period-pill i {
+            color: #2f8cff;
+        }
+        .trend-overview-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 18px 20px;
+            border-radius: 22px;
+            border: 1px solid #dfe8f5;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            box-shadow: 0 14px 32px rgba(148, 163, 184, 0.12);
+        }
+        .trend-overview-main {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-width: 0;
+        }
+        .trend-overview-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(180deg, #eaf3ff 0%, #dce9ff 100%);
+            color: #2f8cff;
+            border: 1px solid #cfe0fb;
+            font-size: 26px;
+            flex: 0 0 64px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.75);
+        }
+        .trend-overview-copy {
+            min-width: 0;
+        }
+        .trend-overview-value {
+            font-size: 3rem;
+            line-height: 1;
+            letter-spacing: -0.05em;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 6px;
+        }
+        .trend-overview-label {
+            font-size: 0.98rem;
+            font-weight: 700;
+            color: #334155;
+        }
+        .trend-delta-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 52px;
+            padding: 0 16px;
+            border-radius: 18px;
+            font-weight: 800;
+            flex: 0 0 auto;
+        }
+        .trend-delta-badge.up {
+            background: linear-gradient(180deg, #fff3eb 0%, #ffeddc 100%);
+            color: #f97316;
+        }
+        .trend-delta-badge.down {
+            background: linear-gradient(180deg, #edfdf2 0%, #dcfce7 100%);
+            color: #16a34a;
+        }
+        .trend-delta-badge.flat {
+            background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+            color: #64748b;
+        }
+        .trend-delta-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            line-height: 1;
+        }
+        .trend-delta-value {
+            font-size: 1.02rem;
+            font-weight: 800;
+        }
+        .trend-delta-label {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #64748b;
+        }
+        .trend-mini-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+        }
+        .trend-mini-card {
+            min-width: 0;
+            padding: 16px 18px;
+            border-radius: 18px;
+            border: 1px solid #e3eaf4;
+            background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
+            box-shadow: 0 12px 28px rgba(148, 163, 184, 0.1);
+        }
+        .trend-mini-top {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .trend-mini-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex: 0 0 38px;
+        }
+        .trend-mini-card.fastest .trend-mini-icon {
+            background: linear-gradient(180deg, #ecfdf3 0%, #dcfce7 100%);
+            color: #16a34a;
+        }
+        .trend-mini-card.peak .trend-mini-icon {
+            background: linear-gradient(180deg, #fff3eb 0%, #ffe7d1 100%);
+            color: #f97316;
+        }
+        .trend-mini-card.trend .trend-mini-icon {
+            background: linear-gradient(180deg, #f3ebff 0%, #ede9fe 100%);
+            color: #7c3aed;
+        }
+        .trend-mini-title {
+            font-size: 0.92rem;
+            font-weight: 800;
+            color: #1f2937;
+        }
+        .trend-mini-main {
+            font-size: 1rem;
+            font-weight: 800;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+        .trend-mini-sub {
+            font-size: 0.92rem;
+            color: #64748b;
+            font-weight: 700;
+        }
         .insight-pill {
             margin-top: auto;
             min-height: 56px;
@@ -991,6 +1375,9 @@ if ($ticketsStmt) {
             color: #2f8cff;
             font-size: 17px;
             font-weight: 800;
+        }
+        .trend-card .insight-pill {
+            margin-top: 0;
         }
         .category-legend-grid {
             display: grid;
@@ -1293,6 +1680,9 @@ if ($ticketsStmt) {
             .analytics-metrics {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
+            .trend-mini-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
         }
         @media (max-width: 900px) {
             .admin-page-header {
@@ -1304,6 +1694,18 @@ if ($ticketsStmt) {
             }
             .analytics-filters {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .trend-card .chart-header,
+            .trend-overview-card {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .trend-delta-badge {
+                width: 100%;
+                justify-content: flex-start;
+            }
+            .trend-mini-grid {
+                grid-template-columns: 1fr;
             }
         }
         @media (max-width: 640px) {
@@ -1351,6 +1753,22 @@ if ($ticketsStmt) {
             .company-chart-toggle-btn {
                 flex: 1 1 0;
                 padding: 0 8px;
+            }
+            .trend-overview-card {
+                padding: 16px;
+            }
+            .trend-overview-icon {
+                width: 56px;
+                height: 56px;
+                flex-basis: 56px;
+                font-size: 22px;
+            }
+            .trend-overview-value {
+                font-size: 2.4rem;
+            }
+            .trend-period-pill,
+            .trend-delta-badge {
+                width: 100%;
             }
             .category-legend-grid {
                 grid-template-columns: 1fr;
@@ -1484,7 +1902,7 @@ if ($ticketsStmt) {
             </div>
 
             <div class="analytics-metrics">
-                <div class="analytics-card">
+                <div class="analytics-card received">
                     <div class="analytics-card-top">
                         <div>
                             <div class="analytics-label">Received</div>
@@ -1492,8 +1910,9 @@ if ($ticketsStmt) {
                         </div>
                         <div class="analytics-icon"><i class="fa-solid fa-inbox"></i></div>
                     </div>
+                    <div class="analytics-sub">New tickets</div>
                 </div>
-                <div class="analytics-card">
+                <div class="analytics-card resolved">
                     <div class="analytics-card-top">
                         <div>
                             <div class="analytics-label">Resolved</div>
@@ -1501,8 +1920,9 @@ if ($ticketsStmt) {
                         </div>
                         <div class="analytics-icon"><i class="fa-solid fa-circle-check"></i></div>
                     </div>
+                    <div class="analytics-sub">Resolved tickets</div>
                 </div>
-                <div class="analytics-card">
+                <div class="analytics-card closed">
                     <div class="analytics-card-top">
                         <div>
                             <div class="analytics-label">Closed</div>
@@ -1510,11 +1930,12 @@ if ($ticketsStmt) {
                         </div>
                         <div class="analytics-icon"><i class="fa-solid fa-lock"></i></div>
                     </div>
+                    <div class="analytics-sub">Closed tickets</div>
                 </div>
-                <div class="analytics-card">
+                <div class="analytics-card avg-time">
                     <div class="analytics-card-top">
                         <div>
-                            <div class="analytics-label">Avg. Resolution Time</div>
+                            <div class="analytics-label">Avg. Resolution<br>Time</div>
                             <div class="analytics-value"><?= htmlspecialchars(formatHandlingTime((int) ($summary['avg_seconds'] ?? 0))) ?></div>
                         </div>
                         <div class="analytics-icon"><i class="fa-solid fa-stopwatch"></i></div>
@@ -1556,18 +1977,74 @@ if ($ticketsStmt) {
                 </div>
                 <div class="chart-card trend-card">
                     <div class="chart-header">
-                        <div class="chart-title">Resolution Time Trend</div>
-                        <p class="chart-subtitle"><?= htmlspecialchars($trendSubtitle, ENT_QUOTES, 'UTF-8') ?></p>
+                        <div class="chart-heading">
+                            <div class="chart-title">Resolution Time Trend</div>
+                            <p class="chart-subtitle"><?= htmlspecialchars($trendSubtitle, ENT_QUOTES, 'UTF-8') ?></p>
+                        </div>
+                        <div class="trend-period-pill">
+                            <i class="fa-regular fa-calendar"></i>
+                            <span>Last 7 days</span>
+                        </div>
+                    </div>
+                    <div class="trend-overview-card">
+                        <div class="trend-overview-main">
+                            <div class="trend-overview-icon"><i class="fa-regular fa-clock"></i></div>
+                            <div class="trend-overview-copy">
+                                <div class="trend-overview-value"><?= htmlspecialchars(formatHandlingTimeDetailed((int) $trendAverageSeconds), ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="trend-overview-label">Avg Resolution Time</div>
+                            </div>
+                        </div>
+                        <div class="trend-delta-badge <?= htmlspecialchars($trendSummaryBadgeClass, ENT_QUOTES, 'UTF-8') ?>">
+                            <i class="fa-solid <?= htmlspecialchars($trendSummaryBadgeIcon, ENT_QUOTES, 'UTF-8') ?>"></i>
+                            <div class="trend-delta-copy">
+                                <span class="trend-delta-value"><?= htmlspecialchars($trendSummaryBadgeText, ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="trend-delta-label">vs previous 7 days</span>
+                            </div>
+                        </div>
                     </div>
                     <div class="chart-container">
                         <canvas id="trendChart"></canvas>
                     </div>
+                    <div class="trend-mini-grid">
+                        <div class="trend-mini-card fastest">
+                            <div class="trend-mini-top">
+                                <span class="trend-mini-icon"><i class="fa-regular fa-circle-check"></i></span>
+                                <span class="trend-mini-title">Fastest</span>
+                            </div>
+                            <div class="trend-mini-main"><?= htmlspecialchars($trendFastestDay['label'] ?? 'No data', ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="trend-mini-sub"><?= $trendFastestDay ? htmlspecialchars(number_format((float) $trendFastestDay['hours'], 1) . 'h', ENT_QUOTES, 'UTF-8') : 'No resolved tickets' ?></div>
+                        </div>
+                        <div class="trend-mini-card peak">
+                            <div class="trend-mini-top">
+                                <span class="trend-mini-icon"><i class="fa-solid fa-fire-flame-curved"></i></span>
+                                <span class="trend-mini-title">Peak</span>
+                            </div>
+                            <div class="trend-mini-main"><?= htmlspecialchars($trendPeakDay['label'] ?? 'No data', ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="trend-mini-sub"><?= $trendPeakDay ? htmlspecialchars(number_format((float) $trendPeakDay['hours'], 1) . 'h', ENT_QUOTES, 'UTF-8') : 'No resolved tickets' ?></div>
+                        </div>
+                        <div class="trend-mini-card trend">
+                            <div class="trend-mini-top">
+                                <span class="trend-mini-icon"><i class="fa-solid fa-arrow-trend-up"></i></span>
+                                <span class="trend-mini-title">Trend</span>
+                            </div>
+                            <div class="trend-mini-main">
+                                <?= !empty($trendDayStats) ? htmlspecialchars(($trendDeltaPercent !== 0 ? ($trendDeltaPercent > 0 ? '+' : '') . $trendDeltaPercent . '%' : '0%'), ENT_QUOTES, 'UTF-8') : 'No data' ?>
+                            </div>
+                            <div class="trend-mini-sub">vs previous 7 days</div>
+                        </div>
+                    </div>
                     <div class="insight-pill">
                         <div class="insight-pill-label">
-                            <i class="fa-regular fa-clock"></i>
-                            <span>Average Resolution Time</span>
+                            <i class="fa-regular fa-lightbulb"></i>
+                            <span>
+                                <?php if ($resolutionBucketTotal > 0): ?>
+                                    Most resolved tickets took <?= htmlspecialchars($resolutionTopBucketLabel, ENT_QUOTES, 'UTF-8') ?> (<?= (int) $resolutionTopBucketPercent ?>%)
+                                <?php else: ?>
+                                    No resolved tickets in the selected range
+                                <?php endif; ?>
+                            </span>
                         </div>
-                        <span class="insight-pill-value"><?= htmlspecialchars(formatHandlingTimeDetailed((int) $trendAverageSeconds), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span class="insight-pill-value"><i class="fa-solid fa-chevron-right"></i></span>
                     </div>
                 </div>
                 <div class="chart-card assignee-card">
@@ -1913,13 +2390,16 @@ if ($ticketsStmt) {
     trendGradient.addColorStop(0, 'rgba(47, 140, 255, 0.24)');
     trendGradient.addColorStop(1, 'rgba(47, 140, 255, 0.02)');
     const trendMaxHours = <?= json_encode($trendMaxHours) ?>;
+    const trendDataPoints = <?= json_encode($trendAvgHours) ?>;
+    const trendPeakIndex = <?= json_encode($trendPeakDay['index'] ?? null) ?>;
+    const trendFastestIndex = <?= json_encode($trendFastestDay['index'] ?? null) ?>;
     new Chart(trendCtx, {
         type: 'line',
         data: {
             labels: <?= json_encode($trendWeeks) ?>,
             datasets: [{
                 label: 'Avg Resolution Time (Hours)',
-                data: <?= json_encode($trendAvgHours) ?>,
+                data: trendDataPoints,
                 borderColor: '#2f8cff',
                 backgroundColor: trendGradient,
                 borderWidth: 3.5,
@@ -1927,11 +2407,26 @@ if ($ticketsStmt) {
                 fill: true,
                 spanGaps: true,
                 clip: false,
-                pointRadius: 5,
-                pointHoverRadius: 6,
-                pointBackgroundColor: '#ffffff',
-                pointBorderColor: '#2f8cff',
-                pointBorderWidth: 3
+                pointRadius: function(context) {
+                    var value = context.raw;
+                    if (value === null || typeof value === 'undefined') return 0;
+                    if (context.dataIndex === trendPeakIndex || context.dataIndex === trendFastestIndex) return 7;
+                    return 5;
+                },
+                pointHoverRadius: function(context) {
+                    var value = context.raw;
+                    if (value === null || typeof value === 'undefined') return 0;
+                    return context.dataIndex === trendPeakIndex || context.dataIndex === trendFastestIndex ? 8 : 6;
+                },
+                pointBackgroundColor: function(context) {
+                    if (context.dataIndex === trendFastestIndex) return '#22c55e';
+                    return '#2f8cff';
+                },
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: function(context) {
+                    var value = context.raw;
+                    return value === null || typeof value === 'undefined' ? 0 : 3;
+                }
             }]
         },
         options: {
@@ -1945,7 +2440,31 @@ if ($ticketsStmt) {
                     bottom: 8
                 }
             },
-            plugins: { legend: { display: false }, datalabels: { display: false } },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            if (context.raw === null || typeof context.raw === 'undefined') return 'No resolved tickets';
+                            return 'Avg time: ' + Number(context.raw).toFixed(1) + 'h';
+                        }
+                    }
+                },
+                datalabels: {
+                    align: 'top',
+                    anchor: 'end',
+                    offset: 6,
+                    color: '#0f172a',
+                    font: {
+                        weight: '800',
+                        size: 11
+                    },
+                    formatter: function(value) {
+                        if (value === null || typeof value === 'undefined') return '';
+                        return Number(value).toFixed(1) + 'h';
+                    }
+                }
+            },
             scales: {
                 y: {
                     beginAtZero: true,
@@ -1978,7 +2497,9 @@ if ($ticketsStmt) {
                     border: { display: false },
                     grid: { display: false },
                     ticks: {
-                        color: textColor,
+                        color: function(context) {
+                            return context.index === trendPeakIndex ? '#2f8cff' : textColor;
+                        },
                         padding: 8,
                         font: {
                             size: 13,
