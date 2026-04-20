@@ -183,13 +183,15 @@
 .modal-content.tm-unavailable-modal {
     width: min(100%, 760px);
     max-width: 760px;
-    max-height: none;
+    height: auto !important;
+    max-height: none !important;
     min-height: 0;
+    display: block;
     overflow: hidden;
 }
 
 .tm-unavailable-state {
-    min-height: 170px;
+    min-height: 0;
     padding: 44px 48px 36px;
     display: flex;
     flex-direction: column;
@@ -468,7 +470,7 @@
     flex-wrap: wrap;
     gap: 6px;
 }
-.chat-meta-name { font-weight: 800; color: #0f172a; }
+.chat-meta-name { font-weight: 600; color: #0f172a; }
 .chat-meta-dot { color: #cbd5e1; }
 .chat-meta-loading { color: #94a3b8; }
 

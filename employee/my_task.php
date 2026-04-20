@@ -372,6 +372,10 @@ $showing_to = min($offset + $limit, (int) $total_records);
             font-weight: 700;
         }
 
+        body.employee-my-task-page .department-filter-wrap.is-hidden {
+            display: none;
+        }
+
         @media (max-width: 768px) {
             body.employee-my-task-page .filter-card {
                 padding: 16px;
@@ -803,7 +807,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                         </div>
 
                         <?php if ($show_department_filter): ?>
-                        <div class="select-wrapper small">
+                        <div class="select-wrapper small department-filter-wrap <?= $company_email === '@leadsagri.com' ? '' : 'is-hidden' ?>" id="filterDepartmentWrap">
                             <select name="department" class="filter-select" id="filterDepartment" <?= $company_email === '@leadsagri.com' ? '' : 'disabled' ?>>
                                 <option value="" <?= $department === '' ? 'selected' : '' ?>>All Department</option>
                                 <?php foreach ($allowed_departments as $d): ?>
@@ -1079,12 +1083,14 @@ $showing_to = min($offset + $limit, (int) $total_records);
         function syncTaskDepartmentFilter() {
             var companyEl = document.getElementById('filterCompany');
             var departmentEl = document.getElementById('filterDepartment');
-            if (!companyEl || !departmentEl) return;
+            var departmentWrapEl = document.getElementById('filterDepartmentWrap');
+            if (!companyEl || !departmentEl || !departmentWrapEl) return;
             var selectedCompany = String(companyEl.value || '').toLowerCase();
             var isLapc = selectedCompany === '@leadsagri.com';
             if (!isLapc) {
                 departmentEl.value = '';
             }
+            departmentWrapEl.classList.toggle('is-hidden', !isLapc);
             departmentEl.disabled = !isLapc;
         }
 
