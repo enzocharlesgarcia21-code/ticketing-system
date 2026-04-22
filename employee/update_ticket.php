@@ -135,7 +135,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // Normalize and validate status
-    $allowed_statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
+    // Temporarily deactivate "Closed" status updates.
+    $allowed_statuses = ['Open', 'In Progress', 'Resolved'];
     if ($new_status === '' || !in_array($new_status, $allowed_statuses, true)) {
         $new_status = $old_data['status'];
     }
@@ -169,9 +170,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $newNoteNorm = (string) ($admin_note ?? '');
     $assignmentChanged = ($new_company !== $oldCompany) || ($new_department !== $oldDept);
     $requesterAssignmentChanged = $assignmentChanged;
-    if ($new_status === 'Open') {
-        $assigned_to = null;
-    }
+    $currentHandlerUserId = (int) ($_SESSION['user_id'] ?? 0);
     if ($new_status === $oldStatus && $new_company === $oldCompany && $new_department === $oldDept && trim($newNoteNorm) === trim($oldNote)) {
         $_SESSION['success'] = "No changes were made.";
         header("Location: my_task.php");
@@ -201,11 +200,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     if ($new_status === 'Open') {
         $assigned_to = null;
-    } elseif ($new_status === 'In Progress' && (int) $assigned_to <= 0) {
-        if ((int) $assigned_user_id <= 0) {
-            $assigned_user_id = (int) ($_SESSION['user_id'] ?? 0);
-        }
-        if ((int) $assigned_user_id > 0) {
+    } else {
+        if ($currentHandlerUserId > 0) {
+            $assigned_to = $currentHandlerUserId;
+        } elseif ((int) $assigned_to <= 0 && (int) $assigned_user_id > 0) {
             $assigned_to = (int) $assigned_user_id;
         }
     }
@@ -214,24 +212,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $update = $conn->prepare("
         UPDATE employee_tickets
         SET 
-            status = ?, 
-            assigned_department = ?, 
+            status = ?,
+            feedback_status = CASE
+                WHEN ? = 'Resolved' THEN 'pending'
+                ELSE NULL
+            END,
+            assigned_department = ?,
             assigned_company = ?,
             assigned_group = ?,
             assigned_user_id = ?,
             assigned_to = ?,
             admin_note = ?,
-            is_read = 1, 
+            is_read = 1,
             updated_at = NOW(),
-            resolved_at = CASE 
-                WHEN (? = 'Resolved' OR ? = 'Closed') AND resolved_at IS NULL THEN NOW() 
+            resolved_at = CASE
+                WHEN ? = 'Resolved' AND resolved_at IS NULL THEN NOW()
                 WHEN ? = 'Open' THEN NULL
-                ELSE resolved_at 
+                ELSE resolved_at
             END
         WHERE id = ?
     ");
     
-    $update->bind_param("ssssiissssi", $new_status, $new_department, $new_company, $new_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $new_status, $id);
+    $update->bind_param("sssssiisssi", $new_status, $new_status, $new_department, $new_company, $new_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $id);
     
     if ($update->execute()) {
         $_SESSION['task_success'] = "Ticket #$id successfully updated.";

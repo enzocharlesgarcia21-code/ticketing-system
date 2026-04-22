@@ -29,6 +29,9 @@ function isActive($page) {
     if ($page == 'knowledge_base.php' && $current == 'view_article.php') {
         return 'active';
     }
+    if ($page == 'feedback.php' && $current == 'feedback.php') {
+        return 'active';
+    }
     return '';
 }
 ?>
@@ -48,6 +51,7 @@ function isActive($page) {
             <a href="request_ticket.php" class="nav-link <?= isActive('request_ticket.php') ?>">Create Ticket</a>
             <a href="my_task.php" class="nav-link <?= isActive('my_task.php') ?>">Task</a>
             <a href="my_tickets.php" class="nav-link <?= isActive('my_tickets.php') ?>">My Tickets</a>
+            <a href="feedback.php" class="nav-link <?= isActive('feedback.php') ?>">Feedback</a>
             <a href="knowledge_base.php" class="nav-link <?= isActive('knowledge_base.php') ?>">Knowledge Base</a>
         </div>
 

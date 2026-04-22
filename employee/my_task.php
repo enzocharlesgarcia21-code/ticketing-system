@@ -129,7 +129,8 @@ $company_filter_options = [
     '@lingapleads.org' => 'LINGAP (@lingapleads.org)',
     '@primestocks.ph' => 'PCC (@primestocks.ph)',
 ];
-$allowed_statuses = ['Open','In Progress','Resolved','Closed'];
+// Temporarily hide "Closed" from employee task filters until the status is re-enabled.
+$allowed_statuses = ['Open','In Progress','Resolved'];
 
 if (!$show_department_filter || $company_email !== '@leadsagri.com' || !in_array($department, $allowed_departments, true)) {
     $department = '';
@@ -212,6 +213,11 @@ foreach ($companyAliases as $co) {
 $params[] = $user_department;
 $types .= "s";
 $params[] = $user_department;
+$types .= "s";
+
+// Temporarily deactivate closed tickets from the task list and total count.
+$where[] = "t.status <> ?";
+$params[] = 'Closed';
 $types .= "s";
 
 // 1. Search
