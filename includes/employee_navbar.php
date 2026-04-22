@@ -46,7 +46,7 @@ function isActive($page) {
         <div class="nav-center">
             <a href="dashboard.php" class="nav-link <?= isActive('dashboard.php') ?>">Dashboard</a>
             <a href="request_ticket.php" class="nav-link <?= isActive('request_ticket.php') ?>">Create Ticket</a>
-            <a href="my_task.php" class="nav-link <?= isActive('my_task.php') ?>">Task</a>
+            <a href="my_task.php" class="nav-link <?= isActive('my_task.php') ?>">Tickets</a>
             <a href="my_tickets.php" class="nav-link <?= isActive('my_tickets.php') ?>">My Tickets</a>
             <a href="knowledge_base.php" class="nav-link <?= isActive('knowledge_base.php') ?>">Knowledge Base</a>
         </div>
