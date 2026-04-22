@@ -359,7 +359,7 @@
                 <span class="card-title-top">WELCOME TO</span>
                 <span class="card-title-main">LEADS AGRI HELPDESK</span>
             </h1>
-            <p class="subtitle">Choose a portal </p>
+            <p class="subtitle">Choose a portal to continue </p>
 
             <div class="auth-buttons portal-buttons">
                 <a href="employee/employee_login.php" class="auth-btn">
