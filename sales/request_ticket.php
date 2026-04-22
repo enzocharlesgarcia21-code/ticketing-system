@@ -3682,7 +3682,7 @@ if (count($sapFormEntries) === 0) {
 
             <div class="request-grid-row is-single" id="recipientRow">
                 <div class="form-group" id="recipientGroup">
-                    <label>Ticket Recipient <span class="required-asterisk">*</span></label>
+                    <label>Assign to <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper">
                         <select name="company_id" id="ticket_recipient" class="form-control" required>
                             <option value="" disabled selected hidden>Select Recipient</option>

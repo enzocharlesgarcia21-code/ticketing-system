@@ -46,6 +46,12 @@ $resolvedStmt->execute();
 $resolved = (int) (($resolvedStmt->get_result()->fetch_assoc()['count'] ?? 0));
 $resolvedStmt->close();
 
+$closedStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status = 'Closed'");
+$closedStmt->bind_param("i", $user_id);
+$closedStmt->execute();
+$closed = (int) (($closedStmt->get_result()->fetch_assoc()['count'] ?? 0));
+$closedStmt->close();
+
 /* Recent Tickets (created by this employee) */
 $recentStmt = $conn->prepare("
     SELECT id, subject, category, status, created_at
@@ -520,6 +526,15 @@ $recent = $recentStmt->get_result();
                     </div>
                     <div class="stat-label">Resolved</div>
                     <div class="stat-value"><?= $resolved ?></div>
+                </div>
+
+                <!-- Closed -->
+                <div class="stat-card closed">
+                    <div class="stat-icon">
+                        <i class="fas fa-box-archive"></i>
+                    </div>
+                    <div class="stat-label">Closed</div>
+                    <div class="stat-value"><?= $closed ?></div>
                 </div>
             </div>
 
