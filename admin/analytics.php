@@ -126,13 +126,13 @@ if ($status_filter !== '') {
 // 2. Metrics for Selected Range (Based on created_at)
 // Received: Created in this range
 // Resolved: Created in this range AND status is Resolved (Cohort analysis)
-// Closed: Created in this range AND status is Closed (Cohort analysis)
+// Closed: Created in this range AND status is Closed/Trash (Cohort analysis)
 
 $metricsQuery = $conn->prepare("
     SELECT 
         COUNT(*) as received,
         SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
-        SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END) as closed
+        SUM(CASE WHEN status IN ('Closed','Trash') THEN 1 ELSE 0 END) as closed
     FROM employee_tickets 
     WHERE DATE(created_at) BETWEEN ? AND ?
 ");
@@ -140,14 +140,25 @@ $metricsQuery->bind_param("ss", $start_date, $end_date);
 $metricsQuery->execute();
 $metrics = $metricsQuery->get_result()->fetch_assoc();
 
-// 3. Daily average handling time for the last 7 days ending at the selected end date.
+// 3. Resolution-time analytics for the last 7 days ending at the selected end date.
 $trendEndDate = new DateTimeImmutable($end_date ?: date('Y-m-d'));
 $trendStartDate = $trendEndDate->modify('-6 days');
-$trendQueryStart = $trendStartDate->format('Y-m-d');
-$trendQueryEnd = $trendEndDate->format('Y-m-d');
-$trendDailyMap = [];
-$trendAverageSeconds = 0;
+$previousTrendEndDate = $trendStartDate->modify('-1 day');
+$previousTrendStartDate = $previousTrendEndDate->modify('-6 days');
+$resolutionMinutesExpr = "TIMESTAMPDIFF(MINUTE, t.created_at, t.resolved_at)";
 $resolutionSecondsExpr = "TIMESTAMPDIFF(SECOND, t.started_at, t.resolved_at)";
+
+$formatResolutionMinutes = static function ($minutes): string {
+    $minutes = (float) $minutes;
+    if ($minutes <= 0) return '0m';
+    if ($minutes >= 60) {
+        $hours = $minutes / 60;
+        $formatted = number_format($hours, 1, '.', '');
+        $formatted = rtrim(rtrim($formatted, '0'), '.');
+        return $formatted . 'h';
+    }
+    return (string) round($minutes) . 'm';
+};
 
 $summary = [
     'received' => 0,
@@ -160,7 +171,7 @@ $metricsSql = "
     SELECT
         COUNT(*) as received,
         SUM(CASE WHEN t.status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
-        SUM(CASE WHEN t.status = 'Closed' THEN 1 ELSE 0 END) as closed,
+        SUM(CASE WHEN t.status IN ('Closed','Trash') THEN 1 ELSE 0 END) as closed,
         SUM(CASE WHEN t.status IN ('Open','In Progress') THEN 1 ELSE 0 END) as open_tickets
     FROM employee_tickets t
     WHERE " . implode(" AND ", $ticket_where) . "
@@ -182,98 +193,171 @@ if ($mStmt) {
     $mStmt->close();
 }
 
-$avgSecondsStmt = $conn->prepare("
-    SELECT AVG($resolutionSecondsExpr) as avg_seconds
-    FROM employee_tickets t
-    WHERE t.status = 'Resolved'
-    AND t.started_at IS NOT NULL
-    AND t.resolved_at IS NOT NULL
-    AND $resolutionSecondsExpr >= 0
-    AND DATE(t.resolved_at) BETWEEN ? AND ?
-");
-if ($avgSecondsStmt) {
-    $avgSecondsStmt->bind_param("ss", $start_date, $end_date);
-    $avgSecondsStmt->execute();
-    $avgRow = $avgSecondsStmt->get_result()->fetch_assoc();
-    $summary['avg_seconds'] = (int) round((float) ($avgRow['avg_seconds'] ?? 0));
-    $avgSecondsStmt->close();
-}
+$currentStart = $trendStartDate->format('Y-m-d');
+$currentEnd = $trendEndDate->format('Y-m-d');
+$previousStart = $previousTrendStartDate->format('Y-m-d');
+$previousEnd = $previousTrendEndDate->format('Y-m-d');
 
-$trend_where = [
+$resolutionRangeWhere = [
     "t.status = 'Resolved'",
-    "t.started_at IS NOT NULL",
     "t.resolved_at IS NOT NULL",
-    "$resolutionSecondsExpr >= 0",
+    "t.created_at IS NOT NULL",
+    "$resolutionMinutesExpr >= 0",
     "DATE(t.resolved_at) BETWEEN ? AND ?",
 ];
-$trend_params = [$trendQueryStart, $trendQueryEnd];
-$trend_types = "ss";
+$resolutionRangeParams = [$previousStart, $currentEnd];
+$resolutionRangeTypes = "ss";
 if ($category_filter !== '') {
-    $trend_where[] = "t.category = ?";
-    $trend_params[] = $category_filter;
-    $trend_types .= "s";
+    $resolutionRangeWhere[] = "t.category = ?";
+    $resolutionRangeParams[] = $category_filter;
+    $resolutionRangeTypes .= "s";
 }
 if ($company_filter !== '') {
-    $trend_where[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
-    $trend_params[] = $company_filter;
-    $trend_types .= "s";
+    $resolutionRangeWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
+    $resolutionRangeParams[] = $company_filter;
+    $resolutionRangeTypes .= "s";
 }
 if ($department_filter !== '') {
-    $trend_where[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
-    $trend_params[] = $department_filter;
-    $trend_types .= "s";
+    $resolutionRangeWhere[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
+    $resolutionRangeParams[] = $department_filter;
+    $resolutionRangeTypes .= "s";
 }
-$trendSql = "
+if ($status_filter !== '') {
+    $resolutionRangeWhere[] = "t.status = ?";
+    $resolutionRangeParams[] = $status_filter;
+    $resolutionRangeTypes .= "s";
+}
+
+$currentAvgMinutes = 0.0;
+$previousAvgMinutes = 0.0;
+$currentResolvedCount = 0;
+$previousResolvedCount = 0;
+
+$resolutionSummarySql = "
     SELECT
-        DATE(t.resolved_at) as resolved_day,
-        AVG($resolutionSecondsExpr) as avg_seconds,
-        COUNT(*) as ticket_count
+        AVG(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? THEN $resolutionMinutesExpr END) AS current_avg_minutes,
+        SUM(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? THEN 1 ELSE 0 END) AS current_resolved_count,
+        AVG(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? THEN $resolutionMinutesExpr END) AS previous_avg_minutes,
+        SUM(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? THEN 1 ELSE 0 END) AS previous_resolved_count
     FROM employee_tickets t
-    WHERE " . implode(" AND ", $trend_where) . "
+    WHERE " . implode(" AND ", $resolutionRangeWhere) . "
+";
+$resolutionSummaryParams = array_merge(
+    [$currentStart, $currentEnd, $currentStart, $currentEnd, $previousStart, $previousEnd, $previousStart, $previousEnd],
+    $resolutionRangeParams
+);
+$resolutionSummaryTypes = "ssssssss" . $resolutionRangeTypes;
+$resolutionSummaryStmt = $conn->prepare($resolutionSummarySql);
+if ($resolutionSummaryStmt) {
+    $bind = [];
+    $bind[] = $resolutionSummaryTypes;
+    foreach ($resolutionSummaryParams as $k => $p) {
+        $bind[] = &$resolutionSummaryParams[$k];
+    }
+    call_user_func_array([$resolutionSummaryStmt, 'bind_param'], $bind);
+    $resolutionSummaryStmt->execute();
+    $resolutionSummaryRow = $resolutionSummaryStmt->get_result()->fetch_assoc();
+    $currentAvgMinutes = (float) ($resolutionSummaryRow['current_avg_minutes'] ?? 0);
+    $previousAvgMinutes = (float) ($resolutionSummaryRow['previous_avg_minutes'] ?? 0);
+    $currentResolvedCount = (int) ($resolutionSummaryRow['current_resolved_count'] ?? 0);
+    $previousResolvedCount = (int) ($resolutionSummaryRow['previous_resolved_count'] ?? 0);
+    $resolutionSummaryStmt->close();
+}
+
+$dailyLabels = [];
+$dailyValues = [];
+$dailyMinutesMap = [];
+$dailyTrendWhere = [
+    "t.status = 'Resolved'",
+    "t.resolved_at IS NOT NULL",
+    "t.created_at IS NOT NULL",
+    "$resolutionMinutesExpr >= 0",
+    "DATE(t.resolved_at) BETWEEN ? AND ?",
+];
+$dailyTrendParams = [$currentStart, $currentEnd];
+$dailyTrendTypes = "ss";
+if ($category_filter !== '') {
+    $dailyTrendWhere[] = "t.category = ?";
+    $dailyTrendParams[] = $category_filter;
+    $dailyTrendTypes .= "s";
+}
+if ($company_filter !== '') {
+    $dailyTrendWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
+    $dailyTrendParams[] = $company_filter;
+    $dailyTrendTypes .= "s";
+}
+if ($department_filter !== '') {
+    $dailyTrendWhere[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
+    $dailyTrendParams[] = $department_filter;
+    $dailyTrendTypes .= "s";
+}
+if ($status_filter !== '') {
+    $dailyTrendWhere[] = "t.status = ?";
+    $dailyTrendParams[] = $status_filter;
+    $dailyTrendTypes .= "s";
+}
+
+$dailyTrendSql = "
+    SELECT
+        DATE(t.resolved_at) AS resolved_day,
+        AVG($resolutionMinutesExpr) AS avg_minutes
+    FROM employee_tickets t
+    WHERE " . implode(" AND ", $dailyTrendWhere) . "
     GROUP BY DATE(t.resolved_at)
     ORDER BY DATE(t.resolved_at) ASC
 ";
-$tStmt = $conn->prepare($trendSql);
-if ($tStmt) {
+$dailyTrendStmt = $conn->prepare($dailyTrendSql);
+if ($dailyTrendStmt) {
     $bind = [];
-    $bind[] = $trend_types;
-    foreach ($trend_params as $k => $p) {
-        $bind[] = &$trend_params[$k];
+    $bind[] = $dailyTrendTypes;
+    foreach ($dailyTrendParams as $k => $p) {
+        $bind[] = &$dailyTrendParams[$k];
     }
-    call_user_func_array([$tStmt, 'bind_param'], $bind);
-    $tStmt->execute();
-    $tRes = $tStmt->get_result();
-    $trendSecondsTotal = 0.0;
-    $trendTicketCount = 0;
-    while ($r = $tRes->fetch_assoc()) {
-        $dayKey = (string) ($r['resolved_day'] ?? '');
-        $avgSeconds = (float) ($r['avg_seconds'] ?? 0);
-        $ticketCount = (int) ($r['ticket_count'] ?? 0);
-        if ($dayKey !== '') {
-            $trendDailyMap[$dayKey] = $avgSeconds;
-            if ($avgSeconds >= 0 && $ticketCount > 0) {
-                $trendSecondsTotal += ($avgSeconds * $ticketCount);
-                $trendTicketCount += $ticketCount;
-            }
-        }
+    call_user_func_array([$dailyTrendStmt, 'bind_param'], $bind);
+    $dailyTrendStmt->execute();
+    $dailyTrendRes = $dailyTrendStmt->get_result();
+    while ($dailyRow = $dailyTrendRes->fetch_assoc()) {
+        $dayKey = (string) ($dailyRow['resolved_day'] ?? '');
+        if ($dayKey === '') continue;
+        $dailyMinutesMap[$dayKey] = round((float) ($dailyRow['avg_minutes'] ?? 0), 1);
     }
-    $trendAverageSeconds = $trendTicketCount > 0 ? (int) round($trendSecondsTotal / $trendTicketCount) : 0;
-    $tStmt->close();
+    $dailyTrendStmt->close();
 }
 
-$trendWeeks = [];
-$trendAvgHours = [];
 for ($i = 0; $i < 7; $i++) {
-    $currentDay = $trendStartDate->modify('+' . $i . ' days');
-    $dayKey = $currentDay->format('Y-m-d');
-    $trendWeeks[] = $currentDay->format('D');
-    $trendAvgHours[] = array_key_exists($dayKey, $trendDailyMap)
-        ? round(((float) $trendDailyMap[$dayKey]) / 3600, 1)
-        : null;
+    $day = $trendStartDate->modify('+' . $i . ' days');
+    $dayKey = $day->format('Y-m-d');
+    $dailyLabels[] = $day->format('M d');
+    $dailyValues[] = array_key_exists($dayKey, $dailyMinutesMap) ? (float) $dailyMinutesMap[$dayKey] : null;
 }
+
+$avgDisplay = $formatResolutionMinutes($currentAvgMinutes);
+$trendPercent = $previousAvgMinutes > 0
+    ? (int) round((($currentAvgMinutes - $previousAvgMinutes) / $previousAvgMinutes) * 100)
+    : 0;
+
+$summary['avg_seconds'] = (int) round($currentAvgMinutes * 60);
+$trendAverageSeconds = (int) round($currentAvgMinutes * 60);
+$previousTrendAverageSeconds = (int) round($previousAvgMinutes * 60);
+$trendDeltaPercent = $trendPercent;
+$trendDeltaDirection = 'flat';
+if ($trendPercent < 0) {
+    $trendDeltaDirection = 'down';
+} elseif ($trendPercent > 0) {
+    $trendDeltaDirection = 'up';
+}
+
+$trendWeeks = $dailyLabels;
+$trendAvgHours = array_map(
+    static function ($minutes) {
+        return $minutes === null ? null : round(((float) $minutes) / 60, 1);
+    },
+    $dailyValues
+);
 $trendMaxHours = 6;
-if (!empty(array_filter($trendAvgHours, static fn ($value) => $value !== null))) {
-    $trendPeakHours = max(array_filter($trendAvgHours, static fn ($value) => $value !== null));
+$trendHoursOnly = array_values(array_filter($trendAvgHours, static fn ($value) => $value !== null));
+if (!empty($trendHoursOnly)) {
+    $trendPeakHours = max($trendHoursOnly);
     if ($trendPeakHours > 0) {
         $trendMaxHours = max(6, (int) ceil($trendPeakHours / 2) * 2);
     }
@@ -302,66 +386,6 @@ if (!empty($trendDayStats)) {
             $trendPeakDay = $dayStat;
         }
     }
-}
-
-$previousTrendEndDate = $trendStartDate->modify('-1 day');
-$previousTrendStartDate = $previousTrendEndDate->modify('-6 days');
-$previousTrendParams = [$previousTrendStartDate->format('Y-m-d'), $previousTrendEndDate->format('Y-m-d')];
-$previousTrendTypes = "ss";
-$previousTrendWhere = [
-    "t.status = 'Resolved'",
-    "t.started_at IS NOT NULL",
-    "t.resolved_at IS NOT NULL",
-    "$resolutionSecondsExpr >= 0",
-    "DATE(t.resolved_at) BETWEEN ? AND ?",
-];
-if ($category_filter !== '') {
-    $previousTrendWhere[] = "t.category = ?";
-    $previousTrendParams[] = $category_filter;
-    $previousTrendTypes .= "s";
-}
-if ($company_filter !== '') {
-    $previousTrendWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
-    $previousTrendParams[] = $company_filter;
-    $previousTrendTypes .= "s";
-}
-if ($department_filter !== '') {
-    $previousTrendWhere[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
-    $previousTrendParams[] = $department_filter;
-    $previousTrendTypes .= "s";
-}
-
-$previousTrendAverageSeconds = 0;
-$previousTrendStmt = $conn->prepare("
-    SELECT AVG($resolutionSecondsExpr) as avg_seconds
-    FROM employee_tickets t
-    WHERE " . implode(" AND ", $previousTrendWhere) . "
-");
-if ($previousTrendStmt) {
-    $bind = [];
-    $bind[] = $previousTrendTypes;
-    foreach ($previousTrendParams as $k => $p) {
-        $bind[] = &$previousTrendParams[$k];
-    }
-    call_user_func_array([$previousTrendStmt, 'bind_param'], $bind);
-    $previousTrendStmt->execute();
-    $previousTrendRow = $previousTrendStmt->get_result()->fetch_assoc();
-    $previousTrendAverageSeconds = (int) round((float) ($previousTrendRow['avg_seconds'] ?? 0));
-    $previousTrendStmt->close();
-}
-
-$trendDeltaPercent = 0;
-$trendDeltaDirection = 'flat';
-if ($previousTrendAverageSeconds > 0 && $trendAverageSeconds > 0) {
-    $trendDeltaPercent = (int) round((($trendAverageSeconds - $previousTrendAverageSeconds) / $previousTrendAverageSeconds) * 100);
-    if ($trendDeltaPercent < 0) {
-        $trendDeltaDirection = 'down';
-    } elseif ($trendDeltaPercent > 0) {
-        $trendDeltaDirection = 'up';
-    }
-} elseif ($trendAverageSeconds > 0 && $previousTrendAverageSeconds === 0) {
-    $trendDeltaPercent = 100;
-    $trendDeltaDirection = 'up';
 }
 
 $resolutionBucketCounts = [

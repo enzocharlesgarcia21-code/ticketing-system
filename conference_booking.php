@@ -1520,12 +1520,26 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             width: 100%;
         }
 
-        body.conference-booking-public-page .scheduler-header .panel-header-actions .week-nav {
-            margin-right: auto;
+        body.conference-booking-public-page .scheduler-header-right {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1 1 auto;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            min-width: 0;
         }
 
-        body.conference-booking-public-page .scheduler-header .panel-header-actions .availability-filter {
-            margin-left: auto;
+        body.conference-booking-public-page .scheduler-header-controls {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            flex: 0 1 auto;
+            flex-wrap: wrap;
+        }
+
+        body.conference-booking-public-page .scheduler-header .scheduler-header-legend {
+            margin-right: auto;
         }
 
         body.conference-booking-public-page .scheduler-header .availability-filter {
@@ -2221,9 +2235,16 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 align-items: flex-start;
             }
 
+            body.conference-booking-public-page .scheduler-header-right,
+            body.conference-booking-public-page .scheduler-header-controls,
             body.conference-booking-public-page .scheduler-header .panel-header-actions {
                 flex-direction: column;
                 align-items: stretch;
+            }
+
+            body.conference-booking-public-page .scheduler-header-right,
+            body.conference-booking-public-page .scheduler-header-controls {
+                width: 100%;
             }
 
             body.conference-booking-public-page .scheduler-header .panel-header-actions > * {
@@ -2690,10 +2711,10 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             padding: 20px 0 16px;
             border-bottom: 1px solid #e5e7eb;
             display: grid;
-            grid-template-columns: minmax(260px, 1fr) auto;
+            grid-template-columns: 1fr;
             grid-template-areas:
-                "heading actions"
-                "heading legend";
+                "actions"
+                "legend";
             gap: 16px;
             align-items: center;
         }
@@ -2731,20 +2752,11 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
 
         body.conference-booking-public-page .scheduler-header .panel-header-actions {
             grid-area: actions;
-            width: auto;
-            margin-left: auto;
-            justify-content: flex-end;
+            width: 100%;
+            margin-left: 0;
+            justify-content: flex-start;
             gap: 6px;
             flex-wrap: nowrap;
-        }
-
-        body.conference-booking-public-page .scheduler-header .scheduler-header-legend {
-            grid-area: legend;
-            justify-self: end;
-            width: 100%;
-            display: flex;
-            justify-content: flex-end;
-            margin-top: -2px;
         }
 
         body.conference-booking-public-page .week-nav {
@@ -3336,11 +3348,6 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 flex-wrap: wrap;
             }
 
-            body.conference-booking-public-page .scheduler-header .scheduler-header-legend {
-                justify-self: stretch;
-                justify-content: flex-start;
-            }
-
             body.conference-booking-public-page .scheduler-toolbar {
                 grid-template-columns: 1fr;
             }
@@ -3375,8 +3382,8 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 </div>
 
                 <div class="page-header">
-                    <h2 class="page-title">Book Conference Room</h2>
-                    <p class="page-subtitle">View availability, see who booked, and reserve your time.</p>
+                    <h2 class="page-title">Conference Room Scheduler</h2>
+                    <p class="page-subtitle">Track room availability in a full weekly planner and reserve time without losing the current booking logic.</p>
                 </div>
 
                 <?php if ($successMessage !== ''): ?>
@@ -3389,74 +3396,72 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 <div class="booking-layout">
                     <section class="booking-panel">
                         <div class="panel-header scheduler-header">
-                            <div class="scheduler-heading">
-                                <div class="scheduler-heading-copy">
-                                    <h3>Conference Room Scheduler</h3>
-                                    <p>Track room availability in a full weekly planner and reserve time without losing the current booking logic.</p>
-                                </div>
-                            </div>
                             <div class="panel-header-actions">
-                                <div class="week-nav">
-                                    <span class="week-nav-calendar-wrap">
-                                        <button
-                                            type="button"
-                                            class="week-nav-calendar"
-                                            id="openWeekPickerBtn"
-                                            aria-label="Choose a date to view that week"
-                                            title="Choose a date to view that week"
-                                        >
-                                            <i class="far fa-calendar-days"></i>
-                                        </button>
-                                        <input
-                                            type="date"
-                                            id="weekNavDatePicker"
-                                            class="week-nav-calendar-input"
-                                            value="<?= htmlspecialchars($referenceWeekDate, ENT_QUOTES, 'UTF-8'); ?>"
-                                            aria-hidden="true"
-                                            tabindex="-1"
-                                        >
-                                    </span>
-                                    <a class="week-nav-link" href="?<?= htmlspecialchars(http_build_query(['week_of' => $previousWeekDate, 'room_filter' => $selectedRoomFilter]), ENT_QUOTES, 'UTF-8'); ?>" aria-label="Previous week">
-                                        <i class="fas fa-chevron-left"></i>
-                                    </a>
-                                    <span class="week-label"><?= htmlspecialchars($weekLabel, ENT_QUOTES, 'UTF-8'); ?></span>
-                                    <a class="week-nav-link" href="?<?= htmlspecialchars(http_build_query(['week_of' => $nextWeekDate, 'room_filter' => $selectedRoomFilter]), ENT_QUOTES, 'UTF-8'); ?>" aria-label="Next week">
-                                        <i class="fas fa-chevron-right"></i>
-                                    </a>
-                                </div>
-                                <div class="select-wrapper availability-filter">
-                                    <select id="availabilityRoomFilter" class="form-control">
-                                        <option value="0" <?= $selectedRoomFilter === 0 ? 'selected' : ''; ?>>All Rooms</option>
-                                        <?php foreach ($rooms as $room): ?>
-                                            <?php $roomId = (int) ($room['id'] ?? 0); ?>
-                                            <option value="<?= $roomId; ?>" <?= $selectedRoomFilter === $roomId ? 'selected' : ''; ?>>
-                                                <?= htmlspecialchars((string) ($room['room_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
-                                </div>
-                                <button type="button" class="btn-submit" id="openBookingModalBtn" <?= count($rooms) === 0 ? 'disabled' : ''; ?>>
-                                    <i class="fas fa-plus"></i>
-                                    <span>Add New Booking</span>
-                                </button>
-                            </div>
-                            <div class="availability-legend scheduler-header-legend">
-                                <div class="legend-card">
-                                    <div class="legend-row">
-                                        <div class="legend-title">Legend</div>
-                                        <div class="legend-items">
-                                            <span class="legend-item"><span class="legend-dot available"></span>Open</span>
-                                            <span class="legend-item"><span class="legend-dot caltex"></span>Caltex</span>
-                                            <span class="legend-item"><span class="legend-dot mpdc"></span>MPDC</span>
-                                        </div>
-                                        <div class="legend-tooltip">
-                                            <span class="legend-tooltip-trigger" tabindex="0" aria-label="View timezone note">
-                                                <i class="fas fa-circle-info"></i>
-                                            </span>
-                                            <div class="legend-tooltip-popup">All times are in your local time zone. Saturday availability depends on each room's admin setting.</div>
+                                <div class="availability-legend scheduler-header-legend">
+                                    <div class="legend-card">
+                                        <div class="legend-row">
+                                            <div class="legend-title">Legend</div>
+                                            <div class="legend-items">
+                                                <span class="legend-item"><span class="legend-dot available"></span>Open</span>
+                                                <span class="legend-item"><span class="legend-dot caltex"></span>Caltex</span>
+                                                <span class="legend-item"><span class="legend-dot mpdc"></span>MPDC</span>
+                                            </div>
+                                            <div class="legend-tooltip">
+                                                <span class="legend-tooltip-trigger" tabindex="0" aria-label="View timezone note">
+                                                    <i class="fas fa-circle-info"></i>
+                                                </span>
+                                                <div class="legend-tooltip-popup">All times are in your local time zone. Saturday availability depends on each room's admin setting.</div>
+                                            </div>
                                         </div>
                                     </div>
+                                </div>
+                                <div class="scheduler-header-right">
+                                    <div class="scheduler-header-controls">
+                                        <div class="week-nav">
+                                            <span class="week-nav-calendar-wrap">
+                                                <button
+                                                    type="button"
+                                                    class="week-nav-calendar"
+                                                    id="openWeekPickerBtn"
+                                                    aria-label="Choose a date to view that week"
+                                                    title="Choose a date to view that week"
+                                                >
+                                                    <i class="far fa-calendar-days"></i>
+                                                </button>
+                                                <input
+                                                    type="date"
+                                                    id="weekNavDatePicker"
+                                                    class="week-nav-calendar-input"
+                                                    value="<?= htmlspecialchars($referenceWeekDate, ENT_QUOTES, 'UTF-8'); ?>"
+                                                    aria-hidden="true"
+                                                    tabindex="-1"
+                                                >
+                                            </span>
+                                            <a class="week-nav-link" href="?<?= htmlspecialchars(http_build_query(['week_of' => $previousWeekDate, 'room_filter' => $selectedRoomFilter]), ENT_QUOTES, 'UTF-8'); ?>" aria-label="Previous week">
+                                                <i class="fas fa-chevron-left"></i>
+                                            </a>
+                                            <span class="week-label"><?= htmlspecialchars($weekLabel, ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <a class="week-nav-link" href="?<?= htmlspecialchars(http_build_query(['week_of' => $nextWeekDate, 'room_filter' => $selectedRoomFilter]), ENT_QUOTES, 'UTF-8'); ?>" aria-label="Next week">
+                                                <i class="fas fa-chevron-right"></i>
+                                            </a>
+                                        </div>
+                                        <div class="select-wrapper availability-filter">
+                                            <select id="availabilityRoomFilter" class="form-control">
+                                                <option value="0" <?= $selectedRoomFilter === 0 ? 'selected' : ''; ?>>All Rooms</option>
+                                                <?php foreach ($rooms as $room): ?>
+                                                    <?php $roomId = (int) ($room['id'] ?? 0); ?>
+                                                    <option value="<?= $roomId; ?>" <?= $selectedRoomFilter === $roomId ? 'selected' : ''; ?>>
+                                                        <?= htmlspecialchars((string) ($room['room_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn-submit" id="openBookingModalBtn" <?= count($rooms) === 0 ? 'disabled' : ''; ?>>
+                                        <i class="fas fa-plus"></i>
+                                        <span>Add New Booking</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>

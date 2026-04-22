@@ -107,13 +107,17 @@ $progress = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE s
 $resolved = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE status='Resolved'")
                  ->fetch_assoc()['count'];
 
+$closed = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE status='Closed'")
+               ->fetch_assoc()['count'];
+
 $weeklyOverview = $conn->query("
     SELECT
         SUM(created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_total,
         SUM(created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)) AS previous_week_total,
         SUM(status = 'Open' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_open,
         SUM(status = 'In Progress' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_progress,
-        SUM(status = 'Resolved' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_resolved
+        SUM(status = 'Resolved' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_resolved,
+        SUM(status = 'Closed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_closed
     FROM employee_tickets
 ")->fetch_assoc();
 
@@ -122,6 +126,7 @@ $previousWeekTotal = (int) ($weeklyOverview['previous_week_total'] ?? 0);
 $currentWeekOpen = (int) ($weeklyOverview['current_week_open'] ?? 0);
 $currentWeekProgress = (int) ($weeklyOverview['current_week_progress'] ?? 0);
 $currentWeekResolved = (int) ($weeklyOverview['current_week_resolved'] ?? 0);
+$currentWeekClosed = (int) ($weeklyOverview['current_week_closed'] ?? 0);
 
 if ($previousWeekTotal > 0) {
     $totalDeltaPercent = (int) round((($currentWeekTotal - $previousWeekTotal) / $previousWeekTotal) * 100);
@@ -169,6 +174,16 @@ $dashboardStats = [
         'subtitle' => 'Completed tickets',
         'icon' => 'fa-circle-check',
         'trend_value' => (string) $currentWeekResolved,
+        'trend_caption' => 'this week',
+        'trend_direction' => 'down',
+    ],
+    [
+        'variant' => 'closed',
+        'label' => 'Closed',
+        'value' => (int) $closed,
+        'subtitle' => 'Closed tickets',
+        'icon' => 'fa-box-archive',
+        'trend_value' => (string) $currentWeekClosed,
         'trend_caption' => 'this week',
         'trend_direction' => 'down',
     ],
@@ -285,6 +300,7 @@ if ($recentRes) {
         }
 
         .admin-stats-grid{
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 20px;
             margin-top: 10px;
         }
@@ -338,6 +354,14 @@ if ($recentRes) {
             --stat-icon-color:#f59e0b;
             --stat-chip-bg:#fff4e8;
             --stat-chip-color:#f97316;
+        }
+
+        .admin-stat-card.closed{
+            --stat-accent:#94a3b8;
+            --stat-icon-bg:#f1f5f9;
+            --stat-icon-color:#475569;
+            --stat-chip-bg:#f8fafc;
+            --stat-chip-color:#475569;
         }
 
         .admin-stat-trend{
@@ -394,6 +418,7 @@ if ($recentRes) {
             display:flex;
             align-items:flex-start;
             gap:16px;
+            padding-right:118px;
         }
 
         .admin-stat-copy{
@@ -438,6 +463,7 @@ if ($recentRes) {
             color:#64748b;
             font-weight:500;
             margin-top:2px;
+            padding-right:118px;
         }
 
         .recent-tickets-title{
@@ -582,7 +608,17 @@ if ($recentRes) {
             grid-template-columns: 1fr;
         }
 
+        @media (max-width: 1400px){
+            .admin-stats-grid{
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
         @media (max-width: 992px){
+            .admin-stats-grid{
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
             .admin-stat-card{
                 min-height:148px;
             }
@@ -593,6 +629,15 @@ if ($recentRes) {
         }
 
         @media (max-width: 640px){
+            .admin-stats-grid{
+                grid-template-columns: 1fr;
+            }
+
+            .admin-stat-main,
+            .admin-stat-subtext{
+                padding-right:0;
+            }
+
             .admin-stat-card{
                 padding:18px 18px 16px;
                 border-radius:18px;

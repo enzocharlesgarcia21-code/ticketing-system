@@ -3404,7 +3404,7 @@ $requestTicketCompanyOptions = [
 
                     <div class="request-grid-row is-single" id="recipientDepartmentRow">
                         <div class="form-group">
-                            <label>Ticket Recipient <span class="required-asterisk">*</span></label>
+                            <label>Assign to <span class="required-asterisk">*</span></label>
                             <div class="select-wrapper">
                                 <select name="assigned_company" id="assigned_company" class="form-control" required>
                                     <option value="" disabled selected hidden>Choose recipient</option>
