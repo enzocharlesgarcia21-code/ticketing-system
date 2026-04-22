@@ -129,7 +129,8 @@ $company_filter_options = [
     '@lingapleads.org' => 'LINGAP (@lingapleads.org)',
     '@primestocks.ph' => 'PCC (@primestocks.ph)',
 ];
-$allowed_statuses = ['Open','In Progress','Resolved','Closed'];
+// Temporarily hide "Closed" from employee task filters until the status is re-enabled.
+$allowed_statuses = ['Open','In Progress','Resolved'];
 
 if (!$show_department_filter || $company_email !== '@leadsagri.com' || !in_array($department, $allowed_departments, true)) {
     $department = '';
@@ -212,6 +213,11 @@ foreach ($companyAliases as $co) {
 $params[] = $user_department;
 $types .= "s";
 $params[] = $user_department;
+$types .= "s";
+
+// Temporarily deactivate closed tickets from the task list and total count.
+$where[] = "t.status <> ?";
+$params[] = 'Closed';
 $types .= "s";
 
 // 1. Search
@@ -329,7 +335,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
     <meta charset="UTF-8">
     <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Tasks | Leads Agri Helpdesk</title>
+    <title>Assigned Tickets | Leads Agri Helpdesk</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -778,7 +784,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
         <div class="content-wrapper">
 
             <div class="page-header">
-                <h1 class="page-title"> My Tasks </h1>
+                <h1 class="page-title"> Assigned Tickets </h1>
                 <p class="page-subtitle">Tickets assigned to <strong><?= htmlspecialchars($user_department, ENT_QUOTES, 'UTF-8') ?></strong> department</p>
             </div>
 

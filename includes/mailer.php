@@ -119,7 +119,142 @@ function buildSmtpMailer(array $candidate = []): PHPMailer
     return $mail;
 }
 
-function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, string $textBody = '', array $attachments = []): bool
+function smtp_extract_ticket_id_from_subject(string $subject): int
+{
+    if (preg_match('/\(#0*(\d+)\)/', $subject, $m)) {
+        return (int) $m[1];
+    }
+    return 0;
+}
+
+function smtp_message_id_domain(): string
+{
+    $fromEmail = readSmtpConfigValue('SMTP_FROM_EMAIL');
+    if ($fromEmail === '') {
+        $fromEmail = readSmtpConfigValue('GMAIL_FROM_EMAIL');
+    }
+    if ($fromEmail === '') {
+        $fromEmail = readSmtpConfigValue('SMTP_USERNAME');
+    }
+    $domain = '';
+    if (strpos($fromEmail, '@') !== false) {
+        $domain = substr(strrchr($fromEmail, '@'), 1);
+    }
+    $domain = strtolower(trim((string) $domain));
+    return preg_match('/^[a-z0-9.-]+$/', $domain) ? $domain : 'leadsagri-helpdesk.local';
+}
+
+function smtp_generate_message_id(int $ticketId): string
+{
+    $suffix = function_exists('random_bytes') ? bin2hex(random_bytes(8)) : str_replace('.', '', uniqid('', true));
+    return '<ticket-' . $ticketId . '-' . $suffix . '@' . smtp_message_id_domain() . '>';
+}
+
+function smtp_ensure_ticket_thread_columns(mysqli $conn): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    $cols = [
+        'root_message_id' => "VARCHAR(255) NULL",
+        'last_message_id' => "VARCHAR(255) NULL",
+        'thread_subject' => "VARCHAR(255) NULL",
+    ];
+    $existing = [];
+    $res = $conn->query("SHOW COLUMNS FROM employee_tickets");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            if (isset($row['Field'])) {
+                $existing[(string) $row['Field']] = true;
+            }
+        }
+        $res->free();
+    }
+    foreach ($cols as $col => $ddl) {
+        if (!isset($existing[$col])) {
+            $conn->query("ALTER TABLE employee_tickets ADD COLUMN $col $ddl");
+        }
+    }
+}
+
+function smtp_prepare_ticket_threading(int $ticketId, string $subject): ?array
+{
+    if ($ticketId <= 0) return null;
+
+    global $conn;
+    if (!isset($conn) || !($conn instanceof mysqli)) {
+        return null;
+    }
+
+    smtp_ensure_ticket_thread_columns($conn);
+
+    $rootMessageId = '';
+    $threadSubject = '';
+    $stmt = $conn->prepare("SELECT root_message_id, thread_subject FROM employee_tickets WHERE id = ? LIMIT 1");
+    if ($stmt) {
+        $stmt->bind_param("i", $ticketId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if ($row) {
+            $rootMessageId = trim((string) ($row['root_message_id'] ?? ''));
+            $threadSubject = trim((string) ($row['thread_subject'] ?? ''));
+        }
+    }
+
+    $isRoot = false;
+    if ($rootMessageId === '') {
+        $rootMessageId = smtp_generate_message_id($ticketId);
+        $threadSubject = $subject;
+        $isRoot = true;
+        $update = $conn->prepare("UPDATE employee_tickets SET root_message_id = ?, last_message_id = ?, thread_subject = ? WHERE id = ?");
+        if ($update) {
+            $update->bind_param("sssi", $rootMessageId, $rootMessageId, $threadSubject, $ticketId);
+            $update->execute();
+            $update->close();
+        }
+    }
+
+    if ($threadSubject === '') {
+        $threadSubject = $subject;
+        $update = $conn->prepare("UPDATE employee_tickets SET thread_subject = ? WHERE id = ?");
+        if ($update) {
+            $update->bind_param("si", $threadSubject, $ticketId);
+            $update->execute();
+            $update->close();
+        }
+    }
+
+    return [
+        'ticket_id' => $ticketId,
+        'subject' => $threadSubject,
+        'message_id' => $isRoot ? $rootMessageId : smtp_generate_message_id($ticketId),
+        'root_message_id' => $rootMessageId,
+        'is_root' => $isRoot,
+    ];
+}
+
+function smtp_record_ticket_thread_message(int $ticketId, string $messageId): void
+{
+    if ($ticketId <= 0 || trim($messageId) === '') return;
+
+    global $conn;
+    if (!isset($conn) || !($conn instanceof mysqli)) {
+        return;
+    }
+
+    smtp_ensure_ticket_thread_columns($conn);
+    $stmt = $conn->prepare("UPDATE employee_tickets SET last_message_id = ? WHERE id = ?");
+    if ($stmt) {
+        $stmt->bind_param("si", $messageId, $ticketId);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
+function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, string $textBody = '', array $attachments = [], array $options = []): bool
 {
     $toEmails = array_values(array_unique(array_filter(array_map('trim', $toEmails), static function ($v) {
         return $v !== '';
@@ -131,6 +266,12 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
     }
 
     try {
+        $ticketId = isset($options['ticket_id']) ? (int) $options['ticket_id'] : smtp_extract_ticket_id_from_subject($subject);
+        $threading = smtp_prepare_ticket_threading($ticketId, $subject);
+        if ($threading && !empty($threading['subject'])) {
+            $subject = (string) $threading['subject'];
+        }
+
         $host = readSmtpConfigValue('SMTP_HOST');
         $portRaw = readSmtpConfigValue('SMTP_PORT');
         $secureRaw = strtolower(readSmtpConfigValue('SMTP_SECURE'));
@@ -142,6 +283,14 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
                 $mail->isHTML(true);
                 $mail->Subject = $subject;
                 $mail->Body = $htmlBody;
+                if ($threading) {
+                    $mail->MessageID = (string) $threading['message_id'];
+                    if (empty($threading['is_root'])) {
+                        $rootMessageId = (string) $threading['root_message_id'];
+                        $mail->addCustomHeader('In-Reply-To', $rootMessageId);
+                        $mail->addCustomHeader('References', $rootMessageId);
+                    }
+                }
                 if ($textBody !== '') {
                     $mail->AltBody = $textBody;
                 }
@@ -168,6 +317,9 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
                 }
 
                 $mail->send();
+                if ($threading) {
+                    smtp_record_ticket_thread_message((int) $threading['ticket_id'], (string) $threading['message_id']);
+                }
                 return true;
             } catch (\Throwable $attemptError) {
                 $errors[] = ($candidate['host'] ?? 'smtp') . ':' . (string) ($candidate['port'] ?? '') . ' ' . $attemptError->getMessage();
