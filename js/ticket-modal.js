@@ -1671,7 +1671,6 @@
         '                  <option value="Open" ' + (data.status === 'Open' ? 'selected' : '') + '>Open</option>' +
         '                  <option value="In Progress" ' + (data.status === 'In Progress' ? 'selected' : '') + '>In Progress</option>' +
         '                  <option value="Resolved" ' + (data.status === 'Resolved' ? 'selected' : '') + '>Resolved</option>' +
-        '                  <option value="Closed" ' + (data.status === 'Closed' ? 'selected' : '') + '>Closed</option>' +
         '            </select>' +
         '          </div>';
     }
