@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/csrf.php';
 
 /* Protect page */
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
@@ -11,6 +12,10 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
 ticket_apply_sla_priority($conn);
 
 $user_id = (int) $_SESSION['user_id'];
+$feedbackFlash = isset($_SESSION['feedback_flash']) && is_array($_SESSION['feedback_flash']) ? $_SESSION['feedback_flash'] : null;
+if ($feedbackFlash !== null) {
+    unset($_SESSION['feedback_flash']);
+}
 
 /* Fetch Company */
 $company = '';
@@ -22,7 +27,8 @@ if ($userQuery && $row = $userQuery->fetch_assoc()) {
 /* Ticket Counts (tickets created by this employee) */
 $dept = (string) ($_SESSION['department'] ?? '');
 
-$countStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ?");
+// Temporarily exclude closed tickets from the employee dashboard total.
+$countStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status <> 'Closed'");
 $countStmt->bind_param("i", $user_id);
 $countStmt->execute();
 $total = (int) (($countStmt->get_result()->fetch_assoc()['count'] ?? 0));
@@ -46,11 +52,29 @@ $resolvedStmt->execute();
 $resolved = (int) (($resolvedStmt->get_result()->fetch_assoc()['count'] ?? 0));
 $resolvedStmt->close();
 
-$closedStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status = 'Closed'");
-$closedStmt->bind_param("i", $user_id);
-$closedStmt->execute();
-$closed = (int) (($closedStmt->get_result()->fetch_assoc()['count'] ?? 0));
-$closedStmt->close();
+$pendingFeedbackTicket = null;
+$pendingFeedbackStmt = $conn->prepare("
+    SELECT
+        id,
+        subject,
+        assigned_to,
+        assigned_user_id,
+        COALESCE(NULLIF(assigned_to, 0), NULLIF(assigned_user_id, 0)) AS attending_assignee_id
+    FROM employee_tickets
+    WHERE user_id = ?
+      AND status = 'Resolved'
+      AND feedback_status = 'pending'
+      AND COALESCE(NULLIF(assigned_to, 0), NULLIF(assigned_user_id, 0)) IS NOT NULL
+    ORDER BY resolved_at DESC, id DESC
+    LIMIT 1
+");
+if ($pendingFeedbackStmt) {
+    $pendingFeedbackStmt->bind_param("i", $user_id);
+    $pendingFeedbackStmt->execute();
+    $pendingFeedbackRes = $pendingFeedbackStmt->get_result();
+    $pendingFeedbackTicket = $pendingFeedbackRes ? $pendingFeedbackRes->fetch_assoc() : null;
+    $pendingFeedbackStmt->close();
+}
 
 /* Recent Tickets (created by this employee) */
 $recentStmt = $conn->prepare("
@@ -76,6 +100,249 @@ $recent = $recentStmt->get_result();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
+        body.employee-dashboard-page .feedback-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 3200;
+        }
+
+        body.employee-dashboard-page .feedback-modal-overlay.is-visible {
+            display: flex;
+        }
+
+        body.employee-dashboard-page .feedback-modal-dialog {
+            width: min(100%, 560px);
+            background: #ffffff;
+            border-radius: 26px;
+            box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
+            overflow: hidden;
+            border: 1px solid rgba(203, 213, 225, 0.8);
+        }
+
+        body.employee-dashboard-page .feedback-modal-header {
+            padding: 24px 28px 18px;
+            background: linear-gradient(135deg, #14532d 0%, #1B5E20 58%, #15803d 100%);
+            color: #ffffff;
+            position: relative;
+        }
+
+        body.employee-dashboard-page .feedback-close-btn {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            width: 42px;
+            height: 42px;
+            border: none;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.16);
+            color: #ffffff;
+            font-size: 18px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.18s ease, transform 0.18s ease;
+        }
+
+        body.employee-dashboard-page .feedback-close-btn:hover {
+            background: rgba(255, 255, 255, 0.24);
+            transform: translateY(-1px);
+        }
+
+        body.employee-dashboard-page .feedback-modal-title {
+            margin: 0;
+            font-size: 28px;
+            line-height: 1.15;
+            font-weight: 800;
+        }
+
+        body.employee-dashboard-page .feedback-modal-subtitle {
+            margin: 10px 0 0;
+            font-size: 15px;
+            line-height: 1.55;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        body.employee-dashboard-page .feedback-modal-body {
+            padding: 24px 28px 28px;
+        }
+
+        body.employee-dashboard-page .feedback-ticket-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 100%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            background: #f8fafc;
+            border: 1px solid #dbe4ee;
+            color: #0f172a;
+            margin-bottom: 18px;
+        }
+
+        body.employee-dashboard-page .feedback-ticket-chip strong {
+            font-size: 15px;
+            font-weight: 800;
+            color: #14532d;
+        }
+
+        body.employee-dashboard-page .feedback-ticket-chip span {
+            font-size: 14px;
+            color: #475569;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        body.employee-dashboard-page .feedback-flash {
+            margin-bottom: 16px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        body.employee-dashboard-page .feedback-flash.is-error {
+            background: #fef2f2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }
+
+        body.employee-dashboard-page .feedback-flash.is-success {
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+
+        body.employee-dashboard-page .feedback-form {
+            display: grid;
+            gap: 18px;
+        }
+
+        body.employee-dashboard-page .feedback-label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            color: #334155;
+            text-transform: uppercase;
+        }
+
+        body.employee-dashboard-page .feedback-stars {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        body.employee-dashboard-page .feedback-star-input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        body.employee-dashboard-page .feedback-star {
+            width: 52px;
+            height: 52px;
+            border-radius: 16px;
+            border: 1px solid #dbe4ee;
+            background: #ffffff;
+            color: #cbd5e1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: transform 0.18s ease, border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+        }
+
+        body.employee-dashboard-page .feedback-star:hover,
+        body.employee-dashboard-page .feedback-star:focus-visible {
+            transform: translateY(-1px);
+            border-color: #f4c430;
+            color: #f59e0b;
+            background: #fffbea;
+        }
+
+        body.employee-dashboard-page .feedback-star.is-active {
+            border-color: #f4c430;
+            color: #f59e0b;
+            background: #fff7d6;
+            box-shadow: 0 10px 22px rgba(245, 158, 11, 0.18);
+        }
+
+        body.employee-dashboard-page .feedback-textarea {
+            width: 100%;
+            min-height: 130px;
+            resize: vertical;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid #dbe4ee;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 15px;
+            line-height: 1.55;
+            outline: none;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        body.employee-dashboard-page .feedback-textarea:focus {
+            border-color: #16a34a;
+            box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
+        }
+
+        body.employee-dashboard-page .feedback-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        body.employee-dashboard-page .feedback-cancel-btn {
+            min-width: 132px;
+            min-height: 48px;
+            border: 1px solid #dbe4ee;
+            border-radius: 14px;
+            background: #ffffff;
+            color: #334155;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        body.employee-dashboard-page .feedback-submit-btn {
+            min-width: 168px;
+            min-height: 48px;
+            border: none;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #166534 0%, #15803d 100%);
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 16px 30px rgba(22, 101, 52, 0.24);
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        body.employee-dashboard-page .feedback-submit-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 20px 34px rgba(22, 101, 52, 0.28);
+        }
+
+        body.employee-dashboard-page .feedback-submit-btn:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
         body.employee-dashboard-page .mobile-sidebar,
         body.employee-dashboard-page .mobile-sidebar-overlay {
             display: none;
@@ -452,8 +719,9 @@ $recent = $recentStmt->get_result();
         </div>
         <a href="dashboard.php" class="active">Dashboard</a>
         <a href="request_ticket.php">Create Ticket</a>
-        <a href="my_task.php">Task</a>
+        <a href="my_task.php">Tickets</a>
         <a href="my_tickets.php">My Tickets</a>
+        <a href="feedback.php">Feedback</a>
         <a href="knowledge_base.php">Knowledge Base</a>
         <div class="mobile-sidebar-footer">
             <a href="notifications.php" class="mobile-sidebar-icon-link" aria-label="Notifications">
@@ -474,6 +742,81 @@ $recent = $recentStmt->get_result();
     </div>
 
     <div id="mobileSidebarOverlay" class="mobile-sidebar-overlay" aria-hidden="true"></div>
+
+    <?php if ($pendingFeedbackTicket || $feedbackFlash): ?>
+    <div
+        id="feedbackModalOverlay"
+        class="feedback-modal-overlay<?= ($pendingFeedbackTicket || $feedbackFlash) ? ' is-visible' : ''; ?>"
+        aria-hidden="<?= ($pendingFeedbackTicket || $feedbackFlash) ? 'false' : 'true'; ?>"
+    >
+        <div class="feedback-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
+            <div class="feedback-modal-header">
+                <button type="button" class="feedback-close-btn" id="feedbackModalCloseBtn" aria-label="Close feedback modal">
+                    <i class="fas fa-times"></i>
+                </button>
+                <h2 id="feedbackModalTitle" class="feedback-modal-title">Rate Your Resolved Ticket</h2>
+                <p class="feedback-modal-subtitle">Your ticket was marked as resolved. Share a quick rating and optional comment so we can improve support quality.</p>
+            </div>
+            <div class="feedback-modal-body">
+                <?php if ($feedbackFlash && !empty($feedbackFlash['message'])): ?>
+                    <div class="feedback-flash <?= (($feedbackFlash['type'] ?? '') === 'success') ? 'is-success' : 'is-error'; ?>">
+                        <?= htmlspecialchars((string) $feedbackFlash['message'], ENT_QUOTES, 'UTF-8'); ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($pendingFeedbackTicket): ?>
+                    <div class="feedback-ticket-chip">
+                        <strong>#<?= (int) $pendingFeedbackTicket['id']; ?></strong>
+                        <span><?= htmlspecialchars((string) ($pendingFeedbackTicket['subject'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
+                    </div>
+
+                    <form method="POST" action="submit_feedback.php" class="feedback-form" id="feedbackForm">
+                        <?= csrf_field(); ?>
+                        <input type="hidden" name="ticket_id" value="<?= (int) $pendingFeedbackTicket['id']; ?>">
+
+                        <div>
+                            <div class="feedback-label">Rating</div>
+                            <div class="feedback-stars" id="feedbackStars">
+                                <?php for ($rating = 1; $rating <= 5; $rating++): ?>
+                                    <input
+                                        class="feedback-star-input"
+                                        type="radio"
+                                        name="rating"
+                                        id="feedbackRating<?= $rating; ?>"
+                                        value="<?= $rating; ?>"
+                                        <?= ($rating === 5) ? 'required' : ''; ?>
+                                    >
+                                    <label class="feedback-star" for="feedbackRating<?= $rating; ?>" data-rating="<?= $rating; ?>" aria-label="<?= $rating; ?> star<?= $rating > 1 ? 's' : ''; ?>">
+                                        <i class="fas fa-star"></i>
+                                    </label>
+                                <?php endfor; ?>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="feedback-label" for="feedbackComment">Comment</label>
+                            <textarea
+                                id="feedbackComment"
+                                name="comment"
+                                class="feedback-textarea"
+                                placeholder="Tell us how the resolution went and anything we can improve."
+                            ></textarea>
+                        </div>
+
+                        <div class="feedback-actions">
+                            <button type="button" class="feedback-cancel-btn" id="feedbackModalDismissBtn">Close</button>
+                            <button type="submit" class="feedback-submit-btn">Submit Feedback</button>
+                        </div>
+                    </form>
+                <?php else: ?>
+                    <div class="feedback-actions">
+                        <button type="button" class="feedback-cancel-btn" id="feedbackModalDismissBtn">Close</button>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="dashboard-container">
         <div class="content-wrapper">
@@ -528,14 +871,6 @@ $recent = $recentStmt->get_result();
                     <div class="stat-value"><?= $resolved ?></div>
                 </div>
 
-                <!-- Closed -->
-                <div class="stat-card closed">
-                    <div class="stat-icon">
-                        <i class="fas fa-box-archive"></i>
-                    </div>
-                    <div class="stat-label">Closed</div>
-                    <div class="stat-value"><?= $closed ?></div>
-                </div>
             </div>
 
             <!-- 5️⃣ RECENT TICKETS SECTION -->
@@ -553,6 +888,7 @@ $recent = $recentStmt->get_result();
                                 <th>Reported Concern</th>
                                 <th>Status</th>
                                 <th>Date</th>
+                                <th aria-hidden="true"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -574,7 +910,7 @@ $recent = $recentStmt->get_result();
                                 <?php } ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="5" style="text-align:center; color: #94a3b8; padding: 30px;">
+                                    <td colspan="6" style="text-align:center; color: #94a3b8; padding: 30px;">
                                         No recent tickets found.
                                     </td>
                                 </tr>
@@ -759,6 +1095,73 @@ $recent = $recentStmt->get_result();
             window.location.href = 'my_tickets.php?ticket_id=' + encodeURIComponent(id);
         });
     });
+
+    (function () {
+        var feedbackModal = document.getElementById('feedbackModalOverlay');
+        var feedbackStarsWrap = document.getElementById('feedbackStars');
+        var closeBtn = document.getElementById('feedbackModalCloseBtn');
+        var dismissBtn = document.getElementById('feedbackModalDismissBtn');
+        if (!feedbackModal) return;
+
+        function closeFeedbackModal() {
+            feedbackModal.classList.remove('is-visible');
+            feedbackModal.setAttribute('aria-hidden', 'true');
+        }
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closeFeedbackModal);
+        }
+
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', closeFeedbackModal);
+        }
+
+        feedbackModal.addEventListener('click', function (event) {
+            if (event.target === feedbackModal) {
+                closeFeedbackModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && feedbackModal.classList.contains('is-visible')) {
+                closeFeedbackModal();
+            }
+        });
+
+        if (!feedbackStarsWrap) return;
+
+        var starInputs = Array.prototype.slice.call(feedbackStarsWrap.querySelectorAll('.feedback-star-input'));
+        var starLabels = Array.prototype.slice.call(feedbackStarsWrap.querySelectorAll('.feedback-star'));
+
+        function paintStars(activeRating) {
+            starLabels.forEach(function (label) {
+                var rating = parseInt(label.getAttribute('data-rating') || '0', 10);
+                label.classList.toggle('is-active', rating > 0 && rating <= activeRating);
+            });
+        }
+
+        starLabels.forEach(function (label) {
+            label.addEventListener('mouseenter', function () {
+                paintStars(parseInt(label.getAttribute('data-rating') || '0', 10));
+            });
+            label.addEventListener('click', function () {
+                paintStars(parseInt(label.getAttribute('data-rating') || '0', 10));
+            });
+        });
+
+        feedbackStarsWrap.addEventListener('mouseleave', function () {
+            var checked = starInputs.find(function (input) { return input.checked; });
+            paintStars(checked ? parseInt(checked.value || '0', 10) : 0);
+        });
+
+        starInputs.forEach(function (input) {
+            input.addEventListener('change', function () {
+                paintStars(parseInt(input.value || '0', 10));
+            });
+        });
+
+        paintStars(0);
+    })();
     </script>
 
    
