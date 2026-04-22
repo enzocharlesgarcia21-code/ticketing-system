@@ -154,8 +154,7 @@
       return null;
     }
     var canEdit = msg.can_edit === true;
-    var canDelete = msg.can_delete === true;
-    if (!canEdit && !canDelete) return null;
+    if (!canEdit) return null;
     bindMessageActionMenuCloser();
 
     var wrap = document.createElement('div');
@@ -217,52 +216,6 @@
         });
       });
       menu.appendChild(editBtn);
-    }
-
-    if (canDelete) {
-      var delBtn = document.createElement('button');
-      delBtn.type = 'button';
-      delBtn.className = 'tm-msg-actions-item danger';
-      delBtn.textContent = 'Delete';
-      delBtn.addEventListener('click', function () {
-        menu.classList.remove('show');
-        showMessengerConfirm({
-          title: 'Delete Message',
-          message: 'Delete this message?',
-          confirmText: 'Delete',
-          cancelText: 'Cancel',
-          danger: true,
-          onConfirm: function () {
-            var fd = new FormData();
-            fd.append('ticket_id', String(ticketId));
-            fd.append('message_id', String(msg.id || ''));
-            var t = getCsrfToken();
-            if (t) fd.append('csrf_token', t);
-            postJson('chat_message_delete.php', fd)
-              .then(function (res) {
-                if (!(res && res.success)) {
-                  showMessengerConfirm({
-                    title: 'Delete Failed',
-                    message: (res && res.error) ? String(res.error) : 'Unable to delete this message.',
-                    confirmText: 'OK',
-                    hideCancel: true
-                  });
-                  return;
-                }
-                if (typeof onDone === 'function') onDone();
-              })
-              .catch(function () {
-                showMessengerConfirm({
-                  title: 'Delete Failed',
-                  message: 'Unable to delete this message.',
-                  confirmText: 'OK',
-                  hideCancel: true
-                });
-              });
-          }
-        });
-      });
-      menu.appendChild(delBtn);
     }
 
     toggle.addEventListener('click', function (e) {
@@ -1138,14 +1091,43 @@
 
     var group = document.createElement('div');
     group.className = 'tm-chat-attachment-group';
-    attachments.forEach(function (attachment) {
+    var visibleAttachments = attachments.slice(0, 3);
+    var hiddenCount = Math.max(0, attachments.length - visibleAttachments.length);
+    visibleAttachments.forEach(function (attachment, index) {
       var item = createMessageAttachmentNode(attachment);
-      if (item) group.appendChild(item);
+      if (item) {
+        if (hiddenCount > 0 && index === visibleAttachments.length - 1) {
+          item.classList.add('has-more');
+          var more = document.createElement('button');
+          more.type = 'button';
+          more.className = 'tm-chat-attachment-more';
+          more.textContent = 'View +' + String(hiddenCount);
+          more.addEventListener('click', function (event) {
+            var previewTarget = item.querySelector('.tm-chat-attachment-button[data-src], .tm-chat-attachment-link[href]');
+            if (previewTarget) previewTarget.click();
+            event.preventDefault();
+            event.stopPropagation();
+          });
+          item.appendChild(more);
+        }
+        group.appendChild(item);
+      }
     });
-    var allFiles = attachments.every(function (attachment) {
+    if (hiddenCount > 0) {
+      attachments.slice(3).forEach(function (attachment) {
+        if (!(attachment && attachment.is_image && attachment.stored_name)) return;
+        var hidden = createMessageAttachmentNode(attachment);
+        if (!hidden) return;
+        hidden.classList.add('tm-chat-attachment-hidden');
+        group.appendChild(hidden);
+      });
+      group.setAttribute('data-hidden-count', String(hiddenCount));
+      group.classList.add('has-more');
+    }
+    var allFiles = visibleAttachments.every(function (attachment) {
       return !(attachment && attachment.is_image);
     });
-    group.classList.toggle('files-only', allFiles);
+    group.classList.toggle('files-only', allFiles && hiddenCount === 0);
     return group;
   }
   function setChatModalAttachment(file) {
@@ -2674,9 +2656,14 @@
         '.tm-selected-attachment-remove{width:28px;height:28px;border:none;border-radius:999px;background:#e2e8f0;color:#334155;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto;}' +
         '.tm-selected-attachment-remove:hover{background:#fecaca;color:#b91c1c;}' +
         '.tm-chat-attachment{display:flex;flex-direction:column;gap:8px;margin-top:2px;}' +
-        '.tm-chat-attachment-group{display:flex;flex-direction:row;align-items:stretch;gap:8px;margin-top:4px;max-width:min(430px,100%);overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding:2px 0 4px;}' +
+        '.tm-chat-attachment-group{display:flex;flex-direction:row;align-items:stretch;gap:8px;margin-top:4px;max-width:min(430px,100%);overflow:hidden;padding:2px 0 4px;}' +
+        '.tm-chat-attachment-group::-webkit-scrollbar{display:none;}' +
         '.tm-chat-attachment-group.files-only{flex-direction:column;align-items:stretch;gap:7px;max-width:min(330px,100%);overflow:visible;padding:2px 0;}' +
         '.tm-chat-attachment-group .tm-chat-attachment{margin-top:0;min-width:112px;flex:0 0 112px;}' +
+        '.tm-chat-attachment-group .tm-chat-attachment-hidden{position:absolute;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none;}' +
+        '.tm-chat-attachment-group .tm-chat-attachment.has-more{position:relative;}' +
+        '.tm-chat-attachment-more{position:absolute;inset:0;border:none;border-radius:10px;background:rgba(15,23,42,.58);color:#ffffff;font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:3;backdrop-filter:blur(1px);}' +
+        '.tm-chat-attachment-more:hover{background:rgba(15,23,42,.68);}' +
         '.tm-chat-attachment-group.files-only .tm-chat-attachment{min-width:0;flex:0 0 auto;width:100%;line-height:1;}' +
         '.tm-chat-attachment-group .tm-chat-attachment:has(.tm-chat-attachment-link:not(.tm-chat-attachment-button)){min-width:185px;flex-basis:185px;}' +
         '.tm-chat-attachment-group.files-only .tm-chat-attachment:has(.tm-chat-attachment-link:not(.tm-chat-attachment-button)){min-width:0;flex-basis:auto;}' +
@@ -2936,7 +2923,6 @@
       '          <button type="button" class="tm-messenger-menu-btn" id="tmMessengerMenuBtn" aria-label="Chat options" aria-expanded="false" disabled>&#8942;</button>' +
       '          <div class="tm-messenger-menu" id="tmMessengerMenu">' +
       '            <button type="button" class="tm-messenger-menu-item" id="tmMessengerViewTicketBtn">View Ticket</button>' +
-      '            <button type="button" class="tm-messenger-menu-item danger" id="tmMessengerDeleteBtn">Delete Conversation</button>' +
       '          </div>' +
       '        </div>' +
       '        <button type="button" class="tm-messenger-close" id="tmMessengerCloseBtn" aria-label="Close">&times;</button>' +
@@ -2972,8 +2958,6 @@
         setMessengerAttachments(messengerAttachmentFiles.concat(selected));
       });
     }
-    var deleteBtn = qs('tmMessengerDeleteBtn');
-    if (deleteBtn) deleteBtn.addEventListener('click', deleteMessengerConversation);
     var menuBtn = qs('tmMessengerMenuBtn');
     if (menuBtn) menuBtn.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -3618,67 +3602,6 @@
         if (btn) btn.disabled = false;
         loadMessengerMessages(ticketId, false, true);
       });
-  }
-  function deleteMessengerConversation() {
-    var ticketIdEl = qs('tmMessengerTicketId');
-    var deleteBtn = qs('tmMessengerDeleteBtn');
-    var ticketId = ticketIdEl ? String(ticketIdEl.value || '') : '';
-    if (!ticketId) return;
-    if (deleteBtn && deleteBtn.disabled) return;
-    hideMessengerMenu();
-    showMessengerConfirm({
-      title: 'Delete Conversation',
-      message: 'Delete this conversation?',
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
-      danger: true,
-      onConfirm: function () {
-        if (deleteBtn) deleteBtn.disabled = true;
-        var formData = new FormData();
-        formData.append('ticket_id', ticketId);
-        var t = getCsrfToken();
-        if (t) formData.append('csrf_token', t);
-        postJson('chat_delete.php', formData)
-          .then(function (data) {
-            if (!(data && data.success)) {
-              if (deleteBtn) deleteBtn.disabled = false;
-              showMessengerConfirm({
-                title: 'Delete Failed',
-                message: (data && data.error) ? String(data.error) : 'Failed to delete chat.',
-                confirmText: 'OK',
-                hideCancel: true
-              });
-              return;
-            }
-            if (Array.isArray(window.__tmConversations)) {
-              window.__tmConversations = window.__tmConversations.filter(function (c) {
-                return !(c && String(c.id) === String(ticketId));
-              });
-            }
-            if (deleteBtn) deleteBtn.disabled = false;
-            messengerMessagesSignature = '';
-            messengerComposerSignature = '';
-            stopMessenger();
-            clearMessengerSelection();
-            var remaining = Array.isArray(window.__tmConversations) ? window.__tmConversations : [];
-            if (remaining.length) {
-              selectConversation(remaining[0], true);
-            } else {
-              var list = qs('tmMessengerList');
-              if (list) list.innerHTML = '<div class="tm-messenger-empty">No conversations.</div>';
-            }
-          })
-          .catch(function () {
-            if (deleteBtn) deleteBtn.disabled = false;
-            showMessengerConfirm({
-              title: 'Delete Failed',
-              message: 'Failed to delete chat.',
-              confirmText: 'OK',
-              hideCancel: true
-            });
-          });
-      }
-    });
   }
   function viewMessengerTicket() {
     var ticketIdEl = qs('tmMessengerTicketId');

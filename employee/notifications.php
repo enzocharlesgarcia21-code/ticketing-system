@@ -675,7 +675,7 @@ function notif_priority_from_message(string $message): string
         </div>
         <a href="dashboard.php">Dashboard</a>
         <a href="request_ticket.php">Create Ticket</a>
-        <a href="my_task.php">Task</a>
+        <a href="my_task.php">Tickets</a>
         <a href="my_tickets.php">My Tickets</a>
         <a href="feedback.php">Feedback</a>
         <a href="knowledge_base.php">Knowledge Base</a>

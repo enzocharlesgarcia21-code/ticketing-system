@@ -756,7 +756,11 @@ function notif_email_send(array $toEmails, string $subjectLine, string $bodyHtml
 {
     $to = array_values(array_filter(array_map('trim', $toEmails), static function ($v) { return is_string($v) && $v !== ''; }));
     if (count($to) === 0) return false;
-    $ok = sendSmtpEmail($to, $subjectLine, $bodyHtml, $bodyText, $attachments);
+    $options = [];
+    if (preg_match('/\(#0*(\d+)\)/', $subjectLine, $m)) {
+        $options['ticket_id'] = (int) $m[1];
+    }
+    $ok = sendSmtpEmail($to, $subjectLine, $bodyHtml, $bodyText, $attachments, $options);
     if (!$ok) {
         error_log('Email send failed | subject=' . (string) $subjectLine . ' to=' . implode(',', $to));
     }
