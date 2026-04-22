@@ -85,3 +85,17 @@ if (PHP_SAPI !== 'cli' && isset($_SESSION['user_id']) && (($_SESSION['role'] ?? 
         exit;
     }
 }
+
+// Auto-migrate missing columns that cause dashboard crashes
+(function (mysqli $conn): void {
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    // employee_tickets.feedback_status
+    $r = $conn->query("SHOW COLUMNS FROM employee_tickets LIKE 'feedback_status'");
+    if ($r && $r->num_rows === 0) {
+        $conn->query("ALTER TABLE employee_tickets ADD COLUMN feedback_status ENUM('pending','submitted','skipped') NULL DEFAULT 'pending' AFTER status");
+    }
+    if ($r instanceof mysqli_result) { $r->free(); }
+})($conn);
