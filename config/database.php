@@ -98,4 +98,24 @@ if (PHP_SAPI !== 'cli' && isset($_SESSION['user_id']) && (($_SESSION['role'] ?? 
         $conn->query("ALTER TABLE employee_tickets ADD COLUMN feedback_status ENUM('pending','submitted','skipped') NULL DEFAULT 'pending' AFTER status");
     }
     if ($r instanceof mysqli_result) { $r->free(); }
+
+    // ticket_feedback table
+    $r2 = $conn->query("SHOW TABLES LIKE 'ticket_feedback'");
+    if ($r2 && $r2->num_rows === 0) {
+        $conn->query("
+            CREATE TABLE ticket_feedback (
+                id INT(11) NOT NULL AUTO_INCREMENT,
+                ticket_id INT(11) NOT NULL,
+                requestor_id INT(11) DEFAULT NULL,
+                assignee_id INT(11) DEFAULT NULL,
+                rating TINYINT(1) NOT NULL,
+                comment TEXT DEFAULT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY ticket_id (ticket_id),
+                KEY assignee_id (assignee_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ");
+    }
+    if ($r2 instanceof mysqli_result) { $r2->free(); }
 })($conn);
