@@ -452,7 +452,7 @@ $recent = $recentStmt->get_result();
         </div>
         <a href="dashboard.php" class="active">Dashboard</a>
         <a href="request_ticket.php">Create Ticket</a>
-        <a href="my_task.php">Task</a>
+        <a href="my_task.php">Tickets</a>
         <a href="my_tickets.php">My Tickets</a>
         <a href="knowledge_base.php">Knowledge Base</a>
         <div class="mobile-sidebar-footer">
