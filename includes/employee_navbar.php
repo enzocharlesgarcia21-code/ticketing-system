@@ -3,12 +3,16 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/csrf.php';
+require_once __DIR__ . '/user_permissions.php';
 $csrfToken = csrf_token();
 
 $user_id = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
 $user_email = 'Account';
+$tmUserPermissions = user_permissions_defaults();
 
 if ($user_id > 0 && isset($conn)) {
+    user_permissions_ensure_table($conn);
+    $tmUserPermissions = user_permissions_get_for_user($conn, $user_id);
     $user_query = $conn->query("SELECT email FROM users WHERE id = $user_id");
     if ($user_query && $user_query->num_rows > 0) {
         $user_email = $user_query->fetch_assoc()['email'];
@@ -32,8 +36,25 @@ function isActive($page) {
     if ($page == 'feedback.php' && $current == 'feedback.php') {
         return 'active';
     }
+    if ($page == 'book_conference.php' && $current == 'book_conference.php') {
+        return 'active';
+    }
+    if ($page == 'analytics.php' && $current == 'analytics.php') {
+        return 'active';
+    }
     return '';
 }
+
+$employeeNavItems = [
+    ['key' => 'dashboard', 'page' => 'dashboard.php', 'label' => 'Dashboard'],
+    ['key' => 'create_ticket', 'page' => 'request_ticket.php', 'label' => 'Create Ticket'],
+    ['key' => 'all_ticket', 'page' => 'my_task.php', 'label' => 'Tickets'],
+    ['key' => 'my_tickets', 'page' => 'my_tickets.php', 'label' => 'My Tickets'],
+    ['key' => 'feedback', 'page' => 'feedback.php', 'label' => 'Feedback'],
+    ['key' => 'knowledge_base', 'page' => 'knowledge_base.php', 'label' => 'Knowledge Base'],
+    ['key' => 'conference_booking', 'page' => 'book_conference.php', 'label' => 'Conference Booking'],
+    ['key' => 'analytics', 'page' => 'analytics.php', 'label' => 'Analytics'],
+];
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <nav class="navbar">
@@ -47,12 +68,18 @@ function isActive($page) {
 
     <div class="navbar-collapse" id="navbarCollapse">
         <div class="nav-center">
-            <a href="dashboard.php" class="nav-link <?= isActive('dashboard.php') ?>">Dashboard</a>
-            <a href="request_ticket.php" class="nav-link <?= isActive('request_ticket.php') ?>">Create Ticket</a>
-            <a href="my_task.php" class="nav-link <?= isActive('my_task.php') ?>">Tickets</a>
-            <a href="my_tickets.php" class="nav-link <?= isActive('my_tickets.php') ?>">My Tickets</a>
-            <a href="feedback.php" class="nav-link <?= isActive('feedback.php') ?>">Feedback</a>
-            <a href="knowledge_base.php" class="nav-link <?= isActive('knowledge_base.php') ?>">Knowledge Base</a>
+            <?php foreach ($employeeNavItems as $navItem): ?>
+                <?php
+                    $permissionKey = (string) ($navItem['key'] ?? '');
+                    $isVisible = !array_key_exists($permissionKey, $tmUserPermissions) || (int) $tmUserPermissions[$permissionKey] === 1;
+                    if (!$isVisible) {
+                        continue;
+                    }
+                ?>
+                <a href="<?= htmlspecialchars((string) $navItem['page'], ENT_QUOTES, 'UTF-8'); ?>" class="nav-link <?= isActive((string) $navItem['page']) ?>">
+                    <?= htmlspecialchars((string) $navItem['label'], ENT_QUOTES, 'UTF-8'); ?>
+                </a>
+            <?php endforeach; ?>
         </div>
 
         <div class="nav-right">
@@ -78,7 +105,7 @@ function isActive($page) {
             </div>
 
             <div class="user-menu">
-                <button class="user-btn" aria-label="<?= htmlspecialchars($user_email, ENT_QUOTES, 'UTF-8'); ?>">
+                <button type="button" class="user-btn" aria-label="<?= htmlspecialchars($user_email, ENT_QUOTES, 'UTF-8'); ?>" onclick="window.toggleEmployeeUserMenu && window.toggleEmployeeUserMenu(event)">
                     <i class="fas fa-user"></i>
                     <i class="fas fa-chevron-down" style="font-size: 10px;"></i>
                 </button>
@@ -798,7 +825,11 @@ window.TM_MESSENGER_STYLE = 'employee';
 }
 
 /* Employee user pill (match admin style) */
-.user-menu { position: relative; display: inline-block; }
+.user-menu {
+    position: relative;
+    display: inline-block;
+    z-index: 1102;
+}
 .user-btn {
     display: flex;
     align-items: center;
@@ -812,6 +843,9 @@ window.TM_MESSENGER_STYLE = 'employee';
     font-size: 14px;
     font-weight: 500;
     transition: all 0.2s ease;
+    position: relative;
+    z-index: 1103;
+    pointer-events: auto;
 }
 .user-btn:hover { background: rgba(255,255,255,0.25); }
 .user-dropdown {
@@ -825,8 +859,9 @@ window.TM_MESSENGER_STYLE = 'employee';
     display: none;
     flex-direction: column;
     overflow: hidden;
-    z-index: 999;
+    z-index: 1104;
     border: 1px solid #e5e7eb;
+    pointer-events: auto;
 }
 .user-dropdown.show { display: flex; }
 .user-dropdown .dropdown-item {
@@ -845,6 +880,21 @@ window.TM_MESSENGER_STYLE = 'employee';
 </style>
 
 <script>
+window.toggleEmployeeUserMenu = function(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    var userDropdown = document.querySelector('.user-dropdown');
+    var notifDropdown = document.getElementById('notifDropdown');
+    if (notifDropdown) {
+        notifDropdown.classList.remove('show');
+    }
+    if (userDropdown) {
+        userDropdown.classList.toggle('show');
+    }
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     const bell = document.getElementById('notifBell');
     const dropdown = document.getElementById('notifDropdown');
@@ -910,16 +960,30 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Toggle dropdown
-    bell.addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (userDropdown) userDropdown.classList.remove('show');
-        dropdown.classList.toggle('show');
-    });
+    if (bell && dropdown) {
+        bell.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (userDropdown) userDropdown.classList.remove('show');
+            dropdown.classList.toggle('show');
+        });
+    }
+
+    if (userBtn && userDropdown) {
+        userBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropdown.classList.remove('show');
+            userDropdown.classList.toggle('show');
+        });
+    }
 
     // Close dropdown when clicking outside
     document.addEventListener('click', function(e) {
-        if (!dropdown.contains(e.target) && !bell.contains(e.target)) {
+        if (dropdown && bell && !dropdown.contains(e.target) && !bell.contains(e.target)) {
             dropdown.classList.remove('show');
+        }
+        if (userDropdown && userBtn && !userDropdown.contains(e.target) && !userBtn.contains(e.target)) {
+            userDropdown.classList.remove('show');
         }
     });
 

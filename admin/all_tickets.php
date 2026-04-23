@@ -110,24 +110,22 @@ $priority   = $_GET['priority']   ?? '';
 $status     = $_GET['status']     ?? '';
 $search     = $_GET['search']     ?? '';
 $view       = (string) ($_GET['view'] ?? '');
-$view = $view === 'trash' ? 'closed' : $view;
+$view = $view === 'trash' ? '' : $view;
 $department_key = $department !== '' ? ticket_department_key_from_value((string) $department) : '';
 $adminId = (int) ($_SESSION['user_id'] ?? 0);
-$allowedViews = ['all', 'my_open', 'resolved', 'closed'];
+$allowedViews = ['all', 'my_open', 'resolved'];
 if (!in_array($view, $allowedViews, true)) $view = '';
 
 $sidebarCounts = [
     'all' => 0,
     'my_open' => 0,
     'resolved' => 0,
-    'closed' => 0,
 ];
 $cntStmt = $conn->prepare("
     SELECT
         SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') THEN 1 ELSE 0 END) AS all_total,
         SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_total,
-        SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND status IN ('Open','In Progress') THEN 1 ELSE 0 END) AS my_open_total,
-        SUM(CASE WHEN status IN ('Closed','Trash') THEN 1 ELSE 0 END) AS closed_total
+        SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND status IN ('Open','In Progress') THEN 1 ELSE 0 END) AS my_open_total
     FROM employee_tickets
 ");
 if ($cntStmt) {
@@ -138,7 +136,6 @@ if ($cntStmt) {
     $sidebarCounts['all'] = (int) ($cntRow['all_total'] ?? 0);
     $sidebarCounts['resolved'] = (int) ($cntRow['resolved_total'] ?? 0);
     $sidebarCounts['my_open'] = (int) ($cntRow['my_open_total'] ?? 0);
-    $sidebarCounts['closed'] = (int) ($cntRow['closed_total'] ?? 0);
 }
 
 $query = "
@@ -155,13 +152,9 @@ if ($view !== '') {
         $query .= " AND employee_tickets.status IN ('Open','In Progress')";
     } elseif ($view === 'resolved') {
         $query .= " AND employee_tickets.status = 'Resolved'";
-    } elseif ($view === 'closed') {
-        $query .= " AND employee_tickets.status IN ('Closed','Trash')";
     }
 }
-if ($view !== 'closed' && $status !== 'Closed') {
-    $query .= " AND COALESCE(NULLIF(employee_tickets.status,''),'') NOT IN ('Closed','Trash')";
-}
+$query .= " AND COALESCE(NULLIF(employee_tickets.status,''),'') NOT IN ('Closed','Trash')";
 
 if (!empty($department)) {
     $deptKey = $department_key !== '' ? $department_key : ticket_department_key_from_value((string) $department);
@@ -187,8 +180,6 @@ if (!empty($priority)) {
 if (!empty($status)) {
     if ($status === 'unread') {
         $query .= " AND employee_tickets.is_read = 0";
-    } elseif ($status === 'Closed') {
-        $query .= " AND employee_tickets.status IN ('Closed','Trash')";
     } else {
         $status = $conn->real_escape_string($status);
         $query .= " AND employee_tickets.status = '$status'";
@@ -505,13 +496,6 @@ $result = $stmt->get_result();
                         </span>
                         <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['resolved'] ?? 0); ?></span>
                     </a>
-                    <a class="at-sidebar-link <?php echo $view === 'closed' ? 'active' : ''; ?>" href="all_tickets.php?view=closed">
-                        <span class="at-sidebar-left">
-                            <span class="at-sidebar-icon"><i class="fa-regular fa-circle-xmark"></i></span>
-                            <span class="at-sidebar-label">Closed Tickets</span>
-                        </span>
-                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['closed'] ?? 0); ?></span>
-                    </a>
                 </div>
             </aside>
 
@@ -524,12 +508,6 @@ $result = $stmt->get_result();
                 </div>
                 <?php unset($_SESSION['success']); ?>
             <?php endif; ?>
-            <?php if(isset($_GET['closed']) && (string)$_GET['closed'] === '1'): ?>
-                <div class="admin-notice">
-                    Ticket moved to Closed Tickets.
-                </div>
-            <?php endif; ?>
-
             <div class="admin-page-header">
                 <div>
                     <h1 class="admin-page-title">All Tickets</h1>
@@ -603,7 +581,6 @@ $result = $stmt->get_result();
                             <option value="Open" <?= $status=='Open'?'selected':'' ?>>Open</option>
                             <option value="In Progress" <?= $status=='In Progress'?'selected':'' ?>>In Progress</option>
                             <option value="Resolved" <?= $status=='Resolved'?'selected':'' ?>>Resolved</option>
-                            <option value="Closed" <?= $status=='Closed'?'selected':'' ?>>Closed</option>
                         </select>
 
                         <a href="all_tickets.php" class="clear-btn" id="clearFiltersBtn">Clear Filters</a>

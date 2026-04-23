@@ -3724,7 +3724,12 @@
           modalContent.classList.add('tm-sap-ticket-modal');
         }
         setCurrentTicketId(data && data.id != null ? data.id : id);
-        lastTicketMeta = { id: data && data.id != null ? data.id : id, subject: getDisplaySubject(data) };
+        lastTicketMeta = {
+          id: data && data.id != null ? data.id : id,
+          subject: getDisplaySubject(data),
+          status: data && data.status ? String(data.status) : '',
+          feedback_status: data && data.feedback_status ? String(data.feedback_status) : ''
+        };
         try {
           modalContent.innerHTML = buildHtml(data);
         } catch (renderError) {
@@ -3770,6 +3775,9 @@
   function close() {
     var modal = qs('ticketModal');
     if (modal) modal.style.display = 'none';
+    if (typeof window !== 'undefined' && typeof window.TM_ON_TICKET_MODAL_CLOSE === 'function') {
+      try { window.TM_ON_TICKET_MODAL_CLOSE(lastTicketMeta); } catch (e) { }
+    }
     stopChat();
     stopChatBadge();
     closeChatModal();

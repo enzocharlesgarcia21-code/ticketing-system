@@ -1529,6 +1529,71 @@ $requestTicketCompanyOptions = [
         body.employee-request-ticket-page .select-wrapper {
             position: relative;
         }
+        body.employee-request-ticket-page .custom-select-trigger {
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+        }
+        body.employee-request-ticket-page .custom-select-trigger[disabled] {
+            cursor: not-allowed;
+            opacity: 0.68;
+            background: #f8fafc;
+        }
+        body.employee-request-ticket-page .custom-select-value {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        body.employee-request-ticket-page .custom-select-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            max-height: 280px;
+            overflow-y: auto;
+            background: #ffffff;
+            border: 2px solid #73a66f;
+            border-radius: 16px;
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+            padding: 8px 0;
+            z-index: 35;
+        }
+        body.employee-request-ticket-page .custom-select-menu[hidden] {
+            display: none;
+        }
+        body.employee-request-ticket-page .select-wrapper.is-open .select-icon {
+            transform: translateY(-50%) rotate(180deg);
+        }
+        body.employee-request-ticket-page .custom-select-option {
+            width: 100%;
+            border: 0;
+            background: transparent;
+            text-align: left;
+            padding: 11px 16px;
+            color: #0f172a;
+            font-size: 15px;
+            line-height: 1.35;
+            cursor: pointer;
+            transition: background 0.14s ease, color 0.14s ease;
+        }
+        body.employee-request-ticket-page .custom-select-option:hover,
+        body.employee-request-ticket-page .custom-select-option:focus-visible {
+            background: rgba(27, 94, 32, 0.08);
+            color: #1b5e20;
+            outline: none;
+        }
+        body.employee-request-ticket-page .custom-select-option.is-selected {
+            background: rgba(27, 94, 32, 0.12);
+            color: #14532d;
+            font-weight: 700;
+        }
+        body.employee-request-ticket-page .custom-select-native {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
         body.employee-request-ticket-page .select-wrapper .form-control {
             appearance: none;
             -webkit-appearance: none;
@@ -3425,10 +3490,14 @@ $requestTicketCompanyOptions = [
 
                         <div class="form-group" id="departmentContainer" style="display:none;">
                             <label>Assigned Department <span class="required-asterisk">*</span></label>
-                            <div class="select-wrapper">
-                                <select name="assigned_group" id="assigned_group" class="form-control" required disabled data-selected="<?= htmlspecialchars((string) ($_POST['assigned_group'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <div class="select-wrapper" id="assignedGroupWrapper">
+                                <select name="assigned_group" id="assigned_group" class="form-control custom-select-native" required disabled data-selected="<?= htmlspecialchars((string) ($_POST['assigned_group'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                     <option value="" disabled selected hidden>Choose department</option>
                                 </select>
+                                <button type="button" class="form-control custom-select-trigger" id="assignedGroupTrigger" aria-haspopup="listbox" aria-expanded="false" disabled>
+                                    <span class="custom-select-value" id="assignedGroupTriggerValue">Choose department</span>
+                                </button>
+                                <div class="custom-select-menu" id="assignedGroupMenu" role="listbox" hidden></div>
                                 <i class="fas fa-chevron-down select-icon"></i>
                             </div>
                         </div>
@@ -4185,6 +4254,10 @@ $requestTicketCompanyOptions = [
         const recipientDepartmentRow = document.getElementById('recipientDepartmentRow');
         const departmentContainer = document.getElementById('departmentContainer');
         const departmentSelect = document.getElementById('assigned_group');
+        const departmentWrapper = document.getElementById('assignedGroupWrapper');
+        const departmentTrigger = document.getElementById('assignedGroupTrigger');
+        const departmentTriggerValue = document.getElementById('assignedGroupTriggerValue');
+        const departmentMenu = document.getElementById('assignedGroupMenu');
         const categoryUrgencyRow = document.getElementById('categoryUrgencyRow');
         const categoryContainer = document.getElementById('categoryContainer');
         const categorySelect = document.getElementById('category_select');
@@ -4320,6 +4393,53 @@ $requestTicketCompanyOptions = [
                 'Marketing Request',
             ],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        function closeDepartmentDropdown() {
+            if (!departmentWrapper || !departmentTrigger || !departmentMenu) return;
+            departmentWrapper.classList.remove('is-open');
+            departmentTrigger.setAttribute('aria-expanded', 'false');
+            departmentMenu.hidden = true;
+        }
+        function syncDepartmentTriggerLabel() {
+            if (!departmentSelect || !departmentTriggerValue) return;
+            const selectedOption = departmentSelect.options[departmentSelect.selectedIndex];
+            const placeholderOption = departmentSelect.querySelector('option[value=""]');
+            const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
+                ? String(selectedOption.textContent || '').trim()
+                : String((placeholderOption && placeholderOption.textContent) || 'Choose department').trim();
+            departmentTriggerValue.textContent = nextLabel || 'Choose department';
+        }
+        function renderDepartmentDropdownOptions() {
+            if (!departmentSelect || !departmentMenu || !departmentTrigger) return;
+            const currentValue = String(departmentSelect.value || '');
+            const options = Array.from(departmentSelect.options).filter(function(option) {
+                return String(option.value || '') !== '';
+            });
+            departmentMenu.innerHTML = '';
+            options.forEach(function(option) {
+                const optionValue = String(option.value || '');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option' + (currentValue === optionValue ? ' is-selected' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', currentValue === optionValue ? 'true' : 'false');
+                item.textContent = String(option.textContent || optionValue);
+                item.addEventListener('click', function() {
+                    departmentSelect.value = optionValue;
+                    departmentSelect.setAttribute('data-selected', optionValue);
+                    syncDepartmentTriggerLabel();
+                    renderDepartmentDropdownOptions();
+                    closeDepartmentDropdown();
+                    departmentSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    departmentTrigger.focus();
+                });
+                departmentMenu.appendChild(item);
+            });
+            syncDepartmentTriggerLabel();
+            departmentTrigger.disabled = !!departmentSelect.disabled;
+            if (departmentSelect.disabled) {
+                closeDepartmentDropdown();
+            }
+        }
         function populateDepartments(options) {
             if (!departmentSelect) return;
             const selectedValue = String(departmentSelect.getAttribute('data-selected') || departmentSelect.value || '');
@@ -4333,6 +4453,10 @@ $requestTicketCompanyOptions = [
                 }
                 departmentSelect.appendChild(option);
             });
+            if (selectedValue !== '' && !options.includes(selectedValue)) {
+                departmentSelect.value = '';
+            }
+            renderDepartmentDropdownOptions();
         }
         function toggleDepartment() {
             if (!recipientDropdown || !departmentContainer || !departmentSelect) return;
@@ -4348,7 +4472,9 @@ $requestTicketCompanyOptions = [
                 departmentSelect.value = '';
                 departmentSelect.disabled = true;
                 departmentSelect.removeAttribute('required');
+                departmentSelect.setAttribute('data-selected', '');
             }
+            renderDepartmentDropdownOptions();
             if (recipientDepartmentRow) {
                 recipientDepartmentRow.classList.toggle('is-single', !shouldShowDepartment);
             }
@@ -5212,8 +5338,32 @@ $requestTicketCompanyOptions = [
         }
         if (departmentSelect) {
             departmentSelect.addEventListener('change', function() {
+                departmentSelect.setAttribute('data-selected', String(departmentSelect.value || ''));
+                syncDepartmentTriggerLabel();
+                renderDepartmentDropdownOptions();
                 toggleCategories();
                 toggleHrExtraFields();
+            });
+        }
+        if (departmentTrigger && departmentMenu && departmentWrapper) {
+            departmentTrigger.addEventListener('click', function() {
+                if (departmentTrigger.disabled) return;
+                const shouldOpen = departmentMenu.hidden;
+                closeDepartmentDropdown();
+                if (!shouldOpen) return;
+                departmentWrapper.classList.add('is-open');
+                departmentTrigger.setAttribute('aria-expanded', 'true');
+                departmentMenu.hidden = false;
+            });
+            document.addEventListener('click', function(event) {
+                if (!departmentWrapper.contains(event.target)) {
+                    closeDepartmentDropdown();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeDepartmentDropdown();
+                }
             });
         }
         if (categorySelect) {

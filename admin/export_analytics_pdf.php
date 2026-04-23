@@ -1,10 +1,27 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/user_permissions.php';
+
+$analyticsExportViewMode = defined('TICKETING_ANALYTICS_EXPORT_VIEW_MODE') ? (string) TICKETING_ANALYTICS_EXPORT_VIEW_MODE : 'admin';
+$analyticsExportIsEmployeeView = $analyticsExportViewMode === 'employee';
 
 define('FPDF_FONTPATH', dirname(__DIR__) . '/vendor/fpdf/font/');
 require_once '../vendor/fpdf/fpdf.php';
 
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+    die('Access Denied');
+}
+
+if ($analyticsExportIsEmployeeView) {
+    if ((string) ($_SESSION['role'] ?? '') !== 'employee') {
+        die('Access Denied');
+    }
+    user_permissions_ensure_table($conn);
+    $employeePermissions = user_permissions_get_for_user($conn, (int) ($_SESSION['user_id'] ?? 0));
+    if ((int) ($employeePermissions['analytics'] ?? 0) !== 1) {
+        die('Access Denied');
+    }
+} elseif (($_SESSION['role'] ?? '') !== 'admin') {
     die('Access Denied');
 }
 
@@ -17,7 +34,7 @@ function analytics_export_filters(): array
     $department = trim((string) ($_GET['department'] ?? ''));
     $status = trim((string) ($_GET['status'] ?? ''));
 
-    $allowedStatuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
+    $allowedStatuses = ['Open', 'In Progress', 'Resolved'];
     if (!in_array($status, $allowedStatuses, true)) {
         $status = '';
     }
@@ -32,7 +49,7 @@ function analytics_export_filters(): array
         $category = '';
     }
 
-    return [
+    $filters = [
         'start_date' => $startDate,
         'end_date' => $endDate,
         'category' => $category,
@@ -40,6 +57,17 @@ function analytics_export_filters(): array
         'department' => $department,
         'status' => $status,
     ];
+
+    global $analyticsExportIsEmployeeView;
+    if ($analyticsExportIsEmployeeView) {
+        $filters['company'] = ticket_normalize_company(trim((string) ($_SESSION['company'] ?? '')));
+        $filters['department'] = trim((string) ($_SESSION['department'] ?? ''));
+        $filters['assignee'] = 0;
+    } else {
+        $filters['company'] = '';
+    }
+
+    return $filters;
 }
 
 function analytics_export_fetch_rows(mysqli $conn, array $filters): array
@@ -58,6 +86,11 @@ function analytics_export_fetch_rows(mysqli $conn, array $filters): array
         $params[] = (int) $filters['assignee'];
         $types .= 'i';
     }
+    if (($filters['company'] ?? '') !== '') {
+        $where[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
+        $params[] = (string) $filters['company'];
+        $types .= 's';
+    }
     if ($filters['department'] !== '') {
         $where[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
         $params[] = $filters['department'];
@@ -68,6 +101,7 @@ function analytics_export_fetch_rows(mysqli $conn, array $filters): array
         $params[] = $filters['status'];
         $types .= 's';
     }
+    $where[] = "COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')";
 
     $sql = "
         SELECT
