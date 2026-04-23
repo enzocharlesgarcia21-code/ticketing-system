@@ -518,6 +518,8 @@ function ticket_ensure_assignment_columns(mysqli $conn): void
         'department' => "VARCHAR(100) NULL",
         'assigned_department' => "VARCHAR(100) NOT NULL DEFAULT 'IT'",
         'priority' => "VARCHAR(20) NOT NULL DEFAULT 'Low'",
+        'status' => "VARCHAR(30) NOT NULL DEFAULT 'Open'",
+        'feedback_status' => "VARCHAR(20) NULL DEFAULT 'pending'",
     ];
     foreach ($enumColumns as $col => $ddl) {
         if (!isset($existing[$col])) continue;

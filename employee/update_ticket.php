@@ -232,10 +232,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             END
         WHERE id = ?
     ");
-    
+
+    if (!$update) {
+        error_log('update_ticket.php prepare failed: ' . $conn->error);
+        $_SESSION['error'] = 'Unable to update the ticket right now. (' . $conn->error . ')';
+        header("Location: my_task.php");
+        exit();
+    }
+
     $update->bind_param("sssssiisssi", $new_status, $new_status, $new_department, $new_company, $new_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $id);
-    
-    if ($update->execute()) {
+
+    $updateOk = false;
+    $updateError = '';
+    try {
+        $updateOk = $update->execute();
+        if (!$updateOk) {
+            $updateError = (string) $update->error;
+        }
+    } catch (Throwable $execEx) {
+        $updateError = $execEx->getMessage();
+    }
+
+    if (!$updateOk) {
+        error_log('update_ticket.php execute failed: ' . $updateError);
+        $update->close();
+        $_SESSION['error'] = 'Unable to update the ticket right now. (' . $updateError . ')';
+        header("Location: my_task.php");
+        exit();
+    }
+
+    if ($updateOk) {
         $_SESSION['task_success'] = "Ticket #$id successfully updated.";
 
         // --- TICKET ACTIVITY LOG ---
