@@ -509,6 +509,27 @@ function ticket_ensure_assignment_columns(mysqli $conn): void
             $conn->query("ALTER TABLE employee_tickets ADD COLUMN $col $ddl");
         }
     }
+
+    // Older schemas stored department/priority as ENUMs that don't include
+    // newer values like 'Sales', LAPC department names ('Admin & Legal',
+    // 'Banana Farm Operations', etc.) or numeric marketing urgency ('1','2','3').
+    // Convert those columns to VARCHAR so submissions are not truncated.
+    $enumColumns = [
+        'department' => "VARCHAR(100) NULL",
+        'assigned_department' => "VARCHAR(100) NOT NULL DEFAULT 'IT'",
+        'priority' => "VARCHAR(20) NOT NULL DEFAULT 'Low'",
+    ];
+    foreach ($enumColumns as $col => $ddl) {
+        if (!isset($existing[$col])) continue;
+        $colRes = $conn->query("SHOW COLUMNS FROM employee_tickets LIKE '$col'");
+        $colMeta = $colRes ? $colRes->fetch_assoc() : null;
+        if ($colRes instanceof mysqli_result) $colRes->free();
+        if (!$colMeta) continue;
+        $colType = strtolower((string) ($colMeta['Type'] ?? ''));
+        if (strpos($colType, 'enum(') === 0) {
+            $conn->query("ALTER TABLE employee_tickets MODIFY COLUMN $col $ddl");
+        }
+    }
 }
 
 function ticket_claim_first_handler(mysqli $conn, int $ticketId, int $userId): bool
