@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/user_permissions.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: dashboard.php");
@@ -79,6 +80,8 @@ $company_domain_options = [
 ];
 
 $lapc_department_options = ticket_lapc_departments();
+$canManageUserAccess = user_permissions_can_manage($conn);
+user_permissions_ensure_table($conn);
 
 ?>
 
@@ -813,10 +816,11 @@ $lapc_department_options = ticket_lapc_departments();
             inset: 0;
             background: rgba(15, 23, 42, 0.45);
             display: none;
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
-            padding: 22px;
+            padding: 96px 22px 22px;
             z-index: 3000;
+            overflow-y: auto;
         }
         .modal-overlay-lite.show { display: flex; }
         .modal-card {
@@ -829,11 +833,280 @@ $lapc_department_options = ticket_lapc_departments();
             overflow: hidden;
             position: relative;
             z-index: 3001;
+            margin: 0 auto;
+            max-height: calc(100vh - 44px);
+            overflow-y: auto;
         }
         .modal-card .mgmt-card-body { padding: 18px; }
+        .access-modal-card .mgmt-card-body { padding: 14px; }
+        .users-access-row {
+            transition: background-color 0.18s ease, transform 0.18s ease;
+        }
+        .users-access-row.is-clickable {
+            cursor: pointer;
+        }
+        .users-access-row.is-clickable:hover td {
+            background: #f0fdf4;
+        }
+        .users-access-row.is-clickable:focus-within td,
+        .users-access-row.is-clickable.is-active td {
+            background: #ecfdf5;
+        }
+        .users-access-meta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #16a34a;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-left: auto;
+            white-space: nowrap;
+        }
+        .access-modal-card {
+            max-width: 520px;
+            margin-top: 0;
+            margin-bottom: 18px;
+        }
+        .access-modal-shell-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 14px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        .access-modal-shell-title {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            min-width: 0;
+        }
+        .access-modal-shell-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            background: #ecfdf5;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            font-size: 16px;
+        }
+        .access-modal-shell-heading {
+            margin: 0;
+            color: #0f172a;
+            font-size: 18px;
+            font-weight: 900;
+            line-height: 1.15;
+        }
+        .access-modal-shell-copy {
+            margin-top: 4px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+        .access-modal-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            border: 1px solid #dbe2ea;
+            background: #ffffff;
+            color: #475569;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex: 0 0 auto;
+            transition: all 0.18s ease;
+        }
+        .access-modal-close:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #0f172a;
+        }
+        .access-modal-header-copy {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            column-gap: 12px;
+            row-gap: 4px;
+            align-items: center;
+        }
+        .access-modal-header-copy .icon {
+            grid-row: 1 / span 2;
+        }
+        .access-modal-subtitle {
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.5;
+            grid-column: 2;
+        }
+        .access-user-chip {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 8px 10px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%);
+            border: 1px solid #dcfce7;
+            margin-bottom: 10px;
+        }
+        .access-user-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 999px;
+            background: #166534;
+            color: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 900;
+            flex: 0 0 auto;
+        }
+        .access-user-name {
+            font-size: 15px;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.1;
+        }
+        .access-user-email,
+        .access-user-role {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+        .access-sections {
+            display: grid;
+            gap: 8px;
+        }
+        .access-section {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+        .access-section-head {
+            padding: 8px 10px;
+            border-bottom: 1px solid #ecf0f4;
+            background: #f8fafc;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #166534;
+        }
+        .access-toggle-list {
+            display: grid;
+            gap: 0;
+        }
+        .access-toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 10px;
+            border-top: 1px solid #f1f5f9;
+        }
+        .access-toggle-row:first-child {
+            border-top: none;
+        }
+        .access-toggle-copy {
+            min-width: 0;
+        }
+        .access-toggle-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.15;
+        }
+        .access-toggle-meta {
+            margin-top: 2px;
+            color: #64748b;
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 1.2;
+            word-break: break-word;
+        }
+        .switch {
+            position: relative;
+            display: inline-flex;
+            width: 54px;
+            height: 30px;
+            flex: 0 0 auto;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .switch-slider {
+            position: absolute;
+            inset: 0;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 999px;
+            transition: background 0.2s ease;
+            box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+        }
+        .switch-slider::before {
+            content: '';
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            left: 3px;
+            top: 3px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+            transition: transform 0.2s ease;
+        }
+        .switch input:checked + .switch-slider {
+            background: #16a34a;
+        }
+        .switch input:checked + .switch-slider::before {
+            transform: translateX(24px);
+        }
+        .switch input:focus-visible + .switch-slider {
+            box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.18);
+        }
+        .access-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        .access-modal-empty {
+            padding: 18px 16px;
+            border: 1px dashed #cbd5e1;
+            border-radius: 16px;
+            color: #64748b;
+            text-align: center;
+            font-weight: 700;
+            background: #f8fafc;
+        }
+        .access-manage-note {
+            margin-top: 10px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+        }
         @media (max-width: 980px) {
             .admin-mgmt-grid { grid-template-columns: 1fr; }
             .form-grid { grid-template-columns: 1fr; }
+            .access-toggle-row {
+                align-items: flex-start;
+            }
         }
         @media (max-width: 1200px) {
             .create-admin-container { width: 95%; }
@@ -844,8 +1117,29 @@ $lapc_department_options = ticket_lapc_departments();
             .users-filters { width: 100%; }
         }
         @media (max-width: 720px) {
+            .modal-overlay-lite {
+                padding: 84px 12px 12px;
+            }
+            .modal-card {
+                max-height: calc(100vh - 24px);
+            }
             .fullname-row { flex-direction: column; align-items: stretch; }
             .fullname-row > .domain-select { flex: 1 1 auto; width: 100%; }
+            .access-user-chip {
+                align-items: flex-start;
+            }
+            .access-modal-shell-header {
+                padding: 14px;
+            }
+            .access-modal-shell-heading {
+                font-size: 18px;
+            }
+            .access-modal-actions {
+                flex-direction: column-reverse;
+            }
+            .access-modal-actions .btn {
+                width: 100%;
+            }
         }
 
         .admin-dashboard {
@@ -1341,6 +1635,47 @@ $lapc_department_options = ticket_lapc_departments();
             </div>
         </div>
 
+        <div class="modal-overlay-lite" id="userAccessModal" aria-hidden="true">
+            <div class="modal-card access-modal-card">
+                <div class="access-modal-shell-header">
+                    <div class="access-modal-shell-title">
+                        <span class="access-modal-shell-icon"><i class="fas fa-sliders-h"></i></span>
+                        <div>
+                            <h2 class="access-modal-shell-heading">User Access Control</h2>
+                            <div class="access-modal-shell-copy">Manage which employee-side modules and navbar items are available for the selected user.</div>
+                        </div>
+                    </div>
+                    <button type="button" class="access-modal-close" id="closeUserAccessModal" aria-label="Close access control modal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="mgmt-card-body">
+                    <div class="access-user-chip" id="accessUserChip">
+                        <span class="access-user-avatar" id="accessUserAvatar">?</span>
+                        <div>
+                            <div class="access-user-name" id="accessUserName">Select a user</div>
+                            <div class="access-user-email" id="accessUserEmail">Choose a registered user to update module access.</div>
+                            <div class="access-user-role" id="accessUserRole"></div>
+                        </div>
+                    </div>
+                    <form id="userAccessForm" autocomplete="off" novalidate>
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="user_id" id="accessUserId" value="">
+                        <div class="access-sections" id="accessSections">
+                            <div class="access-modal-empty">Select a registered user to load module access.</div>
+                        </div>
+                        <div class="access-manage-note" <?php echo $canManageUserAccess ? 'style="display:none;"' : ''; ?>>
+                            Only the super admin can update per-user module access.
+                        </div>
+                        <div class="access-modal-actions">
+                            <button type="button" class="btn btn-secondary" id="cancelUserAccess">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="saveUserAccess" <?php echo $canManageUserAccess ? '' : 'disabled'; ?>>Save Access</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <div class="admin-bottom-grid">
             <div class="mgmt-card">
                 <div class="mgmt-card-header">
@@ -1457,6 +1792,7 @@ $lapc_department_options = ticket_lapc_departments();
 
 <script>
     window.TM_ADMIN_CURRENT_USER_ID = <?php echo (int) ($_SESSION['user_id'] ?? 0); ?>;
+    window.TM_CAN_MANAGE_USER_ACCESS = <?php echo $canManageUserAccess ? 'true' : 'false'; ?>;
     window.TM_USERS_PAGE_SIZE = 5;
     window.TM_IT_PAGE_SIZE = 3;
     window.TM_IT_ADMINS_PAGE_SIZE = 4;
@@ -1621,9 +1957,11 @@ $lapc_department_options = ticket_lapc_departments();
             var email = u.email ? String(u.email) : '-';
             var id = u.id != null ? String(u.id) : '';
             var name = String(u.name || '');
+            var role = String(u.role || '');
             var isCurrent = (Number(u.id) === Number(window.TM_ADMIN_CURRENT_USER_ID));
-            var isAdmin = (String(u.role || '') === 'admin');
+            var isAdmin = (role === 'admin');
             var isSuper = Number(u.is_super_admin || 0) === 1;
+            var canManageAccess = !!window.TM_CAN_MANAGE_USER_ACCESS;
             var badges = [];
             if (isCurrent) badges.push('<span class="users-badge-current">Current</span>');
             if (isSuper) badges.push('<span class="users-badge-current">Super Admin</span>');
@@ -1634,8 +1972,12 @@ $lapc_department_options = ticket_lapc_departments();
             var initial = name ? name.trim().charAt(0).toUpperCase() : '?';
             var deptCls = deptClass(dept);
             var deptBadge = '<span class="dept-badge ' + deptCls + '" title="' + escapeHtml(dept) + '">' + escapeHtml(dept) + '</span>';
+            var accessMeta = canManageAccess
+                ? '<span class="users-access-meta"><i class="fas fa-sliders-h"></i> Access</span>'
+                : '';
+            var rowClasses = 'users-access-row' + (canManageAccess ? ' is-clickable' : '');
             return '' +
-                '<tr>' +
+                '<tr class="' + rowClasses + '" data-user-id="' + escapeHtml(id) + '" data-user-name="' + escapeHtml(name) + '" data-user-email="' + escapeHtml(email) + '" data-user-role="' + escapeHtml(role) + '" data-user-department="' + escapeHtml(dept) + '">' +
                 '  <td>' +
                 '    <span class="users-name-wrap">' +
                 '      <span class="users-avatar">' + escapeHtml(initial) + '</span>' +
@@ -1643,6 +1985,7 @@ $lapc_department_options = ticket_lapc_departments();
                 '        <span class="users-name users-cell" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</span>' +
                 '      </span>' +
                 '      ' + badge +
+                '      ' + accessMeta +
                 '    </span>' +
                 '  </td>' +
                 '  <td><span class="users-cell" title="' + escapeHtml(email) + '">' + escapeHtml(email) + '</span></td>' +
@@ -1917,6 +2260,16 @@ $lapc_department_options = ticket_lapc_departments();
     document.addEventListener('DOMContentLoaded', function () {
         var modal = document.getElementById('addUserModal');
         var openBtn = document.getElementById('openAddUser');
+        var accessModal = document.getElementById('userAccessModal');
+        var accessForm = document.getElementById('userAccessForm');
+        var accessSections = document.getElementById('accessSections');
+        var accessUserId = document.getElementById('accessUserId');
+        var accessUserName = document.getElementById('accessUserName');
+        var accessUserEmail = document.getElementById('accessUserEmail');
+        var accessUserRole = document.getElementById('accessUserRole');
+        var accessUserAvatar = document.getElementById('accessUserAvatar');
+        var saveUserAccessBtn = document.getElementById('saveUserAccess');
+        var selectedAccessRow = null;
         function openModal() {
             if (!modal) return;
             modal.classList.add('show');
@@ -1930,10 +2283,152 @@ $lapc_department_options = ticket_lapc_departments();
             modal.classList.remove('show');
             modal.setAttribute('aria-hidden', 'true');
         }
+        function setAccessLoadingState(isLoading) {
+            if (saveUserAccessBtn) {
+                saveUserAccessBtn.disabled = isLoading || !window.TM_CAN_MANAGE_USER_ACCESS;
+                saveUserAccessBtn.textContent = isLoading ? 'Saving...' : 'Save Access';
+            }
+        }
+        function resetAccessModalCard() {
+            if (accessUserId) accessUserId.value = '';
+            if (accessUserName) accessUserName.textContent = 'Select a user';
+            if (accessUserEmail) accessUserEmail.textContent = 'Choose a registered user to update module access.';
+            if (accessUserRole) accessUserRole.textContent = '';
+            if (accessUserAvatar) accessUserAvatar.textContent = '?';
+            if (accessSections) {
+                accessSections.innerHTML = '<div class="access-modal-empty">Select a registered user to load module access.</div>';
+            }
+        }
+        function openAccessModal() {
+            if (!accessModal) return;
+            accessModal.classList.add('show');
+            accessModal.setAttribute('aria-hidden', 'false');
+        }
+        function closeAccessModal() {
+            if (!accessModal) return;
+            accessModal.classList.remove('show');
+            accessModal.setAttribute('aria-hidden', 'true');
+            if (selectedAccessRow) {
+                selectedAccessRow.classList.remove('is-active');
+                selectedAccessRow = null;
+            }
+            resetAccessModalCard();
+            setAccessLoadingState(false);
+        }
+        function showAccessAlert(icon, title, text) {
+            Swal.fire({
+                target: document.body,
+                icon: icon,
+                title: title,
+                html: escapeHtml(text),
+                width: '420px',
+                confirmButtonText: 'OK',
+                buttonsStyling: false,
+                customClass: {
+                    popup: 'swal-admin-alert-popup',
+                    icon: 'swal-admin-alert-icon',
+                    title: 'swal-admin-alert-title',
+                    htmlContainer: 'swal-admin-alert-html',
+                    actions: 'swal-admin-alert-actions',
+                    confirmButton: 'swal-admin-alert-confirm'
+                }
+            });
+        }
+        function buildAccessSections(definitions, permissions) {
+            if (!accessSections) return;
+            if (!definitions || !definitions.length) {
+                accessSections.innerHTML = '<div class="access-modal-empty">No module permissions are configured yet.</div>';
+                return;
+            }
+            var grouped = {};
+            definitions.forEach(function (definition) {
+                var section = String(definition.section || 'Modules');
+                if (!grouped[section]) grouped[section] = [];
+                grouped[section].push(definition);
+            });
+
+            var html = Object.keys(grouped).map(function (section) {
+                var rows = grouped[section].map(function (definition) {
+                    var key = String(definition.key || '');
+                    var checked = Number((permissions && permissions[key]) || 0) === 1;
+                    var pathText = definition.path ? ('Employee page: ' + String(definition.path)) : 'Employee module access';
+                    return '' +
+                        '<div class="access-toggle-row">' +
+                        '  <div class="access-toggle-copy">' +
+                        '    <div class="access-toggle-title">' + escapeHtml(String(definition.label || key)) + '</div>' +
+                        '    <div class="access-toggle-meta">' + escapeHtml(pathText) + '</div>' +
+                        '  </div>' +
+                        '  <label class="switch">' +
+                        '    <input type="checkbox" name="permissions[' + escapeHtml(key) + ']" value="1" ' + (checked ? 'checked' : '') + '>' +
+                        '    <span class="switch-slider"></span>' +
+                        '  </label>' +
+                        '</div>';
+                }).join('');
+                return '' +
+                    '<section class="access-section">' +
+                    '  <div class="access-section-head">' + escapeHtml(section) + '</div>' +
+                    '  <div class="access-toggle-list">' + rows + '</div>' +
+                    '</section>';
+            }).join('');
+
+            accessSections.innerHTML = html;
+        }
+        function loadUserAccess(row) {
+            if (!row || !window.TM_CAN_MANAGE_USER_ACCESS) return;
+            var userId = row.getAttribute('data-user-id') || '';
+            if (!userId) return;
+            if (selectedAccessRow) selectedAccessRow.classList.remove('is-active');
+            selectedAccessRow = row;
+            selectedAccessRow.classList.add('is-active');
+            openAccessModal();
+            setAccessLoadingState(false);
+            if (accessSections) {
+                accessSections.innerHTML = '<div class="access-modal-empty">Loading module access...</div>';
+            }
+
+            fetch('ajax_user_permissions.php?user_id=' + encodeURIComponent(userId), {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data || !data.ok) {
+                        throw new Error((data && data.error) ? data.error : 'Unable to load module access.');
+                    }
+                    var user = data.user || {};
+                    var displayName = String(user.name || row.getAttribute('data-user-name') || 'Selected user');
+                    var displayEmail = String(user.email || row.getAttribute('data-user-email') || '');
+                    var displayRole = String(user.role || row.getAttribute('data-user-role') || '');
+                    var displayDepartment = String(user.department || row.getAttribute('data-user-department') || '');
+                    if (accessUserId) accessUserId.value = String(user.id || userId);
+                    if (accessUserName) accessUserName.textContent = displayName;
+                    if (accessUserEmail) accessUserEmail.textContent = displayEmail || 'No email available';
+                    if (accessUserRole) {
+                        accessUserRole.textContent = [displayRole ? ('Role: ' + displayRole) : '', displayDepartment ? ('Department: ' + displayDepartment) : '']
+                            .filter(Boolean)
+                            .join(' • ');
+                    }
+                    if (accessUserAvatar) {
+                        accessUserAvatar.textContent = displayName ? displayName.trim().charAt(0).toUpperCase() : '?';
+                    }
+                    buildAccessSections(data.definitions || [], data.permissions || {});
+                })
+                .catch(function (error) {
+                    if (accessSections) {
+                        accessSections.innerHTML = '<div class="access-modal-empty">Unable to load module access.</div>';
+                    }
+                    showAccessAlert('error', 'Access load failed', error && error.message ? error.message : 'Unable to load module access.');
+                });
+        }
         if (openBtn) openBtn.addEventListener('click', openModal);
         if (modal) {
             modal.addEventListener('click', function (e) {
                 if (e.target === modal) closeModal();
+            });
+        }
+        if (accessModal) {
+            accessModal.addEventListener('click', function (e) {
+                if (e.target === accessModal) closeAccessModal();
             });
         }
         var domainSelect = document.getElementById('domain');
@@ -1961,12 +2456,72 @@ $lapc_department_options = ticket_lapc_departments();
         }
 
         var cancelBtn = document.getElementById('cancelAddUser');
+        var cancelUserAccessBtn = document.getElementById('cancelUserAccess');
+        var closeUserAccessBtn = document.getElementById('closeUserAccessModal');
         var form = document.getElementById('addUserForm');
         if (cancelBtn && form) {
             cancelBtn.addEventListener('click', function () {
                 form.reset();
                 updateDepartmentDropdown();
                 closeModal();
+            });
+        }
+        if (cancelUserAccessBtn) {
+            cancelUserAccessBtn.addEventListener('click', closeAccessModal);
+        }
+        if (closeUserAccessBtn) {
+            closeUserAccessBtn.addEventListener('click', closeAccessModal);
+        }
+        if (accessForm) {
+            accessForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                if (!window.TM_CAN_MANAGE_USER_ACCESS) {
+                    showAccessAlert('warning', 'Access denied', 'Only the super admin can update user access.');
+                    return;
+                }
+                var userIdValue = accessUserId ? String(accessUserId.value || '').trim() : '';
+                if (!userIdValue) {
+                    showAccessAlert('warning', 'No user selected', 'Choose a user first before saving access.');
+                    return;
+                }
+                setAccessLoadingState(true);
+                fetch('ajax_user_permissions.php', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: new FormData(accessForm)
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || !data.ok) {
+                            throw new Error((data && data.error) ? data.error : 'Unable to save module access.');
+                        }
+                        Swal.fire({
+                            title: '',
+                            html:
+                                '<div class="cred-wrap">' +
+                                '  <div class="cred-check"><i class="fa-solid fa-check"></i></div>' +
+                                '  <div class="cred-title">Access updated</div>' +
+                                '  <div class="cred-subtitle">' + escapeHtml(data.message || 'User module access has been saved.') + '</div>' +
+                                '</div>',
+                            width: '420px',
+                            confirmButtonText: 'Done',
+                            buttonsStyling: false,
+                            customClass: {
+                                popup: 'swal-delete-success-popup',
+                                htmlContainer: 'swal-delete-success-html',
+                                actions: 'swal-delete-success-actions',
+                                confirmButton: 'swal-delete-success-confirm'
+                            }
+                        });
+                        closeAccessModal();
+                    })
+                    .catch(function (error) {
+                        showAccessAlert('error', 'Save failed', error && error.message ? error.message : 'Unable to save module access.');
+                    })
+                    .finally(function () {
+                        setAccessLoadingState(false);
+                    });
             });
         }
 
@@ -2239,48 +2794,87 @@ $lapc_department_options = ticket_lapc_departments();
         if (usersBody) {
             usersBody.addEventListener('click', function (e) {
                 var btn = e.target && e.target.closest ? e.target.closest('.users-del') : null;
-                if (!btn) return;
-                var id = btn.getAttribute('data-id');
-                var name = btn.getAttribute('data-name') || 'this user';
-                if (!id) return;
-                Swal.fire({
-                    title: 'Delete user?',
-                    html: 'This will permanently delete ' + escapeHtml(name) + '.',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonText: 'Delete',
-                    cancelButtonText: 'Cancel',
-                    width: '420px',
-                    buttonsStyling: false,
-                    customClass: {
-                        popup: 'swal-delete-popup',
-                        icon: 'swal-delete-icon',
-                        title: 'swal-delete-title',
-                        htmlContainer: 'swal-delete-html',
-                        actions: 'swal-delete-actions',
-                        confirmButton: 'swal-delete-confirm',
-                        cancelButton: 'swal-delete-cancel'
-                    }
-                }).then(function (result) {
-                    if (!result.isConfirmed) return;
-                    var csrfEl = document.querySelector('#addUserForm input[name="csrf_token"]') || document.querySelector('input[name="csrf_token"]');
-                    var csrf = csrfEl ? csrfEl.value : '';
-                    fetch('ajax_delete_user.php', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: new URLSearchParams({ id: id, csrf_token: csrf })
-                    })
-                        .then(function (r) { return r.json(); })
-                        .then(function (data) {
-                            if (!data || !data.ok) {
-                                var msg = (data && data.error) ? data.error : 'Failed to delete user.';
+                if (btn) {
+                    var id = btn.getAttribute('data-id');
+                    var name = btn.getAttribute('data-name') || 'this user';
+                    if (!id) return;
+                    Swal.fire({
+                        title: 'Delete user?',
+                        html: 'This will permanently delete ' + escapeHtml(name) + '.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Delete',
+                        cancelButtonText: 'Cancel',
+                        width: '420px',
+                        buttonsStyling: false,
+                        customClass: {
+                            popup: 'swal-delete-popup',
+                            icon: 'swal-delete-icon',
+                            title: 'swal-delete-title',
+                            htmlContainer: 'swal-delete-html',
+                            actions: 'swal-delete-actions',
+                            confirmButton: 'swal-delete-confirm',
+                            cancelButton: 'swal-delete-cancel'
+                        }
+                    }).then(function (result) {
+                        if (!result.isConfirmed) return;
+                        var csrfEl = document.querySelector('#addUserForm input[name="csrf_token"]') || document.querySelector('input[name="csrf_token"]');
+                        var csrf = csrfEl ? csrfEl.value : '';
+                        fetch('ajax_delete_user.php', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: new URLSearchParams({ id: id, csrf_token: csrf })
+                        })
+                            .then(function (r) { return r.json(); })
+                            .then(function (data) {
+                                if (!data || !data.ok) {
+                                    var msg = (data && data.error) ? data.error : 'Failed to delete user.';
+                                    Swal.fire({
+                                        icon: 'error',
+                                        title: 'Error',
+                                        html: escapeHtml(msg),
+                                        width: '420px',
+                                        confirmButtonText: 'OK',
+                                        buttonsStyling: false,
+                                        customClass: {
+                                            popup: 'swal-admin-alert-popup',
+                                            icon: 'swal-admin-alert-icon',
+                                            title: 'swal-admin-alert-title',
+                                            htmlContainer: 'swal-admin-alert-html',
+                                            actions: 'swal-admin-alert-actions',
+                                            confirmButton: 'swal-admin-alert-confirm'
+                                        }
+                                    });
+                                    return;
+                                }
+                                Swal.fire({
+                                    title: '',
+                                    html:
+                                        '<div class="cred-wrap">' +
+                                        '  <div class="cred-check"><i class="fa-solid fa-check"></i></div>' +
+                                        '  <div class="cred-title">Deleted</div>' +
+                                        '  <div class="cred-subtitle">' + escapeHtml(data.message || 'User deleted') + '</div>' +
+                                        '</div>',
+                                    width: '420px',
+                                    confirmButtonText: 'OK',
+                                    buttonsStyling: false,
+                                    customClass: {
+                                        popup: 'swal-delete-success-popup',
+                                        htmlContainer: 'swal-delete-success-html',
+                                        actions: 'swal-delete-success-actions',
+                                        confirmButton: 'swal-delete-success-confirm'
+                                    }
+                                });
+                                loadUsersList();
+                            })
+                            .catch(function () {
                                 Swal.fire({
                                     icon: 'error',
                                     title: 'Error',
-                                    html: escapeHtml(msg),
+                                    html: 'Failed to delete user.',
                                     width: '420px',
                                     confirmButtonText: 'OK',
                                     buttonsStyling: false,
@@ -2293,47 +2887,14 @@ $lapc_department_options = ticket_lapc_departments();
                                         confirmButton: 'swal-admin-alert-confirm'
                                     }
                                 });
-                                return;
-                            }
-                            Swal.fire({
-                                title: '',
-                                html:
-                                    '<div class="cred-wrap">' +
-                                    '  <div class="cred-check"><i class="fa-solid fa-check"></i></div>' +
-                                    '  <div class="cred-title">Deleted</div>' +
-                                    '  <div class="cred-subtitle">' + escapeHtml(data.message || 'User deleted') + '</div>' +
-                                    '</div>',
-                                width: '420px',
-                                confirmButtonText: 'OK',
-                                buttonsStyling: false,
-                                customClass: {
-                                    popup: 'swal-delete-success-popup',
-                                    htmlContainer: 'swal-delete-success-html',
-                                    actions: 'swal-delete-success-actions',
-                                    confirmButton: 'swal-delete-success-confirm'
-                                }
                             });
-                            loadUsersList();
-                        })
-                        .catch(function () {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error',
-                                html: 'Failed to delete user.',
-                                width: '420px',
-                                confirmButtonText: 'OK',
-                                buttonsStyling: false,
-                                customClass: {
-                                    popup: 'swal-admin-alert-popup',
-                                    icon: 'swal-admin-alert-icon',
-                                    title: 'swal-admin-alert-title',
-                                    htmlContainer: 'swal-admin-alert-html',
-                                    actions: 'swal-admin-alert-actions',
-                                    confirmButton: 'swal-admin-alert-confirm'
-                                }
-                            });
-                        });
-                });
+                    });
+                    return;
+                }
+
+                var row = e.target && e.target.closest ? e.target.closest('.users-access-row[data-user-id]') : null;
+                if (!row || !window.TM_CAN_MANAGE_USER_ACCESS) return;
+                loadUserAccess(row);
             });
         }
 

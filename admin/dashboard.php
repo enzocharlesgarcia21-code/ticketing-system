@@ -95,7 +95,7 @@ if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
 }
 
 /* Summary Counts */
-$total = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets")
+$total = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash')")
               ->fetch_assoc()['count'];
 
 $open = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE status='Open'")
@@ -107,17 +107,13 @@ $progress = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE s
 $resolved = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE status='Resolved'")
                  ->fetch_assoc()['count'];
 
-$closed = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE status='Closed'")
-               ->fetch_assoc()['count'];
-
 $weeklyOverview = $conn->query("
     SELECT
-        SUM(created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_total,
-        SUM(created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)) AS previous_week_total,
+        SUM(COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_total,
+        SUM(COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)) AS previous_week_total,
         SUM(status = 'Open' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_open,
         SUM(status = 'In Progress' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_progress,
-        SUM(status = 'Resolved' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_resolved,
-        SUM(status = 'Closed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_closed
+        SUM(status = 'Resolved' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_resolved
     FROM employee_tickets
 ")->fetch_assoc();
 
@@ -126,8 +122,6 @@ $previousWeekTotal = (int) ($weeklyOverview['previous_week_total'] ?? 0);
 $currentWeekOpen = (int) ($weeklyOverview['current_week_open'] ?? 0);
 $currentWeekProgress = (int) ($weeklyOverview['current_week_progress'] ?? 0);
 $currentWeekResolved = (int) ($weeklyOverview['current_week_resolved'] ?? 0);
-$currentWeekClosed = (int) ($weeklyOverview['current_week_closed'] ?? 0);
-
 if ($previousWeekTotal > 0) {
     $totalDeltaPercent = (int) round((($currentWeekTotal - $previousWeekTotal) / $previousWeekTotal) * 100);
 } elseif ($currentWeekTotal > 0) {
@@ -141,7 +135,7 @@ $dashboardStats = [
         'variant' => 'total',
         'label' => 'Total Tickets',
         'value' => (int) $total,
-        'subtitle' => 'All tickets in system',
+        'subtitle' => 'Active tickets in system',
         'icon' => 'fa-stopwatch',
         'trend_value' => abs($totalDeltaPercent) . '%',
         'trend_caption' => 'vs last week',
@@ -177,16 +171,6 @@ $dashboardStats = [
         'trend_caption' => 'this week',
         'trend_direction' => 'down',
     ],
-    [
-        'variant' => 'closed',
-        'label' => 'Closed',
-        'value' => (int) $closed,
-        'subtitle' => 'Closed tickets',
-        'icon' => 'fa-box-archive',
-        'trend_value' => (string) $currentWeekClosed,
-        'trend_caption' => 'this week',
-        'trend_direction' => 'down',
-    ],
 ];
 /* ===== DEPARTMENT DATA ===== */
 
@@ -200,6 +184,7 @@ $deptQuery = $conn->query("
         ) AS assigned_department,
         COUNT(*) as count
     FROM employee_tickets
+    WHERE COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash')
     GROUP BY
         COALESCE(
             NULLIF(TRIM(assigned_department), ''),
@@ -227,6 +212,7 @@ $priorityAgg = $conn->query("
         SUM(LOWER(priority) = 'high') AS high_count,
         SUM(LOWER(priority) = 'critical') AS critical_count
     FROM employee_tickets
+    WHERE COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash')
 ")->fetch_assoc();
 
 $priorities = ['Low', 'High', 'Critical'];
@@ -276,6 +262,7 @@ $recentRes = $conn->query("
         t.is_read
     FROM employee_tickets t
     JOIN users u ON t.user_id = u.id
+    WHERE COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')
     ORDER BY t.created_at DESC
     LIMIT 5
 ");
@@ -300,7 +287,7 @@ if ($recentRes) {
         }
 
         .admin-stats-grid{
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 20px;
             margin-top: 10px;
         }

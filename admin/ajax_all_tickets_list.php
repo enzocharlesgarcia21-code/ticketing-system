@@ -126,7 +126,7 @@ $priority = trim((string) ($_GET['priority'] ?? ''));
 $status = trim((string) ($_GET['status'] ?? ''));
 $companyEmail = trim((string) ($_GET['company_email'] ?? ''));
 $view = trim((string) ($_GET['view'] ?? ''));
-$view = $view === 'trash' ? 'closed' : $view;
+$view = $view === 'trash' ? '' : $view;
 $page = (int) ($_GET['page'] ?? 1);
 $allowedLimits = [10, 25, 50, 100, 500, 1000];
 $limit = (int) ($_GET['limit'] ?? 10);
@@ -139,17 +139,9 @@ $where = [];
 $params = [];
 $types = '';
 
-$allowedViews = ['all', 'my_open', 'unresolved', 'resolved', 'closed'];
+$allowedViews = ['all', 'my_open', 'unresolved', 'resolved'];
 if (!in_array($view, $allowedViews, true)) $view = '';
-if ($view === 'closed') {
-    $where[] = "t.status IN ('Closed','Trash')";
-} else {
-    if ($status === 'Closed') {
-        $where[] = "t.status IN ('Closed','Trash')";
-    } else {
-        $where[] = "COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')";
-    }
-}
+$where[] = "COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')";
 if ($view !== '') {
     if ($view === 'my_open') {
         $where[] = "t.status IN ('Open','In Progress')";
@@ -157,8 +149,6 @@ if ($view !== '') {
         $where[] = "t.status IN ('Open','In Progress')";
     } elseif ($view === 'resolved') {
         $where[] = "t.status = 'Resolved'";
-    } elseif ($view === 'closed') {
-        // already applied
     }
 }
 
@@ -186,10 +176,6 @@ if ($priority !== '') {
 if ($status !== '') {
     if ($status === 'unread') {
         $where[] = "t.is_read = 0";
-    } elseif ($status === 'Closed') {
-        if ($view !== 'closed') {
-            // already handled above to include both Closed and Trash in the closed-status filter
-        }
     } else {
         $where[] = "t.status = ?";
         $params[] = $status;

@@ -7,6 +7,9 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
+header("Location: all_tickets.php");
+exit();
+
 // Ensure email is in session (fix for existing sessions)
 if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
     $u_stmt = $conn->prepare("SELECT email FROM users WHERE id = ?");

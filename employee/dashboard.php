@@ -16,6 +16,7 @@ $feedbackFlash = isset($_SESSION['feedback_flash']) && is_array($_SESSION['feedb
 if ($feedbackFlash !== null) {
     unset($_SESSION['feedback_flash']);
 }
+$showFeedbackSuccessModal = $feedbackFlash && (($feedbackFlash['type'] ?? '') === 'success') && !empty($feedbackFlash['message']);
 
 /* Fetch Company */
 $company = '';
@@ -52,29 +53,6 @@ $resolvedStmt->execute();
 $resolved = (int) (($resolvedStmt->get_result()->fetch_assoc()['count'] ?? 0));
 $resolvedStmt->close();
 
-$pendingFeedbackTicket = null;
-$pendingFeedbackStmt = $conn->prepare("
-    SELECT
-        id,
-        subject,
-        assigned_to,
-        assigned_user_id,
-        COALESCE(NULLIF(assigned_to, 0), NULLIF(assigned_user_id, 0)) AS attending_assignee_id
-    FROM employee_tickets
-    WHERE user_id = ?
-      AND status = 'Resolved'
-      AND feedback_status = 'pending'
-      AND COALESCE(NULLIF(assigned_to, 0), NULLIF(assigned_user_id, 0)) IS NOT NULL
-    ORDER BY resolved_at DESC, id DESC
-    LIMIT 1
-");
-if ($pendingFeedbackStmt) {
-    $pendingFeedbackStmt->bind_param("i", $user_id);
-    $pendingFeedbackStmt->execute();
-    $pendingFeedbackRes = $pendingFeedbackStmt->get_result();
-    $pendingFeedbackTicket = $pendingFeedbackRes ? $pendingFeedbackRes->fetch_assoc() : null;
-    $pendingFeedbackStmt->close();
-}
 
 /* Recent Tickets (created by this employee) */
 $recentStmt = $conn->prepare("
@@ -742,77 +720,27 @@ $recent = $recentStmt->get_result();
     </div>
 
     <div id="mobileSidebarOverlay" class="mobile-sidebar-overlay" aria-hidden="true"></div>
-
-    <?php if ($pendingFeedbackTicket || $feedbackFlash): ?>
+    <?php if ($showFeedbackSuccessModal): ?>
     <div
         id="feedbackModalOverlay"
-        class="feedback-modal-overlay<?= ($pendingFeedbackTicket || $feedbackFlash) ? ' is-visible' : ''; ?>"
-        aria-hidden="<?= ($pendingFeedbackTicket || $feedbackFlash) ? 'false' : 'true'; ?>"
+        class="feedback-modal-overlay is-visible"
+        aria-hidden="false"
     >
         <div class="feedback-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
             <div class="feedback-modal-header">
                 <button type="button" class="feedback-close-btn" id="feedbackModalCloseBtn" aria-label="Close feedback modal">
                     <i class="fas fa-times"></i>
                 </button>
-                <h2 id="feedbackModalTitle" class="feedback-modal-title">Rate Your Resolved Ticket</h2>
-                <p class="feedback-modal-subtitle">Your ticket was marked as resolved. Share a quick rating and optional comment so we can improve support quality.</p>
+                <h2 id="feedbackModalTitle" class="feedback-modal-title">Feedback Submitted</h2>
+                <p class="feedback-modal-subtitle">Thank you for sharing your experience with the resolved ticket.</p>
             </div>
             <div class="feedback-modal-body">
-                <?php if ($feedbackFlash && !empty($feedbackFlash['message'])): ?>
-                    <div class="feedback-flash <?= (($feedbackFlash['type'] ?? '') === 'success') ? 'is-success' : 'is-error'; ?>">
-                        <?= htmlspecialchars((string) $feedbackFlash['message'], ENT_QUOTES, 'UTF-8'); ?>
-                    </div>
-                <?php endif; ?>
-
-                <?php if ($pendingFeedbackTicket): ?>
-                    <div class="feedback-ticket-chip">
-                        <strong>#<?= (int) $pendingFeedbackTicket['id']; ?></strong>
-                        <span><?= htmlspecialchars((string) ($pendingFeedbackTicket['subject'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
-                    </div>
-
-                    <form method="POST" action="submit_feedback.php" class="feedback-form" id="feedbackForm">
-                        <?= csrf_field(); ?>
-                        <input type="hidden" name="ticket_id" value="<?= (int) $pendingFeedbackTicket['id']; ?>">
-
-                        <div>
-                            <div class="feedback-label">Rating</div>
-                            <div class="feedback-stars" id="feedbackStars">
-                                <?php for ($rating = 1; $rating <= 5; $rating++): ?>
-                                    <input
-                                        class="feedback-star-input"
-                                        type="radio"
-                                        name="rating"
-                                        id="feedbackRating<?= $rating; ?>"
-                                        value="<?= $rating; ?>"
-                                        <?= ($rating === 5) ? 'required' : ''; ?>
-                                    >
-                                    <label class="feedback-star" for="feedbackRating<?= $rating; ?>" data-rating="<?= $rating; ?>" aria-label="<?= $rating; ?> star<?= $rating > 1 ? 's' : ''; ?>">
-                                        <i class="fas fa-star"></i>
-                                    </label>
-                                <?php endfor; ?>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="feedback-label" for="feedbackComment">Comment</label>
-                            <textarea
-                                id="feedbackComment"
-                                name="comment"
-                                class="feedback-textarea"
-                                placeholder="Tell us how the resolution went and anything we can improve."
-                            ></textarea>
-                        </div>
-
-                        <div class="feedback-actions">
-                            <button type="button" class="feedback-cancel-btn" id="feedbackModalDismissBtn">Close</button>
-                            <button type="submit" class="feedback-submit-btn">Submit Feedback</button>
-                        </div>
-                    </form>
-                <?php else: ?>
-                    <div class="feedback-actions">
-                        <button type="button" class="feedback-cancel-btn" id="feedbackModalDismissBtn">Close</button>
-                    </div>
-                <?php endif; ?>
+                <div class="feedback-flash is-success">
+                    <?= htmlspecialchars((string) $feedbackFlash['message'], ENT_QUOTES, 'UTF-8'); ?>
+                </div>
+                <div class="feedback-actions">
+                    <button type="button" class="feedback-submit-btn" id="feedbackModalDismissBtn">Done</button>
+                </div>
             </div>
         </div>
     </div>
@@ -927,6 +855,35 @@ $recent = $recentStmt->get_result();
     <!-- JS Script -->
     <script src="../js/employee-dashboard.js"></script>
     <script>
+    (function () {
+        var feedbackModal = document.getElementById('feedbackModalOverlay');
+        var closeBtn = document.getElementById('feedbackModalCloseBtn');
+        var dismissBtn = document.getElementById('feedbackModalDismissBtn');
+        if (feedbackModal) {
+            function closeFeedbackModal() {
+                feedbackModal.classList.remove('is-visible');
+                feedbackModal.setAttribute('aria-hidden', 'true');
+            }
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeFeedbackModal);
+            }
+            if (dismissBtn) {
+                dismissBtn.addEventListener('click', closeFeedbackModal);
+            }
+            feedbackModal.addEventListener('click', function (event) {
+                if (event.target === feedbackModal) {
+                    closeFeedbackModal();
+                }
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && feedbackModal.classList.contains('is-visible')) {
+                    closeFeedbackModal();
+                }
+            });
+        }
+    })();
+
     (function () {
         const menuBtn = document.getElementById('navbarToggler');
         const sidebar = document.getElementById('mobileSidebar');
@@ -1096,72 +1053,6 @@ $recent = $recentStmt->get_result();
         });
     });
 
-    (function () {
-        var feedbackModal = document.getElementById('feedbackModalOverlay');
-        var feedbackStarsWrap = document.getElementById('feedbackStars');
-        var closeBtn = document.getElementById('feedbackModalCloseBtn');
-        var dismissBtn = document.getElementById('feedbackModalDismissBtn');
-        if (!feedbackModal) return;
-
-        function closeFeedbackModal() {
-            feedbackModal.classList.remove('is-visible');
-            feedbackModal.setAttribute('aria-hidden', 'true');
-        }
-
-        if (closeBtn) {
-            closeBtn.addEventListener('click', closeFeedbackModal);
-        }
-
-        if (dismissBtn) {
-            dismissBtn.addEventListener('click', closeFeedbackModal);
-        }
-
-        feedbackModal.addEventListener('click', function (event) {
-            if (event.target === feedbackModal) {
-                closeFeedbackModal();
-            }
-        });
-
-        document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape' && feedbackModal.classList.contains('is-visible')) {
-                closeFeedbackModal();
-            }
-        });
-
-        if (!feedbackStarsWrap) return;
-
-        var starInputs = Array.prototype.slice.call(feedbackStarsWrap.querySelectorAll('.feedback-star-input'));
-        var starLabels = Array.prototype.slice.call(feedbackStarsWrap.querySelectorAll('.feedback-star'));
-
-        function paintStars(activeRating) {
-            starLabels.forEach(function (label) {
-                var rating = parseInt(label.getAttribute('data-rating') || '0', 10);
-                label.classList.toggle('is-active', rating > 0 && rating <= activeRating);
-            });
-        }
-
-        starLabels.forEach(function (label) {
-            label.addEventListener('mouseenter', function () {
-                paintStars(parseInt(label.getAttribute('data-rating') || '0', 10));
-            });
-            label.addEventListener('click', function () {
-                paintStars(parseInt(label.getAttribute('data-rating') || '0', 10));
-            });
-        });
-
-        feedbackStarsWrap.addEventListener('mouseleave', function () {
-            var checked = starInputs.find(function (input) { return input.checked; });
-            paintStars(checked ? parseInt(checked.value || '0', 10) : 0);
-        });
-
-        starInputs.forEach(function (input) {
-            input.addEventListener('change', function () {
-                paintStars(parseInt(input.value || '0', 10));
-            });
-        });
-
-        paintStars(0);
-    })();
     </script>
 
    

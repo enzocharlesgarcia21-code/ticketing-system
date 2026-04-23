@@ -1,8 +1,28 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/user_permissions.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+$analyticsViewMode = defined('TICKETING_ANALYTICS_VIEW_MODE') ? (string) TICKETING_ANALYTICS_VIEW_MODE : 'admin';
+$analyticsIsEmployeeView = $analyticsViewMode === 'employee';
+
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+    header("Location: " . ($analyticsIsEmployeeView ? "../employee/employee_login.php" : "admin_login.php"));
+    exit();
+}
+
+if ($analyticsIsEmployeeView) {
+    if ((string) $_SESSION['role'] !== 'employee') {
+        header("Location: ../employee/employee_login.php");
+        exit();
+    }
+    user_permissions_ensure_table($conn);
+    $employeePermissions = user_permissions_get_for_user($conn, (int) ($_SESSION['user_id'] ?? 0));
+    if ((int) ($employeePermissions['analytics'] ?? 0) !== 1) {
+        header("Location: dashboard.php");
+        exit();
+    }
+} elseif ((string) $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
     exit();
 }
@@ -53,6 +73,24 @@ function initials_from_name(string $name): string
     return $letters !== '' ? $letters : 'NA';
 }
 
+function analytics_is_weekday(DateTimeImmutable $date): bool
+{
+    return (int) $date->format('N') <= 5;
+}
+
+function analytics_last_n_weekdays(DateTimeImmutable $endDate, int $count): array
+{
+    $days = [];
+    $cursor = $endDate;
+    while (count($days) < $count) {
+        if (analytics_is_weekday($cursor)) {
+            $days[] = $cursor;
+        }
+        $cursor = $cursor->modify('-1 day');
+    }
+    return array_reverse($days);
+}
+
 // Determine selected date range (default to current month)
 $start_date = $_GET['start_date'] ?? date('Y-m-01');
 $end_date = $_GET['end_date'] ?? date('Y-m-d');
@@ -62,7 +100,12 @@ $company_filter = ticket_normalize_company(trim((string) ($_GET['company'] ?? ''
 $department_filter = trim((string) ($_GET['department'] ?? ''));
 $status_filter = trim((string) ($_GET['status'] ?? ''));
 
-$allowed_statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
+if ($analyticsIsEmployeeView) {
+    $company_filter = ticket_normalize_company(trim((string) ($_SESSION['company'] ?? '')));
+    $department_filter = trim((string) ($_SESSION['department'] ?? ''));
+}
+
+$allowed_statuses = ['Open', 'In Progress', 'Resolved'];
 if (!in_array($status_filter, $allowed_statuses, true)) $status_filter = '';
 
 $company_options = [
@@ -82,9 +125,9 @@ $company_options = [
 if ($company_filter !== '' && !in_array($company_filter, $company_options, true)) $company_filter = '';
 
 $department_options = ticket_lapc_departments();
-if ($company_filter !== '@leadsagri.com') {
+if (!$analyticsIsEmployeeView && $company_filter !== '@leadsagri.com') {
     $department_filter = '';
-} elseif ($department_filter !== '' && !in_array($department_filter, $department_options, true)) {
+} elseif (!$analyticsIsEmployeeView && $department_filter !== '' && !in_array($department_filter, $department_options, true)) {
     $department_filter = '';
 }
 
@@ -124,27 +167,29 @@ if ($status_filter !== '') {
 }
 
 // 2. Metrics for Selected Range (Based on created_at)
-// Received: Created in this range
+// Received: Created in this range excluding closed tickets
 // Resolved: Created in this range AND status is Resolved (Cohort analysis)
-// Closed: Created in this range AND status is Closed/Trash (Cohort analysis)
 
 $metricsQuery = $conn->prepare("
     SELECT 
         COUNT(*) as received,
-        SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
-        SUM(CASE WHEN status IN ('Closed','Trash') THEN 1 ELSE 0 END) as closed
+        SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) as resolved
     FROM employee_tickets 
     WHERE DATE(created_at) BETWEEN ? AND ?
+      AND COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash')
 ");
 $metricsQuery->bind_param("ss", $start_date, $end_date);
 $metricsQuery->execute();
 $metrics = $metricsQuery->get_result()->fetch_assoc();
 
-// 3. Resolution-time analytics for the last 7 days ending at the selected end date.
-$trendEndDate = new DateTimeImmutable($end_date ?: date('Y-m-d'));
-$trendStartDate = $trendEndDate->modify('-6 days');
-$previousTrendEndDate = $trendStartDate->modify('-1 day');
-$previousTrendStartDate = $previousTrendEndDate->modify('-6 days');
+// 3. Resolution-time analytics for the last 7 weekdays ending at the selected end date.
+$trendAnchorDate = new DateTimeImmutable($end_date ?: date('Y-m-d'));
+$currentTrendDates = analytics_last_n_weekdays($trendAnchorDate, 7);
+$trendStartDate = $currentTrendDates[0];
+$trendEndDate = $currentTrendDates[count($currentTrendDates) - 1];
+$previousTrendDates = analytics_last_n_weekdays($trendStartDate->modify('-1 day'), 7);
+$previousTrendStartDate = $previousTrendDates[0];
+$previousTrendEndDate = $previousTrendDates[count($previousTrendDates) - 1];
 $resolutionMinutesExpr = "TIMESTAMPDIFF(MINUTE, t.created_at, t.resolved_at)";
 $resolutionSecondsExpr = "TIMESTAMPDIFF(SECOND, t.started_at, t.resolved_at)";
 
@@ -163,7 +208,6 @@ $formatResolutionMinutes = static function ($minutes): string {
 $summary = [
     'received' => 0,
     'resolved' => 0,
-    'closed' => 0,
     'open' => 0,
     'avg_seconds' => 0,
 ];
@@ -171,10 +215,10 @@ $metricsSql = "
     SELECT
         COUNT(*) as received,
         SUM(CASE WHEN t.status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
-        SUM(CASE WHEN t.status IN ('Closed','Trash') THEN 1 ELSE 0 END) as closed,
         SUM(CASE WHEN t.status IN ('Open','In Progress') THEN 1 ELSE 0 END) as open_tickets
     FROM employee_tickets t
     WHERE " . implode(" AND ", $ticket_where) . "
+      AND COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')
 ";
 $mStmt = $conn->prepare($metricsSql);
 if ($mStmt) {
@@ -188,7 +232,6 @@ if ($mStmt) {
     $mRow = $mStmt->get_result()->fetch_assoc();
     $summary['received'] = (int) ($mRow['received'] ?? 0);
     $summary['resolved'] = (int) ($mRow['resolved'] ?? 0);
-    $summary['closed'] = (int) ($mRow['closed'] ?? 0);
     $summary['open'] = (int) ($mRow['open_tickets'] ?? 0);
     $mStmt->close();
 }
@@ -203,6 +246,7 @@ $resolutionRangeWhere = [
     "t.resolved_at IS NOT NULL",
     "t.created_at IS NOT NULL",
     "$resolutionMinutesExpr >= 0",
+    "WEEKDAY(t.resolved_at) < 5",
     "DATE(t.resolved_at) BETWEEN ? AND ?",
 ];
 $resolutionRangeParams = [$previousStart, $currentEnd];
@@ -235,10 +279,10 @@ $previousResolvedCount = 0;
 
 $resolutionSummarySql = "
     SELECT
-        AVG(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? THEN $resolutionMinutesExpr END) AS current_avg_minutes,
-        SUM(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? THEN 1 ELSE 0 END) AS current_resolved_count,
-        AVG(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? THEN $resolutionMinutesExpr END) AS previous_avg_minutes,
-        SUM(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? THEN 1 ELSE 0 END) AS previous_resolved_count
+        AVG(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? AND WEEKDAY(t.resolved_at) < 5 THEN $resolutionMinutesExpr END) AS current_avg_minutes,
+        SUM(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? AND WEEKDAY(t.resolved_at) < 5 THEN 1 ELSE 0 END) AS current_resolved_count,
+        AVG(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? AND WEEKDAY(t.resolved_at) < 5 THEN $resolutionMinutesExpr END) AS previous_avg_minutes,
+        SUM(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? AND WEEKDAY(t.resolved_at) < 5 THEN 1 ELSE 0 END) AS previous_resolved_count
     FROM employee_tickets t
     WHERE " . implode(" AND ", $resolutionRangeWhere) . "
 ";
@@ -272,6 +316,7 @@ $dailyTrendWhere = [
     "t.resolved_at IS NOT NULL",
     "t.created_at IS NOT NULL",
     "$resolutionMinutesExpr >= 0",
+    "WEEKDAY(t.resolved_at) < 5",
     "DATE(t.resolved_at) BETWEEN ? AND ?",
 ];
 $dailyTrendParams = [$currentStart, $currentEnd];
@@ -324,8 +369,7 @@ if ($dailyTrendStmt) {
     $dailyTrendStmt->close();
 }
 
-for ($i = 0; $i < 7; $i++) {
-    $day = $trendStartDate->modify('+' . $i . ' days');
+foreach ($currentTrendDates as $day) {
     $dayKey = $day->format('Y-m-d');
     $dailyLabels[] = $day->format('M d');
     $dailyValues[] = array_key_exists($dayKey, $dailyMinutesMap) ? (float) $dailyMinutesMap[$dayKey] : null;
@@ -482,6 +526,11 @@ if ($status_filter !== '') {
     $companyChartParams[] = $status_filter;
     $companyChartTypes .= "s";
 }
+if ($company_filter !== '') {
+    $companyChartWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
+    $companyChartParams[] = $company_filter;
+    $companyChartTypes .= "s";
+}
 
 $lapcDepartmentLabels = [];
 $lapcDepartmentCounts = [];
@@ -628,9 +677,19 @@ $buildCompanyChartDataset = static function (array $items, string $title, string
         'colors' => array_values(array_map(static fn ($item) => (string) $item['color'], $items)),
     ];
 };
+$employeeCompanyLabel = $company_filter !== '' ? ticket_company_display_name($company_filter) : 'Your Company';
+$employeeDepartmentLabel = $department_filter !== '' ? $department_filter : 'Your Department';
 $companyChartDatasets = [
-    'lapc' => $buildCompanyChartDataset($lapcDepartmentItems, 'Tickets per Company', 'LAPC tickets by department'),
-    'other' => $buildCompanyChartDataset($otherCompanyItems, 'Tickets per Company', 'Non-LAPC company distribution'),
+    'lapc' => $buildCompanyChartDataset(
+        $lapcDepartmentItems,
+        $analyticsIsEmployeeView ? 'Department Ticket Distribution' : 'Tickets per Company',
+        $analyticsIsEmployeeView ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department'
+    ),
+    'other' => $buildCompanyChartDataset(
+        $otherCompanyItems,
+        $analyticsIsEmployeeView ? 'Department Ticket Distribution' : 'Tickets per Company',
+        $analyticsIsEmployeeView ? 'Scoped to your assigned department' : 'Non-LAPC company distribution'
+    ),
 ];
 $companyLegendItems = $lapcDepartmentItems;
 $companyChartTotal = array_sum(array_column($companyLegendItems, 'count'));
@@ -659,7 +718,7 @@ foreach ($assigneeLabels as $idx => $name) {
     ];
 }
 
-$trendSubtitle = 'Daily average (last 7 days)';
+$trendSubtitle = 'Daily average (last 7 weekdays)';
 
 $entries = (int) ($_GET['entries'] ?? 5);
 $allowed_entries = [5, 10, 25, 50, 100];
@@ -738,6 +797,9 @@ if ($ticketsStmt) {
 <html>
 <head>
     <title>Analytics - Leads Agri Helpdesk</title>
+    <?php if ($analyticsIsEmployeeView): ?>
+    <link rel="stylesheet" href="../css/employee-dashboard.css?v=<?php echo time(); ?>">
+    <?php endif; ?>
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -748,9 +810,28 @@ if ($ticketsStmt) {
             background:
                 radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.96), rgba(246, 249, 253, 0.94) 34%, rgba(236, 242, 248, 0.92) 100%);
         }
+        body.employee-analytics-page {
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.96), rgba(246, 249, 253, 0.94) 34%, rgba(236, 242, 248, 0.92) 100%);
+        }
+        body.employee-analytics-page .admin-page,
+        body.employee-analytics-page .admin-container {
+            background: transparent;
+        }
+        body.employee-analytics-page .admin-container {
+            width: 100%;
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 28px 24px 42px;
+        }
         .admin-content {
             max-width: 1460px;
             padding-top: 10px;
+        }
+        body.employee-analytics-page .admin-content {
+            max-width: 1320px;
+            padding-top: 0;
         }
         .admin-page-header {
             display: flex;
@@ -820,6 +901,18 @@ if ($ticketsStmt) {
             color: #374151;
             letter-spacing: 0.06em;
             text-transform: uppercase;
+        }
+        .analytics-filter-note {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+        body.employee-analytics-page .analytics-toolbar,
+        body.employee-analytics-page .analytics-card,
+        body.employee-analytics-page .chart-card,
+        body.employee-analytics-page .table-card {
+            box-shadow: 0 18px 44px rgba(148, 163, 184, 0.14);
         }
         .analytics-control,
         .analytics-status-row {
@@ -1709,6 +1802,9 @@ if ($ticketsStmt) {
             }
         }
         @media (max-width: 900px) {
+            body.employee-analytics-page .admin-container {
+                padding: 18px 14px 30px;
+            }
             .admin-page-header {
                 align-items: flex-start;
                 flex-direction: column;
@@ -1845,11 +1941,11 @@ if ($ticketsStmt) {
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="<?= $analyticsIsEmployeeView ? 'employee-analytics-page' : '' ?>">
 
 <div class="admin-page">
 
-    <?php include '../includes/admin_navbar.php'; ?>
+    <?php include __DIR__ . '/../includes/' . ($analyticsIsEmployeeView ? 'employee_navbar.php' : 'admin_navbar.php'); ?>
 
     <div class="admin-container">
         <div class="admin-content">
@@ -1857,17 +1953,33 @@ if ($ticketsStmt) {
             <div class="admin-page-header">
                 <h1 class="admin-page-title analytics-title"><i class="fa-solid fa-chart-line"></i> Analytics</h1>
                 <div class="analytics-header-actions">
-                    <a href="export_analytics_pdf.php?start_date=<?= urlencode($start_date) ?>&end_date=<?= urlencode($end_date) ?>&category=<?= urlencode($category_filter) ?>&company=<?= urlencode($company_filter) ?>&department=<?= urlencode($department_filter) ?>&status=<?= urlencode($status_filter) ?>" class="btn-export btn-export-pdf" target="_blank">
+                    <?php
+                        $analyticsPdfHref = ($analyticsIsEmployeeView ? 'export_analytics_pdf.php' : 'export_analytics_pdf.php')
+                            . '?start_date=' . urlencode($start_date)
+                            . '&end_date=' . urlencode($end_date)
+                            . '&category=' . urlencode($category_filter)
+                            . '&company=' . urlencode($company_filter)
+                            . '&department=' . urlencode($department_filter)
+                            . '&status=' . urlencode($status_filter);
+                        $analyticsExcelHref = ($analyticsIsEmployeeView ? 'export_analytics_excel.php' : 'export_analytics_excel.php')
+                            . '?start_date=' . urlencode($start_date)
+                            . '&end_date=' . urlencode($end_date)
+                            . '&category=' . urlencode($category_filter)
+                            . '&company=' . urlencode($company_filter)
+                            . '&department=' . urlencode($department_filter)
+                            . '&status=' . urlencode($status_filter);
+                    ?>
+                    <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">
                         <i class="fa-regular fa-file-pdf"></i> PDF
                     </a>
-                    <a href="export_analytics_excel.php?start_date=<?= urlencode($start_date) ?>&end_date=<?= urlencode($end_date) ?>&category=<?= urlencode($category_filter) ?>&company=<?= urlencode($company_filter) ?>&department=<?= urlencode($department_filter) ?>&status=<?= urlencode($status_filter) ?>" class="btn-export btn-export-excel" target="_blank">
+                    <a href="<?= htmlspecialchars($analyticsExcelHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-excel" target="_blank">
                         <i class="fa-regular fa-file-excel"></i> Excel
                     </a>
                 </div>
             </div>
 
             <div class="analytics-toolbar">
-                <form method="GET" action="analytics.php" class="analytics-filterbar">
+                <form method="GET" action="<?= htmlspecialchars(basename($_SERVER['PHP_SELF']), ENT_QUOTES, 'UTF-8') ?>" class="analytics-filterbar">
                     <input type="hidden" name="entries" value="<?= (int) $entries ?>">
                     <input type="hidden" name="page" value="1">
                     <div class="analytics-filters">
@@ -1888,25 +2000,36 @@ if ($ticketsStmt) {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="analytics-filter">
-                            <label>Company</label>
-                            <select class="analytics-control" name="company" id="analyticsCompanyFilter">
-                                <option value="" <?= $company_filter === '' ? 'selected' : '' ?>>All Company</option>
-                                <?php foreach ($company_options as $companyOption): ?>
-                                    <option value="<?= htmlspecialchars($companyOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $company_filter === $companyOption ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars(ticket_company_display_name($companyOption), ENT_QUOTES, 'UTF-8'); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
+                        <?php if ($analyticsIsEmployeeView): ?>
+                            <input type="hidden" name="company" value="<?= htmlspecialchars($company_filter, ENT_QUOTES, 'UTF-8'); ?>">
+                        <?php else: ?>
+                            <div class="analytics-filter">
+                                <label>Company</label>
+                                <select class="analytics-control" name="company" id="analyticsCompanyFilter">
+                                    <option value="" <?= $company_filter === '' ? 'selected' : '' ?>>All Company</option>
+                                    <?php foreach ($company_options as $companyOption): ?>
+                                        <option value="<?= htmlspecialchars($companyOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $company_filter === $companyOption ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars(ticket_company_display_name($companyOption), ENT_QUOTES, 'UTF-8'); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        <?php endif; ?>
                         <div class="analytics-filter">
                             <label>Department</label>
-                            <select class="analytics-control" name="department" id="analyticsDepartmentFilter" <?= $company_filter !== '@leadsagri.com' ? 'disabled' : '' ?>>
-                                <option value="" <?= $department_filter === '' ? 'selected' : '' ?>>All Department</option>
-                                <?php foreach ($department_options as $d): ?>
-                                    <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $department_filter === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <?php if ($analyticsIsEmployeeView): ?>
+                                <input type="hidden" name="department" value="<?= htmlspecialchars($department_filter, ENT_QUOTES, 'UTF-8'); ?>">
+                                <div class="analytics-control" style="display:flex; align-items:center;">
+                                    <?= htmlspecialchars($department_filter !== '' ? $department_filter : 'Unassigned', ENT_QUOTES, 'UTF-8'); ?>
+                                </div>
+                            <?php else: ?>
+                                <select class="analytics-control" name="department" id="analyticsDepartmentFilter" <?= $company_filter !== '@leadsagri.com' ? 'disabled' : '' ?>>
+                                    <option value="" <?= $department_filter === '' ? 'selected' : '' ?>>All Department</option>
+                                    <?php foreach ($department_options as $d): ?>
+                                        <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $department_filter === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php endif; ?>
                         </div>
                         <div class="analytics-filter">
                             <label>Status</label>
@@ -1917,7 +2040,7 @@ if ($ticketsStmt) {
                                         <option value="<?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8'); ?>" <?= $status_filter === $st ? 'selected' : '' ?>><?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8'); ?></option>
                                     <?php endforeach; ?>
                                 </select>
-                                <a href="analytics.php" class="analytics-inline-clear">Clear</a>
+                                <a href="<?= htmlspecialchars(basename($_SERVER['PHP_SELF']), ENT_QUOTES, 'UTF-8') ?>" class="analytics-inline-clear">Clear</a>
                             </div>
                         </div>
                     </div>
@@ -1946,25 +2069,15 @@ if ($ticketsStmt) {
                     </div>
                     <div class="analytics-sub">Resolved tickets</div>
                 </div>
-                <div class="analytics-card closed">
-                    <div class="analytics-card-top">
-                        <div>
-                            <div class="analytics-label">Closed</div>
-                            <div class="analytics-value"><?= number_format((int) ($summary['closed'] ?? 0)) ?></div>
-                        </div>
-                        <div class="analytics-icon"><i class="fa-solid fa-lock"></i></div>
-                    </div>
-                    <div class="analytics-sub">Closed tickets</div>
-                </div>
                 <div class="analytics-card avg-time">
                     <div class="analytics-card-top">
                         <div>
-                            <div class="analytics-label">Avg. Resolution<br>Time</div>
-                            <div class="analytics-value"><?= htmlspecialchars(formatHandlingTime((int) ($summary['avg_seconds'] ?? 0))) ?></div>
+                            <div class="analytics-label">Open Tickets</div>
+                            <div class="analytics-value"><?= number_format((int) ($summary['open'] ?? 0)) ?></div>
                         </div>
-                        <div class="analytics-icon"><i class="fa-solid fa-stopwatch"></i></div>
+                        <div class="analytics-icon"><i class="fa-solid fa-folder-open"></i></div>
                     </div>
-                    <div class="analytics-sub">Resolved tickets only</div>
+                    <div class="analytics-sub">Open and in progress tickets</div>
                 </div>
             </div>
 
@@ -1972,13 +2085,15 @@ if ($ticketsStmt) {
                 <div class="chart-card category-card">
                     <div class="chart-header">
                         <div class="chart-heading">
-                            <div class="chart-title" id="companyChartTitle">Tickets per Company</div>
-                            <p class="chart-subtitle" id="companyChartSubtitle">LAPC tickets by department</p>
+                            <div class="chart-title" id="companyChartTitle"><?= $analyticsIsEmployeeView ? 'Department Ticket Distribution' : 'Tickets per Company' ?></div>
+                            <p class="chart-subtitle" id="companyChartSubtitle"><?= htmlspecialchars($analyticsIsEmployeeView ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department', ENT_QUOTES, 'UTF-8') ?></p>
                         </div>
+                        <?php if (!$analyticsIsEmployeeView): ?>
                         <div class="company-chart-toggle" aria-label="Tickets per company view">
                             <button type="button" class="company-chart-toggle-btn active" data-company-view="lapc" aria-pressed="true">LAPC</button>
                             <button type="button" class="company-chart-toggle-btn" data-company-view="other" aria-pressed="false">Other Companies</button>
                         </div>
+                        <?php endif; ?>
                     </div>
                     <div class="chart-container">
                         <canvas id="categoryChart"></canvas>
@@ -2007,7 +2122,7 @@ if ($ticketsStmt) {
                         </div>
                         <div class="trend-period-pill">
                             <i class="fa-regular fa-calendar"></i>
-                            <span>Last 7 days</span>
+                            <span>Last 7 weekdays</span>
                         </div>
                     </div>
                     <div class="trend-overview-card">
@@ -2022,7 +2137,7 @@ if ($ticketsStmt) {
                             <i class="fa-solid <?= htmlspecialchars($trendSummaryBadgeIcon, ENT_QUOTES, 'UTF-8') ?>"></i>
                             <div class="trend-delta-copy">
                                 <span class="trend-delta-value"><?= htmlspecialchars($trendSummaryBadgeText, ENT_QUOTES, 'UTF-8') ?></span>
-                                <span class="trend-delta-label">vs previous 7 days</span>
+                                <span class="trend-delta-label">vs previous 7 weekdays</span>
                             </div>
                         </div>
                     </div>
@@ -2054,7 +2169,7 @@ if ($ticketsStmt) {
                             <div class="trend-mini-main">
                                 <?= !empty($trendDayStats) ? htmlspecialchars(($trendDeltaPercent !== 0 ? ($trendDeltaPercent > 0 ? '+' : '') . $trendDeltaPercent . '%' : '0%'), ENT_QUOTES, 'UTF-8') : 'No data' ?>
                             </div>
-                            <div class="trend-mini-sub">vs previous 7 days</div>
+                            <div class="trend-mini-sub">vs previous 7 weekdays</div>
                         </div>
                     </div>
                     <div class="insight-pill">
