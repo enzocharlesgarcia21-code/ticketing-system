@@ -447,7 +447,36 @@ function ticket_find_assignee_ids(mysqli $conn, string $company, string $group):
 
     if (!$isLapcCompany) return [];
     $adminId = ticket_find_department_admin_id($conn, $deptAliases);
-    return $adminId ? [$adminId] : [];
+    if ($adminId) return [$adminId];
+
+    // LAPC fallback: route the ticket to the LAPC IT team when the
+    // selected department has no registered assignee yet so submissions
+    // are not blocked.
+    if (strtoupper(trim($group)) !== 'IT') {
+        $itIds = ticket_find_assignee_ids($conn, $company, 'IT');
+        if (count($itIds) > 0) return $itIds;
+    }
+
+    // Final fallback: any LAPC employee/admin in the same domain.
+    $stmt = $conn->prepare("
+        SELECT id
+        FROM users
+        WHERE role IN ('employee', 'admin')
+          AND LOWER(email) LIKE '%@leadsagri.com'
+        ORDER BY FIELD(role, 'admin', 'employee'), is_verified DESC, id ASC
+        LIMIT 1
+    ");
+    if ($stmt) {
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if ($row && (int) ($row['id'] ?? 0) > 0) {
+            return [(int) $row['id']];
+        }
+    }
+
+    return [];
 }
 
 function ticket_find_assignee_id(mysqli $conn, string $company, string $group): ?int
