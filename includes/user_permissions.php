@@ -19,7 +19,7 @@ if (!function_exists('user_permissions_definitions')) {
                 'default_enabled' => 1,
             ],
             'all_ticket' => [
-                'label' => 'All Ticket',
+                'label' => 'Assigned Tickets',
                 'nav_label' => 'Tickets',
                 'path' => 'my_task.php',
                 'section' => 'Tickets',
