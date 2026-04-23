@@ -1403,11 +1403,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $ticketStmt->close();
     }
 
+    $usesSpecificEmailRoute = ticket_uses_specific_email_route($assigned_company, $assigned_group);
     $adminEmails = [];
-    $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
-    if ($admins) {
-        while ($admin = $admins->fetch_assoc()) {
-            $adminEmails[] = $admin['email'];
+    if (!$usesSpecificEmailRoute) {
+        $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
+        if ($admins) {
+            while ($admin = $admins->fetch_assoc()) {
+                $adminEmails[] = $admin['email'];
+            }
         }
     }
 
@@ -1439,9 +1442,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         "Requester Email: $employeeEmail"
     ], 'Open Ticket', notif_ticket_link_admin((int) $ticket_id));
 
-    $adminOk = notif_email_send($adminEmails, $adminSubject, (string) $adminTpl['html'], (string) $adminTpl['text'], $attachments);
-    if (!$adminOk) {
-        error_log('Ticket email failed (admins) | ticketId=' . (string) $ticket_id);
+    if (count($adminEmails) > 0) {
+        $adminOk = notif_email_send($adminEmails, $adminSubject, (string) $adminTpl['html'], (string) $adminTpl['text'], $attachments);
+        if (!$adminOk) {
+            error_log('Ticket email failed (admins) | ticketId=' . (string) $ticket_id);
+        }
     }
 
     $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, $assigned_group, (int) $user_id);

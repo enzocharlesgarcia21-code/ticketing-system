@@ -759,6 +759,8 @@ function notif_email_send(array $toEmails, string $subjectLine, string $bodyHtml
     $options = [];
     if (preg_match('/\(#0*(\d+)\)/', $subjectLine, $m)) {
         $options['ticket_id'] = (int) $m[1];
+    } elseif (preg_match('/Ticket(?:\s+ID)?\s*:\s*#?0*(\d+)|Ticket\s+#0*(\d+)/i', strip_tags($bodyText . "\n" . $bodyHtml), $m)) {
+        $options['ticket_id'] = (int) ((string) ($m[1] ?? '') !== '' ? $m[1] : $m[2]);
     }
     $ok = sendSmtpEmail($to, $subjectLine, $bodyHtml, $bodyText, $attachments, $options);
     if (!$ok) {

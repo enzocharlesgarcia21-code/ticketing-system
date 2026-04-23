@@ -219,6 +219,28 @@ function ticket_notification_department_email_map(): array
     ];
 }
 
+function ticket_department_override_notification_emails(string $company, string $group): array
+{
+    $companyKey = ticket_notification_company_key($company);
+    $groupKey = ticket_department_key_from_value($group);
+    $overrideMap = ticket_notification_department_email_map();
+    $overrideEmails = $overrideMap[$companyKey][$groupKey] ?? ($overrideMap[$companyKey]['_default'] ?? []);
+    if (!is_array($overrideEmails)) {
+        $overrideEmails = [];
+    }
+
+    return array_values(array_unique(array_filter(array_map(static function ($email) {
+        return strtolower(trim((string) $email));
+    }, $overrideEmails), static function ($email) {
+        return $email !== '';
+    })));
+}
+
+function ticket_uses_specific_email_route(string $company, string $group): bool
+{
+    return count(ticket_department_override_notification_emails($company, $group)) > 0;
+}
+
 function ticket_notification_company_key(string $company): string
 {
     $company = ticket_normalize_company($company);
@@ -258,20 +280,9 @@ function ticket_notification_company_key(string $company): string
 function ticket_assignee_notification_emails(mysqli $conn, array $assignedUserIds, string $company, string $group, int $excludeUserId = 0): array
 {
     $company = ticket_normalize_company($company);
-    $companyKey = ticket_notification_company_key($company);
-    $groupKey = ticket_department_key_from_value($group);
     $excludeUserId = (int) $excludeUserId;
 
-    $overrideMap = ticket_notification_department_email_map();
-    $overrideEmails = $overrideMap[$companyKey][$groupKey] ?? ($overrideMap[$companyKey]['_default'] ?? []);
-    if (!is_array($overrideEmails)) {
-        $overrideEmails = [];
-    }
-    $overrideEmails = array_values(array_unique(array_filter(array_map(static function ($email) {
-        return strtolower(trim((string) $email));
-    }, $overrideEmails), static function ($email) {
-        return $email !== '';
-    })));
+    $overrideEmails = ticket_department_override_notification_emails($company, $group);
     if (count($overrideEmails) > 0) {
         return $overrideEmails;
     }
