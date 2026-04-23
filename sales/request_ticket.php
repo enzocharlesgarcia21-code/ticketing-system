@@ -482,7 +482,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $marketing_department = trim((string) ($_POST['marketing_department'] ?? ''));
     $requested_materials = sales_request_clean_string_array($_POST['requested_materials'] ?? []);
     $requested_materials_other = trim((string) ($_POST['requested_materials_other'] ?? ''));
-    $material_size = trim((string) ($_POST['material_size'] ?? ''));
+    $material_size_unit = trim((string) ($_POST['material_size_unit'] ?? ''));
+    $material_size_value = trim((string) ($_POST['material_size_value'] ?? ''));
+    $material_size = ($material_size_unit !== '' && $material_size_value !== '')
+        ? $material_size_unit . ': ' . $material_size_value
+        : trim((string) ($_POST['material_size'] ?? ''));
     $project_deadline = trim((string) ($_POST['project_deadline'] ?? ''));
     $crop = sales_request_clean_string_array($_POST['crop'] ?? []);
     $crop_other = trim((string) ($_POST['crop_other'] ?? ''));
@@ -557,7 +561,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($error_msg === '' && $isLapcMarketingRecipient) {
         if ($priority_selected === '') {
             $error_msg = "Please choose the urgency level.";
-        } elseif (!in_array($priority_selected, ['1', '2', '3'], true)) {
+        } elseif (!in_array($priority_selected, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], true)) {
             $error_msg = "Invalid urgency level selected.";
         } else {
             $priority = $priority_selected;
@@ -2367,8 +2371,7 @@ if (count($sapFormEntries) === 0) {
             display: grid;
             gap: 14px;
         }
-        body.sales-request-ticket-page .marketing-request-option,
-        body.sales-request-ticket-page .marketing-request-other-row {
+        body.sales-request-ticket-page .marketing-request-option {
             display: flex;
             align-items: center;
             gap: 12px;
@@ -2378,6 +2381,7 @@ if (count($sapFormEntries) === 0) {
             cursor: pointer;
         }
         body.sales-request-ticket-page .marketing-request-option input[type="checkbox"],
+        body.sales-request-ticket-page .marketing-request-option input[type="radio"],
         body.sales-request-ticket-page .marketing-request-other-row input[type="checkbox"] {
             width: 20px;
             height: 20px;
@@ -2385,11 +2389,29 @@ if (count($sapFormEntries) === 0) {
             accent-color: #16a34a;
             flex: 0 0 auto;
         }
-        body.sales-request-ticket-page .marketing-request-other-row .form-control {
-            display: none;
-            min-width: 0;
+        body.sales-request-ticket-page .marketing-size-option {
+            align-items: center;
         }
-        body.sales-request-ticket-page .marketing-request-other-row.is-visible .form-control {
+        body.sales-request-ticket-page .marketing-size-option label {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 130px;
+            margin: 0;
+            cursor: pointer;
+        }
+        body.sales-request-ticket-page .marketing-size-value {
+            display: none;
+            max-width: 220px;
+        }
+        body.sales-request-ticket-page .marketing-size-value:not(:disabled) {
+            display: block;
+        }
+        body.sales-request-ticket-page .marketing-request-other-row {
+            display: none;
+            margin-top: 12px;
+        }
+        body.sales-request-ticket-page .marketing-request-other-row.is-visible {
             display: block;
         }
         body.sales-request-ticket-page .marketing-request-help {
@@ -4132,20 +4154,22 @@ if (count($sapFormEntries) === 0) {
                     </div>
 
                     <section class="marketing-request-card">
-                        <span class="marketing-request-card-title">Requested Materials <span class="required-asterisk">*</span></span>
-                        <div class="marketing-request-option-list" id="requestedMaterialsGroup">
+                        <div class="form-group">
+                            <label for="requested_materials">Requested Materials <span class="required-asterisk">*</span></label>
                             <?php $selectedRequestedMaterials = sales_request_clean_string_array($_POST['requested_materials'] ?? []); ?>
-                            <?php foreach (['Social Media Graphics', 'Print Materials (Flyers, Brochures)', 'Video (Short-form)', 'Banners/Taffetas', 'Labels', 'Tarpaulin/Poster', 'Invitation', 'Coupons', 'Sintraboard design', 'Plotsigns', 'Promats Design (shirt, cap, etc)'] as $materialOption): ?>
-                                <label class="marketing-request-option">
-                                    <input type="checkbox" name="requested_materials[]" value="<?= htmlspecialchars($materialOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($materialOption, $selectedRequestedMaterials, true) ? 'checked' : ''; ?>>
-                                    <span><?= htmlspecialchars($materialOption, ENT_QUOTES, 'UTF-8'); ?></span>
-                                </label>
-                            <?php endforeach; ?>
+                            <div class="select-wrapper" id="requestedMaterialsGroup">
+                                <select name="requested_materials[]" id="requested_materials" class="form-control">
+                                    <option value="" disabled <?= count($selectedRequestedMaterials) === 0 ? 'selected' : ''; ?> hidden>Choose requested material</option>
+                                    <?php foreach (['Social Media Graphics', 'Print Materials (Flyers, Brochures)', 'Video (Short-form)', 'Banners/Taffetas', 'Labels', 'Tarpaulin/Poster', 'Invitation', 'Coupons', 'Sintraboard design', 'Plotsigns', 'Promats Design (shirt, cap, etc)', 'Other'] as $materialOption): ?>
+                                        <option value="<?= htmlspecialchars($materialOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($materialOption, $selectedRequestedMaterials, true) ? 'selected' : ''; ?>>
+                                            <?= htmlspecialchars($materialOption, ENT_QUOTES, 'UTF-8'); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <i class="fas fa-chevron-down select-icon"></i>
+                            </div>
                             <div class="marketing-request-other-row" id="requestedMaterialsOtherRow">
-                                <label class="marketing-request-option">
-                                    <input type="checkbox" name="requested_materials[]" value="Other" <?= in_array('Other', $selectedRequestedMaterials, true) ? 'checked' : ''; ?>>
-                                    <span>Other:</span>
-                                </label>
+                                <label for="requested_materials_other">Other requested material <span class="required-asterisk">*</span></label>
                                 <input type="text" name="requested_materials_other" id="requested_materials_other" class="form-control" value="<?= htmlspecialchars((string) ($_POST['requested_materials_other'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Please specify">
                             </div>
                         </div>
@@ -4154,9 +4178,35 @@ if (count($sapFormEntries) === 0) {
                     <div class="marketing-request-inline-row">
                         <section class="marketing-request-card">
                             <div class="form-group">
-                                <label for="material_size">Size of Material <span class="required-asterisk">*</span></label>
-                                <input type="text" name="material_size" id="material_size" class="form-control" value="<?= htmlspecialchars((string) ($_POST['material_size'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="w = ___ ; h = ___">
-                                <small class="marketing-request-help">Specify size in inches, feet, or centimeters</small>
+                                <span class="marketing-request-card-title">Size of Material <span class="required-asterisk">*</span></span>
+                                <?php
+                                    $selectedMaterialSizeUnit = trim((string) ($_POST['material_size_unit'] ?? ''));
+                                    $selectedMaterialSizeInput = trim((string) ($_POST['material_size_value'] ?? ''));
+                                    if ($selectedMaterialSizeUnit === '' && !empty($_POST['material_size'])) {
+                                        $savedMaterialSize = (string) $_POST['material_size'];
+                                        foreach (['Inches', 'Feet', 'Centimeters'] as $savedSizeOption) {
+                                            if (stripos($savedMaterialSize, $savedSizeOption . ':') === 0) {
+                                                $selectedMaterialSizeUnit = $savedSizeOption;
+                                                $selectedMaterialSizeInput = trim(substr($savedMaterialSize, strlen($savedSizeOption) + 1));
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    $selectedMaterialSizeValue = ($selectedMaterialSizeUnit !== '' && $selectedMaterialSizeInput !== '') ? $selectedMaterialSizeUnit . ': ' . $selectedMaterialSizeInput : '';
+                                ?>
+                                <input type="hidden" name="material_size" id="material_size" value="<?= htmlspecialchars($selectedMaterialSizeValue, ENT_QUOTES, 'UTF-8'); ?>">
+                                <div class="marketing-request-option-list marketing-size-options">
+                                    <?php foreach (['Inches', 'Feet', 'Centimeters'] as $sizeOption): ?>
+                                        <div class="marketing-request-option marketing-size-option">
+                                            <label>
+                                                <input type="radio" name="material_size_unit" value="<?= htmlspecialchars($sizeOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $selectedMaterialSizeUnit === $sizeOption ? 'checked' : ''; ?>>
+                                                <span><?= htmlspecialchars($sizeOption, ENT_QUOTES, 'UTF-8'); ?>:</span>
+                                            </label>
+                                            <input type="text" name="material_size_value" class="form-control marketing-size-value" value="<?= $selectedMaterialSizeUnit === $sizeOption ? htmlspecialchars($selectedMaterialSizeInput, ENT_QUOTES, 'UTF-8') : ''; ?>" placeholder="Enter size" <?= $selectedMaterialSizeUnit === $sizeOption ? '' : 'disabled'; ?>>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <small class="marketing-request-help">Select one size unit, then enter the measurement.</small>
                             </div>
                         </section>
                         <section class="marketing-request-card">
@@ -4170,20 +4220,22 @@ if (count($sapFormEntries) === 0) {
                     </div>
 
                     <section class="marketing-request-card">
-                        <span class="marketing-request-card-title">Crop <span class="required-asterisk">*</span></span>
-                        <div class="marketing-request-option-list" id="cropGroup">
+                        <div class="form-group">
+                            <label for="crop">Crop <span class="required-asterisk">*</span></label>
                             <?php $selectedCrops = sales_request_clean_string_array($_POST['crop'] ?? []); ?>
-                            <?php foreach (['Rice', 'Lowland Vegetable', 'Upland Vegetable', 'Sugarcane', 'Corn', 'Mango'] as $cropOption): ?>
-                                <label class="marketing-request-option">
-                                    <input type="checkbox" name="crop[]" value="<?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($cropOption, $selectedCrops, true) ? 'checked' : ''; ?>>
-                                    <span><?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?></span>
-                                </label>
-                            <?php endforeach; ?>
+                            <div class="select-wrapper" id="cropGroup">
+                                <select name="crop[]" id="crop" class="form-control">
+                                    <option value="" disabled <?= count($selectedCrops) === 0 ? 'selected' : ''; ?> hidden>Choose crop</option>
+                                    <?php foreach (['Rice', 'Lowland Vegetable', 'Upland Vegetable', 'Sugarcane', 'Corn', 'Mango', 'Other'] as $cropOption): ?>
+                                        <option value="<?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($cropOption, $selectedCrops, true) ? 'selected' : ''; ?>>
+                                            <?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <i class="fas fa-chevron-down select-icon"></i>
+                            </div>
                             <div class="marketing-request-other-row" id="cropOtherRow">
-                                <label class="marketing-request-option">
-                                    <input type="checkbox" name="crop[]" value="Other" <?= in_array('Other', $selectedCrops, true) ? 'checked' : ''; ?>>
-                                    <span>Other:</span>
-                                </label>
+                                <label for="crop_other">Other crop <span class="required-asterisk">*</span></label>
                                 <input type="text" name="crop_other" id="crop_other" class="form-control" value="<?= htmlspecialchars((string) ($_POST['crop_other'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Please specify">
                             </div>
                         </div>
@@ -4422,14 +4474,18 @@ var marketingRequestSection = document.getElementById('marketingRequestSection')
 var projectNameInput = document.getElementById('project_name');
 var areaCodeSelect = document.getElementById('area_code');
 var marketingDepartmentSelect = document.getElementById('marketing_department');
-var requestedMaterialsInputs = Array.from(document.querySelectorAll('input[name="requested_materials[]"]'));
+var requestedMaterialsSelect = document.getElementById('requested_materials');
+var requestedMaterialsInputs = requestedMaterialsSelect ? [requestedMaterialsSelect] : Array.from(document.querySelectorAll('input[name="requested_materials[]"]'));
 var requestedMaterialsOtherRow = document.getElementById('requestedMaterialsOtherRow');
 var requestedMaterialsOtherInput = document.getElementById('requested_materials_other');
 var materialSizeInput = document.getElementById('material_size');
+var materialSizeUnitInputs = Array.from(document.querySelectorAll('input[name="material_size_unit"]'));
+var materialSizeValueInputs = Array.from(document.querySelectorAll('input[name="material_size_value"]'));
 var projectDeadlineInput = document.getElementById('project_deadline');
 var projectDeadlineHelp = document.getElementById('projectDeadlineHelp');
 var projectDeadlineError = document.getElementById('projectDeadlineError');
-var cropInputs = Array.from(document.querySelectorAll('input[name="crop[]"]'));
+var cropSelect = document.getElementById('crop');
+var cropInputs = cropSelect ? [cropSelect] : Array.from(document.querySelectorAll('input[name="crop[]"]'));
 var cropOtherRow = document.getElementById('cropOtherRow');
 var cropOtherInput = document.getElementById('crop_other');
 var otherRequestDetailsSection = document.getElementById('otherRequestDetailsSection');
@@ -4813,7 +4869,14 @@ function setPriorityOptions(mode) {
             { value: '', text: 'Choose urgency level' },
             { value: '1', text: '1' },
             { value: '2', text: '2' },
-            { value: '3', text: '3' }
+            { value: '3', text: '3' },
+            { value: '4', text: '4' },
+            { value: '5', text: '5' },
+            { value: '6', text: '6' },
+            { value: '7', text: '7' },
+            { value: '8', text: '8' },
+            { value: '9', text: '9' },
+            { value: '10', text: '10' }
         ]
         : [
             { value: '', text: 'Choose level of urgency' },
@@ -4937,12 +5000,16 @@ function validateProjectDeadline(showMessage) {
 }
 
 function syncMarketingOtherInputs() {
-    var requestedOtherSelected = requestedMaterialsInputs.some(function(input) {
-        return input.checked && input.value === 'Other';
-    });
-    var cropOtherSelected = cropInputs.some(function(input) {
-        return input.checked && input.value === 'Other';
-    });
+    var requestedOtherSelected = requestedMaterialsSelect
+        ? String(requestedMaterialsSelect.value || '') === 'Other'
+        : requestedMaterialsInputs.some(function(input) {
+            return input.checked && input.value === 'Other';
+        });
+    var cropOtherSelected = cropSelect
+        ? String(cropSelect.value || '') === 'Other'
+        : cropInputs.some(function(input) {
+            return input.checked && input.value === 'Other';
+        });
     if (requestedMaterialsOtherRow) {
         requestedMaterialsOtherRow.classList.toggle('is-visible', requestedOtherSelected);
     }
@@ -4963,6 +5030,28 @@ function syncMarketingOtherInputs() {
             cropOtherInput.value = '';
         }
     }
+}
+
+function syncMaterialSizeInput() {
+    if (!materialSizeInput) return;
+    var selectedUnit = materialSizeUnitInputs.find(function(input) { return input.checked; });
+    var selectedValue = '';
+    materialSizeValueInputs.forEach(function(input) {
+        var row = input.closest('.marketing-size-option');
+        var rowUnit = row ? row.querySelector('input[name="material_size_unit"]') : null;
+        var isSelected = !!(rowUnit && rowUnit.checked);
+        input.disabled = !isSelected;
+        if (isSelected) {
+            input.setAttribute('required', 'required');
+            selectedValue = String(input.value || '').trim();
+        } else {
+            input.removeAttribute('required');
+            input.value = '';
+        }
+    });
+    materialSizeInput.value = selectedUnit && selectedValue !== ''
+        ? String(selectedUnit.value || '').trim() + ': ' + selectedValue
+        : '';
 }
 
 function setSssUploadError(config, message) {
@@ -5300,6 +5389,15 @@ function toggleHrExtraFields() {
         if (shouldShowMarketingRequest) input.setAttribute('required', 'required');
         else input.removeAttribute('required');
     });
+    materialSizeUnitInputs.forEach(function(input) {
+        input.disabled = !shouldShowMarketingRequest;
+    });
+    materialSizeValueInputs.forEach(function(input) {
+        if (!shouldShowMarketingRequest) {
+            input.disabled = true;
+            input.removeAttribute('required');
+        }
+    });
     requestedMaterialsInputs.forEach(function(input) {
         input.disabled = !shouldShowMarketingRequest;
     });
@@ -5311,6 +5409,7 @@ function toggleHrExtraFields() {
         validateProjectDeadline(false);
     }
     syncMarketingOtherInputs();
+    syncMaterialSizeInput();
     if (!shouldShowMarketingRequest) {
         if (requestedMaterialsOtherInput) requestedMaterialsOtherInput.removeAttribute('required');
         if (cropOtherInput) cropOtherInput.removeAttribute('required');
@@ -5390,6 +5489,12 @@ cropInputs.forEach(function(input) {
     input.addEventListener('change', function() {
         syncMarketingOtherInputs();
     });
+});
+materialSizeUnitInputs.forEach(function(input) {
+    input.addEventListener('change', syncMaterialSizeInput);
+});
+materialSizeValueInputs.forEach(function(input) {
+    input.addEventListener('input', syncMaterialSizeInput);
 });
 if (projectDeadlineInput) {
     projectDeadlineInput.addEventListener('change', function() {
@@ -6101,10 +6206,19 @@ if (formEl) {
             return;
         }
         if (isLapcMarketingSelected) {
-            var hasRequestedMaterial = requestedMaterialsInputs.some(function(input) { return input.checked; });
-            var hasCrop = cropInputs.some(function(input) { return input.checked; });
-            var requestedOtherSelected = requestedMaterialsInputs.some(function(input) { return input.checked && input.value === 'Other'; });
-            var cropOtherSelected = cropInputs.some(function(input) { return input.checked && input.value === 'Other'; });
+            syncMaterialSizeInput();
+            var hasRequestedMaterial = requestedMaterialsSelect
+                ? String(requestedMaterialsSelect.value || '').trim() !== ''
+                : requestedMaterialsInputs.some(function(input) { return input.checked; });
+            var hasCrop = cropSelect
+                ? String(cropSelect.value || '').trim() !== ''
+                : cropInputs.some(function(input) { return input.checked; });
+            var requestedOtherSelected = requestedMaterialsSelect
+                ? String(requestedMaterialsSelect.value || '') === 'Other'
+                : requestedMaterialsInputs.some(function(input) { return input.checked && input.value === 'Other'; });
+            var cropOtherSelected = cropSelect
+                ? String(cropSelect.value || '') === 'Other'
+                : cropInputs.some(function(input) { return input.checked && input.value === 'Other'; });
             if (!String((projectNameInput && projectNameInput.value) || '').trim()) {
                 e.preventDefault();
                 setInlineFormError('Please enter the Project Name.');
@@ -6122,7 +6236,7 @@ if (formEl) {
             }
             if (!hasRequestedMaterial) {
                 e.preventDefault();
-                setInlineFormError('Please choose at least one Requested Materials option.');
+                setInlineFormError('Please choose a Requested Materials option.');
                 return;
             }
             if (requestedOtherSelected && requestedMaterialsOtherInput && !String(requestedMaterialsOtherInput.value || '').trim()) {
@@ -6142,7 +6256,7 @@ if (formEl) {
             }
             if (!hasCrop) {
                 e.preventDefault();
-                setInlineFormError('Please choose at least one Crop option.');
+                setInlineFormError('Please choose a Crop option.');
                 return;
             }
             if (cropOtherSelected && cropOtherInput && !String(cropOtherInput.value || '').trim()) {
