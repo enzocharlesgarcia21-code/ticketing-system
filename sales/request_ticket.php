@@ -1250,8 +1250,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     'ticket_number' => (string) $ticket_number
                 ]);
 
+                $usesSpecificEmailRoute = ticket_uses_specific_email_route($assigned_company, (string) $assigned_group);
                 $adminEmails = [];
-                if (count($adminEmails) === 0) {
+                if (!$usesSpecificEmailRoute && count($adminEmails) === 0) {
                     $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
                     if ($admins) {
                         while ($admin = $admins->fetch_assoc()) {
@@ -1289,7 +1290,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         "Assigned Recipient: $assignedRecipientLabel"
                     ], 'Open Ticket', notif_ticket_link_admin($ticket_id));
                 }
-                notif_email_send($adminEmails, $subjectLine, (string) $adminTpl['html'], (string) $adminTpl['text'], $attachments);
+                if (count($adminEmails) > 0) {
+                    notif_email_send($adminEmails, $subjectLine, (string) $adminTpl['html'], (string) $adminTpl['text'], $attachments);
+                }
 
                 $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, (string) $assigned_group);
                 if (count($assigneeEmails) > 0) {
