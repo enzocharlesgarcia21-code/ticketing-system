@@ -655,7 +655,7 @@ if ($stmt) {
                 </div>
             </div>
             <div class="sales-nav-right">
-                <a class="sales-nav-link" href="/ticketing/sales/request_ticket.php">
+                <a class="sales-nav-link" href="request_ticket.php">
                     <span>Submit Ticket</span>
                     <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
                 </a>
