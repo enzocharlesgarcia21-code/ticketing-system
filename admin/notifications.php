@@ -585,13 +585,12 @@ function notif_priority_from_message(string $message): string
                                         $titleText = 'Ticket Closed';
                                     }
                                 } elseif ($actionType === 'reassign') {
-                                    if ($priorityKey === '') {
-                                        $iconClass = 'fa-right-left';
-                                        $iconTypeClass = 'type-reassigned type-card';
-                                        $accentColor = '#9333ea';
-                                        $dotColor = '#9333ea';
-                                        $titleText = 'Ticket Reassigned';
-                                    }
+                                    $iconClass = 'fa-retweet';
+                                    $iconTypeClass = 'type-reassigned type-card';
+                                    $accentColor = '#9333ea';
+                                    $dotColor = '#9333ea';
+                                    $priorityLabel = '';
+                                    $titleText = 'Ticket Reassigned';
                                 } elseif ($actionType === 'assign') {
                                     if ($priorityKey === '') {
                                         $iconClass = 'fa-inbox';

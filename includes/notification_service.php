@@ -709,15 +709,15 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
     $emailed = 0;
     if ($creatorEmail !== '') {
         $lines = [
-            'Ticket ID: #' . $ticketNumber,
             'Ticket has been updated.',
+            'Ticket ID: #' . $ticketNumber,
         ];
         if ($updatedBy !== '') {
             $lines[] = 'Updated by: ' . $updatedBy;
         }
         foreach ($extraLines as $line) {
             $line = trim((string) $line);
-            if ($line !== '') {
+            if ($line !== '' && !preg_match('/^(Assigned To|Attachments):/i', $line)) {
                 $lines[] = $line;
             }
         }
@@ -730,15 +730,15 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
 
     if (count($assigneeEmails) > 0) {
         $lines = [
-            'Ticket ID: #' . $ticketNumber,
             'Ticket has been updated.',
+            'Ticket ID: #' . $ticketNumber,
         ];
         if ($updatedBy !== '') {
             $lines[] = 'Updated by: ' . $updatedBy;
         }
         foreach ($extraLines as $line) {
             $line = trim((string) $line);
-            if ($line !== '') {
+            if ($line !== '' && !preg_match('/^(Assigned To|Attachments):/i', $line)) {
                 $lines[] = $line;
             }
         }

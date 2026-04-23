@@ -188,23 +188,27 @@ function ticket_notification_department_email_map(): array
 {
     return [
         'FARMASEE' => [
-            '_default' => ['ecommercefarmasee@farmasee.ph'],
+        //    '_default' => ['ecommercefarmasee@farmasee.ph'],
+        '_default' => ['rachelleambayan@gmail.com'],
         ],
         'FARMEX' => [
-            '_default' => ['inquiries@leads-farmex.com'],
+          //  '_default' => ['inquiries@leads-farmex.com'],
         ],
         'LAPC' => [
-            'ADMIN' => ['admin@leadsagri.com'],
-            'HR' => ['hr@leadsagri.com'],
+            // 'ADMIN' => ['admin@leadsagri.com'],
+            'ADMIN' => ['enzomendoza8teen@gmail.com'],
+            // 'HR' => ['hr@leadsagri.com'],
+            'HR' => ['matthewpascua052203@gmail.com'],
+            'IT' => ['jbalido@leadsagri.com'],
         ],
         'LINGAP' => [
-            '_default' => ['partnership@lingapleads.org' , 'info@lingapleads.org'],
+            // '_default' => ['partnership@lingapleads.org' , 'info@lingapleads.org'],
         ],
         'LAV' => [
-            '_default' => ['all@leadsav.com'],
+            // '_default' => ['all@leadsav.com'],
         ],
         'MPDC' => [
-            '_default' => ['all@malvedaproperties.com'],
+            // '_default' => ['all@malvedaproperties.com'],
         ],
 
         
