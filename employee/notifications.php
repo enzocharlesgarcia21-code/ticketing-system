@@ -791,7 +791,7 @@ function notif_priority_from_message(string $message): string
                                         $dotColor = '#43A047';
                                         break;
                                     case 'reassign':
-                                        $iconClass = 'fa-right-left';
+                                        $iconClass = 'fa-retweet';
                                         $bgClass = 'linear-gradient(135deg, #b77cf5, #9333ea)';
                                         $colorClass = '#ffffff';
                                         $accentColor = '#9333ea';
@@ -819,6 +819,14 @@ function notif_priority_from_message(string $message): string
                                     $dotColor = '#1B5E20';
                                 }
                             }
+                            if ($actionType === 'reassign') {
+                                $iconClass = 'fa-retweet';
+                                $bgClass = 'linear-gradient(135deg, #b77cf5, #9333ea)';
+                                $colorClass = '#ffffff';
+                                $accentColor = '#9333ea';
+                                $dotColor = '#9333ea';
+                                $priorityLabel = '';
+                            }
                             $displayMessage = notif_display_message($typeJs, (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
                                 $isFollowUp = $typeJs === 'follow_up';
                                 $titleText = 'Ticket Update';
@@ -831,6 +839,9 @@ function notif_priority_from_message(string $message): string
                                 elseif ($typeJs === 'hr_chat_pending') $titleText = 'Pending Chat';
                                 elseif ($actionType === 'update' && $typeJs === 'note_added') $titleText = 'Ticket Note';
                                 elseif ($actionType === 'update') $titleText = 'Status Update';
+                                if ($actionType === 'reassign') {
+                                    $titleText = 'Ticket Reassigned';
+                                }
                                 if ($isFollowUp) {
                                     $iconClass = 'fa-rotate';
                                     $bgClass = 'linear-gradient(135deg, #f8e08c, #f4c542)';

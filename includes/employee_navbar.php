@@ -331,6 +331,9 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-item.unread.variant-reassign {
     background: #faf5ff;
 }
+.notif-item.unread.variant-reassign::after {
+    background: #9333ea;
+}
 .notif-item.priority-escalation {
     position: relative;
     gap: 0;
@@ -1097,7 +1100,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         } else if (actionType === 'reassign') {
                             variantClass = 'variant-reassign';
                             pillText = 'Reassigned';
-                            pillIcon = 'fa-right-left';
+                            pillIcon = 'fa-retweet';
                         } else if (actionType === 'close') {
                             variantClass = 'variant-close';
                             pillText = 'Closed';
@@ -1106,6 +1109,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             variantClass = 'variant-note';
                             pillText = 'Private Note';
                             pillIcon = 'fa-plus';
+                        }
+                        if (actionType === 'reassign') {
+                            variantClass = 'variant-reassign';
+                            pillText = 'Reassigned';
+                            pillIcon = 'fa-retweet';
                         }
                         if (isChatPending && Number(n.is_read) === 0 && !chatReminderToastIds.has(String(n.id))) {
                             chatReminderToastIds.add(String(n.id));
