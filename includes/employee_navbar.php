@@ -48,7 +48,7 @@ function isActive($page) {
 $employeeNavItems = [
     ['key' => 'dashboard', 'page' => 'dashboard.php', 'label' => 'Dashboard'],
     ['key' => 'create_ticket', 'page' => 'request_ticket.php', 'label' => 'Create Ticket'],
-    ['key' => 'all_ticket', 'page' => 'my_task.php', 'label' => 'Tickets'],
+    ['key' => 'all_ticket', 'page' => 'my_task.php', 'label' => 'Assigned Tickets'],
     ['key' => 'my_tickets', 'page' => 'my_tickets.php', 'label' => 'My Tickets'],
     ['key' => 'feedback', 'page' => 'feedback.php', 'label' => 'Feedback'],
     ['key' => 'knowledge_base', 'page' => 'knowledge_base.php', 'label' => 'Knowledge Base'],
