@@ -24,7 +24,7 @@ function finish_ticket_update_response(string $location): void
     if (!headers_sent()) {
         header("Location: $location");
         header('Cache-Control: no-store, no-cache, must-revalidate');
-        header('Connection: close');
+        header('Content-Length: 0');
     }
 
     if (function_exists('fastcgi_finish_request')) {
@@ -264,6 +264,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($updateOk) {
         $_SESSION['task_success'] = "Ticket #$id successfully updated.";
 
+        // Flush the redirect to the browser as early as possible so any
+        // downstream notification/email failure cannot close the connection
+        // before the response is delivered (NS_ERROR_NET_ERROR_RESPONSE).
+        $update->close();
+        finish_ticket_update_response("my_task.php");
+        $responseFlushed = true;
+
+        try {
+
         // --- TICKET ACTIVITY LOG ---
         // Status change
         if ($old_data['status'] !== $new_status) {
@@ -366,9 +375,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 (string) $requesterNotification['action_type']
             );
         }
-
-        finish_ticket_update_response("my_task.php");
-        $responseFlushed = true;
 
         $ticket = notif_ticket_data($conn, $id);
 
@@ -595,9 +601,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
             }
         }
+
+        } catch (Throwable $postUpdateEx) {
+            error_log('update_ticket.php post-update side-effects failed: ' . $postUpdateEx->getMessage());
+        }
     }
-    
-    $update->close();
+
     if ($responseFlushed) {
         exit();
     }
