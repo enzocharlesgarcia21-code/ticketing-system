@@ -3669,7 +3669,7 @@ if (count($sapFormEntries) === 0) {
                 <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-arrow-left"></i></span>
                 <span>Back</span>
             </a>
-            <a class="sales-nav-link" href="/ticketing/sales/knowledge_base.php">
+            <a class="sales-nav-link" href="knowledge_base.php">
                 <span>Knowledge Base</span>
                 <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
             </a>
