@@ -112,6 +112,21 @@ function conference_booking_ensure_tables(mysqli $conn): void
         }
     }
 
+    // Older installs created status as ENUM('approved','pending','cancelled')
+    // which truncates the 'Booked' status used by the application. Convert it
+    // to VARCHAR(50) so all expected status values are accepted.
+    if (isset($existingBookingColumns['status'])) {
+        $statusColumn = $conn->query("SHOW COLUMNS FROM conference_bookings LIKE 'status'");
+        $statusMeta = $statusColumn ? $statusColumn->fetch_assoc() : null;
+        if ($statusColumn instanceof mysqli_result) {
+            $statusColumn->free();
+        }
+        $statusType = strtolower((string) ($statusMeta['Type'] ?? ''));
+        if ($statusMeta && strpos($statusType, 'varchar') !== 0) {
+            $conn->query("ALTER TABLE conference_bookings MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'Booked'");
+        }
+    }
+
     if ($saturdayColumnAdded) {
         conference_booking_seed_default_saturday_availability($conn);
     }
