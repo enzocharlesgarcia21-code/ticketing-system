@@ -424,33 +424,53 @@ user_permissions_ensure_table($conn);
         .form-grid {
             display: grid;
             grid-template-columns: 160px 1fr;
-            gap: 12px 14px;
-            align-items: center;
+            gap: 18px 18px;
+            align-items: start;
         }
         .form-label {
-            font-weight: 700;
-            color: #334155;
+            font-weight: 800;
+            color: #0f172a;
             font-size: 13px;
+            padding-top: 14px;
+            line-height: 1.35;
+        }
+        .form-required {
+            color: #dc2626;
         }
         .form-control {
             width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #e5e7eb;
-            border-radius: 10px;
+            padding: 12px 14px;
+            border: 1px solid #dbe3ee;
+            border-radius: 14px;
             outline: none;
             font-size: 14px;
             background: #ffffff;
+            min-height: 48px;
+            color: #0f172a;
         }
         .form-control:focus {
             border-color: #22c55e;
             box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+        }
+        .form-field-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+        }
+        .field-hint {
+            font-size: 12px;
+            line-height: 1.45;
+            color: #64748b;
+            font-weight: 600;
+            padding-left: 2px;
         }
         .fullname-row,
         .username-row,
         .password-row {
             display: grid;
             grid-template-columns: minmax(0, 1fr) 280px;
-            gap: 10px;
+            gap: 12px;
             align-items: center;
         }
         .fullname-row > .form-control,
@@ -463,26 +483,26 @@ user_permissions_ensure_table($conn);
             min-width: 0;
         }
         .password-row > .btn.btn-auto {
-            width: auto;
+            width: 100%;
             min-width: 148px;
-            justify-self: start;
+            justify-self: stretch;
         }
         .password-field {
             position: relative;
         }
         .password-field .form-control {
-            padding-right: 38px;
+            padding-right: 44px;
         }
         .password-eye {
             position: absolute;
             top: 50%;
-            right: 8px;
+            right: 10px;
             transform: translateY(-50%);
-            width: 28px;
-            height: 28px;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-            background: #ffffff;
+            width: 30px;
+            height: 30px;
+            border-radius: 10px;
+            border: 1px solid #dbe3ee;
+            background: #f8fafc;
             color: #64748b;
             display: inline-flex;
             align-items: center;
@@ -492,30 +512,54 @@ user_permissions_ensure_table($conn);
         }
         .password-eye i { font-size: 13px; }
         .password-eye:hover {
-            background: #f8fafc;
+            background: #eef2f7;
             color: #0f172a;
         }
         .form-options {
-            margin-top: 2px;
+            margin-top: 6px;
             grid-column: 1 / -1;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
         }
         .checkbox-option {
             display: flex;
-            align-items: center;
-            gap: 8px;
+            align-items: flex-start;
+            gap: 12px;
             font-size: 14px;
             color: #374151;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            padding: 14px 16px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
+        }
+        .checkbox-option-control {
+            padding-top: 2px;
+            flex: 0 0 auto;
+        }
+        .checkbox-option-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+            flex: 1 1 auto;
         }
         .checkbox-option-text {
             cursor: pointer;
             user-select: none;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .checkbox-option-help {
+            font-size: 12px;
+            line-height: 1.45;
+            color: #64748b;
+            font-weight: 600;
         }
         .checkbox-option input {
-            width: 16px;
-            height: 16px;
+            width: 18px;
+            height: 18px;
             cursor: pointer;
             accent-color: #16a34a;
         }
@@ -531,13 +575,15 @@ user_permissions_ensure_table($conn);
             cursor: help;
             color: #475569;
             font-weight: 800;
+            flex: 0 0 auto;
+            margin-top: 1px;
         }
         .domain-select {
             min-width: 170px;
             width: 100%;
-            padding: 10px 44px 10px 12px;
-            border: 1px solid #e5e7eb;
-            border-radius: 10px;
+            padding: 12px 44px 12px 14px;
+            border: 1px solid #dbe3ee;
+            border-radius: 14px;
             background-color: #ffffff;
             appearance: none;
             -webkit-appearance: none;
@@ -551,6 +597,7 @@ user_permissions_ensure_table($conn);
             cursor: pointer;
             box-sizing: border-box;
             font-size: 13px;
+            min-height: 48px;
         }
         .domain-select:disabled {
             background-color: #f8fafc;
@@ -561,8 +608,8 @@ user_permissions_ensure_table($conn);
         }
         .btn {
             border: 1px solid transparent;
-            border-radius: 10px;
-            padding: 10px 14px;
+            border-radius: 14px;
+            padding: 12px 16px;
             font-weight: 800;
             cursor: pointer;
             transition: transform 0.08s ease, background 0.2s ease, border-color 0.2s ease;
@@ -575,8 +622,9 @@ user_permissions_ensure_table($conn);
         }
         .btn:active { transform: translateY(1px); }
         .btn-primary {
-            background: #1B5E20;
+            background: linear-gradient(180deg, #1f7a32 0%, #1B5E20 100%);
             color: #ffffff;
+            box-shadow: 0 12px 24px rgba(27, 94, 32, 0.18);
         }
         .btn-primary:hover { background: #144a1e; }
         .btn-secondary {
@@ -586,17 +634,19 @@ user_permissions_ensure_table($conn);
         }
         .btn-secondary:hover { background: #e5e7eb; }
         .btn-auto {
-            background: #f8fafc;
-            color: #334155;
-            border-color: #e2e8f0;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            color: #1f2937;
+            border-color: #dbe3ee;
             white-space: nowrap;
         }
         .btn-auto:hover { background: #f1f5f9; }
         .form-actions {
             display: flex;
             justify-content: flex-end;
-            gap: 10px;
-            margin-top: 14px;
+            gap: 12px;
+            margin-top: 18px;
+            padding-top: 16px;
+            border-top: 1px solid #eef2f7;
         }
         .users-list-controls {
             display: flex;
@@ -816,9 +866,9 @@ user_permissions_ensure_table($conn);
             inset: 0;
             background: rgba(15, 23, 42, 0.45);
             display: none;
-            align-items: flex-start;
+            align-items: center;
             justify-content: center;
-            padding: 96px 22px 22px;
+            padding: 24px 22px;
             z-index: 3000;
             overflow-y: auto;
         }
@@ -838,6 +888,76 @@ user_permissions_ensure_table($conn);
             overflow-y: auto;
         }
         .modal-card .mgmt-card-body { padding: 18px; }
+        .add-user-modal-card {
+            max-width: 900px;
+            border-radius: 22px;
+        }
+        .add-user-modal-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 22px 24px 18px;
+            border-bottom: 1px solid #ecf1f6;
+            background:
+                radial-gradient(circle at top right, rgba(34, 197, 94, 0.10), transparent 34%),
+                linear-gradient(180deg, #f8fffa 0%, #f8fafc 100%);
+        }
+        .add-user-modal-title {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            min-width: 0;
+        }
+        .add-user-modal-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ecfdf5 0%, #dcfce7 100%);
+            border: 1px solid #bbf7d0;
+            color: #16a34a;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex: 0 0 auto;
+            box-shadow: 0 10px 20px rgba(22, 163, 74, 0.10);
+        }
+        .add-user-modal-title h2 {
+            margin: 0;
+            font-size: 24px;
+            line-height: 1.1;
+            color: #0f172a;
+            font-weight: 900;
+        }
+        .add-user-modal-title p {
+            margin: 6px 0 0;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #64748b;
+            font-weight: 600;
+            max-width: 560px;
+        }
+        .add-user-modal-close {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            border: 1px solid #dbe3ee;
+            background: rgba(255,255,255,0.92);
+            color: #475569;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex: 0 0 auto;
+        }
+        .add-user-modal-close:hover {
+            background: #f8fafc;
+            color: #0f172a;
+        }
+        .add-user-modal-card .mgmt-card-body {
+            padding: 22px 24px 24px;
+        }
         .access-modal-card .mgmt-card-body { padding: 14px; }
         .users-access-row {
             transition: background-color 0.18s ease, transform 0.18s ease;
@@ -1118,13 +1238,30 @@ user_permissions_ensure_table($conn);
         }
         @media (max-width: 720px) {
             .modal-overlay-lite {
-                padding: 84px 12px 12px;
+                align-items: center;
+                padding: 16px 12px;
             }
             .modal-card {
                 max-height: calc(100vh - 24px);
             }
-            .fullname-row { flex-direction: column; align-items: stretch; }
-            .fullname-row > .domain-select { flex: 1 1 auto; width: 100%; }
+            .add-user-modal-header {
+                padding: 18px 18px 14px;
+                gap: 12px;
+            }
+            .add-user-modal-title h2 {
+                font-size: 20px;
+            }
+            .add-user-modal-title p {
+                font-size: 12px;
+            }
+            .add-user-modal-card .mgmt-card-body {
+                padding: 18px;
+            }
+            .fullname-row,
+            .username-row,
+            .password-row {
+                grid-template-columns: 1fr;
+            }
             .access-user-chip {
                 align-items: flex-start;
             }
@@ -1138,6 +1275,18 @@ user_permissions_ensure_table($conn);
                 flex-direction: column-reverse;
             }
             .access-modal-actions .btn {
+                width: 100%;
+            }
+            .form-label {
+                padding-top: 0;
+            }
+            .checkbox-option {
+                padding: 12px 14px;
+            }
+            .form-actions {
+                flex-direction: column-reverse;
+            }
+            .form-actions .btn {
                 width: 100%;
             }
         }
@@ -1569,58 +1718,83 @@ user_permissions_ensure_table($conn);
         </div>
 
         <div class="modal-overlay-lite" id="addUserModal" aria-hidden="true">
-            <div class="modal-card">
-                <div class="mgmt-card-header">
-                    <div class="title">
-                        <span class="icon"><i class="fas fa-user-plus"></i></span>
-                        <span>Add New User</span>
+            <div class="modal-card add-user-modal-card">
+                <div class="add-user-modal-header">
+                    <div class="add-user-modal-title">
+                        <span class="add-user-modal-icon"><i class="fas fa-user-plus"></i></span>
+                        <div>
+                            <h2>Add New User</h2>
+                            <p>Create an employee account, assign its company domain, and set the initial login controls.</p>
+                        </div>
                     </div>
+                    <button type="button" class="add-user-modal-close" id="closeAddUserModal" aria-label="Close add user modal">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
                 <div class="mgmt-card-body">
                     <form id="addUserForm" autocomplete="off" novalidate>
                         <?php echo csrf_field(); ?>
                         <div class="form-grid">
-                            <div class="form-label">Email *</div>
-                            <div class="username-row">
-                                <input type="text" class="form-control" name="username" id="username" placeholder="juan.delacruz" required>
-                                <select class="domain-select" name="domain" id="domain" required>
-                                    <?php foreach ($company_domain_options as $opt => $label): ?>
-                                        <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>" <?= $opt === '@leadsagri.com' ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($label . ' (' . $opt . ')', ENT_QUOTES, 'UTF-8'); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-
-                            <div class="form-label">Full Name *</div>
-                            <div class="fullname-row">
-                                <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required inputmode="text" autocomplete="off">
-                                <select class="domain-select" name="department" id="newDept" aria-label="Department" required disabled>
-                                    <option value="">Select Company First</option>
-                                </select>
-                            </div>
-
-                            <div class="form-label">New Password *</div>
-                            <div class="password-row">
-                                <div class="password-field">
-                                    <input type="password" class="form-control" name="password" id="newPassword" required>
-                                    <button type="button" class="password-eye" id="togglePassword" aria-label="View password">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
+                            <div class="form-label">Account Email <span class="form-required">*</span></div>
+                            <div class="form-field-stack">
+                                <div class="username-row">
+                                    <input type="text" class="form-control" name="username" id="username" placeholder="juan.delacruz" required>
+                                    <select class="domain-select" name="domain" id="domain" required>
+                                        <?php foreach ($company_domain_options as $opt => $label): ?>
+                                            <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>" <?= $opt === '@leadsagri.com' ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($label . ' (' . $opt . ')', ENT_QUOTES, 'UTF-8'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
                                 </div>
-                                <button type="button" class="btn btn-auto" id="autoGenerateBtn">Auto Generate</button>
+                                <div class="field-hint">Enter only the email username on the left. The selected company domain completes the address.</div>
+                            </div>
+
+                            <div class="form-label">Identity <span class="form-required">*</span></div>
+                            <div class="form-field-stack">
+                                <div class="fullname-row">
+                                    <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required inputmode="text" autocomplete="off">
+                                    <select class="domain-select" name="department" id="newDept" aria-label="Department" required disabled>
+                                        <option value="">Select Company First</option>
+                                    </select>
+                                </div>
+                                <div class="field-hint">Use the employee's full name and assign the department that matches the selected company.</div>
+                            </div>
+
+                            <div class="form-label">Access Setup <span class="form-required">*</span></div>
+                            <div class="form-field-stack">
+                                <div class="password-row">
+                                    <div class="password-field">
+                                        <input type="password" class="form-control" name="password" id="newPassword" placeholder="Create a temporary password" required>
+                                        <button type="button" class="password-eye" id="togglePassword" aria-label="View password">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <button type="button" class="btn btn-auto" id="autoGenerateBtn">Auto Generate</button>
+                                </div>
+                                <div class="field-hint">Use a temporary password or generate one, then decide whether to email the credentials below.</div>
                             </div>
 
                             <div class="form-options">
                                 <div class="checkbox-option">
-                                    <input type="checkbox" name="send_credentials" id="sendCredentials" value="1">
-                                    <label class="checkbox-option-text" for="sendCredentials">Send credentials via email</label>
+                                    <div class="checkbox-option-control">
+                                        <input type="checkbox" name="send_credentials" id="sendCredentials" value="1">
+                                    </div>
+                                    <div class="checkbox-option-copy">
+                                        <label class="checkbox-option-text" for="sendCredentials">Send credentials via email</label>
+                                        <div class="checkbox-option-help">Automatically send the created login details to the new user's email address.</div>
+                                    </div>
                                     <span class="info-icon" title="Automatically email the user's login credentials after account creation.">?</span>
                                 </div>
 
                                 <div class="checkbox-option">
-                                    <input type="checkbox" name="force_password_change" id="forcePasswordChange" value="1" checked>
-                                    <label class="checkbox-option-text" for="forcePasswordChange">Force user to change password on first login</label>
+                                    <div class="checkbox-option-control">
+                                        <input type="checkbox" name="force_password_change" id="forcePasswordChange" value="1" checked>
+                                    </div>
+                                    <div class="checkbox-option-copy">
+                                        <label class="checkbox-option-text" for="forcePasswordChange">Force user to change password on first login</label>
+                                        <div class="checkbox-option-help">Keep this enabled to require a fresh password after the first successful sign-in.</div>
+                                    </div>
                                     <span class="info-icon" title="User will be required to change their password the first time they log in.">?</span>
                                 </div>
                             </div>
@@ -2456,11 +2630,19 @@ user_permissions_ensure_table($conn);
         }
 
         var cancelBtn = document.getElementById('cancelAddUser');
+        var closeAddUserBtn = document.getElementById('closeAddUserModal');
         var cancelUserAccessBtn = document.getElementById('cancelUserAccess');
         var closeUserAccessBtn = document.getElementById('closeUserAccessModal');
         var form = document.getElementById('addUserForm');
         if (cancelBtn && form) {
             cancelBtn.addEventListener('click', function () {
+                form.reset();
+                updateDepartmentDropdown();
+                closeModal();
+            });
+        }
+        if (closeAddUserBtn && form) {
+            closeAddUserBtn.addEventListener('click', function () {
                 form.reset();
                 updateDepartmentDropdown();
                 closeModal();

@@ -7,11 +7,12 @@ function ticket_company_group_map(): array
 {
     $standard = ticket_standard_assigned_departments();
     $lapc = ticket_lapc_departments();
+    $mhc = ticket_mhc_departments();
     return [
         'LAPC' => $lapc,
         'GPCI' => $standard,
         'PCC' => $standard,
-        'MHC' => $standard,
+        'MHC' => $mhc,
         'Farmex Corp' => $standard,
         'LTC' => $standard,
         'MPDC' => $standard,
@@ -24,7 +25,7 @@ function ticket_company_group_map(): array
         '@leadsagri.com' => $lapc,
         '@leadsanimalhealth.com' => $standard,
         '@leadsav.com' => $standard,
-        '@malvedaholdings.com' => $standard,
+        '@malvedaholdings.com' => $mhc,
         '@malvedaproperties.com' => $standard,
         '@leadstech-corp.com' => $standard,
         '@lingapleads.org' => $standard,
@@ -62,8 +63,8 @@ function ticket_lapc_departments(): array
         'HR',
         'IT',
         'Institutional Sales',
+        'Machineries',
         'Management',
-        'Marketing',
         'New Business Segment',
         'Seed Production',
         'Supply Chain',
@@ -72,11 +73,21 @@ function ticket_lapc_departments(): array
     ];
 }
 
+function ticket_mhc_departments(): array
+{
+    return [
+        'Marketing Creatives',
+    ];
+}
+
 function ticket_company_allowed_groups(string $company): array
 {
     $company = ticket_normalize_company($company);
     if ($company === '@leadsagri.com' || strtoupper($company) === 'LAPC') {
         return ticket_lapc_departments();
+    }
+    if ($company === '@malvedaholdings.com' || strtoupper($company) === 'MHC') {
+        return ticket_mhc_departments();
     }
     return ticket_standard_assigned_departments();
 }
