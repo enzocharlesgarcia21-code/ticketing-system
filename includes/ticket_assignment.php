@@ -62,6 +62,7 @@ function ticket_lapc_departments(): array
         'HR',
         'IT',
         'Institutional Sales',
+        'Machineries',
         'Management',
         'New Business Segment',
         'Seed Production',
