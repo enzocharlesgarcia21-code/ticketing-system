@@ -21,6 +21,7 @@ $hr_concern_type = '';
 $priority_selected = '';
 $assigned_department_selected = '';
 $lapcDepartments = ticket_lapc_departments();
+$mhcDepartments = ticket_mhc_departments();
 $defaultCategories = ['Hardware', 'Software', 'Documentation', 'Email', 'Internet Concerns', 'Procurement', 'Technical Support'];
 $mpdcCategories = ['Engineerings', 'Client Based'];
 $lapcDepartmentCategories = [
@@ -59,7 +60,18 @@ $lapcDepartmentCategories = [
         'Software',
         'Technical Support',
     ],
-    'Marketing' => [
+    'Machineries' => [
+        'Documentation',
+        'Email',
+        'Hardware',
+        'Internet Concerns',
+        'Procurement',
+        'Software',
+        'Technical Support',
+    ],
+];
+$mhcDepartmentCategories = [
+    'Marketing Creatives' => [
         'Marketing Request',
     ],
 ];
@@ -505,16 +517,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $normalized_company_id = normalize_sales_recipient_company($company_id);
     $allowed_categories = ($normalized_company_id === '@malvedaproperties.com')
         ? $mpdcCategories
+        : (($normalized_company_id === '@malvedaholdings.com' && isset($mhcDepartmentCategories[$assigned_department_selected]))
+            ? $mhcDepartmentCategories[$assigned_department_selected]
         : (($normalized_company_id === '@leadsagri.com' && isset($lapcDepartmentCategories[$assigned_department_selected]))
             ? $lapcDepartmentCategories[$assigned_department_selected]
-            : $defaultCategories);
+            : $defaultCategories));
     $isLapcRecipient = ($normalized_company_id === '@leadsagri.com');
-    $assigned_department = $isLapcRecipient ? $assigned_department_selected : 'IT';
+    $isMhcRecipient = ($normalized_company_id === '@malvedaholdings.com');
+    $requiresDepartment = $isLapcRecipient || $isMhcRecipient;
+    $assigned_department = $requiresDepartment ? $assigned_department_selected : 'IT';
     $assigned_company = $normalized_company_id;
-    $assigned_group = $isLapcRecipient ? trim($assigned_department_selected) : 'IT';
+    $assigned_group = $requiresDepartment ? trim($assigned_department_selected) : 'IT';
     $isLapcHrRecipient = $isLapcRecipient && $assigned_department_selected === 'HR';
     $isLapcItRecipient = $isLapcRecipient && $assigned_department_selected === 'IT';
-    $isLapcMarketingRecipient = $isLapcRecipient && $assigned_department_selected === 'Marketing';
+    $isMhcMarketingRecipient = $isMhcRecipient && $assigned_department_selected === 'Marketing Creatives';
     $isHrAttendanceCategory = ($isLapcHrRecipient && $category === 'Attendance & Timekeeping');
     $isHrLeaveOrOtherCategory = ($isLapcHrRecipient && ($category === 'Leave Concern' || $category === 'Others'));
     $isHrSssCategory = ($isLapcHrRecipient && $category === 'SSS Sickness and Benefit Concern');
@@ -526,25 +542,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $isLapcItEmailRequest = ($isLapcItRecipient && $category === 'Email');
     $isLapcItSapRequest = ($isLapcItRecipient && $category === 'SAP');
     $requiresKamiAttachment = $isHrAttendanceCategory;
-    if ($isLapcRecipient) {
+    if ($requiresDepartment) {
         $assigned_user_ids = ticket_find_assignee_ids($conn, $assigned_company, $assigned_group);
     } else {
         $assigned_user_ids = find_sales_domain_recipient_ids($conn, $assigned_company);
     }
     $assigned_user_id = count($assigned_user_ids) > 0 ? (int) $assigned_user_ids[0] : null;
-    $allowedDepartments = ticket_lapc_departments();
-    if ($isLapcRecipient && $assigned_department === '') {
+    $allowedDepartments = $isMhcRecipient ? ticket_mhc_departments() : ticket_lapc_departments();
+    if ($requiresDepartment && $assigned_department === '') {
         $error_msg = "Please select a department.";
-    } elseif ($isLapcRecipient && !in_array($assigned_department, $allowedDepartments, true)) {
+    } elseif ($requiresDepartment && !in_array($assigned_department, $allowedDepartments, true)) {
         $error_msg = "Invalid department selected.";
     }
     if ($error_msg === '') {
         if ($assigned_company === '' || !ticket_is_valid_company($assigned_company)) {
             $error_msg = "Ticket Recipient (Company Email Domain) is required.";
-        } elseif ($isLapcRecipient && ($assigned_group === '' || !ticket_is_valid_group_for_company($assigned_company, $assigned_group))) {
+        } elseif ($requiresDepartment && ($assigned_group === '' || !ticket_is_valid_group_for_company($assigned_company, $assigned_group))) {
             $error_msg = "Invalid department selected for the chosen recipient.";
         } elseif (!$assigned_user_id) {
-            $error_msg = $isLapcRecipient
+            $error_msg = $requiresDepartment
                 ? "No assignee available for the selected recipient and department."
                 : "No assignee available for the selected recipient.";
         }
@@ -558,7 +574,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $priority = $priority_selected;
         }
     }
-    if ($error_msg === '' && $isLapcMarketingRecipient) {
+    if ($error_msg === '' && $isMhcMarketingRecipient) {
         if ($priority_selected === '') {
             $error_msg = "Please choose the urgency level.";
         } elseif (!in_array($priority_selected, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], true)) {
@@ -712,7 +728,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
     }
-    if ($error_msg === '' && $isLapcMarketingRecipient) {
+    if ($error_msg === '' && $isMhcMarketingRecipient) {
         $allowedAreaCodes = [
             '811A', '811B', '812', '813A', '813B', '814A', '814B', '815A', '815B', '815C',
             '821A', '821B', '821C', '822A', '822B', '831A', '831B', '832A', '832B', '833',
@@ -796,7 +812,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
 
                 $subject = 'Marketing Request - ' . $project_name;
-                $description = "LAPC Marketing Request\n"
+                $description = "MHC Marketing Request\n"
                     . "Project Name: " . $project_name . "\n"
                     . "Area Code: " . $area_code . "\n"
                     . "Department: " . $marketing_department . "\n"
@@ -1173,7 +1189,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($isLapcItEmailRequest) {
                     $ticketMeta['email_request_type'] = $email_request_type;
                 }
-                if ($isLapcMarketingRecipient) {
+                if ($isMhcMarketingRecipient) {
                     $ticketMeta['project_name'] = $project_name;
                     $ticketMeta['area_code'] = $area_code;
                     $ticketMeta['marketing_department'] = $marketing_department;
@@ -1279,7 +1295,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     "Requester: $email",
                     "Assigned Recipient: $assignedRecipientLabel"
                 ], 'Open Ticket', notif_ticket_link_admin($ticket_id));
-                if ($isLapcRecipient) {
+                if ($requiresDepartment) {
                     $adminTpl = notif_email_simple('New Sales Ticket', [
                         "Ticket ID: #$ticketNumber",
                         "Title: $subject",
@@ -1304,7 +1320,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         "Assigned Recipient: $assignedRecipientLabel",
                         "Description:\n$raw_description"
                     ];
-                    if ($isLapcRecipient) {
+                    if ($requiresDepartment) {
                         array_splice($assigneeLines, 4, 0, ["Assigned Department: $assigned_department"]);
                     }
                     if ($attachmentSummary !== '') {
@@ -1321,7 +1337,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     "Assigned Recipient: $assignedRecipientLabel",
                     "Description:\n$raw_description"
                 ];
-                if ($isLapcRecipient) {
+                if ($requiresDepartment) {
                     array_splice($requesterLines, 3, 0, ["Assigned Department: $assigned_department"]);
                 }
                 if ($attachmentSummary !== '') {
@@ -3724,7 +3740,7 @@ if (count($sapFormEntries) === 0) {
                     <div class="select-wrapper">
                         <select name="assigned_department" id="department" class="form-control" required disabled data-selected="<?= htmlspecialchars((string) $assigned_department_selected, ENT_QUOTES, 'UTF-8'); ?>">
                             <option value="" disabled <?= $assigned_department_selected === '' ? 'selected' : '' ?> hidden>Choose department</option>
-                            <?php foreach ($lapcDepartments as $d): ?>
+                            <?php foreach (($normalized_company_id === '@malvedaholdings.com' ? $mhcDepartments : $lapcDepartments) as $d): ?>
                                 <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $assigned_department_selected === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -4112,7 +4128,7 @@ if (count($sapFormEntries) === 0) {
                 </div>
             </section>
             <section class="marketing-request-group" id="marketingRequestSection">
-                <h3 class="marketing-request-head">LAPC Marketing Request</h3>
+                <h3 class="marketing-request-head">MHC Marketing Request</h3>
                 <div class="marketing-request-list">
                     <section class="marketing-request-card">
                         <div class="form-group">
@@ -4512,9 +4528,11 @@ var chooseFileBtnText = document.getElementById('chooseFileBtnText');
 var ajaxErrorBanner = document.getElementById('ajaxError');
 var priorityLabel = priorityGroup ? priorityGroup.querySelector('label') : null;
 var lapcDepartments = <?= json_encode(array_values($lapcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var mhcDepartments = <?= json_encode(array_values($mhcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var defaultCategories = <?= json_encode($defaultCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var mpdcCategories = <?= json_encode($mpdcCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var lapcDepartmentCategories = <?= json_encode($lapcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var mhcDepartmentCategories = <?= json_encode($mhcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var sssAutoDescription = 'SSS Notification and Benefits Concern submission.';
 var sssUploadConfigs = [
     { inputId: 'sssSicknessFormInput', labelId: 'sssSicknessFormName', listId: 'sssSicknessFormList', errorId: 'sssSicknessFormError', label: 'Accomplished SSS Sickness Form', maxFiles: 1 },
@@ -4756,6 +4774,10 @@ function isLapcRecipientValue(value) {
     return String(value || '') === 'LAPC (@leadsagri.com)' || String(value || '') === '@leadsagri.com';
 }
 
+function isMhcRecipientValue(value) {
+    return String(value || '') === 'MHC (@malvedaholdings.com)' || String(value || '') === '@malvedaholdings.com';
+}
+
 function populateDepartments(options) {
     if (!departmentSelect) return;
     var selectedValue = String(departmentSelect.getAttribute('data-selected') || departmentSelect.value || '');
@@ -4777,6 +4799,13 @@ function toggleDepartmentField() {
 
     if (isLapcRecipientValue(value)) {
         populateDepartments(lapcDepartments);
+        departmentGroup.style.display = 'block';
+        departmentGroup.classList.remove('hidden');
+        recipientGroup.classList.remove('full-width');
+        departmentSelect.disabled = false;
+        departmentSelect.setAttribute('required', 'required');
+    } else if (isMhcRecipientValue(value)) {
+        populateDepartments(mhcDepartments);
         departmentGroup.style.display = 'block';
         departmentGroup.classList.remove('hidden');
         recipientGroup.classList.remove('full-width');
@@ -4819,6 +4848,8 @@ function toggleCategoryField() {
     var options = defaultCategories;
     if (value === 'MPDC (@malvedaproperties.com)') {
         options = mpdcCategories;
+    } else if (isMhcRecipientValue(value) && mhcDepartmentCategories[departmentValue]) {
+        options = mhcDepartmentCategories[departmentValue];
     } else if (isLapcRecipientValue(value) && lapcDepartmentCategories[departmentValue]) {
         options = lapcDepartmentCategories[departmentValue];
     }
@@ -4829,8 +4860,11 @@ function togglePriorityField() {
     if (!priorityGroup || !prioritySelect || !recipient) return;
     var recipientValue = String(recipient.value || '');
     var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
-    var isMarketing = isLapcRecipientValue(recipientValue) && departmentValue === 'Marketing';
-    var shouldShow = isLapcRecipientValue(recipientValue) && (departmentValue === 'HR' || isMarketing);
+    var isMarketing = isMhcRecipientValue(recipientValue) && departmentValue === 'Marketing';
+    var shouldShow = isLapcRecipientValue(recipientValue) && departmentValue === 'HR';
+    if (isMarketing) {
+        shouldShow = true;
+    }
 
     if (shouldShow) {
         setPriorityOptions(isMarketing ? 'marketing' : 'hr');
@@ -4861,7 +4895,7 @@ function isLapcItSelection() {
 function isLapcMarketingSelection() {
     var recipientValue = recipient ? String(recipient.value || '') : '';
     var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
-    return isLapcRecipientValue(recipientValue) && departmentValue === 'Marketing';
+    return isMhcRecipientValue(recipientValue) && departmentValue === 'Marketing Creatives';
 }
 
 function setPriorityOptions(mode) {
