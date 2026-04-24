@@ -715,7 +715,7 @@ function openModal(id, mode = 'full') {
                             <span class="modal-info-label" style="display:block; margin-bottom:12px; color: #166534;">
                                 <i class="fas fa-user-shield" style="margin-right: 6px;"></i> Admin Note
                             </span>
-                            <div class="modal-description-text" style="color: #14532d;">${escapeHtml(data.admin_note).replace(/\n/g, '<br>')}</div>
+                            <div class="modal-description-text" style="color: #14532d;">${renderLinkedText(data.admin_note)}</div>
                         </div>
                     </div>
                 `;
@@ -760,6 +760,22 @@ function escapeHtml(text) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+function renderLinkedText(text) {
+    if (text == null || text === '') return '';
+    const escaped = escapeHtml(String(text));
+    const linked = escaped.replace(/((?:https?:\/\/|www\.)[^\s<]+)/gi, function(url) {
+        let trimmed = url;
+        let trailing = '';
+        while (/[.,!?;:)]$/.test(trimmed)) {
+            trailing = trimmed.slice(-1) + trailing;
+            trimmed = trimmed.slice(0, -1);
+        }
+        const href = /^https?:\/\//i.test(trimmed) ? trimmed : ('https://' + trimmed);
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${trimmed}</a>${trailing}`;
+    });
+    return linked.replace(/\n/g, '<br>');
 }
 
 function isImageAttachment(filename) {

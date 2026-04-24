@@ -981,7 +981,7 @@ unset($recent_articles_query['recent_page']);
             width: 100%;
             height: 100%;
             background: rgba(0, 0, 0, 0.6); /* Darker overlay */
-            z-index: 1000;
+            z-index: 12000;
             justify-content: center;
             align-items: flex-start;
             animation: fadeIn 0.2s ease-out;
@@ -1001,6 +1001,7 @@ unset($recent_articles_query['recent_page']);
             max-height: calc(100vh - 128px);
             overflow-y: auto; /* Enable scrolling */
             position: relative;
+            z-index: 12001;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
             animation: slideUp 0.3s ease-out;
             display: flex;

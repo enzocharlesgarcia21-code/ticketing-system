@@ -1296,7 +1296,7 @@
 .tm-res-label {
     font-size: 12px;
     color: #64748b;
-    font-weight: 700;
+    font-weight: 400;
     letter-spacing: .04em;
     text-transform: uppercase;
 }
@@ -1305,7 +1305,7 @@
     margin-top: 4px;
     font-size: 14px;
     color: #0f172a;
-    font-weight: 400;
+    font-weight: 700;
 }
 
 .tm-res-header {
@@ -1346,8 +1346,8 @@
 }
 .tm-res-item { padding: 16px 18px; }
 .tm-res-item + .tm-res-item { border-left: 1px solid #e5e7eb; }
-.tm-res-label { font-size: 11px; letter-spacing: 0.08em; color: #6b7280; font-weight: 700; text-transform: uppercase; }
-.tm-res-value { font-size: 14px; font-weight: 400; color: #0f172a; line-height: 1.45; }
+.tm-res-label { font-size: 11px; letter-spacing: 0.08em; color: #6b7280; font-weight: 400; text-transform: uppercase; }
+.tm-res-value { font-size: 14px; font-weight: 700; color: #0f172a; line-height: 1.45; }
 .tm-duration-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: #22c55e; margin-right: 8px; vertical-align: middle; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.14); }
 
 /* Centered input wrapper + enhanced input/button styles via new classes */
