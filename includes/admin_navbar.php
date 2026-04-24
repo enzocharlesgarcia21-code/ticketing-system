@@ -253,6 +253,9 @@ document.addEventListener('DOMContentLoaded', function() {
 .notif-item.unread.variant-reassign {
     background: #faf5ff;
 }
+.notif-item.unread.variant-reassign::after {
+    background: #9333ea;
+}
 .notif-item.priority-escalation {
     position: relative;
     gap: 0;
@@ -907,7 +910,7 @@ function fetchAdminNotifications() {
                     } else if (actionType === 'reassign') {
                         variantClass = 'variant-reassign';
                         pillText = 'Reassigned';
-                        pillIcon = 'fa-right-left';
+                        pillIcon = 'fa-retweet';
                     } else if (actionType === 'close') {
                         variantClass = 'variant-close';
                         pillText = 'Closed';
@@ -920,6 +923,11 @@ function fetchAdminNotifications() {
                         variantClass = 'variant-note';
                         pillText = 'Private Note';
                         pillIcon = 'fa-plus';
+                    }
+                    if (actionType === 'reassign') {
+                        variantClass = 'variant-reassign';
+                        pillText = 'Reassigned';
+                        pillIcon = 'fa-retweet';
                     }
                     const pillHtml = `<span class="notif-pill ${variantClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span>${isChatPending ? '' : `<span class="notif-pill-text">${escapeHtml(pillText)}</span>`}</span>`;
                     const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;

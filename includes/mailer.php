@@ -124,6 +124,12 @@ function smtp_extract_ticket_id_from_subject(string $subject): int
     return 0;
 }
 
+function smtp_ticket_thread_subject(int $ticketId): string
+{
+    if ($ticketId <= 0) return '';
+    return 'Ticket #' . str_pad((string) $ticketId, 6, '0', STR_PAD_LEFT);
+}
+
 function smtp_message_id_domain(): string
 {
     $fromEmail = readSmtpConfigValue('SMTP_FROM_EMAIL');
@@ -202,9 +208,14 @@ function smtp_prepare_ticket_threading(int $ticketId, string $subject): ?array
     }
 
     $isRoot = false;
+    $normalizedThreadSubject = smtp_ticket_thread_subject($ticketId);
+    if ($normalizedThreadSubject === '') {
+        $normalizedThreadSubject = $subject;
+    }
+
     if ($rootMessageId === '') {
         $rootMessageId = smtp_generate_message_id($ticketId);
-        $threadSubject = $subject;
+        $threadSubject = $normalizedThreadSubject;
         $isRoot = true;
         $update = $conn->prepare("UPDATE employee_tickets SET root_message_id = ?, last_message_id = ?, thread_subject = ? WHERE id = ?");
         if ($update) {
@@ -214,8 +225,8 @@ function smtp_prepare_ticket_threading(int $ticketId, string $subject): ?array
         }
     }
 
-    if ($threadSubject === '') {
-        $threadSubject = $subject;
+    if ($threadSubject !== $normalizedThreadSubject) {
+        $threadSubject = $normalizedThreadSubject;
         $update = $conn->prepare("UPDATE employee_tickets SET thread_subject = ? WHERE id = ?");
         if ($update) {
             $update->bind_param("si", $threadSubject, $ticketId);

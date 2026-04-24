@@ -260,7 +260,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $prioritySafe = htmlspecialchars($ticketPriority);
             $requesterNameSafe = htmlspecialchars($requesterName);
             $attachments = notif_ticket_email_attachments($conn, $id, (string) ($ticket['attachment'] ?? ''));
-            $attachmentSummary = notif_ticket_attachment_summary($attachments);
             $currentAssignedUserId = (int) ($ticket['assigned_user_id'] ?? 0);
             $assigneeIdsForEmail = $currentAssignedUserId > 0 ? [$currentAssignedUserId] : [];
             $assigneeEmails = ticket_assignee_notification_emails($conn, $assigneeIdsForEmail, $currentAssignedCompany, $currentAssignedGroup, (int) ($ticket['user_id'] ?? 0));
@@ -284,14 +283,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $sharedUpdateLines[] = 'Priority: ' . $ticketPriority;
             }
             $sharedUpdateLines[] = 'Current status: ' . $new_status;
-            if ($assignedTargetLabel !== '') {
-                $sharedUpdateLines[] = 'Assigned To: ' . $assignedTargetLabel;
-            }
             if ($noteChanged && $notePreview !== '') {
                 $sharedUpdateLines[] = "Note from $updateSourceLabel:\n$notePreview";
-            }
-            if ($attachmentSummary !== '') {
-                $sharedUpdateLines[] = $attachmentSummary;
             }
 
             if ($statusChanged) {
@@ -310,6 +303,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             } else {
                 if ($requesterEmail !== '') {
                     $requesterLines = array_merge([
+                        "Ticket has been updated.",
                         "Ticket ID: #$ticketNumber",
                         "Subject: $ticketSubject",
                     ], $sharedUpdateLines);
@@ -321,6 +315,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 if (count($assigneeEmails) > 0) {
                     $assigneeLines = [
+                        "Ticket has been updated.",
                         "Ticket ID: #$ticketNumber",
                         "Subject: $ticketSubject",
                         "Requester: $requesterName",
