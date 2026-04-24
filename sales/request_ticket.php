@@ -30,7 +30,7 @@ $lapcDepartmentCategories = [
         'FleetCard Request',
         'Supplies',
     ],
-    'Bidding' => [
+    'Institutional Sales (Bidding)' => [
         'Documentation',
         'Email',
         'Hardware',
@@ -1693,6 +1693,12 @@ if (count($sapFormEntries) === 0) {
         body.sales-request-ticket-page .select-wrapper {
             position: relative;
         }
+        body.sales-request-ticket-page .select-wrapper.department-dropdown {
+            overflow: visible;
+        }
+        body.sales-request-ticket-page .select-wrapper.category-dropdown {
+            overflow: visible;
+        }
         body.sales-request-ticket-page .select-wrapper .form-control,
         body.sales-request-ticket-page .select-wrapper select {
             appearance: none;
@@ -1703,8 +1709,15 @@ if (count($sapFormEntries) === 0) {
             border: 2px solid #73a66f;
             border-radius: 16px;
             background: #ffffff;
-            color: #0f172a;
+            color: #334155;
             box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+            font-size: 15px;
+            font-weight: 400;
+            line-height: 1.4;
+        }
+        body.sales-request-ticket-page select.category-select option {
+            font-weight: 700;
+            color: #0f172a;
         }
         body.sales-request-ticket-page .select-wrapper .form-control:focus,
         body.sales-request-ticket-page .select-wrapper select:focus {
@@ -1720,6 +1733,162 @@ if (count($sapFormEntries) === 0) {
             font-size: 14px;
             pointer-events: none;
         }
+        body.sales-request-ticket-page .department-native-select {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+        body.sales-request-ticket-page .category-native-select {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+        body.sales-request-ticket-page .department-dropdown-trigger {
+            width: 100%;
+            min-height: 50px;
+            padding: 0 44px 0 16px;
+            border: 2px solid #73a66f;
+            border-radius: 16px;
+            background: #ffffff;
+            color: #334155;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+            font-size: 15px;
+            font-weight: 400;
+            line-height: 1.4;
+            text-align: left;
+            cursor: pointer;
+        }
+        body.sales-request-ticket-page .department-dropdown-trigger:not(.is-placeholder) {
+            font-weight: 700;
+        }
+        body.sales-request-ticket-page .department-dropdown-trigger:focus {
+            outline: none;
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
+        }
+        body.sales-request-ticket-page .department-dropdown-trigger.is-placeholder {
+            color: #334155;
+        }
+        body.sales-request-ticket-page .department-dropdown-trigger:disabled {
+            background: #f8fafc;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+        body.sales-request-ticket-page .category-dropdown-trigger {
+            width: 100%;
+            min-height: 50px;
+            padding: 0 44px 0 16px;
+            border: 2px solid #73a66f;
+            border-radius: 16px;
+            background: #ffffff;
+            color: #334155;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+            font-size: 15px;
+            font-weight: 400;
+            line-height: 1.4;
+            text-align: left;
+            cursor: pointer;
+        }
+        body.sales-request-ticket-page .category-dropdown-trigger:not(.is-placeholder) {
+            font-weight: 700;
+        }
+        body.sales-request-ticket-page .category-dropdown-trigger:focus {
+            outline: none;
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
+        }
+        body.sales-request-ticket-page .category-dropdown-trigger.is-placeholder {
+            color: #334155;
+        }
+        body.sales-request-ticket-page .category-dropdown-trigger:disabled {
+            background: #f8fafc;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+        body.sales-request-ticket-page .department-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            z-index: 70;
+            display: none;
+            max-height: 280px;
+            overflow-y: auto;
+            padding: 8px;
+            border: 1px solid #d6e2d4;
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+        }
+        body.sales-request-ticket-page .department-dropdown-menu.is-open {
+            display: block;
+        }
+        body.sales-request-ticket-page .category-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            z-index: 70;
+            display: none;
+            max-height: 280px;
+            overflow-y: auto;
+            padding: 8px;
+            border: 1px solid #d6e2d4;
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+        }
+        body.sales-request-ticket-page .category-dropdown-menu.is-open {
+            display: block;
+        }
+        body.sales-request-ticket-page .department-dropdown-option {
+            width: 100%;
+            border: 0;
+            background: transparent;
+            border-radius: 12px;
+            padding: 12px 14px;
+            color: #0f172a;
+            font-size: 14px;
+            text-align: left;
+            cursor: pointer;
+        }
+        body.sales-request-ticket-page .department-dropdown-option:hover,
+        body.sales-request-ticket-page .department-dropdown-option:focus {
+            outline: none;
+            background: #eef7ef;
+        }
+        body.sales-request-ticket-page .department-dropdown-option.is-selected {
+            background: #1B5E20;
+            color: #ffffff;
+            font-weight: 700;
+        }
+        body.sales-request-ticket-page .category-dropdown-option {
+            width: 100%;
+            border: 0;
+            background: transparent;
+            border-radius: 12px;
+            padding: 12px 14px;
+            color: #0f172a;
+            font-size: 14px;
+            text-align: left;
+            cursor: pointer;
+        }
+        body.sales-request-ticket-page .category-dropdown-option:hover,
+        body.sales-request-ticket-page .category-dropdown-option:focus {
+            outline: none;
+            background: #eef7ef;
+        }
+        body.sales-request-ticket-page .category-dropdown-option.is-selected {
+            background: #1B5E20;
+            color: #ffffff;
+            font-weight: 700;
+        }
         .sales-container {
             max-width: 920px;
             margin: 24px auto;
@@ -1727,7 +1896,7 @@ if (count($sapFormEntries) === 0) {
             padding: 0 24px 24px;
             border-radius: 16px;
             box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
-            overflow: hidden;
+            overflow: visible;
         }
         .header {
             text-align: center;
@@ -1747,7 +1916,7 @@ if (count($sapFormEntries) === 0) {
         }
         body.sales-request-ticket-page .form-card {
             padding: 0 24px 24px;
-            overflow: hidden;
+            overflow: visible;
             border-top: none !important;
             box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
             border-radius: 16px;
@@ -1808,10 +1977,12 @@ if (count($sapFormEntries) === 0) {
             border: 2px solid #73a66f;
             border-radius: 16px;
             background-color: #ffffff;
-            color: #0f172a;
+            color: #334155;
             box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
             box-sizing: border-box;
-            font-size: 14px;
+            font-size: 15px;
+            font-weight: 400;
+            line-height: 1.4;
         }
         body.sales-request-ticket-page input.form-control,
         body.sales-request-ticket-page select.form-control {
@@ -1822,6 +1993,14 @@ if (count($sapFormEntries) === 0) {
             min-height: 120px;
             padding: 14px 16px;
             resize: vertical;
+        }
+        body.sales-request-ticket-page input.form-control::placeholder,
+        body.sales-request-ticket-page textarea.form-control::placeholder {
+            color: #334155;
+            opacity: 1;
+            font-size: 15px;
+            font-weight: 400;
+            line-height: 1.4;
         }
         body.sales-request-ticket-page input.form-control:focus,
         body.sales-request-ticket-page select.form-control:focus,
@@ -3718,7 +3897,7 @@ if (count($sapFormEntries) === 0) {
             <div class="form-grid">
             <div class="form-group">
                 <label>Your Email <span class="required-asterisk">*</span></label>
-                <input type="email" name="email" class="form-control" required value="<?= htmlspecialchars($email ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                <input type="email" name="email" class="form-control" placeholder="Enter your email address" required value="<?= htmlspecialchars($email ?? '', ENT_QUOTES, 'UTF-8'); ?>">
             </div>
 
             <div class="request-grid-row is-single" id="recipientRow">
@@ -3737,13 +3916,15 @@ if (count($sapFormEntries) === 0) {
 
                 <div class="form-group hidden" id="departmentGroup">
                     <label>Assigned Department <span class="required-asterisk">*</span></label>
-                    <div class="select-wrapper">
-                        <select name="assigned_department" id="department" class="form-control" required disabled data-selected="<?= htmlspecialchars((string) $assigned_department_selected, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="select-wrapper department-dropdown" id="departmentDropdown">
+                        <select name="assigned_department" id="department" class="form-control department-native-select" required disabled data-selected="<?= htmlspecialchars((string) $assigned_department_selected, ENT_QUOTES, 'UTF-8'); ?>">
                             <option value="" disabled <?= $assigned_department_selected === '' ? 'selected' : '' ?> hidden>Choose department</option>
                             <?php foreach (($normalized_company_id === '@malvedaholdings.com' ? $mhcDepartments : $lapcDepartments) as $d): ?>
                                 <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $assigned_department_selected === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <button type="button" id="departmentDropdownTrigger" class="department-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false" disabled>Choose department</button>
+                        <div id="departmentDropdownMenu" class="department-dropdown-menu" role="listbox" aria-labelledby="departmentDropdownTrigger"></div>
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
                 </div>
@@ -3752,13 +3933,15 @@ if (count($sapFormEntries) === 0) {
             <div class="request-grid-row is-single" id="salesCategoryRow">
                 <div class="form-group" id="categoryContainer">
                     <label>Category <span class="required-asterisk">*</span></label>
-                    <div class="select-wrapper">
-                        <select name="category" id="sales_category" class="form-control category-select" required data-selected="<?= htmlspecialchars((string) ($category ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="select-wrapper category-dropdown" id="categoryDropdown">
+                        <select name="category" id="sales_category" class="form-control category-select category-native-select" required data-selected="<?= htmlspecialchars((string) ($category ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                             <option value="" disabled hidden <?= ($category ?? '') === '' ? 'selected' : '' ?>>Choose category</option>
                             <?php foreach (($normalized_company_id === '@malvedaproperties.com' ? $mpdcCategories : $defaultCategories) as $categoryOption): ?>
                                 <option value="<?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?>" <?= ($category ?? '') === $categoryOption ? 'selected' : '' ?>><?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <button type="button" id="categoryDropdownTrigger" class="category-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Choose category</button>
+                        <div id="categoryDropdownMenu" class="category-dropdown-menu" role="listbox" aria-labelledby="categoryDropdownTrigger"></div>
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
                 </div>
@@ -4442,8 +4625,14 @@ var recipientRow = document.getElementById('recipientRow');
 var departmentGroup = document.getElementById('departmentGroup');
 var recipientGroup = document.getElementById('recipientGroup');
 var departmentSelect = document.getElementById('department');
+var departmentDropdown = document.getElementById('departmentDropdown');
+var departmentTrigger = document.getElementById('departmentDropdownTrigger');
+var departmentMenu = document.getElementById('departmentDropdownMenu');
 var salesCategoryRow = document.getElementById('salesCategoryRow');
 var categorySelect = document.getElementById('sales_category');
+var categoryDropdown = document.getElementById('categoryDropdown');
+var categoryTrigger = document.getElementById('categoryDropdownTrigger');
+var categoryMenu = document.getElementById('categoryDropdownMenu');
 var categoryContainer = document.getElementById('categoryContainer');
 var priorityGroup = document.getElementById('priorityGroup');
 var prioritySelect = document.getElementById('sales_priority');
@@ -4774,14 +4963,80 @@ function isLapcRecipientValue(value) {
     return String(value || '') === 'LAPC (@leadsagri.com)' || String(value || '') === '@leadsagri.com';
 }
 
+<<<<<<< HEAD
 function isMhcRecipientValue(value) {
     return String(value || '') === 'MHC (@malvedaholdings.com)' || String(value || '') === '@malvedaholdings.com';
+=======
+function closeDepartmentDropdown() {
+    if (!departmentMenu || !departmentTrigger) return;
+    departmentMenu.classList.remove('is-open');
+    departmentTrigger.setAttribute('aria-expanded', 'false');
+}
+
+function closeCategoryDropdown() {
+    if (!categoryMenu || !categoryTrigger) return;
+    categoryMenu.classList.remove('is-open');
+    categoryTrigger.setAttribute('aria-expanded', 'false');
+}
+
+function syncDepartmentTriggerLabel() {
+    if (!departmentTrigger || !departmentSelect) return;
+    var selectedOption = departmentSelect.options[departmentSelect.selectedIndex];
+    var label = selectedOption && selectedOption.value ? selectedOption.textContent : 'Choose department';
+    departmentTrigger.textContent = label;
+    departmentTrigger.classList.toggle('is-placeholder', !(selectedOption && selectedOption.value));
+}
+
+function chooseDepartment(optionValue, shouldDispatchChange) {
+    if (!departmentSelect) return;
+    departmentSelect.value = optionValue;
+    departmentSelect.setAttribute('data-selected', optionValue);
+    syncDepartmentTriggerLabel();
+    if (departmentMenu) {
+        Array.from(departmentMenu.querySelectorAll('.department-dropdown-option')).forEach(function(button) {
+            button.classList.toggle('is-selected', String(button.getAttribute('data-value') || '') === optionValue);
+        });
+    }
+    closeDepartmentDropdown();
+    if (shouldDispatchChange) {
+        departmentSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
+function syncCategoryTriggerLabel() {
+    if (!categoryTrigger || !categorySelect) return;
+    var selectedOption = categorySelect.options[categorySelect.selectedIndex];
+    var label = selectedOption && selectedOption.value ? selectedOption.textContent : 'Choose category';
+    categoryTrigger.textContent = label;
+    categoryTrigger.classList.toggle('is-placeholder', !(selectedOption && selectedOption.value));
+}
+
+function chooseCategory(optionValue, shouldDispatchChange) {
+    if (!categorySelect) return;
+    categorySelect.value = optionValue;
+    categorySelect.setAttribute('data-selected', optionValue);
+    syncCategoryTriggerLabel();
+    if (categoryMenu) {
+        Array.from(categoryMenu.querySelectorAll('.category-dropdown-option')).forEach(function(button) {
+            var isSelected = String(button.getAttribute('data-value') || '') === optionValue;
+            button.classList.toggle('is-selected', isSelected);
+            button.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        });
+    }
+    closeCategoryDropdown();
+    if (shouldDispatchChange) {
+        categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+>>>>>>> 329ebec (Updated system)
 }
 
 function populateDepartments(options) {
     if (!departmentSelect) return;
     var selectedValue = String(departmentSelect.getAttribute('data-selected') || departmentSelect.value || '');
     departmentSelect.innerHTML = '<option value="" disabled selected hidden>Choose department</option>';
+    if (departmentMenu) {
+        departmentMenu.innerHTML = '';
+    }
     options.forEach(function(optionValue) {
         var option = document.createElement('option');
         option.value = optionValue;
@@ -4790,7 +5045,22 @@ function populateDepartments(options) {
             option.selected = true;
         }
         departmentSelect.appendChild(option);
+
+        if (departmentMenu) {
+            var optionButton = document.createElement('button');
+            optionButton.type = 'button';
+            optionButton.className = 'department-dropdown-option' + (selectedValue === optionValue ? ' is-selected' : '');
+            optionButton.setAttribute('data-value', optionValue);
+            optionButton.setAttribute('role', 'option');
+            optionButton.setAttribute('aria-selected', selectedValue === optionValue ? 'true' : 'false');
+            optionButton.textContent = optionValue;
+            optionButton.addEventListener('click', function() {
+                chooseDepartment(optionValue, true);
+            });
+            departmentMenu.appendChild(optionButton);
+        }
     });
+    syncDepartmentTriggerLabel();
 }
 
 function toggleDepartmentField() {
@@ -4804,6 +5074,7 @@ function toggleDepartmentField() {
         recipientGroup.classList.remove('full-width');
         departmentSelect.disabled = false;
         departmentSelect.setAttribute('required', 'required');
+<<<<<<< HEAD
     } else if (isMhcRecipientValue(value)) {
         populateDepartments(mhcDepartments);
         departmentGroup.style.display = 'block';
@@ -4811,13 +5082,20 @@ function toggleDepartmentField() {
         recipientGroup.classList.remove('full-width');
         departmentSelect.disabled = false;
         departmentSelect.setAttribute('required', 'required');
+=======
+        if (departmentTrigger) departmentTrigger.disabled = false;
+>>>>>>> 329ebec (Updated system)
     } else {
         departmentGroup.style.display = 'none';
         departmentGroup.classList.add('hidden');
         recipientGroup.classList.add('full-width');
         departmentSelect.value = '';
+        departmentSelect.setAttribute('data-selected', '');
         departmentSelect.disabled = true;
         departmentSelect.removeAttribute('required');
+        if (departmentTrigger) departmentTrigger.disabled = true;
+        syncDepartmentTriggerLabel();
+        closeDepartmentDropdown();
     }
     syncRequestGridRows();
 }
@@ -4826,6 +5104,9 @@ function populateSalesCategories(options) {
     if (!categorySelect) return;
     var selectedValue = String(categorySelect.getAttribute('data-selected') || categorySelect.value || '');
     categorySelect.innerHTML = '<option value="" disabled hidden selected>Choose category</option>';
+    if (categoryMenu) {
+        categoryMenu.innerHTML = '';
+    }
     options.forEach(function(optionValue){
         var opt = document.createElement('option');
         opt.value = optionValue;
@@ -4834,11 +5115,26 @@ function populateSalesCategories(options) {
             opt.selected = true;
         }
         categorySelect.appendChild(opt);
+
+        if (categoryMenu) {
+            var optionButton = document.createElement('button');
+            optionButton.type = 'button';
+            optionButton.className = 'category-dropdown-option' + (selectedValue === optionValue ? ' is-selected' : '');
+            optionButton.setAttribute('data-value', optionValue);
+            optionButton.setAttribute('role', 'option');
+            optionButton.setAttribute('aria-selected', selectedValue === optionValue ? 'true' : 'false');
+            optionButton.textContent = optionValue;
+            optionButton.addEventListener('click', function() {
+                chooseCategory(optionValue, true);
+            });
+            categoryMenu.appendChild(optionButton);
+        }
     });
     if (selectedValue !== '' && options.indexOf(selectedValue) === -1) {
         categorySelect.value = '';
     }
     categorySelect.setAttribute('data-selected', '');
+    syncCategoryTriggerLabel();
 }
 
 function toggleCategoryField() {
@@ -5503,12 +5799,44 @@ if (recipient) recipient.addEventListener('change', function() {
     toggleCategoryField();
     toggleHrExtraFields();
 });
+if (departmentTrigger) {
+    departmentTrigger.addEventListener('click', function() {
+        if (departmentTrigger.disabled || !departmentMenu) return;
+        var nextState = !departmentMenu.classList.contains('is-open');
+        if (!nextState) {
+            closeDepartmentDropdown();
+            return;
+        }
+        departmentMenu.classList.add('is-open');
+        departmentTrigger.setAttribute('aria-expanded', 'true');
+    });
+}
+if (categoryTrigger) {
+    categoryTrigger.addEventListener('click', function() {
+        if (categoryTrigger.disabled || !categoryMenu) return;
+        var nextState = !categoryMenu.classList.contains('is-open');
+        if (!nextState) {
+            closeCategoryDropdown();
+            return;
+        }
+        categoryMenu.classList.add('is-open');
+        categoryTrigger.setAttribute('aria-expanded', 'true');
+    });
+}
+document.addEventListener('click', function(event) {
+    if (!departmentDropdown) return;
+    if (departmentDropdown.contains(event.target) || (categoryDropdown && categoryDropdown.contains(event.target))) return;
+    closeDepartmentDropdown();
+    closeCategoryDropdown();
+});
 if (departmentSelect) departmentSelect.addEventListener('change', function() {
+    syncDepartmentTriggerLabel();
     toggleCategoryField();
     toggleHrExtraFields();
     syncCurrentSapDepartment();
 });
 if (categorySelect) categorySelect.addEventListener('change', function() {
+    syncCategoryTriggerLabel();
     toggleHrExtraFields();
 });
 if (concernTypeSelect) concernTypeSelect.addEventListener('change', function() {
@@ -5539,7 +5867,9 @@ if (projectDeadlineInput) {
     });
 }
 toggleDepartmentField();
+syncDepartmentTriggerLabel();
 toggleCategoryField();
+syncCategoryTriggerLabel();
 toggleHrExtraFields();
 initializeSavedSapReportsFromDom();
 syncSapCardState();

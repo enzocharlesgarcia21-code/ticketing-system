@@ -54,7 +54,6 @@ function ticket_lapc_departments(): array
     return [
         'Admin & Legal',
         'Banana Farm Operations',
-        'Bidding',
         'Diagnostics / Lingap',
         'Digital Agri Solutions and Innovations',
         'E-Commerce',
@@ -63,7 +62,6 @@ function ticket_lapc_departments(): array
         'HR',
         'IT',
         'Institutional Sales',
-        'Machineries',
         'Management',
         'New Business Segment',
         'Seed Production',
@@ -342,6 +340,151 @@ function ticket_find_department_admin_id(mysqli $conn, array $deptAliases): ?int
     return (int) $row['id'];
 }
 
+function ticket_users_has_super_admin_column(mysqli $conn): bool
+{
+    static $hasColumn = null;
+    if ($hasColumn !== null) {
+        return $hasColumn;
+    }
+
+    $res = $conn->query("SHOW COLUMNS FROM users LIKE 'is_super_admin'");
+    $hasColumn = $res && $res->num_rows > 0;
+    if ($res instanceof mysqli_result) {
+        $res->free();
+    }
+    return $hasColumn;
+}
+
+function ticket_department_user_aliases(string $company, string $group): array
+{
+    $company = ticket_normalize_company($company);
+    $group = trim($group);
+    if ($group === '') {
+        return [];
+    }
+
+    $aliases = [$group];
+    $isLapcCompany = ($company === '@leadsagri.com' || strtoupper($company) === 'LAPC');
+    if ($isLapcCompany && strcasecmp($group, 'Institutional Sales (Bidding)') === 0) {
+        $aliases[] = 'Institutional Sales';
+        $aliases[] = 'Bidding';
+    }
+
+    $standardKey = ticket_department_key_from_value($group);
+    if ($standardKey !== '') {
+        $aliases = array_merge($aliases, ticket_department_aliases_for_key($standardKey), [$standardKey]);
+    }
+
+    $normalized = [];
+    foreach ($aliases as $alias) {
+        $alias = trim((string) $alias);
+        if ($alias === '') continue;
+        $normalized[strtoupper($alias)] = $alias;
+    }
+
+    return array_values($normalized);
+}
+
+function ticket_find_department_user_options(mysqli $conn, string $company, string $group): array
+{
+    $company = ticket_normalize_company($company);
+    $group = trim($group);
+    if ($company === '' || $group === '') {
+        return [];
+    }
+
+    $isLapcCompany = ($company === '@leadsagri.com' || strtoupper($company) === 'LAPC');
+    $deptAliases = ticket_department_user_aliases($company, $group);
+    if (count($deptAliases) === 0) {
+        return [];
+    }
+
+    $where = ["u.role = 'employee'"];
+    $params = [];
+    $types = '';
+
+    if (ticket_users_has_super_admin_column($conn)) {
+        $where[] = "COALESCE(u.is_super_admin, 0) = 0";
+    }
+
+    $deptPlaceholders = implode(',', array_fill(0, count($deptAliases), '?'));
+    $where[] = "UPPER(TRIM(COALESCE(u.department, ''))) IN ($deptPlaceholders)";
+    foreach ($deptAliases as $deptAlias) {
+        $params[] = strtoupper(trim((string) $deptAlias));
+        $types .= 's';
+    }
+
+    if (strpos($company, '@') === 0) {
+        $domain = ltrim(strtolower($company), '@');
+        if ($domain === '') {
+            return [];
+        }
+        $where[] = "LOWER(u.email) LIKE ?";
+        $params[] = '%@' . $domain;
+        $types .= 's';
+
+        if ($company === '@leadsagri.com') {
+            $where[] = "(
+                TRIM(COALESCE(u.company, '')) = ''
+                OR UPPER(TRIM(COALESCE(u.company, ''))) IN (
+                    'LAPC',
+                    'LAPC (@LEADSAGRI.COM)',
+                    '@LEADSAGRI.COM',
+                    'LEADSAGRI.COM',
+                    'LEADS AGRICULTURAL PRODUCTS CORPORATION - LAPC'
+                )
+                OR LOWER(u.email) LIKE '%@leadsagri.com'
+            )";
+        }
+    } else {
+        $companyAliases = ticket_company_aliases($company);
+        if (count($companyAliases) === 0) {
+            return [];
+        }
+        $companyPlaceholders = implode(',', array_fill(0, count($companyAliases), '?'));
+        $where[] = "TRIM(COALESCE(u.company, '')) IN ($companyPlaceholders)";
+        foreach ($companyAliases as $companyAlias) {
+            $params[] = trim((string) $companyAlias);
+            $types .= 's';
+        }
+    }
+
+    $sql = "
+        SELECT u.id, u.name, u.email, u.department
+        FROM users u
+        WHERE " . implode(' AND ', $where) . "
+        ORDER BY u.name ASC, u.id ASC
+    ";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        return [];
+    }
+
+    $bind = [];
+    $bind[] = $types;
+    foreach ($params as $k => $value) {
+        $bind[] = &$params[$k];
+    }
+    call_user_func_array([$stmt, 'bind_param'], $bind);
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    $users = [];
+    while ($res && ($row = $res->fetch_assoc())) {
+        $userId = (int) ($row['id'] ?? 0);
+        if ($userId <= 0) continue;
+        $users[] = [
+            'id' => $userId,
+            'name' => trim((string) ($row['name'] ?? '')),
+            'email' => strtolower(trim((string) ($row['email'] ?? ''))),
+            'department' => trim((string) ($row['department'] ?? '')),
+        ];
+    }
+    $stmt->close();
+
+    return $users;
+}
+
 function ticket_find_assignee_ids(mysqli $conn, string $company, string $group): array
 {
     $company = ticket_normalize_company($company);
@@ -353,11 +496,7 @@ function ticket_find_assignee_ids(mysqli $conn, string $company, string $group):
     if ($company === '') return [];
     if ($isLapcCompany && $group === '') return [];
     if ($isLapcCompany && in_array($group, ticket_lapc_departments(), true)) {
-        $deptAliases = [$group];
-        $standardKey = ticket_department_key_from_value($group);
-        if ($standardKey !== '') {
-            $deptAliases = array_merge($deptAliases, ticket_department_aliases_for_key($standardKey), [$standardKey]);
-        }
+        $deptAliases = ticket_department_user_aliases($company, $group);
     } elseif ($group !== '') {
         $deptAliases = ticket_department_aliases_for_key($group);
     } else {

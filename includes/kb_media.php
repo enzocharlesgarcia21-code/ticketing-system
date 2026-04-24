@@ -89,6 +89,7 @@ if (!function_exists('kb_ensure_article_views_table')) {
                 user_id INT NULL,
                 viewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY uniq_article_viewer (article_id, viewer_key),
+                UNIQUE KEY uniq_article_user (article_id, user_id),
                 KEY idx_article_id (article_id),
                 KEY idx_user_id (user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -96,26 +97,31 @@ if (!function_exists('kb_ensure_article_views_table')) {
     }
 }
 
-if (!function_exists('kb_current_viewer_key')) {
-    function kb_current_viewer_key() {
-        $session_user_id = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
-        if ($session_user_id > 0) {
-            return 'user:' . $session_user_id;
+if (!function_exists('kb_current_registered_viewer_id')) {
+    function kb_current_registered_viewer_id() {
+        $userId = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
+        $role = trim((string) ($_SESSION['role'] ?? ''));
+        if ($userId <= 0 || $role !== 'employee') {
+            return 0;
         }
 
-        $session_id = (string) session_id();
-        if ($session_id === '') {
-            return '';
-        }
-
-        return 'session:' . $session_id;
+        return $userId;
     }
 }
 
-if (!function_exists('kb_current_viewer_role')) {
-    function kb_current_viewer_role() {
-        $role = trim((string) ($_SESSION['role'] ?? ''));
-        return $role !== '' ? $role : 'guest';
+if (!function_exists('kb_unique_views_count_sql')) {
+    function kb_unique_views_count_sql(string $articleIdExpr = 'knowledge_base.id'): string
+    {
+        $articleIdExpr = trim($articleIdExpr);
+        if ($articleIdExpr === '') {
+            $articleIdExpr = 'knowledge_base.id';
+        }
+
+        return "(SELECT COUNT(DISTINCT v.user_id)
+            FROM kb_article_views v
+            WHERE v.article_id = {$articleIdExpr}
+              AND v.user_id IS NOT NULL
+              AND v.viewer_role = 'employee')";
     }
 }
 
@@ -132,14 +138,13 @@ if (!function_exists('kb_register_article_view')) {
 
         kb_ensure_article_views_table($conn);
 
-        $viewer_key = kb_current_viewer_key();
-        if ($viewer_key === '') {
+        $user_id = kb_current_registered_viewer_id();
+        if ($user_id <= 0) {
             return false;
         }
 
-        $viewer_role = kb_current_viewer_role();
-        $user_id = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
-        $user_id = $user_id > 0 ? $user_id : null;
+        $viewer_key = 'user:' . $user_id;
+        $viewer_role = 'employee';
 
         $insert = $conn->prepare("INSERT IGNORE INTO kb_article_views (article_id, viewer_key, viewer_role, user_id) VALUES (?, ?, ?, ?)");
         if (!$insert) {
@@ -158,15 +163,6 @@ if (!function_exists('kb_register_article_view')) {
         if (!$is_new_view) {
             return false;
         }
-
-        $update = $conn->prepare("UPDATE knowledge_base SET views = COALESCE(views, 0) + 1 WHERE id = ?");
-        if (!$update) {
-            return false;
-        }
-
-        $update->bind_param("i", $article_id);
-        $update->execute();
-        $update->close();
 
         return true;
     }

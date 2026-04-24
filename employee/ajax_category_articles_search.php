@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/kb_media.php';
 
 header('Content-Type: application/json');
 
@@ -8,6 +9,8 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
     echo json_encode(['ok' => false, 'message' => 'Unauthorized']);
     exit();
 }
+
+kb_ensure_article_views_table($conn);
 
 $fixedCategories = [
     'Documentation',
@@ -102,7 +105,7 @@ if ($category === '' || !in_array($category, $fixedCategories, true)) {
 $articles = [];
 $categoryAliases = kb_category_aliases_ajax($category);
 $placeholders = implode(',', array_fill(0, count($categoryAliases), '?'));
-$query = "SELECT * FROM knowledge_base WHERE category IN ($placeholders)";
+$query = "SELECT knowledge_base.*, " . kb_unique_views_count_sql('knowledge_base.id') . " AS views FROM knowledge_base WHERE category IN ($placeholders)";
 $params = $categoryAliases;
 $types = str_repeat('s', count($categoryAliases));
 

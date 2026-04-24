@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/ticket_assignment.php';
 require_once '../includes/user_permissions.php';
 
 $analyticsExportViewMode = defined('TICKETING_ANALYTICS_EXPORT_VIEW_MODE') ? (string) TICKETING_ANALYTICS_EXPORT_VIEW_MODE : 'admin';

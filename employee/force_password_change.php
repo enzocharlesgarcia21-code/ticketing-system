@@ -28,13 +28,15 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
 $userId = (int) ($_SESSION['user_id'] ?? 0);
 $postLoginRedirect = force_password_redirect_target($_SESSION['post_login_redirect'] ?? '');
 
-$stmt = $conn->prepare("SELECT force_password_change FROM users WHERE id = ? LIMIT 1");
+$stmt = $conn->prepare("SELECT password, force_password_change FROM users WHERE id = ? LIMIT 1");
 $mustChange = 0;
+$currentPasswordHash = '';
 if ($stmt) {
     $stmt->bind_param("i", $userId);
     $stmt->execute();
     $res = $stmt->get_result();
     $row = $res ? $res->fetch_assoc() : null;
+    $currentPasswordHash = (string) ($row['password'] ?? '');
     $mustChange = (int) ($row['force_password_change'] ?? 0);
     $stmt->close();
 }
@@ -60,6 +62,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $error = "Passwords do not match.";
     } elseif (strlen($pass) < 8 || !preg_match('/[A-Z]/', $pass) || !preg_match('/[a-z]/', $pass) || !preg_match('/[0-9]/', $pass) || !preg_match('/[^A-Za-z0-9]/', $pass)) {
         $error = "Password must be at least 8 chars, include uppercase, lowercase, number, and special char.";
+    } elseif ($currentPasswordHash !== '' && password_verify($pass, $currentPasswordHash)) {
+        $error = "New password cannot be the same as your previous password.";
     } else {
         $hash = password_hash($pass, PASSWORD_DEFAULT);
         $update = $conn->prepare("UPDATE users SET password = ?, force_password_change = 0 WHERE id = ?");

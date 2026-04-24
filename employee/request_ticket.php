@@ -421,7 +421,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             'FleetCard Request',
             'Supplies',
         ],
-        'Bidding' => [
+        'Institutional Sales (Bidding)' => [
             'Documentation',
             'Email',
             'Hardware',
@@ -1551,6 +1551,9 @@ $requestTicketCompanyOptions = [
         }
         body.employee-request-ticket-page .select-wrapper {
             position: relative;
+        }
+        body.employee-request-ticket-page .select-wrapper.is-open {
+            z-index: 60;
         }
         body.employee-request-ticket-page .custom-select-trigger {
             width: 100%;
@@ -4041,8 +4044,8 @@ $requestTicketCompanyOptions = [
                                 <section class="marketing-request-card">
                                     <div class="form-group">
                                         <label for="area_code">Area Code <span class="required-asterisk">*</span></label>
-                                        <div class="select-wrapper">
-                                            <select name="area_code" id="area_code" class="form-control" data-selected="<?= htmlspecialchars((string) ($_POST['area_code'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                        <div class="select-wrapper" id="areaCodeWrapper">
+                                            <select name="area_code" id="area_code" class="form-control custom-select-native" data-selected="<?= htmlspecialchars((string) ($_POST['area_code'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                                 <option value="" disabled selected hidden>Choose area code</option>
                                                 <?php foreach (['811A', '811B', '812', '813A', '813B', '814A', '814B', '815A', '815B', '815C', '821A', '821B', '821C', '822A', '822B', '831A', '831B', '832A', '832B', '833', 'HEAD OFFICE'] as $areaCodeOption): ?>
                                                     <option value="<?= htmlspecialchars($areaCodeOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($_POST['area_code'] ?? '') === $areaCodeOption) ? 'selected' : ''; ?>>
@@ -4050,6 +4053,10 @@ $requestTicketCompanyOptions = [
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
+                                            <button type="button" class="form-control custom-select-trigger" id="areaCodeTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                                <span class="custom-select-value" id="areaCodeTriggerValue">Choose area code</span>
+                                            </button>
+                                            <div class="custom-select-menu" id="areaCodeMenu" role="listbox" hidden></div>
                                             <i class="fas fa-chevron-down select-icon"></i>
                                         </div>
                                     </div>
@@ -4379,6 +4386,10 @@ $requestTicketCompanyOptions = [
         const marketingRequestSection = document.getElementById('marketingRequestSection');
         const projectNameInput = document.getElementById('project_name');
         const areaCodeSelect = document.getElementById('area_code');
+        const areaCodeWrapper = document.getElementById('areaCodeWrapper');
+        const areaCodeTrigger = document.getElementById('areaCodeTrigger');
+        const areaCodeTriggerValue = document.getElementById('areaCodeTriggerValue');
+        const areaCodeMenu = document.getElementById('areaCodeMenu');
         const marketingDepartmentSelect = document.getElementById('marketing_department');
         const requestedMaterialsSelect = document.getElementById('requested_materials');
         const requestedMaterialsInputs = requestedMaterialsSelect ? [requestedMaterialsSelect] : Array.from(document.querySelectorAll('input[name="requested_materials[]"]'));
@@ -4435,7 +4446,7 @@ $requestTicketCompanyOptions = [
                 'FleetCard Request',
                 'Supplies',
             ],
-            'Bidding' => [
+            'Institutional Sales (Bidding)' => [
                 'Documentation',
                 'Email',
                 'Hardware',
@@ -4480,6 +4491,53 @@ $requestTicketCompanyOptions = [
                 'Marketing Request',
             ],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        function closeAreaCodeDropdown() {
+            if (!areaCodeWrapper || !areaCodeTrigger || !areaCodeMenu) return;
+            areaCodeWrapper.classList.remove('is-open');
+            areaCodeTrigger.setAttribute('aria-expanded', 'false');
+            areaCodeMenu.hidden = true;
+        }
+        function syncAreaCodeTriggerLabel() {
+            if (!areaCodeSelect || !areaCodeTriggerValue) return;
+            const selectedOption = areaCodeSelect.options[areaCodeSelect.selectedIndex];
+            const placeholderOption = areaCodeSelect.querySelector('option[value=""]');
+            const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
+                ? String(selectedOption.textContent || '').trim()
+                : String((placeholderOption && placeholderOption.textContent) || 'Choose area code').trim();
+            areaCodeTriggerValue.textContent = nextLabel || 'Choose area code';
+        }
+        function renderAreaCodeDropdownOptions() {
+            if (!areaCodeSelect || !areaCodeMenu || !areaCodeTrigger) return;
+            const currentValue = String(areaCodeSelect.value || '');
+            const options = Array.from(areaCodeSelect.options).filter(function(option) {
+                return String(option.value || '') !== '';
+            });
+            areaCodeMenu.innerHTML = '';
+            options.forEach(function(option) {
+                const optionValue = String(option.value || '');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option' + (currentValue === optionValue ? ' is-selected' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', currentValue === optionValue ? 'true' : 'false');
+                item.textContent = String(option.textContent || optionValue);
+                item.addEventListener('click', function() {
+                    areaCodeSelect.value = optionValue;
+                    areaCodeSelect.setAttribute('data-selected', optionValue);
+                    syncAreaCodeTriggerLabel();
+                    renderAreaCodeDropdownOptions();
+                    closeAreaCodeDropdown();
+                    areaCodeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    areaCodeTrigger.focus();
+                });
+                areaCodeMenu.appendChild(item);
+            });
+            syncAreaCodeTriggerLabel();
+            areaCodeTrigger.disabled = !!areaCodeSelect.disabled;
+            if (areaCodeSelect.disabled) {
+                closeAreaCodeDropdown();
+            }
+        }
         function closeDepartmentDropdown() {
             if (!departmentWrapper || !departmentTrigger || !departmentMenu) return;
             departmentWrapper.classList.remove('is-open');
@@ -5502,6 +5560,35 @@ $requestTicketCompanyOptions = [
                     closeDepartmentDropdown();
                 }
             });
+        }
+        if (areaCodeTrigger && areaCodeMenu && areaCodeWrapper) {
+            areaCodeTrigger.addEventListener('click', function() {
+                if (areaCodeTrigger.disabled) return;
+                const shouldOpen = areaCodeMenu.hidden;
+                closeAreaCodeDropdown();
+                if (!shouldOpen) return;
+                areaCodeWrapper.classList.add('is-open');
+                areaCodeTrigger.setAttribute('aria-expanded', 'true');
+                areaCodeMenu.hidden = false;
+            });
+            document.addEventListener('click', function(event) {
+                if (!areaCodeWrapper.contains(event.target)) {
+                    closeAreaCodeDropdown();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeAreaCodeDropdown();
+                }
+            });
+        }
+        if (areaCodeSelect) {
+            areaCodeSelect.addEventListener('change', function() {
+                areaCodeSelect.setAttribute('data-selected', String(areaCodeSelect.value || ''));
+                syncAreaCodeTriggerLabel();
+                renderAreaCodeDropdownOptions();
+            });
+            renderAreaCodeDropdownOptions();
         }
         if (categorySelect) {
             categorySelect.addEventListener('change', function() {
