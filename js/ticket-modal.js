@@ -1345,7 +1345,7 @@
     var initialCompany = normalizeCompanyValueForCompare(companyEl ? String(companyEl.value || '') : '');
     var initialDeptRaw = getDeptRawValue();
     var initialDept = normalizeDepartmentValueForCompare(initialDeptRaw, initialCompany);
-    var initialUser = userEl ? String(userEl.value || '') : String((data && data.assigned_user_id != null) ? data.assigned_user_id : '');
+    var initialUser = userEl && !userEl.disabled ? String(userEl.value || '') : '';
     var initialNote = noteEl ? String(noteEl.value || '').trim() : String((data && data.admin_note) || '').trim();
 
     function showNotice(message) {
@@ -1372,7 +1372,7 @@
       var currentCompany = normalizeCompanyValueForCompare(companyEl ? String(companyEl.value || '') : initialCompany);
       var currentDeptRaw = getDeptRawValue();
       var currentDept = normalizeDepartmentValueForCompare(currentDeptRaw, currentCompany);
-      var currentUser = userEl ? String(userEl.value || '') : initialUser;
+      var currentUser = userEl && !userEl.disabled ? String(userEl.value || '') : '';
       var currentNote = noteEl ? String(noteEl.value || '').trim() : initialNote;
       if (currentCompany === '@leadsagri.com' && currentDept === '') {
         e.preventDefault();
@@ -1499,6 +1499,33 @@
     };
     return companyAliases[normalized] || normalized;
   }
+  function normalizeDepartmentKey(value) {
+    var raw = value == null ? '' : String(value).trim();
+    if (!raw) return '';
+    var normalized = raw.toUpperCase().replace(/\s+/g, ' ');
+    var map = {
+      'ACCOUNTING': ['ACCOUNTING', 'FINANCE AND ACCOUNTING', 'FINANCE & ACCOUNTING'],
+      'ADMIN': ['ADMIN', 'ADMINISTRATION', 'ADMIN & LEGAL', 'FINANCE AND ADMIN', 'FINANCE & ADMIN'],
+      'BIDDING': ['BIDDING', 'INSTITUTIONAL SALES (BIDDING)', 'INSTITUTIONAL SALES'],
+      'E-COMM': ['E-COMM', 'E-COMMERCE', 'E COMMERCE', 'ECOMM'],
+      'HR': ['HR', 'HUMAN RESOURCE', 'HUMAN RESOURCES', 'HUMAN RESOURCE AND TRANSFORMATION'],
+      'IT': ['IT'],
+      'LINGAP': ['LINGAP', 'DIAGNOSTICS / LINGAP', 'DIAGNOSTICS/LINGAP'],
+      'MARKETING': ['MARKETING', 'SALES AND MARKETING'],
+      'SUPPLY CHAIN': ['SUPPLY CHAIN', 'SUPPLY CHAIN INNOVATION', 'LOGISTICS', 'SERVICES & LOGISTICS (LUZON)'],
+      'TECHNICAL': ['TECHNICAL']
+    };
+    var keys = Object.keys(map);
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      if (normalized === key) return key;
+      var aliases = map[key] || [];
+      for (var j = 0; j < aliases.length; j++) {
+        if (normalized === String(aliases[j]).toUpperCase()) return key;
+      }
+    }
+    return normalized;
+  }
   function getDeptOptionsForCompany(companyValue) {
     if (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true) return lapcDeptOptions;
     return normalizeCompanyValue(companyValue) === '@leadsagri.com' ? lapcDeptOptions : [];
@@ -1588,10 +1615,29 @@
     var deptEl = form.querySelector('select[name="assigned_department"]');
     var userEl = form.querySelector('select[name="assigned_user_id"]');
     if (!companyEl || !deptEl || !userEl) return;
+    var userField = userEl.closest ? userEl.closest('.tm-field') : null;
 
     var endpoint = (typeof window !== 'undefined' && window.TM_DEPARTMENT_USERS_ENDPOINT)
       ? String(window.TM_DEPARTMENT_USERS_ENDPOINT)
       : 'ajax_department_users.php';
+
+    function departmentUserAllowed() {
+      var current = (typeof window !== 'undefined' && window.TM_CURRENT_USER) ? window.TM_CURRENT_USER : null;
+      var currentDeptKey = normalizeDepartmentKey(current && current.department ? current.department : '');
+      var selectedDeptKey = normalizeDepartmentKey(deptEl.value || '');
+      return currentDeptKey !== '' && selectedDeptKey !== '' && currentDeptKey === selectedDeptKey;
+    }
+
+    function setDepartmentUserVisibility(visible) {
+      if (userField) {
+        userField.style.display = visible ? '' : 'none';
+      }
+      userEl.disabled = !visible;
+      if (!visible) {
+        userEl.innerHTML = '                  <option value="">Select your department first</option>';
+        userEl.value = '';
+      }
+    }
 
     function setLoadingState(message) {
       userEl.innerHTML = '                  <option value="">' + escapeHtml(message || 'Loading department users...') + '</option>';
@@ -1601,6 +1647,11 @@
     function syncUsers(preferredUserId) {
       var companyValue = String(companyEl.value || '').trim();
       var deptValue = String(deptEl.value || '').trim();
+      if (!departmentUserAllowed()) {
+        setDepartmentUserVisibility(false);
+        return;
+      }
+      setDepartmentUserVisibility(true);
       if (!companyValue || !deptValue) {
         userEl.innerHTML = '                  <option value="">No department users available</option>';
         userEl.disabled = true;
@@ -1838,6 +1889,9 @@
     var assignedCompanyValue = normalizeCompanyValue(data.assigned_company || '') || String(data.assigned_company || '');
     var deptOptionsHtml = buildDeptOptionsHtml(assignedCompanyValue, data.assigned_department || data.assigned_group || '');
     var assignedUserIdValue = data && data.assigned_user_id != null ? String(data.assigned_user_id) : '';
+    var currentUserDeptKey = normalizeDepartmentKey(current && current.department ? current.department : '');
+    var selectedDeptKey = normalizeDepartmentKey(data.assigned_department || data.assigned_group || '');
+    var canShowDepartmentUserSelect = showDepartmentUserSelect && currentUserDeptKey !== '' && selectedDeptKey !== '' && currentUserDeptKey === selectedDeptKey;
     var noteValue = data && data.admin_note != null ? String(data.admin_note) : '';
     var trimmedNoteValue = noteValue.trim();
     var requesterAdminNoteHtml = (isRequesterPOV && trimmedNoteValue !== '')
@@ -1944,11 +1998,11 @@
       '          </div>' +
       '        </div>' +
       (showDepartmentUserSelect ? (
-      '        <div class="tm-field">' +
+      '        <div class="tm-field tm-dept-user-field" ' + (canShowDepartmentUserSelect ? '' : 'style="display:none;"') + '>' +
       '          <label class="tm-control-label">Department User</label>' +
       '          <div class="tm-select-wrapper">' +
-      '            <select class="tm-select tm-dept-user-select" name="assigned_user_id">' +
-      '              <option value="' + escapeHtml(assignedUserIdValue) + '">' + (assignedUserIdValue ? 'Loading department users...' : 'Select department user') + '</option>' +
+      '            <select class="tm-select tm-dept-user-select" name="assigned_user_id" ' + (canShowDepartmentUserSelect ? '' : 'disabled') + '>' +
+      '              <option value="' + (canShowDepartmentUserSelect ? escapeHtml(assignedUserIdValue) : '') + '">' + (canShowDepartmentUserSelect && assignedUserIdValue ? 'Loading department users...' : 'Select department user') + '</option>' +
       '            </select>' +
       '          </div>' +
       '        </div>'

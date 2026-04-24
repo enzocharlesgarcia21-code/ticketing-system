@@ -23,6 +23,13 @@ if (!ticket_is_valid_company($company) || !ticket_is_valid_group_for_company($co
     exit;
 }
 
+$currentDepartmentKey = ticket_department_key_from_value((string) ($_SESSION['department'] ?? ''));
+$requestedDepartmentKey = ticket_department_key_from_value($department);
+if ($currentDepartmentKey === '' || $requestedDepartmentKey === '' || $currentDepartmentKey !== $requestedDepartmentKey) {
+    echo json_encode(['ok' => true, 'users' => []]);
+    exit;
+}
+
 $users = ticket_find_department_user_options($conn, $company, $department);
 
 echo json_encode([
