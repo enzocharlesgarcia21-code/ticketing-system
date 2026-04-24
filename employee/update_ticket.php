@@ -167,6 +167,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     $new_department = $normalizeGroupForCompany($new_department, $new_company);
     $new_group = $new_department;
+    $currentUserDepartmentKey = ticket_department_key_from_value((string) ($_SESSION['department'] ?? ''));
+    $newGroupKey = ticket_department_key_from_value((string) $new_group);
+    if ($requested_assigned_user_id > 0 && ($currentUserDepartmentKey === '' || $newGroupKey === '' || $currentUserDepartmentKey !== $newGroupKey)) {
+        $requested_assigned_user_id = 0;
+    }
 
     $newNoteNorm = (string) ($admin_note ?? '');
     $assignmentChanged = ($new_company !== $oldCompany) || ($new_department !== $oldDept);

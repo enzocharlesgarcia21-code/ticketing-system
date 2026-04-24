@@ -1572,10 +1572,9 @@ $requestTicketCompanyOptions = [
             white-space: nowrap;
         }
         body.employee-request-ticket-page .custom-select-menu {
-            position: absolute;
-            top: calc(100% + 8px);
-            left: 0;
-            right: 0;
+            position: static;
+            width: 100%;
+            margin-top: 8px;
             max-height: 280px;
             overflow-y: auto;
             background: #ffffff;
@@ -4064,8 +4063,8 @@ $requestTicketCompanyOptions = [
                                 <section class="marketing-request-card">
                                     <div class="form-group">
                                         <label for="marketing_department">Department <span class="required-asterisk">*</span></label>
-                                        <div class="select-wrapper">
-                                            <select name="marketing_department" id="marketing_department" class="form-control" data-selected="<?= htmlspecialchars((string) ($_POST['marketing_department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                        <div class="select-wrapper" id="marketingDepartmentWrapper">
+                                            <select name="marketing_department" id="marketing_department" class="form-control custom-select-native" data-selected="<?= htmlspecialchars((string) ($_POST['marketing_department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                                 <option value="" disabled selected hidden>Choose department</option>
                                                 <?php foreach (['Marketing Ops', 'Sales', 'Technical', 'Human Resources', 'PCC/GPCI', 'Farmex', 'Farmasee', 'LTC', 'MPDC', 'IT', 'Admin', 'Leads AH/EH', 'Executive/Management'] as $marketingDepartmentOption): ?>
                                                     <option value="<?= htmlspecialchars($marketingDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($_POST['marketing_department'] ?? '') === $marketingDepartmentOption) ? 'selected' : ''; ?>>
@@ -4073,6 +4072,10 @@ $requestTicketCompanyOptions = [
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
+                                            <button type="button" class="form-control custom-select-trigger" id="marketingDepartmentTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                                <span class="custom-select-value" id="marketingDepartmentTriggerValue">Choose department</span>
+                                            </button>
+                                            <div class="custom-select-menu" id="marketingDepartmentMenu" role="listbox" hidden></div>
                                             <i class="fas fa-chevron-down select-icon"></i>
                                         </div>
                                     </div>
@@ -4084,7 +4087,7 @@ $requestTicketCompanyOptions = [
                                     <label for="requested_materials">Requested Materials <span class="required-asterisk">*</span></label>
                                     <?php $selectedRequestedMaterials = request_ticket_clean_string_array($_POST['requested_materials'] ?? []); ?>
                                     <div class="select-wrapper" id="requestedMaterialsGroup">
-                                        <select name="requested_materials[]" id="requested_materials" class="form-control">
+                                        <select name="requested_materials[]" id="requested_materials" class="form-control custom-select-native">
                                             <option value="" disabled <?= count($selectedRequestedMaterials) === 0 ? 'selected' : ''; ?> hidden>Choose requested material</option>
                                             <?php foreach (['Social Media Graphics', 'Print Materials (Flyers, Brochures)', 'Video (Short-form)', 'Banners/Taffetas', 'Labels', 'Tarpaulin/Poster', 'Invitation', 'Coupons', 'Sintraboard design', 'Plotsigns', 'Promats Design (shirt, cap, etc)', 'Other'] as $materialOption): ?>
                                                 <option value="<?= htmlspecialchars($materialOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($materialOption, $selectedRequestedMaterials, true) ? 'selected' : ''; ?>>
@@ -4092,6 +4095,10 @@ $requestTicketCompanyOptions = [
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>
+                                        <button type="button" class="form-control custom-select-trigger" id="requestedMaterialsTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                            <span class="custom-select-value" id="requestedMaterialsTriggerValue">Choose requested material</span>
+                                        </button>
+                                        <div class="custom-select-menu" id="requestedMaterialsMenu" role="listbox" hidden></div>
                                         <i class="fas fa-chevron-down select-icon"></i>
                                     </div>
                                     <div class="marketing-request-other-row" id="requestedMaterialsOtherRow">
@@ -4150,7 +4157,7 @@ $requestTicketCompanyOptions = [
                                     <label for="crop">Crop <span class="required-asterisk">*</span></label>
                                     <?php $selectedCrops = request_ticket_clean_string_array($_POST['crop'] ?? []); ?>
                                     <div class="select-wrapper" id="cropGroup">
-                                        <select name="crop[]" id="crop" class="form-control">
+                                        <select name="crop[]" id="crop" class="form-control custom-select-native">
                                             <option value="" disabled <?= count($selectedCrops) === 0 ? 'selected' : ''; ?> hidden>Choose crop</option>
                                             <?php foreach (['Rice', 'Lowland Vegetable', 'Upland Vegetable', 'Sugarcane', 'Corn', 'Mango', 'Other'] as $cropOption): ?>
                                                 <option value="<?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($cropOption, $selectedCrops, true) ? 'selected' : ''; ?>>
@@ -4158,6 +4165,10 @@ $requestTicketCompanyOptions = [
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>
+                                        <button type="button" class="form-control custom-select-trigger" id="cropTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                            <span class="custom-select-value" id="cropTriggerValue">Choose crop</span>
+                                        </button>
+                                        <div class="custom-select-menu" id="cropMenu" role="listbox" hidden></div>
                                         <i class="fas fa-chevron-down select-icon"></i>
                                     </div>
                                     <div class="marketing-request-other-row" id="cropOtherRow">
@@ -4391,7 +4402,15 @@ $requestTicketCompanyOptions = [
         const areaCodeTriggerValue = document.getElementById('areaCodeTriggerValue');
         const areaCodeMenu = document.getElementById('areaCodeMenu');
         const marketingDepartmentSelect = document.getElementById('marketing_department');
+        const marketingDepartmentWrapper = document.getElementById('marketingDepartmentWrapper');
+        const marketingDepartmentTrigger = document.getElementById('marketingDepartmentTrigger');
+        const marketingDepartmentTriggerValue = document.getElementById('marketingDepartmentTriggerValue');
+        const marketingDepartmentMenu = document.getElementById('marketingDepartmentMenu');
         const requestedMaterialsSelect = document.getElementById('requested_materials');
+        const requestedMaterialsWrapper = document.getElementById('requestedMaterialsGroup');
+        const requestedMaterialsTrigger = document.getElementById('requestedMaterialsTrigger');
+        const requestedMaterialsTriggerValue = document.getElementById('requestedMaterialsTriggerValue');
+        const requestedMaterialsMenu = document.getElementById('requestedMaterialsMenu');
         const requestedMaterialsInputs = requestedMaterialsSelect ? [requestedMaterialsSelect] : Array.from(document.querySelectorAll('input[name="requested_materials[]"]'));
         const requestedMaterialsOtherRow = document.getElementById('requestedMaterialsOtherRow');
         const requestedMaterialsOtherInput = document.getElementById('requested_materials_other');
@@ -4402,6 +4421,10 @@ $requestTicketCompanyOptions = [
         const projectDeadlineHelp = document.getElementById('projectDeadlineHelp');
         const projectDeadlineError = document.getElementById('projectDeadlineError');
         const cropSelect = document.getElementById('crop');
+        const cropWrapper = document.getElementById('cropGroup');
+        const cropTrigger = document.getElementById('cropTrigger');
+        const cropTriggerValue = document.getElementById('cropTriggerValue');
+        const cropMenu = document.getElementById('cropMenu');
         const cropInputs = cropSelect ? [cropSelect] : Array.from(document.querySelectorAll('input[name="crop[]"]'));
         const cropOtherRow = document.getElementById('cropOtherRow');
         const cropOtherInput = document.getElementById('crop_other');
@@ -4536,6 +4559,145 @@ $requestTicketCompanyOptions = [
             areaCodeTrigger.disabled = !!areaCodeSelect.disabled;
             if (areaCodeSelect.disabled) {
                 closeAreaCodeDropdown();
+            }
+        }
+        function closeMarketingDepartmentDropdown() {
+            if (!marketingDepartmentWrapper || !marketingDepartmentTrigger || !marketingDepartmentMenu) return;
+            marketingDepartmentWrapper.classList.remove('is-open');
+            marketingDepartmentTrigger.setAttribute('aria-expanded', 'false');
+            marketingDepartmentMenu.hidden = true;
+        }
+        function syncMarketingDepartmentTriggerLabel() {
+            if (!marketingDepartmentSelect || !marketingDepartmentTriggerValue) return;
+            const selectedOption = marketingDepartmentSelect.options[marketingDepartmentSelect.selectedIndex];
+            const placeholderOption = marketingDepartmentSelect.querySelector('option[value=""]');
+            const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
+                ? String(selectedOption.textContent || '').trim()
+                : String((placeholderOption && placeholderOption.textContent) || 'Choose department').trim();
+            marketingDepartmentTriggerValue.textContent = nextLabel || 'Choose department';
+        }
+        function renderMarketingDepartmentDropdownOptions() {
+            if (!marketingDepartmentSelect || !marketingDepartmentMenu || !marketingDepartmentTrigger) return;
+            const currentValue = String(marketingDepartmentSelect.value || '');
+            const options = Array.from(marketingDepartmentSelect.options).filter(function(option) {
+                return String(option.value || '') !== '';
+            });
+            marketingDepartmentMenu.innerHTML = '';
+            options.forEach(function(option) {
+                const optionValue = String(option.value || '');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option' + (currentValue === optionValue ? ' is-selected' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', currentValue === optionValue ? 'true' : 'false');
+                item.textContent = String(option.textContent || optionValue);
+                item.addEventListener('click', function() {
+                    marketingDepartmentSelect.value = optionValue;
+                    marketingDepartmentSelect.setAttribute('data-selected', optionValue);
+                    syncMarketingDepartmentTriggerLabel();
+                    renderMarketingDepartmentDropdownOptions();
+                    closeMarketingDepartmentDropdown();
+                    marketingDepartmentSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    marketingDepartmentTrigger.focus();
+                });
+                marketingDepartmentMenu.appendChild(item);
+            });
+            syncMarketingDepartmentTriggerLabel();
+            marketingDepartmentTrigger.disabled = !!marketingDepartmentSelect.disabled;
+            if (marketingDepartmentSelect.disabled) {
+                closeMarketingDepartmentDropdown();
+            }
+        }
+        function closeRequestedMaterialsDropdown() {
+            if (!requestedMaterialsWrapper || !requestedMaterialsTrigger || !requestedMaterialsMenu) return;
+            requestedMaterialsWrapper.classList.remove('is-open');
+            requestedMaterialsTrigger.setAttribute('aria-expanded', 'false');
+            requestedMaterialsMenu.hidden = true;
+        }
+        function syncRequestedMaterialsTriggerLabel() {
+            if (!requestedMaterialsSelect || !requestedMaterialsTriggerValue) return;
+            const selectedOption = requestedMaterialsSelect.options[requestedMaterialsSelect.selectedIndex];
+            const placeholderOption = requestedMaterialsSelect.querySelector('option[value=""]');
+            const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
+                ? String(selectedOption.textContent || '').trim()
+                : String((placeholderOption && placeholderOption.textContent) || 'Choose requested material').trim();
+            requestedMaterialsTriggerValue.textContent = nextLabel || 'Choose requested material';
+        }
+        function renderRequestedMaterialsDropdownOptions() {
+            if (!requestedMaterialsSelect || !requestedMaterialsMenu || !requestedMaterialsTrigger) return;
+            const currentValue = String(requestedMaterialsSelect.value || '');
+            const options = Array.from(requestedMaterialsSelect.options).filter(function(option) {
+                return String(option.value || '') !== '';
+            });
+            requestedMaterialsMenu.innerHTML = '';
+            options.forEach(function(option) {
+                const optionValue = String(option.value || '');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option' + (currentValue === optionValue ? ' is-selected' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', currentValue === optionValue ? 'true' : 'false');
+                item.textContent = String(option.textContent || optionValue);
+                item.addEventListener('click', function() {
+                    requestedMaterialsSelect.value = optionValue;
+                    syncRequestedMaterialsTriggerLabel();
+                    renderRequestedMaterialsDropdownOptions();
+                    closeRequestedMaterialsDropdown();
+                    requestedMaterialsSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    requestedMaterialsTrigger.focus();
+                });
+                requestedMaterialsMenu.appendChild(item);
+            });
+            syncRequestedMaterialsTriggerLabel();
+            requestedMaterialsTrigger.disabled = !!requestedMaterialsSelect.disabled;
+            if (requestedMaterialsSelect.disabled) {
+                closeRequestedMaterialsDropdown();
+            }
+        }
+        function closeCropDropdown() {
+            if (!cropWrapper || !cropTrigger || !cropMenu) return;
+            cropWrapper.classList.remove('is-open');
+            cropTrigger.setAttribute('aria-expanded', 'false');
+            cropMenu.hidden = true;
+        }
+        function syncCropTriggerLabel() {
+            if (!cropSelect || !cropTriggerValue) return;
+            const selectedOption = cropSelect.options[cropSelect.selectedIndex];
+            const placeholderOption = cropSelect.querySelector('option[value=""]');
+            const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
+                ? String(selectedOption.textContent || '').trim()
+                : String((placeholderOption && placeholderOption.textContent) || 'Choose crop').trim();
+            cropTriggerValue.textContent = nextLabel || 'Choose crop';
+        }
+        function renderCropDropdownOptions() {
+            if (!cropSelect || !cropMenu || !cropTrigger) return;
+            const currentValue = String(cropSelect.value || '');
+            const options = Array.from(cropSelect.options).filter(function(option) {
+                return String(option.value || '') !== '';
+            });
+            cropMenu.innerHTML = '';
+            options.forEach(function(option) {
+                const optionValue = String(option.value || '');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option' + (currentValue === optionValue ? ' is-selected' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', currentValue === optionValue ? 'true' : 'false');
+                item.textContent = String(option.textContent || optionValue);
+                item.addEventListener('click', function() {
+                    cropSelect.value = optionValue;
+                    syncCropTriggerLabel();
+                    renderCropDropdownOptions();
+                    closeCropDropdown();
+                    cropSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    cropTrigger.focus();
+                });
+                cropMenu.appendChild(item);
+            });
+            syncCropTriggerLabel();
+            cropTrigger.disabled = !!cropSelect.disabled;
+            if (cropSelect.disabled) {
+                closeCropDropdown();
             }
         }
         function closeDepartmentDropdown() {
@@ -5589,6 +5751,91 @@ $requestTicketCompanyOptions = [
                 renderAreaCodeDropdownOptions();
             });
             renderAreaCodeDropdownOptions();
+        }
+        if (marketingDepartmentTrigger && marketingDepartmentMenu && marketingDepartmentWrapper) {
+            marketingDepartmentTrigger.addEventListener('click', function() {
+                if (marketingDepartmentTrigger.disabled) return;
+                const shouldOpen = marketingDepartmentMenu.hidden;
+                closeMarketingDepartmentDropdown();
+                if (!shouldOpen) return;
+                marketingDepartmentWrapper.classList.add('is-open');
+                marketingDepartmentTrigger.setAttribute('aria-expanded', 'true');
+                marketingDepartmentMenu.hidden = false;
+            });
+            document.addEventListener('click', function(event) {
+                if (!marketingDepartmentWrapper.contains(event.target)) {
+                    closeMarketingDepartmentDropdown();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeMarketingDepartmentDropdown();
+                }
+            });
+        }
+        if (marketingDepartmentSelect) {
+            marketingDepartmentSelect.addEventListener('change', function() {
+                marketingDepartmentSelect.setAttribute('data-selected', String(marketingDepartmentSelect.value || ''));
+                syncMarketingDepartmentTriggerLabel();
+                renderMarketingDepartmentDropdownOptions();
+            });
+            renderMarketingDepartmentDropdownOptions();
+        }
+        if (requestedMaterialsTrigger && requestedMaterialsMenu && requestedMaterialsWrapper) {
+            requestedMaterialsTrigger.addEventListener('click', function() {
+                if (requestedMaterialsTrigger.disabled) return;
+                const shouldOpen = requestedMaterialsMenu.hidden;
+                closeRequestedMaterialsDropdown();
+                if (!shouldOpen) return;
+                requestedMaterialsWrapper.classList.add('is-open');
+                requestedMaterialsTrigger.setAttribute('aria-expanded', 'true');
+                requestedMaterialsMenu.hidden = false;
+            });
+            document.addEventListener('click', function(event) {
+                if (!requestedMaterialsWrapper.contains(event.target)) {
+                    closeRequestedMaterialsDropdown();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeRequestedMaterialsDropdown();
+                }
+            });
+        }
+        if (requestedMaterialsSelect) {
+            requestedMaterialsSelect.addEventListener('change', function() {
+                syncRequestedMaterialsTriggerLabel();
+                renderRequestedMaterialsDropdownOptions();
+            });
+            renderRequestedMaterialsDropdownOptions();
+        }
+        if (cropTrigger && cropMenu && cropWrapper) {
+            cropTrigger.addEventListener('click', function() {
+                if (cropTrigger.disabled) return;
+                const shouldOpen = cropMenu.hidden;
+                closeCropDropdown();
+                if (!shouldOpen) return;
+                cropWrapper.classList.add('is-open');
+                cropTrigger.setAttribute('aria-expanded', 'true');
+                cropMenu.hidden = false;
+            });
+            document.addEventListener('click', function(event) {
+                if (!cropWrapper.contains(event.target)) {
+                    closeCropDropdown();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeCropDropdown();
+                }
+            });
+        }
+        if (cropSelect) {
+            cropSelect.addEventListener('change', function() {
+                syncCropTriggerLabel();
+                renderCropDropdownOptions();
+            });
+            renderCropDropdownOptions();
         }
         if (categorySelect) {
             categorySelect.addEventListener('change', function() {
