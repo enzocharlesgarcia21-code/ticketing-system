@@ -193,8 +193,9 @@ function smtp_prepare_ticket_threading(int $ticketId, string $subject): ?array
     smtp_ensure_ticket_thread_columns($conn);
 
     $rootMessageId = '';
+    $lastMessageId = '';
     $threadSubject = '';
-    $stmt = $conn->prepare("SELECT root_message_id, thread_subject FROM employee_tickets WHERE id = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT root_message_id, last_message_id, thread_subject FROM employee_tickets WHERE id = ? LIMIT 1");
     if ($stmt) {
         $stmt->bind_param("i", $ticketId);
         $stmt->execute();
@@ -203,6 +204,7 @@ function smtp_prepare_ticket_threading(int $ticketId, string $subject): ?array
         $stmt->close();
         if ($row) {
             $rootMessageId = trim((string) ($row['root_message_id'] ?? ''));
+            $lastMessageId = trim((string) ($row['last_message_id'] ?? ''));
             $threadSubject = trim((string) ($row['thread_subject'] ?? ''));
         }
     }
@@ -240,6 +242,7 @@ function smtp_prepare_ticket_threading(int $ticketId, string $subject): ?array
         'subject' => $threadSubject,
         'message_id' => $isRoot ? $rootMessageId : smtp_generate_message_id($ticketId),
         'root_message_id' => $rootMessageId,
+        'last_message_id' => $lastMessageId !== '' ? $lastMessageId : $rootMessageId,
         'is_root' => $isRoot,
     ];
 }
@@ -295,8 +298,16 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
                     $mail->MessageID = (string) $threading['message_id'];
                     if (empty($threading['is_root'])) {
                         $rootMessageId = (string) $threading['root_message_id'];
-                        $mail->addCustomHeader('In-Reply-To', $rootMessageId);
-                        $mail->addCustomHeader('References', $rootMessageId);
+                        $replyToMessageId = trim((string) ($threading['last_message_id'] ?? ''));
+                        if ($replyToMessageId === '') {
+                            $replyToMessageId = $rootMessageId;
+                        }
+                        $mail->addCustomHeader('In-Reply-To', $replyToMessageId);
+                        $references = $rootMessageId;
+                        if ($replyToMessageId !== '' && $replyToMessageId !== $rootMessageId) {
+                            $references .= ' ' . $replyToMessageId;
+                        }
+                        $mail->addCustomHeader('References', trim($references));
                     }
                 }
                 if ($textBody !== '') {
