@@ -128,8 +128,9 @@ foreach ($ticketAttachments as $attachmentItem) {
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
 
-    $new_status = $_POST['status'];
-    $new_department = $_POST['assigned_department'];
+    $oldStatus = (string) ($ticket['status'] ?? '');
+    $new_status = trim((string) ($_POST['status'] ?? ''));
+    $new_department = trim((string) ($_POST['assigned_department'] ?? ''));
 
     $update = $conn->prepare("
         UPDATE employee_tickets
@@ -140,56 +141,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $update->execute();
     $update->close();
 
-   /* ================= SEND EMAIL TO EMPLOYEE ================= */
+    $ticketNumber = notif_ticket_number($id);
+    $sharedLines = [];
+    if (!empty($ticket['category'])) {
+        $sharedLines[] = 'Category: ' . (string) $ticket['category'];
+    }
+    if (!empty($ticket['description'])) {
+        $sharedLines[] = "Description:\n" . (string) $ticket['description'];
+    }
+    if (!empty($ticket['priority'])) {
+        $sharedLines[] = 'Priority: ' . (string) $ticket['priority'];
+    }
+    if ($new_department !== '') {
+        $sharedLines[] = 'Assigned Department: ' . $new_department;
+    }
+    $sharedLines[] = 'Current status: ' . $new_status;
 
-    $toEmail = (string) ($ticket['email'] ?? '');
-    $toName = (string) ($ticket['name'] ?? '');
-    $ticketId = (string) ($ticket['id'] ?? $id);
-    $subject = (string) ($ticket['subject'] ?? '');
-
-    $subjectLine = "Ticket Update: #{$ticketId} - " . $subject;
-
-    $nameSafe = htmlspecialchars($toName);
-    $ticketIdSafe = htmlspecialchars($ticketId);
-    $ticketSubjectSafe = htmlspecialchars($subject);
-    $categorySafe = htmlspecialchars((string) ($ticket['category'] ?? ''));
-    $prioritySafe = htmlspecialchars((string) ($ticket['priority'] ?? ''));
-    $statusSafe = htmlspecialchars((string) $new_status);
-    $deptSafe = htmlspecialchars((string) $new_department);
-
-    $bodyHtml = "
-        <div style='font-family:Segoe UI, Arial, sans-serif; padding:15px; color:#111827; line-height:1.5'>
-            <h2 style='color:#1B5E20; margin:0 0 12px 0'>Ticket Update Notification</h2>
-            <p style='margin:0 0 12px 0'>Hello <strong>{$nameSafe}</strong>,</p>
-            <p style='margin:0 0 12px 0'>Your ticket has been updated by the Admin.</p>
-            <hr>
-            <p style='margin:0 0 6px 0'><strong>Ticket ID:</strong> #{$ticketIdSafe}</p>
-            <p style='margin:0 0 6px 0'><strong>Subject:</strong> {$ticketSubjectSafe}</p>
-            <p style='margin:0 0 6px 0'><strong>Category:</strong> {$categorySafe}</p>
-            <p style='margin:0 0 6px 0'><strong>Priority:</strong> {$prioritySafe}</p>
-            <p style='margin:0 0 6px 0'><strong>New Status:</strong> <span style='color:#1B5E20;font-weight:700'>{$statusSafe}</span></p>
-            <p style='margin:0 0 6px 0'><strong>Assigned Department:</strong> {$deptSafe}</p>
-            <hr>
-            <p style='font-size:12px;color:#64748B;margin:0'>This is an automated message from Leads Agri Helpdesk.</p>
-        </div>
-    ";
-    $bodyText = "Ticket Update Notification\n\n"
-        . "Hello $toName,\n\n"
-        . "Your ticket has been updated by the Admin.\n\n"
-        . "Ticket ID: #$ticketId\n"
-        . "Subject: $subject\n"
-        . "Category: " . (string) ($ticket['category'] ?? '') . "\n"
-        . "Priority: " . (string) ($ticket['priority'] ?? '') . "\n"
-        . "New Status: $new_status\n"
-        . "Assigned Department: $new_department\n";
-
-    if ($toEmail !== '') {
-        $ok = sendSmtpEmail([$toEmail], $subjectLine, $bodyHtml, $bodyText);
-        if (!$ok) {
-            error_log('Ticket update email failed (admin/view_ticket.php) | ticketId=' . (string) $ticketId);
-        }
-    } else {
-        error_log('Ticket update email skipped (empty recipient) | ticketId=' . (string) $ticketId);
+    $notifyResult = notif_send_ticket_status_update(
+        $conn,
+        $id,
+        $oldStatus,
+        $new_status,
+        'Admin',
+        [
+            'extra_lines' => $sharedLines,
+        ]
+    );
+    if (($notifyResult['emailed'] ?? 0) <= 0) {
+        error_log('Ticket update email not sent (admin/view_ticket.php) | ticketId=' . (string) $ticketNumber);
     }
 
     $_SESSION['success'] = "Ticket #$id successfully updated.";
