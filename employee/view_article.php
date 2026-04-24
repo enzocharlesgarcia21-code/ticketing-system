@@ -2,6 +2,8 @@
 require_once '../config/database.php';
 require_once '../includes/kb_media.php';
 
+kb_ensure_article_views_table($conn);
+
 // Protect page
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
@@ -16,7 +18,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $article_id = (int)$_GET['id'];
 // 1. Fetch Article
-$stmt = $conn->prepare("SELECT * FROM knowledge_base WHERE id = ?");
+$stmt = $conn->prepare("SELECT knowledge_base.*, " . kb_unique_views_count_sql('knowledge_base.id') . " AS views FROM knowledge_base WHERE id = ?");
 $stmt->bind_param("i", $article_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -36,7 +38,7 @@ $back_url = 'knowledge_base.php';
 
 // Fetch Related Articles
 $relatedStmt = $conn->prepare("
-    SELECT k.id, k.title, k.category, k.views 
+    SELECT k.id, k.title, k.category, " . kb_unique_views_count_sql('k.id') . " AS views
     FROM kb_related_articles r 
     JOIN knowledge_base k ON r.related_article_id = k.id 
     WHERE r.article_id = ?

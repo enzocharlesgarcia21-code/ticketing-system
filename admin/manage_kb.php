@@ -27,6 +27,7 @@ if ($subCategoryColRes && $subCategoryColRes->num_rows === 0) {
     $conn->query("ALTER TABLE knowledge_base ADD COLUMN sub_category VARCHAR(255) NULL AFTER category");
 }
 kb_ensure_image_path_column_supports_multiple($conn);
+kb_ensure_article_views_table($conn);
 
 // Handle Form Submission (Add/Delete)
 $success_msg = '';
@@ -206,7 +207,11 @@ if (isset($_GET['error'])) {
 }
 
 // 3. Fetch Articles & Calculate Stats
-$result = $conn->query("SELECT * FROM knowledge_base ORDER BY created_at DESC");
+$result = $conn->query("
+    SELECT knowledge_base.*, " . kb_unique_views_count_sql('knowledge_base.id') . " AS unique_views
+    FROM knowledge_base
+    ORDER BY created_at DESC
+");
 $articles = [];
 $total_views = 0;
 $unique_categories = [];
@@ -214,7 +219,7 @@ $unique_categories = [];
 if ($result) {
     while ($row = $result->fetch_assoc()) {
         $articles[] = $row;
-        $total_views += isset($row['views']) ? (int)$row['views'] : 0;
+        $total_views += isset($row['unique_views']) ? (int) $row['unique_views'] : 0;
         if (!empty($row['category'])) {
             $unique_categories[$row['category']] = true;
         }
@@ -777,6 +782,125 @@ unset($recent_articles_query['recent_page']);
         .meta-text {
             color: #667085;
             font-size: 14px;
+        }
+
+        .kb-views-btn {
+            border: 0;
+            background: transparent;
+            color: #667085;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 9px;
+            border-radius: 10px;
+            cursor: pointer;
+            font: inherit;
+            transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+
+        .kb-views-btn:hover,
+        .kb-views-btn:focus-visible {
+            background: rgba(37, 99, 235, 0.09);
+            color: #2563eb;
+            outline: none;
+        }
+
+        .kb-views-btn:active {
+            transform: translateY(1px);
+        }
+
+        .kb-viewers-popup {
+            border-radius: 18px;
+            overflow: hidden;
+            padding: 0;
+        }
+
+        .kb-viewers-title {
+            width: 100%;
+            margin: 0;
+            padding: 22px 56px 22px 28px;
+            background: #166534;
+            color: #fff;
+            font-size: 20px;
+            line-height: 1.3;
+            text-align: left;
+        }
+
+        .kb-viewers-html {
+            margin: 0;
+            padding: 22px;
+            text-align: left;
+        }
+
+        .kb-viewers-popup .swal2-close {
+            color: rgba(255, 255, 255, 0.86);
+            top: 12px;
+            right: 12px;
+        }
+
+        .kb-viewers-popup .swal2-close:hover {
+            color: #fff;
+        }
+
+        .kb-viewer-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 420px;
+            overflow: auto;
+            padding: 2px 2px 0;
+        }
+
+        .kb-viewer-item {
+            display: grid;
+            grid-template-columns: 42px minmax(0, 1fr);
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: #fff;
+        }
+
+        .kb-viewer-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: #ecfdf5;
+            color: #166534;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .kb-viewer-name {
+            color: #111827;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+
+        .kb-viewer-email,
+        .kb-viewer-meta {
+            color: #667085;
+            font-size: 13px;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }
+
+        .kb-viewer-meta {
+            margin-top: 4px;
+        }
+
+        .kb-viewers-empty {
+            color: #667085;
+            text-align: center;
+            padding: 28px 16px;
+            border: 1px dashed #d1d5db;
+            border-radius: 14px;
+            background: #f9fafb;
         }
 
         .actions-cell {
@@ -1601,8 +1725,15 @@ unset($recent_articles_query['recent_page']);
                                 </div>
                                 <div class="meta-text">
                                     <div class="kb-col-label">Views</div>
-                                    <i class="far fa-eye" style="margin-right: 5px;"></i>
-                                    <?= isset($row['views']) ? number_format($row['views']) : '0' ?>
+                                    <button
+                                        type="button"
+                                        class="kb-views-btn"
+                                        onclick="showArticleViewers(<?= (int) $row['id'] ?>)"
+                                        aria-label="Show viewers for <?= htmlspecialchars($row['title'], ENT_QUOTES, 'UTF-8') ?>"
+                                    >
+                                        <i class="far fa-eye"></i>
+                                        <span><?= isset($row['unique_views']) ? number_format((int) $row['unique_views']) : '0' ?></span>
+                                    </button>
                                 </div>
                                 <div class="meta-text">
                                     <div class="kb-col-label">Created Date</div>
@@ -1698,8 +1829,15 @@ unset($recent_articles_query['recent_page']);
                                     </div>
                                     <div class="meta-text">
                                         <div class="kb-col-label">Views</div>
-                                        <i class="far fa-eye" style="margin-right: 5px;"></i>
-                                        <?= isset($row['views']) ? number_format($row['views']) : '0' ?>
+                                        <button
+                                            type="button"
+                                            class="kb-views-btn"
+                                            onclick="showArticleViewers(<?= (int) $row['id'] ?>)"
+                                            aria-label="Show viewers for <?= htmlspecialchars($row['title'], ENT_QUOTES, 'UTF-8') ?>"
+                                        >
+                                            <i class="far fa-eye"></i>
+                                            <span><?= isset($row['unique_views']) ? number_format((int) $row['unique_views']) : '0' ?></span>
+                                        </button>
                                     </div>
                                     <div class="meta-text">
                                         <div class="kb-col-label">Created Date</div>
@@ -1892,6 +2030,92 @@ unset($recent_articles_query['recent_page']);
 </div>
 
 <script>
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function viewerInitials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    return parts.slice(0, 2).map(part => part.charAt(0)).join('').toUpperCase();
+}
+
+function renderViewerList(viewers) {
+    if (!Array.isArray(viewers) || viewers.length === 0) {
+        return '<div class="kb-viewers-empty">No registered users have viewed this article yet.</div>';
+    }
+
+    return '<div class="kb-viewer-list">' + viewers.map(function(viewer) {
+        const meta = [
+            viewer.role || '',
+            viewer.company || '',
+            viewer.department || '',
+            viewer.viewed_at ? 'Viewed ' + viewer.viewed_at : ''
+        ].filter(Boolean).map(escapeHtml).join(' &bull; ');
+
+        return `
+            <div class="kb-viewer-item">
+                <div class="kb-viewer-avatar">${escapeHtml(viewerInitials(viewer.name))}</div>
+                <div>
+                    <div class="kb-viewer-name">${escapeHtml(viewer.name || 'Unnamed User')}</div>
+                    <div class="kb-viewer-email">${escapeHtml(viewer.email || 'No email')}</div>
+                    ${meta ? `<div class="kb-viewer-meta">${meta}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('') + '</div>';
+}
+
+function showArticleViewers(articleId) {
+    if (!articleId) return;
+
+    Swal.fire({
+        title: 'Article Viewers',
+        html: '<div class="kb-viewers-empty">Loading viewers...</div>',
+        width: '560px',
+        showConfirmButton: false,
+        showCloseButton: true,
+        customClass: {
+            popup: 'kb-viewers-popup',
+            title: 'kb-viewers-title',
+            htmlContainer: 'kb-viewers-html'
+        },
+        didOpen: function() {
+            fetch('kb_article_viewers.php?article_id=' + encodeURIComponent(articleId), {
+                headers: { 'Accept': 'application/json' }
+            })
+                .then(function(response) {
+                    return response.json().then(function(data) {
+                        if (!response.ok || !data.ok) {
+                            throw new Error(data.message || 'Unable to load viewers.');
+                        }
+                        return data;
+                    });
+                })
+                .then(function(data) {
+                    Swal.update({
+                        title: data.article && data.article.title ? escapeHtml(data.article.title) : 'Article Viewers',
+                        html: renderViewerList(data.viewers)
+                    });
+                })
+                .catch(function(error) {
+                    Swal.update({
+                        icon: 'error',
+                        title: 'Unable to Load Viewers',
+                        html: '<div class="kb-viewers-empty">' + escapeHtml(error.message || 'Please try again.') + '</div>',
+                        showConfirmButton: true,
+                        confirmButtonText: 'Close'
+                    });
+                });
+        }
+    });
+}
+
 function addLink() {
     const container = document.getElementById('link-container');
     const div = document.createElement('div');

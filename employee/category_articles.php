@@ -1,10 +1,13 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/kb_media.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
     exit();
 }
+
+kb_ensure_article_views_table($conn);
 
 $fixedCategories = [
     'Documentation',
@@ -119,7 +122,7 @@ if ($category === '' || !in_array($category, $fixedCategories, true)) {
 }
 
 $articles = [];
-$query = "SELECT * FROM knowledge_base";
+$query = "SELECT knowledge_base.*, " . kb_unique_views_count_sql('knowledge_base.id') . " AS views FROM knowledge_base";
 $params = [];
 $types = '';
 

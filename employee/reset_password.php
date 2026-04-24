@@ -14,17 +14,32 @@ if (!isset($_SESSION['otp_verified']) || $_SESSION['otp_verified'] !== true) {
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
-    $pass = $_POST['password'];
-    $confirm = $_POST['confirm_password'];
+    $pass = (string) ($_POST['password'] ?? '');
+    $confirm = (string) ($_POST['confirm_password'] ?? '');
+    $email = (string) ($_SESSION['reset_email'] ?? '');
+    $currentPasswordHash = '';
+
+    if ($email !== '') {
+        $userStmt = $conn->prepare("SELECT password FROM users WHERE email = ? LIMIT 1");
+        if ($userStmt) {
+            $userStmt->bind_param("s", $email);
+            $userStmt->execute();
+            $userRes = $userStmt->get_result();
+            $userRow = $userRes ? $userRes->fetch_assoc() : null;
+            $currentPasswordHash = (string) ($userRow['password'] ?? '');
+            $userStmt->close();
+        }
+    }
 
     // Validation
     if ($pass !== $confirm) {
         $error = "Passwords do not match.";
     } elseif (strlen($pass) < 8 || !preg_match('/[A-Z]/', $pass) || !preg_match('/[a-z]/', $pass) || !preg_match('/[0-9]/', $pass) || !preg_match('/[^A-Za-z0-9]/', $pass)) {
         $error = "Password must be at least 8 chars, include uppercase, lowercase, number, and special char.";
+    } elseif ($currentPasswordHash !== '' && password_verify($pass, $currentPasswordHash)) {
+        $error = "New password cannot be the same as your previous password.";
     } else {
         $hash = password_hash($pass, PASSWORD_DEFAULT);
-        $email = $_SESSION['reset_email'];
 
         $update = $conn->prepare("UPDATE users SET password = ?, reset_otp = NULL, reset_otp_expiry = NULL WHERE email = ?");
         $update->bind_param("ss", $hash, $email);

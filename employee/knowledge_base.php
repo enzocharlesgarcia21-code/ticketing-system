@@ -1,11 +1,14 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/kb_media.php';
 
 // Protect page
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
     exit();
 }
+
+kb_ensure_article_views_table($conn);
 
 // 1. Handle Search
 $search = trim((string) ($_GET['search'] ?? ''));
@@ -184,7 +187,7 @@ foreach ($fixedCategories as $fixedCategory) {
 // 3. Most recent articles for homepage section
 $mostVisitedArticles = [];
 $mostVisitedStmt = $conn->prepare("
-    SELECT id, title, category, created_at, COALESCE(views, 0) AS views
+    SELECT id, title, category, created_at, " . kb_unique_views_count_sql('knowledge_base.id') . " AS views
     FROM knowledge_base
     ORDER BY created_at DESC, id DESC
     LIMIT 3
@@ -201,7 +204,7 @@ if ($mostVisitedStmt) {
 $searchResults = [];
 if ($search !== '') {
     $searchStmt = $conn->prepare("
-        SELECT id, title, category, content, created_at, COALESCE(views, 0) AS views
+        SELECT id, title, category, content, created_at, " . kb_unique_views_count_sql('knowledge_base.id') . " AS views
         FROM knowledge_base
         WHERE title LIKE ?
            OR content LIKE ?
@@ -231,7 +234,7 @@ $categoryViewTitle = $activeCategory;
 
 if ($showCategoryView) {
     $viewStmt = $conn->prepare("
-        SELECT id, title, category, sub_category, content, created_at, COALESCE(views, 0) AS views
+        SELECT id, title, category, sub_category, content, created_at, " . kb_unique_views_count_sql('knowledge_base.id') . " AS views
         FROM knowledge_base
         ORDER BY created_at DESC, id DESC
     ");

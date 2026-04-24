@@ -1318,6 +1318,7 @@
     var statusEl = form.querySelector('select[name="status"]');
     var deptEl = form.querySelector('select[name="assigned_department"]');
     var companyEl = form.querySelector('select[name="assigned_company"]');
+    var userEl = form.querySelector('select[name="assigned_user_id"]');
     var noteEl = form.querySelector('textarea[name="admin_note"]');
     var noticeEl = form.querySelector('#tmNoChangeNotice');
     var deptMirrorEl = form.querySelector('input[type="hidden"][data-dept-mirror="1"]');
@@ -1344,6 +1345,7 @@
     var initialCompany = normalizeCompanyValueForCompare(companyEl ? String(companyEl.value || '') : '');
     var initialDeptRaw = getDeptRawValue();
     var initialDept = normalizeDepartmentValueForCompare(initialDeptRaw, initialCompany);
+    var initialUser = userEl ? String(userEl.value || '') : String((data && data.assigned_user_id != null) ? data.assigned_user_id : '');
     var initialNote = noteEl ? String(noteEl.value || '').trim() : String((data && data.admin_note) || '').trim();
 
     function showNotice(message) {
@@ -1359,7 +1361,7 @@
       if (deptEl) deptEl.classList.remove('tm-invalid');
     }
 
-    [statusEl, deptEl, companyEl, noteEl].forEach(function (el) {
+    [statusEl, deptEl, companyEl, userEl, noteEl].forEach(function (el) {
       if (!el) return;
       el.addEventListener('change', hideNotice);
       el.addEventListener('input', hideNotice);
@@ -1370,6 +1372,7 @@
       var currentCompany = normalizeCompanyValueForCompare(companyEl ? String(companyEl.value || '') : initialCompany);
       var currentDeptRaw = getDeptRawValue();
       var currentDept = normalizeDepartmentValueForCompare(currentDeptRaw, currentCompany);
+      var currentUser = userEl ? String(userEl.value || '') : initialUser;
       var currentNote = noteEl ? String(noteEl.value || '').trim() : initialNote;
       if (currentCompany === '@leadsagri.com' && currentDept === '') {
         e.preventDefault();
@@ -1380,7 +1383,7 @@
         showNotice('Please choose a department.');
         return;
       }
-      if (currentStatus === initialStatus && currentDept === initialDept && currentCompany === initialCompany && currentNote === initialNote) {
+      if (currentStatus === initialStatus && currentDept === initialDept && currentCompany === initialCompany && currentUser === initialUser && currentNote === initialNote) {
         e.preventDefault();
         showNotice('No changes were made.');
       }
@@ -1421,7 +1424,6 @@
   var lapcDeptOptions = [
     { value: 'Admin & Legal', label: 'Admin & Legal' },
     { value: 'Banana Farm Operations', label: 'Banana Farm Operations' },
-    { value: 'Bidding', label: 'Bidding' },
     { value: 'Diagnostics / Lingap', label: 'Diagnostics / Lingap' },
     { value: 'Digital Agri Solutions and Innovations', label: 'Digital Agri Solutions and Innovations' },
     { value: 'E-Commerce', label: 'E-Commerce' },
@@ -1429,7 +1431,7 @@
     { value: 'Finance and Accounting', label: 'Finance and Accounting' },
     { value: 'HR', label: 'HR' },
     { value: 'IT', label: 'IT' },
-    { value: 'Institutional Sales', label: 'Institutional Sales' },
+    { value: 'Institutional Sales (Bidding)', label: 'Institutional Sales (Bidding)' },
     { value: 'Management', label: 'Management' },
     { value: 'Marketing', label: 'Marketing' },
     { value: 'New Business Segment', label: 'New Business Segment' },
@@ -1563,6 +1565,150 @@
     }).join('');
     return html;
   }
+  function buildDepartmentUserOptionsHtml(users, selectedUserId) {
+    var normalizedSelected = selectedUserId == null ? '' : String(selectedUserId);
+    var list = Array.isArray(users) ? users : [];
+    if (list.length === 0) {
+      return '                  <option value="">No department users available</option>';
+    }
+    var html = '';
+    html += list.map(function (user) {
+      var userId = user && user.id != null ? String(user.id) : '';
+      var name = user && user.name ? String(user.name) : 'Unnamed User';
+      return '                  <option value="' + escapeHtml(userId) + '" ' + (userId === normalizedSelected ? 'selected' : '') + '>' + escapeHtml(name) + '</option>';
+    }).join('');
+    return html;
+  }
+  function bindDepartmentUserOptions(container, data) {
+    if (!container) return;
+    var form = container.querySelector('#ticketUpdateForm');
+    if (!form || form.dataset.deptUsersBound === '1') return;
+    form.dataset.deptUsersBound = '1';
+    var companyEl = form.querySelector('select[name="assigned_company"]');
+    var deptEl = form.querySelector('select[name="assigned_department"]');
+    var userEl = form.querySelector('select[name="assigned_user_id"]');
+    if (!companyEl || !deptEl || !userEl) return;
+
+    var endpoint = (typeof window !== 'undefined' && window.TM_DEPARTMENT_USERS_ENDPOINT)
+      ? String(window.TM_DEPARTMENT_USERS_ENDPOINT)
+      : 'ajax_department_users.php';
+
+    function setLoadingState(message) {
+      userEl.innerHTML = '                  <option value="">' + escapeHtml(message || 'Loading department users...') + '</option>';
+      userEl.disabled = true;
+    }
+
+    function syncUsers(preferredUserId) {
+      var companyValue = String(companyEl.value || '').trim();
+      var deptValue = String(deptEl.value || '').trim();
+      if (!companyValue || !deptValue) {
+        userEl.innerHTML = '                  <option value="">No department users available</option>';
+        userEl.disabled = true;
+        return;
+      }
+
+      setLoadingState('Loading department users...');
+      var params = new URLSearchParams();
+      params.set('company', companyValue);
+      params.set('department', deptValue);
+      fetch(endpoint + '?' + params.toString(), { method: 'GET', credentials: 'same-origin' })
+        .then(function (response) { return response.json(); })
+        .then(function (payload) {
+          var users = payload && payload.ok && Array.isArray(payload.users) ? payload.users : [];
+          userEl.innerHTML = buildDepartmentUserOptionsHtml(users, preferredUserId);
+          userEl.disabled = users.length === 0;
+          if (users.length === 0) {
+            userEl.innerHTML = '                  <option value="">No department users available</option>';
+          }
+        })
+        .catch(function () {
+          userEl.innerHTML = '                  <option value="">Unable to load department users</option>';
+          userEl.disabled = true;
+        });
+    }
+
+    var initialUserId = data && data.assigned_user_id != null ? String(data.assigned_user_id) : '';
+    syncUsers(initialUserId);
+    companyEl.addEventListener('change', function () {
+      syncUsers('');
+    });
+    deptEl.addEventListener('change', function () {
+      syncUsers('');
+    });
+  }
+  function bindCustomDepartmentDropdown(container) {
+    if (!container) return;
+    var form = container.querySelector('#ticketUpdateForm');
+    if (!form || form.dataset.customDeptBound === '1') return;
+    form.dataset.customDeptBound = '1';
+    var wrapper = form.querySelector('[data-custom-select="assigned_department"]');
+    var selectEl = form.querySelector('select[name="assigned_department"]');
+    var trigger = wrapper ? wrapper.querySelector('[data-custom-select-trigger]') : null;
+    var triggerText = wrapper ? wrapper.querySelector('[data-custom-select-text]') : null;
+    var menu = wrapper ? wrapper.querySelector('[data-custom-select-menu]') : null;
+    if (!wrapper || !selectEl || !trigger || !triggerText || !menu) return;
+
+    function closeMenu() {
+      menu.classList.remove('show');
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+
+    function renderOptions() {
+      var currentValue = String(selectEl.value || '');
+      var options = Array.prototype.slice.call(selectEl.options || []).filter(function (option) {
+        return !(option.disabled && option.hidden);
+      });
+      var selectedOption = selectEl.options[selectEl.selectedIndex] || null;
+      triggerText.textContent = selectedOption && selectedOption.text ? String(selectedOption.text) : 'Choose department';
+      trigger.disabled = !!selectEl.disabled;
+      menu.innerHTML = options.map(function (option) {
+        var value = String(option.value || '');
+        var label = String(option.text || '');
+        var selectedClass = value === currentValue ? ' is-selected' : '';
+        return '' +
+          '<button type="button" class="tm-select-menu-option' + selectedClass + '" data-custom-option-value="' + escapeHtml(value) + '">' +
+          escapeHtml(label) +
+          '</button>';
+      }).join('');
+
+      Array.prototype.forEach.call(menu.querySelectorAll('[data-custom-option-value]'), function (btn) {
+        btn.addEventListener('click', function () {
+          var nextValue = btn.getAttribute('data-custom-option-value') || '';
+          selectEl.value = nextValue;
+          closeMenu();
+          renderOptions();
+          var changeEvent;
+          try {
+            changeEvent = new Event('change', { bubbles: true });
+          } catch (e) {
+            changeEvent = document.createEvent('Event');
+            changeEvent.initEvent('change', true, true);
+          }
+          selectEl.dispatchEvent(changeEvent);
+        });
+      });
+    }
+
+    trigger.addEventListener('click', function () {
+      if (trigger.disabled) return;
+      var willOpen = !menu.classList.contains('show');
+      closeMenu();
+      if (willOpen) {
+        renderOptions();
+        menu.classList.add('show');
+        trigger.setAttribute('aria-expanded', 'true');
+      }
+    });
+
+    document.addEventListener('click', function (event) {
+      if (wrapper.contains(event.target)) return;
+      closeMenu();
+    });
+
+    selectEl.addEventListener('change', renderOptions);
+    selectEl._tmRenderCustomDropdown = renderOptions;
+    renderOptions();
+  }
   function bindDepartmentOptions(container, data) {
     if (!container) return;
     var form = container.querySelector('#ticketUpdateForm');
@@ -1573,6 +1719,9 @@
     if (!deptEl || !companyEl) return;
     function syncDeptOptions(preferredValue) {
       deptEl.innerHTML = buildDeptOptionsHtml(companyEl.value, preferredValue);
+      if (typeof deptEl._tmRenderCustomDropdown === 'function') {
+        deptEl._tmRenderCustomDropdown();
+      }
     }
     function syncDeptAvailability(preferredValue) {
       var normalizedCompany = normalizeCompanyValue(companyEl.value);
@@ -1583,6 +1732,9 @@
 
       deptEl.value = selectedValue;
       deptEl.disabled = !isLapcCompany;
+      if (typeof deptEl._tmRenderCustomDropdown === 'function') {
+        deptEl._tmRenderCustomDropdown();
+      }
 
       if (!isLapcCompany) {
         if (!hiddenMirror) {
@@ -1615,6 +1767,7 @@
     var hideAdminChat = typeof window !== 'undefined' && window.TM_HIDE_ADMIN_CHAT === true;
     var hideRequesterAdminChatButton = typeof window !== 'undefined' && window.TM_HIDE_REQUESTOR_ADMIN_CHAT_BUTTON === true;
     var hideQuickTags = typeof window !== 'undefined' && window.TM_HIDE_QUICK_TAGS === true;
+    var showDepartmentUserSelect = typeof window !== 'undefined' && window.TM_SHOW_DEPARTMENT_USER_SELECT === true;
     var deptLabelText = (typeof window !== 'undefined' && window.TM_DEPARTMENT_LABEL_TEXT) ? String(window.TM_DEPARTMENT_LABEL_TEXT) : 'Assigned Department';
     var deptRequired = typeof window !== 'undefined' && window.TM_DEPARTMENT_REQUIRED === true;
     var deptLabelHtml = escapeHtml(deptLabelText) + (deptRequired ? ' <span class="tm-required-star">*</span>' : '');
@@ -1684,6 +1837,7 @@
     }
     var assignedCompanyValue = normalizeCompanyValue(data.assigned_company || '') || String(data.assigned_company || '');
     var deptOptionsHtml = buildDeptOptionsHtml(assignedCompanyValue, data.assigned_department || data.assigned_group || '');
+    var assignedUserIdValue = data && data.assigned_user_id != null ? String(data.assigned_user_id) : '';
     var noteValue = data && data.admin_note != null ? String(data.admin_note) : '';
     var trimmedNoteValue = noteValue.trim();
     var requesterAdminNoteHtml = (isRequesterPOV && trimmedNoteValue !== '')
@@ -1777,13 +1931,28 @@
       '          </div>' +
       '        </div>' +
       '        <div class="tm-field">' +
-      '          <label class="tm-control-label tm-control-label-department">' + deptLabelHtml + '</label>' +
-      '          <div class="tm-select-wrapper">' +
-      '            <select class="tm-select tm-dept-select" name="assigned_department">' +
+      '          <label class="tm-control-label">' + deptLabelHtml + '</label>' +
+      '          <div class="tm-select-wrapper tm-custom-select" data-custom-select="assigned_department">' +
+      '            <select class="tm-select tm-dept-select tm-native-select" name="assigned_department">' +
       deptOptionsHtml +
       '            </select>' +
+      '            <button type="button" class="tm-select tm-select-trigger" data-custom-select-trigger aria-haspopup="listbox" aria-expanded="false">' +
+      '              <span class="tm-select-trigger-text" data-custom-select-text>Choose department</span>' +
+      '              <span class="tm-select-trigger-icon"><i class="fas fa-chevron-down"></i></span>' +
+      '            </button>' +
+      '            <div class="tm-select-menu" data-custom-select-menu role="listbox"></div>' +
       '          </div>' +
       '        </div>' +
+      (showDepartmentUserSelect ? (
+      '        <div class="tm-field">' +
+      '          <label class="tm-control-label">Department User</label>' +
+      '          <div class="tm-select-wrapper">' +
+      '            <select class="tm-select tm-dept-user-select" name="assigned_user_id">' +
+      '              <option value="' + escapeHtml(assignedUserIdValue) + '">' + (assignedUserIdValue ? 'Loading department users...' : 'Select department user') + '</option>' +
+      '            </select>' +
+      '          </div>' +
+      '        </div>'
+      ) : '') +
       '      </div>' +
       '      <div class="tm-note-group">' +
       '        <div class="tm-note-label">Action Taken/Comments</div>' +
@@ -3750,6 +3919,18 @@
           bindDepartmentOptions(modalContent, data);
         } catch (deptBindError) {
           console.error('Ticket modal department binding failed:', deptBindError, data);
+        }
+        try {
+          bindCustomDepartmentDropdown(modalContent);
+        } catch (customDeptBindError) {
+          console.error('Ticket modal custom department dropdown binding failed:', customDeptBindError, data);
+        }
+        if (typeof window !== 'undefined' && window.TM_SHOW_DEPARTMENT_USER_SELECT === true) {
+          try {
+            bindDepartmentUserOptions(modalContent, data);
+          } catch (deptUserBindError) {
+            console.error('Ticket modal department-user binding failed:', deptUserBindError, data);
+          }
         }
         try {
           renderPdfCardThumbnails(modalContent);

@@ -209,13 +209,15 @@ $summary = [
     'received' => 0,
     'resolved' => 0,
     'open' => 0,
+    'in_progress' => 0,
     'avg_seconds' => 0,
 ];
 $metricsSql = "
     SELECT
         COUNT(*) as received,
         SUM(CASE WHEN t.status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
-        SUM(CASE WHEN t.status IN ('Open','In Progress') THEN 1 ELSE 0 END) as open_tickets
+        SUM(CASE WHEN t.status = 'Open' THEN 1 ELSE 0 END) as open_tickets,
+        SUM(CASE WHEN t.status = 'In Progress' THEN 1 ELSE 0 END) as in_progress_tickets
     FROM employee_tickets t
     WHERE " . implode(" AND ", $ticket_where) . "
       AND COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')
@@ -233,6 +235,7 @@ if ($mStmt) {
     $summary['received'] = (int) ($mRow['received'] ?? 0);
     $summary['resolved'] = (int) ($mRow['resolved'] ?? 0);
     $summary['open'] = (int) ($mRow['open_tickets'] ?? 0);
+    $summary['in_progress'] = (int) ($mRow['in_progress_tickets'] ?? 0);
     $mStmt->close();
 }
 
@@ -815,6 +818,20 @@ if ($ticketsStmt) {
             background:
                 radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.96), rgba(246, 249, 253, 0.94) 34%, rgba(236, 242, 248, 0.92) 100%);
         }
+        body.employee-analytics-page .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 4000;
+        }
+        body.employee-analytics-page .navbar-collapse,
+        body.employee-analytics-page .nav-right,
+        body.employee-analytics-page .notification-wrapper,
+        body.employee-analytics-page .user-menu,
+        body.employee-analytics-page .user-btn,
+        body.employee-analytics-page .user-dropdown {
+            position: relative;
+            z-index: 4001;
+        }
         body.employee-analytics-page .admin-page,
         body.employee-analytics-page .admin-container {
             background: transparent;
@@ -1158,6 +1175,13 @@ if ($ticketsStmt) {
             --metric-icon-border: #bcdfff;
             --metric-icon-color: #2388e7;
         }
+        .analytics-card.in-progress {
+            --metric-accent: #7c3aed;
+            --metric-label: #6d28d9;
+            --metric-icon-bg: linear-gradient(180deg, #f5eeff 0%, #ede2ff 100%);
+            --metric-icon-border: #d8c1ff;
+            --metric-icon-color: #6d28d9;
+        }
         .analytics-card-top {
             display: flex;
             align-items: flex-start;
@@ -1403,6 +1427,14 @@ if ($ticketsStmt) {
             font-size: 0.82rem;
             font-weight: 700;
             color: #64748b;
+        }
+        body.employee-analytics-page .trend-overview-card {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        body.employee-analytics-page .trend-delta-badge {
+            width: 100%;
+            justify-content: flex-start;
         }
         .trend-mini-grid {
             display: grid;
@@ -2052,12 +2084,12 @@ if ($ticketsStmt) {
                 <div class="analytics-card received">
                     <div class="analytics-card-top">
                         <div>
-                            <div class="analytics-label">Received</div>
+                            <div class="analytics-label">Total Tickets</div>
                             <div class="analytics-value"><?= number_format((int) ($summary['received'] ?? 0)) ?></div>
                         </div>
                         <div class="analytics-icon"><i class="fa-solid fa-inbox"></i></div>
                     </div>
-                    <div class="analytics-sub">New tickets</div>
+                    <div class="analytics-sub">All tickets in the selected range</div>
                 </div>
                 <div class="analytics-card resolved">
                     <div class="analytics-card-top">
@@ -2077,7 +2109,17 @@ if ($ticketsStmt) {
                         </div>
                         <div class="analytics-icon"><i class="fa-solid fa-folder-open"></i></div>
                     </div>
-                    <div class="analytics-sub">Open and in progress tickets</div>
+                    <div class="analytics-sub">Tickets waiting to be handled</div>
+                </div>
+                <div class="analytics-card in-progress">
+                    <div class="analytics-card-top">
+                        <div>
+                            <div class="analytics-label">In Progress</div>
+                            <div class="analytics-value"><?= number_format((int) ($summary['in_progress'] ?? 0)) ?></div>
+                        </div>
+                        <div class="analytics-icon"><i class="fa-solid fa-spinner"></i></div>
+                    </div>
+                    <div class="analytics-sub">Tickets currently being handled</div>
                 </div>
             </div>
 
@@ -2532,6 +2574,7 @@ if ($ticketsStmt) {
     const trendDataPoints = <?= json_encode($trendAvgHours) ?>;
     const trendPeakIndex = <?= json_encode($trendPeakDay['index'] ?? null) ?>;
     const trendFastestIndex = <?= json_encode($trendFastestDay['index'] ?? null) ?>;
+    const isEmployeeAnalyticsView = <?= $analyticsIsEmployeeView ? 'true' : 'false' ?>;
     new Chart(trendCtx, {
         type: 'line',
         data: {
@@ -2573,7 +2616,7 @@ if ($ticketsStmt) {
             maintainAspectRatio: false,
             layout: {
                 padding: {
-                    top: 12,
+                    top: isEmployeeAnalyticsView ? 34 : 18,
                     right: 14,
                     left: 14,
                     bottom: 8
@@ -2593,6 +2636,8 @@ if ($ticketsStmt) {
                     align: 'top',
                     anchor: 'end',
                     offset: 6,
+                    clamp: true,
+                    clip: false,
                     color: '#0f172a',
                     font: {
                         weight: '800',

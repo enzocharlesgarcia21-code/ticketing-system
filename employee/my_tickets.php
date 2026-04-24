@@ -31,6 +31,39 @@ function submitted_ticket_target_label(array $row): string
     return '-';
 }
 
+function feedback_assignee_display(array $ticket): array
+{
+    $name = trim((string) ($ticket['assignee_name'] ?? ''));
+    if ($name === '') {
+        $name = 'Support Team';
+    }
+
+    $department = trim((string) (($ticket['assignee_department'] ?? '') !== '' ? $ticket['assignee_department'] : (($ticket['assigned_group'] ?? '') !== '' ? $ticket['assigned_group'] : ($ticket['assigned_department'] ?? ''))));
+    if ($department !== '') {
+        return [
+            'name' => $name,
+            'context' => ticket_department_display_name($department),
+            'display' => $name . ' • ' . ticket_department_display_name($department),
+        ];
+    }
+
+    $companyRaw = (string) (($ticket['assigned_company'] ?? '') !== '' ? $ticket['assigned_company'] : (($ticket['assignee_company'] ?? '') !== '' ? $ticket['assignee_company'] : ($ticket['company'] ?? '')));
+    $companyLabel = ticket_company_display_name($companyRaw);
+    if ($companyLabel !== '') {
+        return [
+            'name' => $name,
+            'context' => $companyLabel,
+            'display' => $name . ' • ' . $companyLabel,
+        ];
+    }
+
+    return [
+        'name' => $name,
+        'context' => '',
+        'display' => $name,
+    ];
+}
+
 function follow_up_company_user_ids(mysqli $conn, string $company, int $excludeUserId = 0): array
 {
     $excludeUserId = (int) $excludeUserId;
@@ -135,37 +168,48 @@ function follow_up_recipients(mysqli $conn, array $ticket, int $creatorUserId): 
 
     return [
         'user_ids' => $recipientIds,
-        'emails' => follow_up_recipient_emails($conn, $recipientIds),
+        'emails' => follow_up_recipient_emails($conn, $recipientIds, $assignedCompany, $assignedDepartment, $creatorUserId),
     ];
 }
 
-function follow_up_recipient_emails(mysqli $conn, array $userIds): array
+function follow_up_recipient_emails(mysqli $conn, array $userIds, string $company = '', string $department = '', int $excludeUserId = 0): array
 {
     $userIds = notif_unique_user_ids($userIds);
-    if (count($userIds) === 0) {
-        return [];
-    }
+    $company = trim($company);
+    $department = trim($department);
+    $excludeUserId = (int) $excludeUserId;
 
-    $escapedIds = array_map('intval', $userIds);
-    $sql = "
-        SELECT DISTINCT LOWER(TRIM(COALESCE(email, ''))) AS email
-        FROM users
-        WHERE id IN (" . implode(', ', $escapedIds) . ")
-          AND TRIM(COALESCE(email, '')) <> ''
-    ";
-    $res = $conn->query($sql);
-    $emails = [];
-    while ($res && ($row = $res->fetch_assoc())) {
-        $email = trim((string) ($row['email'] ?? ''));
-        if ($email !== '') {
-            $emails[] = $email;
+    if ($company !== '' || $department !== '') {
+        $routedEmails = ticket_assignee_notification_emails($conn, $userIds, $company, $department, $excludeUserId);
+        if (count($routedEmails) > 0) {
+            return $routedEmails;
         }
     }
-    if ($res instanceof mysqli_result) {
-        $res->free();
+
+    if (count($userIds) > 0) {
+        $escapedIds = array_map('intval', $userIds);
+        $sql = "
+            SELECT DISTINCT LOWER(TRIM(COALESCE(email, ''))) AS email
+            FROM users
+            WHERE id IN (" . implode(', ', $escapedIds) . ")
+              AND TRIM(COALESCE(email, '')) <> ''
+        ";
+        $res = $conn->query($sql);
+        $emails = [];
+        while ($res && ($row = $res->fetch_assoc())) {
+            $email = trim((string) ($row['email'] ?? ''));
+            if ($email !== '') {
+                $emails[] = $email;
+            }
+        }
+        if ($res instanceof mysqli_result) {
+            $res->free();
+        }
+
+        return array_values(array_unique($emails));
     }
 
-    return array_values(array_unique($emails));
+    return [];
 }
 
 function follow_up_ensure_cooldown_columns(mysqli $conn): void
@@ -741,9 +785,16 @@ $pendingFeedbackStmt = $conn->prepare("
         t.subject,
         t.feedback_status,
         t.status,
-        COALESCE(NULLIF(assignee.name, ''), 'Support Team') AS assignee_name
+        t.company,
+        t.assigned_company,
+        t.assigned_department,
+        t.assigned_group,
+        COALESCE(NULLIF(assignee.full_name, ''), NULLIF(assignee.name, ''), 'Support Team') AS assignee_name,
+        assignee.department AS assignee_department,
+        assignee.company AS assignee_company
     FROM employee_tickets t
-    LEFT JOIN users assignee ON assignee.id = t.assigned_user_id
+    LEFT JOIN users assignee
+        ON assignee.id = COALESCE(NULLIF(t.assigned_user_id, 0), NULLIF(t.assigned_to, 0))
     WHERE t.user_id = ?
       AND t.status = 'Resolved'
       AND t.feedback_status = 'pending'
@@ -755,6 +806,7 @@ if ($pendingFeedbackStmt) {
     $pendingFeedbackStmt->execute();
     $pendingFeedbackRes = $pendingFeedbackStmt->get_result();
     while ($pendingFeedbackRes && ($pendingFeedbackRow = $pendingFeedbackRes->fetch_assoc())) {
+        $pendingFeedbackRow['assignee_display'] = feedback_assignee_display($pendingFeedbackRow);
         $pendingFeedbackTickets[(int) ($pendingFeedbackRow['id'] ?? 0)] = $pendingFeedbackRow;
     }
     $pendingFeedbackStmt->close();
@@ -1235,7 +1287,7 @@ $successMessage = '';
             display: flex;
         }
         body.employee-my-tickets-page .feedback-modal-dialog {
-            width: min(100%, 820px);
+            width: min(100%, 720px);
             background: #ffffff;
             border-radius: 28px;
             box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
@@ -1243,7 +1295,7 @@ $successMessage = '';
             border: 1px solid rgba(203, 213, 225, 0.8);
         }
         body.employee-my-tickets-page .feedback-modal-header {
-            padding: 26px 34px 22px;
+            padding: 22px 26px 18px;
             background: linear-gradient(135deg, #14532d 0%, #1b5e20 58%, #15803d 100%);
             color: #ffffff;
             position: relative;
@@ -1271,33 +1323,33 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-modal-title {
             margin: 0;
-            font-size: 30px;
+            font-size: 26px;
             line-height: 1.15;
             font-weight: 800;
         }
         body.employee-my-tickets-page .feedback-modal-subtitle {
             margin: 14px 0 0;
-            max-width: 560px;
-            font-size: 15px;
+            max-width: 500px;
+            font-size: 14px;
             line-height: 1.55;
             color: rgba(255, 255, 255, 0.9);
         }
         body.employee-my-tickets-page .feedback-modal-body {
-            padding: 26px 32px 28px;
+            padding: 20px 22px 22px;
         }
         body.employee-my-tickets-page .feedback-summary-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
-            margin-bottom: 22px;
+            gap: 12px;
+            margin-bottom: 18px;
         }
         body.employee-my-tickets-page .feedback-summary-card {
             display: flex;
             align-items: center;
             gap: 18px;
-            min-height: 74px;
-            padding: 14px 16px;
-            border-radius: 20px;
+            min-height: 68px;
+            padding: 12px 14px;
+            border-radius: 18px;
             background: #ffffff;
             border: 1px solid #dbe4ee;
             box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
@@ -1324,13 +1376,13 @@ $successMessage = '';
             flex-wrap: wrap;
         }
         body.employee-my-tickets-page .feedback-summary-ticket {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 900;
             color: #15803d;
         }
         body.employee-my-tickets-page .feedback-summary-subject,
         body.employee-my-tickets-page .feedback-summary-meta {
-            font-size: 15px;
+            font-size: 14px;
             color: #64748b;
             line-height: 1.3;
         }
@@ -1357,7 +1409,7 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-form {
             display: grid;
-            gap: 22px;
+            gap: 18px;
         }
         body.employee-my-tickets-page .feedback-label {
             display: block;
@@ -1375,15 +1427,15 @@ $successMessage = '';
             color: #94a3b8;
         }
         body.employee-my-tickets-page .feedback-rating-question {
-            margin-bottom: 14px;
-            font-size: 17px;
+            margin-bottom: 12px;
+            font-size: 15px;
             font-weight: 800;
             color: #334155;
         }
         body.employee-my-tickets-page .feedback-stars {
             display: grid;
             grid-template-columns: repeat(5, minmax(0, 1fr));
-            gap: 12px;
+            gap: 10px;
         }
         body.employee-my-tickets-page .feedback-star-input {
             position: absolute;
@@ -1396,15 +1448,15 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-star {
             width: 100%;
-            min-height: 82px;
-            border-radius: 18px;
+            min-height: 74px;
+            border-radius: 16px;
             border: 1px solid #dbe4ee;
             background: #ffffff;
             color: #cbd5e1;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 34px;
+            font-size: 30px;
             cursor: pointer;
             transition: color 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
         }
@@ -1422,17 +1474,17 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-rating-text {
             margin-top: 8px;
-            font-size: 14px;
+            font-size: 13px;
             color: #475569;
             font-weight: 500;
         }
         body.employee-my-tickets-page .feedback-textarea {
             width: 100%;
-            min-height: 138px;
+            min-height: 126px;
             padding: 16px 16px;
             border-radius: 18px;
             border: 1px solid #dbe4ee;
-            resize: vertical;
+            resize: none;
             font: inherit;
             font-size: 15px;
             color: #0f172a;
@@ -1458,7 +1510,7 @@ $successMessage = '';
             color: #64748b;
             font-size: 14px;
             line-height: 1.45;
-            max-width: 280px;
+            max-width: 240px;
         }
         body.employee-my-tickets-page .feedback-footer-note-icon {
             width: 38px;
@@ -1481,8 +1533,8 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-cancel-btn,
         body.employee-my-tickets-page .feedback-submit-btn {
-            min-width: 158px;
-            min-height: 52px;
+            min-width: 148px;
+            min-height: 50px;
             border-radius: 18px;
             font-size: 15px;
             font-weight: 800;
@@ -1512,8 +1564,8 @@ $successMessage = '';
         @media (max-width: 900px) {
             body.employee-my-tickets-page .feedback-modal-header,
             body.employee-my-tickets-page .feedback-modal-body {
-                padding-left: 24px;
-                padding-right: 24px;
+                padding-left: 20px;
+                padding-right: 20px;
             }
             body.employee-my-tickets-page .feedback-summary-grid {
                 grid-template-columns: 1fr;
@@ -1542,8 +1594,8 @@ $successMessage = '';
         @media (max-width: 640px) {
             body.employee-my-tickets-page .feedback-modal-body,
             body.employee-my-tickets-page .feedback-modal-header {
-                padding-left: 22px;
-                padding-right: 22px;
+                padding-left: 16px;
+                padding-right: 16px;
             }
             body.employee-my-tickets-page .feedback-modal-title {
                 font-size: 28px;
@@ -1722,12 +1774,13 @@ $successMessage = '';
         aria-hidden="<?= ($shouldAutoShowFeedbackModal || ($feedbackFlash && $requestedTicketId <= 0)) ? 'false' : 'true'; ?>"
     >
         <div class="feedback-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
+            <?php $feedbackAssigneeDisplay = $feedbackModalTicket ? feedback_assignee_display($feedbackModalTicket) : ['name' => 'Support Team', 'context' => '', 'display' => 'Support Team']; ?>
             <div class="feedback-modal-header">
                 <button type="button" class="feedback-close-btn" id="feedbackModalCloseBtn" aria-label="Close feedback modal">
                     <i class="fas fa-times"></i>
                 </button>
                 <h2 id="feedbackModalTitle" class="feedback-modal-title">Rate Your Resolved Ticket</h2>
-                <p class="feedback-modal-subtitle">Your ticket was marked as resolved. Share a quick rating and optional comment so we can improve support quality.</p>
+                <p class="feedback-modal-subtitle">This ticket was resolved by <span id="feedbackResolvedBySubtitle"><?= htmlspecialchars((string) ($feedbackAssigneeDisplay['display'] ?? 'Support Team'), ENT_QUOTES, 'UTF-8'); ?></span>. Please rate the support you received and share optional feedback.</p>
             </div>
             <div class="feedback-modal-body">
                 <?php if ($feedbackFlash && !empty($feedbackFlash['message'])): ?>
@@ -1750,7 +1803,7 @@ $successMessage = '';
                         <div class="feedback-summary-card">
                             <span class="feedback-summary-icon" aria-hidden="true"><i class="far fa-user"></i></span>
                             <div class="feedback-summary-copy">
-                                <div class="feedback-summary-meta">Resolved by: <strong id="feedbackResolvedByName"><?= htmlspecialchars((string) ($feedbackModalTicket['assignee_name'] ?? 'Support Team'), ENT_QUOTES, 'UTF-8'); ?></strong></div>
+                                <div class="feedback-summary-meta">Resolved by: <strong id="feedbackResolvedByName"><?= htmlspecialchars((string) ($feedbackAssigneeDisplay['display'] ?? 'Support Team'), ENT_QUOTES, 'UTF-8'); ?></strong></div>
                             </div>
                         </div>
                     </div>
@@ -2053,6 +2106,7 @@ $successMessage = '';
         var summaryTicket = feedbackModal.querySelector('.feedback-summary-ticket');
         var summarySubject = feedbackModal.querySelector('.feedback-summary-subject');
         var resolvedByName = document.getElementById('feedbackResolvedByName');
+        var resolvedBySubtitle = document.getElementById('feedbackResolvedBySubtitle');
         var subtitleEl = feedbackModal.querySelector('.feedback-modal-subtitle');
         var redirectInput = feedbackFormEl.querySelector('input[name="redirect_to"]');
         if (summaryTicket) {
@@ -2061,11 +2115,20 @@ $successMessage = '';
         if (summarySubject) {
             summarySubject.textContent = String(ticket.subject || '');
         }
+        var assigneeDisplay = ticket.assignee_display && typeof ticket.assignee_display === 'object'
+            ? String(ticket.assignee_display.display || ticket.assignee_display.name || '')
+            : String(ticket.assignee_name || '');
+        if (!assigneeDisplay) {
+            assigneeDisplay = 'Support Team';
+        }
         if (resolvedByName) {
-            resolvedByName.textContent = String(ticket.assignee_name || 'Support Team');
+            resolvedByName.textContent = assigneeDisplay;
+        }
+        if (resolvedBySubtitle) {
+            resolvedBySubtitle.textContent = assigneeDisplay;
         }
         if (subtitleEl) {
-            subtitleEl.textContent = 'This ticket was resolved by ' + String(ticket.assignee_name || 'our support team') + '. Please rate the support you received and share optional feedback.';
+            subtitleEl.textContent = 'This ticket was resolved by ' + assigneeDisplay + '. Please rate the support you received and share optional feedback.';
         }
         feedbackTicketIdInput.value = ticketKey;
         if (redirectInput) {

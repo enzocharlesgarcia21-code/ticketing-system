@@ -198,7 +198,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 const regCompanyEl = document.getElementById('reg_company');
 const regGroupEl = document.getElementById('reg_group');
 const REG_MAP = {
-  'LAPC': ["Banana Farm Operations","Seed Production","Supply Chain","Supply Chain Innovation","Admin & Legal","Diagnostics / Lingap","E-Commerce","Finance and Accounting","HR","Institutional Sales","Digital Agri Solutions and Innovations","Marketing","New Business Segment","Technical","Executive","Management"],
+  'LAPC': ["Banana Farm Operations","Seed Production","Supply Chain","Supply Chain Innovation","Admin & Legal","Diagnostics / Lingap","E-Commerce","Finance and Accounting","HR","Institutional Sales (Bidding)","Digital Agri Solutions and Innovations","Marketing","New Business Segment","Technical","Executive","Management"],
   'GPCI': ["Accounting","Sales"],
   'PCC': ["Management","Admin","Finance and Accounting","Maintenance","Production","Quality Control","Supply Chain","Technical"],
   'MHC': ["Management","Admin & Legal","E-Commerce","Executive","Finance and Accounting","Institutional Sales","IT","Marketing"],

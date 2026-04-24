@@ -98,6 +98,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $new_status = isset($_POST['status']) ? trim($_POST['status']) : '';
     $new_department = isset($_POST['assigned_department']) ? trim($_POST['assigned_department']) : '';
     $new_company = isset($_POST['assigned_company']) ? trim($_POST['assigned_company']) : '';
+    $requested_assigned_user_id = isset($_POST['assigned_user_id']) ? (int) $_POST['assigned_user_id'] : 0;
     $admin_note = isset($_POST['admin_note']) ? trim($_POST['admin_note']) : null;
 
     // --- PERMISSION CHECK ---
@@ -169,9 +170,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $newNoteNorm = (string) ($admin_note ?? '');
     $assignmentChanged = ($new_company !== $oldCompany) || ($new_department !== $oldDept);
-    $requesterAssignmentChanged = $assignmentChanged;
     $currentHandlerUserId = (int) ($_SESSION['user_id'] ?? 0);
-    if ($new_status === $oldStatus && $new_company === $oldCompany && $new_department === $oldDept && trim($newNoteNorm) === trim($oldNote)) {
+    $requestedAssigneeMatchesOld = ($requested_assigned_user_id <= 0 || $requested_assigned_user_id === $oldAssignedUserId);
+    if ($new_status === $oldStatus && $new_company === $oldCompany && $new_department === $oldDept && trim($newNoteNorm) === trim($oldNote) && $requestedAssigneeMatchesOld) {
         $_SESSION['success'] = "No changes were made.";
         header("Location: my_task.php");
         exit();
@@ -180,6 +181,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $assigned_user_ids = [];
     $assigned_user_id = $oldAssignedUserId > 0 ? $oldAssignedUserId : null;
     $assigned_to = isset($old_data['assigned_to']) ? (int) $old_data['assigned_to'] : null;
+    $availableDepartmentUsers = [];
+    if ($new_company !== '' && (!$new_company_requires_department || $new_group !== '')) {
+        $availableDepartmentUsers = ticket_find_department_user_options($conn, $new_company, $new_group);
+    }
+    $availableDepartmentUserIds = array_values(array_filter(array_map(static function ($userRow) {
+        return (int) ($userRow['id'] ?? 0);
+    }, $availableDepartmentUsers), static function ($userId) {
+        return $userId > 0;
+    }));
     if ($assignmentChanged) {
         if ($new_company === '' || !ticket_is_valid_company($new_company) || ($new_company_requires_department && !ticket_is_valid_group_for_company($new_company, $new_group))) {
             $_SESSION['error'] = 'Invalid company/group selection.';
@@ -189,6 +199,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         $assigned_user_ids = ticket_find_assignee_ids($conn, $new_company, $new_group);
         $assigned_user_id = count($assigned_user_ids) > 0 ? (int) $assigned_user_ids[0] : null;
+        if ($requested_assigned_user_id > 0 && in_array($requested_assigned_user_id, $availableDepartmentUserIds, true)) {
+            $assigned_user_id = $requested_assigned_user_id;
+            $assigned_user_ids = [$requested_assigned_user_id];
+        }
         if (!$assigned_user_id) {
             $_SESSION['error'] = $new_company_requires_department
                 ? 'No assignee available for the selected company and group.'
@@ -197,11 +211,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             exit();
         }
         $assigned_to = null;
+    } elseif ($requested_assigned_user_id > 0) {
+        if (!in_array($requested_assigned_user_id, $availableDepartmentUserIds, true)) {
+            $_SESSION['error'] = 'Invalid department user selected.';
+            header("Location: my_task.php");
+            exit();
+        }
+        $assigned_user_id = $requested_assigned_user_id;
+        $assigned_user_ids = [$requested_assigned_user_id];
     }
+    $assignedUserChanged = (int) $assigned_user_id !== $oldAssignedUserId;
+    $requesterAssignmentChanged = $assignmentChanged || $assignedUserChanged;
     if ($new_status === 'Open') {
         $assigned_to = null;
     } else {
-        if ($currentHandlerUserId > 0) {
+        if ((int) $assigned_user_id > 0 && ($assignmentChanged || $assignedUserChanged)) {
+            $assigned_to = (int) $assigned_user_id;
+        } elseif ($currentHandlerUserId > 0) {
             $assigned_to = $currentHandlerUserId;
         } elseif ((int) $assigned_to <= 0 && (int) $assigned_user_id > 0) {
             $assigned_to = (int) $assigned_user_id;

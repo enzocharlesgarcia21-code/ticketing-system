@@ -1040,6 +1040,8 @@ $showing_to = min($offset + $limit, (int) $total_records);
         window.TM_HIDE_QUICK_TAGS = true;
         window.TM_DEPARTMENT_LABEL_TEXT = 'Assigned Department';
         window.TM_DEPARTMENT_REQUIRED = true;
+        window.TM_SHOW_DEPARTMENT_USER_SELECT = true;
+        window.TM_DEPARTMENT_USERS_ENDPOINT = 'ajax_department_users.php';
     </script>
     <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
     <script>
