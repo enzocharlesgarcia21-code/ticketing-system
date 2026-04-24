@@ -995,8 +995,8 @@ user_permissions_ensure_table($conn);
             justify-content: space-between;
             gap: 14px;
             padding: 14px 16px;
-            border-bottom: 1px solid #e5e7eb;
-            background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+            border-bottom: 1px solid rgba(20, 83, 45, 0.28);
+            background: linear-gradient(135deg, #14532d 0%, #166534 58%, #15803d 100%);
             position: sticky;
             top: 0;
             z-index: 2;
@@ -1011,9 +1011,9 @@ user_permissions_ensure_table($conn);
             width: 38px;
             height: 38px;
             border-radius: 12px;
-            background: #ecfdf5;
-            border: 1px solid #bbf7d0;
-            color: #166534;
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            color: #ffffff;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -1022,14 +1022,14 @@ user_permissions_ensure_table($conn);
         }
         .access-modal-shell-heading {
             margin: 0;
-            color: #0f172a;
+            color: #ffffff;
             font-size: 18px;
             font-weight: 900;
             line-height: 1.15;
         }
         .access-modal-shell-copy {
             margin-top: 4px;
-            color: #64748b;
+            color: rgba(255, 255, 255, 0.86);
             font-size: 12px;
             font-weight: 600;
             line-height: 1.4;
@@ -1038,9 +1038,9 @@ user_permissions_ensure_table($conn);
             width: 36px;
             height: 36px;
             border-radius: 12px;
-            border: 1px solid #dbe2ea;
-            background: #ffffff;
-            color: #475569;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -1049,9 +1049,9 @@ user_permissions_ensure_table($conn);
             transition: all 0.18s ease;
         }
         .access-modal-close:hover {
-            background: #f8fafc;
-            border-color: #cbd5e1;
-            color: #0f172a;
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.4);
+            color: #ffffff;
         }
         .access-modal-header-copy {
             display: grid;

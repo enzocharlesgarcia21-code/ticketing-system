@@ -27,6 +27,12 @@ if ($colRes && $colRes->num_rows > 0) {
     $hasSuperAdminCol = true;
 }
 
+$hasFullNameCol = false;
+$fullNameRes = $conn->query("SHOW COLUMNS FROM users LIKE 'full_name'");
+if ($fullNameRes && $fullNameRes->num_rows > 0) {
+    $hasFullNameCol = true;
+}
+
 $where = [];
 $params = [];
 $types = '';
@@ -89,7 +95,11 @@ if ($company === '@leadsagri.com' && $department !== '' && $department !== 'all'
 }
 
 $countSql = "SELECT COUNT(*) AS total FROM users";
-$sql = "SELECT id, name, email, department, role";
+$displayNameExpr = $hasFullNameCol
+    ? "COALESCE(NULLIF(full_name,''), NULLIF(name,''), '')"
+    : "COALESCE(NULLIF(name,''), '')";
+
+$sql = "SELECT id, $displayNameExpr AS display_name, email, department, role";
 if ($hasSuperAdminCol) {
     $sql .= ", COALESCE(is_super_admin, 0) AS is_super_admin";
 }
@@ -152,7 +162,7 @@ while ($row = $res->fetch_assoc()) {
     }
     $users[] = [
         'id' => (int) ($row['id'] ?? 0),
-        'name' => (string) ($row['name'] ?? ''),
+        'name' => (string) ($row['display_name'] ?? ''),
         'email' => (string) ($row['email'] ?? ''),
         'department' => (string) ($row['department'] ?? ''),
         'role' => (string) ($row['role'] ?? ''),

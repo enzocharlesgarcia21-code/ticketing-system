@@ -112,6 +112,21 @@ function conference_booking_ensure_tables(mysqli $conn): void
         }
     }
 
+    // Older installs created status as ENUM('approved','pending','cancelled')
+    // which truncates the 'Booked' status used by the application. Convert it
+    // to VARCHAR(50) so all expected status values are accepted.
+    if (isset($existingBookingColumns['status'])) {
+        $statusColumn = $conn->query("SHOW COLUMNS FROM conference_bookings LIKE 'status'");
+        $statusMeta = $statusColumn ? $statusColumn->fetch_assoc() : null;
+        if ($statusColumn instanceof mysqli_result) {
+            $statusColumn->free();
+        }
+        $statusType = strtolower((string) ($statusMeta['Type'] ?? ''));
+        if ($statusMeta && strpos($statusType, 'varchar') !== 0) {
+            $conn->query("ALTER TABLE conference_bookings MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT 'Booked'");
+        }
+    }
+
     if ($saturdayColumnAdded) {
         conference_booking_seed_default_saturday_availability($conn);
     }
@@ -1335,18 +1350,22 @@ function conference_booking_create(
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Booked')
         ");
         if (!$stmt) {
+            $prepError = trim((string) $conn->error);
+            error_log('conference_booking_create prepare failed: ' . $prepError);
             $conn->rollback();
-            return ['ok' => false, 'error' => 'Unable to save the booking right now.'];
+            return ['ok' => false, 'error' => 'Unable to save the booking right now.' . ($prepError !== '' ? ' (' . $prepError . ')' : '')];
         }
 
         $stmt->bind_param("isssissss", $bookingUserId, $bookerEmail, $bookerCompany, $bookerDepartment, $roomId, $bookingDate, $startTime, $endTime, $purpose);
         $ok = $stmt->execute();
+        $execError = $ok ? '' : trim((string) $stmt->error);
         $bookingId = $ok ? (int) $stmt->insert_id : 0;
         $stmt->close();
 
         if (!$ok || $bookingId <= 0) {
+            error_log('conference_booking_create execute failed: ' . $execError);
             $conn->rollback();
-            return ['ok' => false, 'error' => 'Unable to save the booking right now.'];
+            return ['ok' => false, 'error' => 'Unable to save the booking right now.' . ($execError !== '' ? ' (' . $execError . ')' : '')];
         }
 
         $bookerName = '';
@@ -1396,8 +1415,9 @@ function conference_booking_create(
             'emailed' => $emailed,
         ];
     } catch (Throwable $e) {
-        $conn->rollback();
-        return ['ok' => false, 'error' => 'Unable to save the booking right now.'];
+        error_log('conference_booking_create exception: ' . $e->getMessage());
+        try { $conn->rollback(); } catch (Throwable $rollbackEx) {}
+        return ['ok' => false, 'error' => 'Unable to save the booking right now. (' . $e->getMessage() . ')'];
     }
 }
 
