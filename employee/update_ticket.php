@@ -24,7 +24,7 @@ function finish_ticket_update_response(string $location): void
     if (!headers_sent()) {
         header("Location: $location");
         header('Cache-Control: no-store, no-cache, must-revalidate');
-        header('Connection: close');
+        header('Content-Length: 0');
     }
 
     if (function_exists('fastcgi_finish_request')) {
@@ -232,11 +232,46 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             END
         WHERE id = ?
     ");
-    
+
+    if (!$update) {
+        error_log('update_ticket.php prepare failed: ' . $conn->error);
+        $_SESSION['error'] = 'Unable to update the ticket right now. (' . $conn->error . ')';
+        header("Location: my_task.php");
+        exit();
+    }
+
     $update->bind_param("sssssiisssi", $new_status, $new_status, $new_department, $new_company, $new_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $id);
-    
-    if ($update->execute()) {
+
+    $updateOk = false;
+    $updateError = '';
+    try {
+        $updateOk = $update->execute();
+        if (!$updateOk) {
+            $updateError = (string) $update->error;
+        }
+    } catch (Throwable $execEx) {
+        $updateError = $execEx->getMessage();
+    }
+
+    if (!$updateOk) {
+        error_log('update_ticket.php execute failed: ' . $updateError);
+        $update->close();
+        $_SESSION['error'] = 'Unable to update the ticket right now. (' . $updateError . ')';
+        header("Location: my_task.php");
+        exit();
+    }
+
+    if ($updateOk) {
         $_SESSION['task_success'] = "Ticket #$id successfully updated.";
+
+        // Flush the redirect to the browser as early as possible so any
+        // downstream notification/email failure cannot close the connection
+        // before the response is delivered (NS_ERROR_NET_ERROR_RESPONSE).
+        $update->close();
+        finish_ticket_update_response("my_task.php");
+        $responseFlushed = true;
+
+        try {
 
         // --- TICKET ACTIVITY LOG ---
         // Status change
@@ -340,9 +375,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 (string) $requesterNotification['action_type']
             );
         }
-
-        finish_ticket_update_response("my_task.php");
-        $responseFlushed = true;
 
         $ticket = notif_ticket_data($conn, $id);
 
@@ -564,9 +596,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
             }
         }
+
+        } catch (Throwable $postUpdateEx) {
+            error_log('update_ticket.php post-update side-effects failed: ' . $postUpdateEx->getMessage());
+        }
     }
-    
-    $update->close();
+
     if ($responseFlushed) {
         exit();
     }
