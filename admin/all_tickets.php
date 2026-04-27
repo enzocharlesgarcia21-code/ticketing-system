@@ -531,18 +531,18 @@ $result = $stmt->get_result();
 
                         <select id="recipientFilterSelect" class="filter-select">
                             <option value="" <?= $company_email === '' ? 'selected' : '' ?>>All Company</option>
-                            <option value="@leads-farmex.com">FARMEX (@leads-farmex.com)</option>
-                            <option value="@farmasee.ph">FARMASEE (@farmasee.ph)</option>
-                            <option value="@gpsci.net">GPSCI (@gpsci.net)</option>
-                            <option value="@leadsanimalhealth.com">LAH (@leadsanimalhealth.com)</option>
-                            <option value="@leadsagri.com">LAPC (@leadsagri.com)</option>
-                            <option value="@leads-eh.com">LEH (@leads-eh.com)</option>
-                            <option value="@leadsav.com">LAV (@leadsav.com)</option>
-                            <option value="@malvedaholdings.com">MHC (@malvedaholdings.com)</option>
-                            <option value="@malvedaproperties.com">MPDC (@malvedaproperties.com)</option>
-                            <option value="@leadstech-corp.com">LTC (@leadstech-corp.com)</option>
-                            <option value="@lingapleads.org">LINGAP (@lingapleads.org)</option>
-                            <option value="@primestocks.ph">PCC (@primestocks.ph)</option>
+                            <option value="@leads-farmex.com">FARMEX</option>
+                            <option value="@farmasee.ph">FARMASEE</option>
+                            <option value="@gpsci.net">GPSCI</option>
+                            <option value="@leadsanimalhealth.com">LAH</option>
+                            <option value="@leadsagri.com">LAPC</option>
+                            <option value="@leads-eh.com">LEH</option>
+                            <option value="@leadsav.com">LAV</option>
+                            <option value="@malvedaholdings.com">MHC</option>
+                            <option value="@malvedaproperties.com">MPDC</option>
+                            <option value="@leadstech-corp.com">LTC</option>
+                            <option value="@lingapleads.org">LINGAP</option>
+                            <option value="@primestocks.ph">PCC</option>
                         </select>
 
                         <div id="departmentFilterWrap" class="lapc-department-filter is-hidden is-disabled">

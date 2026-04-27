@@ -76,26 +76,17 @@ $mhcDepartmentCategories = [
     ],
 ];
 
-$companies = [
-    "LTC (@leadstech-corp.com)",
-    "GPSCI (@gpsci.net)",
-    "LAPC (@leadsagri.com)",
-    "FARMEX (@leads-farmex.com)",
-    "MHC (@malvedaholdings.com)",
-    "MPDC (@malvedaproperties.com)",
-];
-
 $requestTicketCompanyOptions = [
-    '@leads-farmex.com' => 'FARMEX (@leads-farmex.com)',
-    '@farmasee.ph' => 'FARMASEE (@farmasee.ph)',
-    '@gpsci.net' => 'GPSCI (@gpsci.net)',
-    '@leadsagri.com' => 'LAPC (@leadsagri.com)',
-    '@leadsav.com' => 'LAV (@leadsav.com)',
-    '@leadstech-corp.com' => 'LTC (@leadstech-corp.com)',
-    '@lingapleads.org' => 'LINGAP (@lingapleads.org)',
-    '@malvedaholdings.com' => 'MHC (@malvedaholdings.com)',
-    '@malvedaproperties.com' => 'MPDC (@malvedaproperties.com)',
-    '@primestocks.ph' => 'PCC (@primestocks.ph)',
+    '@leads-farmex.com' => 'FARMEX',
+    '@farmasee.ph' => 'FARMASEE',
+    '@gpsci.net' => 'GPSCI',
+    '@leadsagri.com' => 'LAPC',
+    '@leadsav.com' => 'LAV',
+    '@leadstech-corp.com' => 'LTC',
+    '@lingapleads.org' => 'LINGAP',
+    '@malvedaholdings.com' => 'MHC',
+    '@malvedaproperties.com' => 'MPDC',
+    '@primestocks.ph' => 'PCC',
 ];
 
 function derive_name_from_email(string $email): string
@@ -1866,8 +1857,13 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             background: #eef7ef;
         }
         body.sales-request-ticket-page .department-dropdown-option.is-selected {
+<<<<<<< HEAD
             background: #1B5E20;
             color: #ffffff;
+=======
+            background: #f8fafc;
+            color: #0f172a;
+>>>>>>> 7371fbb12f1eed8b225a94fb7259811c042b1dc1
             font-weight: 400;
         }
         body.sales-request-ticket-page .category-dropdown-option {
@@ -3907,9 +3903,15 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
                     <label>Assign to <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper">
                         <select name="company_id" id="ticket_recipient" class="form-control" required>
+<<<<<<< HEAD
                             <option value="" disabled selected hidden>Select a company</option>
                             <?php foreach ($companies as $c): ?>
                                 <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= (isset($company_id) && $company_id === $c) ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
+=======
+                            <option value="" disabled selected hidden>Select Recipient</option>
+                            <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
+                                <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (normalize_sales_recipient_company((string) ($company_id ?? '')) === $companyValue) ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+>>>>>>> 7371fbb12f1eed8b225a94fb7259811c042b1dc1
                             <?php endforeach; ?>
                         </select>
                         <i class="fas fa-chevron-down select-icon"></i>
@@ -4966,6 +4968,7 @@ function isLapcRecipientValue(value) {
 }
 
 function isMhcRecipientValue(value) {
+<<<<<<< HEAD
     return normalizeRecipientCompany(value) === '@malvedaholdings.com';
 }
 
@@ -4984,6 +4987,9 @@ function normalizeRecipientCompany(value) {
         return '@malvedaholdings.com';
     }
     return lower;
+=======
+    return String(value || '') === 'MHC (@malvedaholdings.com)' || String(value || '') === '@malvedaholdings.com';
+>>>>>>> 7371fbb12f1eed8b225a94fb7259811c042b1dc1
 }
 
 function closeDepartmentDropdown() {
@@ -5093,6 +5099,17 @@ function toggleDepartmentField() {
         departmentSelect.disabled = false;
         departmentSelect.setAttribute('required', 'required');
         if (departmentTrigger) departmentTrigger.disabled = false;
+<<<<<<< HEAD
+=======
+    } else if (isMhcRecipientValue(value)) {
+        populateDepartments(mhcDepartments);
+        departmentGroup.style.display = 'block';
+        departmentGroup.classList.remove('hidden');
+        recipientGroup.classList.remove('full-width');
+        departmentSelect.disabled = false;
+        departmentSelect.setAttribute('required', 'required');
+        if (departmentTrigger) departmentTrigger.disabled = false;
+>>>>>>> 7371fbb12f1eed8b225a94fb7259811c042b1dc1
     } else if (isMhcRecipientValue(value)) {
         populateDepartments(mhcDepartments);
         departmentGroup.style.display = 'block';
@@ -5158,7 +5175,7 @@ function toggleCategoryField() {
     var value = String(recipient.value || '');
     var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
     var options = defaultCategories;
-    if (value === 'MPDC (@malvedaproperties.com)') {
+    if (value === '@malvedaproperties.com' || value === 'MPDC (@malvedaproperties.com)') {
         options = mpdcCategories;
     } else if (isMhcRecipientValue(value) && mhcDepartmentCategories[departmentValue]) {
         options = mhcDepartmentCategories[departmentValue];
@@ -5172,7 +5189,7 @@ function togglePriorityField() {
     if (!priorityGroup || !prioritySelect || !recipient) return;
     var recipientValue = String(recipient.value || '');
     var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
-    var isMarketing = isMhcRecipientValue(recipientValue) && departmentValue === 'Marketing';
+    var isMarketing = isMhcRecipientValue(recipientValue) && departmentValue === 'Marketing Creatives';
     var shouldShow = isLapcRecipientValue(recipientValue) && departmentValue === 'HR';
     if (isMarketing) {
         shouldShow = true;

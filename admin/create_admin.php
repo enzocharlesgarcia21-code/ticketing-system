@@ -869,7 +869,7 @@ user_permissions_ensure_table($conn);
             align-items: center;
             justify-content: center;
             padding: 24px 22px;
-            z-index: 3000;
+            z-index: 12000;
             overflow-y: auto;
         }
         .modal-overlay-lite.show { display: flex; }
@@ -882,7 +882,7 @@ user_permissions_ensure_table($conn);
             box-shadow: 0 22px 60px rgba(2, 6, 23, 0.25);
             overflow: hidden;
             position: relative;
-            z-index: 3001;
+            z-index: 12001;
             margin: 0 auto;
             max-height: calc(100vh - 44px);
             overflow-y: auto;
@@ -1678,7 +1678,7 @@ user_permissions_ensure_table($conn);
                                 <select class="domain-select" id="usersCompany">
                                     <option value="all" selected>All Companies</option>
                                     <?php foreach ($company_domain_options as $opt => $label): ?>
-                                        <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($label . ' (' . $opt . ')', ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                                 <select class="domain-select users-dept-filter" id="usersDept">
@@ -1747,10 +1747,9 @@ user_permissions_ensure_table($conn);
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                                <div class="field-hint">Enter only the email username on the left. The selected company domain completes the address.</div>
                             </div>
 
-                            <div class="form-label">Identity <span class="form-required">*</span></div>
+                            <div class="form-label">Name <span class="form-required">*</span></div>
                             <div class="form-field-stack">
                                 <div class="fullname-row">
                                     <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required inputmode="text" autocomplete="off">
@@ -1758,10 +1757,9 @@ user_permissions_ensure_table($conn);
                                         <option value="">Select Company First</option>
                                     </select>
                                 </div>
-                                <div class="field-hint">Use the employee's full name and assign the department that matches the selected company.</div>
                             </div>
 
-                            <div class="form-label">Access Setup <span class="form-required">*</span></div>
+                            <div class="form-label">Password <span class="form-required">*</span></div>
                             <div class="form-field-stack">
                                 <div class="password-row">
                                     <div class="password-field">
@@ -1772,7 +1770,6 @@ user_permissions_ensure_table($conn);
                                     </div>
                                     <button type="button" class="btn btn-auto" id="autoGenerateBtn">Auto Generate</button>
                                 </div>
-                                <div class="field-hint">Use a temporary password or generate one, then decide whether to email the credentials below.</div>
                             </div>
 
                             <div class="form-options">
