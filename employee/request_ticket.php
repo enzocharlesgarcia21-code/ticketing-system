@@ -1587,6 +1587,15 @@ $requestTicketCompanyOptions = [
         body.employee-request-ticket-page .custom-select-menu[hidden] {
             display: none;
         }
+        body.employee-request-ticket-page #assignedGroupWrapper .custom-select-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            width: auto;
+            margin-top: 0;
+            z-index: 90;
+        }
         body.employee-request-ticket-page .select-wrapper.is-open .select-icon {
             transform: translateY(-50%) rotate(180deg);
         }
@@ -1611,7 +1620,7 @@ $requestTicketCompanyOptions = [
         body.employee-request-ticket-page .custom-select-option.is-selected {
             background: rgba(27, 94, 32, 0.12);
             color: #14532d;
-            font-weight: 700;
+            font-weight: 400;
         }
         body.employee-request-ticket-page .custom-select-native {
             position: absolute;
@@ -3515,7 +3524,7 @@ $requestTicketCompanyOptions = [
                             <label>Assign to <span class="required-asterisk">*</span></label>
                             <div class="select-wrapper">
                                 <select name="assigned_company" id="assigned_company" class="form-control" required>
-                                    <option value="" disabled selected hidden>Choose recipient</option>
+                                    <option value="" disabled selected hidden>Select a company</option>
                                     <option value="@leads-farmex.com">FARMEX</option>
                                     <option value="@farmasee.ph">FARMASEE</option>
                                     <option value="@gpsci.net">GPSCI</option>
@@ -3918,7 +3927,7 @@ $requestTicketCompanyOptions = [
                                                 <label for="sap_company_<?= $sapIndex; ?>">Company <span class="required-asterisk">*</span></label>
                                                 <div class="select-wrapper">
                                                     <select name="sap_reports[<?= $sapIndex; ?>][company]" id="sap_company_<?= $sapIndex; ?>" class="form-control" data-sap-field="company">
-                                                        <option value="" disabled <?= (($sapEntry['company'] ?? '') === '') ? 'selected' : ''; ?>>Choose company</option>
+                                                        <option value="" disabled <?= (($sapEntry['company'] ?? '') === '') ? 'selected' : ''; ?>>Select a company</option>
                                                         <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
                                                             <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (($sapEntry['company'] ?? '') === $companyValue) ? 'selected' : ''; ?>>
                                                                 <?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?>
@@ -3996,7 +4005,7 @@ $requestTicketCompanyOptions = [
                                         <label for="sap_company___INDEX__">Company <span class="required-asterisk">*</span></label>
                                         <div class="select-wrapper">
                                             <select name="sap_reports[__INDEX__][company]" id="sap_company___INDEX__" class="form-control" data-sap-field="company">
-                                                <option value="" disabled selected>Choose company</option>
+                                                <option value="" disabled selected>Select a company</option>
                                                 <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
                                                     <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>">
                                                         <?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?>

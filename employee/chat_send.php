@@ -124,6 +124,7 @@ $ticketStmt = $conn->prepare("
         t.subject,
         t.priority,
         t.status,
+        t.started_at,
         COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email
     FROM employee_tickets t
     LEFT JOIN users requester ON requester.id = t.user_id
@@ -162,6 +163,7 @@ if ($sender_id !== $requesterId && $ticketWasUnassigned && $isHandlerCandidate) 
             t.subject,
             t.priority,
             t.status,
+            t.started_at,
             COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email
         FROM employee_tickets t
         LEFT JOIN users requester ON requester.id = t.user_id

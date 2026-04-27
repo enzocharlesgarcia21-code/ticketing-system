@@ -821,16 +821,30 @@ if ($ticketsStmt) {
         body.employee-analytics-page .navbar {
             position: sticky;
             top: 0;
-            z-index: 4000;
+            z-index: 10000;
+            pointer-events: auto;
+        }
+        body.employee-analytics-page .navbar * {
+            pointer-events: auto;
         }
         body.employee-analytics-page .navbar-collapse,
         body.employee-analytics-page .nav-right,
-        body.employee-analytics-page .notification-wrapper,
-        body.employee-analytics-page .user-menu,
+        body.employee-analytics-page .notification-wrapper {
+            position: relative;
+            z-index: 10001;
+        }
+        body.employee-analytics-page .user-menu {
+            position: relative;
+            z-index: 10020;
+        }
         body.employee-analytics-page .user-btn,
         body.employee-analytics-page .user-dropdown {
             position: relative;
-            z-index: 4001;
+            z-index: 10021;
+        }
+        body.employee-analytics-page .user-dropdown {
+            position: absolute;
+            z-index: 10030;
         }
         body.employee-analytics-page .admin-page,
         body.employee-analytics-page .admin-container {

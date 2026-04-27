@@ -1384,8 +1384,7 @@
         return;
       }
       if (currentStatus === initialStatus && currentDept === initialDept && currentCompany === initialCompany && currentUser === initialUser && currentNote === initialNote) {
-        e.preventDefault();
-        showNotice('No changes were made.');
+        hideNotice();
       }
     });
   }
@@ -1598,7 +1597,7 @@
     if (list.length === 0) {
       return '                  <option value="">No department users available</option>';
     }
-    var html = '';
+    var html = '                  <option value="">Choose department user</option>';
     html += list.map(function (user) {
       var userId = user && user.id != null ? String(user.id) : '';
       var name = user && user.name ? String(user.name) : 'Unnamed User';
@@ -1678,8 +1677,7 @@
         });
     }
 
-    var initialUserId = data && data.assigned_user_id != null ? String(data.assigned_user_id) : '';
-    syncUsers(initialUserId);
+    syncUsers('');
     companyEl.addEventListener('change', function () {
       syncUsers('');
     });
@@ -1886,11 +1884,12 @@
       }
       return u;
     }
-    var assignedCompanyValue = normalizeCompanyValue(data.assigned_company || '') || String(data.assigned_company || '');
-    var deptOptionsHtml = buildDeptOptionsHtml(assignedCompanyValue, data.assigned_department || data.assigned_group || '');
-    var assignedUserIdValue = data && data.assigned_user_id != null ? String(data.assigned_user_id) : '';
+    var assignedCompanyValue = normalizeCompanyValue(data.assigned_company || data.company || '') || String(data.assigned_company || data.company || '');
+    var assignedDeptValue = data.assigned_department || data.assigned_group || data.department || '';
+    var deptOptionsHtml = buildDeptOptionsHtml(assignedCompanyValue, assignedDeptValue);
+    var assignedUserIdValue = '';
     var currentUserDeptKey = normalizeDepartmentKey(current && current.department ? current.department : '');
-    var selectedDeptKey = normalizeDepartmentKey(data.assigned_department || data.assigned_group || '');
+    var selectedDeptKey = normalizeDepartmentKey(assignedDeptValue);
     var canShowDepartmentUserSelect = showDepartmentUserSelect && currentUserDeptKey !== '' && selectedDeptKey !== '' && currentUserDeptKey === selectedDeptKey;
     var noteValue = data && data.admin_note != null ? String(data.admin_note) : '';
     var trimmedNoteValue = noteValue.trim();
@@ -2002,7 +2001,7 @@
       '          <label class="tm-control-label">Department User</label>' +
       '          <div class="tm-select-wrapper">' +
       '            <select class="tm-select tm-dept-user-select" name="assigned_user_id" ' + (canShowDepartmentUserSelect ? '' : 'disabled') + '>' +
-      '              <option value="' + (canShowDepartmentUserSelect ? escapeHtml(assignedUserIdValue) : '') + '">' + (canShowDepartmentUserSelect && assignedUserIdValue ? 'Loading department users...' : 'Select department user') + '</option>' +
+      '              <option value="">Choose department user</option>' +
       '            </select>' +
       '          </div>' +
       '        </div>'

@@ -1016,7 +1016,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
     <div id="taskSuccessOverlay" class="task-success-overlay" role="dialog" aria-modal="true" aria-labelledby="taskSuccessTitle">
         <div class="task-success-dialog">
             <div class="task-success-icon" aria-hidden="true">&#10003;</div>
-            <h2 id="taskSuccessTitle" class="task-success-title">The ticket has been updated</h2>
+            <h2 id="taskSuccessTitle" class="task-success-title"><?= strcasecmp($flashSuccess, 'No changes were made.') === 0 ? 'No changes were made' : 'The ticket has been updated'; ?></h2>
             <p class="task-success-message"><?= htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?></p>
             <div class="task-success-actions">
                 <button type="button" class="task-success-btn" id="taskSuccessCloseBtn">Close</button>

@@ -1373,6 +1373,7 @@ $sapFormEntries = sales_request_extract_sap_reports($_POST);
 if (count($sapFormEntries) === 0) {
     $sapFormEntries = [sales_request_blank_sap_report()];
 }
+$normalized_company_id = normalize_sales_recipient_company((string) $company_id);
 ?>
 
 <!DOCTYPE html>
@@ -1765,7 +1766,7 @@ if (count($sapFormEntries) === 0) {
             cursor: pointer;
         }
         body.sales-request-ticket-page .department-dropdown-trigger:not(.is-placeholder) {
-            font-weight: 700;
+            font-weight: 400;
         }
         body.sales-request-ticket-page .department-dropdown-trigger:focus {
             outline: none;
@@ -1855,6 +1856,7 @@ if (count($sapFormEntries) === 0) {
             padding: 12px 14px;
             color: #0f172a;
             font-size: 14px;
+            font-weight: 400;
             text-align: left;
             cursor: pointer;
         }
@@ -1866,7 +1868,7 @@ if (count($sapFormEntries) === 0) {
         body.sales-request-ticket-page .department-dropdown-option.is-selected {
             background: #1B5E20;
             color: #ffffff;
-            font-weight: 700;
+            font-weight: 400;
         }
         body.sales-request-ticket-page .category-dropdown-option {
             width: 100%;
@@ -3905,7 +3907,7 @@ if (count($sapFormEntries) === 0) {
                     <label>Assign to <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper">
                         <select name="company_id" id="ticket_recipient" class="form-control" required>
-                            <option value="" disabled selected hidden>Select Recipient</option>
+                            <option value="" disabled selected hidden>Select a company</option>
                             <?php foreach ($companies as $c): ?>
                                 <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= (isset($company_id) && $company_id === $c) ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
@@ -4269,7 +4271,7 @@ if (count($sapFormEntries) === 0) {
                                         <label for="sap_company_current">Company <span class="required-asterisk">*</span></label>
                                         <div class="select-wrapper">
                                             <select name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][company]" id="sap_company_current" class="form-control" data-sap-field="company">
-                                                <option value="" disabled <?= (($visibleSapEntry['company'] ?? '') === '') ? 'selected' : ''; ?>>Choose company</option>
+                                                <option value="" disabled <?= (($visibleSapEntry['company'] ?? '') === '') ? 'selected' : ''; ?>>Select a company</option>
                                                 <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
                                                     <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (($visibleSapEntry['company'] ?? '') === $companyValue) ? 'selected' : ''; ?>>
                                                         <?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?>
@@ -4960,13 +4962,30 @@ function syncRequestGridRows() {
 }
 
 function isLapcRecipientValue(value) {
-    return String(value || '') === 'LAPC (@leadsagri.com)' || String(value || '') === '@leadsagri.com';
+    return normalizeRecipientCompany(value) === '@leadsagri.com';
 }
 
-<<<<<<< HEAD
 function isMhcRecipientValue(value) {
-    return String(value || '') === 'MHC (@malvedaholdings.com)' || String(value || '') === '@malvedaholdings.com';
-=======
+    return normalizeRecipientCompany(value) === '@malvedaholdings.com';
+}
+
+function normalizeRecipientCompany(value) {
+    var raw = String(value || '').trim();
+    var lower = raw.toLowerCase();
+    var domainMatch = raw.match(/\((@\S+)\)/);
+    if (domainMatch && domainMatch[1]) {
+        return String(domainMatch[1]).trim().toLowerCase();
+    }
+    if (lower.indexOf('@') === 0) return lower;
+    if (lower === 'lapc' || lower.indexOf('leadsagri.com') !== -1 || lower.indexOf('leads agricultural products') !== -1) {
+        return '@leadsagri.com';
+    }
+    if (lower === 'mhc' || lower.indexOf('malvedaholdings.com') !== -1 || lower.indexOf('malveda holdings') !== -1) {
+        return '@malvedaholdings.com';
+    }
+    return lower;
+}
+
 function closeDepartmentDropdown() {
     if (!departmentMenu || !departmentTrigger) return;
     departmentMenu.classList.remove('is-open');
@@ -5027,7 +5046,6 @@ function chooseCategory(optionValue, shouldDispatchChange) {
     if (shouldDispatchChange) {
         categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
->>>>>>> 329ebec (Updated system)
 }
 
 function populateDepartments(options) {
@@ -5074,7 +5092,7 @@ function toggleDepartmentField() {
         recipientGroup.classList.remove('full-width');
         departmentSelect.disabled = false;
         departmentSelect.setAttribute('required', 'required');
-<<<<<<< HEAD
+        if (departmentTrigger) departmentTrigger.disabled = false;
     } else if (isMhcRecipientValue(value)) {
         populateDepartments(mhcDepartments);
         departmentGroup.style.display = 'block';
@@ -5082,9 +5100,7 @@ function toggleDepartmentField() {
         recipientGroup.classList.remove('full-width');
         departmentSelect.disabled = false;
         departmentSelect.setAttribute('required', 'required');
-=======
         if (departmentTrigger) departmentTrigger.disabled = false;
->>>>>>> 329ebec (Updated system)
     } else {
         departmentGroup.style.display = 'none';
         departmentGroup.classList.add('hidden');

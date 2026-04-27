@@ -1275,47 +1275,34 @@ $successMessage = '';
         body.employee-my-tickets-page .feedback-modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(15, 23, 42, 0.55);
-            backdrop-filter: blur(4px);
+            background: rgba(15, 23, 42, 0.58);
+            backdrop-filter: blur(6px);
             display: none;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 22px;
             z-index: 3300;
         }
         body.employee-my-tickets-page .feedback-modal-overlay.is-visible {
             display: flex;
         }
         body.employee-my-tickets-page .feedback-modal-dialog {
-            width: min(100%, 720px);
+            width: min(100%, 780px);
+            max-height: calc(100vh - 44px);
             background: #ffffff;
-            border-radius: 28px;
-            box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
+            border-radius: 18px;
+            box-shadow: 0 30px 90px rgba(15, 23, 42, 0.34);
             overflow: hidden;
-            border: 1px solid rgba(203, 213, 225, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.75);
         }
         body.employee-my-tickets-page .feedback-modal-header {
-            padding: 22px 26px 18px;
-            background: linear-gradient(135deg, #14532d 0%, #1b5e20 58%, #15803d 100%);
+            padding: 28px 44px 24px;
+            background: linear-gradient(135deg, #065f46 0%, #08783b 58%, #07843f 100%);
             color: #ffffff;
             position: relative;
         }
         body.employee-my-tickets-page .feedback-close-btn {
-            position: absolute;
-            top: 18px;
-            right: 18px;
-            width: 52px;
-            height: 52px;
-            border: none;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.14);
-            color: #ffffff;
-            font-size: 22px;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.18s ease, transform 0.18s ease;
+            display: none;
         }
         body.employee-my-tickets-page .feedback-close-btn:hover {
             background: rgba(255, 255, 255, 0.24);
@@ -1323,47 +1310,47 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-modal-title {
             margin: 0;
-            font-size: 26px;
+            max-width: 680px;
+            font-size: 28px;
             line-height: 1.15;
             font-weight: 800;
+            letter-spacing: 0;
         }
         body.employee-my-tickets-page .feedback-modal-subtitle {
-            margin: 14px 0 0;
-            max-width: 500px;
-            font-size: 14px;
-            line-height: 1.55;
-            color: rgba(255, 255, 255, 0.9);
+            display: none;
         }
         body.employee-my-tickets-page .feedback-modal-body {
-            padding: 20px 22px 22px;
+            padding: 22px 40px 26px;
+            overflow-y: auto;
+            max-height: calc(100vh - 185px);
         }
         body.employee-my-tickets-page .feedback-summary-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
-            margin-bottom: 18px;
+            gap: 18px;
+            margin-bottom: 22px;
         }
         body.employee-my-tickets-page .feedback-summary-card {
             display: flex;
             align-items: center;
-            gap: 18px;
-            min-height: 68px;
-            padding: 12px 14px;
-            border-radius: 18px;
-            background: #ffffff;
-            border: 1px solid #dbe4ee;
-            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+            gap: 14px;
+            min-height: 64px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            background: #fbfbfd;
+            border: 1px solid #e5e7eb;
+            box-shadow: none;
         }
         body.employee-my-tickets-page .feedback-summary-icon {
-            width: 38px;
-            height: 38px;
+            width: 34px;
+            height: 34px;
             border-radius: 999px;
             background: #ecfdf5;
-            color: #15803d;
+            color: #047857;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 17px;
+            font-size: 15px;
             flex: 0 0 auto;
         }
         body.employee-my-tickets-page .feedback-summary-copy {
@@ -1376,15 +1363,15 @@ $successMessage = '';
             flex-wrap: wrap;
         }
         body.employee-my-tickets-page .feedback-summary-ticket {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 900;
-            color: #15803d;
+            color: #047857;
         }
         body.employee-my-tickets-page .feedback-summary-subject,
         body.employee-my-tickets-page .feedback-summary-meta {
             font-size: 14px;
             color: #64748b;
-            line-height: 1.3;
+            line-height: 1.35;
         }
         body.employee-my-tickets-page .feedback-summary-meta strong {
             color: #334155;
@@ -1409,14 +1396,14 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-form {
             display: grid;
-            gap: 18px;
+            gap: 22px;
         }
         body.employee-my-tickets-page .feedback-label {
             display: block;
             margin-bottom: 12px;
-            font-size: 16px;
+            font-size: 17px;
             font-weight: 800;
-            letter-spacing: -0.01em;
+            letter-spacing: 0;
             color: #334155;
             text-transform: none;
         }
@@ -1427,15 +1414,15 @@ $successMessage = '';
             color: #94a3b8;
         }
         body.employee-my-tickets-page .feedback-rating-question {
-            margin-bottom: 12px;
-            font-size: 15px;
+            margin-bottom: 14px;
+            font-size: 18px;
             font-weight: 800;
             color: #334155;
         }
         body.employee-my-tickets-page .feedback-stars {
             display: grid;
             grid-template-columns: repeat(5, minmax(0, 1fr));
-            gap: 10px;
+            gap: 16px;
         }
         body.employee-my-tickets-page .feedback-star-input {
             position: absolute;
@@ -1448,15 +1435,16 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-star {
             width: 100%;
-            min-height: 74px;
-            border-radius: 16px;
-            border: 1px solid #dbe4ee;
+            height: 56px;
+            min-height: 56px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
             background: #ffffff;
-            color: #cbd5e1;
+            color: #c7cbd5;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 30px;
+            font-size: 24px;
             cursor: pointer;
             transition: color 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
         }
@@ -1473,18 +1461,18 @@ $successMessage = '';
             background: #fffdf3;
         }
         body.employee-my-tickets-page .feedback-rating-text {
-            margin-top: 8px;
+            margin-top: 7px;
             font-size: 13px;
             color: #475569;
             font-weight: 500;
         }
         body.employee-my-tickets-page .feedback-textarea {
             width: 100%;
-            min-height: 126px;
-            padding: 16px 16px;
-            border-radius: 18px;
-            border: 1px solid #dbe4ee;
-            resize: none;
+            min-height: 112px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            resize: vertical;
             font: inherit;
             font-size: 15px;
             color: #0f172a;
@@ -1498,30 +1486,24 @@ $successMessage = '';
         body.employee-my-tickets-page .feedback-actions {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-end;
             gap: 16px;
             flex-wrap: wrap;
-            margin-top: 6px;
+            margin-top: 0;
         }
         body.employee-my-tickets-page .feedback-footer-note {
-            display: inline-flex;
-            align-items: center;
-            gap: 14px;
-            color: #64748b;
-            font-size: 14px;
-            line-height: 1.45;
-            max-width: 240px;
+            display: none;
         }
         body.employee-my-tickets-page .feedback-footer-note-icon {
-            width: 38px;
-            height: 38px;
+            width: 36px;
+            height: 36px;
             border-radius: 999px;
             background: #ecfdf5;
-            color: #15803d;
+            color: #047857;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
+            font-size: 15px;
             flex: 0 0 auto;
         }
         body.employee-my-tickets-page .feedback-action-buttons {
@@ -1533,24 +1515,25 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-cancel-btn,
         body.employee-my-tickets-page .feedback-submit-btn {
-            min-width: 148px;
-            min-height: 50px;
-            border-radius: 18px;
+            min-width: 118px;
+            min-height: 46px;
+            border-radius: 12px;
             font-size: 15px;
             font-weight: 800;
             cursor: pointer;
             transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
         }
         body.employee-my-tickets-page .feedback-cancel-btn {
-            border: 1px solid #dbe4ee;
+            border: 1px solid #e5e7eb;
             background: #ffffff;
             color: #334155;
         }
         body.employee-my-tickets-page .feedback-submit-btn {
             border: none;
-            background: linear-gradient(135deg, #166534 0%, #1f8a43 100%);
+            min-width: 170px;
+            background: linear-gradient(135deg, #047857 0%, #16823c 100%);
             color: #ffffff;
-            box-shadow: 0 18px 38px rgba(22, 101, 52, 0.22);
+            box-shadow: 0 14px 30px rgba(22, 101, 52, 0.22);
         }
         body.employee-my-tickets-page .feedback-submit-btn:hover,
         body.employee-my-tickets-page .feedback-cancel-btn:hover {
@@ -1572,7 +1555,8 @@ $successMessage = '';
                 gap: 16px;
             }
             body.employee-my-tickets-page .feedback-stars {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 12px;
             }
             body.employee-my-tickets-page .feedback-actions {
                 flex-direction: column;
@@ -1592,24 +1576,40 @@ $successMessage = '';
             }
         }
         @media (max-width: 640px) {
+            body.employee-my-tickets-page .feedback-modal-overlay {
+                padding: 12px;
+            }
             body.employee-my-tickets-page .feedback-modal-body,
             body.employee-my-tickets-page .feedback-modal-header {
-                padding-left: 16px;
-                padding-right: 16px;
+                padding-left: 18px;
+                padding-right: 18px;
+            }
+            body.employee-my-tickets-page .feedback-modal-body {
+                max-height: calc(100vh - 170px);
             }
             body.employee-my-tickets-page .feedback-modal-title {
-                font-size: 28px;
+                padding-right: 54px;
+                font-size: 23px;
+            }
+            body.employee-my-tickets-page .feedback-rating-question,
+            body.employee-my-tickets-page .feedback-label {
+                font-size: 16px;
             }
             body.employee-my-tickets-page .feedback-modal-subtitle {
-                font-size: 15px;
+                font-size: 14px;
             }
             body.employee-my-tickets-page .feedback-close-btn {
-                width: 52px;
-                height: 52px;
-                font-size: 22px;
+                width: 40px;
+                height: 40px;
+                font-size: 18px;
             }
             body.employee-my-tickets-page .feedback-stars {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            body.employee-my-tickets-page .feedback-star {
+                height: 52px;
+                min-height: 52px;
+                font-size: 23px;
             }
             body.employee-my-tickets-page .feedback-action-buttons {
                 flex-direction: column;
@@ -1779,8 +1779,8 @@ $successMessage = '';
                 <button type="button" class="feedback-close-btn" id="feedbackModalCloseBtn" aria-label="Close feedback modal">
                     <i class="fas fa-times"></i>
                 </button>
-                <h2 id="feedbackModalTitle" class="feedback-modal-title">Rate Your Resolved Ticket</h2>
-                <p class="feedback-modal-subtitle">This ticket was resolved by <span id="feedbackResolvedBySubtitle"><?= htmlspecialchars((string) ($feedbackAssigneeDisplay['display'] ?? 'Support Team'), ENT_QUOTES, 'UTF-8'); ?></span>. Please rate the support you received and share optional feedback.</p>
+                <h2 id="feedbackModalTitle" class="feedback-modal-title">Rate Your Support Experience</h2>
+                <p class="feedback-modal-subtitle" aria-hidden="true"></p>
             </div>
             <div class="feedback-modal-body">
                 <?php if ($feedbackFlash && !empty($feedbackFlash['message'])): ?>
@@ -1856,8 +1856,6 @@ $successMessage = '';
 
                         <div class="feedback-actions">
                             <div class="feedback-footer-note">
-                                <span class="feedback-footer-note-icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
-                                <span>Your feedback helps us improve support quality.</span>
                             </div>
                             <div class="feedback-action-buttons">
                                 <button type="button" class="feedback-cancel-btn" id="feedbackModalDismissBtn">Close</button>

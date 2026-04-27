@@ -831,7 +831,7 @@ window.TM_MESSENGER_STYLE = 'employee';
 .user-menu {
     position: relative;
     display: inline-block;
-    z-index: 1102;
+    z-index: 20000;
 }
 .user-btn {
     display: flex;
@@ -847,7 +847,7 @@ window.TM_MESSENGER_STYLE = 'employee';
     font-weight: 500;
     transition: all 0.2s ease;
     position: relative;
-    z-index: 1103;
+    z-index: 20001;
     pointer-events: auto;
 }
 .user-btn:hover { background: rgba(255,255,255,0.25); }
@@ -862,11 +862,19 @@ window.TM_MESSENGER_STYLE = 'employee';
     display: none;
     flex-direction: column;
     overflow: hidden;
-    z-index: 1104;
+    z-index: 20002;
     border: 1px solid #e5e7eb;
     pointer-events: auto;
 }
 .user-dropdown.show { display: flex; }
+body.employee-analytics-page .user-btn {
+    position: relative !important;
+    z-index: 20001 !important;
+    pointer-events: auto !important;
+}
+body.employee-analytics-page .user-dropdown {
+    z-index: 20002 !important;
+}
 .user-dropdown .dropdown-item {
     padding: 12px 16px;
     text-decoration: none;
@@ -888,12 +896,26 @@ window.toggleEmployeeUserMenu = function(event) {
         event.preventDefault();
         event.stopPropagation();
     }
+    var userBtn = document.querySelector('.user-btn');
     var userDropdown = document.querySelector('.user-dropdown');
     var notifDropdown = document.getElementById('notifDropdown');
     if (notifDropdown) {
         notifDropdown.classList.remove('show');
     }
     if (userDropdown) {
+        var willShow = !userDropdown.classList.contains('show');
+        if (document.body && document.body.classList.contains('employee-analytics-page') && userBtn && willShow) {
+            var rect = userBtn.getBoundingClientRect();
+            userDropdown.style.position = 'fixed';
+            userDropdown.style.top = Math.round(rect.bottom + 10) + 'px';
+            userDropdown.style.right = Math.max(12, Math.round(window.innerWidth - rect.right)) + 'px';
+            userDropdown.style.zIndex = '20002';
+        } else if (!willShow) {
+            userDropdown.style.position = '';
+            userDropdown.style.top = '';
+            userDropdown.style.right = '';
+            userDropdown.style.zIndex = '';
+        }
         userDropdown.classList.toggle('show');
     }
 };
@@ -963,6 +985,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Toggle dropdown
+    document.addEventListener('click', function(e) {
+        const btn = e.target && e.target.closest ? e.target.closest('.user-btn') : null;
+        if (!btn) return;
+        if (document.body && document.body.classList.contains('employee-analytics-page')) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+            window.toggleEmployeeUserMenu(e);
+        }
+    }, true);
+
     if (bell && dropdown) {
         bell.addEventListener('click', function(e) {
             e.stopPropagation();

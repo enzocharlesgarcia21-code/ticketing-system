@@ -178,7 +178,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $currentHandlerUserId = (int) ($_SESSION['user_id'] ?? 0);
     $requestedAssigneeMatchesOld = ($requested_assigned_user_id <= 0 || $requested_assigned_user_id === $oldAssignedUserId);
     if ($new_status === $oldStatus && $new_company === $oldCompany && $new_department === $oldDept && trim($newNoteNorm) === trim($oldNote) && $requestedAssigneeMatchesOld) {
-        $_SESSION['success'] = "No changes were made.";
+        $_SESSION['task_success'] = "No changes were made.";
         header("Location: my_task.php");
         exit();
     }
@@ -203,17 +203,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         $assigned_user_ids = ticket_find_assignee_ids($conn, $new_company, $new_group);
-        $assigned_user_id = count($assigned_user_ids) > 0 ? (int) $assigned_user_ids[0] : null;
-        if ($requested_assigned_user_id > 0 && in_array($requested_assigned_user_id, $availableDepartmentUserIds, true)) {
-            $assigned_user_id = $requested_assigned_user_id;
-            $assigned_user_ids = [$requested_assigned_user_id];
-        }
-        if (!$assigned_user_id) {
+        if (count($assigned_user_ids) === 0) {
             $_SESSION['error'] = $new_company_requires_department
                 ? 'No assignee available for the selected company and group.'
                 : 'No assignee available for the selected recipient.';
             header("Location: my_task.php");
             exit();
+        }
+        $assigned_user_id = null;
+        if ($requested_assigned_user_id > 0 && in_array($requested_assigned_user_id, $availableDepartmentUserIds, true)) {
+            $assigned_user_id = $requested_assigned_user_id;
+            $assigned_user_ids = [$requested_assigned_user_id];
         }
         $assigned_to = null;
     } elseif ($requested_assigned_user_id > 0) {
@@ -225,9 +225,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $assigned_user_id = $requested_assigned_user_id;
         $assigned_user_ids = [$requested_assigned_user_id];
     }
+    $statusChangedForClaim = ((string) $new_status !== (string) $oldStatus);
+    if (!$assignmentChanged && $statusChangedForClaim && $new_status !== 'Open' && (int) $assigned_user_id <= 0 && $currentHandlerUserId > 0) {
+        $assigned_user_id = $currentHandlerUserId;
+        $assigned_user_ids = [$currentHandlerUserId];
+    }
     $assignedUserChanged = (int) $assigned_user_id !== $oldAssignedUserId;
-    $requesterAssignmentChanged = $assignmentChanged || $assignedUserChanged;
+    $explicitUserAssignmentChanged = !$assignmentChanged
+        && $requested_assigned_user_id > 0
+        && $requested_assigned_user_id !== $oldAssignedUserId;
+    $requesterAssignmentChanged = $assignmentChanged || $explicitUserAssignmentChanged;
     if ($new_status === 'Open') {
+        $assigned_to = null;
+    } elseif ($assignmentChanged && (int) $assigned_user_id <= 0) {
         $assigned_to = null;
     } else {
         if ((int) $assigned_user_id > 0 && ($assignmentChanged || $assignedUserChanged)) {
@@ -238,6 +248,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $assigned_to = (int) $assigned_user_id;
         }
     }
+    $shouldSetStartedAt = (!$assignmentChanged && $statusChangedForClaim && $new_status !== 'Open' && (int) $assigned_to === $currentHandlerUserId) ? 1 : 0;
 
     // Update ticket
     $update = $conn->prepare("
@@ -256,6 +267,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             admin_note = ?,
             is_read = 1,
             updated_at = NOW(),
+            started_at = CASE
+                WHEN ? = 1 AND started_at IS NULL THEN NOW()
+                ELSE started_at
+            END,
             resolved_at = CASE
                 WHEN ? = 'Resolved' AND resolved_at IS NULL THEN NOW()
                 WHEN ? = 'Open' THEN NULL
@@ -271,7 +286,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    $update->bind_param("sssssiisssi", $new_status, $new_status, $new_department, $new_company, $new_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $id);
+    $update->bind_param("sssssiisissi", $new_status, $new_status, $new_department, $new_company, $new_group, $assigned_user_id, $assigned_to, $admin_note, $shouldSetStartedAt, $new_status, $new_status, $id);
 
     $updateOk = false;
     $updateError = '';
