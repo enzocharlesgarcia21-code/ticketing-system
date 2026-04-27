@@ -704,10 +704,16 @@ function ticket_claim_first_handler(mysqli $conn, int $ticketId, int $userId): b
 {
     if ($ticketId <= 0 || $userId <= 0) return false;
 
-    $stmt = $conn->prepare("UPDATE employee_tickets SET assigned_to = ? WHERE id = ? AND assigned_to IS NULL");
+    $stmt = $conn->prepare("
+        UPDATE employee_tickets
+        SET assigned_to = ?,
+            assigned_user_id = ?
+        WHERE id = ?
+          AND assigned_to IS NULL
+    ");
     if (!$stmt) return false;
 
-    $stmt->bind_param("ii", $userId, $ticketId);
+    $stmt->bind_param("iii", $userId, $userId, $ticketId);
     $stmt->execute();
     $claimed = $stmt->affected_rows > 0;
     $stmt->close();
@@ -853,15 +859,10 @@ function ticket_chat_effective_handler_id(array $ticket): int
 
     $handlerId = isset($ticket['assigned_to']) ? (int) $ticket['assigned_to'] : 0;
     if ($handlerId > 0) {
+        if (array_key_exists('started_at', $ticket) && trim((string) ($ticket['started_at'] ?? '')) === '') {
+            return 0;
+        }
         return $handlerId;
-    }
-
-    $assignedUserId = isset($ticket['assigned_user_id']) ? (int) $ticket['assigned_user_id'] : 0;
-
-    // Once a ticket is already being worked on, the selected assignee becomes the only handler
-    // even when legacy rows still have an empty assigned_to value.
-    if ($assignedUserId > 0 && strcasecmp($status, 'Open') !== 0) {
-        return $assignedUserId;
     }
 
     return 0;
@@ -914,6 +915,7 @@ function ticket_claim_first_handler_on_reply(mysqli $conn, int $ticketId, int $u
     $stmt = $conn->prepare("
         UPDATE employee_tickets
         SET assigned_to = ?,
+            assigned_user_id = ?,
             status = CASE WHEN status = 'Open' THEN 'In Progress' ELSE status END,
             started_at = CASE WHEN started_at IS NULL THEN NOW() ELSE started_at END,
             updated_at = NOW()
@@ -922,7 +924,7 @@ function ticket_claim_first_handler_on_reply(mysqli $conn, int $ticketId, int $u
     ");
     if (!$stmt) return false;
 
-    $stmt->bind_param("ii", $userId, $ticketId);
+    $stmt->bind_param("iii", $userId, $userId, $ticketId);
     $stmt->execute();
     $claimed = $stmt->affected_rows > 0;
     $stmt->close();

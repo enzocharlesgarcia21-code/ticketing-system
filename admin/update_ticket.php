@@ -85,6 +85,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $newNoteNorm = (string) ($admin_note ?? '');
     $assigned_user_id = $oldAssignedUserId > 0 ? $oldAssignedUserId : null;
     $assigned_to = isset($old_data['assigned_to']) ? (int) $old_data['assigned_to'] : null;
+    $assigneeIds = [];
     $assignmentChanged = ($newCompanyNorm !== $oldCompany) || ($newDeptNorm !== $oldDept);
     if ($assignmentChanged && $newCompanyNorm !== '') {
         if (!ticket_is_valid_company($newCompanyNorm) || ($effective_company_requires_department && !ticket_is_valid_group_for_company($newCompanyNorm, $newDeptNorm))) {
@@ -93,18 +94,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             exit();
         }
         $assigneeIds = ticket_find_assignee_ids($conn, $newCompanyNorm, $newDeptNorm);
-        $assignee = count($assigneeIds) > 0 ? (int) $assigneeIds[0] : null;
-        if (!$assignee) {
+        if (count($assigneeIds) === 0) {
             $_SESSION['error'] = $effective_company_requires_department
                 ? 'No assignee available for the selected company and group.'
                 : 'No assignee available for the selected recipient.';
             header("Location: all_tickets.php");
             exit();
         }
-        $assigned_user_id = $assignee;
-    }
-    if ($assignmentChanged) {
-        $assigned_user_id = $assigned_user_id ?: $oldAssignedUserId;
+        $assigned_user_id = null;
     }
     $assignmentChanged = $assignmentChanged || ((int) $assigned_user_id !== $oldAssignedUserId);
     $requesterAssignmentChanged = $assignmentChanged;
@@ -114,9 +111,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($new_status === 'Open') {
         $assigned_to = null;
     } elseif ($new_status === 'In Progress' && (int) $assigned_to <= 0) {
-        if ((int) $assigned_user_id <= 0) {
-            $assigned_user_id = (int) ($_SESSION['user_id'] ?? 0);
-        }
         if ((int) $assigned_user_id > 0) {
             $assigned_to = (int) $assigned_user_id;
         }
