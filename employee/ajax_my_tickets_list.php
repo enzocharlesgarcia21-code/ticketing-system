@@ -269,21 +269,20 @@ $stmt = $conn->prepare("
         t.follow_up_last_sent_at AS last_follow_up_sent_at,
         t.follow_up_cooldown_stage AS follow_up_stage,
         CASE
-            WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 4 HOUR)
-            WHEN t.follow_up_cooldown_stage = 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 8 HOUR)
-            WHEN t.follow_up_cooldown_stage >= 3 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 2 DAY)
+            WHEN t.follow_up_cooldown_stage <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+            WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 12 HOUR)
+            WHEN t.follow_up_cooldown_stage >= 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 6 HOUR)
             ELSE NULL
         END AS follow_up_available_at,
         CASE
-            WHEN t.follow_up_last_sent_at IS NOT NULL
-             AND (
+            WHEN (
                 CASE
-                    WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 4 HOUR)
-                    WHEN t.follow_up_cooldown_stage = 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 8 HOUR)
-                    WHEN t.follow_up_cooldown_stage >= 3 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 2 DAY)
+                    WHEN t.follow_up_cooldown_stage <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+                    WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 12 HOUR)
+                    WHEN t.follow_up_cooldown_stage >= 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 6 HOUR)
                     ELSE NULL
                 END
-             ) > NOW()
+            ) > NOW()
             THEN 1
             ELSE 0
         END AS follow_up_in_cooldown

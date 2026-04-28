@@ -242,24 +242,24 @@ function follow_up_ensure_cooldown_columns(mysqli $conn): void
     }
 }
 
-function follow_up_available_at_from_state(string $lastSentAt, int $sendCount): ?string
+function follow_up_available_at_from_state(string $baseTimestamp, int $sendCount): ?string
 {
-    $lastSentAt = trim($lastSentAt);
-    if ($lastSentAt === '' || $sendCount <= 0) {
+    $baseTimestamp = trim($baseTimestamp);
+    if ($baseTimestamp === '') {
         return null;
     }
 
-    $timestamp = strtotime($lastSentAt);
+    $timestamp = strtotime($baseTimestamp);
     if ($timestamp === false) {
         return null;
     }
 
-    if ($sendCount <= 1) {
-        $availableTimestamp = strtotime('+4 hours', $timestamp);
-    } elseif ($sendCount === 2) {
-        $availableTimestamp = strtotime('+8 hours', $timestamp);
+    if ($sendCount <= 0) {
+        $availableTimestamp = strtotime('+24 hours', $timestamp);
+    } elseif ($sendCount === 1) {
+        $availableTimestamp = strtotime('+12 hours', $timestamp);
     } else {
-        $availableTimestamp = strtotime('+2 days', $timestamp);
+        $availableTimestamp = strtotime('+6 hours', $timestamp);
     }
 
     if ($availableTimestamp === false) {
@@ -341,6 +341,7 @@ function follow_up_ticket_cooldown_state(mysqli $conn, int $ticketId, bool $migr
 
     $stmt = $conn->prepare("
         SELECT
+            created_at,
             follow_up_last_sent_at,
             follow_up_cooldown_stage
         FROM employee_tickets
@@ -349,6 +350,7 @@ function follow_up_ticket_cooldown_state(mysqli $conn, int $ticketId, bool $migr
     ");
     if (!$stmt) {
         return [
+            'created_at' => null,
             'last_sent_at' => null,
             'follow_up_send_count' => 0,
         ];
@@ -360,9 +362,11 @@ function follow_up_ticket_cooldown_state(mysqli $conn, int $ticketId, bool $migr
     $stmt->close();
 
     $lastSentAt = trim((string) ($row['follow_up_last_sent_at'] ?? ''));
+    $createdAt = trim((string) ($row['created_at'] ?? ''));
     $stage = max(0, min(3, (int) ($row['follow_up_cooldown_stage'] ?? 0)));
     if (!$migrateLegacy) {
         return [
+            'created_at' => $createdAt !== '' ? $createdAt : null,
             'last_sent_at' => $lastSentAt !== '' ? $lastSentAt : null,
             'follow_up_send_count' => $stage,
         ];
@@ -376,12 +380,14 @@ function follow_up_ticket_cooldown_state(mysqli $conn, int $ticketId, bool $migr
     ) {
         follow_up_store_ticket_cooldown_state($conn, $ticketId, $derivedLastSentAt, $derivedStage);
         return [
+            'created_at' => $createdAt !== '' ? $createdAt : null,
             'last_sent_at' => $derivedLastSentAt !== '' ? $derivedLastSentAt : null,
             'follow_up_send_count' => $derivedStage,
         ];
     }
 
     return [
+        'created_at' => $createdAt !== '' ? $createdAt : null,
         'last_sent_at' => $lastSentAt !== '' ? $lastSentAt : null,
         'follow_up_send_count' => $stage,
     ];
@@ -428,14 +434,17 @@ function follow_up_sync_user_ticket_cooldowns(mysqli $conn, int $userId): void
 function follow_up_cooldown_window(mysqli $conn, int $ticketId): array
 {
     $state = follow_up_ticket_cooldown_state($conn, $ticketId, true);
+    $createdAt = trim((string) ($state['created_at'] ?? ''));
     $lastSentAt = trim((string) ($state['last_sent_at'] ?? ''));
     $sendCount = (int) ($state['follow_up_send_count'] ?? 0);
-    $availableAt = follow_up_available_at_from_state($lastSentAt, $sendCount);
+    $cooldownBaseTimestamp = $sendCount > 0 ? $lastSentAt : $createdAt;
+    $availableAt = follow_up_available_at_from_state($cooldownBaseTimestamp, $sendCount);
     $availableTimestamp = $availableAt !== null ? strtotime($availableAt) : false;
     $serverNowTimestamp = time();
     $remainingSeconds = $availableTimestamp !== false ? max(0, $availableTimestamp - $serverNowTimestamp) : 0;
 
     return [
+        'created_at' => $createdAt !== '' ? $createdAt : null,
         'last_sent_at' => $lastSentAt !== '' ? $lastSentAt : null,
         'available_at' => $availableAt,
         'available_at_ts' => $availableTimestamp !== false ? (int) $availableTimestamp : null,
@@ -448,13 +457,13 @@ function follow_up_cooldown_window(mysqli $conn, int $ticketId): array
 
 function follow_up_cooldown_duration_label(int $sendCount): string
 {
-    if ($sendCount <= 1) {
-        return '4 hours';
+    if ($sendCount <= 0) {
+        return '24 hours';
     }
-    if ($sendCount === 2) {
-        return '8 hours';
+    if ($sendCount === 1) {
+        return '12 hours';
     }
-    return '48 hours';
+    return '6 hours';
 }
 
 function follow_up_cooldown_label_from_remaining_seconds(int $remainingSeconds): string
@@ -845,21 +854,20 @@ $stmt = $conn->prepare("
         t.follow_up_last_sent_at AS last_follow_up_sent_at,
         t.follow_up_cooldown_stage AS follow_up_stage,
         CASE
-            WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 4 HOUR)
-            WHEN t.follow_up_cooldown_stage = 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 8 HOUR)
-            WHEN t.follow_up_cooldown_stage >= 3 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 2 DAY)
+            WHEN t.follow_up_cooldown_stage <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+            WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 12 HOUR)
+            WHEN t.follow_up_cooldown_stage >= 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 6 HOUR)
             ELSE NULL
         END AS follow_up_available_at,
         CASE
-            WHEN t.follow_up_last_sent_at IS NOT NULL
-             AND (
+            WHEN (
                 CASE
-                    WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 4 HOUR)
-                    WHEN t.follow_up_cooldown_stage = 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 8 HOUR)
-                    WHEN t.follow_up_cooldown_stage >= 3 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 2 DAY)
+                    WHEN t.follow_up_cooldown_stage <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+                    WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 12 HOUR)
+                    WHEN t.follow_up_cooldown_stage >= 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 6 HOUR)
                     ELSE NULL
                 END
-             ) > NOW()
+            ) > NOW()
             THEN 1
             ELSE 0
         END AS follow_up_in_cooldown
@@ -2269,7 +2277,7 @@ $successMessage = '';
                 if (!data || !data.ok) {
                     if (data && data.cooldown_active && buttonEl) {
                         setFollowUpButtonCooldown(buttonEl, data.available_at || '', data.available_at_ts || '', data.remaining_seconds || 0);
-                        showFollowUpFeedback('error', 'Follow Up Cooldown', data.error || 'Follow up can be sent again after 2 days.');
+                        showFollowUpFeedback('error', 'Follow Up Cooldown', data.error || 'Follow up can be sent again later.');
                         return;
                     }
                     showFollowUpFeedback('error', 'Follow Up Failed', (data && data.error) ? data.error : 'Unable to send follow up right now.');

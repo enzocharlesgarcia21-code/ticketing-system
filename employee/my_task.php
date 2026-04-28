@@ -97,6 +97,14 @@ $flashSuccess = isset($_SESSION['task_success']) ? trim((string) $_SESSION['task
 if ($flashSuccess !== '') {
     unset($_SESSION['task_success']);
 }
+$flashSuccessStatus = isset($_SESSION['task_success_status']) ? trim((string) $_SESSION['task_success_status']) : '';
+if ($flashSuccessStatus !== '') {
+    unset($_SESSION['task_success_status']);
+}
+$flashSuccessTicketId = isset($_SESSION['task_success_ticket_id']) ? (int) $_SESSION['task_success_ticket_id'] : 0;
+if ($flashSuccessTicketId > 0) {
+    unset($_SESSION['task_success_ticket_id']);
+}
 $flashErrorTitle = 'Update Failed';
 if ($flashError !== '' && stripos($flashError, 'No assignee available') !== false) {
     $flashErrorTitle = 'No Assignee Available';
@@ -704,6 +712,46 @@ $showing_to = min($offset + $limit, (int) $total_records);
             font-size: 14px;
             line-height: 1.5;
         }
+        .task-success-meta {
+            color: #475569;
+            font-weight: 500;
+            letter-spacing: -0.01em;
+        }
+        .task-success-ticket-id {
+            display: inline;
+            padding: 0;
+            margin: 0 4px;
+            color: #0f172a;
+            font-weight: 900;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.01em;
+        }
+        .task-success-status {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 16px;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            font-weight: 600;
+            line-height: 1;
+            vertical-align: middle;
+        }
+        .task-success-status.is-in-progress {
+            background: #dcfce7;
+            color: #166534;
+            border-color: #bbf7d0;
+        }
+        .task-success-status.is-open {
+            background: #fef3c7;
+            color: #92400e;
+            border-color: #fde68a;
+        }
+        .task-success-status.is-resolved {
+            background: #dbeafe;
+            color: #1d4ed8;
+            border-color: #bfdbfe;
+        }
         .task-success-actions {
             margin-top: 20px;
             padding: 18px 24px 22px;
@@ -1016,8 +1064,25 @@ $showing_to = min($offset + $limit, (int) $total_records);
     <div id="taskSuccessOverlay" class="task-success-overlay" role="dialog" aria-modal="true" aria-labelledby="taskSuccessTitle">
         <div class="task-success-dialog">
             <div class="task-success-icon" aria-hidden="true">&#10003;</div>
-            <h2 id="taskSuccessTitle" class="task-success-title"><?= strcasecmp($flashSuccess, 'No changes were made.') === 0 ? 'No changes were made' : 'The ticket has been updated'; ?></h2>
-            <p class="task-success-message"><?= htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?></p>
+            <h2 id="taskSuccessTitle" class="task-success-title">
+                <?php if ($flashSuccessStatus === 'Open' || $flashSuccessStatus === 'In Progress' || $flashSuccessStatus === 'Resolved'): ?>
+                    Status Updated
+                <?php else: ?>
+                    <?= strcasecmp($flashSuccess, 'No changes were made.') === 0 ? 'No changes were made' : 'The ticket has been updated'; ?>
+                <?php endif; ?>
+            </h2>
+            <p class="task-success-message">
+                <?php if (($flashSuccessStatus === 'Open' || $flashSuccessStatus === 'In Progress' || $flashSuccessStatus === 'Resolved') && $flashSuccessTicketId > 0): ?>
+                    <span class="task-success-meta">Ticket No:</span>
+                    <span class="task-success-ticket-id">#<?= htmlspecialchars(str_pad((string) $flashSuccessTicketId, 6, '0', STR_PAD_LEFT), ENT_QUOTES, 'UTF-8'); ?></span>
+                    <span class="task-success-meta">is now</span>
+                    <span class="task-success-status <?= $flashSuccessStatus === 'Open' ? 'is-open' : ($flashSuccessStatus === 'In Progress' ? 'is-in-progress' : 'is-resolved'); ?>">
+                        <?= htmlspecialchars($flashSuccessStatus, ENT_QUOTES, 'UTF-8'); ?>
+                    </span>.
+                <?php else: ?>
+                    <?= htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?>
+                <?php endif; ?>
+            </p>
             <div class="task-success-actions">
                 <button type="button" class="task-success-btn" id="taskSuccessCloseBtn">Close</button>
             </div>
