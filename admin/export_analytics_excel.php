@@ -217,7 +217,7 @@ $rows = analytics_export_rows_excel($conn, $filters);
 $headers = [
     'Start Date',
     'End Date',
-    'Attending IT',
+    'Attendee',
     'Client',
     'Department / Subs',
     'Request / Reported Concern',
