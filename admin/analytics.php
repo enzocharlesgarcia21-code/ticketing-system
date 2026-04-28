@@ -91,6 +91,69 @@ function analytics_last_n_weekdays(DateTimeImmutable $endDate, int $count): arra
     return array_reverse($days);
 }
 
+function analytics_allowed_categories_for_department(string $company, string $department): array
+{
+    $company = ticket_normalize_company($company);
+    $department = trim($department);
+
+    $lapcDepartmentCategories = [
+        'Admin & Legal' => [
+            'Phone Plan / Simcard',
+            'FleetCard Request',
+            'Supplies',
+        ],
+        'Institutional Sales (Bidding)' => [
+            'Documentation',
+            'Email',
+            'Hardware',
+            'Internet Concerns',
+            'Procurement',
+            'Software',
+            'Technical Support',
+        ],
+        'HR' => [
+            'Attendance & Timekeeping',
+            'Certificate of Employment',
+            'Certificate of Leave',
+            'Leave Concern',
+            'Medical Cash Advance',
+            'Request for Company Property',
+            'SSS Sickness and Benefit Concern',
+            'Training Request',
+            'Others',
+        ],
+        'IT' => [
+            'Documentation',
+            'Email',
+            'Hardware',
+            'Internet Concerns',
+            'Procurement',
+            'SAP',
+            'Software',
+            'Technical Support',
+        ],
+        'Machineries' => [
+            'Documentation',
+            'Email',
+            'Hardware',
+            'Internet Concerns',
+            'Procurement',
+            'Software',
+            'Technical Support',
+        ],
+    ];
+
+    if (isset($lapcDepartmentCategories[$department])) {
+        return $lapcDepartmentCategories[$department] ?? [];
+    }
+
+    if ($company === '@malvedaholdings.com' || strtoupper($company) === 'MHC') {
+        return strcasecmp($department, 'Marketing Creatives') === 0 ? ['Marketing Request'] : [];
+    }
+
+    return ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
+}
+
 // Determine selected date range (default to current month)
 $start_date = $_GET['start_date'] ?? date('Y-m-01');
 $end_date = $_GET['end_date'] ?? date('Y-m-d');
@@ -156,7 +219,7 @@ if ($company_filter !== '') {
     $ticket_types .= "s";
 }
 if ($department_filter !== '') {
-    $ticket_where[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
+    $ticket_where[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
     $ticket_params[] = $department_filter;
     $ticket_types .= "s";
 }
@@ -265,7 +328,7 @@ if ($company_filter !== '') {
     $resolutionRangeTypes .= "s";
 }
 if ($department_filter !== '') {
-    $resolutionRangeWhere[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
+    $resolutionRangeWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
     $resolutionRangeParams[] = $department_filter;
     $resolutionRangeTypes .= "s";
 }
@@ -335,7 +398,7 @@ if ($company_filter !== '') {
     $dailyTrendTypes .= "s";
 }
 if ($department_filter !== '') {
-    $dailyTrendWhere[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
+    $dailyTrendWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
     $dailyTrendParams[] = $department_filter;
     $dailyTrendTypes .= "s";
 }
@@ -461,7 +524,7 @@ if ($company_filter !== '') {
     $resolutionBucketTypes .= "s";
 }
 if ($department_filter !== '') {
-    $resolutionBucketWhere[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
+    $resolutionBucketWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
     $resolutionBucketParams[] = $department_filter;
     $resolutionBucketTypes .= "s";
 }
@@ -513,7 +576,7 @@ $trendSummaryBadgeText = !empty($trendDayStats) || $trendAverageSeconds > 0
     : 'No data';
 
 $companyExpr = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''), '')";
-$departmentExpr = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,''), '')";
+$departmentExpr = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''), '')";
 $lapcCompanySql = "LOWER(TRIM($companyExpr)) IN ('@leadsagri.com', 'leadsagri.com', 'lapc', 'lapc (@leadsagri.com)', 'leads agricultural products corporation - lapc')";
 
 $companyChartWhere = ["DATE(t.created_at) BETWEEN ? AND ?"];
@@ -604,6 +667,108 @@ if ($otherCompanyStmt) {
     $otherCompanyStmt->close();
 }
 
+if ($analyticsIsEmployeeView) {
+    $employeeCategoryLabels = [];
+    $employeeCategoryCounts = [];
+    $employeeUserId = (int) ($_SESSION['user_id'] ?? 0);
+    $employeeEmail = strtolower(trim((string) ($_SESSION['email'] ?? '')));
+    $employeeCompanyRaw = trim((string) ($_SESSION['company'] ?? ''));
+    $employeeDepartmentRaw = trim((string) ($_SESSION['department'] ?? ''));
+    $employeeCompanyAliases = ticket_company_aliases($employeeCompanyRaw);
+    if (count($employeeCompanyAliases) === 0 && $employeeCompanyRaw !== '') {
+        $employeeCompanyAliases = [$employeeCompanyRaw];
+    }
+    $employeeCompanyAliases = array_values(array_filter(array_map('trim', $employeeCompanyAliases), static function ($value) {
+        return $value !== '';
+    }));
+    $employeeCompanyCol = "COALESCE(NULLIF(t.assigned_company, ''), t.company)";
+    $employeeCompanyAliasCond = count($employeeCompanyAliases) > 0
+        ? ("(" . implode(" OR ", array_fill(0, count($employeeCompanyAliases), "$employeeCompanyCol = ?")) . ")")
+        : "(1=0)";
+    $employeeCompanyCond = "(($employeeCompanyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($employeeCompanyCol))) OR ($employeeCompanyCol NOT LIKE '@%' AND $employeeCompanyAliasCond))";
+    $employeeTaskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), NULLIF(t.assigned_department, ''), NULLIF(t.department, ''), NULLIF(u.department, ''))";
+    $employeeRequiresGroupCond = "(($employeeCompanyCol LIKE '@%' AND LOWER($employeeCompanyCol) = '@leadsagri.com') OR ($employeeCompanyCol NOT LIKE '@%' AND UPPER($employeeCompanyCol) = 'LAPC'))";
+
+    $employeeCategoryWhere = [
+        "DATE(t.created_at) BETWEEN ? AND ?",
+        "t.user_id <> ?",
+        "(
+            (t.assigned_user_id = ? AND (? = '' OR $employeeTaskDeptExpr = ?))
+            OR ($employeeCompanyCond AND ((NOT $employeeRequiresGroupCond) OR (? = '' OR $employeeTaskDeptExpr = ?)))
+        )",
+    ];
+    $employeeCategoryParams = [
+        $start_date,
+        $end_date,
+        $employeeUserId,
+        $employeeUserId,
+        $employeeDepartmentRaw,
+        $employeeDepartmentRaw,
+        $employeeEmail,
+    ];
+    foreach ($employeeCompanyAliases as $employeeCompanyAlias) {
+        $employeeCategoryParams[] = $employeeCompanyAlias;
+    }
+    $employeeCategoryParams[] = $employeeDepartmentRaw;
+    $employeeCategoryParams[] = $employeeDepartmentRaw;
+    $employeeCategoryTypes = "ssiiss" . str_repeat("s", 1 + count($employeeCompanyAliases) + 2);
+    if ($status_filter !== '') {
+        $employeeCategoryWhere[] = "t.status = ?";
+        $employeeCategoryParams[] = $status_filter;
+        $employeeCategoryTypes .= "s";
+    }
+    $employeeAllowedCategories = analytics_allowed_categories_for_department($employeeCompanyRaw, $employeeDepartmentRaw);
+    if (count($employeeAllowedCategories) > 0) {
+        $employeeCategoryWhere[] = "t.category IN (" . implode(',', array_fill(0, count($employeeAllowedCategories), '?')) . ")";
+        foreach ($employeeAllowedCategories as $allowedCategory) {
+            $employeeCategoryParams[] = $allowedCategory;
+            $employeeCategoryTypes .= "s";
+        }
+    }
+
+    $employeeCategorySql = "
+        SELECT COALESCE(NULLIF(t.category, ''), 'Uncategorized') AS category_value, COUNT(*) AS total
+        FROM employee_tickets t
+        JOIN users u ON t.user_id = u.id
+        WHERE " . implode(" AND ", $employeeCategoryWhere) . "
+        GROUP BY category_value
+        ORDER BY total DESC, category_value ASC
+    ";
+    $employeeCategoryStmt = $conn->prepare($employeeCategorySql);
+    if ($employeeCategoryStmt) {
+        $bind = [];
+        $bind[] = $employeeCategoryTypes;
+        foreach ($employeeCategoryParams as $k => $p) {
+            $bind[] = &$employeeCategoryParams[$k];
+        }
+        call_user_func_array([$employeeCategoryStmt, 'bind_param'], $bind);
+        $employeeCategoryStmt->execute();
+        $employeeCategoryRes = $employeeCategoryStmt->get_result();
+        while ($r = $employeeCategoryRes->fetch_assoc()) {
+            $categoryValue = trim((string) ($r['category_value'] ?? ''));
+            $employeeCategoryLabels[] = $categoryValue !== '' ? $categoryValue : 'Uncategorized';
+            $employeeCategoryCounts[] = (int) ($r['total'] ?? 0);
+        }
+        $employeeCategoryStmt->close();
+    }
+
+    if (count($employeeAllowedCategories) > 0) {
+        $employeeCategoryCountMap = [];
+        foreach ($employeeCategoryLabels as $idx => $label) {
+            $employeeCategoryCountMap[(string) $label] = (int) ($employeeCategoryCounts[$idx] ?? 0);
+        }
+        $employeeCategoryLabels = array_values($employeeAllowedCategories);
+        $employeeCategoryCounts = array_map(static function ($category) use ($employeeCategoryCountMap) {
+            return (int) ($employeeCategoryCountMap[(string) $category] ?? 0);
+        }, $employeeCategoryLabels);
+    }
+
+    $lapcDepartmentLabels = $employeeCategoryLabels;
+    $lapcDepartmentCounts = $employeeCategoryCounts;
+    $otherCompanyLabels = $employeeCategoryLabels;
+    $otherCompanyCounts = $employeeCategoryCounts;
+}
+
 $assigneeLabels = [];
 $assigneeCounts = [];
 $assigneeWhere = ["DATE(t.created_at) BETWEEN ? AND ?"];
@@ -621,7 +786,7 @@ if ($company_filter !== '') {
     $assigneeTypes .= "s";
 }
 if ($department_filter !== '') {
-    $assigneeWhere[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
+    $assigneeWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
     $assigneeParams[] = $department_filter;
     $assigneeTypes .= "s";
 }
@@ -685,12 +850,12 @@ $employeeDepartmentLabel = $department_filter !== '' ? $department_filter : 'You
 $companyChartDatasets = [
     'lapc' => $buildCompanyChartDataset(
         $lapcDepartmentItems,
-        $analyticsIsEmployeeView ? 'Department Ticket Distribution' : 'Tickets per Company',
+        $analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company',
         $analyticsIsEmployeeView ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department'
     ),
     'other' => $buildCompanyChartDataset(
         $otherCompanyItems,
-        $analyticsIsEmployeeView ? 'Department Ticket Distribution' : 'Tickets per Company',
+        $analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company',
         $analyticsIsEmployeeView ? 'Scoped to your assigned department' : 'Non-LAPC company distribution'
     ),
 ];
@@ -2141,7 +2306,7 @@ if ($ticketsStmt) {
                 <div class="chart-card category-card">
                     <div class="chart-header">
                         <div class="chart-heading">
-                            <div class="chart-title" id="companyChartTitle"><?= $analyticsIsEmployeeView ? 'Department Ticket Distribution' : 'Tickets per Company' ?></div>
+                            <div class="chart-title" id="companyChartTitle"><?= $analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company' ?></div>
                             <p class="chart-subtitle" id="companyChartSubtitle"><?= htmlspecialchars($analyticsIsEmployeeView ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department', ENT_QUOTES, 'UTF-8') ?></p>
                         </div>
                         <?php if (!$analyticsIsEmployeeView): ?>
@@ -2461,7 +2626,7 @@ if ($ticketsStmt) {
     const textColor = '#7b8798';
     const gridColor = '#e7edf5';
     const companyChartDatasets = <?= json_encode($companyChartDatasets) ?>;
-    let activeCompanyChartData = companyChartDatasets.lapc || { title: 'Tickets per Company', subtitle: 'LAPC tickets by department', labels: [], counts: [], colors: [] };
+    let activeCompanyChartData = companyChartDatasets.lapc || { title: <?= json_encode($analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company') ?>, subtitle: <?= json_encode($analyticsIsEmployeeView ? 'Categories in your assigned department' : 'LAPC tickets by department') ?>, labels: [], counts: [], colors: [] };
 
     function companyChartTotal(data) {
         return (data.counts || []).reduce(function(sum, value) { return sum + (Number(value) || 0); }, 0);

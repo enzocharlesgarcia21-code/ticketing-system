@@ -2873,7 +2873,7 @@
         '.tm-messenger-menu-btn:disabled{opacity:.55;cursor:not-allowed;}' +
         '.tm-messenger-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:170px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 18px 40px rgba(2,6,23,.16);padding:8px;display:none;flex-direction:column;gap:6px;z-index:2;}' +
         '.tm-messenger-menu.show{display:flex;}' +
-        '.tm-messenger-menu-item{width:100%;border:none;background:#fff;color:#334155;border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:flex-start;text-align:left;}' +
+        '.tm-messenger-menu-item{width:100%;border:none;background:#fff;color:#334155;border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13px;font-weight:400;display:flex;align-items:center;justify-content:flex-start;text-align:left;}' +
         '.tm-messenger-menu-item:hover{background:#f8fafc;}' +
         '.tm-messenger-menu-item.danger{color:#dc2626;}' +
         '.tm-messenger-menu-item.danger:hover{background:#fef2f2;}' +
@@ -3012,7 +3012,7 @@
         '.tm-messenger-overlay.employee-style .tm-messenger-close{display:inline-flex;font-size:28px;line-height:1;color:#dc2626;border-color:#fecaca;background:#fff5f5;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-close:hover{background:#fee2e2;border-color:#fca5a5;color:#b91c1c;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-menu{top:calc(100% + 10px);min-width:208px;border-radius:18px;padding:10px;box-shadow:0 20px 46px rgba(15,23,42,.16);}' +
-        '.tm-messenger-overlay.employee-style .tm-messenger-menu-item{padding:12px 14px;font-size:14px;font-weight:800;border-radius:12px;}' +
+        '.tm-messenger-overlay.employee-style .tm-messenger-menu-item{padding:12px 14px;font-size:14px;font-weight:400;border-radius:12px;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-messages{padding:20px 22px 16px;background:linear-gradient(180deg,#ffffff 0%,#fbfbfd 100%);gap:18px;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble{position:relative;overflow:visible;display:flex;flex-direction:column;max-width:min(68%,460px);margin-top:24px;padding:16px 18px 14px;border-radius:24px;border:1px solid #e6edf3;box-shadow:0 16px 34px rgba(15,23,42,.08);gap:8px;backdrop-filter:blur(2px);transition:transform .18s ease,box-shadow .18s ease;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble:hover{transform:translateY(-1px);}' +
@@ -3132,6 +3132,7 @@
         '.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment-remove:hover{background:#fee2e2;color:#b91c1c;border-color:#fecaca;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-send{grid-column:3;grid-row:1;min-width:112px;min-height:42px;border-radius:21px;background:#185f2d;box-shadow:0 12px 22px rgba(24,95,45,.20);font-size:16px;font-weight:850;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-send:hover{background:#144f26;}' +
+        '@media (min-width:769px){.tm-messenger-overlay.employee-style{inset:0;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;z-index:20000;}.tm-messenger-overlay.employee-style .tm-messenger-panel{height:min(86vh,780px);max-height:calc(100vh - 32px);}}' +
         '@media (max-width:768px){.tm-messenger-overlay.employee-style .tm-messenger-panel::before{height:58px}.tm-messenger-overlay.employee-style .tm-messenger-left-header,.tm-messenger-overlay.employee-style .tm-messenger-right-header{height:58px}.tm-messenger-overlay.employee-style .tm-messenger-title-sub{top:58px;left:16px;right:16px;height:50px}.tm-messenger-overlay.employee-style .tm-messenger-header-actions{top:8px;right:12px;gap:8px}.tm-messenger-overlay.employee-style .tm-messenger-messages{margin-top:50px;padding:16px 14px}.tm-messenger-overlay.employee-style .tm-messenger-left-title{font-size:17px}.tm-messenger-overlay.employee-style .tm-messenger-title-main{font-size:17px}.tm-messenger-overlay.employee-style .tm-messenger-menu-btn,.tm-messenger-overlay.employee-style .tm-messenger-close{width:42px;height:42px}.tm-messenger-overlay.employee-style .tm-messenger-empty{min-height:180px;font-size:16px}.tm-messenger-overlay.employee-style .tm-messenger-empty.no-messages::before{width:54px;height:44px;font-size:21px;margin-bottom:14px}}';
       document.head.appendChild(polishStyle);
     }
@@ -3149,7 +3150,7 @@
       ((typeof window !== 'undefined' && window.TM_MESSENGER_STYLE === 'employee')
         ? ('    <div class="tm-messenger-filters" id="tmMessengerFilters">' +
            '      <button type="button" class="tm-messenger-filter-btn active" data-filter="all" id="tmMessengerFilterAll">All (0)</button>' +
-           '      <button type="button" class="tm-messenger-filter-btn" data-filter="open" id="tmMessengerFilterOpen">Open (0)</button>' +
+           '      <button type="button" class="tm-messenger-filter-btn" data-filter="closed" id="tmMessengerFilterClosed">Closed (0)</button>' +
            '      <button type="button" class="tm-messenger-filter-btn" data-filter="in_progress" id="tmMessengerFilterInProgress">In Progress (0)</button>' +
            '    </div>')
         : '') +
@@ -3264,20 +3265,21 @@
     var s = String(status || '').trim().toLowerCase();
     if (s === 'in progress' || s === 'inprogress') return 'in_progress';
     if (s === 'open') return 'open';
+    if (s === 'closed') return 'closed';
     return 'other';
   }
   function updateMessengerFilterButtons() {
     var activeFilter = (typeof window !== 'undefined' && window.__tmMessengerFilter) ? String(window.__tmMessengerFilter) : 'all';
     var convs = Array.isArray(window.__tmConversations) ? window.__tmConversations : [];
-    var counts = { all: convs.length, open: 0, in_progress: 0 };
+    var counts = { all: convs.length, closed: 0, in_progress: 0 };
     convs.forEach(function (c) {
       var normalized = normalizeMessengerStatus(c && c.status ? c.status : '');
-      if (normalized === 'open') counts.open += 1;
+      if (normalized === 'closed') counts.closed += 1;
       if (normalized === 'in_progress') counts.in_progress += 1;
     });
     var defs = [
       { id: 'tmMessengerFilterAll', key: 'all', label: 'All' },
-      { id: 'tmMessengerFilterOpen', key: 'open', label: 'Open' },
+      { id: 'tmMessengerFilterClosed', key: 'closed', label: 'Closed' },
       { id: 'tmMessengerFilterInProgress', key: 'in_progress', label: 'In Progress' }
     ];
     defs.forEach(function (def) {
