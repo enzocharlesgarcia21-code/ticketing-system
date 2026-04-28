@@ -81,7 +81,7 @@ $requestTicketCompanyOptions = [
     '@leadstech-corp.com' => 'LTC',
     '@gpsci.net' => 'GPSCI',
     '@leadsagri.com' => 'LAPC',
-    '@leads-farmex.com' => 'FARMEX',
+    '@leads-farmex.com' => 'FARMEX / LAV',
     '@malvedaholdings.com' => 'MHC',
     '@malvedaproperties.com' => 'MPDC',
 ];

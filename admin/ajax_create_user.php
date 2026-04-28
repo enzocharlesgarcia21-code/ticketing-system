@@ -41,6 +41,45 @@ function json_error(string $msg, int $code = 400, ?string $errorCode = null): vo
     exit;
 }
 
+function json_success_and_continue(array $payload): void
+{
+    $json = json_encode($payload);
+    if (!is_string($json) || $json === '') {
+        $json = '{"ok":true}';
+    }
+
+    if (function_exists('apache_setenv')) {
+        @apache_setenv('no-gzip', '1');
+    }
+    @ini_set('zlib.output_compression', '0');
+    @ini_set('implicit_flush', '1');
+    ignore_user_abort(true);
+
+    while (ob_get_level() > 0) {
+        @ob_end_clean();
+    }
+
+    if (!headers_sent()) {
+        header('Content-Type: application/json');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Connection: close');
+        header('Content-Length: ' . strlen($json));
+    }
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+
+    echo $json;
+
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+        return;
+    }
+
+    @flush();
+}
+
 $fullName = trim((string) ($_POST['full_name'] ?? ''));
 $username = trim((string) ($_POST['username'] ?? ''));
 $domain = trim((string) ($_POST['domain'] ?? '@leadsagri.com'));
@@ -102,6 +141,7 @@ $allowedDomains = [
     '@leadsav.com',
     '@leadstech-corp.com',
     '@lingapleads.org',
+    '@malvedaholdings.com',
     '@primestocks.ph',
     '@malvedaproperties.com'
 ];
@@ -131,6 +171,13 @@ if (in_array($domain, $noDepartmentDomains, true)) {
     $department = '';
 } elseif ($department === '') {
     json_error('Department is required.', 400, 'department_required');
+}
+
+if ($department !== '' && in_array($domain, ['@leadsagri.com', '@malvedaholdings.com'], true)) {
+    $allowedDepartments = ticket_company_allowed_groups($domain);
+    if (!in_array($department, $allowedDepartments, true)) {
+        json_error('Invalid department selected for this company.', 400, 'department_invalid');
+    }
 }
 
 if (trim($password) === '') {
@@ -203,7 +250,23 @@ if (!$insert->execute()) {
 $newUserId = (int) $insert->insert_id;
 $insert->close();
 
+$successPayload = [
+    'ok' => true,
+    'message' => 'User created successfully',
+    'user' => [
+        'id' => $newUserId,
+        'name' => $fullName,
+        'email' => $email,
+        'department' => $department,
+        'role' => $role,
+        'send_credentials' => $send_credentials,
+        'force_password_change' => $force_password_change
+    ]
+];
+
 if ($send_credentials === 1) {
+    json_success_and_continue($successPayload);
+
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
     $host = trim((string) ($_SERVER['HTTP_HOST'] ?? ''));
     $basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/admin/ajax_create_user.php'))), '/');
@@ -238,18 +301,8 @@ if ($send_credentials === 1) {
     if (!$emailSent) {
         error_log('User credentials email failed | userId=' . (string) $newUserId . ' | email=' . $email);
     }
+
+    exit;
 }
 
-echo json_encode([
-    'ok' => true,
-    'message' => 'User created successfully',
-    'user' => [
-        'id' => $newUserId,
-        'name' => $fullName,
-        'email' => $email,
-        'department' => $department,
-        'role' => $role,
-        'send_credentials' => $send_credentials,
-        'force_password_change' => $force_password_change
-    ]
-]);
+echo json_encode($successPayload);

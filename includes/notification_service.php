@@ -684,6 +684,8 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
     $attachments = isset($options['attachments']) && is_array($options['attachments']) ? $options['attachments'] : [];
     $assigneeEmails = isset($options['assignee_emails']) && is_array($options['assignee_emails']) ? $options['assignee_emails'] : [];
     $extraLines = isset($options['extra_lines']) && is_array($options['extra_lines']) ? $options['extra_lines'] : [];
+    $skipSystem = !empty($options['skip_system']);
+    $skipEmail = !empty($options['skip_email']);
 
     $assigneeEmails = array_values(array_unique(array_filter(array_map(static function ($email) {
         return strtolower(trim((string) $email));
@@ -702,8 +704,12 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
         : ('Your ticket #' . $ticketId . ' status was updated to ' . $newStatus . $bySuffix . '.');
 
     $inserted = 0;
-    if ($creatorId > 0 && notif_insert_system($conn, $creatorId, $ticketId, $message, strcasecmp($newStatus, 'Closed') === 0 ? 'ticket_closed' : 'status_update', 15, strcasecmp($newStatus, 'Closed') === 0 ? 'close' : 'update', $title)) {
+    if (!$skipSystem && $creatorId > 0 && notif_insert_system($conn, $creatorId, $ticketId, $message, strcasecmp($newStatus, 'Closed') === 0 ? 'ticket_closed' : 'status_update', 15, strcasecmp($newStatus, 'Closed') === 0 ? 'close' : 'update', $title)) {
         $inserted = 1;
+    }
+
+    if ($skipEmail) {
+        return ['inserted' => $inserted, 'emailed' => 0];
     }
 
     $emailed = 0;

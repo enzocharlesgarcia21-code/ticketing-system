@@ -132,6 +132,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $rows = [];
     while ($r = $res->fetch_assoc()) {
         $ticketRow = ticket_chat_apply_effective_handler($r);
+        $chatClosedMessage = ticket_chat_closed_status_message($ticketRow);
         $canChat = ticket_user_can_chat($ticketRow, $current_user_id, $userContext);
         $category = trim((string) ($r['category'] ?? ''));
         $assignedCompany = strtolower(trim((string) ($r['assigned_company'] ?? '')));
@@ -153,7 +154,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             'last_message' => $canChat ? (string) $r['last_message'] : '',
             'last_sender_name' => $canChat ? (string) $r['last_sender_name'] : '',
             'can_chat' => $canChat,
-            'chat_locked_message' => $canChat ? '' : "You can't message. This ticket is already assigned."
+            'chat_locked_message' => $canChat ? '' : ($chatClosedMessage !== '' ? $chatClosedMessage : "You can't message. This ticket is already assigned.")
         ];
     }
     echo json_encode($rows, JSON_UNESCAPED_UNICODE);
@@ -205,17 +206,25 @@ $ticket = ticket_chat_apply_effective_handler($ticket);
 $requesterId = (int) ($ticket['user_id'] ?? 0);
 $handlerId = ticket_chat_effective_handler_id($ticket);
 $handlerName = trim((string) ($ticket['assigned_to_name'] ?? ''));
-if (!ticket_user_can_chat($ticket, $current_user_id, $userContext)) {
+$chatClosedMessage = ticket_chat_closed_status_message($ticket);
+$canChatForTicket = ticket_user_can_chat($ticket, $current_user_id, $userContext);
+$canViewClosedChat = $chatClosedMessage !== '' && (
+    ticket_user_matches_requester($ticket, $current_user_id, $userContext)
+    || $handlerId === $current_user_id
+    || (int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id
+    || (string) ($_SESSION['role'] ?? '') === 'admin'
+);
+if (!$canChatForTicket && !$canViewClosedChat) {
     http_response_code(403);
     echo json_encode([
-        'error' => ($handlerId > 0
+        'error' => ($chatClosedMessage !== '' ? $chatClosedMessage : ($handlerId > 0
             ? ('This ticket is already assigned to ' . ($handlerName !== '' ? $handlerName : 'another IT staff') . '.')
-            : 'You are not allowed to access this chat.')
+            : 'You are not allowed to access this chat.'))
     ]);
     exit;
 }
 
-$canManageChat = ticket_user_can_chat($ticket, $current_user_id, $userContext);
+$canManageChat = $canChatForTicket;
 $isRequester = ticket_user_matches_requester($ticket, $current_user_id, $userContext);
 $isCurrentAssignee = ((int) ($ticket['assigned_to'] ?? 0) === $current_user_id)
     || ((int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id);

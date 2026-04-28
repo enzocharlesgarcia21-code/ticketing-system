@@ -65,21 +65,29 @@ if ($users_companies_res) {
 }
 
 $company_domain_options = [
-    '@leads-farmex.com' => 'FARMEX',
+    '@leads-farmex.com' => 'FARMEX / LAV',
     '@farmasee.ph' => 'FARMASEE',
     '@gpsci.net' => 'GPCI',
     '@leadsanimalhealth.com' => 'LAH',
     '@leadsagri.com' => 'LAPC',
     '@leads-eh.com' => 'LEH',
     '@leadstech-corp.com' => 'LTC',
-    '@leadsav.com' => 'LAV',
     '@lingapleads.org' => 'LINGAP',
     '@malvedaholdings.com' => 'MHC',
     '@malvedaproperties.com' => 'MPDC',
     '@primestocks.ph' => 'PCC'
 ];
 
-$lapc_department_options = ticket_lapc_departments();
+function company_domain_option_label(string $domain, string $label): string
+{
+    if ($domain === '@leads-farmex.com') {
+        return $label . ' (@leads-farmex.com / @leadsav.com)';
+    }
+    return $label . ' (' . $domain . ')';
+}
+
+$lapc_department_options = ticket_company_allowed_groups('@leadsagri.com');
+$mhc_department_options = ticket_company_allowed_groups('@malvedaholdings.com');
 $canManageUserAccess = user_permissions_can_manage($conn);
 user_permissions_ensure_table($conn);
 
@@ -1742,7 +1750,7 @@ user_permissions_ensure_table($conn);
                                     <select class="domain-select" name="domain" id="domain" required>
                                         <?php foreach ($company_domain_options as $opt => $label): ?>
                                             <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>" <?= $opt === '@leadsagri.com' ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($label . ' (' . $opt . ')', ENT_QUOTES, 'UTF-8'); ?>
+                                                <?= htmlspecialchars(company_domain_option_label($opt, $label), ENT_QUOTES, 'UTF-8'); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -1980,16 +1988,7 @@ user_permissions_ensure_table($conn);
             "Supply Chain",
             "Technical"
         ],
-        "@malvedaholdings.com": [
-            "Admin & Legal",
-            "E-Commerce",
-            "Executive",
-            "Finance and Accounting",
-            "IT",
-            "Institutional Sales",
-            "Management",
-            "Marketing"
-        ],
+        "@malvedaholdings.com": <?php echo json_encode(array_values($mhc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
         "@leads-farmex.com": [
             "Business Development",
             "Finance and Admin",
@@ -2754,7 +2753,7 @@ user_permissions_ensure_table($conn);
             }
             function showCreateUserError(title, text) {
                 Swal.fire({
-                    target: document.body,
+                    target: modal || document.body,
                     icon: 'warning',
                     title: title,
                     html: escapeHtml(text),
@@ -2763,6 +2762,7 @@ user_permissions_ensure_table($conn);
                     buttonsStyling: false,
                     allowOutsideClick: true,
                     customClass: {
+                        container: 'swal-create-user-container',
                         popup: 'swal-admin-alert-popup',
                         icon: 'swal-admin-alert-icon',
                         title: 'swal-admin-alert-title',
@@ -3312,7 +3312,10 @@ user_permissions_ensure_table($conn);
     }
     .swal-cred-btn:hover { background: #144a1e !important; }
     .swal2-container {
-        z-index: 9999 !important;
+        z-index: 13050 !important;
+    }
+    .swal-create-user-container {
+        z-index: 13060 !important;
     }
     .swal-create-user-popup {
         border-radius: 18px !important;

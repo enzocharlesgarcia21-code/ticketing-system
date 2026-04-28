@@ -160,6 +160,11 @@ if ($sender_id !== $requesterId && $ticketWasUnassigned && $isHandlerCandidate) 
 }
 $handlerId = ticket_chat_effective_handler_id($ticket);
 $fallbackAssigneeId = (int) ($ticket['assigned_user_id'] ?? 0);
+if (ticket_chat_is_closed_by_status($ticket)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => ticket_chat_closed_status_message($ticket)]);
+    exit;
+}
 if (!$is_admin && !ticket_user_can_chat($ticket, $sender_id, $userContext)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'You are not allowed to send messages']);

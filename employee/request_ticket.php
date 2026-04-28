@@ -13,11 +13,10 @@ require_once '../includes/pdf_thumbnail.php';
 $lapcDepartments = ticket_lapc_departments();
 $mhcDepartments = ticket_mhc_departments();
 $requestTicketCompanyOptions = [
-    '@leads-farmex.com' => 'FARMEX',
+    '@leads-farmex.com' => 'FARMEX / LAV',
     '@farmasee.ph' => 'FARMASEE',
     '@gpsci.net' => 'GPSCI',
     '@leadsagri.com' => 'LAPC',
-    '@leadsav.com' => 'LAV',
     '@leadstech-corp.com' => 'LTC',
     '@lingapleads.org' => 'LINGAP',
     '@malvedaholdings.com' => 'MHC',
@@ -1614,6 +1613,19 @@ if (count($sapFormEntries) === 0) {
             width: auto;
             margin-top: 0;
             z-index: 90;
+        }
+        body.employee-request-ticket-page #areaCodeWrapper .custom-select-menu,
+        body.employee-request-ticket-page #marketingDepartmentWrapper .custom-select-menu,
+        body.employee-request-ticket-page #requestedMaterialsGroup .custom-select-menu,
+        body.employee-request-ticket-page #cropWrapper .custom-select-menu,
+        body.employee-request-ticket-page #urgencyWrapper .custom-select-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            width: auto;
+            margin-top: 0;
+            z-index: 120;
         }
         body.employee-request-ticket-page .select-wrapper.is-open .select-icon {
             transform: translateY(-50%) rotate(180deg);
@@ -3630,14 +3642,18 @@ if (count($sapFormEntries) === 0) {
                             id="priority_hidden"
                             value="<?= htmlspecialchars((string) ($_POST['priority'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                         >
-                        <div class="select-wrapper">
-                            <select id="urgencySelect" class="form-control">
+                        <div class="select-wrapper" id="urgencyWrapper">
+                            <select id="urgencySelect" class="form-control custom-select-native">
                                 <option value="" disabled selected hidden>Choose level of urgency</option>
                                 <option value="Low">Low - General Inquiry</option>
                                 <option value="Medium">Medium - Needs action within a few days</option>
                                 <option value="High">High - Time-sensitive or urgent</option>
-                                </select>
-                                <i class="fas fa-chevron-down select-icon"></i>
+                            </select>
+                            <button type="button" class="form-control custom-select-trigger" id="urgencyTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                <span class="custom-select-value" id="urgencyTriggerValue">Choose level of urgency</span>
+                            </button>
+                            <div class="custom-select-menu" id="urgencyMenu" role="listbox" hidden></div>
+                            <i class="fas fa-chevron-down select-icon"></i>
                             </div>
                         </div>
                     </div>
@@ -4235,6 +4251,10 @@ if (count($sapFormEntries) === 0) {
                                     </div>
                                 </div>
                             </section>
+
+                            <section class="marketing-request-card" id="marketingDescriptionCard">
+                                <div id="marketingDescriptionHost"></div>
+                            </section>
                         </div>
                     </section>
 
@@ -4501,6 +4521,7 @@ if (count($sapFormEntries) === 0) {
         const sssBenefitsContainer = document.getElementById('sssBenefitsContainer');
         const descriptionOriginalHost = document.getElementById('descriptionOriginalHost');
         const emailDescriptionHost = document.getElementById('emailDescriptionHost');
+        const marketingDescriptionHost = document.getElementById('marketingDescriptionHost');
         const descriptionContainer = document.getElementById('descriptionContainer');
         const descriptionField = document.getElementById('descriptionField');
         const attachmentOriginalHost = document.getElementById('attachmentOriginalHost');
@@ -4515,6 +4536,10 @@ if (count($sapFormEntries) === 0) {
         const urgencyContainer = document.getElementById('urgencyContainer');
         const priorityHidden = document.getElementById('priority_hidden');
         const urgencySelect = document.getElementById('urgencySelect');
+        const urgencyWrapper = document.getElementById('urgencyWrapper');
+        const urgencyTrigger = document.getElementById('urgencyTrigger');
+        const urgencyTriggerValue = document.getElementById('urgencyTriggerValue');
+        const urgencyMenu = document.getElementById('urgencyMenu');
         const urgencyLabel = urgencyContainer ? urgencyContainer.querySelector('label') : null;
         const sssAutoDescription = 'SSS Notification and Benefits Concern submission.';
         const sssUploadConfigs = [
@@ -4988,6 +5013,53 @@ if (count($sapFormEntries) === 0) {
             if (!recipientDropdown || !categorySelect) return;
             populateCategories(getCategoryOptions());
         }
+        function closeUrgencyDropdown() {
+            if (!urgencyWrapper || !urgencyTrigger || !urgencyMenu) return;
+            urgencyWrapper.classList.remove('is-open');
+            urgencyTrigger.setAttribute('aria-expanded', 'false');
+            urgencyMenu.hidden = true;
+        }
+        function syncUrgencyTriggerLabel() {
+            if (!urgencySelect || !urgencyTriggerValue) return;
+            const selectedOption = urgencySelect.options[urgencySelect.selectedIndex];
+            const placeholderOption = urgencySelect.querySelector('option[value=""]');
+            const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
+                ? String(selectedOption.textContent || '').trim()
+                : String((placeholderOption && placeholderOption.textContent) || 'Choose level of urgency').trim();
+            urgencyTriggerValue.textContent = nextLabel || 'Choose level of urgency';
+        }
+        function renderUrgencyDropdownOptions() {
+            if (!urgencySelect || !urgencyMenu || !urgencyTrigger) return;
+            const currentValue = String(urgencySelect.value || '');
+            const options = Array.from(urgencySelect.options).filter(function(option) {
+                return String(option.value || '') !== '';
+            });
+            urgencyMenu.innerHTML = '';
+            options.forEach(function(option) {
+                const optionValue = String(option.value || '');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option' + (currentValue === optionValue ? ' is-selected' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', currentValue === optionValue ? 'true' : 'false');
+                item.textContent = String(option.textContent || optionValue);
+                item.addEventListener('click', function() {
+                    urgencySelect.value = optionValue;
+                    if (priorityHidden) priorityHidden.value = optionValue;
+                    syncUrgencyTriggerLabel();
+                    renderUrgencyDropdownOptions();
+                    closeUrgencyDropdown();
+                    urgencySelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    urgencyTrigger.focus();
+                });
+                urgencyMenu.appendChild(item);
+            });
+            syncUrgencyTriggerLabel();
+            urgencyTrigger.disabled = !!urgencySelect.disabled;
+            if (urgencySelect.disabled) {
+                closeUrgencyDropdown();
+            }
+        }
         function syncUrgencyInputs() {
             if (!priorityHidden || !urgencySelect) return;
             const selectedPriority = String(priorityHidden.value || '');
@@ -4997,10 +5069,14 @@ if (count($sapFormEntries) === 0) {
 
             if (selectedPriority === '' || availableValues.indexOf(selectedPriority) === -1) {
                 urgencySelect.value = '';
+                syncUrgencyTriggerLabel();
+                renderUrgencyDropdownOptions();
                 return;
             }
 
             urgencySelect.value = selectedPriority;
+            syncUrgencyTriggerLabel();
+            renderUrgencyDropdownOptions();
         }
         function isLapcHrSelection() {
             const recipientValue = recipientDropdown ? String(recipientDropdown.value || '') : '';
@@ -5046,7 +5122,10 @@ if (count($sapFormEntries) === 0) {
             const nextValues = desired.map(function(option) {
                 return String(option.value || '') + ':' + String(option.text || '');
             }).join('|');
-            if (currentValues === nextValues) return;
+            if (currentValues === nextValues) {
+                syncUrgencyInputs();
+                return;
+            }
 
             const selectedValue = priorityHidden ? String(priorityHidden.value || '') : String(urgencySelect.value || '');
             urgencySelect.innerHTML = '';
@@ -5071,6 +5150,7 @@ if (count($sapFormEntries) === 0) {
                     ? 'Urgency Level <span class="required-asterisk">*</span>'
                     : 'Level of Urgency <span class="required-asterisk">*</span>';
             }
+            syncUrgencyInputs();
         }
         function syncRequestGridRows() {
             if (recipientDepartmentRow && departmentContainer) {
@@ -5607,7 +5687,9 @@ if (count($sapFormEntries) === 0) {
             if (otherDescriptionSection) {
                 otherDescriptionSection.style.display = shouldShowSssBenefits ? 'none' : '';
             }
-            if ((shouldShowEmailDefault || shouldShowEmailForgotPassword || shouldShowEmailBackup) && emailDescriptionHost) {
+            if (shouldShowMarketingRequest && marketingDescriptionHost) {
+                moveDescriptionContainer(marketingDescriptionHost);
+            } else if ((shouldShowEmailDefault || shouldShowEmailForgotPassword || shouldShowEmailBackup) && emailDescriptionHost) {
                 moveDescriptionContainer(emailDescriptionHost);
             } else if (descriptionOriginalHost) {
                 moveDescriptionContainer(descriptionOriginalHost);
@@ -5637,16 +5719,16 @@ if (count($sapFormEntries) === 0) {
                 descriptionContainer.style.display = (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest || shouldShowEmailCreation) ? 'none' : '';
             }
             if (attachmentContainer) {
-                attachmentContainer.style.display = (shouldShowSssBenefits || shouldShowSapRequest || shouldShowEmailRequest) ? 'none' : '';
+                attachmentContainer.style.display = (shouldShowSssBenefits || shouldShowSapRequest || shouldShowEmailRequest || shouldShowMarketingRequest) ? 'none' : '';
             }
             const attachmentFieldInput = document.getElementById('attachments');
             const attachmentFieldButton = document.getElementById('choose-file-btn');
             if (attachmentFieldInput) {
-                attachmentFieldInput.disabled = shouldShowSssBenefits || shouldShowEmailRequest;
+                attachmentFieldInput.disabled = shouldShowSssBenefits || shouldShowEmailRequest || shouldShowMarketingRequest;
             }
             if (attachmentFieldButton) {
-                attachmentFieldButton.setAttribute('aria-disabled', (shouldShowSssBenefits || shouldShowEmailRequest) ? 'true' : 'false');
-                attachmentFieldButton.tabIndex = (shouldShowSssBenefits || shouldShowEmailRequest) ? -1 : 0;
+                attachmentFieldButton.setAttribute('aria-disabled', (shouldShowSssBenefits || shouldShowEmailRequest || shouldShowMarketingRequest) ? 'true' : 'false');
+                attachmentFieldButton.tabIndex = (shouldShowSssBenefits || shouldShowEmailRequest || shouldShowMarketingRequest) ? -1 : 0;
             }
             if (attachmentOptionalText) {
                 attachmentOptionalText.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment) ? 'none' : '';
@@ -5686,6 +5768,7 @@ if (count($sapFormEntries) === 0) {
                     urgencySelect.setAttribute('required', 'required');
                 } else {
                     urgencySelect.removeAttribute('required');
+                    closeUrgencyDropdown();
                 }
             }
             if (descriptionField) {
@@ -6062,8 +6145,30 @@ if (count($sapFormEntries) === 0) {
         if (urgencySelect) {
             urgencySelect.addEventListener('change', function() {
                 if (!priorityHidden) return;
-                priorityHidden.value = String(urgencySelect.value || 'Low');
+                priorityHidden.value = String(urgencySelect.value || '');
                 syncUrgencyInputs();
+            });
+            renderUrgencyDropdownOptions();
+        }
+        if (urgencyTrigger && urgencyMenu && urgencyWrapper) {
+            urgencyTrigger.addEventListener('click', function() {
+                if (urgencyTrigger.disabled) return;
+                const shouldOpen = urgencyMenu.hidden;
+                closeUrgencyDropdown();
+                if (!shouldOpen) return;
+                urgencyWrapper.classList.add('is-open');
+                urgencyTrigger.setAttribute('aria-expanded', 'true');
+                urgencyMenu.hidden = false;
+            });
+            document.addEventListener('click', function(event) {
+                if (!urgencyWrapper.contains(event.target)) {
+                    closeUrgencyDropdown();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeUrgencyDropdown();
+                }
             });
         }
         if (concernTypeSelect) {

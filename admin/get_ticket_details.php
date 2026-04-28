@@ -324,13 +324,16 @@ if ($row = $result->fetch_assoc()) {
     $row['description'] = $clean_desc;
     $row = ticket_chat_apply_effective_handler($row);
     $userContext = ticket_build_user_context($conn, $currentUserId, $_SESSION);
-    $row['can_chat'] = ticket_user_can_chat($row, $currentUserId, $userContext);
+    $chatClosedMessage = ticket_chat_closed_status_message($row);
+    $row['can_chat'] = $chatClosedMessage === '' && ticket_user_can_chat($row, $currentUserId, $userContext);
     $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
     $row['assigned_to_name'] = isset($row['assigned_to_name']) ? (string) $row['assigned_to_name'] : '';
     $row['assigned_to_email'] = isset($row['assigned_to_email']) ? (string) $row['assigned_to_email'] : '';
     $row['assigned_to_department'] = isset($row['assigned_to_department']) ? (string) $row['assigned_to_department'] : '';
     if ($row['can_chat']) {
         $row['chat_locked_message'] = '';
+    } elseif ($chatClosedMessage !== '') {
+        $row['chat_locked_message'] = $chatClosedMessage;
     } elseif ($row['assigned_to_name'] !== '') {
         $row['chat_locked_message'] = 'This ticket is already assigned to ' . $row['assigned_to_name'] . '.';
     } else {
