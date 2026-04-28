@@ -288,7 +288,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $update->bind_param("sssssiisissi", $new_status, $new_status, $new_department, $new_company, $new_group, $assigned_user_id, $assigned_to, $admin_note, $shouldSetStartedAt, $new_status, $new_status, $id);
 
-    $updateOk = false;
+$updateOk = false;
     $updateError = '';
     try {
         $updateOk = $update->execute();
@@ -309,6 +309,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if ($updateOk) {
         $_SESSION['task_success'] = "Ticket #$id successfully updated.";
+        if ($oldStatus !== $new_status && in_array($new_status, ['Open', 'In Progress', 'Resolved'], true)) {
+            $_SESSION['task_success_status'] = $new_status;
+            $_SESSION['task_success_ticket_id'] = $id;
+        } else {
+            unset($_SESSION['task_success_status'], $_SESSION['task_success_ticket_id']);
+        }
 
         // Flush the redirect to the browser as early as possible so any
         // downstream notification/email failure cannot close the connection

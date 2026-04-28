@@ -1423,6 +1423,37 @@
       });
     }
   }
+  function bindUpdateActionLayout(container) {
+    if (!container) return;
+    var form = container.querySelector('#ticketUpdateForm');
+    if (!form || form.dataset.updateActionBound === '1') return;
+    form.dataset.updateActionBound = '1';
+    var modeInput = form.querySelector('input[name="update_action_mode"]');
+    var cards = Array.prototype.slice.call(form.querySelectorAll('[data-update-action-card]'));
+    var sections = Array.prototype.slice.call(form.querySelectorAll('[data-update-action-section]'));
+    if (!modeInput || cards.length === 0 || sections.length === 0) return;
+
+    function applyMode(mode) {
+      var nextMode = mode === 'reassign' ? 'reassign' : 'status';
+      modeInput.value = nextMode;
+      cards.forEach(function (card) {
+        var isActive = card.getAttribute('data-update-action-card') === nextMode;
+        card.classList.toggle('is-active', isActive);
+        card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+      sections.forEach(function (section) {
+        section.style.display = section.getAttribute('data-update-action-section') === nextMode ? '' : 'none';
+      });
+    }
+
+    cards.forEach(function (card) {
+      card.addEventListener('click', function () {
+        applyMode(card.getAttribute('data-update-action-card') || 'status');
+      });
+    });
+
+    applyMode(modeInput.value || 'status');
+  }
   var standardDeptOptions = [
     { value: 'ACCOUNTING', label: 'Finance and Accounting' },
     { value: 'ADMIN', label: 'Admin & Legal' },
@@ -1610,9 +1641,9 @@
     var normalizedSelected = selectedUserId == null ? '' : String(selectedUserId);
     var list = Array.isArray(users) ? users : [];
     if (list.length === 0) {
-      return '                  <option value="">No department users available</option>';
+      return '                  <option value="">All</option>';
     }
-    var html = '                  <option value="">Choose department user</option>';
+    var html = '                  <option value="">All</option>';
     html += list.map(function (user) {
       var userId = user && user.id != null ? String(user.id) : '';
       var name = user && user.name ? String(user.name) : 'Unnamed User';
@@ -1648,7 +1679,7 @@
       }
       userEl.disabled = !visible;
       if (!visible) {
-        userEl.innerHTML = '                  <option value="">Select your department first</option>';
+        userEl.innerHTML = '                  <option value="">All</option>';
         userEl.value = '';
       }
     }
@@ -1667,7 +1698,7 @@
       }
       setDepartmentUserVisibility(true);
       if (!companyValue || !deptValue) {
-        userEl.innerHTML = '                  <option value="">No department users available</option>';
+        userEl.innerHTML = '                  <option value="">All</option>';
         userEl.disabled = true;
         return;
       }
@@ -1683,7 +1714,7 @@
           userEl.innerHTML = buildDepartmentUserOptionsHtml(users, preferredUserId);
           userEl.disabled = users.length === 0;
           if (users.length === 0) {
-            userEl.innerHTML = '                  <option value="">No department users available</option>';
+            userEl.innerHTML = '                  <option value="">All</option>';
           }
         })
         .catch(function () {
@@ -1969,12 +2000,35 @@
       '    <form id="ticketUpdateForm" method="POST" action="update_ticket.php" class="tm-actions-form">' +
       '      <input type="hidden" name="id" value="' + data.id + '">' +
       '      <input type="hidden" name="csrf_token" value="' + escapeHtml(getCsrfToken()) + '">' +
+      '      <input type="hidden" name="update_action_mode" value="status">' +
       '      <div class="tm-nochange" id="tmNoChangeNotice"></div>' +
-      '      <div class="tm-actions-fields">' +
-      '        <div class="tm-field">' +
-      '          <label class="tm-control-label">Status</label>' +
+      '      <div class="tm-update-layout">' +
+      '        <div class="tm-update-mode-grid">' +
+      '          <button type="button" class="tm-update-mode-card is-active" data-update-action-card="status" aria-pressed="true">' +
+      '            <span class="tm-update-mode-icon"><i class="fas fa-check-circle"></i></span>' +
+      '            <span class="tm-update-mode-copy">' +
+      '              <span class="tm-update-mode-title">Change Status</span>' +
+      '              <span class="tm-update-mode-text">Update the current status of this ticket.</span>' +
+      '            </span>' +
+      '            <span class="tm-update-mode-check"><i class="fas fa-check-circle"></i></span>' +
+      '          </button>' +
+      '          <button type="button" class="tm-update-mode-card" data-update-action-card="reassign" aria-pressed="false">' +
+      '            <span class="tm-update-mode-icon is-neutral"><i class="fas fa-users"></i></span>' +
+      '            <span class="tm-update-mode-copy">' +
+      '              <span class="tm-update-mode-title">Reassign Ticket</span>' +
+      '              <span class="tm-update-mode-text">Transfer this ticket to another department or user.</span>' +
+      '            </span>' +
+      '          </button>' +
+      '        </div>' +
+      '        <div class="tm-update-divider"></div>' +
+      '      </div>' +
+      '      <div class="tm-actions-fields" data-update-action-section="status">' +
+      '        <div class="tm-field tm-field-status-only">' +
+      '          <label class="tm-control-label">New Status</label>' +
       statusControlHtml +
       '        </div>' +
+      '      </div>' +
+      '      <div class="tm-actions-fields" data-update-action-section="reassign" style="display:none;">' +
       '        <div class="tm-field">' +
       '          <label class="tm-control-label">Ticket Recipient</label>' +
       '          <div class="tm-select-wrapper">' +
@@ -2016,7 +2070,7 @@
       '          <label class="tm-control-label">Department User</label>' +
       '          <div class="tm-select-wrapper">' +
       '            <select class="tm-select tm-dept-user-select" name="assigned_user_id" ' + (canShowDepartmentUserSelect ? '' : 'disabled') + '>' +
-      '              <option value="">Choose department user</option>' +
+      '              <option value="">All</option>' +
       '            </select>' +
       '          </div>' +
       '        </div>'
@@ -3996,6 +4050,11 @@
           bindAdminNote(modalContent, data);
         } catch (adminNoteError) {
           console.error('Ticket modal admin note binding failed:', adminNoteError, data);
+        }
+        try {
+          bindUpdateActionLayout(modalContent);
+        } catch (updateActionLayoutError) {
+          console.error('Ticket modal update action layout binding failed:', updateActionLayoutError, data);
         }
         try {
           bindDepartmentOptions(modalContent, data);

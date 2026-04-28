@@ -12,6 +12,7 @@ require_once '../includes/notification_service.php';
 $success_msg = "";
 $error_msg = "";
 
+$full_name = '';
 $email = '';
 $company_id = '';
 $category = '';
@@ -446,6 +447,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
     ticket_ensure_assignment_columns($conn);
 
+    $full_name  = trim((string)($_POST['full_name'] ?? ''));
     $email      = trim((string)($_POST['email'] ?? ''));
     $company_id = trim((string)($_POST['company_id'] ?? ''));
     $assigned_department_selected = trim((string)($_POST['assigned_department'] ?? ''));
@@ -500,7 +502,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $sap_department = $sap_reports[0]['department'] ?? trim((string) ($_POST['sap_department'] ?? ''));
     $sap_company = $sap_reports[0]['company'] ?? trim((string) ($_POST['sap_company'] ?? ''));
 
-    $name = derive_name_from_email($email);
+    $name = $full_name !== '' ? $full_name : derive_name_from_email($email);
     $company = $company_id;
     $department = 'Sales';
     $priority = 'Low';
@@ -1395,7 +1397,7 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sales Ticket Request | Leads Agri Helpdesk</title>
+    <title>Sales Ticket Request | Leads Helpdesk</title>
     <!-- Reuse existing CSS or inline minimal styles -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/employee-dashboard.css">
@@ -3957,7 +3959,7 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             </div>
             <div class="sales-brand-divider" aria-hidden="true"></div>
             <div class="sales-brand">
-                <div class="sales-brand-title">Leads Agri Helpdesk</div>
+                <div class="sales-brand-title">Leads Helpdesk</div>
                 <div class="sales-brand-subtitle">Sales Ticket Request</div>
             </div>
         </div>
@@ -3995,21 +3997,26 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
 
             <div class="form-grid">
             <div class="form-group">
-                <label>Your Email <span class="required-asterisk">*</span></label>
+                <label>Full Name <span class="required-asterisk">*</span></label>
+                <input type="text" name="full_name" class="form-control" placeholder="Enter your full name" required value="<?= htmlspecialchars($full_name ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+            </div>
+
+            <div class="form-group">
+                <label>Email <span class="required-asterisk">*</span></label>
                 <input type="email" name="email" class="form-control" placeholder="Enter your email address" required value="<?= htmlspecialchars($email ?? '', ENT_QUOTES, 'UTF-8'); ?>">
             </div>
 
             <div class="request-grid-row is-single" id="recipientRow">
                 <div class="form-group" id="recipientGroup">
-                    <label>Assign to <span class="required-asterisk">*</span></label>
+                    <label>Subsidiaries <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper recipient-dropdown" id="recipientDropdown">
                         <select name="company_id" id="ticket_recipient" class="form-control recipient-native-select" required>
-                            <option value="" disabled <?= $normalized_company_id === '' ? 'selected' : '' ?> hidden>Select Recipient</option>
+                            <option value="" disabled <?= $normalized_company_id === '' ? 'selected' : '' ?> hidden>Select a company</option>
                             <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
                                 <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (normalize_sales_recipient_company((string) ($company_id ?? '')) === $companyValue) ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <button type="button" id="recipientDropdownTrigger" class="recipient-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Select Recipient</button>
+                        <button type="button" id="recipientDropdownTrigger" class="recipient-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Select a company</button>
                         <div id="recipientDropdownMenu" class="recipient-dropdown-menu" role="listbox" aria-labelledby="recipientDropdownTrigger"></div>
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
@@ -5140,7 +5147,7 @@ function closeRecipientDropdown() {
 function syncRecipientTriggerLabel() {
     if (!recipientTrigger || !recipient) return;
     var selectedOption = recipient.options[recipient.selectedIndex];
-    var label = selectedOption && selectedOption.value ? selectedOption.textContent : 'Select Recipient';
+    var label = selectedOption && selectedOption.value ? selectedOption.textContent : 'Select a company';
     recipientTrigger.textContent = label;
     recipientTrigger.classList.toggle('is-placeholder', !(selectedOption && selectedOption.value));
 }

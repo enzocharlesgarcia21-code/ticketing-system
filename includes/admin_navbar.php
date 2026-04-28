@@ -9,7 +9,7 @@ $csrfToken = csrf_token();
     <div class="admin-navbar-left">
         <img src="../assets/img/UPDATEDlogo.png" alt="Logo" class="admin-logo-img">
         <div>
-            <div class="admin-logo-text-main">Leads Agri Helpdesk</div>
+            <div class="admin-logo-text-main">Leads Helpdesk</div>
             <div class="admin-logo-text-sub">Admin</div>
         </div>
     </div>
