@@ -49,7 +49,7 @@ $employeeNavItems = [
     ['key' => 'dashboard', 'page' => 'dashboard.php', 'label' => 'Dashboard'],
     ['key' => 'create_ticket', 'page' => 'request_ticket.php', 'label' => 'Create Ticket'],
     ['key' => 'all_ticket', 'page' => 'my_task.php', 'label' => 'Assigned Tickets'],
-    ['key' => 'my_tickets', 'page' => 'my_tickets.php', 'label' => 'My Tickets'],
+    ['key' => 'my_tickets', 'page' => 'my_tickets.php', 'label' => 'My Submitted Tickets'],
     ['key' => 'feedback', 'page' => 'feedback.php', 'label' => 'Feedback'],
     ['key' => 'knowledge_base', 'page' => 'knowledge_base.php', 'label' => 'Knowledge Base'],
     ['key' => 'conference_booking', 'page' => 'book_conference.php', 'label' => 'Conference Booking'],
@@ -1289,13 +1289,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 const items = Array.isArray(data) ? data : [];
                 let total = 0;
                 items.forEach(c => {
-                    const u = parseInt(String((c && c.unread_count != null) ? c.unread_count : 0), 10) || 0;
+                    const unreadValue = c && c.unread_count_raw != null ? c.unread_count_raw : (c && c.unread_count != null ? c.unread_count : 0);
+                    const u = parseInt(String(unreadValue), 10) || 0;
                     total += Math.max(0, u);
                 });
                 setGlobalChatBadge(total);
             })
             .catch(() => {});
     }
+    window.TMRefreshGlobalChatBadge = fetchChatUnreadTotal;
 
     function ensureTicketModalScript() {
         if (window.TMTicketModal) return;
@@ -1322,6 +1324,6 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     fetchChatUnreadTotal();
-    setInterval(fetchChatUnreadTotal, 7000);
+    setInterval(fetchChatUnreadTotal, 3000);
 });
 </script>

@@ -18,11 +18,21 @@ if ($feedbackFlash !== null) {
 }
 $showFeedbackSuccessModal = $feedbackFlash && (($feedbackFlash['type'] ?? '') === 'success') && !empty($feedbackFlash['message']);
 
-/* Fetch Company */
+/* Fetch profile context */
 $company = '';
-$userQuery = $conn->query("SELECT company FROM users WHERE id = $user_id");
+$user_department = (string) ($_SESSION['department'] ?? '');
+$user_email = (string) ($_SESSION['email'] ?? '');
+$userQuery = $conn->query("SELECT company, department, email FROM users WHERE id = $user_id");
 if ($userQuery && $row = $userQuery->fetch_assoc()) {
-    $company = $row['company'];
+    $company = (string) ($row['company'] ?? '');
+    if ($user_department === '') {
+        $user_department = (string) ($row['department'] ?? '');
+        if ($user_department !== '') $_SESSION['department'] = $user_department;
+    }
+    if ($user_email === '') {
+        $user_email = (string) ($row['email'] ?? '');
+        if ($user_email !== '') $_SESSION['email'] = $user_email;
+    }
 }
 
 /* Ticket Counts (tickets created by this employee) */
@@ -65,6 +75,59 @@ $recentStmt = $conn->prepare("
 $recentStmt->bind_param("i", $user_id);
 $recentStmt->execute();
 $recent = $recentStmt->get_result();
+$raisedTickets = [];
+while ($recent && ($row = $recent->fetch_assoc())) {
+    $raisedTickets[] = $row;
+}
+$recentStmt->close();
+
+$receivedTickets = [];
+$receivedStmt = $conn->prepare("
+    SELECT
+        t.*,
+        u.name AS requester_name,
+        u.email AS user_email,
+        u.department AS user_department,
+        u.company AS user_company
+    FROM employee_tickets t
+    LEFT JOIN users u ON u.id = t.user_id
+    WHERE t.user_id <> ?
+      AND t.status <> 'Closed'
+    ORDER BY t.created_at DESC
+    LIMIT 80
+");
+if ($receivedStmt) {
+    $receivedStmt->bind_param("i", $user_id);
+    $receivedStmt->execute();
+    $receivedResult = $receivedStmt->get_result();
+    $userContext = [
+        'department' => $user_department,
+        'company' => $company,
+        'email' => $user_email,
+    ];
+    while ($receivedResult && ($ticketRow = $receivedResult->fetch_assoc())) {
+        if (ticket_user_is_handler_candidate($ticketRow, $user_id, $userContext)) {
+            $receivedTickets[] = $ticketRow;
+            if (count($receivedTickets) >= 5) {
+                break;
+            }
+        }
+    }
+    $receivedStmt->close();
+}
+
+function dashboard_status_class(string $status): string
+{
+    return strtolower(preg_replace('/[^a-z0-9]+/i', '-', trim($status)));
+}
+
+function dashboard_ticket_category(array $row): string
+{
+    $category = trim((string) ($row['category'] ?? ''));
+    if ($category !== '') return $category;
+    $subject = trim((string) ($row['subject'] ?? ''));
+    return $subject !== '' ? $subject : 'General Concern';
+}
 ?>
 
 <!DOCTYPE html>
@@ -95,60 +158,71 @@ $recent = $recentStmt->get_result();
         }
 
         body.employee-dashboard-page .feedback-modal-dialog {
+            position: relative;
             width: min(100%, 560px);
             background: #ffffff;
-            border-radius: 26px;
-            box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
+            border-radius: 22px;
+            box-shadow: 0 28px 80px rgba(15, 23, 42, 0.24);
             overflow: hidden;
             border: 1px solid rgba(203, 213, 225, 0.8);
+            text-align: center;
         }
 
         body.employee-dashboard-page .feedback-modal-header {
-            padding: 24px 28px 18px;
-            background: linear-gradient(135deg, #14532d 0%, #1B5E20 58%, #15803d 100%);
-            color: #ffffff;
+            padding: 36px 36px 34px;
+            background: #ffffff;
+            color: #111827;
             position: relative;
         }
 
-        body.employee-dashboard-page .feedback-close-btn {
-            position: absolute;
-            top: 18px;
-            right: 18px;
-            width: 42px;
-            height: 42px;
-            border: none;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.16);
-            color: #ffffff;
-            font-size: 18px;
-            cursor: pointer;
+        body.employee-dashboard-page .feedback-modal-success-icon {
+            width: 70px;
+            height: 70px;
+            margin: 0 auto 26px;
+            border-radius: 50%;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            transition: background 0.18s ease, transform 0.18s ease;
-        }
-
-        body.employee-dashboard-page .feedback-close-btn:hover {
-            background: rgba(255, 255, 255, 0.24);
-            transform: translateY(-1px);
+            border: 4px solid #bbf7b5;
+            background: #ecfdf5;
+            color: #0f5f24;
+            font-size: 44px;
+            font-weight: 500;
+            line-height: 1;
         }
 
         body.employee-dashboard-page .feedback-modal-title {
-            margin: 0;
+            margin: 0 0 16px;
             font-size: 28px;
-            line-height: 1.15;
+            line-height: 1.2;
             font-weight: 800;
         }
 
         body.employee-dashboard-page .feedback-modal-subtitle {
-            margin: 10px 0 0;
-            font-size: 15px;
-            line-height: 1.55;
-            color: rgba(255, 255, 255, 0.9);
+            margin: 0;
+            font-size: 18px;
+            line-height: 1.45;
+            color: #4b5563;
         }
 
         body.employee-dashboard-page .feedback-modal-body {
-            padding: 24px 28px 28px;
+            padding: 22px 36px 28px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        body.employee-dashboard-page .feedback-modal-body .feedback-actions {
+            display: flex;
+            justify-content: center;
+            gap: 0;
+        }
+
+        body.employee-dashboard-page .feedback-modal-body .feedback-submit-btn {
+            min-width: 170px;
+            min-height: 52px;
+            border-radius: 16px;
+            background: #11651f;
+            font-size: 18px;
+            box-shadow: 0 14px 28px rgba(17, 101, 31, 0.22);
         }
 
         body.employee-dashboard-page .feedback-ticket-chip {
@@ -319,6 +393,218 @@ $recent = $recentStmt->get_result();
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
+        }
+
+        body.employee-dashboard-page {
+            background: #f8fafc;
+        }
+
+        body.employee-dashboard-page .dashboard-container {
+            max-width: 1160px;
+            padding: 34px 20px 54px;
+        }
+
+        body.employee-dashboard-page .content-wrapper {
+            display: grid;
+            gap: 24px;
+        }
+
+        body.employee-dashboard-page .hero-section {
+            margin: 0;
+        }
+
+        body.employee-dashboard-page .hero-title {
+            margin: 0 0 10px;
+            color: #0f5f24;
+            font-size: 30px;
+            font-weight: 700;
+            line-height: 1.15;
+            letter-spacing: 0;
+        }
+
+        body.employee-dashboard-page .hero-dept {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 14px;
+            padding: 5px 12px;
+            border-radius: 8px;
+            background: #eef2f7;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        body.employee-dashboard-page .company-text {
+            color: #64748b;
+        }
+
+        body.employee-dashboard-page .hero-subtitle {
+            margin: 0;
+            color: #64748b;
+            font-size: 16px;
+        }
+
+        body.employee-dashboard-page .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 18px;
+            margin: 10px 0 0;
+        }
+
+        body.employee-dashboard-page .stat-card {
+            min-height: 142px;
+            padding: 24px 24px 22px;
+            border: 1px solid #e5e7eb;
+            border-top: 3px solid #f4c430;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 12px 26px rgba(15, 23, 42, 0.07);
+        }
+
+        body.employee-dashboard-page .stat-icon {
+            width: 38px;
+            height: 38px;
+            margin-bottom: 18px;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        body.employee-dashboard-page .stat-card.total .stat-icon,
+        body.employee-dashboard-page .stat-card.progress .stat-icon,
+        body.employee-dashboard-page .stat-card.resolved .stat-icon {
+            background: #dcfce7;
+            color: #11651f;
+        }
+
+        body.employee-dashboard-page .stat-card.open .stat-icon {
+            background: #fef9c3;
+            color: #d97706;
+        }
+
+        body.employee-dashboard-page .stat-label {
+            margin-bottom: 8px;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        body.employee-dashboard-page .stat-value {
+            color: #111827;
+            font-size: 30px;
+            line-height: 1;
+            font-weight: 500;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 22px;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-panel {
+            min-width: 0;
+            padding: 24px 24px 22px;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 12px 26px rgba(15, 23, 42, 0.07);
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-title {
+            margin: 0 0 18px;
+            color: #111827;
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-table th {
+            padding: 14px 12px;
+            background: #f8fafc;
+            border-bottom: 1px solid #1B5E20;
+            color: #1B5E20;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            text-align: left;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-table th:first-child {
+            border-bottom-left-radius: 8px;
+            border-top-left-radius: 8px;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-table th:last-child {
+            border-bottom-right-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-table td {
+            padding: 14px 12px;
+            border-bottom: 1px solid #edf2f7;
+            color: #334155;
+            font-size: 13px;
+            vertical-align: middle;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-table tr:last-child td {
+            border-bottom: 0;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-table tr.ticket-row {
+            cursor: pointer;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-table tr.ticket-row:hover td {
+            background: #f8fafc;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-id {
+            width: 70px;
+            color: #334155;
+            font-weight: 500;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-category {
+            max-width: 210px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: 700;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-table .status-pill {
+            font-weight: 400;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-date {
+            width: 116px;
+            white-space: nowrap;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-arrow {
+            width: 24px;
+            color: #64748b;
+            font-size: 18px;
+            font-weight: 900;
+            text-align: right;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-empty {
+            padding: 34px 12px;
+            color: #94a3b8;
+            text-align: center;
+            font-weight: 700;
         }
 
         body.employee-dashboard-page .mobile-sidebar,
@@ -546,6 +832,32 @@ $recent = $recentStmt->get_result();
                 right: -4px;
             }
 
+            body.employee-dashboard-page .dashboard-container {
+                padding: 22px 14px 36px;
+            }
+
+            body.employee-dashboard-page .hero-title {
+                font-size: 24px;
+            }
+
+            body.employee-dashboard-page .stats-grid,
+            body.employee-dashboard-page .dashboard-ticket-grid {
+                grid-template-columns: 1fr;
+            }
+
+            body.employee-dashboard-page .stat-card {
+                min-height: 118px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-panel {
+                padding: 18px;
+                overflow-x: auto;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table {
+                min-width: 560px;
+            }
+
             body.employee-dashboard-page .recent-section .table-responsive table thead {
                 display: none;
             }
@@ -698,7 +1010,7 @@ $recent = $recentStmt->get_result();
         <a href="dashboard.php" class="active">Dashboard</a>
         <a href="request_ticket.php">Create Ticket</a>
         <a href="my_task.php">Assigned Tickets</a>
-        <a href="my_tickets.php">My Tickets</a>
+        <a href="my_tickets.php">My Submitted Tickets</a>
         <a href="feedback.php">Feedback</a>
         <a href="knowledge_base.php">Knowledge Base</a>
         <div class="mobile-sidebar-footer">
@@ -728,16 +1040,11 @@ $recent = $recentStmt->get_result();
     >
         <div class="feedback-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
             <div class="feedback-modal-header">
-                <button type="button" class="feedback-close-btn" id="feedbackModalCloseBtn" aria-label="Close feedback modal">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div class="feedback-modal-success-icon" aria-hidden="true">&#10003;</div>
                 <h2 id="feedbackModalTitle" class="feedback-modal-title">Feedback Submitted</h2>
-                <p class="feedback-modal-subtitle">Thank you for sharing your experience with the resolved ticket.</p>
+                <p class="feedback-modal-subtitle">Your feedback has been submitted.<br>Thank you for sharing your support experience.</p>
             </div>
             <div class="feedback-modal-body">
-                <div class="feedback-flash is-success">
-                    <?= htmlspecialchars((string) $feedbackFlash['message'], ENT_QUOTES, 'UTF-8'); ?>
-                </div>
                 <div class="feedback-actions">
                     <button type="button" class="feedback-submit-btn" id="feedbackModalDismissBtn">Done</button>
                 </div>
@@ -802,7 +1109,83 @@ $recent = $recentStmt->get_result();
             </div>
 
             <!-- 5️⃣ RECENT TICKETS SECTION -->
-            <div class="recent-section">
+            <div class="dashboard-ticket-grid">
+                <section class="dashboard-ticket-panel" aria-labelledby="raisedTicketsTitle">
+                    <h2 id="raisedTicketsTitle" class="dashboard-ticket-title">Raised Tickets</h2>
+                    <table class="dashboard-ticket-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th aria-hidden="true"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (count($raisedTickets) > 0): ?>
+                                <?php foreach ($raisedTickets as $row): ?>
+                                    <?php $status = (string) ($row['status'] ?? ''); ?>
+                                    <tr class="ticket-row raised-ticket-row" data-id="<?= (int) $row['id']; ?>">
+                                        <td class="dashboard-ticket-id">#<?= (int) $row['id']; ?></td>
+                                        <td class="dashboard-ticket-category"><?= htmlspecialchars(dashboard_ticket_category($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td>
+                                            <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($status), ENT_QUOTES, 'UTF-8'); ?>">
+                                                <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
+                                            </span>
+                                        </td>
+                                        <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="5" class="dashboard-ticket-empty">No raised tickets found.</td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section class="dashboard-ticket-panel" aria-labelledby="receivedTicketsTitle">
+                    <h2 id="receivedTicketsTitle" class="dashboard-ticket-title">Received Tickets</h2>
+                    <table class="dashboard-ticket-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th aria-hidden="true"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (count($receivedTickets) > 0): ?>
+                                <?php foreach ($receivedTickets as $row): ?>
+                                    <?php $status = (string) ($row['status'] ?? ''); ?>
+                                    <tr class="ticket-row received-ticket-row" data-id="<?= (int) $row['id']; ?>">
+                                        <td class="dashboard-ticket-id">#<?= (int) $row['id']; ?></td>
+                                        <td class="dashboard-ticket-category"><?= htmlspecialchars(dashboard_ticket_category($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td>
+                                            <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($status), ENT_QUOTES, 'UTF-8'); ?>">
+                                                <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
+                                            </span>
+                                        </td>
+                                        <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="5" class="dashboard-ticket-empty">No received tickets found.</td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+
+            <div class="recent-section" style="display:none;">
                 <div class="section-header">
                     <h2 class="section-title">Recent Tickets</h2>
                 </div>
@@ -1045,11 +1428,19 @@ $recent = $recentStmt->get_result();
         updateRecentCards();
     })();
 
-    document.querySelectorAll('.recent-section .ticket-row').forEach(function (row) {
+    document.querySelectorAll('.raised-ticket-row').forEach(function (row) {
         row.addEventListener('click', function () {
             var id = this.getAttribute('data-id');
             if (!id) return;
             window.location.href = 'my_tickets.php?ticket_id=' + encodeURIComponent(id);
+        });
+    });
+
+    document.querySelectorAll('.received-ticket-row').forEach(function (row) {
+        row.addEventListener('click', function () {
+            var id = this.getAttribute('data-id');
+            if (!id) return;
+            window.location.href = 'my_task.php?ticket_id=' + encodeURIComponent(id);
         });
     });
 

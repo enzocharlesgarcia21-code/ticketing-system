@@ -26,8 +26,8 @@ if (!function_exists('user_permissions_definitions')) {
                 'default_enabled' => 1,
             ],
             'my_tickets' => [
-                'label' => 'My Tickets',
-                'nav_label' => 'My Tickets',
+                'label' => 'My Submitted Tickets',
+                'nav_label' => 'My Submitted Tickets',
                 'path' => 'my_tickets.php',
                 'section' => 'Tickets',
                 'default_enabled' => 1,

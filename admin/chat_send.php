@@ -238,6 +238,39 @@ if ($insertedAll) {
         $clearHrReminder->close();
     }
 
+    if ($recipientId > 0 && $recipientId !== (int) $sender_id) {
+        $senderInfo = notif_user_contact($conn, (int) $sender_id);
+        $senderName = trim((string) ($senderInfo['name'] ?? ''));
+        if ($senderName === '') {
+            $senderName = 'Someone';
+        }
+        $ticketNumber = notif_ticket_number((int) $ticket_id);
+        $messagePreview = trim($message);
+        if ($messagePreview === '' && $hasAttachments) {
+            $messagePreview = count($attachmentUploads) === 1
+                ? '[Attachment] ' . (string) ($attachmentUploads[0]['original_name'] ?? '')
+                : '[Attachments] ' . count($attachmentUploads) . ' files';
+        }
+        if (function_exists('mb_strlen')) {
+            if (mb_strlen($messagePreview) > 80) {
+                $messagePreview = mb_substr($messagePreview, 0, 80) . '...';
+            }
+        } else {
+            if (strlen($messagePreview) > 80) {
+                $messagePreview = substr($messagePreview, 0, 80) . '...';
+            }
+        }
+        notif_insert_system(
+            $conn,
+            (int) $recipientId,
+            (int) $ticket_id,
+            $senderName . ' sent a chat message on ticket #' . $ticketNumber . ': ' . $messagePreview,
+            'chat_message',
+            5,
+            'update'
+        );
+    }
+
     exit;
 } else {
     http_response_code(500);

@@ -12,6 +12,19 @@ require_once '../includes/pdf_thumbnail.php';
 
 $lapcDepartments = ticket_lapc_departments();
 $mhcDepartments = ticket_mhc_departments();
+$requestTicketCompanyOptions = [
+    '@leads-farmex.com' => 'FARMEX',
+    '@farmasee.ph' => 'FARMASEE',
+    '@gpsci.net' => 'GPSCI',
+    '@leadsagri.com' => 'LAPC',
+    '@leadsav.com' => 'LAV',
+    '@leadstech-corp.com' => 'LTC',
+    '@lingapleads.org' => 'LINGAP',
+    '@malvedaholdings.com' => 'MHC',
+    '@malvedaproperties.com' => 'MPDC',
+    '@primestocks.ph' => 'PCC',
+];
+$requestTicketCompanies = array_keys($requestTicketCompanyOptions);
 
 function find_domain_recipient_ids(mysqli $conn, string $domain): array
 {
@@ -1005,7 +1018,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             . "Brief Description of Request: " . trim((string) ($_POST['description'] ?? ''));
     }
 
-    if ($assigned_company === '' || !ticket_is_valid_company($assigned_company)) {
+    if ($assigned_company === '' || !in_array($assigned_company, $requestTicketCompanies, true) || !ticket_is_valid_company($assigned_company)) {
         if ($isAjax) {
             header('Content-Type: application/json; charset=utf-8');
             http_response_code(400);
@@ -1509,18 +1522,6 @@ if (count($sapFormEntries) === 0) {
     $sapFormEntries = [request_ticket_blank_sap_report()];
 }
 
-$requestTicketCompanyOptions = [
-    '@leads-farmex.com' => 'FARMEX (@leads-farmex.com)',
-    '@farmasee.ph' => 'FARMASEE (@farmasee.ph)',
-    '@gpsci.net' => 'GPSCI (@gpsci.net)',
-    '@leadsagri.com' => 'LAPC (@leadsagri.com)',
-    '@leadsav.com' => 'LAV (@leadsav.com)',
-    '@leadstech-corp.com' => 'LTC (@leadstech-corp.com)',
-    '@lingapleads.org' => 'LINGAP (@lingapleads.org)',
-    '@malvedaholdings.com' => 'MHC (@malvedaholdings.com)',
-    '@malvedaproperties.com' => 'MPDC (@malvedaproperties.com)',
-    '@primestocks.ph' => 'PCC (@primestocks.ph)',
-];
 ?>
 
 <!DOCTYPE html>
@@ -1596,6 +1597,24 @@ $requestTicketCompanyOptions = [
             margin-top: 0;
             z-index: 90;
         }
+        body.employee-request-ticket-page #assignedCompanyWrapper .custom-select-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            width: auto;
+            margin-top: 0;
+            z-index: 90;
+        }
+        body.employee-request-ticket-page #categoryWrapper .custom-select-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            width: auto;
+            margin-top: 0;
+            z-index: 90;
+        }
         body.employee-request-ticket-page .select-wrapper.is-open .select-icon {
             transform: translateY(-50%) rotate(180deg);
         }
@@ -1618,9 +1637,10 @@ $requestTicketCompanyOptions = [
             outline: none;
         }
         body.employee-request-ticket-page .custom-select-option.is-selected {
-            background: rgba(27, 94, 32, 0.12);
-            color: #14532d;
+            background: #1B5E20;
+            color: #ffffff;
             font-weight: 400;
+            border-radius: 12px;
         }
         body.employee-request-ticket-page .custom-select-native {
             position: absolute;
@@ -3522,20 +3542,17 @@ $requestTicketCompanyOptions = [
                     <div class="request-grid-row is-single" id="recipientDepartmentRow">
                         <div class="form-group">
                             <label>Assign to <span class="required-asterisk">*</span></label>
-                            <div class="select-wrapper">
-                                <select name="assigned_company" id="assigned_company" class="form-control" required>
-                                    <option value="" disabled selected hidden>Select a company</option>
-                                    <option value="@leads-farmex.com">FARMEX</option>
-                                    <option value="@farmasee.ph">FARMASEE</option>
-                                    <option value="@gpsci.net">GPSCI</option>
-                                    <option value="@leadsagri.com">LAPC</option>
-                                    <option value="@leadsav.com">LAV</option>
-                                    <option value="@leadstech-corp.com">LTC</option>
-                                    <option value="@lingapleads.org">LINGAP</option>
-                                    <option value="@malvedaholdings.com">MHC</option>
-                                    <option value="@malvedaproperties.com">MPDC</option>
-                                    <option value="@primestocks.ph">PCC</option>
+                            <div class="select-wrapper" id="assignedCompanyWrapper">
+                                <select name="assigned_company" id="assigned_company" class="form-control custom-select-native" required data-selected="<?= htmlspecialchars((string) ($_POST['assigned_company'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                    <option value="" disabled <?= empty($_POST['assigned_company']) ? 'selected' : ''; ?> hidden>Select a company</option>
+                                    <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
+                                        <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (($_POST['assigned_company'] ?? '') === $companyValue) ? 'selected' : ''; ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+                                    <?php endforeach; ?>
                                 </select>
+                                <button type="button" class="form-control custom-select-trigger" id="assignedCompanyTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                    <span class="custom-select-value" id="assignedCompanyTriggerValue">Select a company</span>
+                                </button>
+                                <div class="custom-select-menu" id="assignedCompanyMenu" role="listbox" hidden></div>
                                 <i class="fas fa-chevron-down select-icon"></i>
                             </div>
                         </div>
@@ -3558,8 +3575,8 @@ $requestTicketCompanyOptions = [
                     <div class="request-grid-row is-single" id="categoryUrgencyRow">
                         <div class="form-group" id="categoryContainer">
                             <label>Category <span class="required-asterisk">*</span></label>
-                            <div class="select-wrapper">
-                                <select name="category" id="category_select" class="form-control" required data-selected="<?= htmlspecialchars((string) ($_POST['category'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <div class="select-wrapper" id="categoryWrapper">
+                                <select name="category" id="category_select" class="form-control custom-select-native" required data-selected="<?= htmlspecialchars((string) ($_POST['category'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                     <option value="" disabled selected hidden>Choose category</option>
                                     <option value="Documentation">Documentation</option>
                                     <option value="Email">Email</option>
@@ -3569,6 +3586,10 @@ $requestTicketCompanyOptions = [
                                     <option value="Software">Software</option>
                                     <option value="Technical Support">Technical Support</option>
                                 </select>
+                                <button type="button" class="form-control custom-select-trigger" id="categoryTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                    <span class="custom-select-value" id="categoryTriggerValue">Choose category</span>
+                                </button>
+                                <div class="custom-select-menu" id="categoryMenu" role="listbox" hidden></div>
                                 <i class="fas fa-chevron-down select-icon"></i>
                             </div>
                         </div>
@@ -4349,6 +4370,10 @@ $requestTicketCompanyOptions = [
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         const recipientDropdown = document.getElementById('assigned_company');
+        const recipientWrapper = document.getElementById('assignedCompanyWrapper');
+        const recipientTrigger = document.getElementById('assignedCompanyTrigger');
+        const recipientTriggerValue = document.getElementById('assignedCompanyTriggerValue');
+        const recipientMenu = document.getElementById('assignedCompanyMenu');
         const recipientDepartmentRow = document.getElementById('recipientDepartmentRow');
         const departmentContainer = document.getElementById('departmentContainer');
         const departmentSelect = document.getElementById('assigned_group');
@@ -4359,6 +4384,10 @@ $requestTicketCompanyOptions = [
         const categoryUrgencyRow = document.getElementById('categoryUrgencyRow');
         const categoryContainer = document.getElementById('categoryContainer');
         const categorySelect = document.getElementById('category_select');
+        const categoryWrapper = document.getElementById('categoryWrapper');
+        const categoryTrigger = document.getElementById('categoryTrigger');
+        const categoryTriggerValue = document.getElementById('categoryTriggerValue');
+        const categoryMenu = document.getElementById('categoryMenu');
         const kamiBannerContainer = document.getElementById('kamiBannerContainer');
         const concernTypeContainer = document.getElementById('concernTypeContainer');
         const concernTypeSelect = document.getElementById('hr_concern_type');
@@ -4709,6 +4738,53 @@ $requestTicketCompanyOptions = [
                 closeCropDropdown();
             }
         }
+        function closeRecipientDropdown() {
+            if (!recipientWrapper || !recipientTrigger || !recipientMenu) return;
+            recipientWrapper.classList.remove('is-open');
+            recipientTrigger.setAttribute('aria-expanded', 'false');
+            recipientMenu.hidden = true;
+        }
+        function syncRecipientTriggerLabel() {
+            if (!recipientDropdown || !recipientTriggerValue) return;
+            const selectedOption = recipientDropdown.options[recipientDropdown.selectedIndex];
+            const placeholderOption = recipientDropdown.querySelector('option[value=""]');
+            const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
+                ? String(selectedOption.textContent || '').trim()
+                : String((placeholderOption && placeholderOption.textContent) || 'Select a company').trim();
+            recipientTriggerValue.textContent = nextLabel || 'Select a company';
+        }
+        function renderRecipientDropdownOptions() {
+            if (!recipientDropdown || !recipientMenu || !recipientTrigger) return;
+            const currentValue = String(recipientDropdown.value || '');
+            const options = Array.from(recipientDropdown.options).filter(function(option) {
+                return String(option.value || '') !== '';
+            });
+            recipientMenu.innerHTML = '';
+            options.forEach(function(option) {
+                const optionValue = String(option.value || '');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option' + (currentValue === optionValue ? ' is-selected' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', currentValue === optionValue ? 'true' : 'false');
+                item.textContent = String(option.textContent || optionValue);
+                item.addEventListener('click', function() {
+                    recipientDropdown.value = optionValue;
+                    recipientDropdown.setAttribute('data-selected', optionValue);
+                    syncRecipientTriggerLabel();
+                    renderRecipientDropdownOptions();
+                    closeRecipientDropdown();
+                    recipientDropdown.dispatchEvent(new Event('change', { bubbles: true }));
+                    recipientTrigger.focus();
+                });
+                recipientMenu.appendChild(item);
+            });
+            syncRecipientTriggerLabel();
+            recipientTrigger.disabled = !!recipientDropdown.disabled;
+            if (recipientDropdown.disabled) {
+                closeRecipientDropdown();
+            }
+        }
         function closeDepartmentDropdown() {
             if (!departmentWrapper || !departmentTrigger || !departmentMenu) return;
             departmentWrapper.classList.remove('is-open');
@@ -4774,6 +4850,53 @@ $requestTicketCompanyOptions = [
             }
             renderDepartmentDropdownOptions();
         }
+        function closeCategoryDropdown() {
+            if (!categoryWrapper || !categoryTrigger || !categoryMenu) return;
+            categoryWrapper.classList.remove('is-open');
+            categoryTrigger.setAttribute('aria-expanded', 'false');
+            categoryMenu.hidden = true;
+        }
+        function syncCategoryTriggerLabel() {
+            if (!categorySelect || !categoryTriggerValue) return;
+            const selectedOption = categorySelect.options[categorySelect.selectedIndex];
+            const placeholderOption = categorySelect.querySelector('option[value=""]');
+            const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
+                ? String(selectedOption.textContent || '').trim()
+                : String((placeholderOption && placeholderOption.textContent) || 'Choose category').trim();
+            categoryTriggerValue.textContent = nextLabel || 'Choose category';
+        }
+        function renderCategoryDropdownOptions() {
+            if (!categorySelect || !categoryMenu || !categoryTrigger) return;
+            const currentValue = String(categorySelect.value || '');
+            const options = Array.from(categorySelect.options).filter(function(option) {
+                return String(option.value || '') !== '';
+            });
+            categoryMenu.innerHTML = '';
+            options.forEach(function(option) {
+                const optionValue = String(option.value || '');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option' + (currentValue === optionValue ? ' is-selected' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', currentValue === optionValue ? 'true' : 'false');
+                item.textContent = String(option.textContent || optionValue);
+                item.addEventListener('click', function() {
+                    categorySelect.value = optionValue;
+                    categorySelect.setAttribute('data-selected', optionValue);
+                    syncCategoryTriggerLabel();
+                    renderCategoryDropdownOptions();
+                    closeCategoryDropdown();
+                    categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    categoryTrigger.focus();
+                });
+                categoryMenu.appendChild(item);
+            });
+            syncCategoryTriggerLabel();
+            categoryTrigger.disabled = !!categorySelect.disabled;
+            if (categorySelect.disabled) {
+                closeCategoryDropdown();
+            }
+        }
         function toggleDepartment() {
             if (!recipientDropdown || !departmentContainer || !departmentSelect) return;
             const value = String(recipientDropdown.value || '');
@@ -4816,6 +4939,7 @@ $requestTicketCompanyOptions = [
             if (selectedValue !== '' && !options.includes(selectedValue)) {
                 categorySelect.value = '';
             }
+            renderCategoryDropdownOptions();
         }
         function getCategoryOptions() {
             if (!recipientDropdown) return defaultCategories;
@@ -5485,16 +5609,16 @@ $requestTicketCompanyOptions = [
                 descriptionContainer.style.display = (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest || shouldShowEmailCreation) ? 'none' : '';
             }
             if (attachmentContainer) {
-                attachmentContainer.style.display = (shouldShowSssBenefits || shouldShowSapRequest) ? 'none' : '';
+                attachmentContainer.style.display = (shouldShowSssBenefits || shouldShowSapRequest || shouldShowEmailRequest) ? 'none' : '';
             }
             const attachmentFieldInput = document.getElementById('attachments');
             const attachmentFieldButton = document.getElementById('choose-file-btn');
             if (attachmentFieldInput) {
-                attachmentFieldInput.disabled = shouldShowSssBenefits;
+                attachmentFieldInput.disabled = shouldShowSssBenefits || shouldShowEmailRequest;
             }
             if (attachmentFieldButton) {
-                attachmentFieldButton.setAttribute('aria-disabled', shouldShowSssBenefits ? 'true' : 'false');
-                attachmentFieldButton.tabIndex = shouldShowSssBenefits ? -1 : 0;
+                attachmentFieldButton.setAttribute('aria-disabled', (shouldShowSssBenefits || shouldShowEmailRequest) ? 'true' : 'false');
+                attachmentFieldButton.tabIndex = (shouldShowSssBenefits || shouldShowEmailRequest) ? -1 : 0;
             }
             if (attachmentOptionalText) {
                 attachmentOptionalText.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment) ? 'none' : '';
@@ -5697,10 +5821,37 @@ $requestTicketCompanyOptions = [
         }
         if (recipientDropdown) {
             recipientDropdown.addEventListener('change', function() {
+                recipientDropdown.setAttribute('data-selected', String(recipientDropdown.value || ''));
+                syncRecipientTriggerLabel();
+                renderRecipientDropdownOptions();
                 toggleDepartment();
                 toggleCategories();
                 toggleHrExtraFields();
             });
+        }
+        if (recipientTrigger && recipientMenu && recipientWrapper) {
+            recipientTrigger.addEventListener('click', function() {
+                if (recipientTrigger.disabled) return;
+                const shouldOpen = recipientMenu.hidden;
+                closeRecipientDropdown();
+                if (!shouldOpen) return;
+                closeDepartmentDropdown();
+                closeCategoryDropdown();
+                recipientWrapper.classList.add('is-open');
+                recipientTrigger.setAttribute('aria-expanded', 'true');
+                recipientMenu.hidden = false;
+            });
+            document.addEventListener('click', function(event) {
+                if (!recipientWrapper.contains(event.target)) {
+                    closeRecipientDropdown();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeRecipientDropdown();
+                }
+            });
+            renderRecipientDropdownOptions();
         }
         if (departmentSelect) {
             departmentSelect.addEventListener('change', function() {
@@ -5717,6 +5868,8 @@ $requestTicketCompanyOptions = [
                 const shouldOpen = departmentMenu.hidden;
                 closeDepartmentDropdown();
                 if (!shouldOpen) return;
+                closeRecipientDropdown();
+                closeCategoryDropdown();
                 departmentWrapper.classList.add('is-open');
                 departmentTrigger.setAttribute('aria-expanded', 'true');
                 departmentMenu.hidden = false;
@@ -5848,8 +6001,35 @@ $requestTicketCompanyOptions = [
         }
         if (categorySelect) {
             categorySelect.addEventListener('change', function() {
+                categorySelect.setAttribute('data-selected', String(categorySelect.value || ''));
+                syncCategoryTriggerLabel();
+                renderCategoryDropdownOptions();
                 toggleHrExtraFields();
             });
+        }
+        if (categoryTrigger && categoryMenu && categoryWrapper) {
+            categoryTrigger.addEventListener('click', function() {
+                if (categoryTrigger.disabled) return;
+                const shouldOpen = categoryMenu.hidden;
+                closeCategoryDropdown();
+                if (!shouldOpen) return;
+                closeRecipientDropdown();
+                closeDepartmentDropdown();
+                categoryWrapper.classList.add('is-open');
+                categoryTrigger.setAttribute('aria-expanded', 'true');
+                categoryMenu.hidden = false;
+            });
+            document.addEventListener('click', function(event) {
+                if (!categoryWrapper.contains(event.target)) {
+                    closeCategoryDropdown();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeCategoryDropdown();
+                }
+            });
+            renderCategoryDropdownOptions();
         }
         if (urgencySelect) {
             urgencySelect.addEventListener('change', function() {
