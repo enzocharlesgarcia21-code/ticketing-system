@@ -1370,7 +1370,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 if ($isAjax && $_SERVER["REQUEST_METHOD"] == "POST") {
     header('Content-Type: application/json; charset=utf-8');
     if ($success_msg !== '') {
-        echo json_encode(['ok' => true, 'message' => $success_msg], JSON_UNESCAPED_UNICODE);
+        echo json_encode([
+            'ok' => true,
+            'message' => $success_msg,
+            'ticket_id' => isset($ticket_id) ? (int) $ticket_id : 0,
+            'ticket_number' => isset($ticket_number) ? (string) $ticket_number : (isset($ticket_id) ? str_pad((string) ((int) $ticket_id), 6, '0', STR_PAD_LEFT) : '')
+        ], JSON_UNESCAPED_UNICODE);
         exit;
     }
     http_response_code(400);
@@ -3783,10 +3788,33 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             opacity: 1;
             pointer-events: auto;
         }
+        body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-content {
+            height: auto;
+            min-height: 284px;
+            padding-bottom: 28px;
+        }
+        body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-actions {
+            margin-top: 14px;
+            padding-top: 0;
+            border-top: none;
+        }
         body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-status {
             display: none;
         }
+        body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-progress {
+            display: none;
+        }
         body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-progress span { width: 100% !important; }
+        body.sales-request-ticket-page .ticket-modal-ticket-label,
+        body.sales-request-ticket-page .ticket-modal-ticket-number {
+            font-weight: 800;
+        }
+        body.sales-request-ticket-page .ticket-modal-ticket-label {
+            color: #3f4861;
+        }
+        body.sales-request-ticket-page .ticket-modal-ticket-number {
+            color: #14532d;
+        }
         body.sales-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-progress span { background: linear-gradient(90deg, #ef4444, #f97316); }
         @keyframes ticket-loading-spin {
             from { transform: rotate(0deg); }
@@ -3804,6 +3832,11 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
                 min-height: 260px;
                 border-radius: 24px;
                 padding: 28px 24px 18px;
+            }
+            body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-content {
+                height: auto;
+                min-height: 276px;
+                padding-bottom: 24px;
             }
             body.sales-request-ticket-page .ticket-modal-content h3 {
                 font-size: 18px;
@@ -7211,10 +7244,13 @@ function closeModal(){
             setModalState('loading', 'Submitting Ticket', 'Almost there. We are finalizing your request...', 'Finalizing your request', 94);
         }
 
-    function showSuccessState() {
+    function showSuccessState(ticketNumber) {
         if (!modal) return;
         clearLoadingTimers();
-        setModalState('success', 'Ticket Submitted Successfully', 'Your request has been sent.<br>Our team will get back to you soon.', '', 100);
+        var ticketLine = ticketNumber
+            ? ('<br><span class="ticket-modal-ticket-label">Ticket ID:</span> <span class="ticket-modal-ticket-number">#' + ticketNumber + '</span>')
+            : '';
+        setModalState('success', 'Ticket Submitted Successfully', 'Your request has been sent.<br>Our team will get back to you soon.' + ticketLine, '', 100);
     }
 
     function validateDescription() {
@@ -7299,10 +7335,10 @@ function closeModal(){
                 if (waitMs > 0) {
                     successRedirectTimer = window.setTimeout(function () {
                         successRedirectTimer = null;
-                        showSuccessState();
+                        showSuccessState(data.ticket_number || '');
                     }, waitMs);
                 } else {
-                    showSuccessState();
+                    showSuccessState(data.ticket_number || '');
                 }
             }
             form.reset();
