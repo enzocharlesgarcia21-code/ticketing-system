@@ -3336,10 +3336,33 @@ if (count($sapFormEntries) === 0) {
             opacity: 1;
             pointer-events: auto;
         }
+        body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-content {
+            height: auto;
+            min-height: 284px;
+            padding-bottom: 28px;
+        }
+        body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-actions {
+            margin-top: 14px;
+            padding-top: 0;
+            border-top: none;
+        }
         body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-status {
             display: none;
         }
+        body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-progress {
+            display: none;
+        }
         body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-progress span { width: 100% !important; }
+        body.employee-request-ticket-page .ticket-modal-ticket-label,
+        body.employee-request-ticket-page .ticket-modal-ticket-number {
+            font-weight: 800;
+        }
+        body.employee-request-ticket-page .ticket-modal-ticket-label {
+            color: #3f4861;
+        }
+        body.employee-request-ticket-page .ticket-modal-ticket-number {
+            color: #14532d;
+        }
         body.employee-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-progress span { background: linear-gradient(90deg, #ef4444, #f97316); }
         @keyframes ticket-loading-spin {
             from { transform: rotate(0deg); }
@@ -3353,6 +3376,11 @@ if (count($sapFormEntries) === 0) {
                 min-height: 260px;
                 border-radius: 24px;
                 padding: 28px 24px 18px;
+            }
+            body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-content {
+                height: auto;
+                min-height: 276px;
+                padding-bottom: 24px;
             }
             body.employee-request-ticket-page .ticket-modal-content h3 {
                 font-size: 18px;
@@ -3541,7 +3569,7 @@ if (count($sapFormEntries) === 0) {
 
                     <div class="request-grid-row is-single" id="recipientDepartmentRow">
                         <div class="form-group">
-                            <label>Assign to <span class="required-asterisk">*</span></label>
+                            <label>Subsidiaries <span class="required-asterisk">*</span></label>
                             <div class="select-wrapper" id="assignedCompanyWrapper">
                                 <select name="assigned_company" id="assigned_company" class="form-control custom-select-native" required data-selected="<?= htmlspecialchars((string) ($_POST['assigned_company'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                     <option value="" disabled <?= empty($_POST['assigned_company']) ? 'selected' : ''; ?> hidden>Select a company</option>
@@ -7116,10 +7144,13 @@ if (count($sapFormEntries) === 0) {
             setModalState('loading', 'Submitting Ticket', 'Almost there. We are finalizing your request...', 'Finalizing your request', 94);
         }
 
-        function showSuccessState() {
+        function showSuccessState(ticketNumber) {
             if (!modal) return;
             clearLoadingTimers();
-                    setModalState('success', 'Ticket Submitted Successfully', 'Your request has been sent.<br>Our team will get back to you soon.', '', 100);
+            var ticketLine = ticketNumber
+                ? ('<br><span class="ticket-modal-ticket-label">Ticket ID:</span> <span class="ticket-modal-ticket-number">#' + ticketNumber + '</span>')
+                : '';
+            setModalState('success', 'Ticket Submitted Successfully', 'Your request has been sent.<br>Our team will get back to you soon.' + ticketLine, '', 100);
         }
 
         if (modal) {
@@ -7182,10 +7213,10 @@ if (count($sapFormEntries) === 0) {
                     if (waitMs > 0) {
                         successRedirectTimer = window.setTimeout(function () {
                             successRedirectTimer = null;
-                            showSuccessState();
+                            showSuccessState(data.ticket_number || '');
                         }, waitMs);
                     } else {
-                        showSuccessState();
+                        showSuccessState(data.ticket_number || '');
                     }
                 }
                 form.reset();

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once '../config/database.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/csrf.php';
@@ -411,6 +411,42 @@ function dashboard_ticket_category(array $row): string
 
         body.employee-dashboard-page .hero-section {
             margin: 0;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        body.employee-dashboard-page .hero-copy {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        body.employee-dashboard-page .hero-action {
+            flex: 0 0 auto;
+            align-self: flex-start;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-height: 48px;
+            padding: 0 20px;
+            border-radius: 14px;
+            background: #1B5E20;
+            color: #ffffff;
+            border: 1px solid rgba(20, 74, 30, 0.28);
+            box-shadow: 0 14px 28px rgba(27, 94, 32, 0.18);
+            font-size: 15px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+
+        body.employee-dashboard-page .hero-action:hover {
+            background: #166534;
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 18px 32px rgba(27, 94, 32, 0.22);
         }
 
         body.employee-dashboard-page .hero-title {
@@ -613,6 +649,15 @@ function dashboard_ticket_category(array $row): string
         }
 
         @media (max-width: 768px) {
+            body.employee-dashboard-page .hero-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            body.employee-dashboard-page .hero-action {
+                width: 100%;
+            }
+
             body.employee-dashboard-page #navbarCollapse,
             body.employee-dashboard-page.sidebar-open #navbarCollapse {
                 display: none !important;
@@ -999,7 +1044,7 @@ function dashboard_ticket_category(array $row): string
 </head>
 <body class="employee-dashboard-page">
 
-    <!-- 2️⃣ TOP NAVIGATION BAR -->
+    <!-- 2ï¸âƒ£ TOP NAVIGATION BAR -->
     <?php include '../includes/employee_navbar.php'; ?>
 
     <div id="mobileSidebar" class="mobile-sidebar" aria-hidden="true">
@@ -1056,19 +1101,25 @@ function dashboard_ticket_category(array $row): string
     <div class="dashboard-container">
         <div class="content-wrapper">
 
-            <!-- 3️⃣ HERO SECTION -->
+                        <!-- 3ï¸âƒ£ HERO SECTION -->
             <div class="hero-section">
-                <h1 class="hero-title">Welcome back, <?= htmlspecialchars($_SESSION['name']); ?> 👋</h1>
-                <div class="hero-dept">
-                    <?= htmlspecialchars($_SESSION['department']); ?> Department
-                    <?php if (!empty($company)): ?>
-                        <span class="company-text">• <?= htmlspecialchars($company); ?></span>
-                    <?php endif; ?>
+                <div class="hero-copy">
+                    <h1 class="hero-title">Welcome back, <?= htmlspecialchars($_SESSION['name']); ?></h1>
+                    <div class="hero-dept">
+                        <?= htmlspecialchars($_SESSION['department']); ?> Department
+                        <?php if (!empty($company)): ?>
+                            <span class="company-text">&bull; <?= htmlspecialchars($company); ?></span>
+                        <?php endif; ?>
+                    </div>
+                    <p class="hero-subtitle">Here's an overview of your helpdesk activity.</p>
                 </div>
-                <p class="hero-subtitle">Here's an overview of your helpdesk activity.</p>
+                <a href="request_ticket.php" class="hero-action">
+                    <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                    <span>Create Ticket</span>
+                </a>
             </div>
 
-            <!-- 4️⃣ STATISTICS CARDS -->
+            <!-- 4ï¸âƒ£ STATISTICS CARDS -->
             <div class="stats-grid">
                 <!-- Total Tickets -->
                 <div class="stat-card total">
@@ -1108,7 +1159,7 @@ function dashboard_ticket_category(array $row): string
 
             </div>
 
-            <!-- 5️⃣ RECENT TICKETS SECTION -->
+            <!-- 5ï¸âƒ£ RECENT TICKETS SECTION -->
             <div class="dashboard-ticket-grid">
                 <section class="dashboard-ticket-panel" aria-labelledby="raisedTicketsTitle">
                     <h2 id="raisedTicketsTitle" class="dashboard-ticket-title">Raised Tickets</h2>

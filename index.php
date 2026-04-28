@@ -357,7 +357,7 @@
             <img src="assets/img/leads-logo.png" alt="LEADS AGRI HELPDESK Logo" class="welcome-logo">
                         <h1 class="card-title">
                 <span class="card-title-top">WELCOME TO</span>
-                <span class="card-title-main">LEADS AGRI HELPDESK</span>
+                <span class="card-title-main">LEADS HELPDESK</span>
             </h1>
             <p class="subtitle">Choose a portal to continue </p>
 

@@ -60,7 +60,7 @@ $employeeNavItems = [
 <nav class="navbar">
     <div class="nav-left">
         <img src="../assets/img/UPDATEDlogo.png" alt="Leads Agri Logo" class="logo-icon">
-        <div class="brand-name">Leads Agri Helpdesk</div>
+        <div class="brand-name">Leads Helpdesk</div>
         <button class="navbar-toggler" id="navbarToggler">
             <i class="fas fa-bars"></i>
         </button>
