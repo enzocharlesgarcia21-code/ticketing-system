@@ -2322,11 +2322,15 @@
   function renderLockedChatState(message) {
     var container = qs('chatModalMessages');
     if (!container) return;
-    var handlerName = extractHandlerName(message || chatPermissionState.lockedMessage);
+    var lockedText = String(message || chatPermissionState.lockedMessage || '').trim();
+    var handlerName = extractHandlerName(lockedText);
+    var subtitle = handlerName
+      ? ('This ticket is already assigned to <strong>' + escapeHtml(handlerName || 'another IT staff') + '</strong>.')
+      : escapeHtml(lockedText || 'You cannot send messages for this ticket.');
     container.innerHTML =
       '<div class="chat-locked-state">' +
       '  <div class="chat-lock-title-row"><span class="chat-locked-icon"><i class="fas fa-lock"></i></span><div class="chat-lock-title">You can\'t message.</div></div>' +
-      '  <div class="chat-lock-subtitle">This ticket is already assigned to <strong>' + escapeHtml(handlerName || 'another IT staff') + '</strong>.</div>' +
+      '  <div class="chat-lock-subtitle">' + subtitle + '</div>' +
       '</div>';
   }
   function setChatComposerState(canChat, lockedMessage) {
@@ -2347,7 +2351,7 @@
       input.readOnly = !allowed;
       input.tabIndex = allowed ? 0 : -1;
       input.value = allowed ? input.value : '';
-      input.placeholder = allowed ? 'Type a message...' : 'You can\'t message. This ticket is already assigned.';
+      input.placeholder = allowed ? 'Type a message...' : (String(lockedMessage || '').trim() || 'You can\'t message.');
       input.style.cursor = allowed ? 'text' : 'not-allowed';
       input.style.opacity = allowed ? '1' : '0.65';
       input.style.backgroundColor = allowed ? '' : '#f3f4f6';
@@ -2511,10 +2515,6 @@
           return;
         }
         var msgs = data || [];
-        if (!chatPermissionState.canChat) {
-          renderLockedChatState(chatPermissionState.lockedMessage);
-          return;
-        }
         renderChatModalMessages(msgs, scrollBottom);
         var lastId = 0;
         msgs.forEach(function (m) {
@@ -3566,10 +3566,6 @@
         if (messengerPermissionState.isChecking) {
           return;
         }
-        if (!messengerPermissionState.canChat) {
-          renderMessengerLockedState(messengerPermissionState.lockedMessage);
-          return;
-        }
         renderMessengerMessages(data || [], scrollBottom);
       })
       .catch(function () { });
@@ -3730,7 +3726,7 @@
       input.readOnly = !allowed;
       input.tabIndex = allowed ? 0 : -1;
       if (!allowed) input.value = '';
-      input.placeholder = allowed ? 'Type a message...' : (waiting ? 'Checking ticket handler...' : 'You can\'t message. This ticket is already assigned.');
+      input.placeholder = allowed ? 'Type a message...' : (waiting ? 'Checking ticket handler...' : (String(lockedMessage || '').trim() || 'You can\'t message.'));
       input.style.cursor = allowed ? 'text' : 'not-allowed';
       input.style.opacity = allowed ? '1' : '0.75';
       input.style.backgroundColor = allowed ? '' : '#f8fafc';
@@ -3754,11 +3750,15 @@
     var container = qs('tmMessengerMessages');
     if (!container) return;
     messengerMessagesSignature = '';
-    var handlerName = extractHandlerName(message || messengerPermissionState.lockedMessage);
+    var lockedText = String(message || messengerPermissionState.lockedMessage || '').trim();
+    var handlerName = extractHandlerName(lockedText);
+    var subtitle = handlerName
+      ? ('This ticket is already assigned to <strong>' + escapeHtml(handlerName || 'another IT staff') + '</strong>.')
+      : escapeHtml(lockedText || 'You cannot send messages for this ticket.');
     container.innerHTML =
       '<div class="tm-messenger-locked-state">' +
       '  <div class="tm-messenger-lock-title-row"><span class="tm-messenger-locked-icon"><i class="fas fa-lock"></i></span><div class="tm-messenger-lock-title">You can\'t message.</div></div>' +
-      '  <div class="tm-messenger-lock-subtitle">This ticket is already assigned to <strong>' + escapeHtml(handlerName || 'another IT staff') + '</strong>.</div>' +
+      '  <div class="tm-messenger-lock-subtitle">' + subtitle + '</div>' +
       '</div>';
   }
   function loadMessengerMeta(ticketId, scrollBottom) {
@@ -3803,11 +3803,7 @@
           renderConversations(qs('tmMessengerSearch') ? qs('tmMessengerSearch').value : '');
         }
         if (messengerTicketId && String(messengerTicketId) === String(ticketId)) {
-          if (messengerPermissionState.canChat === true) {
-            loadMessengerMessages(ticketId, scrollBottom === true, true);
-          } else {
-            renderMessengerLockedState(messengerPermissionState.lockedMessage);
-          }
+          loadMessengerMessages(ticketId, scrollBottom === true, true);
         }
       })
       .catch(function () { });

@@ -850,6 +850,24 @@ function ticket_is_shared_lapc_hr_chat(array $ticket): bool
     return $ticketCompany === '@leadsagri.com' && $ticketGroup === 'HR';
 }
 
+function ticket_chat_is_closed_by_status(array $ticket): bool
+{
+    $status = trim((string) ($ticket['status'] ?? ''));
+    return strcasecmp($status, 'Resolved') === 0 || strcasecmp($status, 'Closed') === 0;
+}
+
+function ticket_chat_closed_status_message(array $ticket): string
+{
+    $status = trim((string) ($ticket['status'] ?? ''));
+    if (strcasecmp($status, 'Resolved') === 0) {
+        return 'Chat closed because this ticket is now resolved.';
+    }
+    if (strcasecmp($status, 'Closed') === 0) {
+        return 'Chat closed because this ticket is now closed.';
+    }
+    return '';
+}
+
 function ticket_chat_effective_handler_id(array $ticket): int
 {
     $status = trim((string) ($ticket['status'] ?? ''));
@@ -896,6 +914,10 @@ function ticket_chat_apply_effective_handler(array $ticket): array
 
 function ticket_user_can_chat(array $ticket, int $userId, ?array $userContext = null): bool
 {
+    if (ticket_chat_is_closed_by_status($ticket)) {
+        return false;
+    }
+
     $handlerId = ticket_chat_effective_handler_id($ticket);
 
     if ($userId <= 0) return false;
