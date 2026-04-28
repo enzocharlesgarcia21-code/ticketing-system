@@ -314,8 +314,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // downstream notification/email failure cannot close the connection
         // before the response is delivered (NS_ERROR_NET_ERROR_RESPONSE).
         $update->close();
+        $canContinueAfterResponse = function_exists('fastcgi_finish_request');
         finish_ticket_update_response("my_task.php");
         $responseFlushed = true;
+        if (!$canContinueAfterResponse) {
+            exit();
+        }
 
         try {
 

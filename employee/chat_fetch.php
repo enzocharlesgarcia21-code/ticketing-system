@@ -224,7 +224,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $types .= 's';
     $params[] = $current_user_department;
     $types .= 's';
-    $sql .= ") AND t.status IN ('Open', 'In Progress') ";
+    $sql .= ") AND t.status IN ('Open', 'In Progress', 'Closed') ";
 
     $sql .= "
         GROUP BY t.id, t.subject, t.category, t.user_id, t.assigned_user_id, t.assigned_to, t.assigned_company, t.assigned_group, t.assigned_department, t.company, t.status, t.started_at, assignee.name, assignee.email, assignee.department, handler.name
