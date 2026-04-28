@@ -77,17 +77,14 @@ $mhcDepartmentCategories = [
 ];
 
 $requestTicketCompanyOptions = [
-    '@leads-farmex.com' => 'FARMEX',
-    '@farmasee.ph' => 'FARMASEE',
+    '@leadstech-corp.com' => 'LTC',
     '@gpsci.net' => 'GPSCI',
     '@leadsagri.com' => 'LAPC',
-    '@leadsav.com' => 'LAV',
-    '@leadstech-corp.com' => 'LTC',
-    '@lingapleads.org' => 'LINGAP',
+    '@leads-farmex.com' => 'FARMEX',
     '@malvedaholdings.com' => 'MHC',
     '@malvedaproperties.com' => 'MPDC',
-    '@primestocks.ph' => 'PCC',
 ];
+$requestTicketCompanies = array_keys($requestTicketCompanyOptions);
 
 function derive_name_from_email(string $email): string
 {
@@ -456,6 +453,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $category   = trim((string)($_POST['category'] ?? ''));
     $description = trim((string)($_POST['description'] ?? ''));
     $email_request_type = trim((string) ($_POST['email_request_type'] ?? ''));
+    $email_creation_name = trim((string) ($_POST['email_creation_name'] ?? ''));
+    $email_creation_department = trim((string) ($_POST['email_creation_department'] ?? ''));
+    $email_creation_designation = trim((string) ($_POST['email_creation_designation'] ?? ''));
     $request_subject_title = trim((string)($_POST['request_subject_title'] ?? ''));
     $hr_concern_type = trim((string)($_POST['hr_concern_type'] ?? ''));
     $hr_concern_type_other = trim((string)($_POST['hr_concern_type_other'] ?? ''));
@@ -584,6 +584,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $allowedEmailRequestTypes = ['creation of email', 'forgot password', 'backup of email'];
         if (!in_array($email_request_type, $allowedEmailRequestTypes, true)) {
             $error_msg = "Please choose the email request type.";
+        } elseif (
+            $email_request_type === 'creation of email'
+            && ($email_creation_name === '' || $email_creation_department === '' || $email_creation_designation === '')
+        ) {
+            $error_msg = "Please complete the Creation of email details.";
         }
     }
     if ($error_msg === '' && $isHrLeaveOrOtherCategory) {
@@ -818,6 +823,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($error_msg === '' && $isHrSssCategory && $description === '') {
         $description = 'SSS Notification and Benefits Concern submission.';
     }
+    if ($error_msg === '' && $isLapcItEmailRequest && $email_request_type === 'creation of email') {
+        $subject = 'Creation of email';
+        $description = "Email Request\n"
+            . "Email Request Type: Creation of email\n"
+            . "Name: " . $email_creation_name . "\n"
+            . "Department: " . $email_creation_department . "\n"
+            . "Designation: " . $email_creation_designation;
+    }
     if ($error_msg === '' && ($requiresKamiAttachment || $isHrMedicalCashAdvance)) {
         $hasKamiAttachment = false;
         if (isset($_FILES['attachments']) && isset($_FILES['attachments']['error']) && is_array($_FILES['attachments']['error'])) {
@@ -1037,11 +1050,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     /* ================= BASIC VALIDATION ================= */
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error_msg = "A valid email is required.";
-    } elseif ($company_id === '' || !in_array($company_id, $companies, true)) {
+    } elseif ($company_id === '' || !in_array($company_id, $requestTicketCompanies, true)) {
         $error_msg = "Ticket Recipient (Company Email Domain) is required.";
     } elseif ($category === '' || !in_array($category, $allowed_categories, true)) {
         $error_msg = "Category is required.";
-    } elseif ($description === '') {
+    } elseif ($description === '' && !($isLapcItEmailRequest && $email_request_type === 'creation of email')) {
         $error_msg = "Description is required.";
     }
 
@@ -1179,6 +1192,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
                 if ($isLapcItEmailRequest) {
                     $ticketMeta['email_request_type'] = $email_request_type;
+                    if ($email_request_type === 'creation of email') {
+                        $ticketMeta['email_creation_name'] = $email_creation_name;
+                        $ticketMeta['email_creation_department'] = $email_creation_department;
+                        $ticketMeta['email_creation_designation'] = $email_creation_designation;
+                    }
                 }
                 if ($isMhcMarketingRecipient) {
                     $ticketMeta['project_name'] = $project_name;
@@ -1685,10 +1703,10 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
         body.sales-request-ticket-page .select-wrapper {
             position: relative;
         }
-        body.sales-request-ticket-page .select-wrapper.department-dropdown {
-            overflow: visible;
-        }
-        body.sales-request-ticket-page .select-wrapper.category-dropdown {
+        body.sales-request-ticket-page .select-wrapper.recipient-dropdown,
+        body.sales-request-ticket-page .select-wrapper.department-dropdown,
+        body.sales-request-ticket-page .select-wrapper.category-dropdown,
+        body.sales-request-ticket-page .select-wrapper.priority-dropdown {
             overflow: visible;
         }
         body.sales-request-ticket-page .select-wrapper .form-control,
@@ -1708,7 +1726,7 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             line-height: 1.4;
         }
         body.sales-request-ticket-page select.category-select option {
-            font-weight: 700;
+            font-weight: 400;
             color: #0f172a;
         }
         body.sales-request-ticket-page .select-wrapper .form-control:focus,
@@ -1725,7 +1743,10 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             font-size: 14px;
             pointer-events: none;
         }
-        body.sales-request-ticket-page .department-native-select {
+        body.sales-request-ticket-page .recipient-native-select,
+        body.sales-request-ticket-page .department-native-select,
+        body.sales-request-ticket-page .category-native-select,
+        body.sales-request-ticket-page .priority-native-select {
             position: absolute;
             opacity: 0;
             pointer-events: none;
@@ -1733,15 +1754,9 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             height: 1px;
             overflow: hidden;
         }
-        body.sales-request-ticket-page .category-native-select {
-            position: absolute;
-            opacity: 0;
-            pointer-events: none;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-        }
-        body.sales-request-ticket-page .department-dropdown-trigger {
+        body.sales-request-ticket-page .recipient-dropdown-trigger,
+        body.sales-request-ticket-page .department-dropdown-trigger,
+        body.sales-request-ticket-page .priority-dropdown-trigger {
             width: 100%;
             min-height: 50px;
             padding: 0 44px 0 16px;
@@ -1756,18 +1771,26 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             text-align: left;
             cursor: pointer;
         }
-        body.sales-request-ticket-page .department-dropdown-trigger:not(.is-placeholder) {
+        body.sales-request-ticket-page .recipient-dropdown-trigger:not(.is-placeholder),
+        body.sales-request-ticket-page .department-dropdown-trigger:not(.is-placeholder),
+        body.sales-request-ticket-page .priority-dropdown-trigger:not(.is-placeholder) {
             font-weight: 400;
         }
-        body.sales-request-ticket-page .department-dropdown-trigger:focus {
+        body.sales-request-ticket-page .recipient-dropdown-trigger:focus,
+        body.sales-request-ticket-page .department-dropdown-trigger:focus,
+        body.sales-request-ticket-page .priority-dropdown-trigger:focus {
             outline: none;
             border-color: #1B5E20;
             box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
         }
-        body.sales-request-ticket-page .department-dropdown-trigger.is-placeholder {
+        body.sales-request-ticket-page .recipient-dropdown-trigger.is-placeholder,
+        body.sales-request-ticket-page .department-dropdown-trigger.is-placeholder,
+        body.sales-request-ticket-page .priority-dropdown-trigger.is-placeholder {
             color: #334155;
         }
-        body.sales-request-ticket-page .department-dropdown-trigger:disabled {
+        body.sales-request-ticket-page .recipient-dropdown-trigger:disabled,
+        body.sales-request-ticket-page .department-dropdown-trigger:disabled,
+        body.sales-request-ticket-page .priority-dropdown-trigger:disabled {
             background: #f8fafc;
             color: #94a3b8;
             cursor: not-allowed;
@@ -1788,7 +1811,7 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             cursor: pointer;
         }
         body.sales-request-ticket-page .category-dropdown-trigger:not(.is-placeholder) {
-            font-weight: 700;
+            font-weight: 400;
         }
         body.sales-request-ticket-page .category-dropdown-trigger:focus {
             outline: none;
@@ -1803,7 +1826,9 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             color: #94a3b8;
             cursor: not-allowed;
         }
-        body.sales-request-ticket-page .department-dropdown-menu {
+        body.sales-request-ticket-page .recipient-dropdown-menu,
+        body.sales-request-ticket-page .department-dropdown-menu,
+        body.sales-request-ticket-page .priority-dropdown-menu {
             position: absolute;
             top: calc(100% + 8px);
             left: 0;
@@ -1818,7 +1843,9 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             background: #ffffff;
             box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
         }
-        body.sales-request-ticket-page .department-dropdown-menu.is-open {
+        body.sales-request-ticket-page .recipient-dropdown-menu.is-open,
+        body.sales-request-ticket-page .department-dropdown-menu.is-open,
+        body.sales-request-ticket-page .priority-dropdown-menu.is-open {
             display: block;
         }
         body.sales-request-ticket-page .category-dropdown-menu {
@@ -1839,7 +1866,9 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
         body.sales-request-ticket-page .category-dropdown-menu.is-open {
             display: block;
         }
-        body.sales-request-ticket-page .department-dropdown-option {
+        body.sales-request-ticket-page .recipient-dropdown-option,
+        body.sales-request-ticket-page .department-dropdown-option,
+        body.sales-request-ticket-page .priority-dropdown-option {
             width: 100%;
             border: 0;
             background: transparent;
@@ -1851,19 +1880,20 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             text-align: left;
             cursor: pointer;
         }
+        body.sales-request-ticket-page .recipient-dropdown-option:hover,
+        body.sales-request-ticket-page .recipient-dropdown-option:focus,
         body.sales-request-ticket-page .department-dropdown-option:hover,
-        body.sales-request-ticket-page .department-dropdown-option:focus {
+        body.sales-request-ticket-page .department-dropdown-option:focus,
+        body.sales-request-ticket-page .priority-dropdown-option:hover,
+        body.sales-request-ticket-page .priority-dropdown-option:focus {
             outline: none;
             background: #eef7ef;
         }
-        body.sales-request-ticket-page .department-dropdown-option.is-selected {
-<<<<<<< HEAD
+        body.sales-request-ticket-page .recipient-dropdown-option.is-selected,
+        body.sales-request-ticket-page .department-dropdown-option.is-selected,
+        body.sales-request-ticket-page .priority-dropdown-option.is-selected {
             background: #1B5E20;
             color: #ffffff;
-=======
-            background: #f8fafc;
-            color: #0f172a;
->>>>>>> 7371fbb12f1eed8b225a94fb7259811c042b1dc1
             font-weight: 400;
         }
         body.sales-request-ticket-page .category-dropdown-option {
@@ -1874,6 +1904,7 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             padding: 12px 14px;
             color: #0f172a;
             font-size: 14px;
+            font-weight: 400;
             text-align: left;
             cursor: pointer;
         }
@@ -1885,7 +1916,7 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
         body.sales-request-ticket-page .category-dropdown-option.is-selected {
             background: #1B5E20;
             color: #ffffff;
-            font-weight: 700;
+            font-weight: 400;
         }
         .sales-container {
             max-width: 920px;
@@ -2015,6 +2046,7 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
         .category-select option {
             color: #0f172a;
             font-size: 16px;
+            font-weight: 400;
         }
         textarea {
             min-height: 120px;
@@ -2420,9 +2452,13 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
         }
         body.sales-request-ticket-page .email-request-list {
             display: grid;
-            gap: 14px;
-            padding: 22px 30px 30px;
-            background: transparent;
+            gap: 22px;
+            margin: 28px 38px 32px;
+            padding: 34px 46px 36px;
+            border: 1px solid #dbe4ef;
+            border-radius: 18px;
+            background: #ffffff;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
         }
         body.sales-request-ticket-page .marketing-request-list {
             display: grid;
@@ -2633,11 +2669,11 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             display: block;
         }
         body.sales-request-ticket-page .email-request-card {
-            border: 1px solid #dbe4ef;
-            border-radius: 14px;
-            background: #ffffff;
-            padding: 24px 30px;
-            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            padding: 0;
+            box-shadow: none;
         }
         body.sales-request-ticket-page .email-request-card .form-group {
             margin: 0;
@@ -2645,6 +2681,34 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
         body.sales-request-ticket-page .email-request-card label {
             display: block;
             margin-bottom: 10px;
+        }
+        body.sales-request-ticket-page .email-description-host {
+            display: block;
+        }
+        body.sales-request-ticket-page .email-description-host #descriptionContainer {
+            margin: 0;
+        }
+        body.sales-request-ticket-page .email-description-host #descriptionLabel {
+            display: block;
+            margin-bottom: 10px;
+        }
+        body.sales-request-ticket-page .email-description-host #descriptionField {
+            min-height: 150px;
+            border-radius: 18px;
+            background: #ffffff;
+        }
+        body.sales-request-ticket-page .email-creation-fields {
+            display: none;
+            gap: 18px;
+            margin-top: 18px;
+        }
+        body.sales-request-ticket-page .email-creation-fields.is-visible {
+            display: grid;
+        }
+        body.sales-request-ticket-page .email-creation-inline-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 18px;
         }
         body.sales-request-ticket-page .sap-request-card {
             border: 0;
@@ -2955,6 +3019,10 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             }
             body.sales-request-ticket-page .sap-request-actions {
                 padding: 16px 0 16px;
+            }
+            body.sales-request-ticket-page .email-request-list {
+                margin: 20px 18px 24px;
+                padding: 24px 20px 26px;
             }
         }
         body.sales-request-ticket-page .sss-benefits-group {
@@ -3901,19 +3969,15 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             <div class="request-grid-row is-single" id="recipientRow">
                 <div class="form-group" id="recipientGroup">
                     <label>Assign to <span class="required-asterisk">*</span></label>
-                    <div class="select-wrapper">
-                        <select name="company_id" id="ticket_recipient" class="form-control" required>
-<<<<<<< HEAD
-                            <option value="" disabled selected hidden>Select a company</option>
-                            <?php foreach ($companies as $c): ?>
-                                <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= (isset($company_id) && $company_id === $c) ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
-=======
-                            <option value="" disabled selected hidden>Select Recipient</option>
+                    <div class="select-wrapper recipient-dropdown" id="recipientDropdown">
+                        <select name="company_id" id="ticket_recipient" class="form-control recipient-native-select" required>
+                            <option value="" disabled <?= $normalized_company_id === '' ? 'selected' : '' ?> hidden>Select Recipient</option>
                             <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
                                 <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (normalize_sales_recipient_company((string) ($company_id ?? '')) === $companyValue) ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
->>>>>>> 7371fbb12f1eed8b225a94fb7259811c042b1dc1
                             <?php endforeach; ?>
                         </select>
+                        <button type="button" id="recipientDropdownTrigger" class="recipient-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Select Recipient</button>
+                        <div id="recipientDropdownMenu" class="recipient-dropdown-menu" role="listbox" aria-labelledby="recipientDropdownTrigger"></div>
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
                 </div>
@@ -3952,13 +4016,15 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
 
                 <div class="form-group hidden" id="priorityGroup">
                     <label>Level of Urgency <span class="required-asterisk">*</span></label>
-                    <div class="select-wrapper">
-                        <select name="priority" id="sales_priority" class="form-control category-select" disabled data-selected="<?= htmlspecialchars((string) ($priority_selected ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="select-wrapper priority-dropdown" id="priorityDropdown">
+                        <select name="priority" id="sales_priority" class="form-control category-select priority-native-select" disabled data-selected="<?= htmlspecialchars((string) ($priority_selected ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                             <option value="" disabled hidden <?= ($priority_selected ?? '') === '' ? 'selected' : '' ?>>Choose level of urgency</option>
                             <option value="Low" <?= ($priority_selected ?? '') === 'Low' ? 'selected' : '' ?>>Low - General Inquiry</option>
                             <option value="Medium" <?= ($priority_selected ?? '') === 'Medium' ? 'selected' : '' ?>>Medium - Needs action within a few days</option>
                             <option value="High" <?= ($priority_selected ?? '') === 'High' ? 'selected' : '' ?>>High - Time-sensitive or urgent</option>
                         </select>
+                        <button type="button" id="priorityDropdownTrigger" class="priority-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false" disabled>Choose level of urgency</button>
+                        <div id="priorityDropdownMenu" class="priority-dropdown-menu" role="listbox" aria-labelledby="priorityDropdownTrigger"></div>
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
                 </div>
@@ -4552,6 +4618,23 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
                             </div>
                         </div>
                     </section>
+                    <div class="email-creation-fields" id="emailCreationFields">
+                        <div class="email-creation-inline-row">
+                            <div class="form-group">
+                                <label for="email_creation_name">Name <span class="required-asterisk">*</span></label>
+                                <input type="text" name="email_creation_name" id="email_creation_name" class="form-control" value="<?= htmlspecialchars((string) ($_POST['email_creation_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer">
+                            </div>
+                            <div class="form-group">
+                                <label for="email_creation_department">Department <span class="required-asterisk">*</span></label>
+                                <input type="text" name="email_creation_department" id="email_creation_department" class="form-control" value="<?= htmlspecialchars((string) ($_POST['email_creation_department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="email_creation_designation">Designation <span class="required-asterisk">*</span></label>
+                            <input type="text" name="email_creation_designation" id="email_creation_designation" class="form-control" value="<?= htmlspecialchars((string) ($_POST['email_creation_designation'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer">
+                        </div>
+                    </div>
+                    <div class="email-description-host" id="emailDescriptionHost"></div>
                 </div>
             </section>
 
@@ -4628,6 +4711,9 @@ var recipient = document.getElementById('ticket_recipient');
 var recipientRow = document.getElementById('recipientRow');
 var departmentGroup = document.getElementById('departmentGroup');
 var recipientGroup = document.getElementById('recipientGroup');
+var recipientDropdown = document.getElementById('recipientDropdown');
+var recipientTrigger = document.getElementById('recipientDropdownTrigger');
+var recipientMenu = document.getElementById('recipientDropdownMenu');
 var departmentSelect = document.getElementById('department');
 var departmentDropdown = document.getElementById('departmentDropdown');
 var departmentTrigger = document.getElementById('departmentDropdownTrigger');
@@ -4640,6 +4726,9 @@ var categoryMenu = document.getElementById('categoryDropdownMenu');
 var categoryContainer = document.getElementById('categoryContainer');
 var priorityGroup = document.getElementById('priorityGroup');
 var prioritySelect = document.getElementById('sales_priority');
+var priorityDropdown = document.getElementById('priorityDropdown');
+var priorityTrigger = document.getElementById('priorityDropdownTrigger');
+var priorityMenu = document.getElementById('priorityDropdownMenu');
 var kamiBannerContainer = document.getElementById('kamiBannerContainer');
 var concernTypeContainer = document.getElementById('concernTypeContainer');
 var concernTypeSelect = document.getElementById('hr_concern_type');
@@ -4681,7 +4770,10 @@ var sapAddEmployeeBtn = document.getElementById('sapAddEmployeeBtn');
 var sapEmployeeSwitcher = document.getElementById('sapEmployeeSwitcher');
 var sapRequestCounter = document.getElementById('sapRequestCounter');
 var emailRequestSection = document.getElementById('emailRequestSection');
+var emailDescriptionHost = document.getElementById('emailDescriptionHost');
 var emailRequestTypeSelect = document.getElementById('email_request_type');
+var emailCreationFields = document.getElementById('emailCreationFields');
+var emailCreationInputs = Array.from(document.querySelectorAll('[name="email_creation_name"], [name="email_creation_department"], [name="email_creation_designation"]'));
 var marketingRequestSection = document.getElementById('marketingRequestSection');
 var projectNameInput = document.getElementById('project_name');
 var areaCodeSelect = document.getElementById('area_code');
@@ -4968,7 +5060,6 @@ function isLapcRecipientValue(value) {
 }
 
 function isMhcRecipientValue(value) {
-<<<<<<< HEAD
     return normalizeRecipientCompany(value) === '@malvedaholdings.com';
 }
 
@@ -4987,9 +5078,6 @@ function normalizeRecipientCompany(value) {
         return '@malvedaholdings.com';
     }
     return lower;
-=======
-    return String(value || '') === 'MHC (@malvedaholdings.com)' || String(value || '') === '@malvedaholdings.com';
->>>>>>> 7371fbb12f1eed8b225a94fb7259811c042b1dc1
 }
 
 function closeDepartmentDropdown() {
@@ -5002,6 +5090,65 @@ function closeCategoryDropdown() {
     if (!categoryMenu || !categoryTrigger) return;
     categoryMenu.classList.remove('is-open');
     categoryTrigger.setAttribute('aria-expanded', 'false');
+}
+
+function closePriorityDropdown() {
+    if (!priorityMenu || !priorityTrigger) return;
+    priorityMenu.classList.remove('is-open');
+    priorityTrigger.setAttribute('aria-expanded', 'false');
+}
+
+function closeRecipientDropdown() {
+    if (!recipientMenu || !recipientTrigger) return;
+    recipientMenu.classList.remove('is-open');
+    recipientTrigger.setAttribute('aria-expanded', 'false');
+}
+
+function syncRecipientTriggerLabel() {
+    if (!recipientTrigger || !recipient) return;
+    var selectedOption = recipient.options[recipient.selectedIndex];
+    var label = selectedOption && selectedOption.value ? selectedOption.textContent : 'Select Recipient';
+    recipientTrigger.textContent = label;
+    recipientTrigger.classList.toggle('is-placeholder', !(selectedOption && selectedOption.value));
+}
+
+function chooseRecipient(optionValue, shouldDispatchChange) {
+    if (!recipient) return;
+    recipient.value = optionValue;
+    syncRecipientTriggerLabel();
+    if (recipientMenu) {
+        Array.from(recipientMenu.querySelectorAll('.recipient-dropdown-option')).forEach(function(button) {
+            var isSelected = String(button.getAttribute('data-value') || '') === optionValue;
+            button.classList.toggle('is-selected', isSelected);
+            button.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        });
+    }
+    closeRecipientDropdown();
+    if (shouldDispatchChange) {
+        recipient.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
+function buildRecipientDropdown() {
+    if (!recipient || !recipientMenu) return;
+    var selectedValue = String(recipient.value || '');
+    recipientMenu.innerHTML = '';
+    Array.from(recipient.options).forEach(function(option) {
+        if (!option.value) return;
+        var optionValue = String(option.value);
+        var optionButton = document.createElement('button');
+        optionButton.type = 'button';
+        optionButton.className = 'recipient-dropdown-option' + (selectedValue === optionValue ? ' is-selected' : '');
+        optionButton.setAttribute('data-value', optionValue);
+        optionButton.setAttribute('role', 'option');
+        optionButton.setAttribute('aria-selected', selectedValue === optionValue ? 'true' : 'false');
+        optionButton.textContent = option.textContent;
+        optionButton.addEventListener('click', function() {
+            chooseRecipient(optionValue, true);
+        });
+        recipientMenu.appendChild(optionButton);
+    });
+    syncRecipientTriggerLabel();
 }
 
 function syncDepartmentTriggerLabel() {
@@ -5054,6 +5201,65 @@ function chooseCategory(optionValue, shouldDispatchChange) {
     }
 }
 
+function syncPriorityTriggerLabel() {
+    if (!priorityTrigger || !prioritySelect) return;
+    var selectedOption = prioritySelect.options[prioritySelect.selectedIndex];
+    var placeholderOption = Array.from(prioritySelect.options).find(function(option) {
+        return !option.value;
+    });
+    var placeholder = placeholderOption ? placeholderOption.textContent : 'Choose level of urgency';
+    var label = selectedOption && selectedOption.value ? selectedOption.textContent : placeholder;
+    priorityTrigger.textContent = label;
+    priorityTrigger.classList.toggle('is-placeholder', !(selectedOption && selectedOption.value));
+}
+
+function choosePriority(optionValue, shouldDispatchChange) {
+    if (!prioritySelect) return;
+    prioritySelect.value = optionValue;
+    prioritySelect.setAttribute('data-selected', optionValue);
+    syncPriorityTriggerLabel();
+    if (priorityMenu) {
+        Array.from(priorityMenu.querySelectorAll('.priority-dropdown-option')).forEach(function(button) {
+            var isSelected = String(button.getAttribute('data-value') || '') === optionValue;
+            button.classList.toggle('is-selected', isSelected);
+            button.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        });
+    }
+    closePriorityDropdown();
+    if (shouldDispatchChange) {
+        prioritySelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
+function renderPriorityDropdownOptions() {
+    if (!prioritySelect || !priorityMenu) return;
+    var selectedValue = String(prioritySelect.value || '');
+    priorityMenu.innerHTML = '';
+    Array.from(prioritySelect.options).forEach(function(option) {
+        if (!option.value) return;
+        var optionValue = String(option.value);
+        var isSelected = selectedValue === optionValue;
+        var optionButton = document.createElement('button');
+        optionButton.type = 'button';
+        optionButton.className = 'priority-dropdown-option' + (isSelected ? ' is-selected' : '');
+        optionButton.setAttribute('data-value', optionValue);
+        optionButton.setAttribute('role', 'option');
+        optionButton.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        optionButton.textContent = option.textContent;
+        optionButton.addEventListener('click', function() {
+            choosePriority(optionValue, true);
+        });
+        priorityMenu.appendChild(optionButton);
+    });
+    if (priorityTrigger) {
+        priorityTrigger.disabled = prioritySelect.disabled;
+        if (prioritySelect.disabled) {
+            closePriorityDropdown();
+        }
+    }
+    syncPriorityTriggerLabel();
+}
+
 function populateDepartments(options) {
     if (!departmentSelect) return;
     var selectedValue = String(departmentSelect.getAttribute('data-selected') || departmentSelect.value || '');
@@ -5099,17 +5305,6 @@ function toggleDepartmentField() {
         departmentSelect.disabled = false;
         departmentSelect.setAttribute('required', 'required');
         if (departmentTrigger) departmentTrigger.disabled = false;
-<<<<<<< HEAD
-=======
-    } else if (isMhcRecipientValue(value)) {
-        populateDepartments(mhcDepartments);
-        departmentGroup.style.display = 'block';
-        departmentGroup.classList.remove('hidden');
-        recipientGroup.classList.remove('full-width');
-        departmentSelect.disabled = false;
-        departmentSelect.setAttribute('required', 'required');
-        if (departmentTrigger) departmentTrigger.disabled = false;
->>>>>>> 7371fbb12f1eed8b225a94fb7259811c042b1dc1
     } else if (isMhcRecipientValue(value)) {
         populateDepartments(mhcDepartments);
         departmentGroup.style.display = 'block';
@@ -5200,12 +5395,17 @@ function togglePriorityField() {
         priorityGroup.classList.remove('hidden');
         prioritySelect.disabled = false;
         prioritySelect.setAttribute('required', 'true');
+        if (priorityTrigger) priorityTrigger.disabled = false;
     } else {
         priorityGroup.classList.add('hidden');
         prioritySelect.value = '';
+        prioritySelect.setAttribute('data-selected', '');
         prioritySelect.disabled = true;
         prioritySelect.removeAttribute('required');
+        if (priorityTrigger) priorityTrigger.disabled = true;
+        closePriorityDropdown();
     }
+    renderPriorityDropdownOptions();
     syncRequestGridRows();
 }
 
@@ -5281,6 +5481,7 @@ function setPriorityOptions(mode) {
             ? 'Urgency Level <span class="required-asterisk">*</span>'
             : 'Level of Urgency <span class="required-asterisk">*</span>';
     }
+    renderPriorityDropdownOptions();
 }
 
 function setInlineFormError(message) {
@@ -5589,6 +5790,10 @@ function toggleHrExtraFields() {
     var shouldShowCoeRequest = shouldShow && selectedCategory === 'Certificate of Employment';
     var shouldShowColRequest = shouldShow && selectedCategory === 'Certificate of Leave';
     var shouldShowEmailRequest = isLapcItSelection() && selectedCategory === 'Email';
+    var shouldShowEmailCreation = shouldShowEmailRequest && emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === 'creation of email';
+    var shouldShowEmailDefault = shouldShowEmailRequest && emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === '';
+    var shouldShowEmailForgotPassword = shouldShowEmailRequest && emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === 'forgot password';
+    var shouldShowEmailBackup = shouldShowEmailRequest && emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === 'backup of email';
     var shouldShowSapRequest = isLapcItSelection() && selectedCategory === 'SAP';
     var shouldRequireKamiAttachment = shouldShowConcernType;
     var shouldRequireMedicalAttachment = shouldShowMedicalCashAdvance;
@@ -5614,6 +5819,7 @@ function toggleHrExtraFields() {
     if (colRequestSection) colRequestSection.classList.toggle('is-visible', shouldShowColRequest);
     var shouldShowCertificateLeavePurposeOther = shouldShowColRequest && certificateLeavePurposeSelect && String(certificateLeavePurposeSelect.value || '') === 'Others';
     if (emailRequestSection) emailRequestSection.classList.toggle('is-visible', shouldShowEmailRequest);
+    if (emailCreationFields) emailCreationFields.classList.toggle('is-visible', !!shouldShowEmailCreation);
     if (sapRequestSection) sapRequestSection.classList.toggle('is-visible', shouldShowSapRequest);
     if (marketingRequestSection) marketingRequestSection.classList.toggle('is-visible', shouldShowMarketingRequest);
     if (concernTypeContainer) concernTypeContainer.classList.toggle('is-visible', shouldShowConcernType);
@@ -5630,12 +5836,12 @@ function toggleHrExtraFields() {
     }
     if (sssBenefitsContainer) sssBenefitsContainer.classList.toggle('is-visible', shouldShowSssBenefits);
 
-    if (descriptionContainer) descriptionContainer.style.display = (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest) ? 'none' : '';
-    if (attachmentContainer) attachmentContainer.style.display = (shouldShowSssBenefits || shouldShowSapRequest) ? 'none' : '';
+    if (descriptionContainer) descriptionContainer.style.display = (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest || shouldShowEmailCreation) ? 'none' : '';
+    if (attachmentContainer) attachmentContainer.style.display = (shouldShowSssBenefits || shouldShowSapRequest || shouldShowEmailRequest) ? 'none' : '';
     if (otherDescriptionSection) otherDescriptionSection.style.display = shouldShowSssBenefits ? 'none' : '';
 
-    if (attachmentInput) attachmentInput.disabled = shouldShowSssBenefits;
-    if (chooseBtn) chooseBtn.disabled = shouldShowSssBenefits;
+    if (attachmentInput) attachmentInput.disabled = shouldShowSssBenefits || shouldShowEmailRequest;
+    if (chooseBtn) chooseBtn.disabled = shouldShowSssBenefits || shouldShowEmailRequest;
     if (attachmentOptionalText) attachmentOptionalText.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment) ? 'none' : '';
     if (attachmentOptionalText && shouldShowMarketingRequest) attachmentOptionalText.style.display = 'none';
     if (attachmentRequiredAsterisk) attachmentRequiredAsterisk.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment) ? '' : 'none';
@@ -5745,6 +5951,15 @@ function toggleHrExtraFields() {
             emailRequestTypeSelect.value = '';
         }
     }
+    emailCreationInputs.forEach(function(input) {
+        if (!input) return;
+        if (shouldShowEmailCreation) {
+            input.setAttribute('required', 'required');
+        } else {
+            input.removeAttribute('required');
+            if (!shouldShowEmailRequest) input.value = '';
+        }
+    });
     if (coeRequestReasonOtherInput) {
         var otherCoeSelected = coeRequestReasonInputs.some(function(input) { return input.checked && input.value === 'Other'; });
         if (shouldShowCoeRequest && otherCoeSelected) coeRequestReasonOtherInput.setAttribute('required', 'required');
@@ -5791,7 +6006,7 @@ function toggleHrExtraFields() {
     });
 
     if (descriptionFieldEl) {
-        if (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest) {
+        if (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest || shouldShowEmailCreation) {
             descriptionFieldEl.removeAttribute('required');
             if (shouldShowSssBenefits && descriptionFieldEl.value.trim() === '') {
                 descriptionFieldEl.value = sssAutoDescription;
@@ -5809,6 +6024,8 @@ function toggleHrExtraFields() {
     if (shouldShowConcernType && kamiContinuationHost) {
         moveDescriptionContainer(kamiContinuationHost);
         moveAttachmentContainer(kamiContinuationHost);
+    } else if ((shouldShowEmailDefault || shouldShowEmailForgotPassword || shouldShowEmailBackup) && emailDescriptionHost) {
+        moveDescriptionContainer(emailDescriptionHost);
     } else if (shouldShowOtherDetailsStyle && otherRequestContinuationHost) {
         moveDescriptionContainer(otherRequestContinuationHost);
         moveAttachmentContainer(otherRequestContinuationHost);
@@ -5828,10 +6045,26 @@ function toggleHrExtraFields() {
 }
 
 if (recipient) recipient.addEventListener('change', function() {
+    syncRecipientTriggerLabel();
     toggleDepartmentField();
     toggleCategoryField();
     toggleHrExtraFields();
 });
+if (recipientTrigger) {
+    recipientTrigger.addEventListener('click', function() {
+        if (!recipientMenu) return;
+        var nextState = !recipientMenu.classList.contains('is-open');
+        if (!nextState) {
+            closeRecipientDropdown();
+            return;
+        }
+        closeDepartmentDropdown();
+        closeCategoryDropdown();
+        closePriorityDropdown();
+        recipientMenu.classList.add('is-open');
+        recipientTrigger.setAttribute('aria-expanded', 'true');
+    });
+}
 if (departmentTrigger) {
     departmentTrigger.addEventListener('click', function() {
         if (departmentTrigger.disabled || !departmentMenu) return;
@@ -5840,6 +6073,9 @@ if (departmentTrigger) {
             closeDepartmentDropdown();
             return;
         }
+        closeRecipientDropdown();
+        closeCategoryDropdown();
+        closePriorityDropdown();
         departmentMenu.classList.add('is-open');
         departmentTrigger.setAttribute('aria-expanded', 'true');
     });
@@ -5852,15 +6088,40 @@ if (categoryTrigger) {
             closeCategoryDropdown();
             return;
         }
+        closeRecipientDropdown();
+        closeDepartmentDropdown();
+        closePriorityDropdown();
         categoryMenu.classList.add('is-open');
         categoryTrigger.setAttribute('aria-expanded', 'true');
     });
 }
+if (priorityTrigger) {
+    priorityTrigger.addEventListener('click', function() {
+        if (priorityTrigger.disabled || !priorityMenu) return;
+        var nextState = !priorityMenu.classList.contains('is-open');
+        if (!nextState) {
+            closePriorityDropdown();
+            return;
+        }
+        closeRecipientDropdown();
+        closeDepartmentDropdown();
+        closeCategoryDropdown();
+        priorityMenu.classList.add('is-open');
+        priorityTrigger.setAttribute('aria-expanded', 'true');
+    });
+}
 document.addEventListener('click', function(event) {
-    if (!departmentDropdown) return;
-    if (departmentDropdown.contains(event.target) || (categoryDropdown && categoryDropdown.contains(event.target))) return;
+    if (!recipientDropdown && !departmentDropdown && !categoryDropdown && !priorityDropdown) return;
+    if (
+        (recipientDropdown && recipientDropdown.contains(event.target))
+        || (departmentDropdown && departmentDropdown.contains(event.target))
+        || (categoryDropdown && categoryDropdown.contains(event.target))
+        || (priorityDropdown && priorityDropdown.contains(event.target))
+    ) return;
+    closeRecipientDropdown();
     closeDepartmentDropdown();
     closeCategoryDropdown();
+    closePriorityDropdown();
 });
 if (departmentSelect) departmentSelect.addEventListener('change', function() {
     syncDepartmentTriggerLabel();
@@ -5871,6 +6132,13 @@ if (departmentSelect) departmentSelect.addEventListener('change', function() {
 if (categorySelect) categorySelect.addEventListener('change', function() {
     syncCategoryTriggerLabel();
     toggleHrExtraFields();
+});
+if (emailRequestTypeSelect) emailRequestTypeSelect.addEventListener('change', function() {
+    toggleHrExtraFields();
+});
+if (prioritySelect) prioritySelect.addEventListener('change', function() {
+    prioritySelect.setAttribute('data-selected', String(prioritySelect.value || ''));
+    renderPriorityDropdownOptions();
 });
 if (concernTypeSelect) concernTypeSelect.addEventListener('change', function() {
     toggleHrExtraFields();
@@ -5899,10 +6167,13 @@ if (projectDeadlineInput) {
         validateProjectDeadline(true);
     });
 }
+buildRecipientDropdown();
 toggleDepartmentField();
+syncRecipientTriggerLabel();
 syncDepartmentTriggerLabel();
 toggleCategoryField();
 syncCategoryTriggerLabel();
+renderPriorityDropdownOptions();
 toggleHrExtraFields();
 initializeSavedSapReportsFromDom();
 syncSapCardState();
@@ -6604,6 +6875,22 @@ if (formEl) {
             e.preventDefault();
             setInlineFormError('Please choose the level of urgency.');
             return;
+        }
+        if (isLapcItSelected && selectedCategory === 'Email' && emailRequestTypeSelect && !String(emailRequestTypeSelect.value || '').trim()) {
+            e.preventDefault();
+            setInlineFormError('Please choose the email request type.');
+            return;
+        }
+        if (isLapcItSelected && selectedCategory === 'Email' && emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === 'creation of email') {
+            var incompleteEmailCreationField = emailCreationInputs.find(function(input) {
+                return input && !String(input.value || '').trim();
+            });
+            if (incompleteEmailCreationField) {
+                e.preventDefault();
+                setInlineFormError('Please complete the Creation of email details.');
+                try { incompleteEmailCreationField.focus(); } catch (focusError) {}
+                return;
+            }
         }
         if (isLapcMarketingSelected) {
             syncMaterialSizeInput();

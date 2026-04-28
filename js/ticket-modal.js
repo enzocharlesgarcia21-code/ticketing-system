@@ -2160,6 +2160,9 @@
         if (btn) btn.disabled = false;
         if (data && data.success) {
           input.value = '';
+          if (typeof window !== 'undefined' && typeof window.TMRefreshGlobalChatBadge === 'function') {
+            window.TMRefreshGlobalChatBadge();
+          }
           loadMessages(ticketIdEl.value, true);
         }
       })
@@ -2601,6 +2604,9 @@
           input.value = '';
           if (attachInput) attachInput.value = '';
           setChatModalAttachment(null);
+          if (typeof window !== 'undefined' && typeof window.TMRefreshGlobalChatBadge === 'function') {
+            window.TMRefreshGlobalChatBadge();
+          }
           setTimeout(function () { loadTicketMessages(ticketId, true); }, 0);
         }
       })
@@ -3336,6 +3342,9 @@
           return;
         }
         window.__tmConversations = Array.isArray(data) ? data : [];
+        if (typeof window !== 'undefined' && typeof window.TMRefreshGlobalChatBadge === 'function') {
+          window.TMRefreshGlobalChatBadge();
+        }
 
         updateMessengerFilterButtons();
         renderConversations(searchEl ? searchEl.value : '');
@@ -3830,6 +3839,9 @@
           if (attachInput) attachInput.value = '';
           setMessengerAttachments([]);
           messengerMessagesSignature = '';
+          if (typeof window !== 'undefined' && typeof window.TMRefreshGlobalChatBadge === 'function') {
+            window.TMRefreshGlobalChatBadge();
+          }
           setTimeout(function () { loadMessengerMessages(ticketId, true, true); }, 0);
           return;
         }

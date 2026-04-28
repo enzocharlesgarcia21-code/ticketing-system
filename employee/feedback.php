@@ -17,12 +17,20 @@ $feedbackStmt = $conn->prepare("
         et.category,
         et.assigned_department,
         et.assigned_group,
-        et.requester_name,
+        COALESCE(
+            NULLIF(TRIM(ticket_creator.full_name), ''),
+            NULLIF(TRIM(ticket_creator.name), ''),
+            NULLIF(TRIM(feedback_requestor.full_name), ''),
+            NULLIF(TRIM(feedback_requestor.name), ''),
+            NULLIF(TRIM(et.requester_name), '')
+        ) AS requester_name,
         tf.rating,
         tf.comment,
         tf.created_at
     FROM ticket_feedback tf
     INNER JOIN employee_tickets et ON et.id = tf.ticket_id
+    LEFT JOIN users ticket_creator ON ticket_creator.id = et.user_id
+    LEFT JOIN users feedback_requestor ON feedback_requestor.id = tf.requestor_id
     WHERE tf.assignee_id = ?
        OR (
             COALESCE(tf.assignee_id, 0) = 0
@@ -602,6 +610,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 align-items: flex-start;
                 flex-direction: column;
             }
+
         }
     </style>
 </head>

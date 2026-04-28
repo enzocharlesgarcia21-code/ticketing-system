@@ -717,13 +717,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 const items = Array.isArray(data) ? data : [];
                 let total = 0;
                 items.forEach(c => {
-                    const u = parseInt(String((c && c.unread_count != null) ? c.unread_count : 0), 10) || 0;
+                    const unreadValue = c && c.unread_count_raw != null ? c.unread_count_raw : (c && c.unread_count != null ? c.unread_count : 0);
+                    const u = parseInt(String(unreadValue), 10) || 0;
                     total += Math.max(0, u);
                 });
                 setGlobalChatBadge(total);
             })
             .catch(() => {});
     }
+    window.TMRefreshGlobalChatBadge = fetchChatUnreadTotal;
 
     // Relative time helpers
     function toRelative(ts) {
@@ -777,7 +779,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateRelativeTimes, 60000);
 
     fetchChatUnreadTotal();
-    setInterval(fetchChatUnreadTotal, 7000);
+    setInterval(fetchChatUnreadTotal, 3000);
 
     const notifDropdown = document.getElementById('notifDropdown');
     const notifList = document.getElementById('notifList');

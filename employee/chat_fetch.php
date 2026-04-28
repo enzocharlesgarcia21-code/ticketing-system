@@ -270,6 +270,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             'requester_email' => (string) $r['requester_email'],
             'last_message_time' => (string) $r['last_message_time'],
             'ticket_created_at' => (string) $r['ticket_created_at'],
+            'unread_count_raw' => (int) $r['unread_count'],
             'unread_count' => $canChat ? (int) $r['unread_count'] : 0,
             'last_message' => $canChat ? (string) $r['last_message'] : '',
             'last_sender_name' => $canChat ? (string) $r['last_sender_name'] : '',
