@@ -5,26 +5,32 @@ require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/notification_service.php';
 
-function finish_ticket_update_response(string $location): void
+function flush_ticket_update_redirect(string $location): void
 {
+    static $flushed = false;
+    if ($flushed || headers_sent()) {
+        return;
+    }
+    $flushed = true;
+
     if (function_exists('apache_setenv')) {
         @apache_setenv('no-gzip', '1');
     }
     @ini_set('zlib.output_compression', '0');
     @ini_set('implicit_flush', '1');
+    ignore_user_abort(true);
 
     if (function_exists('session_write_close')) {
         @session_write_close();
     }
-    ignore_user_abort(true);
+
+    header("Location: $location");
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Connection: close');
+    header('Content-Length: 0');
 
     while (ob_get_level() > 0) {
         @ob_end_clean();
-    }
-    if (!headers_sent()) {
-        header("Location: $location");
-        header('Cache-Control: no-store, no-cache, must-revalidate');
-        header('Content-Length: 0');
     }
 
     if (function_exists('fastcgi_finish_request')) {
@@ -128,7 +134,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             || ($ticketAssignedCompany === (string) ($_SESSION['company'] ?? ''));
     }
     $ticketGroup = (string) ($old_data['assigned_group'] ?? ($old_data['assigned_department'] ?? ''));
-    $groupOk = $ticketGroup !== '' && $ticketGroup === (string) ($_SESSION['department'] ?? '');
+    $ticketGroupKey = ticket_department_key_from_value($ticketGroup);
+    $userDepartmentKey = ticket_department_key_from_value((string) ($_SESSION['department'] ?? ''));
+    $userDepartmentAliases = ticket_department_aliases_for_key($userDepartmentKey);
+    if ($userDepartmentKey !== '') {
+        $userDepartmentAliases[] = $userDepartmentKey;
+    }
+    $userDepartmentAliases = array_values(array_unique(array_filter(array_map('strtoupper', array_map('trim', $userDepartmentAliases)), static function ($value) {
+        return is_string($value) && $value !== '';
+    })));
+    $groupOk = $ticketGroup !== '' && (
+        ($ticketGroupKey !== '' && $userDepartmentKey !== '' && $ticketGroupKey === $userDepartmentKey)
+        || in_array(strtoupper(trim($ticketGroup)), $userDepartmentAliases, true)
+    );
     $requiresGroupMatch = ((string) ($_SESSION['department'] ?? '')) !== '';
     if (!$assigneeOk && (!$companyOk || ($requiresGroupMatch && !$groupOk))) {
         header("Location: my_task.php?error=unauthorized");
@@ -310,16 +328,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($updateOk) {
         $_SESSION['task_success'] = "Ticket #$id successfully updated.";
 
-        // Flush the redirect to the browser as early as possible so any
-        // downstream notification/email failure cannot close the connection
-        // before the response is delivered (NS_ERROR_NET_ERROR_RESPONSE).
         $update->close();
-        $canContinueAfterResponse = function_exists('fastcgi_finish_request');
-        finish_ticket_update_response("my_task.php");
-        $responseFlushed = true;
-        if (!$canContinueAfterResponse) {
-            exit();
-        }
 
         try {
 
@@ -486,9 +495,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         'attachments' => $attachments,
                         'assignee_emails' => $assigneeEmails,
                         'extra_lines' => $sharedUpdateLines,
+                        'skip_email' => true,
+                    ]
+                );
+
+                flush_ticket_update_redirect("my_task.php");
+                $responseFlushed = true;
+
+                notif_send_ticket_status_update(
+                    $conn,
+                    (int) $id,
+                    (string) ($old_data['status'] ?? ''),
+                    (string) $new_status,
+                    $updateSourceLabel,
+                    [
+                        'attachments' => $attachments,
+                        'assignee_emails' => $assigneeEmails,
+                        'extra_lines' => $sharedUpdateLines,
+                        'skip_system' => true,
                     ]
                 );
             } else {
+                flush_ticket_update_redirect("my_task.php");
+                $responseFlushed = true;
+
                 if ($requesterEmail !== '') {
                     $requesterLines = array_merge([
                         "Ticket has been updated.",
@@ -652,10 +682,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    if ($responseFlushed) {
-        exit();
+    if (!$responseFlushed) {
+        header("Location: my_task.php");
     }
-    header("Location: my_task.php");
     exit();
 }
 

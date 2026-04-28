@@ -326,7 +326,7 @@ $pdf->Ln(3);
 $headers = [
     'Start Date',
     'End Date',
-    'Attending IT',
+    'Attendee',
     'Client',
     'Department / Subs',
     'Request / Reported Concern',
