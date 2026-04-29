@@ -548,7 +548,7 @@ function dashboard_ticket_category(array $row): string
 
         body.employee-dashboard-page .dashboard-ticket-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: 1fr;
             gap: 22px;
         }
 
@@ -1383,45 +1383,8 @@ function dashboard_ticket_category(array $row): string
 
             <!-- 5ï¸âƒ£ RECENT TICKETS SECTION -->
             <div class="dashboard-ticket-grid">
-                <section class="dashboard-ticket-panel" aria-labelledby="raisedTicketsTitle">
-                    <h2 id="raisedTicketsTitle" class="dashboard-ticket-title">Raised Tickets</h2>
-                    <table class="dashboard-ticket-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Category</th>
-                                <th>Status</th>
-                                <th>Date</th>
-                                <th aria-hidden="true"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (count($raisedTickets) > 0): ?>
-                                <?php foreach ($raisedTickets as $row): ?>
-                                    <?php $status = (string) ($row['status'] ?? ''); ?>
-                                    <tr class="ticket-row raised-ticket-row" data-id="<?= (int) $row['id']; ?>">
-                                        <td class="dashboard-ticket-id">#<?= (int) $row['id']; ?></td>
-                                        <td class="dashboard-ticket-category"><?= htmlspecialchars(dashboard_ticket_category($row), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td>
-                                            <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($status), ENT_QUOTES, 'UTF-8'); ?>">
-                                                <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
-                                            </span>
-                                        </td>
-                                        <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="5" class="dashboard-ticket-empty">No raised tickets found.</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </section>
-
                 <section class="dashboard-ticket-panel" aria-labelledby="receivedTicketsTitle">
-                    <h2 id="receivedTicketsTitle" class="dashboard-ticket-title">Received Tickets</h2>
+                    <h2 id="receivedTicketsTitle" class="dashboard-ticket-title">Assigned Tickets</h2>
                     <table class="dashboard-ticket-table">
                         <thead>
                             <tr>
@@ -1451,6 +1414,43 @@ function dashboard_ticket_category(array $row): string
                             <?php else: ?>
                                 <tr>
                                     <td colspan="5" class="dashboard-ticket-empty">No received tickets found.</td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section class="dashboard-ticket-panel" aria-labelledby="raisedTicketsTitle">
+                    <h2 id="raisedTicketsTitle" class="dashboard-ticket-title">My Submitted Tickets</h2>
+                    <table class="dashboard-ticket-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th aria-hidden="true"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (count($raisedTickets) > 0): ?>
+                                <?php foreach ($raisedTickets as $row): ?>
+                                    <?php $status = (string) ($row['status'] ?? ''); ?>
+                                    <tr class="ticket-row raised-ticket-row" data-id="<?= (int) $row['id']; ?>">
+                                        <td class="dashboard-ticket-id">#<?= (int) $row['id']; ?></td>
+                                        <td class="dashboard-ticket-category"><?= htmlspecialchars(dashboard_ticket_category($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td>
+                                            <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($status), ENT_QUOTES, 'UTF-8'); ?>">
+                                                <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
+                                            </span>
+                                        </td>
+                                        <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="5" class="dashboard-ticket-empty">No raised tickets found.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>

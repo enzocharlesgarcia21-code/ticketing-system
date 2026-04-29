@@ -205,7 +205,11 @@ function follow_up_button_html(array $row): string
     }
 
     $ticketId = (int) ($row['id'] ?? 0);
+    $followUpSendCount = (int) ($row['follow_up_stage'] ?? $row['follow_up_send_count'] ?? 0);
     $followUpInCooldown = !empty($row['follow_up_in_cooldown']);
+    if ($followUpSendCount <= 0 && $followUpInCooldown) {
+        return '';
+    }
     $followUpAvailableAt = trim((string) ($row['follow_up_available_at'] ?? ''));
     $class = 'follow-up-btn' . ($followUpInCooldown ? ' is-sent follow-up-cooldown' : '');
     $label = $followUpInCooldown ? 'Follow Up Sent' : 'Follow Up';

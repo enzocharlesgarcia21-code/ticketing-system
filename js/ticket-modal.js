@@ -295,15 +295,15 @@
       'gpsci.net': 'GPSCI',
       '@leads-eh.com': 'LEH',
       'leads-eh.com': 'LEH',
-      '@leads-farmex.com': 'FARMEX',
-      'leads-farmex.com': 'FARMEX',
+      '@leads-farmex.com': 'FARMEX / LAV',
+      'leads-farmex.com': 'FARMEX / LAV',
       '@leadsagri.com': 'LAPC',
       'leadsagri.com': 'LAPC',
       'lapc': 'LAPC',
       '@leadsanimalhealth.com': 'LAH',
       'leadsanimalhealth.com': 'LAH',
-      '@leadsav.com': 'LAV',
-      'leadsav.com': 'LAV',
+      '@leadsav.com': 'FARMEX / LAV',
+      'leadsav.com': 'FARMEX / LAV',
       '@leadstech-corp.com': 'LTC',
       'leadstech-corp.com': 'LTC',
       '@lingapleads.org': 'LINGAP',
@@ -791,11 +791,11 @@
     if (!company) return '-';
     var normalized = company.toLowerCase();
     var labels = {
-      '@leads-farmex.com': 'FARMEX',
+      '@leads-farmex.com': 'FARMEX / LAV',
       '@farmasee.ph': 'FARMASEE',
       '@gpsci.net': 'GPSCI',
       '@leadsagri.com': 'LAPC',
-      '@leadsav.com': 'LAV',
+      '@leadsav.com': 'FARMEX / LAV',
       '@leadstech-corp.com': 'LTC',
       '@lingapleads.org': 'LINGAP',
       '@malvedaholdings.com': 'MHC',
@@ -1399,7 +1399,9 @@
         return;
       }
       if (currentStatus === initialStatus && currentDept === initialDept && currentCompany === initialCompany && currentUser === initialUser && currentNote === initialNote) {
-        hideNotice();
+        e.preventDefault();
+        showNotice('No changes were made.');
+        return;
       }
     });
   }
@@ -1490,6 +1492,9 @@
     { value: 'Supply Chain Innovation', label: 'Supply Chain Innovation' },
     { value: 'Technical', label: 'Technical' }
   ];
+  var mhcDeptOptions = [
+    { value: 'Marketing Creatives', label: 'Marketing Creatives' }
+  ];
   function normalizeCompanyValue(value) {
     var normalized = value == null ? '' : String(value).trim().toLowerCase();
     if (normalized === '') return '';
@@ -1524,6 +1529,10 @@
       '@leads-farmex.com': '@leads-farmex.com',
       'mhc': '@malvedaholdings.com',
       'mhc (@malvedaholdings.com)': '@malvedaholdings.com',
+      'malveda holdings corporation - mhc': '@malvedaholdings.com',
+      'malveda holdings - mhc': '@malvedaholdings.com',
+      'malveda holdings corporation': '@malvedaholdings.com',
+      'malveda holdings': '@malvedaholdings.com',
       'malvedaholdings.com': '@malvedaholdings.com',
       '@malvedaholdings.com': '@malvedaholdings.com',
       'mpdc': '@malvedaproperties.com',
@@ -1578,20 +1587,43 @@
   }
   function getDeptOptionsForCompany(companyValue) {
     if (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true) return lapcDeptOptions;
-    return normalizeCompanyValue(companyValue) === '@leadsagri.com' ? lapcDeptOptions : [];
+    var normalizedCompany = normalizeCompanyValue(companyValue);
+    var rawCompany = companyValue == null ? '' : String(companyValue).trim().toLowerCase();
+    if (normalizedCompany === '@leadsagri.com') return lapcDeptOptions;
+    if (
+      normalizedCompany === '@malvedaholdings.com' ||
+      rawCompany === 'mhc' ||
+      rawCompany === 'mhc (@malvedaholdings.com)' ||
+      rawCompany === 'malveda holdings corporation - mhc' ||
+      rawCompany === 'malveda holdings - mhc' ||
+      rawCompany === 'malveda holdings corporation' ||
+      rawCompany === 'malveda holdings'
+    ) {
+      return mhcDeptOptions;
+    }
+    return [];
   }
   function preferredDeptValueForCompany(selectedValue, companyValue) {
     var raw = selectedValue == null ? '' : String(selectedValue).trim();
-    var isLapcCompany = normalizeCompanyValue(companyValue) === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
+    var normalizedCompany = normalizeCompanyValue(companyValue);
+    var isLapcCompany = normalizedCompany === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
+    var isMhcCompany = normalizedCompany === '@malvedaholdings.com';
+    var hasDepartmentOptions = isLapcCompany || isMhcCompany;
     if (raw.toLowerCase() === 'no departments available') {
       raw = '';
     }
-    if (!raw) return isLapcCompany ? '' : '';
+    if (!raw) return hasDepartmentOptions ? '' : '';
     var options = getDeptOptionsForCompany(companyValue);
     for (var i = 0; i < options.length; i++) {
       if (String(options[i].value).toLowerCase() === raw.toLowerCase()) return String(options[i].value);
     }
     var deptKey = deptKeyFromValue(raw);
+    if (isMhcCompany) {
+      if (deptKey === 'MARKETING' || raw.toLowerCase() === 'marketing creatives') {
+        return 'Marketing Creatives';
+      }
+      return '';
+    }
     if (!isLapcCompany) return '';
     var preferredMap = {
       'ACCOUNTING': 'Finance and Accounting',
@@ -1611,12 +1643,13 @@
         if (String(options[j].value).toLowerCase() === preferredValue.toLowerCase()) return String(options[j].value);
       }
     }
-    return isLapcCompany ? raw : '';
+    return hasDepartmentOptions ? raw : '';
   }
   function buildDeptOptionsHtml(companyValue, selectedValue) {
     var normalizedCompany = normalizeCompanyValue(companyValue);
     var isLapcCompany = normalizedCompany === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
-    if (!isLapcCompany) {
+    var isMhcCompany = normalizedCompany === '@malvedaholdings.com';
+    if (!isLapcCompany && !isMhcCompany) {
       return '                  <option value="" selected>No departments available</option>';
     }
     var options = getDeptOptionsForCompany(companyValue);
@@ -1868,17 +1901,19 @@
     function syncDeptAvailability(preferredValue) {
       var normalizedCompany = normalizeCompanyValue(companyEl.value);
       var isLapcCompany = normalizedCompany === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
+      var isMhcCompany = normalizedCompany === '@malvedaholdings.com';
+      var hasDepartmentOptions = isLapcCompany || isMhcCompany;
       var hiddenMirror = form.querySelector('input[type="hidden"][data-dept-mirror="1"]');
       var selectedValue = preferredDeptValueForCompany(preferredValue, companyEl.value);
-      var hiddenValue = isLapcCompany ? selectedValue : '';
+      var hiddenValue = hasDepartmentOptions ? selectedValue : '';
 
       deptEl.value = selectedValue;
-      deptEl.disabled = !isLapcCompany;
+      deptEl.disabled = !hasDepartmentOptions;
       if (typeof deptEl._tmRenderCustomDropdown === 'function') {
         deptEl._tmRenderCustomDropdown();
       }
 
-      if (!isLapcCompany) {
+      if (!hasDepartmentOptions) {
         if (!hiddenMirror) {
           hiddenMirror = document.createElement('input');
           hiddenMirror.type = 'hidden';
@@ -1896,7 +1931,7 @@
     syncDeptAvailability(initialPreferredDept);
     companyEl.addEventListener('change', function () {
       var normalizedCompany = normalizeCompanyValue(companyEl.value);
-        var nextPreferred = normalizedCompany === '@leadsagri.com' ? '' : '';
+        var nextPreferred = (normalizedCompany === '@leadsagri.com' || normalizedCompany === '@malvedaholdings.com') ? '' : '';
         syncDeptOptions(nextPreferred);
         syncDeptAvailability(nextPreferred);
       });
@@ -2087,20 +2122,17 @@
       '      </div>' +
       '      <div class="tm-actions-fields" data-update-action-section="reassign" style="display:none;">' +
       '        <div class="tm-field">' +
-      '          <label class="tm-control-label">Ticket Recipient</label>' +
+      '          <label class="tm-control-label">Subsidiaries</label>' +
       '          <div class="tm-select-wrapper">' +
       '            <select class="tm-select tm-dept-select" name="assigned_company">' +
       ( !assignedCompanyValue ? '                  <option value="" disabled selected hidden>Select Recipient</option>' : '' ) +
-      ( assignedCompanyValue && ['@gpsci.net','@farmasee.ph','@leads-eh.com','@leads-farmex.com','@leadsagri.com','@leadsanimalhealth.com','@leadsav.com','@malvedaholdings.com','@malvedaproperties.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'].indexOf(String(assignedCompanyValue).toLowerCase()) === -1
+      ( assignedCompanyValue && ['@gpsci.net','@farmasee.ph','@leads-farmex.com','@leadsagri.com','@leadsav.com','@malvedaholdings.com','@malvedaproperties.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'].indexOf(String(assignedCompanyValue).toLowerCase()) === -1
           ? ('                  <option value="' + escapeHtml(assignedCompanyValue) + '" selected>' + escapeHtml(assignedCompanyValue) + '</option>')
           : '' ) +
       '                  <option value="@gpsci.net" ' + (String(assignedCompanyValue || '').toLowerCase() === '@gpsci.net' ? 'selected' : '') + '>GPSCI</option>' +
       '                  <option value="@farmasee.ph" ' + (String(assignedCompanyValue || '').toLowerCase() === '@farmasee.ph' ? 'selected' : '') + '>FARMASEE</option>' +
-      '                  <option value="@leads-eh.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leads-eh.com' ? 'selected' : '') + '>LEH</option>' +
-      '                  <option value="@leads-farmex.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leads-farmex.com' ? 'selected' : '') + '>FARMEX</option>' +
+      '                  <option value="@leads-farmex.com" ' + ((String(assignedCompanyValue || '').toLowerCase() === '@leads-farmex.com' || String(assignedCompanyValue || '').toLowerCase() === '@leadsav.com') ? 'selected' : '') + '>FARMEX / LAV</option>' +
       '                  <option value="@leadsagri.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leadsagri.com' ? 'selected' : '') + '>LAPC</option>' +
-      '                  <option value="@leadsanimalhealth.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leadsanimalhealth.com' ? 'selected' : '') + '>LAH</option>' +
-      '                  <option value="@leadsav.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leadsav.com' ? 'selected' : '') + '>LAV</option>' +
       '                  <option value="@malvedaholdings.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@malvedaholdings.com' ? 'selected' : '') + '>MHC</option>' +
       '                  <option value="@malvedaproperties.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@malvedaproperties.com' ? 'selected' : '') + '>MPDC</option>' +
       '                  <option value="@leadstech-corp.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leadstech-corp.com' ? 'selected' : '') + '>LTC</option>' +
