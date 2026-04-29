@@ -1315,9 +1315,9 @@
     if (total <= 120) return 'yellow';
     return 'red';
   }
-  function updateStatusColor(select) {
+  function updateStatusColor(select, explicitValue) {
     if (!select) return;
-    var status = select.value;
+    var status = typeof explicitValue === 'string' ? explicitValue : select.value;
     select.classList.remove('status-open', 'status-progress', 'status-resolved', 'status-closed');
     if (status === 'Open') select.classList.add('status-open');
     else if (status === 'In Progress') select.classList.add('status-progress');
@@ -1440,6 +1440,11 @@
         var isActive = card.getAttribute('data-update-action-card') === nextMode;
         card.classList.toggle('is-active', isActive);
         card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        var iconEl = card.querySelector('.tm-update-mode-icon');
+        if (iconEl) {
+          iconEl.classList.toggle('is-neutral', !isActive);
+          iconEl.classList.toggle('is-lit', isActive);
+        }
       });
       sections.forEach(function (section) {
         section.style.display = section.getAttribute('data-update-action-section') === nextMode ? '' : 'none';
@@ -1804,6 +1809,48 @@
     selectEl._tmRenderCustomDropdown = renderOptions;
     renderOptions();
   }
+  function bindCustomStatusDropdown(container) {
+    if (!container) return;
+    var form = container.querySelector('#ticketUpdateForm');
+    if (!form || form.dataset.customStatusBound === '1') return;
+    form.dataset.customStatusBound = '1';
+    var wrapper = form.querySelector('[data-status-segmented]');
+    var selectEl = form.querySelector('select[name="status"]');
+    var buttons = wrapper ? Array.prototype.slice.call(wrapper.querySelectorAll('[data-status-option]')) : [];
+    if (!wrapper || !selectEl || buttons.length === 0) return;
+
+    function renderOptions() {
+      var currentValue = String(selectEl.value || '');
+      buttons.forEach(function (btn) {
+        var value = String(btn.getAttribute('data-status-option') || '');
+        var isSelected = value === currentValue;
+        btn.classList.toggle('is-selected', isSelected);
+        btn.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+        updateStatusColor(btn, value);
+      });
+    }
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (selectEl.disabled) return;
+        var nextValue = String(btn.getAttribute('data-status-option') || '');
+        selectEl.value = nextValue;
+        renderOptions();
+        var changeEvent;
+        try {
+          changeEvent = new Event('change', { bubbles: true });
+        } catch (e) {
+          changeEvent = document.createEvent('Event');
+          changeEvent.initEvent('change', true, true);
+        }
+        selectEl.dispatchEvent(changeEvent);
+      });
+    });
+
+    selectEl.addEventListener('change', renderOptions);
+    selectEl._tmRenderCustomStatus = renderOptions;
+    renderOptions();
+  }
   function bindDepartmentOptions(container, data) {
     if (!container) return;
     var form = container.querySelector('#ticketUpdateForm');
@@ -1859,8 +1906,12 @@
   }
   function buildHtml(data) {
     var hideUpdateTab = typeof window !== 'undefined' && window.TM_HIDE_UPDATE_TAB === true;
+    if (data && data.can_update_tab === false) hideUpdateTab = true;
     var hideAdminChat = typeof window !== 'undefined' && window.TM_HIDE_ADMIN_CHAT === true;
     var hideRequesterAdminChatButton = typeof window !== 'undefined' && window.TM_HIDE_REQUESTOR_ADMIN_CHAT_BUTTON === true;
+    var isSalesTicket = !!(data && data.is_sales_ticket);
+    var hideConversationTab = hideAdminChat || isSalesTicket;
+    var hideAdminConversationButton = hideRequesterAdminChatButton || isSalesTicket;
     var hideQuickTags = typeof window !== 'undefined' && window.TM_HIDE_QUICK_TAGS === true;
     var showDepartmentUserSelect = typeof window !== 'undefined' && window.TM_SHOW_DEPARTMENT_USER_SELECT === true;
     var deptLabelText = (typeof window !== 'undefined' && window.TM_DEPARTMENT_LABEL_TEXT) ? String(window.TM_DEPARTMENT_LABEL_TEXT) : 'Assigned Department';
@@ -1896,12 +1947,18 @@
         '          </div>';
     } else {
       statusControlHtml =
-        '          <div class="tm-select-wrapper">' +
-        '            <select class="tm-select tm-status-select" name="status">' +
+        '          <div class="tm-status-picker" data-status-segmented>' +
+        '            <select class="tm-select tm-status-select tm-native-select" name="status">' +
         '                  <option value="Open" ' + (data.status === 'Open' ? 'selected' : '') + '>Open</option>' +
         '                  <option value="In Progress" ' + (data.status === 'In Progress' ? 'selected' : '') + '>In Progress</option>' +
         '                  <option value="Resolved" ' + (data.status === 'Resolved' ? 'selected' : '') + '>Resolved</option>' +
         '            </select>' +
+        '            <div class="tm-status-trigger-label">Status</div>' +
+        '            <div class="tm-status-button-row">' +
+        '              <button type="button" class="tm-status-trigger" data-status-option="Open" aria-pressed="false">Open</button>' +
+        '              <button type="button" class="tm-status-trigger" data-status-option="In Progress" aria-pressed="false">In Progress</button>' +
+        '              <button type="button" class="tm-status-trigger" data-status-option="Resolved" aria-pressed="false">Resolved</button>' +
+        '            </div>' +
         '          </div>';
     }
     function deptKeyFromValue(val) {
@@ -1941,7 +1998,7 @@
     var trimmedNoteValue = noteValue.trim();
     var requesterAdminNoteHtml = (isRequesterPOV && trimmedNoteValue !== '')
       ? (
-        '      <div class="tm-card tm-card-admin-notes"><div class="tm-card-header"><div class="tm-card-header-actions"><span class="tm-card-title">Action Taken/Comments</span>' + (hideRequesterAdminChatButton ? '' : ('<button type="button" class="tm-inline-chat-btn" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Chat with Admin</button>')) + '</div></div><div class="tm-card-body">' +
+        '      <div class="tm-card tm-card-admin-notes"><div class="tm-card-header"><div class="tm-card-header-actions"><span class="tm-card-title">Action Taken/Comments</span>' + (hideAdminConversationButton ? '' : ('<button type="button" class="tm-inline-chat-btn" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Chat with Admin</button>')) + '</div></div><div class="tm-card-body">' +
         '        <div class="tm-requestor-note">' + renderLinkedText(noteValue) + '</div>' +
         '      </div></div>'
       )
@@ -1970,7 +2027,7 @@
       '<div class="tm-tabs">' +
       '  <div class="tm-tab active" data-tab="info" onclick="TMTicketModal.switchTab(\'info\')">Information</div>' +
       (hideUpdateTab ? '' : '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Update</div>') +
-      (hideAdminChat ? '' : '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Go to Chat</div>') +
+      (hideConversationTab ? '' : '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Go to Chat</div>') +
       '</div>' +
       '<div class="tm-body">' +
       '  <div id="tab-info" class="tm-tab-content active">' +
@@ -2018,13 +2075,13 @@
       '              <span class="tm-update-mode-title">Reassign Ticket</span>' +
       '              <span class="tm-update-mode-text">Transfer this ticket to another department or user.</span>' +
       '            </span>' +
+      '            <span class="tm-update-mode-check"><i class="fas fa-check-circle"></i></span>' +
       '          </button>' +
       '        </div>' +
       '        <div class="tm-update-divider"></div>' +
       '      </div>' +
       '      <div class="tm-actions-fields" data-update-action-section="status">' +
       '        <div class="tm-field tm-field-status-only">' +
-      '          <label class="tm-control-label">New Status</label>' +
       statusControlHtml +
       '        </div>' +
       '      </div>' +
@@ -2088,7 +2145,6 @@
       '          </div>'
       )) +
       '          <div class="tm-actions-buttons">' +
-      '            <button type="button" class="tm-btn tm-btn-secondary" onclick="TMTicketModal.close()">Close</button>' +
       '            <button type="submit" class="tm-btn tm-btn-primary">Save Ticket</button>' +
       '          </div>' +
       '        </div>' +
@@ -4056,6 +4112,11 @@
           bindDepartmentOptions(modalContent, data);
         } catch (deptBindError) {
           console.error('Ticket modal department binding failed:', deptBindError, data);
+        }
+        try {
+          bindCustomStatusDropdown(modalContent);
+        } catch (customStatusBindError) {
+          console.error('Ticket modal status dropdown binding failed:', customStatusBindError, data);
         }
         try {
           bindCustomDepartmentDropdown(modalContent);

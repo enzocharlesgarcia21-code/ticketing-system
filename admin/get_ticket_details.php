@@ -297,6 +297,9 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 if ($row = $result->fetch_assoc()) {
+    $creatorAccountEmail = strtolower(trim((string) ($row['created_by_email'] ?? '')));
+    $creatorDepartment = strtolower(trim((string) (($row['department'] ?? '') !== '' ? $row['department'] : ($row['user_department'] ?? ''))));
+    $row['is_sales_ticket'] = ($creatorAccountEmail === 'sales_guest@leadsagri.com' || $creatorDepartment === 'sales');
     // Fallbacks for display
     $row['company'] = !empty($row['company']) ? $row['company'] : $row['user_company'];
     $row['department'] = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');

@@ -423,6 +423,9 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 if ($row = $result->fetch_assoc()) {
+    $creatorAccountEmail = strtolower(trim((string) ($row['created_by_email'] ?? '')));
+    $creatorDepartment = strtolower(trim((string) (($row['department'] ?? '') !== '' ? $row['department'] : ($row['user_department'] ?? ''))));
+    $row['is_sales_ticket'] = ($creatorAccountEmail === 'sales_guest@leadsagri.com' || $creatorDepartment === 'sales');
     // Use ticket company if set, otherwise user company
     $row['company'] = !empty($row['company']) ? $row['company'] : $row['user_company'];
     $row['department'] = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
@@ -448,8 +451,21 @@ if ($row = $result->fetch_assoc()) {
     if ($requester_name !== '') $row['created_by_name'] = $requester_name;
     if ($requester_email !== '') $row['created_by_email'] = $requester_email;
     $row['description'] = $clean_desc;
-    $row = ticket_chat_apply_effective_handler($row);
     $userContext = ticket_build_user_context($conn, $currentUserId, $_SESSION);
+    $lockedAssignedUserId = isset($row['assigned_user_id']) ? (int) $row['assigned_user_id'] : 0;
+    $lockedHandlerId = isset($row['assigned_to']) ? (int) $row['assigned_to'] : 0;
+    $canUpdateTab = ticket_user_is_handler_candidate($row, $currentUserId, $userContext);
+    if (($lockedAssignedUserId > 0 && $lockedAssignedUserId === $currentUserId) || ($lockedHandlerId > 0 && $lockedHandlerId === $currentUserId)) {
+        $canUpdateTab = true;
+    }
+    if ($lockedAssignedUserId > 0 && $lockedAssignedUserId !== $currentUserId) {
+        $canUpdateTab = false;
+    }
+    if ($lockedHandlerId > 0 && $lockedHandlerId !== $currentUserId) {
+        $canUpdateTab = false;
+    }
+    $row['can_update_tab'] = $canUpdateTab;
+    $row = ticket_chat_apply_effective_handler($row);
     $hasAccess = ticket_user_matches_requester($row, $currentUserId, $userContext)
         || ticket_user_is_handler_candidate($row, $currentUserId, $userContext);
     if (!$hasAccess) {
