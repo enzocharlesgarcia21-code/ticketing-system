@@ -56,6 +56,42 @@ $kb_department_categories = [
     'Technical',
     'Diagnostics / Lingap',
 ];
+$kb_default_ticket_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
+$kb_ticket_categories_by_department = [
+    'Admin & Legal' => [
+        'Phone Plan / Simcard',
+        'FleetCard Request',
+        'Supplies',
+    ],
+    'HR' => [
+        'Attendance & Timekeeping',
+        'Certificate of Employment',
+        'Certificate of Leave',
+        'Leave Concern',
+        'Medical Cash Advance',
+        'Request for Company Property',
+        'SSS Sickness and Benefit Concern',
+        'Training Request',
+        'Others',
+    ],
+    'IT' => [
+        'Documentation',
+        'Email',
+        'Hardware',
+        'Internet Concerns',
+        'Procurement',
+        'SAP',
+        'Software',
+        'Technical Support',
+    ],
+    'Marketing' => [
+        'Marketing Request',
+    ],
+    'Accounting' => $kb_default_ticket_categories,
+    'Management' => $kb_default_ticket_categories,
+    'Technical' => $kb_default_ticket_categories,
+    'Diagnostics / Lingap' => $kb_default_ticket_categories,
+];
 
 function kb_sorted_links_json($labels, $urls) {
     $links = [];
@@ -88,17 +124,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_validate();
     $title = trim($_POST['title']);
     $category = trim($_POST['category']);
+    $sub_category = trim((string) ($_POST['sub_category'] ?? ''));
     $content = trim($_POST['content']);
     $visible_to_sales = 1;
 
-    if (!empty($title) && !empty($category)) {
+    if (!empty($title) && !empty($category) && !empty($sub_category)) {
         $original_category = trim((string) ($article['category'] ?? ''));
+        $original_sub_category = trim((string) ($article['sub_category'] ?? ''));
         $allowed_categories = $kb_department_categories;
         if ($original_category !== '' && !in_array($original_category, $allowed_categories, true)) {
             $allowed_categories[] = $original_category;
         }
         if (!in_array($category, $allowed_categories, true)) {
-            $error_msg = "Please select a valid category.";
+            $error_msg = "Please select a valid department.";
+        }
+        if ($error_msg === '') {
+            $allowed_sub_categories = $kb_ticket_categories_by_department[$category] ?? $kb_default_ticket_categories;
+            if ($original_sub_category !== '' && !in_array($original_sub_category, $allowed_sub_categories, true)) {
+                $allowed_sub_categories[] = $original_sub_category;
+            }
+            if (!in_array($sub_category, $allowed_sub_categories, true)) {
+                $error_msg = "Please select a valid category for the selected department.";
+            }
         }
 
         $original_image_path = $article['image_path'];
@@ -201,6 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $has_changes = (
             $title !== $original_title ||
             $category !== $original_category ||
+            $sub_category !== $original_sub_category ||
             $content !== $original_content ||
             (string) $image_path !== (string) $original_image_path ||
             (string) $links_json !== (string) $original_links_json ||
@@ -209,8 +257,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             (int) $visible_to_sales !== (int) $original_visible_to_sales
         );
 
-        $update_stmt = $conn->prepare("UPDATE knowledge_base SET title = ?, category = ?, content = ?, image_path = ?, article_links = ?, article_presentation = ?, article_video = ?, visible_to_sales = ? WHERE id = ?");
-        $update_stmt->bind_param("sssssssii", $title, $category, $content, $image_path, $links_json, $presentation_path, $video_content, $visible_to_sales, $article_id);
+        $update_stmt = $conn->prepare("UPDATE knowledge_base SET title = ?, category = ?, sub_category = ?, content = ?, image_path = ?, article_links = ?, article_presentation = ?, article_video = ?, visible_to_sales = ? WHERE id = ?");
+        $update_stmt->bind_param("ssssssssii", $title, $category, $sub_category, $content, $image_path, $links_json, $presentation_path, $video_content, $visible_to_sales, $article_id);
         
         if ($error_msg !== '') {
             // Preserve the upload error already set above.
@@ -232,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error_msg = "Error updating article: " . $conn->error;
         }
     } else {
-        $error_msg = "Title and category are required.";
+        $error_msg = "Title, department, and category are required.";
     }
 }
 
@@ -241,6 +289,8 @@ $categories = $kb_department_categories;
 $current_category = trim((string) ($article['category'] ?? ''));
 $is_legacy_category = ($current_category !== '' && !in_array($current_category, $categories, true));
 $selected_category = $current_category;
+$current_sub_category = trim((string) ($article['sub_category'] ?? ''));
+$selected_sub_category = $current_sub_category;
 ?>
 
 <!DOCTYPE html>
@@ -771,9 +821,9 @@ $selected_category = $current_category;
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Category</label>
+                            <label class="form-label">Department</label>
                             <select name="category" class="form-control" id="kb-edit-category-select" required>
-                                <option value=""disabled selected hidden>Select Category</option>
+                                <option value="" disabled selected hidden>Select Department</option>
                                 <?php if ($is_legacy_category): ?>
                                     <option value="<?= htmlspecialchars($current_category, ENT_QUOTES, 'UTF-8') ?>" selected>
                                         <?= htmlspecialchars($current_category, ENT_QUOTES, 'UTF-8') ?>
@@ -784,6 +834,13 @@ $selected_category = $current_category;
                                         <?= htmlspecialchars($cat) ?>
                                     </option>
                                 <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Category</label>
+                            <select name="sub_category" class="form-control" id="kb-edit-sub-category-select" required>
+                                <option value="" disabled selected hidden>Select department first</option>
                             </select>
                         </div>
 
@@ -954,6 +1011,53 @@ $selected_category = $current_category;
 
 <script src="../js/admin.js"></script>
 <script>
+    const kbEditDepartmentCategories = <?= json_encode($kb_ticket_categories_by_department, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    const kbEditCurrentSubCategory = <?= json_encode($selected_sub_category, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    const kbEditDepartmentSelect = document.getElementById('kb-edit-category-select');
+    const kbEditSubCategorySelect = document.getElementById('kb-edit-sub-category-select');
+
+    function syncEditSubCategoryOptions(preferredValue) {
+        if (!kbEditDepartmentSelect || !kbEditSubCategorySelect) return;
+
+        const selectedDepartment = kbEditDepartmentSelect.value || '';
+        const categoryOptions = kbEditDepartmentCategories[selectedDepartment] || [];
+        const targetValue = preferredValue || '';
+        kbEditSubCategorySelect.innerHTML = '';
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        placeholder.hidden = true;
+        placeholder.textContent = selectedDepartment ? 'Select Category' : 'Select department first';
+        kbEditSubCategorySelect.appendChild(placeholder);
+
+        categoryOptions.forEach(function(categoryName) {
+            const option = document.createElement('option');
+            option.value = categoryName;
+            option.textContent = categoryName;
+            option.selected = categoryName === targetValue;
+            kbEditSubCategorySelect.appendChild(option);
+        });
+
+        if (targetValue && !categoryOptions.includes(targetValue)) {
+            const legacyOption = document.createElement('option');
+            legacyOption.value = targetValue;
+            legacyOption.textContent = targetValue;
+            legacyOption.selected = true;
+            kbEditSubCategorySelect.appendChild(legacyOption);
+        }
+
+        kbEditSubCategorySelect.disabled = !selectedDepartment;
+    }
+
+    if (kbEditDepartmentSelect) {
+        kbEditDepartmentSelect.addEventListener('change', function() {
+            syncEditSubCategoryOptions('');
+        });
+        syncEditSubCategoryOptions(kbEditCurrentSubCategory);
+    }
+
     const removedExistingImages = new Set();
 
     function syncRemovedExistingImages() {

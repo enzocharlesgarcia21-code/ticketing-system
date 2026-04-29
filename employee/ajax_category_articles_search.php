@@ -13,44 +13,50 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
 kb_ensure_article_views_table($conn);
 
 $fixedCategories = [
-    'Documentation',
-    'Email',
-    'Hardware',
-    'Internet Concerns',
-    'Procurement',
-    'Software',
-    'Technical Support',
+    'HR',
+    'IT',
+    'Accounting',
+    'Marketing',
+    'Admin & Legal',
+    'Management',
+    'Technical',
+    'Diagnostics / Lingap',
 ];
 
 function kb_category_label_ajax(string $category): string
 {
-    $category = trim($category);
-    $category = preg_replace('/\s+Issues?$/i', '', $category);
-    $category = preg_replace('/\s+Issue$/i', '', $category);
-    $category = preg_replace('/\s+Problem$/i', '', $category);
     $normalized = trim((string) $category);
     $key = strtolower($normalized);
-    if ($key === 'documentation') return 'Documentation';
-    if ($key === 'email') return 'Email';
-    if ($key === 'internet concerns' || $key === 'network') return 'Internet Concerns';
-    if ($key === 'software') return 'Software';
-    if ($key === 'hardware') return 'Hardware';
-    if ($key === 'procurement') return 'Procurement';
-    if ($key === 'technical support') return 'Technical Support';
-    return $normalized !== '' ? $normalized : 'Documentation';
+    $aliases = [
+        'technical support' => 'IT',
+        'hardware' => 'IT',
+        'hardware issue' => 'IT',
+        'hardware issues' => 'IT',
+        'software' => 'IT',
+        'software issue' => 'IT',
+        'software issues' => 'IT',
+        'email' => 'IT',
+        'email problem' => 'IT',
+        'internet concerns' => 'IT',
+        'network' => 'IT',
+        'network issue' => 'IT',
+        'network issues' => 'IT',
+        'printer' => 'IT',
+        'documentation' => 'Admin & Legal',
+        'documentations' => 'Admin & Legal',
+        'procurement' => 'Admin & Legal',
+        'others' => 'Management',
+    ];
+    return $aliases[$key] ?? ($normalized !== '' ? $normalized : 'IT');
 }
 
 function kb_category_aliases_ajax(string $category): array
 {
     $category = kb_category_label_ajax($category);
     $map = [
-        'Documentation' => ['Documentation'],
-        'Email' => ['Email', 'Email Problem'],
-        'Hardware' => ['Hardware', 'Hardware Issue', 'Hardware Issues'],
-        'Internet Concerns' => ['Internet Concerns', 'Network', 'Network Issue', 'Network Issues'],
-        'Procurement' => ['Procurement'],
-        'Software' => ['Software', 'Software Issue', 'Software Issues'],
-        'Technical Support' => ['Technical Support'],
+        'IT' => ['IT', 'Technical Support', 'Hardware', 'Hardware Issue', 'Hardware Issues', 'Software', 'Software Issue', 'Software Issues', 'Email', 'Email Problem', 'Internet Concerns', 'Network', 'Network Issue', 'Network Issues', 'Printer'],
+        'Admin & Legal' => ['Admin & Legal', 'Documentation', 'Documentations', 'Procurement'],
+        'Management' => ['Management', 'Others'],
     ];
 
     $aliases = $map[$category] ?? [$category];
@@ -62,13 +68,14 @@ function kb_category_aliases_ajax(string $category): array
 function kb_category_icon_class_ajax(string $category): string
 {
     $key = strtolower(trim($category));
-    if (strpos($key, 'documentation') !== false) return 'fa-book-open';
-    if (strpos($key, 'software') !== false) return 'fa-laptop';
-    if (strpos($key, 'hardware') !== false) return 'fa-screwdriver-wrench';
-    if (strpos($key, 'network') !== false || strpos($key, 'internet') !== false) return 'fa-globe';
-    if (strpos($key, 'email') !== false) return 'fa-envelope';
-    if (strpos($key, 'procurement') !== false) return 'fa-cart-shopping';
-    if (strpos($key, 'technical') !== false) return 'fa-headset';
+    if ($key === 'hr') return 'fa-users';
+    if ($key === 'it') return 'fa-desktop';
+    if ($key === 'accounting') return 'fa-calculator';
+    if ($key === 'marketing') return 'fa-bullhorn';
+    if ($key === 'admin & legal') return 'fa-scale-balanced';
+    if ($key === 'management') return 'fa-briefcase';
+    if ($key === 'technical') return 'fa-screwdriver-wrench';
+    if ($key === 'diagnostics / lingap') return 'fa-stethoscope';
     return 'fa-folder';
 }
 

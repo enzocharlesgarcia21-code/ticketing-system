@@ -34,22 +34,29 @@ function kb_excerpt_ajax(string $text, int $maxLen = 160): string
 
 function kb_category_label_ajax(string $category): string
 {
-    $category = trim($category);
-    $category = preg_replace('/\s+Issues?$/i', '', $category);
-    $category = preg_replace('/\s+Issue$/i', '', $category);
-    $category = preg_replace('/\s+Problem$/i', '', $category);
-    $category = preg_replace('/\s+Access$/i', ' Login & Account', $category);
     $category = trim((string) $category);
-
     $key = strtolower($category);
-    if ($key === 'documentation') return 'Documentation';
-    if ($key === 'email') return 'Email';
-    if ($key === 'internet concerns' || $key === 'network') return 'Internet Concerns';
-    if ($key === 'software') return 'Software';
-    if ($key === 'hardware') return 'Hardware';
-    if ($key === 'procurement') return 'Procurement';
-    if ($key === 'technical support') return 'Technical Support';
-    return $category !== '' ? $category : 'Documentation';
+    $aliases = [
+        'technical support' => 'IT',
+        'hardware' => 'IT',
+        'hardware issue' => 'IT',
+        'hardware issues' => 'IT',
+        'software' => 'IT',
+        'software issue' => 'IT',
+        'software issues' => 'IT',
+        'email' => 'IT',
+        'email problem' => 'IT',
+        'internet concerns' => 'IT',
+        'network' => 'IT',
+        'network issue' => 'IT',
+        'network issues' => 'IT',
+        'printer' => 'IT',
+        'documentation' => 'Admin & Legal',
+        'documentations' => 'Admin & Legal',
+        'procurement' => 'Admin & Legal',
+        'others' => 'Management',
+    ];
+    return $aliases[$key] ?? ($category !== '' ? $category : 'IT');
 }
 
 $results = [];
@@ -113,4 +120,3 @@ echo json_encode([
     'count' => count($results),
     'html' => ob_get_clean(),
 ], JSON_UNESCAPED_UNICODE);
-
