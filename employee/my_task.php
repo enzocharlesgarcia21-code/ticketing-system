@@ -122,25 +122,33 @@ $status = $_GET['status'] ?? '';
     || (company_code((string) $user_company) === 'LAPC')
     || ($userEmailNorm !== '' && str_ends_with($userEmailNorm, '@leadsagri.com'));
 
-$allowed_departments = ticket_lapc_departments();
+$lapc_departments = ticket_lapc_departments();
+$mhc_departments = ['Marketing Creatives'];
+$allowed_departments = $lapc_departments;
+$allowed_departments_by_company = [
+    '@leadsagri.com' => $lapc_departments,
+    '@malvedaholdings.com' => $mhc_departments,
+];
 $company_filter_options = [
-    '@leads-farmex.com' => 'FARMEX (@leads-farmex.com)',
-    '@farmasee.ph' => 'FARMASEE (@farmasee.ph)',
-    '@gpsci.net' => 'GPSCI (@gpsci.net)',
-    '@leadsanimalhealth.com' => 'LAH (@leadsanimalhealth.com)',
-    '@leadsagri.com' => 'LAPC (@leadsagri.com)',
-    '@leads-eh.com' => 'LEH (@leads-eh.com)',
-    '@leadsav.com' => 'LAV (@leadsav.com)',
-    '@malvedaholdings.com' => 'MHC (@malvedaholdings.com)',
-    '@malvedaproperties.com' => 'MPDC (@malvedaproperties.com)',
-    '@leadstech-corp.com' => 'LTC (@leadstech-corp.com)',
-    '@lingapleads.org' => 'LINGAP (@lingapleads.org)',
-    '@primestocks.ph' => 'PCC (@primestocks.ph)',
+    '@farmex_lav' => 'FARMEX / LAV',
+    '@farmasee.ph' => 'FARMASEE',
+    '@gpsci.net' => 'GPSCI',
+    '@leadsagri.com' => 'LAPC',
+    '@malvedaholdings.com' => 'MHC',
+    '@malvedaproperties.com' => 'MPDC',
+    '@leadstech-corp.com' => 'LTC',
+    '@lingapleads.org' => 'LINGAP',
+    '@primestocks.ph' => 'PCC',
 ];
 // Temporarily hide "Closed" from employee task filters until the status is re-enabled.
 $allowed_statuses = ['Open','In Progress','Resolved'];
 
-if (!$show_department_filter || $company_email !== '@leadsagri.com' || !in_array($department, $allowed_departments, true)) {
+$selected_company_departments = $allowed_departments_by_company[$company_email] ?? [];
+if (
+    !$show_department_filter
+    || !array_key_exists($company_email, $allowed_departments_by_company)
+    || !in_array($department, $selected_company_departments, true)
+) {
     $department = '';
 }
 if (!array_key_exists((string) $company_email, $company_filter_options)) {
@@ -276,9 +284,16 @@ if ($department !== '') {
 }
 
 if ($company_email !== '') {
-    $where[] = "LOWER($sourceCompanyExpr) = ?";
-    $params[] = strtolower((string) $company_email);
-    $types .= "s";
+    if ($company_email === 'farmex_lav') {
+        $where[] = "(LOWER($sourceCompanyExpr) = ? OR LOWER($sourceCompanyExpr) = ?)";
+        $params[] = '@leads-farmex.com';
+        $params[] = '@leadsav.com';
+        $types .= "ss";
+    } else {
+        $where[] = "LOWER($sourceCompanyExpr) = ?";
+        $params[] = strtolower((string) $company_email);
+        $types .= "s";
+    }
 }
 
 if ($status !== '') {
@@ -821,6 +836,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 margin-top: 12px;
             }
         }
+
     </style>
 </head>
 <body class="employee-my-task-page">
@@ -853,7 +869,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                     <div class="filters-wrapper">
                         <div class="select-wrapper small">
                             <select name="company_email" class="filter-select" id="filterCompany">
-                                <option value="" <?= $company_email === '' ? 'selected' : '' ?>>All Company</option>
+                                <option value="" <?= $company_email === '' ? 'selected' : '' ?> hidden>All Company</option>
                                 <?php foreach ($company_filter_options as $companyValue => $companyLabel): ?>
                                     <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $company_email === $companyValue ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
                                 <?php endforeach; ?>
@@ -861,10 +877,11 @@ $showing_to = min($offset + $limit, (int) $total_records);
                         </div>
 
                         <?php if ($show_department_filter): ?>
-                        <div class="select-wrapper small department-filter-wrap <?= $company_email === '@leadsagri.com' ? '' : 'is-hidden' ?>" id="filterDepartmentWrap">
-                            <select name="department" class="filter-select" id="filterDepartment" <?= $company_email === '@leadsagri.com' ? '' : 'disabled' ?>>
+                        <?php $department_filter_options = $allowed_departments_by_company[$company_email] ?? []; ?>
+                        <div class="select-wrapper small department-filter-wrap <?= array_key_exists($company_email, $allowed_departments_by_company) ? '' : 'is-hidden' ?>" id="filterDepartmentWrap">
+                            <select name="department" class="filter-select" id="filterDepartment" <?= array_key_exists($company_email, $allowed_departments_by_company) ? '' : 'disabled' ?>>
                                 <option value="" <?= $department === '' ? 'selected' : '' ?>>All Department</option>
-                                <?php foreach ($allowed_departments as $d): ?>
+                                <?php foreach ($department_filter_options as $d): ?>
                                     <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $department === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                                 <?php endforeach; ?>
                             </select>
@@ -1153,18 +1170,36 @@ $showing_to = min($offset + $limit, (int) $total_records);
             refreshTasks(currentTasksPage, false);
         }
 
+        var taskDepartmentOptionsByCompany = {
+            '@leadsagri.com': <?= json_encode(array_values($lapc_departments), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>,
+            '@malvedaholdings.com': <?= json_encode(array_values($mhc_departments), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>
+        };
+
         function syncTaskDepartmentFilter() {
             var companyEl = document.getElementById('filterCompany');
             var departmentEl = document.getElementById('filterDepartment');
             var departmentWrapEl = document.getElementById('filterDepartmentWrap');
             if (!companyEl || !departmentEl || !departmentWrapEl) return;
             var selectedCompany = String(companyEl.value || '').toLowerCase();
-            var isLapc = selectedCompany === '@leadsagri.com';
-            if (!isLapc) {
+            var options = taskDepartmentOptionsByCompany[selectedCompany] || [];
+            var hasDepartmentFilter = options.length > 0;
+            var previousValue = String(departmentEl.value || '');
+            if (!hasDepartmentFilter) {
                 departmentEl.value = '';
             }
-            departmentWrapEl.classList.toggle('is-hidden', !isLapc);
-            departmentEl.disabled = !isLapc;
+            departmentEl.innerHTML = '<option value="">All Department</option>';
+            options.forEach(function (label) {
+                var option = document.createElement('option');
+                option.value = label;
+                option.textContent = label;
+                if (label === previousValue) option.selected = true;
+                departmentEl.appendChild(option);
+            });
+            if (hasDepartmentFilter && previousValue && options.indexOf(previousValue) === -1) {
+                departmentEl.value = '';
+            }
+            departmentWrapEl.classList.toggle('is-hidden', !hasDepartmentFilter);
+            departmentEl.disabled = !hasDepartmentFilter;
         }
 
         if (searchInput) {

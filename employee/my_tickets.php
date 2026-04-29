@@ -1865,6 +1865,7 @@ $successMessage = '';
                                         <div class="ticket-action-buttons">
                                         <?php if (can_follow_up_ticket_status((string) ($row['status'] ?? ''))): ?>
                                             <?php
+                                                $followUpSendCount = (int) ($row['follow_up_stage'] ?? $row['follow_up_send_count'] ?? 0);
                                                 $followUpInCooldown = !empty($row['follow_up_in_cooldown']);
                                                 $followUpAvailableAt = trim((string) ($row['follow_up_available_at'] ?? ''));
                                                 $followUpAvailableTs = 0;
@@ -1880,6 +1881,7 @@ $successMessage = '';
                                                     ? follow_up_cooldown_label_from_remaining_seconds($followUpRemainingSeconds)
                                                     : '';
                                             ?>
+                                            <?php if (!($followUpSendCount <= 0 && $followUpInCooldown)): ?>
                                             <button
                                                 type="button"
                                                 class="follow-up-btn<?= $followUpInCooldown ? ' is-sent follow-up-cooldown' : ''; ?>"
@@ -1891,6 +1893,7 @@ $successMessage = '';
                                                 <?= $followUpInCooldown ? 'data-remaining-seconds="' . $followUpRemainingSeconds . '"' : ''; ?>
                                                 <?= $followUpInCooldown && $followUpCooldownLabel !== '' ? 'data-cooldown-label="' . htmlspecialchars($followUpCooldownLabel, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>
                                             ><?= $followUpInCooldown ? 'Follow Up Sent' : 'Follow Up'; ?></button>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                         <?php if (can_requester_close_ticket_status((string) ($row['status'] ?? ''))): ?>
                                             <form method="POST" action="my_tickets.php" class="close-ticket-form">

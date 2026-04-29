@@ -102,7 +102,12 @@ if ($limit < 1) $limit = 1;
 if ($limit > 100) $limit = 100;
 $offset = ($page - 1) * $limit;
 
-$allowed_departments = ticket_lapc_departments();
+$lapc_departments = ticket_lapc_departments();
+$mhc_departments = ['Marketing Creatives'];
+$allowed_departments_by_company = [
+    '@leadsagri.com' => $lapc_departments,
+    '@malvedaholdings.com' => $mhc_departments,
+];
 $company_filter_options = [
     '@leads-farmex.com' => 'FARMEX (@leads-farmex.com)',
     '@farmasee.ph' => 'FARMASEE (@farmasee.ph)',
@@ -119,7 +124,8 @@ $company_filter_options = [
 ];
 // Temporarily hide "Closed" from employee task filters until the status is re-enabled.
 $allowed_statuses = ['Open', 'In Progress', 'Resolved'];
-if ($company_email !== '@leadsagri.com' || !in_array($department, $allowed_departments, true)) $department = '';
+$selected_company_departments = $allowed_departments_by_company[$company_email] ?? [];
+if (!array_key_exists($company_email, $allowed_departments_by_company) || !in_array($department, $selected_company_departments, true)) $department = '';
 if (!array_key_exists($company_email, $company_filter_options)) $company_email = '';
 if (!in_array($status, $allowed_statuses, true)) $status = '';
 
