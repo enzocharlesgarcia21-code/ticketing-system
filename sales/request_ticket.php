@@ -1896,11 +1896,17 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             outline: none;
             background: #eef7ef;
         }
+<<<<<<< HEAD
         body.sales-request-ticket-page .recipient-dropdown-option.is-selected,
         body.sales-request-ticket-page .department-dropdown-option.is-selected,
         body.sales-request-ticket-page .priority-dropdown-option.is-selected {
             background: #1B5E20;
             color: #ffffff;
+=======
+        body.sales-request-ticket-page .department-dropdown-option.is-selected {
+            background: #f8fafc;
+            color: #0f172a;
+>>>>>>> 862e7c8a09880196d16a251e2da5f65289bc9b4d
             font-weight: 400;
         }
         body.sales-request-ticket-page .category-dropdown-option {
@@ -4008,10 +4014,17 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
 
             <div class="request-grid-row is-single" id="recipientRow">
                 <div class="form-group" id="recipientGroup">
+<<<<<<< HEAD
                     <label>Subsidiaries <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper recipient-dropdown" id="recipientDropdown">
                         <select name="company_id" id="ticket_recipient" class="form-control recipient-native-select" required>
                             <option value="" disabled <?= $normalized_company_id === '' ? 'selected' : '' ?> hidden>Select a company</option>
+=======
+                    <label>Assign to <span class="required-asterisk">*</span></label>
+                    <div class="select-wrapper">
+                        <select name="company_id" id="ticket_recipient" class="form-control" required>
+                            <option value="" disabled selected hidden>Select Recipient</option>
+>>>>>>> 862e7c8a09880196d16a251e2da5f65289bc9b4d
                             <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
                                 <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (normalize_sales_recipient_company((string) ($company_id ?? '')) === $companyValue) ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
