@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 
 header('Content-Type: application/json');
@@ -45,6 +46,11 @@ function can_follow_up_ticket_status(string $status): bool
 {
     $status = strtoupper(trim($status));
     return $status === 'OPEN' || $status === 'IN PROGRESS';
+}
+
+function can_requester_close_ticket_status(string $status): bool
+{
+    return trim($status) === 'Resolved';
 }
 
 function follow_up_ensure_cooldown_columns(mysqli $conn): void
@@ -228,6 +234,27 @@ function follow_up_button_html(array $row): string
     return '<button type="button" class="' . $class . '" data-ticket-id="' . $ticketId . '" aria-label="' . h($aria) . '"' . $attrs . '>' . $label . '</button>';
 }
 
+function close_ticket_button_html(array $row): string
+{
+    if (!can_requester_close_ticket_status((string) ($row['status'] ?? ''))) {
+        return '';
+    }
+
+    $ticketId = (int) ($row['id'] ?? 0);
+    if ($ticketId <= 0) {
+        return '';
+    }
+
+    return '<form method="POST" action="my_tickets.php" class="close-ticket-form">'
+        . csrf_field()
+        . '<input type="hidden" name="action" value="close_ticket">'
+        . '<input type="hidden" name="ticket_id" value="' . $ticketId . '">'
+        . '<button type="submit" class="close-ticket-btn" aria-label="Close ticket #' . $ticketId . '">'
+        . '<span>Close Ticket</span>'
+        . '</button>'
+        . '</form>';
+}
+
 ticket_apply_sla_priority($conn);
 follow_up_ensure_cooldown_columns($conn);
 
@@ -310,9 +337,10 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '<td data-label="Status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', (string) ($row['status'] ?? ''))) . '">' . h((string) ($row['status'] ?? '')) . '</span></td>';
         $rowsHtml .= '<td data-label="Passed To">' . h(submitted_ticket_target_label($row)) . '</td>';
         $rowsHtml .= '<td data-label="Date">' . h(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now')))) . '</td>';
-        $rowsHtml .= '<td data-label="Action" class="follow-up-cell">';
+        $rowsHtml .= '<td data-label="Action" class="follow-up-cell"><div class="ticket-action-buttons">';
         $rowsHtml .= follow_up_button_html($row);
-        $rowsHtml .= '</td>';
+        $rowsHtml .= close_ticket_button_html($row);
+        $rowsHtml .= '</div></td>';
         $rowsHtml .= '</tr>';
     }
 } else {

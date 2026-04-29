@@ -9,6 +9,11 @@ function can_follow_up_ticket_status(string $status): bool
     return $status === 'OPEN' || $status === 'IN PROGRESS';
 }
 
+function can_requester_close_ticket_status(string $status): bool
+{
+    return trim($status) === 'Resolved';
+}
+
 function submitted_ticket_target_label(array $row): string
 {
     $assignedCompanyRaw = (string) (($row['assigned_company'] ?? '') !== '' ? $row['assigned_company'] : ($row['company'] ?? ''));
@@ -780,7 +785,64 @@ ticket_apply_sla_priority($conn);
 follow_up_ensure_cooldown_columns($conn);
 
 $user_id = (int) $_SESSION['user_id'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'close_ticket') {
+    csrf_validate();
+
+    $ticketId = (int) ($_POST['ticket_id'] ?? 0);
+    $flashType = 'error';
+    $flashMessage = 'Only resolved tickets can be closed.';
+
+    if ($ticketId > 0) {
+        $ticketStmt = $conn->prepare("
+            SELECT id, status
+            FROM employee_tickets
+            WHERE id = ?
+              AND user_id = ?
+            LIMIT 1
+        ");
+        if ($ticketStmt) {
+            $ticketStmt->bind_param("ii", $ticketId, $user_id);
+            $ticketStmt->execute();
+            $ticketRes = $ticketStmt->get_result();
+            $ticket = $ticketRes ? $ticketRes->fetch_assoc() : null;
+            $ticketStmt->close();
+
+            if ($ticket && can_requester_close_ticket_status((string) ($ticket['status'] ?? ''))) {
+                $updateStmt = $conn->prepare("
+                    UPDATE employee_tickets
+                    SET status = 'Closed',
+                        updated_at = NOW(),
+                        resolved_at = IFNULL(resolved_at, NOW())
+                    WHERE id = ?
+                      AND user_id = ?
+                      AND status = 'Resolved'
+                    LIMIT 1
+                ");
+                if ($updateStmt) {
+                    $updateStmt->bind_param("ii", $ticketId, $user_id);
+                    $updateStmt->execute();
+                    if ($updateStmt->affected_rows > 0) {
+                        $flashType = 'success';
+                        $flashMessage = 'Ticket closed successfully.';
+                    }
+                    $updateStmt->close();
+                }
+            }
+        }
+    }
+
+    $_SESSION['my_tickets_flash'] = [
+        'type' => $flashType,
+        'message' => $flashMessage,
+    ];
+    header("Location: my_tickets.php");
+    exit();
+}
 follow_up_sync_user_ticket_cooldowns($conn, $user_id);
+$myTicketsFlash = isset($_SESSION['my_tickets_flash']) && is_array($_SESSION['my_tickets_flash']) ? $_SESSION['my_tickets_flash'] : null;
+if ($myTicketsFlash !== null) {
+    unset($_SESSION['my_tickets_flash']);
+}
 $feedbackFlash = isset($_SESSION['feedback_flash']) && is_array($_SESSION['feedback_flash']) ? $_SESSION['feedback_flash'] : null;
 if ($feedbackFlash !== null) {
     unset($_SESSION['feedback_flash']);
@@ -948,6 +1010,17 @@ $successMessage = '';
             text-align: center;
             overflow: visible;
         }
+        body.employee-my-tickets-page .ticket-action-buttons {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        body.employee-my-tickets-page .close-ticket-form {
+            margin: 0;
+            display: inline-flex;
+        }
         body.employee-my-tickets-page .follow-up-btn {
             display: inline-flex;
             align-items: center;
@@ -970,6 +1043,108 @@ $successMessage = '';
         body.employee-my-tickets-page .follow-up-btn:hover {
             transform: translateY(-1px);
             box-shadow: 0 14px 24px rgba(22, 96, 42, 0.24);
+        }
+        body.employee-my-tickets-page .close-ticket-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            min-width: 124px;
+            min-height: 38px;
+            padding: 0 18px;
+            border: 1px solid #bfdbfe;
+            border-radius: 999px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            box-shadow: none;
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+        }
+        body.employee-my-tickets-page .close-ticket-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(29, 78, 216, 0.12);
+        }
+        body.employee-my-tickets-page .close-ticket-btn:disabled {
+            opacity: 0.72;
+            cursor: wait;
+            transform: none;
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-overlay {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(15, 23, 42, 0.52);
+            backdrop-filter: blur(8px);
+            z-index: 10070;
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-overlay.is-visible {
+            display: flex;
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-dialog {
+            width: min(100%, 440px);
+            background: #ffffff;
+            border: 1px solid rgba(203, 213, 225, 0.9);
+            border-radius: 22px;
+            box-shadow: 0 28px 80px rgba(15, 23, 42, 0.24);
+            overflow: hidden;
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-body {
+            padding: 30px 30px 26px;
+            text-align: center;
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-title {
+            margin: 0 0 10px;
+            color: #0f172a;
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-text {
+            margin: 0;
+            color: #5b6b80;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding-top: 24px;
+            flex-wrap: wrap;
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-cancel,
+        body.employee-my-tickets-page .close-ticket-confirm-submit {
+            min-width: 130px;
+            min-height: 44px;
+            border-radius: 999px;
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-cancel {
+            border: 1px solid #dbe4ee;
+            background: #ffffff;
+            color: #334155;
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-submit {
+            border: 1px solid #bfdbfe;
+            background: #dbeafe;
+            color: #1d4ed8;
+            box-shadow: none;
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-cancel:hover,
+        body.employee-my-tickets-page .close-ticket-confirm-submit:hover {
+            transform: translateY(-1px);
+        }
+        body.employee-my-tickets-page .close-ticket-confirm-submit:hover {
+            box-shadow: 0 8px 18px rgba(29, 78, 216, 0.12);
         }
         body.employee-my-tickets-page .follow-up-btn:disabled {
             opacity: 0.7;
@@ -1643,6 +1818,12 @@ $successMessage = '';
                 <h1 class="page-title">My Submitted Tickets</h1>
             </div>
 
+            <?php if ($myTicketsFlash !== null): ?>
+                <div class="feedback-flash <?= (($myTicketsFlash['type'] ?? '') === 'success') ? 'is-success' : 'is-error'; ?>">
+                    <?= htmlspecialchars((string) ($myTicketsFlash['message'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                </div>
+            <?php endif; ?>
+
             <div class="table-card my-tickets-card">
                 <div class="my-tickets-table-shell">
                 <div class="table-responsive my-tickets-table-responsive">
@@ -1681,6 +1862,7 @@ $successMessage = '';
                                     <td data-label="Passed To"><?= htmlspecialchars(submitted_ticket_target_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td data-label="Date"><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
                                     <td data-label="Action" class="follow-up-cell">
+                                        <div class="ticket-action-buttons">
                                         <?php if (can_follow_up_ticket_status((string) ($row['status'] ?? ''))): ?>
                                             <?php
                                                 $followUpInCooldown = !empty($row['follow_up_in_cooldown']);
@@ -1710,6 +1892,17 @@ $successMessage = '';
                                                 <?= $followUpInCooldown && $followUpCooldownLabel !== '' ? 'data-cooldown-label="' . htmlspecialchars($followUpCooldownLabel, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>
                                             ><?= $followUpInCooldown ? 'Follow Up Sent' : 'Follow Up'; ?></button>
                                         <?php endif; ?>
+                                        <?php if (can_requester_close_ticket_status((string) ($row['status'] ?? ''))): ?>
+                                            <form method="POST" action="my_tickets.php" class="close-ticket-form">
+                                                <?= csrf_field(); ?>
+                                                <input type="hidden" name="action" value="close_ticket">
+                                                <input type="hidden" name="ticket_id" value="<?= (int) $row['id']; ?>">
+                                                <button type="submit" class="close-ticket-btn" aria-label="Close ticket #<?= (int) $row['id']; ?>">
+                                                    <span>Close Ticket</span>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                        </div>
                                     </td>
                                 </tr>
                                 <?php endwhile; ?>
@@ -1772,6 +1965,20 @@ $successMessage = '';
                 <p id="followUpFeedbackText" class="follow-up-feedback-text">Follow up sent successfully.</p>
                 <div class="follow-up-feedback-actions">
                     <button type="button" id="followUpFeedbackBtn" class="follow-up-feedback-btn">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="closeTicketConfirmOverlay" class="close-ticket-confirm-overlay" aria-hidden="true">
+        <div class="close-ticket-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="closeTicketConfirmTitle">
+            <div class="close-ticket-confirm-body">
+                <h2 id="closeTicketConfirmTitle" class="close-ticket-confirm-title">Close Ticket?</h2>
+                <p class="close-ticket-confirm-text">
+                    Do you want to close this ticket? This means your issue is already resolved.
+                </p>
+                <div class="close-ticket-confirm-actions">
+                    <button type="button" id="closeTicketConfirmBtn" class="close-ticket-confirm-submit">Yes</button>
+                    <button type="button" id="closeTicketCancelBtn" class="close-ticket-confirm-cancel">No</button>
                 </div>
             </div>
         </div>
@@ -1908,6 +2115,10 @@ $successMessage = '';
     var followUpFeedbackClose = document.getElementById('followUpFeedbackClose');
     var followUpFeedbackState = '';
     var followUpCooldownTimers = {};
+    var closeTicketConfirmOverlay = document.getElementById('closeTicketConfirmOverlay');
+    var closeTicketCancelBtn = document.getElementById('closeTicketCancelBtn');
+    var closeTicketConfirmBtn = document.getElementById('closeTicketConfirmBtn');
+    var pendingCloseTicketForm = null;
     var feedbackModal = document.getElementById('feedbackModalOverlay');
     var feedbackStarsWrap = document.getElementById('feedbackStars');
     var feedbackCloseBtn = document.getElementById('feedbackModalCloseBtn');
@@ -2159,6 +2370,39 @@ $successMessage = '';
         followUpFeedbackOverlay.setAttribute('aria-hidden', 'true');
     }
 
+    function openCloseTicketConfirm(formEl) {
+        if (!closeTicketConfirmOverlay || !closeTicketConfirmBtn) {
+            return false;
+        }
+        pendingCloseTicketForm = formEl;
+        closeTicketConfirmOverlay.classList.add('is-visible');
+        closeTicketConfirmOverlay.setAttribute('aria-hidden', 'false');
+        window.setTimeout(function () {
+            try { closeTicketConfirmBtn.focus(); } catch (e) {}
+        }, 0);
+        return true;
+    }
+
+    function closeCloseTicketConfirm() {
+        if (!closeTicketConfirmOverlay) return;
+        pendingCloseTicketForm = null;
+        closeTicketConfirmOverlay.classList.remove('is-visible');
+        closeTicketConfirmOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function submitPendingCloseTicket() {
+        if (!pendingCloseTicketForm) return;
+        var formEl = pendingCloseTicketForm;
+        var submitBtn = formEl.querySelector('.close-ticket-btn');
+        formEl.setAttribute('data-confirmed-close', '1');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span>Closing...</span>';
+        }
+        closeCloseTicketConfirm();
+        formEl.submit();
+    }
+
     function showFollowUpFeedback(kind, title, message) {
         if (!followUpFeedbackOverlay || !followUpFeedbackDialog || !followUpFeedbackTitle || !followUpFeedbackText || !followUpFeedbackIcon) {
             return;
@@ -2313,6 +2557,12 @@ $successMessage = '';
             return;
         }
 
+        var closeTicketBtn = e.target && e.target.closest ? e.target.closest('.close-ticket-btn') : null;
+        if (closeTicketBtn) {
+            e.stopPropagation();
+            return;
+        }
+
         var row = e.target && e.target.closest ? e.target.closest('.ticket-row') : null;
         if (row && row.getAttribute) {
             var id = row.getAttribute('data-id');
@@ -2328,6 +2578,22 @@ $successMessage = '';
         }
     });
 
+    document.addEventListener('submit', function (e) {
+        var closeTicketForm = e.target && e.target.closest ? e.target.closest('.close-ticket-form') : null;
+        if (!closeTicketForm) return;
+        e.stopPropagation();
+        if (closeTicketForm.getAttribute('data-confirmed-close') !== '1') {
+            e.preventDefault();
+            openCloseTicketConfirm(closeTicketForm);
+            return;
+        }
+        var submitBtn = closeTicketForm.querySelector('.close-ticket-btn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span>Closing...</span>';
+        }
+    });
+
     var modal = document.getElementById('ticketModal');
     modal.addEventListener('click', function(e){ if(e.target === modal) TMTicketModal.close(); });
     if (followUpFeedbackBtn) {
@@ -2340,6 +2606,19 @@ $successMessage = '';
         followUpFeedbackOverlay.addEventListener('click', function (e) {
             if (e.target === followUpFeedbackOverlay) {
                 closeFollowUpFeedback();
+            }
+        });
+    }
+    if (closeTicketCancelBtn) {
+        closeTicketCancelBtn.addEventListener('click', closeCloseTicketConfirm);
+    }
+    if (closeTicketConfirmBtn) {
+        closeTicketConfirmBtn.addEventListener('click', submitPendingCloseTicket);
+    }
+    if (closeTicketConfirmOverlay) {
+        closeTicketConfirmOverlay.addEventListener('click', function (e) {
+            if (e.target === closeTicketConfirmOverlay) {
+                closeCloseTicketConfirm();
             }
         });
     }
@@ -2384,6 +2663,9 @@ $successMessage = '';
         }
         if (e.key === 'Escape' && followUpFeedbackOverlay && followUpFeedbackOverlay.classList.contains('is-visible')) {
             closeFollowUpFeedback();
+        }
+        if (e.key === 'Escape' && closeTicketConfirmOverlay && closeTicketConfirmOverlay.classList.contains('is-visible')) {
+            closeCloseTicketConfirm();
         }
     });
     window.TM_ON_TICKET_MODAL_CLOSE = function (ticketMeta) {

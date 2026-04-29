@@ -261,7 +261,7 @@ $result = $stmt->get_result();
 <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        .at-layout { width: 100%; max-width: 1560px; display: flex; gap: 18px; align-items: flex-start; }
+        .at-layout { width: 100%; max-width: 1560px; min-width: 0; display: flex; gap: 18px; align-items: flex-start; }
         .at-sidebar { width: 260px; flex: 0 0 260px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; box-shadow: 0 4px 10px rgba(2,6,23,0.04); position: static; top: auto; min-height: 580px; height: auto; display: flex; flex-direction: column; align-self: flex-start; }
         .at-sidebar-section + .at-sidebar-section { margin-top: 16px; }
         .at-sidebar-title { font-size: 12px; font-weight: 800; color: #475569; display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 8px; text-transform: none; }
@@ -276,31 +276,40 @@ $result = $stmt->get_result();
         .at-sidebar-count { min-width: 28px; height: 22px; padding: 0 8px; border-radius: 999px; background: #f1f5f9; color: #334155; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
         .at-sidebar-link.active .at-sidebar-count { background: #1b5e20; color: #ffffff; }
         .at-sidebar-link.disabled { opacity: 0.45; pointer-events: none; }
-        .at-main { flex: 1 1 auto; min-width: 0; }
-        .at-main .admin-content { max-width: none; }
+        .at-main { flex: 1 1 auto; min-width: 0; max-width: 100%; }
+        .at-main .admin-content { max-width: none; min-width: 0; }
+        .at-main .admin-card { max-width: 100%; min-width: 0; }
         #filterForm .filter-row {
+            display: flex;
             gap: 8px;
             align-items: center;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
+            width: 100%;
+            min-width: 0;
         }
         #filterForm .filter-input {
-            flex: 1 1 280px;
-            min-width: 280px;
+            flex: 1 1 260px;
+            min-width: 220px;
+            max-width: 100%;
         }
         #filterForm .filter-select {
             min-width: 0;
             padding: 10px 26px 10px 10px;
-            flex: 0 0 auto;
+            flex: 1 1 150px;
+            max-width: 100%;
         }
-        #filterForm #recipientFilterSelect { width: 290px; }
-        #filterForm #departmentFilterSelect { width: 340px; }
-        #filterForm select[name="priority"] { width: 128px; }
-        #filterForm select[name="status"] { width: 128px; }
+        #filterForm #recipientFilterSelect { flex-basis: 220px; }
+        #filterForm #departmentFilterSelect { width: 100%; }
+        #filterForm select[name="priority"] { flex: 0 1 132px; }
+        #filterForm select[name="status"] { flex: 0 1 132px; }
         #filterForm .clear-btn {
+            flex: 0 0 auto;
             margin-left: 0;
         }
         #filterForm .lapc-department-filter {
-            flex: 0 0 auto;
+            flex: 1 1 260px;
+            min-width: 220px;
+            max-width: 360px;
         }
         #filterForm .lapc-department-filter.is-hidden {
             display: none;
@@ -414,16 +423,41 @@ $result = $stmt->get_result();
             border-color: #e5e7eb !important;
             color: #4b5563 !important;
         }
+        .table-card {
+            overflow: hidden;
+        }
+        .table-responsive {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+        }
+        .admin-table {
+            width: 100%;
+            min-width: 1040px;
+        }
         @media (max-width: 1100px) {
             .at-sidebar { display: none; }
             .at-layout { max-width: 1200px; }
-            #filterForm .filter-row { flex-wrap: wrap; }
             .table-footer-bar {
                 flex-wrap: wrap;
                 justify-content: center;
             }
         }
         @media (max-width: 768px) {
+            .admin-container {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+            #filterForm .filter-input,
+            #filterForm .filter-select,
+            #filterForm .lapc-department-filter,
+            #filterForm .clear-btn {
+                flex: 1 1 100%;
+                width: 100%;
+            }
+            .admin-table {
+                min-width: 0;
+            }
             .table-footer-bar {
                 flex-direction: column;
                 align-items: center;

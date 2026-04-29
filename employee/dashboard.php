@@ -38,8 +38,7 @@ if ($userQuery && $row = $userQuery->fetch_assoc()) {
 /* Ticket Counts (tickets created by this employee) */
 $dept = (string) ($_SESSION['department'] ?? '');
 
-// Temporarily exclude closed tickets from the employee dashboard total.
-$countStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status <> 'Closed'");
+$countStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND COALESCE(NULLIF(status,''),'') <> 'Trash'");
 $countStmt->bind_param("i", $user_id);
 $countStmt->execute();
 $total = (int) (($countStmt->get_result()->fetch_assoc()['count'] ?? 0));
@@ -63,12 +62,19 @@ $resolvedStmt->execute();
 $resolved = (int) (($resolvedStmt->get_result()->fetch_assoc()['count'] ?? 0));
 $resolvedStmt->close();
 
+$closedStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status = 'Closed'");
+$closedStmt->bind_param("i", $user_id);
+$closedStmt->execute();
+$closed = (int) (($closedStmt->get_result()->fetch_assoc()['count'] ?? 0));
+$closedStmt->close();
+
 
 /* Recent Tickets (created by this employee) */
 $recentStmt = $conn->prepare("
     SELECT id, subject, category, status, created_at
     FROM employee_tickets
     WHERE user_id = ?
+      AND COALESCE(NULLIF(status,''),'') <> 'Trash'
     ORDER BY created_at DESC
     LIMIT 5
 ");
@@ -92,7 +98,7 @@ $receivedStmt = $conn->prepare("
     FROM employee_tickets t
     LEFT JOIN users u ON u.id = t.user_id
     WHERE t.user_id <> ?
-      AND t.status <> 'Closed'
+      AND COALESCE(NULLIF(t.status,''),'') <> 'Trash'
     ORDER BY t.created_at DESC
     LIMIT 80
 ");
@@ -395,6 +401,7 @@ function dashboard_ticket_category(array $row): string
             box-shadow: none;
         }
 
+<<<<<<< HEAD
         body.employee-dashboard-page {
             background: #f8fafc;
         }
@@ -485,7 +492,7 @@ function dashboard_ticket_category(array $row): string
 
         body.employee-dashboard-page .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 18px;
             margin: 10px 0 0;
         }
@@ -513,6 +520,11 @@ function dashboard_ticket_category(array $row): string
         body.employee-dashboard-page .stat-card.resolved .stat-icon {
             background: #dcfce7;
             color: #11651f;
+        }
+
+        body.employee-dashboard-page .stat-card.closed .stat-icon {
+            background: #e0e7ff;
+            color: #1e40af;
         }
 
         body.employee-dashboard-page .stat-card.open .stat-icon {
@@ -643,6 +655,176 @@ function dashboard_ticket_category(array $row): string
             font-weight: 700;
         }
 
+=======
+        body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
+            width: min(100%, 980px);
+            border-radius: 34px;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header {
+            padding: 34px 34px 22px;
+            background: #ffffff;
+            color: #0f172a;
+            text-align: center;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-close-btn {
+            top: 28px;
+            right: 28px;
+            width: 54px;
+            height: 54px;
+            background: #f8fafc;
+            color: #475569;
+            border: 1px solid #e5e7eb;
+            font-size: 24px;
+        }
+
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-close-btn:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        body.employee-dashboard-page .feedback-success-hero {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 132px;
+            margin-bottom: 10px;
+        }
+
+        body.employee-dashboard-page .feedback-success-burst {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        body.employee-dashboard-page .feedback-success-dot,
+        body.employee-dashboard-page .feedback-success-spark {
+            position: absolute;
+            color: #86efac;
+        }
+
+        body.employee-dashboard-page .feedback-success-dot.dot-1 { top: 18px; left: 22%; font-size: 16px; }
+        body.employee-dashboard-page .feedback-success-dot.dot-2 { top: 86px; left: 27%; font-size: 12px; }
+        body.employee-dashboard-page .feedback-success-dot.dot-3 { top: 76px; right: 25%; font-size: 13px; }
+        body.employee-dashboard-page .feedback-success-dot.dot-4 { top: 42px; right: 20%; font-size: 14px; }
+        body.employee-dashboard-page .feedback-success-spark.spark-1 { top: 52px; left: 19%; font-size: 26px; }
+        body.employee-dashboard-page .feedback-success-spark.spark-2 { top: 24px; right: 24%; font-size: 22px; }
+
+        body.employee-dashboard-page .feedback-success-icon {
+            width: 118px;
+            height: 118px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 50% 35%, rgba(255,255,255,0.98) 0%, rgba(236,253,245,0.92) 58%, rgba(220,252,231,0.94) 100%);
+            border: 3px solid rgba(134, 239, 172, 0.9);
+            color: #00b833;
+            font-size: 62px;
+            box-shadow: 0 0 0 18px rgba(220, 252, 231, 0.6), 0 22px 42px rgba(22, 163, 74, 0.16);
+        }
+
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-title {
+            font-size: clamp(46px, 4.2vw, 68px);
+            line-height: 1.02;
+            letter-spacing: 0;
+            color: #006d2c;
+            margin-top: 6px;
+        }
+
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-subtitle {
+            margin-top: 12px;
+            font-size: clamp(24px, 2vw, 32px);
+            line-height: 1.28;
+            color: #4b5563;
+        }
+
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
+            padding: 26px 34px 34px;
+            display: grid;
+            gap: 22px;
+        }
+
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-flash.is-success {
+            margin: 0;
+            padding: 26px 28px;
+            border-radius: 24px;
+            border: 2px solid #d1fae5;
+            background: linear-gradient(135deg, #f8fffb 0%, #f0fdf4 100%);
+            display: grid;
+            grid-template-columns: 92px minmax(0, 1fr);
+            gap: 22px;
+            align-items: center;
+            color: #065f46;
+            font-size: 18px;
+            font-weight: 400;
+            line-height: 1.55;
+        }
+
+        body.employee-dashboard-page .feedback-success-message-icon {
+            width: 92px;
+            height: 92px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 50% 35%, #f0fdf4 0%, #dcfce7 100%);
+            color: #00a63a;
+            font-size: 46px;
+        }
+
+        body.employee-dashboard-page .feedback-success-message-copy strong {
+            display: inline;
+            color: #006d2c;
+            font-weight: 700;
+        }
+
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-actions {
+            justify-content: center;
+        }
+
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-submit-btn {
+            width: min(100%, 700px);
+            min-height: 88px;
+            border-radius: 24px;
+            font-size: 28px;
+            font-weight: 700;
+            box-shadow: 0 20px 38px rgba(22, 101, 52, 0.22);
+        }
+
+        @media (max-width: 768px) {
+            body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
+                width: min(100%, 94vw);
+                border-radius: 26px;
+            }
+
+            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header {
+                padding: 28px 22px 20px;
+            }
+
+            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
+                padding: 22px 22px 26px;
+            }
+
+            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-flash.is-success {
+                grid-template-columns: 1fr;
+                text-align: center;
+                justify-items: center;
+                padding: 22px 20px;
+            }
+
+            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-submit-btn {
+                min-height: 64px;
+                font-size: 22px;
+            }
+        }
+
+>>>>>>> 862e7c8a09880196d16a251e2da5f65289bc9b4d
         body.employee-dashboard-page .mobile-sidebar,
         body.employee-dashboard-page .mobile-sidebar-overlay {
             display: none;
@@ -1083,13 +1265,45 @@ function dashboard_ticket_category(array $row): string
         class="feedback-modal-overlay is-visible"
         aria-hidden="false"
     >
-        <div class="feedback-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
+        <div class="feedback-modal-dialog feedback-modal-dialog-success" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
             <div class="feedback-modal-header">
+<<<<<<< HEAD
                 <div class="feedback-modal-success-icon" aria-hidden="true">&#10003;</div>
                 <h2 id="feedbackModalTitle" class="feedback-modal-title">Feedback Submitted</h2>
                 <p class="feedback-modal-subtitle">Your feedback has been submitted.<br>Thank you for sharing your support experience.</p>
             </div>
             <div class="feedback-modal-body">
+=======
+                <button type="button" class="feedback-close-btn" id="feedbackModalCloseBtn" aria-label="Close feedback modal">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="feedback-success-hero" aria-hidden="true">
+                    <div class="feedback-success-burst">
+                        <span class="feedback-success-dot dot-1"><i class="fas fa-circle"></i></span>
+                        <span class="feedback-success-dot dot-2"><i class="fas fa-circle"></i></span>
+                        <span class="feedback-success-dot dot-3"><i class="fas fa-circle"></i></span>
+                        <span class="feedback-success-dot dot-4"><i class="fas fa-circle"></i></span>
+                        <span class="feedback-success-spark spark-1"><i class="fas fa-sparkles"></i></span>
+                        <span class="feedback-success-spark spark-2"><i class="fas fa-sparkles"></i></span>
+                    </div>
+                    <div class="feedback-success-icon">
+                        <i class="fas fa-check"></i>
+                    </div>
+                </div>
+                <h2 id="feedbackModalTitle" class="feedback-modal-title">Feedback Submitted</h2>
+                <p class="feedback-modal-subtitle">Thank you for sharing your experience.</p>
+            </div>
+            <div class="feedback-modal-body">
+                <div class="feedback-flash is-success">
+                    <div class="feedback-success-message-icon" aria-hidden="true">
+                        <i class="far fa-envelope"></i>
+                    </div>
+                    <div class="feedback-success-message-copy">
+                        <strong>Your feedback has been successfully</strong><br>
+                        <?= htmlspecialchars((string) $feedbackFlash['message'], ENT_QUOTES, 'UTF-8'); ?>
+                    </div>
+                </div>
+>>>>>>> 862e7c8a09880196d16a251e2da5f65289bc9b4d
                 <div class="feedback-actions">
                     <button type="button" class="feedback-submit-btn" id="feedbackModalDismissBtn">Done</button>
                 </div>
@@ -1155,6 +1369,15 @@ function dashboard_ticket_category(array $row): string
                     </div>
                     <div class="stat-label">Resolved</div>
                     <div class="stat-value"><?= $resolved ?></div>
+                </div>
+
+                <!-- Closed -->
+                <div class="stat-card closed">
+                    <div class="stat-icon">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <div class="stat-label">Closed</div>
+                    <div class="stat-value"><?= $closed ?></div>
                 </div>
 
             </div>
