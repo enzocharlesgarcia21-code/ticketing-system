@@ -401,7 +401,7 @@ function dashboard_ticket_category(array $row): string
             box-shadow: none;
         }
 
-<<<<<<< HEAD
+
         body.employee-dashboard-page {
             background: #f8fafc;
         }
@@ -655,7 +655,7 @@ function dashboard_ticket_category(array $row): string
             font-weight: 700;
         }
 
-=======
+
         body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
             width: min(100%, 980px);
             border-radius: 34px;
@@ -824,7 +824,6 @@ function dashboard_ticket_category(array $row): string
             }
         }
 
->>>>>>> 862e7c8a09880196d16a251e2da5f65289bc9b4d
         body.employee-dashboard-page .mobile-sidebar,
         body.employee-dashboard-page .mobile-sidebar-overlay {
             display: none;
@@ -1267,7 +1266,7 @@ function dashboard_ticket_category(array $row): string
     >
         <div class="feedback-modal-dialog feedback-modal-dialog-success" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
             <div class="feedback-modal-header">
-<<<<<<< HEAD
+
                 <div class="feedback-modal-success-icon" aria-hidden="true">&#10003;</div>
                 <h2 id="feedbackModalTitle" class="feedback-modal-title">Feedback Submitted</h2>
                 <p class="feedback-modal-subtitle">Your feedback has been submitted.<br>Thank you for sharing your support experience.</p>

@@ -853,7 +853,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $attachmentName = null;
     $uploadedFiles = [];
 
-    /* ================= FILE UPLOAD ================= */
+    
 
     if ($error_msg === '' && isset($_FILES['attachments']) && isset($_FILES['attachments']['name']) && is_array($_FILES['attachments']['name'])) {
         $maxBytes = 5 * 1024 * 1024;
@@ -996,7 +996,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    /* ================= GET/CREATE SALES GUEST USER ================= */
+    
 
     $sales_email = 'sales_guest@leadsagri.com';
     $user_id = null;
@@ -1049,7 +1049,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    /* ================= BASIC VALIDATION ================= */
+    
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error_msg = "A valid email is required.";
     } elseif ($company_id === '' || !in_array($company_id, $requestTicketCompanies, true)) {
@@ -1059,13 +1059,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } elseif ($description === '' && !($isLapcItEmailRequest && $email_request_type === 'creation of email')) {
         $error_msg = "Description is required.";
     }
-
-    /* ================= PREPARE DESCRIPTION ================= */
+ 
     
     $raw_description = $description;
     $full_description = "REQUESTER NAME: $name\nREQUESTER EMAIL: $email\n\nDESCRIPTION:\n$description";
 
-    /* ================= INSERT INTO DATABASE ================= */
+    
 
     if (empty($error_msg)) {
         $has_requester_cols = true;
@@ -1593,9 +1592,9 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
                 max-width: calc(100vw - 32px);
             }
 
-            .header { margin-bottom: 20px; }
-            .header h1 { font-size: 20px; margin-bottom: 6px; }
-            .header p { font-size: 14px; }
+            .sales-page-header { margin-bottom: 20px; }
+            .sales-page-header h1 { font-size: 20px; margin-bottom: 6px; }
+            .sales-page-header p { font-size: 14px; }
 
             .form-row {
                 display: flex;
@@ -1896,17 +1895,18 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             outline: none;
             background: #eef7ef;
         }
-<<<<<<< HEAD
+
         body.sales-request-ticket-page .recipient-dropdown-option.is-selected,
         body.sales-request-ticket-page .department-dropdown-option.is-selected,
         body.sales-request-ticket-page .priority-dropdown-option.is-selected {
             background: #1B5E20;
             color: #ffffff;
-=======
+            font-weight: 400;
+        }
+
         body.sales-request-ticket-page .department-dropdown-option.is-selected {
             background: #f8fafc;
             color: #0f172a;
->>>>>>> 862e7c8a09880196d16a251e2da5f65289bc9b4d
             font-weight: 400;
         }
         body.sales-request-ticket-page .category-dropdown-option {
@@ -1940,12 +1940,12 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
             overflow: visible;
         }
-        .header {
+        .sales-page-header {
             text-align: center;
             margin-bottom: 0;
             padding: 32px 16px 26px;
         }
-        .header h1 {
+        .sales-page-header h1 {
             color: #1B5E20;
             font-size: 22px;
             font-weight: 700;
@@ -1953,7 +1953,7 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             letter-spacing: 0;
             margin-bottom: 10px;
         }
-        .header p {
+        .sales-page-header p {
             color: #6b7280;
         }
         body.sales-request-ticket-page .form-card {
@@ -3871,7 +3871,7 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
                 border-radius: 14px;
                 max-width: calc(100vw - 32px);
             }
-            .header {
+            .sales-page-header {
                 padding: 24px 8px 18px;
             }
             body.sales-request-ticket-page .form-card {
@@ -3913,11 +3913,11 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
                 padding: 24px;
             }
 
-            .header {
+            .sales-page-header {
                 margin-bottom: 16px;
             }
 
-            .header h1 {
+            .sales-page-header h1 {
                 margin-bottom: 6px;
             }
 
@@ -3983,7 +3983,7 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
 </header>
 
 <div class="sales-container">
-    <div class="header">
+    <div class="sales-page-header">
         <h1>Create a Ticket </h1>
         <p>Please fill out the form below.</p>
     </div>
@@ -4014,17 +4014,10 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
 
             <div class="request-grid-row is-single" id="recipientRow">
                 <div class="form-group" id="recipientGroup">
-<<<<<<< HEAD
                     <label>Subsidiaries <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper recipient-dropdown" id="recipientDropdown">
                         <select name="company_id" id="ticket_recipient" class="form-control recipient-native-select" required>
                             <option value="" disabled <?= $normalized_company_id === '' ? 'selected' : '' ?> hidden>Select a company</option>
-=======
-                    <label>Assign to <span class="required-asterisk">*</span></label>
-                    <div class="select-wrapper">
-                        <select name="company_id" id="ticket_recipient" class="form-control" required>
-                            <option value="" disabled selected hidden>Select Recipient</option>
->>>>>>> 862e7c8a09880196d16a251e2da5f65289bc9b4d
                             <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
                                 <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (normalize_sales_recipient_company((string) ($company_id ?? '')) === $companyValue) ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
