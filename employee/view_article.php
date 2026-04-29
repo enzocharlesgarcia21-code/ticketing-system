@@ -36,6 +36,33 @@ if ($registered_view) {
 $article_image_urls = kb_resolve_asset_urls($article['image_path'] ?? '');
 $back_url = 'knowledge_base.php';
 
+function kb_article_category_label(string $category): string
+{
+    $category = trim((string) $category);
+    $key = strtolower($category);
+    $aliases = [
+        'technical support' => 'IT',
+        'hardware' => 'IT',
+        'hardware issue' => 'IT',
+        'hardware issues' => 'IT',
+        'software' => 'IT',
+        'software issue' => 'IT',
+        'software issues' => 'IT',
+        'email' => 'IT',
+        'email problem' => 'IT',
+        'internet concerns' => 'IT',
+        'network' => 'IT',
+        'network issue' => 'IT',
+        'network issues' => 'IT',
+        'printer' => 'IT',
+        'documentation' => 'Admin & Legal',
+        'documentations' => 'Admin & Legal',
+        'procurement' => 'Admin & Legal',
+        'others' => 'Management',
+    ];
+    return $aliases[$key] ?? ($category !== '' ? $category : 'IT');
+}
+
 // Fetch Related Articles
 $relatedStmt = $conn->prepare("
     SELECT k.id, k.title, k.category, " . kb_unique_views_count_sql('k.id') . " AS views
@@ -469,7 +496,7 @@ function renderArticleContent($text) {
             <div class="article-header">
                 <div class="article-meta">
                     <span class="category-badge">
-                        <?= htmlspecialchars($article['category']) ?>
+                        <?= htmlspecialchars(kb_article_category_label((string) ($article['category'] ?? '')), ENT_QUOTES, 'UTF-8') ?>
                     </span>
                     <span class="meta-info">
                         <i class="far fa-calendar"></i>
@@ -672,7 +699,7 @@ function renderArticleContent($text) {
                         <?php foreach ($relatedArticles as $rel): ?>
                             <a href="view_article.php?id=<?= $rel['id'] ?>" class="related-card" style="display: block; text-decoration: none; padding: 15px; border: 1px solid #E5E7EB; border-radius: 8px; transition: all 0.2s; background: #F9FAFB;">
                                 <div style="font-size: 12px; font-weight: 600; color: #059669; text-transform: uppercase; margin-bottom: 8px;">
-                                    <?= htmlspecialchars($rel['category']) ?>
+                                    <?= htmlspecialchars(kb_article_category_label((string) ($rel['category'] ?? '')), ENT_QUOTES, 'UTF-8') ?>
                                 </div>
                                 <div style="font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 6px; line-height: 1.4;">
                                     <?= htmlspecialchars($rel['title']) ?>

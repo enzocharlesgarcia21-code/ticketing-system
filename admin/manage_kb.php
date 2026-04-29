@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -6,6 +6,7 @@ error_reporting(E_ALL);
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/kb_media.php';
+require_once '../includes/ticket_assignment.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -47,6 +48,34 @@ $kb_department_categories = [
     'Technical',
     'Diagnostics / Lingap',
 ];
+$kb_company_departments = array_values(array_unique(array_merge(
+    $kb_department_categories,
+    ticket_standard_assigned_departments(),
+    ticket_lapc_departments(),
+    ticket_mhc_departments()
+)));
+$kb_default_ticket_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
+$kb_ticket_categories_by_department = [
+    'Admin & Legal' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
+    'HR' => [
+        'Attendance & Timekeeping',
+        'Certificate of Employment',
+        'Certificate of Leave',
+        'Leave Concern',
+        'Medical Cash Advance',
+        'Request for Company Property',
+        'SSS Sickness and Benefit Concern',
+        'Training Request',
+        'Others',
+    ],
+    'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Technical Support'],
+    'Marketing' => ['Marketing Request'],
+    'Accounting' => $kb_default_ticket_categories,
+    'Management' => $kb_default_ticket_categories,
+    'Technical' => $kb_default_ticket_categories,
+    'Diagnostics / Lingap' => $kb_default_ticket_categories,
+];
+$kb_all_allowed_departments = $kb_company_departments;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_validate();
@@ -58,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $session_token = trim((string) ($_SESSION['kb_add_submission_token'] ?? ''));
     $title = trim((string) ($_POST['title'] ?? ''));
     $category = trim((string) ($_POST['category'] ?? ''));
+    $custom_department = trim((string) ($_POST['custom_department'] ?? ''));
     $sub_category = trim((string) ($_POST['sub_category'] ?? ''));
     $content = trim((string) ($_POST['content'] ?? ''));
     $visible_to_sales = 1;
@@ -84,16 +114,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if ($error_msg === '') {
         $missing_fields = [];
         if ($title === '') $missing_fields[] = 'article title';
-        if ($category === '') $missing_fields[] = 'category';
+        if ($category === '') $missing_fields[] = 'department';
+        if ($category === '__other' && $custom_department === '') $missing_fields[] = 'specific department';
+        if ($sub_category === '') $missing_fields[] = 'category';
         if (!empty($missing_fields)) {
             $error_msg = 'Please fill in all required fields: ' . implode(', ', $missing_fields) . '.';
         }
     }
 
-    if ($error_msg === '' && !in_array($category, $kb_department_categories, true)) {
-        $error_msg = "Please select a valid category.";
+    if ($error_msg === '' && $category === '__other') {
+        $matched_department = '';
+        foreach ($kb_company_departments as $company_department) {
+            if (strcasecmp($custom_department, $company_department) === 0) {
+                $matched_department = $company_department;
+                break;
+            }
+        }
+        if ($matched_department === '') {
+            $error_msg = "Please enter a valid company department.";
+        } else {
+            $category = $matched_department;
+        }
     }
-    $sub_category = null;
+
+    if ($error_msg === '' && !in_array($category, $kb_all_allowed_departments, true)) {
+        $error_msg = "Please select a valid department.";
+    }
+    if ($error_msg === '') {
+        $allowed_sub_categories = $kb_ticket_categories_by_department[$category] ?? $kb_default_ticket_categories;
+        if (!in_array($sub_category, $allowed_sub_categories, true)) {
+            $error_msg = "Please select a valid category for the selected department.";
+        }
+    }
 
     if ($error_msg === '' && !empty($title) && !empty($category)) {
         
@@ -196,7 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     } else {
         if ($error_msg === '') {
-            $error_msg = "Article title and category are required.";
+            $error_msg = "Article title, department, and category are required.";
         }
     }
 }
@@ -1970,21 +2022,35 @@ unset($recent_articles_query['recent_page']);
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Category<span class="required-asterisk">*</span></label>
+                        <label class="form-label">Department<span class="required-asterisk">*</span></label>
                         <select name="category" class="form-control" id="kb-category-select" required>
-                            <option value=""disabled selected hidden>Select Category</option>
+                            <option value="" disabled selected hidden>Select Department</option>
                             <?php foreach ($categories as $cat): ?>
                                 <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
                             <?php endforeach; ?>
+                            <option value="__other">Other</option>
                         </select>
                         <input
                             type="text"
+                            name="custom_department"
+                            id="kb-custom-department"
+                            class="form-control"
+                            placeholder="Type company department"
+                            style="display:none; margin-top: 12px;"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Category<span class="required-asterisk">*</span></label>
+                        <select
                             name="sub_category"
                             id="kb-sub-category"
                             class="form-control"
-                            placeholder="Enter category (e.g. Printer)"
-                            style="display:none; margin-top: 12px;"
+                            required
+                            disabled
                         >
+                            <option value="" disabled selected hidden>Select department first</option>
+                        </select>
                     </div>
 
                     <div class="form-group">
@@ -2328,7 +2394,11 @@ document.addEventListener('click', function(e) {
     const kbImageInput = document.getElementById('kb-image-input');
     const kbImageDropzone = document.getElementById('kb-image-dropzone');
     const kbCategorySelect = document.getElementById('kb-category-select');
+    const kbCustomDepartment = document.getElementById('kb-custom-department');
     const kbSubCategory = document.getElementById('kb-sub-category');
+    const kbDepartmentTicketCategories = <?= json_encode($kb_ticket_categories_by_department, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    const kbDefaultTicketCategories = <?= json_encode($kb_default_ticket_categories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    const kbKnownCompanyDepartments = <?= json_encode($kb_company_departments, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     let addImageDataTransfer = new DataTransfer();
     
     function openModal() {
@@ -2441,14 +2511,58 @@ document.addEventListener('click', function(e) {
 
     function syncSubCategoryVisibility() {
         if (!kbCategorySelect || !kbSubCategory) return;
-        kbSubCategory.style.display = 'none';
-        kbSubCategory.required = false;
-        kbSubCategory.value = '';
+        const selectedDepartment = kbCategorySelect.value || '';
+        const isOtherDepartment = selectedDepartment === '__other';
+        let resolvedDepartment = selectedDepartment;
+
+        if (kbCustomDepartment) {
+            kbCustomDepartment.style.display = isOtherDepartment ? 'block' : 'none';
+            kbCustomDepartment.required = isOtherDepartment;
+            if (!isOtherDepartment) {
+                kbCustomDepartment.value = '';
+            }
+        }
+
+        if (isOtherDepartment) {
+            const typedDepartment = kbCustomDepartment ? kbCustomDepartment.value.trim() : '';
+            resolvedDepartment = kbKnownCompanyDepartments.find(function(departmentName) {
+                return departmentName.toLowerCase() === typedDepartment.toLowerCase();
+            }) || '';
+        }
+
+        const categoryOptions = resolvedDepartment
+            ? (kbDepartmentTicketCategories[resolvedDepartment] || kbDefaultTicketCategories)
+            : [];
+        kbSubCategory.innerHTML = '';
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        placeholder.hidden = true;
+        placeholder.textContent = selectedDepartment
+            ? (isOtherDepartment && !resolvedDepartment ? 'Enter a matching company department first' : 'Select Category')
+            : 'Select department first';
+        kbSubCategory.appendChild(placeholder);
+
+        categoryOptions.forEach(function(categoryName) {
+            const option = document.createElement('option');
+            option.value = categoryName;
+            option.textContent = categoryName;
+            kbSubCategory.appendChild(option);
+        });
+
+        kbSubCategory.disabled = !resolvedDepartment;
+        kbSubCategory.required = true;
     }
 
     if (kbCategorySelect) {
         kbCategorySelect.addEventListener('change', syncSubCategoryVisibility);
         syncSubCategoryVisibility();
+    }
+    if (kbCustomDepartment) {
+        kbCustomDepartment.addEventListener('input', syncSubCategoryVisibility);
+        kbCustomDepartment.addEventListener('blur', syncSubCategoryVisibility);
     }
 
     const kbAddForm = document.querySelector('#addArticleModal form');
@@ -2471,7 +2585,7 @@ document.addEventListener('click', function(e) {
         }
         addImageDataTransfer = new DataTransfer();
         document.querySelector('#addArticleModal form').reset();
-        syncCustomCategoryVisibility();
+        syncSubCategoryVisibility();
         if (kbPublishBtn) {
             kbPublishBtn.disabled = false;
             kbPublishBtn.textContent = 'Publish Article';
