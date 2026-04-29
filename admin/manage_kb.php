@@ -37,6 +37,17 @@ if (empty($_SESSION['kb_add_submission_token'])) {
     $_SESSION['kb_add_submission_token'] = bin2hex(random_bytes(16));
 }
 
+$kb_department_categories = [
+    'HR',
+    'IT',
+    'Accounting',
+    'Marketing',
+    'Admin & Legal',
+    'Management',
+    'Technical',
+    'Diagnostics / Lingap',
+];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_validate();
 }
@@ -79,12 +90,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     }
 
-    if (strcasecmp($category, 'Others') === 0 && $sub_category === '') {
-        $error_msg = "Sub-category is required for Others.";
+    if ($error_msg === '' && !in_array($category, $kb_department_categories, true)) {
+        $error_msg = "Please select a valid category.";
     }
-    if (strcasecmp($category, 'Others') !== 0) {
-        $sub_category = null;
-    }
+    $sub_category = null;
 
     if ($error_msg === '' && !empty($title) && !empty($category)) {
         
@@ -230,24 +239,32 @@ $total_articles = count($articles);
 $categories_count = count($unique_categories);
 
 // Pre-defined categories
-$categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support', 'Others'];
+$categories = $kb_department_categories;
 $category_meta = [
-    'Documentation' => ['icon' => 'fa-file-lines', 'tone' => 'teal'],
-    'Email' => ['icon' => 'fa-envelope', 'tone' => 'sand'],
-    'Hardware' => ['icon' => 'fa-screwdriver-wrench', 'tone' => 'violet'],
-    'Internet Concerns' => ['icon' => 'fa-globe', 'tone' => 'blue'],
-    'Procurement' => ['icon' => 'fa-cart-shopping', 'tone' => 'emerald'],
-    'Software' => ['icon' => 'fa-desktop', 'tone' => 'sky'],
-    'Technical Support' => ['icon' => 'fa-headset', 'tone' => 'mint'],
-    'Others' => ['icon' => 'fa-folder', 'tone' => 'slate'],
+    'HR' => ['icon' => 'fa-users', 'tone' => 'teal'],
+    'IT' => ['icon' => 'fa-desktop', 'tone' => 'sky'],
+    'Accounting' => ['icon' => 'fa-calculator', 'tone' => 'emerald'],
+    'Marketing' => ['icon' => 'fa-bullhorn', 'tone' => 'violet'],
+    'Admin & Legal' => ['icon' => 'fa-scale-balanced', 'tone' => 'sand'],
+    'Management' => ['icon' => 'fa-briefcase', 'tone' => 'blue'],
+    'Technical' => ['icon' => 'fa-screwdriver-wrench', 'tone' => 'mint'],
+    'Diagnostics / Lingap' => ['icon' => 'fa-stethoscope', 'tone' => 'slate'],
     'Uncategorized' => ['icon' => 'fa-folder-open', 'tone' => 'slate'],
 ];
 $category_aliases = [
-    'network issue' => 'Internet Concerns',
-    'hardware issue' => 'Hardware',
-    'software issue' => 'Software',
-    'email problem' => 'Email',
-    'account access' => 'Technical Support',
+    'technical support' => 'IT',
+    'hardware' => 'IT',
+    'hardware issue' => 'IT',
+    'software' => 'IT',
+    'software issue' => 'IT',
+    'email' => 'IT',
+    'email problem' => 'IT',
+    'internet concerns' => 'IT',
+    'network issue' => 'IT',
+    'printer' => 'IT',
+    'documentation' => 'Admin & Legal',
+    'procurement' => 'Admin & Legal',
+    'others' => 'Management',
 ];
 $articles_by_category = [];
 foreach ($categories as $category_name) {
@@ -264,7 +281,7 @@ foreach ($articles as $article_row) {
         $article_row['category'] = $category_name;
     }
     if ($category_name !== 'Uncategorized' && !in_array($category_name, $categories, true)) {
-        $category_name = 'Others';
+        $category_name = 'Uncategorized';
     }
     if (!isset($articles_by_category[$category_name])) {
         $articles_by_category[$category_name] = [];
@@ -785,28 +802,46 @@ unset($recent_articles_query['recent_page']);
         }
 
         .kb-views-btn {
-            border: 0;
-            background: transparent;
-            color: #667085;
+            border: 1px solid #bfdbfe;
+            background: #dbeafe;
+            color: #1d4ed8;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
-            padding: 7px 9px;
-            border-radius: 10px;
+            min-height: 40px;
+            min-width: 112px;
+            padding: 0 14px;
+            border-radius: 999px;
             cursor: pointer;
-            font: inherit;
-            transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1;
+            text-decoration: none;
+            box-shadow: 0 8px 18px rgba(29, 78, 216, 0.1);
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .kb-views-btn i {
+            font-size: 14px;
+        }
+
+        .kb-views-btn-count {
+            font-weight: 800;
         }
 
         .kb-views-btn:hover,
         .kb-views-btn:focus-visible {
-            background: rgba(37, 99, 235, 0.09);
-            color: #2563eb;
+            background: #bfdbfe;
+            border-color: #93c5fd;
+            color: #1e40af;
+            box-shadow: 0 10px 22px rgba(29, 78, 216, 0.16);
             outline: none;
+            transform: translateY(-1px);
         }
 
         .kb-views-btn:active {
-            transform: translateY(1px);
+            transform: translateY(0);
         }
 
         .kb-viewers-popup {
@@ -1733,7 +1768,7 @@ unset($recent_articles_query['recent_page']);
                                         aria-label="Show viewers for <?= htmlspecialchars($row['title'], ENT_QUOTES, 'UTF-8') ?>"
                                     >
                                         <i class="far fa-eye"></i>
-                                        <span><?= isset($row['unique_views']) ? number_format((int) $row['unique_views']) : '0' ?></span>
+                                        <span class="kb-views-btn-count"><?= isset($row['unique_views']) ? number_format((int) $row['unique_views']) : '0' ?></span>
                                     </button>
                                 </div>
                                 <div class="meta-text">
@@ -1837,7 +1872,7 @@ unset($recent_articles_query['recent_page']);
                                             aria-label="Show viewers for <?= htmlspecialchars($row['title'], ENT_QUOTES, 'UTF-8') ?>"
                                         >
                                             <i class="far fa-eye"></i>
-                                            <span><?= isset($row['unique_views']) ? number_format((int) $row['unique_views']) : '0' ?></span>
+                                            <span class="kb-views-btn-count"><?= isset($row['unique_views']) ? number_format((int) $row['unique_views']) : '0' ?></span>
                                         </button>
                                     </div>
                                     <div class="meta-text">
@@ -2406,12 +2441,9 @@ document.addEventListener('click', function(e) {
 
     function syncSubCategoryVisibility() {
         if (!kbCategorySelect || !kbSubCategory) return;
-        const isOthers = kbCategorySelect.value === 'Others';
-        kbSubCategory.style.display = isOthers ? 'block' : 'none';
-        kbSubCategory.required = isOthers;
-        if (!isOthers) {
-            kbSubCategory.value = '';
-        }
+        kbSubCategory.style.display = 'none';
+        kbSubCategory.required = false;
+        kbSubCategory.value = '';
     }
 
     if (kbCategorySelect) {
