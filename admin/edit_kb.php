@@ -46,6 +46,16 @@ if ($result->num_rows === 0) {
 $article = $result->fetch_assoc();
 $article_image_paths = kb_extract_image_paths($article['image_path'] ?? null);
 $article_image_urls = kb_resolve_asset_urls($article['image_path'] ?? null, '../');
+$kb_department_categories = [
+    'HR',
+    'IT',
+    'Accounting',
+    'Marketing',
+    'Admin & Legal',
+    'Management',
+    'Technical',
+    'Diagnostics / Lingap',
+];
 
 function kb_sorted_links_json($labels, $urls) {
     $links = [];
@@ -78,15 +88,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_validate();
     $title = trim($_POST['title']);
     $category = trim($_POST['category']);
-    $custom_category = trim((string) ($_POST['custom_category'] ?? ''));
     $content = trim($_POST['content']);
     $visible_to_sales = 1;
 
-    if (strcasecmp($category, 'Other') === 0) {
-        $category = $custom_category;
-    }
-
     if (!empty($title) && !empty($category)) {
+        $original_category = trim((string) ($article['category'] ?? ''));
+        $allowed_categories = $kb_department_categories;
+        if ($original_category !== '' && !in_array($original_category, $allowed_categories, true)) {
+            $allowed_categories[] = $original_category;
+        }
+        if (!in_array($category, $allowed_categories, true)) {
+            $error_msg = "Please select a valid category.";
+        }
+
         $original_image_path = $article['image_path'];
         $original_image_paths = kb_extract_image_paths($original_image_path);
         $removed_existing_images = json_decode((string) ($_POST['remove_existing_images'] ?? '[]'), true);
@@ -179,7 +193,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $original_title = trim((string) ($article['title'] ?? ''));
-        $original_category = trim((string) ($article['category'] ?? ''));
         $original_content = trim((string) ($article['content'] ?? ''));
         $original_presentation_path = $article['article_presentation'];
         $original_video_content = $article['article_video'];
@@ -224,11 +237,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Pre-defined categories
-$categories = ['Network Issue', 'Hardware Issue', 'Software Issue', 'Email Problem', 'Account Access', 'Technical Support', 'Other'];
+$categories = $kb_department_categories;
 $current_category = trim((string) ($article['category'] ?? ''));
-$is_custom_category = ($current_category !== '' && !in_array($current_category, $categories, true));
-$selected_category = $is_custom_category ? 'Other' : $current_category;
-$custom_category_value = $is_custom_category ? $current_category : '';
+$is_legacy_category = ($current_category !== '' && !in_array($current_category, $categories, true));
+$selected_category = $current_category;
 ?>
 
 <!DOCTYPE html>
@@ -762,21 +774,17 @@ $custom_category_value = $is_custom_category ? $current_category : '';
                             <label class="form-label">Category</label>
                             <select name="category" class="form-control" id="kb-edit-category-select" required>
                                 <option value=""disabled selected hidden>Select Category</option>
+                                <?php if ($is_legacy_category): ?>
+                                    <option value="<?= htmlspecialchars($current_category, ENT_QUOTES, 'UTF-8') ?>" selected>
+                                        <?= htmlspecialchars($current_category, ENT_QUOTES, 'UTF-8') ?>
+                                    </option>
+                                <?php endif; ?>
                                 <?php foreach ($categories as $cat): ?>
                                     <option value="<?= htmlspecialchars($cat) ?>" <?= $selected_category === $cat ? 'selected' : '' ?>>
                                         <?= htmlspecialchars($cat) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                            <input
-                                type="text"
-                                name="custom_category"
-                                id="kb-edit-custom-category"
-                                class="form-control custom-category-field"
-                                placeholder="Enter custom category name"
-                                value="<?= htmlspecialchars($custom_category_value, ENT_QUOTES, 'UTF-8') ?>"
-                                style="display: <?= $selected_category === 'Other' ? 'block' : 'none' ?>;"
-                            >
                         </div>
 
                         <div class="form-group">
@@ -1233,23 +1241,6 @@ $custom_category_value = $is_custom_category ? $current_category : '';
         });
     });
 
-    const kbEditCategorySelect = document.getElementById('kb-edit-category-select');
-    const kbEditCustomCategory = document.getElementById('kb-edit-custom-category');
-
-    function syncEditCustomCategory() {
-        if (!kbEditCategorySelect || !kbEditCustomCategory) return;
-        const isOther = kbEditCategorySelect.value === 'Other';
-        kbEditCustomCategory.style.display = isOther ? 'block' : 'none';
-        kbEditCustomCategory.required = isOther;
-        if (!isOther) {
-            kbEditCustomCategory.value = '';
-        }
-    }
-
-    if (kbEditCategorySelect && kbEditCustomCategory) {
-        kbEditCategorySelect.addEventListener('change', syncEditCustomCategory);
-        syncEditCustomCategory();
-    }
 </script>
 
 </body>

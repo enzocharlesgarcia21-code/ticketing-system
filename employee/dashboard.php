@@ -38,8 +38,7 @@ if ($userQuery && $row = $userQuery->fetch_assoc()) {
 /* Ticket Counts (tickets created by this employee) */
 $dept = (string) ($_SESSION['department'] ?? '');
 
-// Temporarily exclude closed tickets from the employee dashboard total.
-$countStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status <> 'Closed'");
+$countStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND COALESCE(NULLIF(status,''),'') <> 'Trash'");
 $countStmt->bind_param("i", $user_id);
 $countStmt->execute();
 $total = (int) (($countStmt->get_result()->fetch_assoc()['count'] ?? 0));
@@ -63,12 +62,19 @@ $resolvedStmt->execute();
 $resolved = (int) (($resolvedStmt->get_result()->fetch_assoc()['count'] ?? 0));
 $resolvedStmt->close();
 
+$closedStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status = 'Closed'");
+$closedStmt->bind_param("i", $user_id);
+$closedStmt->execute();
+$closed = (int) (($closedStmt->get_result()->fetch_assoc()['count'] ?? 0));
+$closedStmt->close();
+
 
 /* Recent Tickets (created by this employee) */
 $recentStmt = $conn->prepare("
     SELECT id, subject, category, status, created_at
     FROM employee_tickets
     WHERE user_id = ?
+      AND COALESCE(NULLIF(status,''),'') <> 'Trash'
     ORDER BY created_at DESC
     LIMIT 5
 ");
@@ -92,7 +98,7 @@ $receivedStmt = $conn->prepare("
     FROM employee_tickets t
     LEFT JOIN users u ON u.id = t.user_id
     WHERE t.user_id <> ?
-      AND t.status <> 'Closed'
+      AND COALESCE(NULLIF(t.status,''),'') <> 'Trash'
     ORDER BY t.created_at DESC
     LIMIT 80
 ");
@@ -485,7 +491,7 @@ function dashboard_ticket_category(array $row): string
 
         body.employee-dashboard-page .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 18px;
             margin: 10px 0 0;
         }
@@ -513,6 +519,11 @@ function dashboard_ticket_category(array $row): string
         body.employee-dashboard-page .stat-card.resolved .stat-icon {
             background: #dcfce7;
             color: #11651f;
+        }
+
+        body.employee-dashboard-page .stat-card.closed .stat-icon {
+            background: #e0e7ff;
+            color: #1e40af;
         }
 
         body.employee-dashboard-page .stat-card.open .stat-icon {
@@ -1155,6 +1166,15 @@ function dashboard_ticket_category(array $row): string
                     </div>
                     <div class="stat-label">Resolved</div>
                     <div class="stat-value"><?= $resolved ?></div>
+                </div>
+
+                <!-- Closed -->
+                <div class="stat-card closed">
+                    <div class="stat-icon">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <div class="stat-label">Closed</div>
+                    <div class="stat-value"><?= $closed ?></div>
                 </div>
 
             </div>
