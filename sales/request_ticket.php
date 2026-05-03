@@ -9,6 +9,8 @@ require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/notification_service.php';
 
+ticket_receiving_availability_ensure_table($conn);
+
 $success_msg = "";
 $error_msg = "";
 
@@ -21,8 +23,8 @@ $request_subject_title = '';
 $hr_concern_type = '';
 $priority_selected = '';
 $assigned_department_selected = '';
-$lapcDepartments = ticket_lapc_departments();
-$mhcDepartments = ticket_mhc_departments();
+$lapcDepartments = ticket_receiving_available_departments($conn, '@leadsagri.com');
+$mhcDepartments = ticket_receiving_available_departments($conn, '@malvedaholdings.com');
 $defaultCategories = ['Hardware', 'Software', 'Documentation', 'Email', 'Internet Concerns', 'Procurement', 'Technical Support'];
 $mpdcCategories = ['Engineerings', 'Client Based'];
 $lapcDepartmentCategories = [
@@ -77,15 +79,22 @@ $mhcDepartmentCategories = [
     ],
 ];
 
-$requestTicketCompanyOptions = [
-    '@leadstech-corp.com' => 'LTC',
-    '@gpsci.net' => 'GPSCI',
-    '@leadsagri.com' => 'LAPC',
-    '@leads-farmex.com' => 'FARMEX / LAV',
-    '@malvedaholdings.com' => 'MHC',
-    '@malvedaproperties.com' => 'MPDC',
-];
+$requestTicketCompanyOptions = ticket_receiving_available_company_options($conn);
 $requestTicketCompanies = array_keys($requestTicketCompanyOptions);
+$selectedRecipientCompany = normalize_sales_recipient_company((string) ($company_id ?? ''));
+if ($selectedRecipientCompany === '' && count($requestTicketCompanyOptions) === 1) {
+    $selectedRecipientCompany = (string) array_key_first($requestTicketCompanyOptions);
+}
+$selectedRecipientDepartment = trim((string) $assigned_department_selected);
+$initialSalesDepartmentOptions = [];
+if ($selectedRecipientCompany === '@leadsagri.com') {
+    $initialSalesDepartmentOptions = $lapcDepartments;
+} elseif ($selectedRecipientCompany === '@malvedaholdings.com') {
+    $initialSalesDepartmentOptions = $mhcDepartments;
+}
+if ($selectedRecipientDepartment === '' && count($initialSalesDepartmentOptions) === 1) {
+    $selectedRecipientDepartment = (string) ($initialSalesDepartmentOptions[0] ?? '');
+}
 
 function derive_name_from_email(string $email): string
 {
@@ -517,7 +526,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             : $defaultCategories));
     $isLapcRecipient = ($normalized_company_id === '@leadsagri.com');
     $isMhcRecipient = ($normalized_company_id === '@malvedaholdings.com');
-    $requiresDepartment = $isLapcRecipient || $isMhcRecipient;
+    $requiresDepartment = ticket_company_requires_department($normalized_company_id);
     $assigned_department = $requiresDepartment ? $assigned_department_selected : 'IT';
     $assigned_company = $normalized_company_id;
     $assigned_group = $requiresDepartment ? trim($assigned_department_selected) : 'IT';
@@ -541,7 +550,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $assigned_user_ids = find_sales_domain_recipient_ids($conn, $assigned_company);
     }
     $assigned_user_id = count($assigned_user_ids) > 0 ? (int) $assigned_user_ids[0] : null;
-    $allowedDepartments = $isMhcRecipient ? ticket_mhc_departments() : ticket_lapc_departments();
+    $allowedDepartments = $requiresDepartment
+        ? ticket_company_allowed_groups($assigned_company)
+        : [];
     if ($requiresDepartment && $assigned_department === '') {
         $error_msg = "Please select a department.";
     } elseif ($requiresDepartment && !in_array($assigned_department, $allowedDepartments, true)) {
@@ -550,8 +561,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($error_msg === '') {
         if ($assigned_company === '' || !ticket_is_valid_company($assigned_company)) {
             $error_msg = "Ticket Recipient (Company Email Domain) is required.";
+        } elseif (!ticket_receiving_is_company_enabled($conn, $assigned_company)) {
+            $error_msg = "The selected company is not currently accepting new tickets.";
         } elseif ($requiresDepartment && ($assigned_group === '' || !ticket_is_valid_group_for_company($assigned_company, $assigned_group))) {
             $error_msg = "Invalid department selected for the chosen recipient.";
+        } elseif ($requiresDepartment && !ticket_receiving_is_department_enabled($conn, $assigned_company, $assigned_group)) {
+            $error_msg = "The selected department is not currently accepting new tickets.";
         } elseif (!$assigned_user_id) {
             $error_msg = $requiresDepartment
                 ? "No assignee available for the selected recipient and department."
@@ -1388,7 +1403,7 @@ $sapFormEntries = sales_request_extract_sap_reports($_POST);
 if (count($sapFormEntries) === 0) {
     $sapFormEntries = [sales_request_blank_sap_report()];
 }
-$normalized_company_id = normalize_sales_recipient_company((string) $company_id);
+$normalized_company_id = $selectedRecipientCompany;
 ?>
 
 <!DOCTYPE html>
@@ -1800,6 +1815,16 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
             background: #f8fafc;
             color: #94a3b8;
             cursor: not-allowed;
+        }
+        body.sales-request-ticket-page .select-wrapper.is-static .recipient-dropdown-trigger,
+        body.sales-request-ticket-page .select-wrapper.is-static .department-dropdown-trigger {
+            background: #ffffff;
+            color: #111827;
+            cursor: default;
+            pointer-events: none;
+        }
+        body.sales-request-ticket-page .select-wrapper.is-static .select-icon {
+            display: none;
         }
         body.sales-request-ticket-page .category-dropdown-trigger {
             width: 100%;
@@ -4017,9 +4042,9 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
                     <label>Subsidiaries <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper recipient-dropdown" id="recipientDropdown">
                         <select name="company_id" id="ticket_recipient" class="form-control recipient-native-select" required>
-                            <option value="" disabled <?= $normalized_company_id === '' ? 'selected' : '' ?> hidden>Select a company</option>
+                            <option value="" disabled <?= $selectedRecipientCompany === '' ? 'selected' : '' ?> hidden>Select a company</option>
                             <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
-                                <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (normalize_sales_recipient_company((string) ($company_id ?? '')) === $companyValue) ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+                                <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $selectedRecipientCompany === $companyValue ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
                         <button type="button" id="recipientDropdownTrigger" class="recipient-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Select a company</button>
@@ -4031,10 +4056,10 @@ $normalized_company_id = normalize_sales_recipient_company((string) $company_id)
                 <div class="form-group hidden" id="departmentGroup">
                     <label>Assigned Department <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper department-dropdown" id="departmentDropdown">
-                        <select name="assigned_department" id="department" class="form-control department-native-select" required disabled data-selected="<?= htmlspecialchars((string) $assigned_department_selected, ENT_QUOTES, 'UTF-8'); ?>">
-                            <option value="" disabled <?= $assigned_department_selected === '' ? 'selected' : '' ?> hidden>Choose department</option>
-                            <?php foreach (($normalized_company_id === '@malvedaholdings.com' ? $mhcDepartments : $lapcDepartments) as $d): ?>
-                                <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $assigned_department_selected === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
+                        <select name="assigned_department" id="department" class="form-control department-native-select" required disabled data-selected="<?= htmlspecialchars($selectedRecipientDepartment, ENT_QUOTES, 'UTF-8'); ?>">
+                            <option value="" disabled <?= $selectedRecipientDepartment === '' ? 'selected' : '' ?> hidden>Choose department</option>
+                            <?php foreach ($initialSalesDepartmentOptions as $d): ?>
+                                <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $selectedRecipientDepartment === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
                         <button type="button" id="departmentDropdownTrigger" class="department-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false" disabled>Choose department</button>
@@ -5150,6 +5175,18 @@ function closeRecipientDropdown() {
     recipientTrigger.setAttribute('aria-expanded', 'false');
 }
 
+function setStaticDropdownState(wrapper, trigger, menu, isStatic) {
+    if (wrapper) {
+        wrapper.classList.toggle('is-static', !!isStatic);
+    }
+    if (trigger) {
+        trigger.dataset.staticDisplay = isStatic ? '1' : '0';
+    }
+    if (menu && isStatic) {
+        menu.classList.remove('is-open');
+    }
+}
+
 function syncRecipientTriggerLabel() {
     if (!recipientTrigger || !recipient) return;
     var selectedOption = recipient.options[recipient.selectedIndex];
@@ -5177,10 +5214,15 @@ function chooseRecipient(optionValue, shouldDispatchChange) {
 
 function buildRecipientDropdown() {
     if (!recipient || !recipientMenu) return;
+    var options = Array.from(recipient.options).filter(function(option) {
+        return !!option.value;
+    });
+    if (options.length === 1 && String(recipient.value || '') === '') {
+        recipient.value = String(options[0].value || '');
+    }
     var selectedValue = String(recipient.value || '');
     recipientMenu.innerHTML = '';
-    Array.from(recipient.options).forEach(function(option) {
-        if (!option.value) return;
+    options.forEach(function(option) {
         var optionValue = String(option.value);
         var optionButton = document.createElement('button');
         optionButton.type = 'button';
@@ -5194,6 +5236,10 @@ function buildRecipientDropdown() {
         });
         recipientMenu.appendChild(optionButton);
     });
+    setStaticDropdownState(recipientWrapper, recipientTrigger, recipientMenu, options.length <= 1);
+    if (recipientTrigger) {
+        recipientTrigger.disabled = !!recipient.disabled || options.length <= 1;
+    }
     syncRecipientTriggerLabel();
 }
 
@@ -5336,6 +5382,10 @@ function populateDepartments(options) {
             departmentMenu.appendChild(optionButton);
         }
     });
+    if (selectedValue === '' && options.length === 1) {
+        departmentSelect.value = String(options[0] || '');
+        departmentSelect.setAttribute('data-selected', String(options[0] || ''));
+    }
     syncDepartmentTriggerLabel();
 }
 
@@ -5370,6 +5420,13 @@ function toggleDepartmentField() {
         if (departmentTrigger) departmentTrigger.disabled = true;
         syncDepartmentTriggerLabel();
         closeDepartmentDropdown();
+    }
+    var departmentOptions = Array.from(departmentSelect.options).filter(function(option) {
+        return String(option.value || '') !== '';
+    });
+    setStaticDropdownState(departmentWrapper, departmentTrigger, departmentMenu, departmentOptions.length <= 1 && !departmentSelect.disabled);
+    if (departmentTrigger) {
+        departmentTrigger.disabled = !!departmentSelect.disabled || (departmentOptions.length <= 1 && !departmentSelect.disabled);
     }
     syncRequestGridRows();
 }

@@ -10,20 +10,26 @@ require_once '../includes/ticket_assignment.php';
 require_once '../includes/notification_service.php';
 require_once '../includes/pdf_thumbnail.php';
 
-$lapcDepartments = ticket_lapc_departments();
-$mhcDepartments = ticket_mhc_departments();
-$requestTicketCompanyOptions = [
-    '@leads-farmex.com' => 'FARMEX / LAV',
-    '@farmasee.ph' => 'FARMASEE',
-    '@gpsci.net' => 'GPSCI',
-    '@leadsagri.com' => 'LAPC',
-    '@leadstech-corp.com' => 'LTC',
-    '@lingapleads.org' => 'LINGAP',
-    '@malvedaholdings.com' => 'MHC',
-    '@malvedaproperties.com' => 'MPDC',
-    '@primestocks.ph' => 'PCC',
-];
+ticket_receiving_availability_ensure_table($conn);
+
+$lapcDepartments = ticket_receiving_available_departments($conn, '@leadsagri.com');
+$mhcDepartments = ticket_receiving_available_departments($conn, '@malvedaholdings.com');
+$requestTicketCompanyOptions = ticket_receiving_available_company_options($conn);
 $requestTicketCompanies = array_keys($requestTicketCompanyOptions);
+$selectedAssignedCompany = trim((string) ($_POST['assigned_company'] ?? ''));
+if ($selectedAssignedCompany === '' && count($requestTicketCompanyOptions) === 1) {
+    $selectedAssignedCompany = (string) array_key_first($requestTicketCompanyOptions);
+}
+$selectedAssignedGroup = trim((string) ($_POST['assigned_group'] ?? ''));
+$initialDepartmentOptions = [];
+if ($selectedAssignedCompany === '@leadsagri.com') {
+    $initialDepartmentOptions = $lapcDepartments;
+} elseif ($selectedAssignedCompany === '@malvedaholdings.com') {
+    $initialDepartmentOptions = $mhcDepartments;
+}
+if ($selectedAssignedGroup === '' && count($initialDepartmentOptions) === 1) {
+    $selectedAssignedGroup = (string) ($initialDepartmentOptions[0] ?? '');
+}
 
 function find_domain_recipient_ids(mysqli $conn, string $domain): array
 {
@@ -565,8 +571,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } elseif ($assigned_company === '@leadsagri.com' && isset($lapc_department_categories[$assigned_group])) {
         $allowed_categories = $lapc_department_categories[$assigned_group];
     }
-    $requiresDepartment = in_array(strtolower((string) $assigned_company), ['@leadsagri.com', '@malvedaholdings.com'], true);
-    $allowedDepartments = $assigned_company === '@malvedaholdings.com' ? $mhcDepartments : $lapcDepartments;
+    $requiresDepartment = ticket_company_requires_department($assigned_company);
+    $allowedDepartments = $requiresDepartment ? ticket_company_allowed_groups($assigned_company) : [];
     $routing_group = $requiresDepartment ? trim($assigned_group) : 'IT';
     $assigned_group = $routing_group;
     $assigned_department = $requiresDepartment ? $routing_group : 'IT';
@@ -1017,7 +1023,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             . "Brief Description of Request: " . trim((string) ($_POST['description'] ?? ''));
     }
 
-    if ($assigned_company === '' || !in_array($assigned_company, $requestTicketCompanies, true) || !ticket_is_valid_company($assigned_company)) {
+    if ($assigned_company === '' || !ticket_is_valid_company($assigned_company)) {
         if ($isAjax) {
             header('Content-Type: application/json; charset=utf-8');
             http_response_code(400);
@@ -1025,6 +1031,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             exit();
         }
         $_SESSION['error'] = 'Invalid ticket recipient selected.';
+        header("Location: request_ticket.php");
+        exit();
+    }
+    if (!ticket_receiving_is_company_enabled($conn, $assigned_company)) {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'The selected company is not currently accepting new tickets.'], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
+        $_SESSION['error'] = 'The selected company is not currently accepting new tickets.';
         header("Location: request_ticket.php");
         exit();
     }
@@ -1036,6 +1053,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             exit();
         }
         $_SESSION['error'] = 'Invalid assigned department selected for the chosen recipient.';
+        header("Location: request_ticket.php");
+        exit();
+    }
+    if ($requiresDepartment && !ticket_receiving_is_department_enabled($conn, $assigned_company, $assigned_group)) {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'The selected department is not currently accepting new tickets.'], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
+        $_SESSION['error'] = 'The selected department is not currently accepting new tickets.';
         header("Location: request_ticket.php");
         exit();
     }
@@ -1564,6 +1592,16 @@ if (count($sapFormEntries) === 0) {
             cursor: not-allowed;
             opacity: 0.68;
             background: #f8fafc;
+        }
+        body.employee-request-ticket-page .select-wrapper.is-static .custom-select-trigger {
+            cursor: default;
+            pointer-events: none;
+            opacity: 1;
+            background: #ffffff;
+            color: #111827;
+        }
+        body.employee-request-ticket-page .select-wrapper.is-static .select-icon {
+            display: none;
         }
         body.employee-request-ticket-page .custom-select-value {
             display: block;
@@ -3583,10 +3621,10 @@ if (count($sapFormEntries) === 0) {
                         <div class="form-group">
                             <label>Subsidiaries <span class="required-asterisk">*</span></label>
                             <div class="select-wrapper" id="assignedCompanyWrapper">
-                                <select name="assigned_company" id="assigned_company" class="form-control custom-select-native" required data-selected="<?= htmlspecialchars((string) ($_POST['assigned_company'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                                    <option value="" disabled <?= empty($_POST['assigned_company']) ? 'selected' : ''; ?> hidden>Select a company</option>
+                                <select name="assigned_company" id="assigned_company" class="form-control custom-select-native" required data-selected="<?= htmlspecialchars($selectedAssignedCompany, ENT_QUOTES, 'UTF-8'); ?>">
+                                    <option value="" disabled <?= $selectedAssignedCompany === '' ? 'selected' : ''; ?> hidden>Select a company</option>
                                     <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
-                                        <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (($_POST['assigned_company'] ?? '') === $companyValue) ? 'selected' : ''; ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $selectedAssignedCompany === $companyValue ? 'selected' : ''; ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                                 <button type="button" class="form-control custom-select-trigger" id="assignedCompanyTrigger" aria-haspopup="listbox" aria-expanded="false">
@@ -3600,8 +3638,11 @@ if (count($sapFormEntries) === 0) {
                         <div class="form-group" id="departmentContainer" style="display:none;">
                             <label>Assigned Department <span class="required-asterisk">*</span></label>
                             <div class="select-wrapper" id="assignedGroupWrapper">
-                                <select name="assigned_group" id="assigned_group" class="form-control custom-select-native" required disabled data-selected="<?= htmlspecialchars((string) ($_POST['assigned_group'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                                    <option value="" disabled selected hidden>Choose department</option>
+                                <select name="assigned_group" id="assigned_group" class="form-control custom-select-native" required disabled data-selected="<?= htmlspecialchars($selectedAssignedGroup, ENT_QUOTES, 'UTF-8'); ?>">
+                                    <option value="" disabled <?= $selectedAssignedGroup === '' ? 'selected' : ''; ?> hidden>Choose department</option>
+                                    <?php foreach ($initialDepartmentOptions as $departmentOption): ?>
+                                        <option value="<?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $selectedAssignedGroup === $departmentOption ? 'selected' : ''; ?>><?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8'); ?></option>
+                                    <?php endforeach; ?>
                                 </select>
                                 <button type="button" class="form-control custom-select-trigger" id="assignedGroupTrigger" aria-haspopup="listbox" aria-expanded="false" disabled>
                                     <span class="custom-select-value" id="assignedGroupTriggerValue">Choose department</span>
@@ -4797,6 +4838,17 @@ if (count($sapFormEntries) === 0) {
             recipientTrigger.setAttribute('aria-expanded', 'false');
             recipientMenu.hidden = true;
         }
+        function setStaticSelectState(wrapper, trigger, menu, isStatic) {
+            if (wrapper) {
+                wrapper.classList.toggle('is-static', !!isStatic);
+            }
+            if (trigger) {
+                trigger.dataset.staticDisplay = isStatic ? '1' : '0';
+            }
+            if (menu && isStatic) {
+                menu.hidden = true;
+            }
+        }
         function syncRecipientTriggerLabel() {
             if (!recipientDropdown || !recipientTriggerValue) return;
             const selectedOption = recipientDropdown.options[recipientDropdown.selectedIndex];
@@ -4808,10 +4860,14 @@ if (count($sapFormEntries) === 0) {
         }
         function renderRecipientDropdownOptions() {
             if (!recipientDropdown || !recipientMenu || !recipientTrigger) return;
-            const currentValue = String(recipientDropdown.value || '');
             const options = Array.from(recipientDropdown.options).filter(function(option) {
                 return String(option.value || '') !== '';
             });
+            if (options.length === 1 && String(recipientDropdown.value || '') === '') {
+                recipientDropdown.value = String(options[0].value || '');
+                recipientDropdown.setAttribute('data-selected', String(options[0].value || ''));
+            }
+            const currentValue = String(recipientDropdown.value || '');
             recipientMenu.innerHTML = '';
             options.forEach(function(option) {
                 const optionValue = String(option.value || '');
@@ -4832,8 +4888,9 @@ if (count($sapFormEntries) === 0) {
                 });
                 recipientMenu.appendChild(item);
             });
+            setStaticSelectState(recipientWrapper, recipientTrigger, recipientMenu, options.length <= 1);
             syncRecipientTriggerLabel();
-            recipientTrigger.disabled = !!recipientDropdown.disabled;
+            recipientTrigger.disabled = !!recipientDropdown.disabled || options.length <= 1;
             if (recipientDropdown.disabled) {
                 closeRecipientDropdown();
             }
@@ -4855,10 +4912,14 @@ if (count($sapFormEntries) === 0) {
         }
         function renderDepartmentDropdownOptions() {
             if (!departmentSelect || !departmentMenu || !departmentTrigger) return;
-            const currentValue = String(departmentSelect.value || '');
             const options = Array.from(departmentSelect.options).filter(function(option) {
                 return String(option.value || '') !== '';
             });
+            if (options.length === 1 && String(departmentSelect.value || '') === '') {
+                departmentSelect.value = String(options[0].value || '');
+                departmentSelect.setAttribute('data-selected', String(options[0].value || ''));
+            }
+            const currentValue = String(departmentSelect.value || '');
             departmentMenu.innerHTML = '';
             options.forEach(function(option) {
                 const optionValue = String(option.value || '');
@@ -4879,8 +4940,9 @@ if (count($sapFormEntries) === 0) {
                 });
                 departmentMenu.appendChild(item);
             });
+            setStaticSelectState(departmentWrapper, departmentTrigger, departmentMenu, options.length <= 1);
             syncDepartmentTriggerLabel();
-            departmentTrigger.disabled = !!departmentSelect.disabled;
+            departmentTrigger.disabled = !!departmentSelect.disabled || options.length <= 1;
             if (departmentSelect.disabled) {
                 closeDepartmentDropdown();
             }
@@ -4900,6 +4962,9 @@ if (count($sapFormEntries) === 0) {
             });
             if (selectedValue !== '' && !options.includes(selectedValue)) {
                 departmentSelect.value = '';
+            } else if (selectedValue === '' && options.length === 1) {
+                departmentSelect.value = String(options[0] || '');
+                departmentSelect.setAttribute('data-selected', String(options[0] || ''));
             }
             renderDepartmentDropdownOptions();
         }

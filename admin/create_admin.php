@@ -65,12 +65,10 @@ if ($users_companies_res) {
 }
 
 $company_domain_options = [
-    '@leads-farmex.com' => 'FARMEX / LAV',
     '@farmasee.ph' => 'FARMASEE',
-    '@gpsci.net' => 'GPCI',
-    '@leadsanimalhealth.com' => 'LAH',
+    '@leads-farmex.com' => 'FARMEX / LAV',
+    '@gpsci.net' => 'GPSCI',
     '@leadsagri.com' => 'LAPC',
-    '@leads-eh.com' => 'LEH',
     '@leadstech-corp.com' => 'LTC',
     '@lingapleads.org' => 'LINGAP',
     '@malvedaholdings.com' => 'MHC',
@@ -2009,8 +2007,6 @@ user_permissions_ensure_table($conn);
         "@farmasee.ph": [],
         "@malvedaproperties.com": [],
         "@lingapleads.org": [],
-        "@leads-eh.com": [],
-        "@leadsanimalhealth.com": [],
         "@leadsav.com": []
     };
     var tmUsersState = { page: 1, limit: window.TM_USERS_PAGE_SIZE, total: 0, totalPages: 1 };

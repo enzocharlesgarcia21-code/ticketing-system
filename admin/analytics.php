@@ -154,12 +154,39 @@ function analytics_allowed_categories_for_department(string $company, string $de
     return ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
 }
 
+function analytics_is_combined_farmex_lav_filter(string $companyFilter): bool
+{
+    return trim(strtolower($companyFilter)) === '__farmex_lav__';
+}
+
+function analytics_apply_company_filter(array &$where, array &$params, string &$types, string $fieldExpr, string $companyFilter): void
+{
+    if ($companyFilter === '') {
+        return;
+    }
+
+    if (analytics_is_combined_farmex_lav_filter($companyFilter)) {
+        $where[] = "$fieldExpr IN (?, ?)";
+        $params[] = '@leads-farmex.com';
+        $params[] = '@leadsav.com';
+        $types .= 'ss';
+        return;
+    }
+
+    $where[] = "$fieldExpr = ?";
+    $params[] = $companyFilter;
+    $types .= 's';
+}
+
 // Determine selected date range (default to current month)
 $start_date = $_GET['start_date'] ?? date('Y-m-01');
 $end_date = $_GET['end_date'] ?? date('Y-m-d');
 
 $category_filter = trim((string) ($_GET['category'] ?? ''));
-$company_filter = ticket_normalize_company(trim((string) ($_GET['company'] ?? '')));
+$raw_company_filter = trim((string) ($_GET['company'] ?? ''));
+$company_filter = analytics_is_combined_farmex_lav_filter($raw_company_filter)
+    ? '__farmex_lav__'
+    : ticket_normalize_company($raw_company_filter);
 $department_filter = trim((string) ($_GET['department'] ?? ''));
 $status_filter = trim((string) ($_GET['status'] ?? ''));
 
@@ -172,20 +199,17 @@ $allowed_statuses = ['Open', 'In Progress', 'Resolved'];
 if (!in_array($status_filter, $allowed_statuses, true)) $status_filter = '';
 
 $company_options = [
-    '@leadstech-corp.com',
-    '@gpsci.net',
-    '@leadsagri.com',
-    '@leads-farmex.com',
-    '@malvedaholdings.com',
-    '@malvedaproperties.com',
-    '@leadsanimalhealth.com',
-    '@leads-eh.com',
-    '@leadsav.com',
-    '@lingapleads.org',
-    '@farmasee.ph',
-    '@primestocks.ph',
+    '@farmasee.ph' => 'FARMASEE',
+    '__farmex_lav__' => 'FARMEX / LAV',
+    '@gpsci.net' => 'GPSCI',
+    '@leadsagri.com' => 'LAPC',
+    '@leadstech-corp.com' => 'LTC',
+    '@lingapleads.org' => 'LINGAP',
+    '@malvedaholdings.com' => 'MHC',
+    '@malvedaproperties.com' => 'MPDC',
+    '@primestocks.ph' => 'PCC',
 ];
-if ($company_filter !== '' && !in_array($company_filter, $company_options, true)) $company_filter = '';
+if ($company_filter !== '' && !array_key_exists($company_filter, $company_options)) $company_filter = '';
 
 $department_options = ticket_lapc_departments();
 if (!$analyticsIsEmployeeView && $company_filter !== '@leadsagri.com') {
@@ -213,11 +237,13 @@ if ($category_filter !== '') {
     $ticket_params[] = $category_filter;
     $ticket_types .= "s";
 }
-if ($company_filter !== '') {
-    $ticket_where[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
-    $ticket_params[] = $company_filter;
-    $ticket_types .= "s";
-}
+analytics_apply_company_filter(
+    $ticket_where,
+    $ticket_params,
+    $ticket_types,
+    "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))",
+    $company_filter
+);
 if ($department_filter !== '') {
     $ticket_where[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
     $ticket_params[] = $department_filter;
@@ -322,11 +348,13 @@ if ($category_filter !== '') {
     $resolutionRangeParams[] = $category_filter;
     $resolutionRangeTypes .= "s";
 }
-if ($company_filter !== '') {
-    $resolutionRangeWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
-    $resolutionRangeParams[] = $company_filter;
-    $resolutionRangeTypes .= "s";
-}
+analytics_apply_company_filter(
+    $resolutionRangeWhere,
+    $resolutionRangeParams,
+    $resolutionRangeTypes,
+    "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))",
+    $company_filter
+);
 if ($department_filter !== '') {
     $resolutionRangeWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
     $resolutionRangeParams[] = $department_filter;
@@ -392,11 +420,13 @@ if ($category_filter !== '') {
     $dailyTrendParams[] = $category_filter;
     $dailyTrendTypes .= "s";
 }
-if ($company_filter !== '') {
-    $dailyTrendWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
-    $dailyTrendParams[] = $company_filter;
-    $dailyTrendTypes .= "s";
-}
+analytics_apply_company_filter(
+    $dailyTrendWhere,
+    $dailyTrendParams,
+    $dailyTrendTypes,
+    "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))",
+    $company_filter
+);
 if ($department_filter !== '') {
     $dailyTrendWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
     $dailyTrendParams[] = $department_filter;
@@ -518,11 +548,13 @@ if ($category_filter !== '') {
     $resolutionBucketParams[] = $category_filter;
     $resolutionBucketTypes .= "s";
 }
-if ($company_filter !== '') {
-    $resolutionBucketWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
-    $resolutionBucketParams[] = $company_filter;
-    $resolutionBucketTypes .= "s";
-}
+analytics_apply_company_filter(
+    $resolutionBucketWhere,
+    $resolutionBucketParams,
+    $resolutionBucketTypes,
+    "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))",
+    $company_filter
+);
 if ($department_filter !== '') {
     $resolutionBucketWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
     $resolutionBucketParams[] = $department_filter;
@@ -592,11 +624,13 @@ if ($status_filter !== '') {
     $companyChartParams[] = $status_filter;
     $companyChartTypes .= "s";
 }
-if ($company_filter !== '') {
-    $companyChartWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
-    $companyChartParams[] = $company_filter;
-    $companyChartTypes .= "s";
-}
+analytics_apply_company_filter(
+    $companyChartWhere,
+    $companyChartParams,
+    $companyChartTypes,
+    "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))",
+    $company_filter
+);
 
 $lapcDepartmentLabels = [];
 $lapcDepartmentCounts = [];
@@ -780,11 +814,13 @@ if ($category_filter !== '') {
     $assigneeParams[] = $category_filter;
     $assigneeTypes .= "s";
 }
-if ($company_filter !== '') {
-    $assigneeWhere[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
-    $assigneeParams[] = $company_filter;
-    $assigneeTypes .= "s";
-}
+analytics_apply_company_filter(
+    $assigneeWhere,
+    $assigneeParams,
+    $assigneeTypes,
+    "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))",
+    $company_filter
+);
 if ($department_filter !== '') {
     $assigneeWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
     $assigneeParams[] = $department_filter;
@@ -2202,15 +2238,6 @@ if ($ticketsStmt) {
                                 <input class="analytics-control" type="date" name="end_date" value="<?= htmlspecialchars($end_date) ?>" required>
                             </div>
                         </div>
-                        <div class="analytics-filter">
-                            <label>Category</label>
-                            <select class="analytics-control" name="category">
-                                <option value="" <?= $category_filter === '' ? 'selected' : '' ?> disabled hidden>Select </option>
-                                <?php foreach ($categories as $c): ?>
-                                    <option value="<?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?>" <?= $category_filter === $c ? 'selected' : '' ?>><?= htmlspecialchars($c, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
                         <?php if ($analyticsIsEmployeeView): ?>
                             <input type="hidden" name="company" value="<?= htmlspecialchars($company_filter, ENT_QUOTES, 'UTF-8'); ?>">
                         <?php else: ?>
@@ -2218,9 +2245,9 @@ if ($ticketsStmt) {
                                 <label>Company</label>
                                 <select class="analytics-control" name="company" id="analyticsCompanyFilter">
                                     <option value="" <?= $company_filter === '' ? 'selected' : '' ?>>All Company</option>
-                                    <?php foreach ($company_options as $companyOption): ?>
+                                    <?php foreach ($company_options as $companyOption => $companyLabel): ?>
                                         <option value="<?= htmlspecialchars($companyOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $company_filter === $companyOption ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars(ticket_company_display_name($companyOption), ENT_QUOTES, 'UTF-8'); ?>
+                                            <?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
@@ -2614,7 +2641,7 @@ if ($ticketsStmt) {
             });
         }
 
-        var controls = filterForm.querySelectorAll('select[name="category"], select[name="department"], select[name="status"], input[name="start_date"], input[name="end_date"]');
+        var controls = filterForm.querySelectorAll('select[name="department"], select[name="status"], input[name="start_date"], input[name="end_date"]');
         controls.forEach(function (control) {
             control.addEventListener('change', function () {
                 filterForm.submit();

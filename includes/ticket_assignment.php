@@ -79,6 +79,220 @@ function ticket_mhc_departments(): array
     ];
 }
 
+function ticket_company_requires_department(string $company): bool
+{
+    $company = ticket_normalize_company($company);
+    return in_array($company, ['@leadsagri.com', '@malvedaholdings.com'], true);
+}
+
+function ticket_request_company_options(): array
+{
+    return [
+        '@leads-farmex.com' => 'FARMEX / LAV',
+        '@farmasee.ph' => 'FARMASEE',
+        '@gpsci.net' => 'GPSCI',
+        '@leadsagri.com' => 'LAPC',
+        '@leadstech-corp.com' => 'LTC',
+        '@lingapleads.org' => 'LINGAP',
+        '@malvedaholdings.com' => 'MHC',
+        '@malvedaproperties.com' => 'MPDC',
+        '@primestocks.ph' => 'PCC',
+    ];
+}
+
+function ticket_receiving_availability_ensure_table(mysqli $conn): void
+{
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+
+    $sql = "
+        CREATE TABLE IF NOT EXISTS ticket_receiving_availability (
+            id INT NOT NULL AUTO_INCREMENT,
+            company_key VARCHAR(255) NOT NULL,
+            department_name VARCHAR(255) NOT NULL DEFAULT '',
+            receiving_enabled TINYINT(1) NOT NULL DEFAULT 1,
+            updated_by INT DEFAULT NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_ticket_receiving_availability (company_key, department_name),
+            KEY idx_ticket_receiving_company (company_key),
+            KEY idx_ticket_receiving_updated_by (updated_by)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ";
+
+    $conn->query($sql);
+    $ensured = true;
+}
+
+function ticket_receiving_fetch_status_map(mysqli $conn): array
+{
+    ticket_receiving_availability_ensure_table($conn);
+
+    $rows = [];
+    $res = $conn->query("
+        SELECT company_key, department_name, receiving_enabled
+        FROM ticket_receiving_availability
+    ");
+
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $companyKey = ticket_normalize_company((string) ($row['company_key'] ?? ''));
+            if ($companyKey === '') {
+                continue;
+            }
+
+            $departmentName = trim((string) ($row['department_name'] ?? ''));
+            if (!isset($rows[$companyKey])) {
+                $rows[$companyKey] = [];
+            }
+            $rows[$companyKey][$departmentName] = (int) ($row['receiving_enabled'] ?? 1) === 1 ? 1 : 0;
+        }
+        $res->free();
+    }
+
+    return $rows;
+}
+
+function ticket_receiving_is_company_enabled(mysqli $conn, string $company): bool
+{
+    $company = ticket_normalize_company($company);
+    if ($company === '') {
+        return false;
+    }
+
+    $statusMap = ticket_receiving_fetch_status_map($conn);
+    if (!isset($statusMap[$company][''])) {
+        return true;
+    }
+
+    return (int) $statusMap[$company][''] === 1;
+}
+
+function ticket_receiving_is_department_enabled(mysqli $conn, string $company, string $department): bool
+{
+    $company = ticket_normalize_company($company);
+    $department = trim($department);
+    if ($company === '' || $department === '') {
+        return false;
+    }
+
+    if (!ticket_receiving_is_company_enabled($conn, $company)) {
+        return false;
+    }
+
+    $statusMap = ticket_receiving_fetch_status_map($conn);
+    if (!isset($statusMap[$company][$department])) {
+        return true;
+    }
+
+    return (int) $statusMap[$company][$department] === 1;
+}
+
+function ticket_receiving_available_company_options(mysqli $conn): array
+{
+    $options = ticket_request_company_options();
+    $available = [];
+
+    foreach ($options as $companyKey => $label) {
+        if (ticket_receiving_is_company_enabled($conn, $companyKey)) {
+            $available[$companyKey] = $label;
+        }
+    }
+
+    return $available;
+}
+
+function ticket_receiving_available_departments(mysqli $conn, string $company): array
+{
+    $company = ticket_normalize_company($company);
+    $available = [];
+
+    foreach (ticket_company_allowed_groups($company) as $department) {
+        if (ticket_receiving_is_department_enabled($conn, $company, (string) $department)) {
+            $available[] = (string) $department;
+        }
+    }
+
+    return $available;
+}
+
+function ticket_receiving_set_enabled(
+    mysqli $conn,
+    string $company,
+    string $department,
+    bool $enabled,
+    int $updatedBy = 0
+): bool {
+    ticket_receiving_availability_ensure_table($conn);
+
+    $company = ticket_normalize_company($company);
+    $department = trim($department);
+    $updatedBy = $updatedBy > 0 ? $updatedBy : null;
+
+    if ($company === '') {
+        return false;
+    }
+
+    $stmt = $conn->prepare("
+        INSERT INTO ticket_receiving_availability
+            (company_key, department_name, receiving_enabled, updated_by, updated_at)
+        VALUES (?, ?, ?, ?, NOW())
+        ON DUPLICATE KEY UPDATE
+            receiving_enabled = VALUES(receiving_enabled),
+            updated_by = VALUES(updated_by),
+            updated_at = VALUES(updated_at)
+    ");
+    if (!$stmt) {
+        return false;
+    }
+
+    $enabledInt = $enabled ? 1 : 0;
+    $stmt->bind_param('ssii', $company, $department, $enabledInt, $updatedBy);
+    $ok = $stmt->execute();
+    $stmt->close();
+
+    return $ok;
+}
+
+function ticket_receiving_management_rows(mysqli $conn): array
+{
+    $statusMap = ticket_receiving_fetch_status_map($conn);
+    $rows = [];
+
+    foreach (ticket_request_company_options() as $companyKey => $companyLabel) {
+        $companyKey = ticket_normalize_company($companyKey);
+        $companyEnabled = !isset($statusMap[$companyKey]['']) || (int) $statusMap[$companyKey][''] === 1;
+        $departments = ticket_company_requires_department($companyKey)
+            ? ticket_company_allowed_groups($companyKey)
+            : [];
+
+        $departmentRows = [];
+        foreach ($departments as $departmentName) {
+            $departmentName = (string) $departmentName;
+            $departmentEnabled = $companyEnabled
+                && (!isset($statusMap[$companyKey][$departmentName]) || (int) $statusMap[$companyKey][$departmentName] === 1);
+
+            $departmentRows[] = [
+                'company_key' => $companyKey,
+                'company_label' => $companyLabel,
+                'department_name' => $departmentName,
+                'receiving_enabled' => $departmentEnabled ? 1 : 0,
+            ];
+        }
+
+        $rows[] = [
+            'company_key' => $companyKey,
+            'company_label' => $companyLabel,
+            'receiving_enabled' => $companyEnabled ? 1 : 0,
+            'departments' => $departmentRows,
+        ];
+    }
+
+    return $rows;
+}
+
 function ticket_company_allowed_groups(string $company): array
 {
     $company = ticket_normalize_company($company);

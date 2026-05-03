@@ -2,7 +2,9 @@
 // Get current page for active link
 $current_page = basename($_SERVER['PHP_SELF']);
 require_once __DIR__ . '/csrf.php';
+require_once __DIR__ . '/user_permissions.php';
 $csrfToken = csrf_token();
+$canManageTicketReceiving = isset($conn) && $conn instanceof mysqli && user_permissions_can_manage($conn);
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <header class="admin-navbar">
@@ -23,6 +25,9 @@ $csrfToken = csrf_token();
         <a href="all_tickets.php" class="admin-nav-link <?= ($current_page == 'all_tickets.php' || $current_page == 'view_ticket.php') ? 'active' : '' ?>">All Tickets</a>
         <a href="analytics.php" class="admin-nav-link <?= $current_page == 'analytics.php' ? 'active' : '' ?>">Analytics</a>
         <a href="create_admin.php" class="admin-nav-link <?= ($current_page == 'create_admin.php' || $current_page == 'manage_users.php') ? 'active' : '' ?>">Admin Management</a>
+        <?php if ($canManageTicketReceiving): ?>
+        <a href="manage_ticket_receiving.php" class="admin-nav-link <?= $current_page == 'manage_ticket_receiving.php' ? 'active' : '' ?>">Ticket Routing Control</a>
+        <?php endif; ?>
         <a href="conference_bookings.php" class="admin-nav-link <?= ($current_page == 'conference_bookings.php' || $current_page == 'manage_rooms.php') ? 'active' : '' ?>">Conference Bookings</a>
         <a href="manage_kb.php" class="admin-nav-link <?= ($current_page == 'manage_kb.php' || $current_page == 'edit_kb.php' || $current_page == 'add_kb.php') ? 'active' : '' ?>">Knowledge Base</a>
     </nav>
