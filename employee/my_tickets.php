@@ -3,6 +3,8 @@ require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 
+notif_ensure_requester_identity_columns($conn);
+
 function can_follow_up_ticket_status(string $status): bool
 {
     $status = strtoupper(trim($status));
@@ -12,6 +14,29 @@ function can_follow_up_ticket_status(string $status): bool
 function can_requester_close_ticket_status(string $status): bool
 {
     return trim($status) === 'Resolved';
+}
+
+function current_employee_email(mysqli $conn, int $userId): string
+{
+    $email = strtolower(trim((string) ($_SESSION['email'] ?? '')));
+    if ($email !== '' || $userId <= 0) {
+        return $email;
+    }
+
+    $stmt = $conn->prepare("SELECT email FROM users WHERE id = ? LIMIT 1");
+    if (!$stmt) {
+        return '';
+    }
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+    $email = strtolower(trim((string) ($row['email'] ?? '')));
+    if ($email !== '') {
+        $_SESSION['email'] = $email;
+    }
+    return $email;
 }
 
 function submitted_ticket_target_label(array $row): string
@@ -598,6 +623,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
     csrf_validate();
 
     $user_id = (int) ($_SESSION['user_id'] ?? 0);
+    $user_email = current_employee_email($conn, $user_id);
     $ticketId = (int) ($_POST['ticket_id'] ?? 0);
     if ($user_id <= 0 || $ticketId <= 0) {
         http_response_code(400);
@@ -636,7 +662,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
     $ticket = $ticketRes ? $ticketRes->fetch_assoc() : null;
     $ticketStmt->close();
 
-    if (!$ticket || (int) ($ticket['user_id'] ?? 0) !== $user_id) {
+    $ticketRequesterEmail = strtolower(trim((string) ($ticket['creator_email'] ?? '')));
+    if (!$ticket || ((int) ($ticket['user_id'] ?? 0) !== $user_id && ($user_email === '' || $ticketRequesterEmail !== $user_email))) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'error' => 'You are not allowed to follow up this ticket.']);
         exit;
@@ -785,6 +812,7 @@ ticket_apply_sla_priority($conn);
 follow_up_ensure_cooldown_columns($conn);
 
 $user_id = (int) $_SESSION['user_id'];
+$user_email = current_employee_email($conn, $user_id);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'close_ticket') {
     csrf_validate();
 
@@ -797,11 +825,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
             SELECT id, status
             FROM employee_tickets
             WHERE id = ?
-              AND user_id = ?
+              AND (user_id = ? OR LOWER(TRIM(COALESCE(requester_email, ''))) = ?)
             LIMIT 1
         ");
         if ($ticketStmt) {
-            $ticketStmt->bind_param("ii", $ticketId, $user_id);
+            $ticketStmt->bind_param("iis", $ticketId, $user_id, $user_email);
             $ticketStmt->execute();
             $ticketRes = $ticketStmt->get_result();
             $ticket = $ticketRes ? $ticketRes->fetch_assoc() : null;
@@ -814,12 +842,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
                         updated_at = NOW(),
                         resolved_at = IFNULL(resolved_at, NOW())
                     WHERE id = ?
-                      AND user_id = ?
+                      AND (user_id = ? OR LOWER(TRIM(COALESCE(requester_email, ''))) = ?)
                       AND status = 'Resolved'
                     LIMIT 1
                 ");
                 if ($updateStmt) {
-                    $updateStmt->bind_param("ii", $ticketId, $user_id);
+                    $updateStmt->bind_param("iis", $ticketId, $user_id, $user_email);
                     $updateStmt->execute();
                     if ($updateStmt->affected_rows > 0) {
                         $flashType = 'success';
@@ -866,14 +894,14 @@ $pendingFeedbackStmt = $conn->prepare("
     FROM employee_tickets t
     LEFT JOIN users assignee
         ON assignee.id = COALESCE(NULLIF(t.assigned_user_id, 0), NULLIF(t.assigned_to, 0))
-    WHERE t.user_id = ?
+    WHERE (t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)
       AND t.status = 'Resolved'
       AND t.feedback_status = 'pending'
       AND COALESCE(NULLIF(t.assigned_to, 0), NULLIF(t.assigned_user_id, 0)) IS NOT NULL
     ORDER BY t.resolved_at DESC, t.id DESC
 ");
 if ($pendingFeedbackStmt) {
-    $pendingFeedbackStmt->bind_param("i", $user_id);
+    $pendingFeedbackStmt->bind_param("is", $user_id, $user_email);
     $pendingFeedbackStmt->execute();
     $pendingFeedbackRes = $pendingFeedbackStmt->get_result();
     while ($pendingFeedbackRes && ($pendingFeedbackRow = $pendingFeedbackRes->fetch_assoc())) {
@@ -894,9 +922,9 @@ if ($page < 1) $page = 1;
 $countStmt = $conn->prepare("
     SELECT COUNT(*) AS total
     FROM employee_tickets
-    WHERE user_id = ?
+    WHERE (user_id = ? OR LOWER(TRIM(COALESCE(requester_email, ''))) = ?)
 ");
-$countStmt->bind_param("i", $user_id);
+$countStmt->bind_param("is", $user_id, $user_email);
 $countStmt->execute();
 $countResult = $countStmt->get_result();
 $countRow = $countResult ? $countResult->fetch_assoc() : null;
@@ -934,11 +962,11 @@ $stmt = $conn->prepare("
             ELSE 0
         END AS follow_up_in_cooldown
     FROM employee_tickets t
-    WHERE t.user_id = ?
+    WHERE (t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)
     ORDER BY t.created_at DESC
     LIMIT ?, ?
 ");
-$stmt->bind_param("iii", $user_id, $offset, $limit);
+$stmt->bind_param("isii", $user_id, $user_email, $offset, $limit);
 $stmt->execute();
 $result = $stmt->get_result();
 unset($_SESSION['success']);

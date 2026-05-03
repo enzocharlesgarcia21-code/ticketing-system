@@ -1002,14 +1002,17 @@ function ticket_user_is_handler_candidate(array $ticket, int $userId, array $use
 {
     $requesterId = isset($ticket['user_id']) ? (int) $ticket['user_id'] : 0;
     $assignedUserId = isset($ticket['assigned_user_id']) ? (int) $ticket['assigned_user_id'] : 0;
+    $handlerId = isset($ticket['assigned_to']) ? (int) $ticket['assigned_to'] : 0;
     $ticketGroup = ticket_department_key_from_value((string) ($ticket['assigned_group'] ?? ($ticket['assigned_department'] ?? '')));
     $userGroup = ticket_department_key_from_value((string) ($userContext['department'] ?? ''));
     $ticketCompany = (string) ($ticket['assigned_company'] ?? ($ticket['company'] ?? ''));
     $userCompany = (string) ($userContext['company'] ?? '');
     $userEmail = (string) ($userContext['email'] ?? '');
 
-    if ($userId <= 0 || $userId === $requesterId) return false;
+    if ($userId <= 0) return false;
     if ($assignedUserId > 0 && $assignedUserId === $userId) return true;
+    if ($handlerId > 0 && $handlerId === $userId) return true;
+    if ($userId === $requesterId) return false;
     if ($userGroup === '' && strpos($ticketCompany, '@') === 0) {
         return ticket_company_matches_user($ticketCompany, $userCompany, $userEmail);
     }

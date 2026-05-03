@@ -175,14 +175,21 @@ $sourceEmailExpr = "COALESCE(NULLIF(t.requester_email, ''), NULLIF(u.email, ''))
 $sourceCompanyExpr = "COALESCE(NULLIF(t.company, ''), NULLIF(u.company, ''), CASE WHEN $sourceEmailExpr LIKE '%@%' THEN CONCAT('@', LOWER(SUBSTRING_INDEX($sourceEmailExpr, '@', -1))) ELSE '' END)";
 $groupCond = "$taskDeptExpr = ?";
 $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
+$requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
 
-$where[] = "((t.assigned_user_id = ? AND t.user_id <> ?) OR (t.user_id <> ? AND $companyCond AND ((NOT $requiresGroupCond) OR (? = '' OR $groupCond))))";
+$where[] = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND ((NOT $requiresGroupCond) OR (? = '' OR $groupCond))))";
 $params[] = $user_id;
 $types .= "i";
 $params[] = $user_id;
 $types .= "i";
 $params[] = $user_id;
 $types .= "i";
+$params[] = strtolower((string) $user_email);
+$types .= "s";
+$params[] = $user_id;
+$types .= "i";
+$params[] = strtolower((string) $user_email);
+$types .= "s";
 $params[] = strtolower((string) $user_email);
 $types .= "s";
 foreach ($companyAliases as $co) {

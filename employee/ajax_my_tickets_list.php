@@ -4,6 +4,7 @@ require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 
 header('Content-Type: application/json');
+notif_ensure_requester_identity_columns($conn);
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -18,6 +19,29 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
 function h(string $value): string
 {
     return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+}
+
+function current_employee_email(mysqli $conn, int $userId): string
+{
+    $email = strtolower(trim((string) ($_SESSION['email'] ?? '')));
+    if ($email !== '' || $userId <= 0) {
+        return $email;
+    }
+
+    $stmt = $conn->prepare("SELECT email FROM users WHERE id = ? LIMIT 1");
+    if (!$stmt) {
+        return '';
+    }
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+    $email = strtolower(trim((string) ($row['email'] ?? '')));
+    if ($email !== '') {
+        $_SESSION['email'] = $email;
+    }
+    return $email;
 }
 
 function submitted_ticket_target_label(array $row): string
@@ -263,6 +287,7 @@ ticket_apply_sla_priority($conn);
 follow_up_ensure_cooldown_columns($conn);
 
 $user_id = (int) ($_SESSION['user_id'] ?? 0);
+$user_email = current_employee_email($conn, $user_id);
 follow_up_sync_user_ticket_cooldowns($conn, $user_id);
 $page = (int) ($_GET['page'] ?? 1);
 $limit = (int) ($_GET['limit'] ?? 10);
@@ -274,7 +299,7 @@ if ($limit > 100) $limit = 100;
 $countStmt = $conn->prepare("
     SELECT COUNT(*) AS total
     FROM employee_tickets
-    WHERE user_id = ?
+    WHERE (user_id = ? OR LOWER(TRIM(COALESCE(requester_email, ''))) = ?)
 ");
 if (!$countStmt) {
     http_response_code(500);
@@ -282,7 +307,7 @@ if (!$countStmt) {
     exit;
 }
 
-$countStmt->bind_param("i", $user_id);
+$countStmt->bind_param("is", $user_id, $user_email);
 $countStmt->execute();
 $countResult = $countStmt->get_result();
 $countRow = $countResult ? $countResult->fetch_assoc() : null;
@@ -318,7 +343,7 @@ $stmt = $conn->prepare("
             ELSE 0
         END AS follow_up_in_cooldown
     FROM employee_tickets t
-    WHERE t.user_id = ?
+    WHERE (t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)
     ORDER BY t.created_at DESC
     LIMIT ?, ?
 ");
@@ -328,7 +353,7 @@ if (!$stmt) {
     exit;
 }
 
-$stmt->bind_param("iii", $user_id, $offset, $limit);
+$stmt->bind_param("isii", $user_id, $user_email, $offset, $limit);
 $stmt->execute();
 $result = $stmt->get_result();
 

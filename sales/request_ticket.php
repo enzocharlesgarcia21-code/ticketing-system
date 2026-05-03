@@ -1015,9 +1015,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $sales_email = 'sales_guest@leadsagri.com';
     $user_id = null;
-    $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+    $requesterLookupEmail = strtolower(trim($email));
+    $stmt = $conn->prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1");
     if ($stmt) {
-        $stmt->bind_param("s", $sales_email);
+        $stmt->bind_param("s", $requesterLookupEmail);
         $stmt->execute();
         $stmt->bind_result($found_user_id);
         if ($stmt->fetch()) {
@@ -1026,6 +1027,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->close();
     } else {
         if ($error_msg === '') $error_msg = "System error. Please try again later.";
+    }
+
+    if ($error_msg === '' && empty($user_id)) {
+        $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param("s", $sales_email);
+            $stmt->execute();
+            $stmt->bind_result($found_user_id);
+            if ($stmt->fetch()) {
+                $user_id = (int) $found_user_id;
+            }
+            $stmt->close();
+        } else {
+            $error_msg = "System error. Please try again later.";
+        }
     }
 
     if ($error_msg === '' && empty($user_id)) {

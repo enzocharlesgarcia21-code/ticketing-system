@@ -15,6 +15,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     ticket_ensure_assignment_columns($conn);
     notif_ensure_action_type_column($conn);
+    notif_ensure_requester_identity_columns($conn);
 
     if (!isset($_POST['id'])) {
         // Redirect if ID is missing
@@ -34,7 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // --- FETCH OLD DATA FOR COMPARISON & NOTIFICATIONS ---
-    $old_stmt = $conn->prepare("SELECT user_id, status, assigned_department, assigned_company, assigned_group, assigned_user_id, assigned_to, company, admin_note FROM employee_tickets WHERE id = ?");
+    $old_stmt = $conn->prepare("SELECT user_id, requester_email, status, assigned_department, assigned_company, assigned_group, assigned_user_id, assigned_to, company, admin_note FROM employee_tickets WHERE id = ?");
     $old_stmt->bind_param("i", $id);
     $old_stmt->execute();
     $old_res = $old_stmt->get_result();
@@ -170,7 +171,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         // --- INSERT NOTIFICATIONS ---
         if ($old_data) {
-            $notif_user_id = (int) ($old_data['user_id'] ?? 0);
+            $notif_user_id = notif_requester_user_id($conn, $old_data);
             $statusChanged = (string) ($old_data['status'] ?? '') !== (string) $new_status;
             $noteChanged = !empty($admin_note) && (string) $admin_note !== (string) ($old_data['admin_note'] ?? '');
 

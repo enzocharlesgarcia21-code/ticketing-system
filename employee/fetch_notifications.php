@@ -8,6 +8,7 @@ header('Pragma: no-cache');
 header('Expires: 0');
 
 notif_ensure_action_type_column($conn);
+notif_ensure_requester_identity_columns($conn);
 ticket_apply_sla_priority($conn);
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
@@ -17,6 +18,15 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
 }
 
 $user_id = (int) $_SESSION['user_id'];
+$user_email = strtolower(trim((string) ($_SESSION['email'] ?? '')));
+if ($user_email === '') {
+    $user_email = strtolower(trim((string) (notif_user_contact($conn, $user_id)['email'] ?? '')));
+    if ($user_email !== '') {
+        $_SESSION['email'] = $user_email;
+    }
+}
+$user_email_sql = $conn->real_escape_string($user_email);
+$requesterNotificationAccessSql = "(n.type <> 'note_added' OR t.user_id = n.user_id OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = '$user_email_sql')";
 
 function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
 {
@@ -138,7 +148,7 @@ $count_result = $conn->query("
     WHERE n.user_id = $user_id
       AND n.is_read = 0
       AND n.type <> 'chat_message'
-      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+      AND $requesterNotificationAccessSql
 ");
 if (!$count_result) {
     http_response_code(500);
@@ -156,7 +166,7 @@ $query = "SELECT n.id, n.ticket_id, n.title, n.message, n.type, n.is_read, n.cre
           LEFT JOIN employee_tickets t ON n.ticket_id = t.id
           WHERE n.user_id = $user_id
             AND n.type <> 'chat_message'
-            AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+            AND $requesterNotificationAccessSql
           ORDER BY n.created_at DESC
           LIMIT 10";
 $result = $conn->query($query);
