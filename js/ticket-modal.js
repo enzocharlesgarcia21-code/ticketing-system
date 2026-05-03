@@ -1945,6 +1945,13 @@
     var hideAdminChat = typeof window !== 'undefined' && window.TM_HIDE_ADMIN_CHAT === true;
     var hideRequesterAdminChatButton = typeof window !== 'undefined' && window.TM_HIDE_REQUESTOR_ADMIN_CHAT_BUTTON === true;
     var isSalesTicket = !!(data && data.is_sales_ticket);
+    var hasActualAssignee = false;
+    if (data && Object.prototype.hasOwnProperty.call(data, 'has_assignee')) {
+      hasActualAssignee = data.has_assignee === true || data.has_assignee === 1 || data.has_assignee === '1';
+    } else if (data) {
+      hasActualAssignee = parseInt(data.assigned_to || 0, 10) > 0;
+    }
+    if (isSalesTicket && !hasActualAssignee) hideUpdateTab = false;
     var hideConversationTab = hideAdminChat || isSalesTicket;
     var hideAdminConversationButton = hideRequesterAdminChatButton || isSalesTicket;
     var hideQuickTags = typeof window !== 'undefined' && window.TM_HIDE_QUICK_TAGS === true;

@@ -230,6 +230,44 @@ function notif_user_contact(mysqli $conn, int $userId): array
     return $out;
 }
 
+function notif_user_id_by_email(mysqli $conn, string $email): int
+{
+    $email = strtolower(trim($email));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return 0;
+    }
+
+    $stmt = $conn->prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1");
+    if (!$stmt) {
+        return 0;
+    }
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    return $row ? (int) ($row['id'] ?? 0) : 0;
+}
+
+function notif_requester_user_id(mysqli $conn, array $ticket): int
+{
+    $requesterUserId = notif_user_id_by_email($conn, (string) ($ticket['requester_email'] ?? ''));
+    if ($requesterUserId > 0) {
+        return $requesterUserId;
+    }
+
+    $creatorEmail = trim((string) ($ticket['creator_email'] ?? ''));
+    if ($creatorEmail !== '' && strcasecmp($creatorEmail, (string) ($ticket['requester_email'] ?? '')) !== 0) {
+        $requesterUserId = notif_user_id_by_email($conn, $creatorEmail);
+        if ($requesterUserId > 0) {
+            return $requesterUserId;
+        }
+    }
+
+    return (int) ($ticket['user_id'] ?? 0);
+}
+
 function notif_admin_user_ids(mysqli $conn): array
 {
     $ids = [];
@@ -578,7 +616,7 @@ function notif_compact_email_lines(array $lines): array
 function getUsersToNotify(mysqli $conn, array $ticket): array
 {
     $ids = [];
-    $creatorId = (int) ($ticket['user_id'] ?? 0);
+    $creatorId = notif_requester_user_id($conn, $ticket);
     $assigneeId = (int) ($ticket['assigned_user_id'] ?? 0);
     $assigneeDepartment = trim((string) ($ticket['assignee_department'] ?? ''));
 
@@ -677,7 +715,7 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
         return ['inserted' => 0, 'emailed' => 0];
     }
 
-    $creatorId = (int) ($ticket['user_id'] ?? 0);
+    $creatorId = notif_requester_user_id($conn, $ticket);
     $creatorEmail = trim((string) ($ticket['creator_email'] ?? ''));
     $ticketNumber = notif_ticket_number($ticketId);
     $title = strcasecmp($newStatus, 'Closed') === 0 ? 'Ticket Closed' : 'Ticket Status Updated';

@@ -94,6 +94,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     ticket_ensure_assignment_columns($conn);
     notif_ensure_action_type_column($conn);
+    notif_ensure_requester_identity_columns($conn);
 
     if (!isset($_POST['id'])) {
         header("Location: my_task.php");
@@ -109,7 +110,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // --- PERMISSION CHECK ---
     // Employee can only update tickets assigned to their department AND company
-    $check_stmt = $conn->prepare("SELECT user_id, status, assigned_department, assigned_group, assigned_company, assigned_user_id, assigned_to, admin_note, company FROM employee_tickets WHERE id = ?");
+    $check_stmt = $conn->prepare("SELECT user_id, requester_email, status, assigned_department, assigned_group, assigned_company, assigned_user_id, assigned_to, admin_note, company FROM employee_tickets WHERE id = ?");
     $check_stmt->bind_param("i", $id);
     $check_stmt->execute();
     $check_res = $check_stmt->get_result();
@@ -121,7 +122,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    $assigneeOk = isset($old_data['assigned_user_id']) && (int) $old_data['assigned_user_id'] === (int) $_SESSION['user_id'];
+    $assigneeOk = (isset($old_data['assigned_user_id']) && (int) $old_data['assigned_user_id'] === (int) $_SESSION['user_id'])
+        || (isset($old_data['assigned_to']) && (int) $old_data['assigned_to'] === (int) $_SESSION['user_id']);
     $ticketAssignedCompany = (string) (!empty($old_data['assigned_company']) ? $old_data['assigned_company'] : ($old_data['company'] ?? ''));
     $ticketCompanyCode = company_code($ticketAssignedCompany);
     $userCompanyCode = company_code((string) ($_SESSION['company'] ?? ''));
@@ -384,7 +386,7 @@ $updateOk = false;
         }
 
         // --- INSERT NOTIFICATIONS ---
-        $notif_user_id = (int) ($old_data['user_id'] ?? 0);
+        $notif_user_id = notif_requester_user_id($conn, $old_data);
         $statusChanged = (string) ($old_data['status'] ?? '') !== (string) $new_status;
         $noteChanged = !empty($admin_note) && (string) $admin_note !== (string) ($old_data['admin_note'] ?? '');
 

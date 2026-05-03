@@ -4,6 +4,7 @@ require_once '../includes/csrf.php';
 require_once '../includes/notification_service.php';
 
 notif_ensure_action_type_column($conn);
+notif_ensure_requester_identity_columns($conn);
 
 /* Protect page */
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
@@ -12,6 +13,14 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
 }
 
 $user_id = (int) $_SESSION['user_id'];
+$user_email = strtolower(trim((string) ($_SESSION['email'] ?? '')));
+if ($user_email === '') {
+    $user_email = strtolower(trim((string) (notif_user_contact($conn, $user_id)['email'] ?? '')));
+    if ($user_email !== '') {
+        $_SESSION['email'] = $user_email;
+    }
+}
+$requesterNotificationAccessSql = "(n.type <> 'note_added' OR t.user_id = n.user_id OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)";
 
 /* Mark all as read if requested */
 if (isset($_POST['mark_all_read'])) {
@@ -27,15 +36,19 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 20;
 $offset = ($page - 1) * $limit;
 
-$total_res = $conn->query("
+$totalStmt = $conn->prepare("
     SELECT COUNT(*) as c
     FROM notifications n
     LEFT JOIN employee_tickets t ON n.ticket_id = t.id
-    WHERE n.user_id = $user_id
+    WHERE n.user_id = ?
       AND n.type <> 'chat_message'
-      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+      AND $requesterNotificationAccessSql
 ");
+$totalStmt->bind_param("is", $user_id, $user_email);
+$totalStmt->execute();
+$total_res = $totalStmt->get_result();
 $total = $total_res->fetch_assoc()['c'];
+$totalStmt->close();
 $total_pages = ceil($total / $limit);
 
 $stmt = $conn->prepare("
@@ -44,11 +57,11 @@ $stmt = $conn->prepare("
     LEFT JOIN employee_tickets t ON n.ticket_id = t.id
     WHERE n.user_id = ?
       AND n.type <> 'chat_message'
-      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+      AND $requesterNotificationAccessSql
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?
 ");
-$stmt->bind_param("iii", $user_id, $limit, $offset);
+$stmt->bind_param("isii", $user_id, $user_email, $limit, $offset);
 $stmt->execute();
 $result = $stmt->get_result();
 
