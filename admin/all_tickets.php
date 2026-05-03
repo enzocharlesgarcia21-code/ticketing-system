@@ -188,7 +188,9 @@ if (!empty($status)) {
 
 if (!empty($company_email)) {
     $domain = strtolower(trim((string) $company_email));
-    if ($domain !== '') {
+    if ($domain === '__farmex_lav__') {
+        $query .= " AND LOWER(COALESCE(NULLIF(employee_tickets.assigned_company,''), NULLIF(employee_tickets.company,''))) IN ('@leads-farmex.com', '@leadsav.com')";
+    } elseif ($domain !== '') {
         if ($domain[0] !== '@') $domain = '@' . $domain;
         $domainEsc = $conn->real_escape_string($domain);
         $query .= " AND LOWER(COALESCE(NULLIF(employee_tickets.assigned_company,''), NULLIF(employee_tickets.company,''))) = '$domainEsc'";
@@ -565,17 +567,14 @@ $result = $stmt->get_result();
 
                         <select id="recipientFilterSelect" class="filter-select">
                             <option value="" <?= $company_email === '' ? 'selected' : '' ?>>All Company</option>
-                            <option value="@leads-farmex.com">FARMEX</option>
                             <option value="@farmasee.ph">FARMASEE</option>
-                            <option value="@gpsci.net">GPSCI</option>
-                            <option value="@leadsanimalhealth.com">LAH</option>
+                            <option value="__farmex_lav__" <?= $company_email === '__farmex_lav__' ? 'selected' : '' ?>>FARMEX / LAV</option>
+                            <option value="@gpsci.net" <?= $company_email === '@gpsci.net' ? 'selected' : '' ?>>GPSCI</option>
                             <option value="@leadsagri.com">LAPC</option>
-                            <option value="@leads-eh.com">LEH</option>
-                            <option value="@leadsav.com">LAV</option>
-                            <option value="@malvedaholdings.com">MHC</option>
-                            <option value="@malvedaproperties.com">MPDC</option>
                             <option value="@leadstech-corp.com">LTC</option>
                             <option value="@lingapleads.org">LINGAP</option>
+                            <option value="@malvedaholdings.com">MHC</option>
+                            <option value="@malvedaproperties.com">MPDC</option>
                             <option value="@primestocks.ph">PCC</option>
                         </select>
 
@@ -603,14 +602,14 @@ $result = $stmt->get_result();
                         </div>
 
                         <select name="priority" class="filter-select" onchange="submitForm()">
-                            <option value="" disabled selected hidden>All Priority</option>
+                            <option value="" <?= $priority === '' ? 'selected' : '' ?>>All Priority</option>
                             <option value="Low" <?= $priority=='Low'?'selected':'' ?>>Low</option>
                             <option value="High" <?= $priority=='High'?'selected':'' ?>>High</option>
                             <option value="Critical" <?= $priority=='Critical'?'selected':'' ?>>Critical</option>
                         </select>
 
                         <select name="status" class="filter-select" onchange="submitForm()">
-                            <option value="" disabled selected hidden>All Status</option>
+                            <option value="" <?= $status === '' ? 'selected' : '' ?>>All Status</option>
                             <option value="Open" <?= $status=='Open'?'selected':'' ?>>Open</option>
                             <option value="In Progress" <?= $status=='In Progress'?'selected':'' ?>>In Progress</option>
                             <option value="Resolved" <?= $status=='Resolved'?'selected':'' ?>>Resolved</option>

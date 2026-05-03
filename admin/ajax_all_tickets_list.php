@@ -184,11 +184,18 @@ if ($status !== '') {
 }
 
 if ($companyEmail !== '') {
-    $domain = normalize_domain($companyEmail);
-    if ($domain !== '') {
+    if (trim(strtolower((string) $companyEmail)) === '__farmex_lav__') {
+        $where[] = "LOWER(COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))) IN (?, ?)";
+        $params[] = '@leads-farmex.com';
+        $params[] = '@leadsav.com';
+        $types .= 'ss';
+    } else {
+        $domain = normalize_domain($companyEmail);
+        if ($domain !== '') {
         $where[] = "LOWER(COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))) = ?";
         $params[] = $domain;
         $types .= 's';
+        }
     }
 }
 
