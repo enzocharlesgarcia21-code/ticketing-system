@@ -1168,7 +1168,7 @@ function dashboard_ticket_category(array $row): string
             <img src="../assets/img/UPDATEDlogo.png" alt="Logo">
             <span>Leads Agri</span>
         </div>
-        <a href="dashboard.php" class="active">Dashboards</a>
+        <a href="dashboard.php" class="active">Dashboard</a>
         <a href="request_ticket.php">Create Ticket</a>
         <a href="my_task.php">Assigned Tickets</a>
         <a href="my_tickets.php">My Submitted Tickets</a>
