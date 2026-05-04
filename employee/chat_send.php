@@ -148,8 +148,13 @@ $requesterId = (int) ($ticket['user_id'] ?? 0);
 $userContext = ticket_build_user_context($conn, $sender_id, $_SESSION);
 $isHandlerCandidate = ticket_user_is_handler_candidate($ticket, $sender_id, $userContext);
 $ticketWasUnassigned = empty($ticket['assigned_to']);
+$autoProgressStatusChanged = false;
 if ($sender_id !== $requesterId && $ticketWasUnassigned && $isHandlerCandidate) {
-    ticket_claim_first_handler_on_reply($conn, $ticket_id, $sender_id);
+    $oldStatusBeforeClaim = (string) ($ticket['status'] ?? '');
+    $claimedBySender = ticket_claim_first_handler_on_reply($conn, $ticket_id, $sender_id);
+    if ($claimedBySender && strcasecmp($oldStatusBeforeClaim, 'Open') === 0) {
+        $autoProgressStatusChanged = true;
+    }
     $reloadStmt = $conn->prepare("
         SELECT
             t.id,
@@ -221,7 +226,9 @@ $stmt->close();
 
 if ($insertedAll) {
     if ($sender_id === $handlerId) {
-        ticket_promote_status_on_first_handler_reply($conn, $ticket_id, $sender_id);
+        if (ticket_promote_status_on_first_handler_reply($conn, $ticket_id, $sender_id)) {
+            $autoProgressStatusChanged = true;
+        }
     }
     ticket_record_chat_activity($conn, $ticket_id);
     $responseAttachments = array_map(static function ($upload) {
@@ -244,6 +251,22 @@ if ($insertedAll) {
     } else {
         @ob_flush();
         @flush();
+    }
+
+    if ($autoProgressStatusChanged) {
+        $senderInfoForStatus = notif_user_contact($conn, (int) $sender_id);
+        $statusUpdatedBy = trim((string) ($senderInfoForStatus['department'] ?? ''));
+        if ($statusUpdatedBy === '') {
+            $statusUpdatedBy = trim((string) ($senderInfoForStatus['name'] ?? ''));
+        }
+        notif_send_ticket_status_update(
+            $conn,
+            (int) $ticket_id,
+            'Open',
+            'In Progress',
+            $statusUpdatedBy,
+            ['skip_email' => true]
+        );
     }
 
     $recipientIds = [];
