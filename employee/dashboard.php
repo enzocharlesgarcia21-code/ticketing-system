@@ -657,170 +657,105 @@ function dashboard_ticket_category(array $row): string
 
 
         body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
-            width: min(100%, 980px);
-            border-radius: 34px;
-            padding: 0;
-            overflow: hidden;
+            width: min(100%, 780px);
+            max-height: calc(100vh - 44px);
+            border-radius: 18px;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header {
-            padding: 34px 34px 22px;
-            background: #ffffff;
-            color: #0f172a;
-            text-align: center;
-            border-bottom: 1px solid #e5e7eb;
+            padding: 28px 44px 24px;
         }
 
-        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-close-btn {
-            top: 28px;
-            right: 28px;
-            width: 54px;
-            height: 54px;
-            background: #f8fafc;
-            color: #475569;
-            border: 1px solid #e5e7eb;
-            font-size: 24px;
-        }
-
-        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-close-btn:hover {
-            background: #f1f5f9;
-            color: #0f172a;
-        }
-
-        body.employee-dashboard-page .feedback-success-hero {
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 132px;
-            margin-bottom: 10px;
-        }
-
-        body.employee-dashboard-page .feedback-success-burst {
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-        }
-
-        body.employee-dashboard-page .feedback-success-dot,
-        body.employee-dashboard-page .feedback-success-spark {
-            position: absolute;
-            color: #86efac;
-        }
-
-        body.employee-dashboard-page .feedback-success-dot.dot-1 { top: 18px; left: 22%; font-size: 16px; }
-        body.employee-dashboard-page .feedback-success-dot.dot-2 { top: 86px; left: 27%; font-size: 12px; }
-        body.employee-dashboard-page .feedback-success-dot.dot-3 { top: 76px; right: 25%; font-size: 13px; }
-        body.employee-dashboard-page .feedback-success-dot.dot-4 { top: 42px; right: 20%; font-size: 14px; }
-        body.employee-dashboard-page .feedback-success-spark.spark-1 { top: 52px; left: 19%; font-size: 26px; }
-        body.employee-dashboard-page .feedback-success-spark.spark-2 { top: 24px; right: 24%; font-size: 22px; }
-
-        body.employee-dashboard-page .feedback-success-icon {
-            width: 118px;
-            height: 118px;
-            border-radius: 999px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: radial-gradient(circle at 50% 35%, rgba(255,255,255,0.98) 0%, rgba(236,253,245,0.92) 58%, rgba(220,252,231,0.94) 100%);
-            border: 3px solid rgba(134, 239, 172, 0.9);
-            color: #00b833;
-            font-size: 62px;
-            box-shadow: 0 0 0 18px rgba(220, 252, 231, 0.6), 0 22px 42px rgba(22, 163, 74, 0.16);
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-success-icon {
+            width: 62px;
+            height: 62px;
+            margin-bottom: 18px;
+            font-size: 36px;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-title {
-            font-size: clamp(46px, 4.2vw, 68px);
-            line-height: 1.02;
-            letter-spacing: 0;
+            margin-bottom: 10px;
+            font-size: 28px;
             color: #006d2c;
-            margin-top: 6px;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-subtitle {
-            margin-top: 12px;
-            font-size: clamp(24px, 2vw, 32px);
-            line-height: 1.28;
-            color: #4b5563;
+            font-size: 16px;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
-            padding: 26px 34px 34px;
+            padding: 22px 40px 26px;
             display: grid;
-            gap: 22px;
+            gap: 18px;
+            overflow-y: auto;
+            max-height: calc(100vh - 250px);
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-flash.is-success {
             margin: 0;
-            padding: 26px 28px;
-            border-radius: 24px;
-            border: 2px solid #d1fae5;
-            background: linear-gradient(135deg, #f8fffb 0%, #f0fdf4 100%);
-            display: grid;
-            grid-template-columns: 92px minmax(0, 1fr);
-            gap: 22px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            display: flex;
             align-items: center;
-            color: #065f46;
-            font-size: 18px;
-            font-weight: 400;
-            line-height: 1.55;
+            gap: 14px;
+            text-align: left;
+            font-size: 15px;
+            font-weight: 500;
+            line-height: 1.45;
         }
 
         body.employee-dashboard-page .feedback-success-message-icon {
-            width: 92px;
-            height: 92px;
+            width: 46px;
+            height: 46px;
             border-radius: 999px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: radial-gradient(circle at 50% 35%, #f0fdf4 0%, #dcfce7 100%);
+            flex: 0 0 auto;
+            background: #dcfce7;
             color: #00a63a;
-            font-size: 46px;
+            font-size: 24px;
         }
 
         body.employee-dashboard-page .feedback-success-message-copy strong {
             display: inline;
             color: #006d2c;
-            font-weight: 700;
+            font-weight: 800;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-actions {
-            justify-content: center;
+            justify-content: flex-end;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-submit-btn {
-            width: min(100%, 700px);
-            min-height: 88px;
-            border-radius: 24px;
-            font-size: 28px;
-            font-weight: 700;
-            box-shadow: 0 20px 38px rgba(22, 101, 52, 0.22);
+            width: auto;
+            min-width: 170px;
+            min-height: 48px;
+            border-radius: 12px;
+            font-size: 15px;
         }
 
         @media (max-width: 768px) {
+            body.employee-dashboard-page .feedback-modal-overlay {
+                padding: 12px;
+            }
+
             body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
                 width: min(100%, 94vw);
-                border-radius: 26px;
             }
 
-            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header {
-                padding: 28px 22px 20px;
-            }
-
+            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header,
             body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
-                padding: 22px 22px 26px;
+                padding-left: 18px;
+                padding-right: 18px;
             }
 
             body.employee-dashboard-page .feedback-modal-dialog-success .feedback-flash.is-success {
-                grid-template-columns: 1fr;
-                text-align: center;
-                justify-items: center;
-                padding: 22px 20px;
+                align-items: flex-start;
             }
 
             body.employee-dashboard-page .feedback-modal-dialog-success .feedback-submit-btn {
-                min-height: 64px;
-                font-size: 22px;
+                width: 100%;
             }
         }
 
@@ -1233,7 +1168,7 @@ function dashboard_ticket_category(array $row): string
             <img src="../assets/img/UPDATEDlogo.png" alt="Logo">
             <span>Leads Agri</span>
         </div>
-        <a href="dashboard.php" class="active">Dashboard</a>
+        <a href="dashboard.php" class="active">Dashboards</a>
         <a href="request_ticket.php">Create Ticket</a>
         <a href="my_task.php">Assigned Tickets</a>
         <a href="my_tickets.php">My Submitted Tickets</a>
@@ -1266,31 +1201,9 @@ function dashboard_ticket_category(array $row): string
     >
         <div class="feedback-modal-dialog feedback-modal-dialog-success" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
             <div class="feedback-modal-header">
-
                 <div class="feedback-modal-success-icon" aria-hidden="true">&#10003;</div>
                 <h2 id="feedbackModalTitle" class="feedback-modal-title">Feedback Submitted</h2>
                 <p class="feedback-modal-subtitle">Your feedback has been submitted.<br>Thank you for sharing your support experience.</p>
-            </div>
-            <div class="feedback-modal-body">
-=======
-                <button type="button" class="feedback-close-btn" id="feedbackModalCloseBtn" aria-label="Close feedback modal">
-                    <i class="fas fa-times"></i>
-                </button>
-                <div class="feedback-success-hero" aria-hidden="true">
-                    <div class="feedback-success-burst">
-                        <span class="feedback-success-dot dot-1"><i class="fas fa-circle"></i></span>
-                        <span class="feedback-success-dot dot-2"><i class="fas fa-circle"></i></span>
-                        <span class="feedback-success-dot dot-3"><i class="fas fa-circle"></i></span>
-                        <span class="feedback-success-dot dot-4"><i class="fas fa-circle"></i></span>
-                        <span class="feedback-success-spark spark-1"><i class="fas fa-sparkles"></i></span>
-                        <span class="feedback-success-spark spark-2"><i class="fas fa-sparkles"></i></span>
-                    </div>
-                    <div class="feedback-success-icon">
-                        <i class="fas fa-check"></i>
-                    </div>
-                </div>
-                <h2 id="feedbackModalTitle" class="feedback-modal-title">Feedback Submitted</h2>
-                <p class="feedback-modal-subtitle">Thank you for sharing your experience.</p>
             </div>
             <div class="feedback-modal-body">
                 <div class="feedback-flash is-success">
@@ -1302,7 +1215,6 @@ function dashboard_ticket_category(array $row): string
                         <?= htmlspecialchars((string) $feedbackFlash['message'], ENT_QUOTES, 'UTF-8'); ?>
                     </div>
                 </div>
->>>>>>> 862e7c8a09880196d16a251e2da5f65289bc9b4d
                 <div class="feedback-actions">
                     <button type="button" class="feedback-submit-btn" id="feedbackModalDismissBtn">Done</button>
                 </div>

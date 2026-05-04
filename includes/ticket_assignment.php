@@ -1171,9 +1171,9 @@ function ticket_claim_first_handler_on_reply(mysqli $conn, int $ticketId, int $u
     return $claimed;
 }
 
-function ticket_promote_status_on_first_handler_reply(mysqli $conn, int $ticketId, int $senderId): void
+function ticket_promote_status_on_first_handler_reply(mysqli $conn, int $ticketId, int $senderId): bool
 {
-    if ($ticketId <= 0 || $senderId <= 0) return;
+    if ($ticketId <= 0 || $senderId <= 0) return false;
 
     $stmt = $conn->prepare("
         UPDATE employee_tickets
@@ -1184,11 +1184,14 @@ function ticket_promote_status_on_first_handler_reply(mysqli $conn, int $ticketI
           AND assigned_to = ?
           AND status = 'Open'
     ");
-    if (!$stmt) return;
+    if (!$stmt) return false;
 
     $stmt->bind_param("ii", $ticketId, $senderId);
     $stmt->execute();
+    $changed = $stmt->affected_rows > 0;
     $stmt->close();
+
+    return $changed;
 }
 
 function ticket_ensure_chat_tables(mysqli $conn): void
