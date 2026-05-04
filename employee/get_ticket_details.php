@@ -455,17 +455,21 @@ if ($row = $result->fetch_assoc()) {
     $row['has_assignee'] = isset($row['assigned_to']) && (int) $row['assigned_to'] > 0;
     $lockedAssignedUserId = isset($row['assigned_user_id']) ? (int) $row['assigned_user_id'] : 0;
     $lockedHandlerId = isset($row['assigned_to']) ? (int) $row['assigned_to'] : 0;
+    $hasActualAssignee = $lockedHandlerId > 0;
     $canUpdateTab = ticket_user_is_handler_candidate($row, $currentUserId, $userContext);
     $isCurrentHandler = $lockedHandlerId > 0 && $lockedHandlerId === $currentUserId;
     $isCurrentAssignedUser = $lockedAssignedUserId > 0 && $lockedAssignedUserId === $currentUserId;
     if ($isCurrentHandler || $isCurrentAssignedUser) {
         $canUpdateTab = true;
     }
-    if (!$isCurrentHandler && $lockedAssignedUserId > 0 && $lockedAssignedUserId !== $currentUserId) {
+    if (!$isCurrentHandler && !$row['is_sales_ticket'] && $lockedAssignedUserId > 0 && $lockedAssignedUserId !== $currentUserId) {
         $canUpdateTab = false;
     }
     if (!$isCurrentAssignedUser && $lockedHandlerId > 0 && $lockedHandlerId !== $currentUserId) {
         $canUpdateTab = false;
+    }
+    if ($row['is_sales_ticket'] && !$hasActualAssignee) {
+        $canUpdateTab = ticket_user_is_handler_candidate($row, $currentUserId, $userContext);
     }
     $row['can_update_tab'] = $canUpdateTab;
     $row = ticket_chat_apply_effective_handler($row);
