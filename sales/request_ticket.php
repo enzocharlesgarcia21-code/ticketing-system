@@ -81,17 +81,18 @@ $mhcDepartmentCategories = [
 
 $requestTicketCompanyOptions = ticket_receiving_available_company_options($conn);
 $requestTicketCompanies = array_keys($requestTicketCompanyOptions);
-$selectedRecipientCompany = normalize_sales_recipient_company((string) ($company_id ?? ''));
+$selectedRecipientCompany = normalize_sales_recipient_company((string) ($_POST['company_id'] ?? ''));
 if ($selectedRecipientCompany === '' && count($requestTicketCompanyOptions) === 1) {
     $selectedRecipientCompany = (string) array_key_first($requestTicketCompanyOptions);
 }
-$selectedRecipientDepartment = trim((string) $assigned_department_selected);
+$selectedRecipientDepartment = trim((string) ($_POST['assigned_department'] ?? ''));
 $initialSalesDepartmentOptions = [];
 if ($selectedRecipientCompany === '@leadsagri.com') {
     $initialSalesDepartmentOptions = $lapcDepartments;
 } elseif ($selectedRecipientCompany === '@malvedaholdings.com') {
     $initialSalesDepartmentOptions = $mhcDepartments;
 }
+$initialShowDepartment = ticket_company_requires_department($selectedRecipientCompany);
 if ($selectedRecipientDepartment === '' && count($initialSalesDepartmentOptions) === 1) {
     $selectedRecipientDepartment = (string) ($initialSalesDepartmentOptions[0] ?? '');
 }
@@ -1915,6 +1916,7 @@ $normalized_company_id = $selectedRecipientCompany;
         }
         body.sales-request-ticket-page .recipient-dropdown-option,
         body.sales-request-ticket-page .department-dropdown-option,
+        body.sales-request-ticket-page .category-dropdown-option,
         body.sales-request-ticket-page .priority-dropdown-option {
             width: 100%;
             border: 0;
@@ -1931,6 +1933,8 @@ $normalized_company_id = $selectedRecipientCompany;
         body.sales-request-ticket-page .recipient-dropdown-option:focus,
         body.sales-request-ticket-page .department-dropdown-option:hover,
         body.sales-request-ticket-page .department-dropdown-option:focus,
+        body.sales-request-ticket-page .category-dropdown-option:hover,
+        body.sales-request-ticket-page .category-dropdown-option:focus,
         body.sales-request-ticket-page .priority-dropdown-option:hover,
         body.sales-request-ticket-page .priority-dropdown-option:focus {
             outline: none;
@@ -1939,12 +1943,14 @@ $normalized_company_id = $selectedRecipientCompany;
 
         body.sales-request-ticket-page .recipient-dropdown-option.is-selected,
         body.sales-request-ticket-page .department-dropdown-option.is-selected,
+        body.sales-request-ticket-page .category-dropdown-option.is-selected,
         body.sales-request-ticket-page .priority-dropdown-option.is-selected {
             background: #1B5E20;
             color: #ffffff;
             font-weight: 400;
         }
 
+        body.sales-request-ticket-page .category-dropdown-option.is-selected,
         body.sales-request-ticket-page .department-dropdown-option.is-selected {
             background: #f8fafc;
             color: #0f172a;
@@ -4053,32 +4059,32 @@ $normalized_company_id = $selectedRecipientCompany;
                 <input type="email" name="email" class="form-control" placeholder="Enter your email address" required value="<?= htmlspecialchars($email ?? '', ENT_QUOTES, 'UTF-8'); ?>">
             </div>
 
-            <div class="request-grid-row is-single" id="recipientRow">
+            <div class="request-grid-row<?= $initialShowDepartment ? '' : ' is-single' ?>" id="recipientRow">
                 <div class="form-group" id="recipientGroup">
                     <label>Subsidiaries <span class="required-asterisk">*</span></label>
-                    <div class="select-wrapper recipient-dropdown" id="recipientDropdown">
+                    <div class="select-wrapper recipient-dropdown<?= count($requestTicketCompanyOptions) <= 1 ? ' is-static' : '' ?>" id="recipientDropdown">
                         <select name="company_id" id="ticket_recipient" class="form-control recipient-native-select" required>
                             <option value="" disabled <?= $selectedRecipientCompany === '' ? 'selected' : '' ?> hidden>Select a company</option>
                             <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
                                 <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $selectedRecipientCompany === $companyValue ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <button type="button" id="recipientDropdownTrigger" class="recipient-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Select a company</button>
+                        <button type="button" id="recipientDropdownTrigger" class="recipient-dropdown-trigger<?= $selectedRecipientCompany === '' ? ' is-placeholder' : '' ?>" aria-haspopup="listbox" aria-expanded="false"<?= count($requestTicketCompanyOptions) <= 1 ? ' disabled' : '' ?>><?= htmlspecialchars(($selectedRecipientCompany !== '' ? ($requestTicketCompanyOptions[$selectedRecipientCompany] ?? 'Select a company') : 'Select a company'), ENT_QUOTES, 'UTF-8'); ?></button>
                         <div id="recipientDropdownMenu" class="recipient-dropdown-menu" role="listbox" aria-labelledby="recipientDropdownTrigger"></div>
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
                 </div>
 
-                <div class="form-group hidden" id="departmentGroup">
+                <div class="form-group<?= $initialShowDepartment ? '' : ' hidden' ?>" id="departmentGroup">
                     <label>Assigned Department <span class="required-asterisk">*</span></label>
-                    <div class="select-wrapper department-dropdown" id="departmentDropdown">
+                    <div class="select-wrapper department-dropdown<?= (count($initialSalesDepartmentOptions) <= 1 && $selectedRecipientCompany !== '' && ticket_company_requires_department($selectedRecipientCompany)) ? ' is-static' : '' ?>" id="departmentDropdown">
                         <select name="assigned_department" id="department" class="form-control department-native-select" required disabled data-selected="<?= htmlspecialchars($selectedRecipientDepartment, ENT_QUOTES, 'UTF-8'); ?>">
                             <option value="" disabled <?= $selectedRecipientDepartment === '' ? 'selected' : '' ?> hidden>Choose department</option>
                             <?php foreach ($initialSalesDepartmentOptions as $d): ?>
                                 <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $selectedRecipientDepartment === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <button type="button" id="departmentDropdownTrigger" class="department-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false" disabled>Choose department</button>
+                        <button type="button" id="departmentDropdownTrigger" class="department-dropdown-trigger<?= $selectedRecipientDepartment === '' ? ' is-placeholder' : '' ?>" aria-haspopup="listbox" aria-expanded="false" disabled><?= htmlspecialchars($selectedRecipientDepartment !== '' ? $selectedRecipientDepartment : 'Choose department', ENT_QUOTES, 'UTF-8'); ?></button>
                         <div id="departmentDropdownMenu" class="department-dropdown-menu" role="listbox" aria-labelledby="departmentDropdownTrigger"></div>
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
@@ -4142,7 +4148,7 @@ $normalized_company_id = $selectedRecipientCompany;
                 <div class="kami-continuation" id="kamiContinuationHost"></div>
             </section>
 
-            <section class="other-request-section" id="otherRequestDetailsSection">
+            <section class="other-request-section" id="otherRequestDetailsSection" style="display:none;">
                 <div class="other-request-section-head">Request Details</div>
                 <div class="other-request-section-body">
                     <div class="form-group hr-extra-group" id="leaveSubjectContainer">
@@ -5133,7 +5139,7 @@ function addSapCard() {
 
 function syncRequestGridRows() {
     if (recipientRow && departmentGroup) {
-        var departmentVisible = departmentGroup.style.display !== 'none' && !departmentGroup.classList.contains('hidden');
+        var departmentVisible = !departmentGroup.classList.contains('hidden') && window.getComputedStyle(departmentGroup).display !== 'none';
         recipientRow.classList.toggle('is-single', !departmentVisible);
     }
     if (salesCategoryRow && categoryContainer && priorityGroup) {
@@ -5411,7 +5417,7 @@ function toggleDepartmentField() {
 
     if (isLapcRecipientValue(value)) {
         populateDepartments(lapcDepartments);
-        departmentGroup.style.display = 'block';
+        departmentGroup.style.display = '';
         departmentGroup.classList.remove('hidden');
         recipientGroup.classList.remove('full-width');
         departmentSelect.disabled = false;
@@ -5419,7 +5425,7 @@ function toggleDepartmentField() {
         if (departmentTrigger) departmentTrigger.disabled = false;
     } else if (isMhcRecipientValue(value)) {
         populateDepartments(mhcDepartments);
-        departmentGroup.style.display = 'block';
+        departmentGroup.style.display = '';
         departmentGroup.classList.remove('hidden');
         recipientGroup.classList.remove('full-width');
         departmentSelect.disabled = false;
@@ -5450,11 +5456,16 @@ function toggleDepartmentField() {
 function populateSalesCategories(options) {
     if (!categorySelect) return;
     var selectedValue = String(categorySelect.getAttribute('data-selected') || categorySelect.value || '');
+    var normalizedOptions = Array.isArray(options) && options.length > 0
+        ? options
+        : Array.from(categorySelect.options)
+            .map(function(option) { return String(option.value || ''); })
+            .filter(function(optionValue) { return optionValue !== ''; });
     categorySelect.innerHTML = '<option value="" disabled hidden selected>Choose category</option>';
     if (categoryMenu) {
         categoryMenu.innerHTML = '';
     }
-    options.forEach(function(optionValue){
+    normalizedOptions.forEach(function(optionValue){
         var opt = document.createElement('option');
         opt.value = optionValue;
         opt.textContent = optionValue;
@@ -5477,7 +5488,7 @@ function populateSalesCategories(options) {
             categoryMenu.appendChild(optionButton);
         }
     });
-    if (selectedValue !== '' && options.indexOf(selectedValue) === -1) {
+    if (selectedValue !== '' && normalizedOptions.indexOf(selectedValue) === -1) {
         categorySelect.value = '';
     }
     categorySelect.setAttribute('data-selected', '');
@@ -6202,6 +6213,7 @@ if (departmentTrigger) {
 if (categoryTrigger) {
     categoryTrigger.addEventListener('click', function() {
         if (categoryTrigger.disabled || !categoryMenu) return;
+        toggleCategoryField();
         var nextState = !categoryMenu.classList.contains('is-open');
         if (!nextState) {
             closeCategoryDropdown();

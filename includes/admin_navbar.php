@@ -39,9 +39,12 @@ foreach ($adminNavSections as $items) {
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <aside class="admin-sidebar" id="adminSidebar" aria-label="Admin navigation">
+    <button type="button" class="admin-sidebar-collapse-btn" id="adminSidebarCollapseBtn" aria-label="Collapse sidebar" aria-pressed="false" title="Collapse sidebar">
+        <i class="fas fa-angles-left" aria-hidden="true"></i>
+    </button>
     <a href="dashboard.php" class="admin-sidebar-brand">
         <img src="../assets/img/UPDATEDlogo.png" alt="Logo" class="admin-logo-img">
-        <div>
+        <div class="admin-brand-copy">
             <div class="admin-logo-text-main">Leads Helpdesk</div>
             <div class="admin-logo-text-sub">Admin</div>
         </div>
@@ -129,6 +132,7 @@ window.TM_HIDE_ADMIN_CHAT = true;
 /* Admin sidebar shell */
 :root {
     --admin-sidebar-width: 282px;
+    --admin-sidebar-collapsed-width: 96px;
     --admin-shell-border: #e4eadf;
     --admin-shell-green: #1B5E20;
     --admin-shell-green-dark: #144a1e;
@@ -147,6 +151,38 @@ window.TM_HIDE_ADMIN_CHAT = true;
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    overflow-x: hidden;
+    transition: width 0.22s ease, box-shadow 0.22s ease;
+}
+
+.admin-sidebar-collapse-btn {
+    position: fixed;
+    top: 50%;
+    left: calc(var(--admin-sidebar-width) - 17px);
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(20, 74, 30, 0.14);
+    border-radius: 999px;
+    background: #ffffff;
+    color: var(--admin-shell-green);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 4205;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+    transform: translateY(-50%);
+    transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.admin-sidebar-collapse-btn:hover {
+    background: #f5faf4;
+    border-color: rgba(20, 74, 30, 0.22);
+    transform: translateY(calc(-50% - 1px));
+}
+
+.admin-sidebar-collapse-btn i {
+    font-size: 14px;
 }
 
 .admin-sidebar-brand {
@@ -170,6 +206,10 @@ window.TM_HIDE_ADMIN_CHAT = true;
     padding: 6px;
     border-radius: 14px;
     box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+}
+
+.admin-brand-copy {
+    min-width: 0;
 }
 
 .admin-sidebar .admin-logo-text-main {
@@ -367,9 +407,53 @@ window.TM_HIDE_ADMIN_CHAT = true;
     display: none;
 }
 
+body.admin-sidebar-collapsed .admin-sidebar {
+    width: var(--admin-sidebar-collapsed-width);
+}
+
+body.admin-sidebar-collapsed .admin-sidebar-brand {
+    justify-content: center;
+    padding: 18px 14px 14px;
+}
+
+body.admin-sidebar-collapsed .admin-brand-copy,
+body.admin-sidebar-collapsed .admin-nav-section-title,
+body.admin-sidebar-collapsed .admin-nav-label {
+    display: none;
+}
+
+body.admin-sidebar-collapsed .admin-sidebar-nav {
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+body.admin-sidebar-collapsed .admin-sidebar .admin-nav-link {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+body.admin-sidebar-collapsed .admin-sidebar-collapse-btn {
+    left: calc(var(--admin-sidebar-collapsed-width) - 17px);
+}
+
+body.admin-sidebar-collapsed .admin-sidebar-collapse-btn:hover {
+    transform: translateY(calc(-50% - 1px));
+}
+
+body.admin-sidebar-collapsed .admin-sidebar-collapse-btn i {
+    transform: rotate(180deg);
+}
+
 @media (min-width: 1025px) {
     body {
         padding-left: var(--admin-sidebar-width);
+        overflow-x: hidden;
+        transition: padding-left 0.22s ease;
+    }
+
+    body.admin-sidebar-collapsed {
+        padding-left: var(--admin-sidebar-collapsed-width);
     }
 }
 
@@ -378,9 +462,25 @@ window.TM_HIDE_ADMIN_CHAT = true;
         padding-left: 0;
     }
 
+    .admin-sidebar-collapse-btn {
+        position: absolute;
+        left: auto;
+        right: 12px;
+        top: 14px;
+        transform: none;
+    }
+
+    .admin-sidebar-collapse-btn:hover {
+        transform: translateY(-1px);
+    }
+
     .admin-sidebar {
         transform: translateX(-100%);
         transition: transform 0.22s ease;
+    }
+
+    .admin-sidebar-collapse-btn {
+        display: none;
     }
 
     body.admin-sidebar-open {
@@ -1099,6 +1199,27 @@ document.addEventListener('DOMContentLoaded', function() {
     const adminToggle = document.getElementById('adminNavbarToggle');
     const sidebar = document.getElementById('adminSidebar');
     const sidebarBackdrop = document.getElementById('adminSidebarBackdrop');
+    const sidebarCollapseBtn = document.getElementById('adminSidebarCollapseBtn');
+    const desktopSidebarMedia = window.matchMedia('(min-width: 1025px)');
+
+    function setSidebarCollapsed(isCollapsed) {
+        document.body.classList.toggle('admin-sidebar-collapsed', !!isCollapsed);
+        if (sidebarCollapseBtn) {
+            sidebarCollapseBtn.setAttribute('aria-pressed', isCollapsed ? 'true' : 'false');
+            sidebarCollapseBtn.setAttribute('aria-label', isCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+            sidebarCollapseBtn.setAttribute('title', isCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+        }
+        try {
+            localStorage.setItem('admin_sidebar_collapsed', isCollapsed ? '1' : '0');
+        } catch (e) {}
+    }
+
+    try {
+        if (desktopSidebarMedia.matches && localStorage.getItem('admin_sidebar_collapsed') === '1') {
+            setSidebarCollapsed(true);
+        }
+    } catch (e) {}
+
     function setSidebarOpen(isOpen) {
         document.body.classList.toggle('admin-sidebar-open', isOpen);
         if (adminToggle) adminToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
@@ -1116,6 +1237,24 @@ document.addEventListener('DOMContentLoaded', function() {
     if (sidebarBackdrop) {
         sidebarBackdrop.addEventListener('click', function() {
             setSidebarOpen(false);
+        });
+    }
+    if (sidebarCollapseBtn) {
+        sidebarCollapseBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            setSidebarCollapsed(!document.body.classList.contains('admin-sidebar-collapsed'));
+        });
+    }
+    if (desktopSidebarMedia && typeof desktopSidebarMedia.addEventListener === 'function') {
+        desktopSidebarMedia.addEventListener('change', function(e) {
+            if (!e.matches) {
+                document.body.classList.remove('admin-sidebar-collapsed');
+            } else {
+                try {
+                    setSidebarCollapsed(localStorage.getItem('admin_sidebar_collapsed') === '1');
+                } catch (err) {}
+            }
         });
     }
 
