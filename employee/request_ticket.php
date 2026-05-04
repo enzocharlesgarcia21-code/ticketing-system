@@ -434,55 +434,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $default_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
     $mpdc_categories = ['Engineerings', 'Client Based'];
     $lapc_department_categories = [
-        'Admin & Legal' => [
-            'Phone Plan / Simcard',
-            'FleetCard Request',
-            'Supplies',
-        ],
-        'Institutional Sales (Bidding)' => [
-            'Documentation',
-            'Email',
-            'Hardware',
-            'Internet Concerns',
-            'Procurement',
-            'Software',
-            'Technical Support',
-        ],
-        'HR' => [
-            'Attendance & Timekeeping',
-            'Certificate of Employment',
-            'Certificate of Leave',
-            'Leave Concern',
-            'Medical Cash Advance',
-            'Request for Company Property',
-            'SSS Sickness and Benefit Concern',
-            'Training Request',
-            'Others',
-        ],
-        'IT' => [
-            'Documentation',
-            'Email',
-            'Hardware',
-            'Internet Concerns',
-            'Procurement',
-            'SAP',
-            'Software',
-            'Technical Support',
-        ],
-        'Machineries' => [
-            'Documentation',
-            'Email',
-            'Hardware',
-            'Internet Concerns',
-            'Procurement',
-            'Software',
-            'Technical Support',
-        ],
+        'Admin & Legal' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
+        'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'],
+        'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
+        'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Technical Support'],
+        'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'],
     ];
     $mhc_department_categories = [
-        'Marketing Creatives' => [
-            'Marketing Request',
-        ],
+        'Marketing Creatives' => ['Marketing Request'],
     ];
     $category = trim((string) ($_POST['category'] ?? ''));
     $request_subject_title = trim((string) ($_POST['request_subject_title'] ?? ''));
@@ -4596,55 +4555,14 @@ if (count($sapFormEntries) === 0) {
         const defaultCategories = <?= json_encode(['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mpdcCategories = <?= json_encode(['Engineerings', 'Client Based'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lapcDepartmentCategories = <?= json_encode([
-            'Admin & Legal' => [
-                'Phone Plan / Simcard',
-                'FleetCard Request',
-                'Supplies',
-            ],
-            'Institutional Sales (Bidding)' => [
-                'Documentation',
-                'Email',
-                'Hardware',
-                'Internet Concerns',
-                'Procurement',
-                'Software',
-                'Technical Support',
-            ],
-            'HR' => [
-                'Attendance & Timekeeping',
-                'Certificate of Employment',
-                'Certificate of Leave',
-                'Leave Concern',
-                'Medical Cash Advance',
-                'Request for Company Property',
-                'SSS Sickness and Benefit Concern',
-                'Training Request',
-                'Others',
-            ],
-            'IT' => [
-                'Documentation',
-                'Email',
-                'Hardware',
-                'Internet Concerns',
-                'Procurement',
-                'SAP',
-                'Software',
-                'Technical Support',
-            ],
-            'Machineries' => [
-                'Documentation',
-                'Email',
-                'Hardware',
-                'Internet Concerns',
-                'Procurement',
-                'Software',
-                'Technical Support',
-            ],
+            'Admin & Legal' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
+            'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'],
+            'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
+            'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Technical Support'],
+            'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mhcDepartmentCategories = <?= json_encode([
-            'Marketing Creatives' => [
-                'Marketing Request',
-            ],
+            'Marketing Creatives' => ['Marketing Request'],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         function closeAreaCodeDropdown() {
             if (!areaCodeWrapper || !areaCodeTrigger || !areaCodeMenu) return;

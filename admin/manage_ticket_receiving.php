@@ -21,7 +21,6 @@ $csrfToken = csrf_token();
 
 $activeRoutes = 0;
 $inactiveRoutes = 0;
-$companyOnlyCount = 0;
 $expandedCompanyKey = '';
 
 foreach ($availabilityRows as $companyRow) {
@@ -34,9 +33,7 @@ foreach ($availabilityRows as $companyRow) {
         $inactiveRoutes++;
     }
 
-    if (count($departments) === 0) {
-        $companyOnlyCount++;
-    } elseif ($expandedCompanyKey === '') {
+    if (count($departments) > 0 && $expandedCompanyKey === '') {
         $expandedCompanyKey = (string) ($companyRow['company_key'] ?? '');
     }
 
@@ -123,7 +120,7 @@ foreach ($availabilityRows as $companyRow) {
 
         .routing-summary {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 16px;
         }
 
@@ -209,99 +206,6 @@ foreach ($availabilityRows as $companyRow) {
             border: 1px solid #ffd0d5;
         }
 
-        .routing-toolbar {
-            background: rgba(255, 255, 255, 0.95);
-            border: 1px solid rgba(223, 230, 239, 0.98);
-            border-radius: 22px;
-            padding: 18px;
-            box-shadow: var(--route-shadow);
-            display: grid;
-            grid-template-columns: minmax(280px, 1.4fr) minmax(220px, 1fr) minmax(220px, 1fr) auto;
-            gap: 14px;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .routing-search,
-        .routing-select {
-            position: relative;
-        }
-
-        .routing-search input,
-        .routing-select select {
-            width: 100%;
-            min-height: 54px;
-            border-radius: 16px;
-            border: 1px solid var(--route-border);
-            background: #ffffff;
-            color: var(--route-text);
-            font-size: 15px;
-            padding: 0 18px 0 48px;
-            box-sizing: border-box;
-            outline: none;
-            transition: border-color 0.18s ease, box-shadow 0.18s ease;
-        }
-
-        .routing-select select {
-            appearance: none;
-            padding-right: 44px;
-        }
-
-        .routing-search input:focus,
-        .routing-select select:focus {
-            border-color: #5ca46f;
-            box-shadow: 0 0 0 4px rgba(92, 164, 111, 0.12);
-        }
-
-        .routing-search i,
-        .routing-select i {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #728198;
-            pointer-events: none;
-        }
-
-        .routing-search i {
-            left: 18px;
-        }
-
-        .routing-select i:first-child {
-            left: 18px;
-        }
-
-        .routing-select .caret {
-            right: 16px;
-        }
-
-        .routing-toolbar-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-        }
-
-        .routing-btn {
-            min-height: 54px;
-            border-radius: 16px;
-            border: 1px solid var(--route-border);
-            background: #ffffff;
-            color: #46556d;
-            font-size: 14px;
-            font-weight: 700;
-            padding: 0 18px;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
-        }
-
-        .routing-btn:hover {
-            transform: translateY(-1px);
-            border-color: #ccd7e5;
-            box-shadow: 0 10px 22px rgba(18, 38, 63, 0.08);
-        }
-
         .routing-board {
             background: rgba(255, 255, 255, 0.96);
             border: 1px solid rgba(223, 230, 239, 0.98);
@@ -310,10 +214,51 @@ foreach ($availabilityRows as $companyRow) {
             overflow: hidden;
         }
 
+        .routing-master-control {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 16px;
+            padding: 18px 22px;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(223, 230, 239, 0.98);
+            border-radius: 22px;
+            box-shadow: var(--route-shadow);
+        }
+
+        .routing-master-title {
+            color: #1b2a41;
+            font-size: 16px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .routing-master-note {
+            color: #718096;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .routing-master-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            flex: 0 0 auto;
+        }
+
+        .routing-master-state {
+            min-width: 86px;
+            color: #46556d;
+            font-size: 13px;
+            font-weight: 800;
+            text-align: right;
+        }
+
         .routing-board-head,
         .route-row {
             display: grid;
-            grid-template-columns: minmax(470px, 1.35fr) minmax(280px, 0.85fr) minmax(190px, 0.55fr) minmax(150px, 0.3fr) 40px;
+            grid-template-columns: minmax(470px, 1fr) minmax(190px, 0.34fr) minmax(150px, 0.24fr);
             gap: 18px;
             align-items: center;
             padding: 0 22px;
@@ -415,19 +360,6 @@ foreach ($availabilityRows as $companyRow) {
             font-size: 14px;
         }
 
-        .route-scope-title {
-            color: #31445f;
-            font-size: 15px;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-
-        .route-scope-note {
-            color: #8a96a9;
-            font-size: 14px;
-            font-style: italic;
-        }
-
         .route-status-pill {
             display: inline-flex;
             align-items: center;
@@ -485,17 +417,6 @@ foreach ($availabilityRows as $companyRow) {
         .route-switch:disabled {
             cursor: wait;
             opacity: 0.65;
-        }
-
-        .route-menu-dot {
-            width: 30px;
-            height: 30px;
-            border-radius: 999px;
-            color: #74839a;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: transparent;
         }
 
         .route-departments {
@@ -575,32 +496,18 @@ foreach ($availabilityRows as $companyRow) {
             }
 
             .routing-summary {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
 
         @media (max-width: 1180px) {
-            .routing-toolbar {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .routing-toolbar-actions {
-                grid-column: 1 / -1;
-                justify-content: stretch;
-            }
-
-            .routing-toolbar-actions .routing-btn {
-                flex: 1 1 0;
-                justify-content: center;
-            }
-
             .routing-board {
                 overflow-x: auto;
             }
 
             .routing-board-head,
             .route-row {
-                min-width: 1140px;
+                min-width: 840px;
             }
         }
 
@@ -613,9 +520,16 @@ foreach ($availabilityRows as $companyRow) {
                 grid-template-columns: 1fr;
             }
 
-            .routing-toolbar {
-                grid-template-columns: 1fr;
+            .routing-master-control {
+                align-items: flex-start;
+                flex-direction: column;
             }
+
+            .routing-master-action {
+                justify-content: space-between;
+                width: 100%;
+            }
+
         }
     </style>
 </head>
@@ -646,63 +560,33 @@ foreach ($availabilityRows as $companyRow) {
                     <div class="routing-stat-note">Not accepting tickets</div>
                 </div>
             </article>
-            <article class="routing-stat scope">
-                <span class="routing-stat-icon"><i class="fa-regular fa-building"></i></span>
-                <div>
-                    <div class="routing-stat-label">Company-Level Only</div>
-                    <div class="routing-stat-value"><?= (int) $companyOnlyCount ?></div>
-                    <div class="routing-stat-note">No department routing</div>
-                </div>
-            </article>
         </div>
     </section>
 
     <div id="availabilityFeedback" class="routing-feedback" aria-live="polite"></div>
 
-    <section class="routing-toolbar">
-        <div class="routing-search">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="search" id="routeSearchInput" placeholder="Search companies or departments...">
+    <div class="routing-master-control">
+        <div>
+            <div class="routing-master-title">All Ticket Receiving</div>
+            <div class="routing-master-note">Turn every company and department route on or off at once.</div>
         </div>
-
-        <div class="routing-select">
-            <i class="fa-regular fa-building"></i>
-            <select id="routeCompanyFilter">
-                <option value="">All Companies</option>
-                <?php foreach ($availabilityRows as $companyRow): ?>
-                    <?php
-                    $companyKey = (string) ($companyRow['company_key'] ?? '');
-                    $companyLabel = (string) ($companyRow['company_label'] ?? $companyKey);
-                    ?>
-                    <option value="<?= htmlspecialchars($companyKey, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
-                <?php endforeach; ?>
-            </select>
-            <i class="fa-solid fa-chevron-down caret"></i>
+        <div class="routing-master-action">
+            <span class="routing-master-state" id="allRoutesMasterState"></span>
+            <button
+                type="button"
+                class="route-switch <?= ($inactiveRoutes === 0 && ($activeRoutes + $inactiveRoutes) > 0) ? 'is-enabled' : ''; ?>"
+                id="allRoutesToggle"
+                data-next-enabled="<?= ($inactiveRoutes === 0 && ($activeRoutes + $inactiveRoutes) > 0) ? '0' : '1'; ?>"
+                aria-label="Toggle all ticket receiving routes"
+            ></button>
         </div>
-
-        <div class="routing-select">
-            <i class="fa-solid fa-filter"></i>
-            <select id="routeStatusFilter">
-                <option value="">All Statuses</option>
-                <option value="enabled">Accepting Tickets</option>
-                <option value="disabled">Not Accepting</option>
-            </select>
-            <i class="fa-solid fa-chevron-down caret"></i>
-        </div>
-
-        <div class="routing-toolbar-actions">
-            <button type="button" class="routing-btn" id="expandAllBtn"><i class="fa-solid fa-chevron-down"></i> Expand All</button>
-            <button type="button" class="routing-btn" id="collapseAllBtn"><i class="fa-solid fa-chevron-up"></i> Collapse All</button>
-        </div>
-    </section>
+    </div>
 
     <section class="routing-board">
         <div class="routing-board-head">
             <div>Company</div>
-            <div>Department / Scope</div>
             <div>Status</div>
             <div>Control</div>
-            <div></div>
         </div>
 
         <div id="routeBoardBody">
@@ -713,8 +597,6 @@ foreach ($availabilityRows as $companyRow) {
                 $companyLabel = (string) ($companyRow['company_label'] ?? $companyKey);
                 $departments = is_array($companyRow['departments'] ?? null) ? $companyRow['departments'] : [];
                 $hasDepartments = count($departments) > 0;
-                $scopeTitle = $hasDepartments ? 'Department-level routing' : 'Company-level routing only';
-                $scopeNote = $hasDepartments ? 'Expand to manage individual departments' : 'Company-level routing only';
                 $isExpanded = $expandedCompanyKey !== '' && $expandedCompanyKey === $companyKey;
                 ?>
                 <div
@@ -747,11 +629,6 @@ foreach ($availabilityRows as $companyRow) {
                         </div>
 
                         <div>
-                            <div class="route-scope-title"><?= htmlspecialchars($scopeTitle, ENT_QUOTES, 'UTF-8'); ?></div>
-                            <div class="route-scope-note"><?= htmlspecialchars($scopeNote, ENT_QUOTES, 'UTF-8'); ?></div>
-                        </div>
-
-                        <div>
                             <span class="route-status-pill <?= $companyEnabled ? 'is-enabled' : 'is-disabled'; ?>">
                                 <?= $companyEnabled ? 'Accepting Tickets' : 'Not Accepting'; ?>
                             </span>
@@ -769,7 +646,6 @@ foreach ($availabilityRows as $companyRow) {
                             ></button>
                         </div>
 
-                        <div class="route-menu-dot"><i class="fa-solid fa-ellipsis-vertical"></i></div>
                     </div>
 
                     <?php if ($hasDepartments): ?>
@@ -786,10 +662,6 @@ foreach ($availabilityRows as $companyRow) {
                                 >
                                     <div class="route-identity">
                                         <div class="route-department-label"><?= htmlspecialchars($departmentName, ENT_QUOTES, 'UTF-8'); ?></div>
-                                    </div>
-
-                                    <div>
-                                        <div class="route-scope-note">Department</div>
                                     </div>
 
                                     <div>
@@ -810,7 +682,6 @@ foreach ($availabilityRows as $companyRow) {
                                         ></button>
                                     </div>
 
-                                    <div class="route-menu-dot"><i class="fa-solid fa-ellipsis-vertical"></i></div>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -829,14 +700,11 @@ foreach ($availabilityRows as $companyRow) {
 <script>
 const availabilityFeedback = document.getElementById('availabilityFeedback');
 const csrfToken = <?= json_encode($csrfToken, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-const searchInput = document.getElementById('routeSearchInput');
-const companyFilter = document.getElementById('routeCompanyFilter');
-const statusFilter = document.getElementById('routeStatusFilter');
-const expandAllBtn = document.getElementById('expandAllBtn');
-const collapseAllBtn = document.getElementById('collapseAllBtn');
 const routeEmptyState = document.getElementById('routeEmptyState');
 const activeRouteCount = document.getElementById('activeRouteCount');
 const inactiveRouteCount = document.getElementById('inactiveRouteCount');
+const allRoutesToggle = document.getElementById('allRoutesToggle');
+const allRoutesMasterState = document.getElementById('allRoutesMasterState');
 
 function setAvailabilityFeedback(message, type) {
     if (!availabilityFeedback) return;
@@ -863,52 +731,6 @@ function toggleCompanyExpansion(companyKey, expand) {
     }
 }
 
-function applyRouteFilters() {
-    const term = String((searchInput && searchInput.value) || '').trim().toLowerCase();
-    const selectedCompany = String((companyFilter && companyFilter.value) || '').trim();
-    const selectedStatus = String((statusFilter && statusFilter.value) || '').trim();
-    let visibleGroups = 0;
-
-    document.querySelectorAll('.route-group').forEach(function(group) {
-        const companyKey = String(group.getAttribute('data-company-key') || '');
-        const companyLabel = String(group.getAttribute('data-company-label') || '');
-        const companyStatus = String(group.getAttribute('data-company-status') || '');
-        const departmentRows = Array.from(group.querySelectorAll('.route-department-row'));
-        let hasVisibleDepartment = false;
-
-        departmentRows.forEach(function(row) {
-            const departmentName = String(row.getAttribute('data-department-name') || '');
-            const routeStatus = String(row.getAttribute('data-route-status') || '');
-            const matchesTerm = term === '' || companyLabel.indexOf(term) !== -1 || departmentName.indexOf(term) !== -1 || companyKey.toLowerCase().indexOf(term) !== -1;
-            const matchesStatus = selectedStatus === '' || routeStatus === selectedStatus;
-            const visible = matchesTerm && matchesStatus;
-            row.style.display = visible ? '' : 'none';
-            if (visible) {
-                hasVisibleDepartment = true;
-            }
-        });
-
-        const companyMatchesSearch = term === '' || companyLabel.indexOf(term) !== -1 || companyKey.toLowerCase().indexOf(term) !== -1;
-        const companyMatchesFilter = selectedCompany === '' || companyKey === selectedCompany;
-        const companyMatchesStatus = selectedStatus === '' || companyStatus === selectedStatus;
-        const hasDepartments = String(group.getAttribute('data-has-departments') || '') === '1';
-        const visible = companyMatchesFilter && ((hasDepartments && hasVisibleDepartment) || (!hasDepartments && companyMatchesSearch && companyMatchesStatus) || (hasDepartments && companyMatchesSearch && (selectedStatus === '' || companyMatchesStatus)));
-
-        group.style.display = visible ? '' : 'none';
-
-        if (visible) {
-            visibleGroups++;
-            if (hasDepartments && (term !== '' || selectedStatus !== '')) {
-                toggleCompanyExpansion(companyKey, hasVisibleDepartment);
-            }
-        }
-    });
-
-    if (routeEmptyState) {
-        routeEmptyState.classList.toggle('is-visible', visibleGroups === 0);
-    }
-}
-
 function recalcRouteCounts() {
     let active = 0;
     let inactive = 0;
@@ -923,6 +745,19 @@ function recalcRouteCounts() {
     });
     if (activeRouteCount) activeRouteCount.textContent = String(active);
     if (inactiveRouteCount) inactiveRouteCount.textContent = String(inactive);
+    updateMasterToggleState(active, inactive);
+}
+
+function updateMasterToggleState(active, inactive) {
+    if (!allRoutesToggle) return;
+    const total = active + inactive;
+    const allEnabled = total > 0 && inactive === 0;
+    allRoutesToggle.classList.toggle('is-enabled', allEnabled);
+    allRoutesToggle.setAttribute('data-next-enabled', allEnabled ? '0' : '1');
+    allRoutesToggle.disabled = total === 0 || allRoutesToggle.disabled;
+    if (allRoutesMasterState) {
+        allRoutesMasterState.textContent = total === 0 ? 'No routes' : (allEnabled ? 'All On' : (active === 0 ? 'All Off' : 'Some Off'));
+    }
 }
 
 function updateRowVisualState(button, enabled) {
@@ -948,6 +783,17 @@ function updateRowVisualState(button, enabled) {
     }
 }
 
+function parentCompanyToggleFor(button) {
+    const group = button.closest('.route-group');
+    return group ? group.querySelector('.route-company-row .availability-toggle[data-item-type="company"]') : null;
+}
+
+function canEnableDepartment(button) {
+    if (button.getAttribute('data-item-type') !== 'department') return true;
+    const parentToggle = parentCompanyToggleFor(button);
+    return !!(parentToggle && parentToggle.classList.contains('is-enabled'));
+}
+
 document.querySelectorAll('[data-expand-company]').forEach(function(trigger) {
     trigger.addEventListener('click', function() {
         const companyKey = String(trigger.getAttribute('data-expand-company') || '');
@@ -957,71 +803,50 @@ document.querySelectorAll('[data-expand-company]').forEach(function(trigger) {
     });
 });
 
-if (expandAllBtn) {
-    expandAllBtn.addEventListener('click', function() {
-        document.querySelectorAll('[data-expand-company]').forEach(function(trigger) {
-            const companyKey = String(trigger.getAttribute('data-expand-company') || '');
-            if (companyKey !== '') {
-                toggleCompanyExpansion(companyKey, true);
+function saveAvailability(button, nextEnabled) {
+    const company = String(button.getAttribute('data-company') || '').trim();
+    const department = String(button.getAttribute('data-department') || '').trim();
+    const itemType = String(button.getAttribute('data-item-type') || '').trim();
+
+    return fetch('ajax_ticket_receiving_availability.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: new URLSearchParams({
+            csrf_token: csrfToken,
+            item_type: itemType,
+            company_key: company,
+            department_name: department,
+            receiving_enabled: nextEnabled
+        }).toString()
+    }).then(function(response) {
+        return response.json().then(function(payload) {
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.error || 'Unable to update availability.');
             }
+            return payload;
         });
     });
 }
-
-if (collapseAllBtn) {
-    collapseAllBtn.addEventListener('click', function() {
-        document.querySelectorAll('[data-expand-company]').forEach(function(trigger) {
-            const companyKey = String(trigger.getAttribute('data-expand-company') || '');
-            if (companyKey !== '') {
-                toggleCompanyExpansion(companyKey, false);
-            }
-        });
-    });
-}
-
-[searchInput, companyFilter, statusFilter].forEach(function(control) {
-    if (!control) return;
-    control.addEventListener('input', applyRouteFilters);
-    control.addEventListener('change', applyRouteFilters);
-});
 
 document.querySelectorAll('.availability-toggle').forEach(function(button) {
     button.addEventListener('click', function() {
-        const company = String(button.getAttribute('data-company') || '').trim();
-        const department = String(button.getAttribute('data-department') || '').trim();
-        const itemType = String(button.getAttribute('data-item-type') || '').trim();
         const nextEnabled = String(button.getAttribute('data-next-enabled') || '0') === '1' ? '1' : '0';
+        if (nextEnabled === '1' && !canEnableDepartment(button)) {
+            setAvailabilityFeedback('Turn on the subsidiary first before enabling its departments.', 'error');
+            return;
+        }
 
         button.disabled = true;
         setAvailabilityFeedback('', 'success');
 
-        fetch('ajax_ticket_receiving_availability.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: new URLSearchParams({
-                csrf_token: csrfToken,
-                item_type: itemType,
-                company_key: company,
-                department_name: department,
-                receiving_enabled: nextEnabled
-            }).toString()
-        })
-        .then(function(response) {
-            return response.json().then(function(payload) {
-                if (!response.ok || !payload.ok) {
-                    throw new Error(payload.error || 'Unable to update availability.');
-                }
-                return payload;
-            });
-        })
+        saveAvailability(button, nextEnabled)
         .then(function(payload) {
             const enabled = nextEnabled === '1';
             updateRowVisualState(button, enabled);
             recalcRouteCounts();
-            applyRouteFilters();
             setAvailabilityFeedback(payload.message || 'Availability updated successfully.', 'success');
             button.disabled = false;
         })
@@ -1032,8 +857,72 @@ document.querySelectorAll('.availability-toggle').forEach(function(button) {
     });
 });
 
+if (allRoutesToggle) {
+    allRoutesToggle.addEventListener('click', function() {
+        const nextEnabled = String(allRoutesToggle.getAttribute('data-next-enabled') || '0') === '1' ? '1' : '0';
+        const targetEnabled = nextEnabled === '1';
+        const routeButtons = Array.from(document.querySelectorAll('.availability-toggle'));
+        const buttonsToUpdate = routeButtons.filter(function(button) {
+            return button.classList.contains('is-enabled') !== targetEnabled;
+        });
+
+        if (buttonsToUpdate.length === 0) {
+            setAvailabilityFeedback(targetEnabled ? 'All routes are already enabled.' : 'All routes are already disabled.', 'success');
+            return;
+        }
+
+        allRoutesToggle.disabled = true;
+        routeButtons.forEach(function(button) {
+            button.disabled = true;
+        });
+        setAvailabilityFeedback('Updating all routes...', 'success');
+
+        function updateBatch(buttons) {
+            return Promise.allSettled(buttons.map(function(button) {
+                return saveAvailability(button, nextEnabled).then(function(payload) {
+                    updateRowVisualState(button, targetEnabled);
+                    return payload;
+                });
+            }));
+        }
+
+        const companyButtons = buttonsToUpdate.filter(function(button) {
+            return button.getAttribute('data-item-type') === 'company';
+        });
+        const departmentButtons = buttonsToUpdate.filter(function(button) {
+            return button.getAttribute('data-item-type') === 'department';
+        });
+        const batches = targetEnabled ? [companyButtons, departmentButtons] : [departmentButtons, companyButtons];
+
+        updateBatch(batches[0]).then(function(firstResults) {
+            return updateBatch(batches[1]).then(function(secondResults) {
+                return firstResults.concat(secondResults);
+            });
+        }).then(function(results) {
+            const failed = results.filter(function(result) {
+                return result.status === 'rejected';
+            });
+
+            routeButtons.forEach(function(button) {
+                button.disabled = false;
+            });
+            allRoutesToggle.disabled = false;
+            recalcRouteCounts();
+
+            if (failed.length > 0) {
+                setAvailabilityFeedback((buttonsToUpdate.length - failed.length) + ' routes updated. ' + failed.length + ' routes failed to update.', 'error');
+                return;
+            }
+
+            setAvailabilityFeedback(targetEnabled ? 'All ticket receiving routes are now enabled.' : 'All ticket receiving routes are now disabled.', 'success');
+        });
+    });
+}
+
 recalcRouteCounts();
-applyRouteFilters();
+if (routeEmptyState) {
+    routeEmptyState.classList.toggle('is-visible', document.querySelectorAll('.route-group').length === 0);
+}
 </script>
 </body>
 </html>

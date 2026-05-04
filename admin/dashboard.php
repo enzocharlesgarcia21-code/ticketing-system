@@ -110,31 +110,6 @@ $resolved = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE s
 $closed = $conn->query("SELECT COUNT(*) AS count FROM employee_tickets WHERE status='Closed'")
                ->fetch_assoc()['count'];
 
-$weeklyOverview = $conn->query("
-    SELECT
-        SUM(COALESCE(NULLIF(status,''),'') <> 'Trash' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_total,
-        SUM(COALESCE(NULLIF(status,''),'') <> 'Trash' AND created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)) AS previous_week_total,
-        SUM(status = 'Open' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_open,
-        SUM(status = 'In Progress' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_progress,
-        SUM(status = 'Resolved' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_resolved,
-        SUM(status = 'Closed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS current_week_closed
-    FROM employee_tickets
-")->fetch_assoc();
-
-$currentWeekTotal = (int) ($weeklyOverview['current_week_total'] ?? 0);
-$previousWeekTotal = (int) ($weeklyOverview['previous_week_total'] ?? 0);
-$currentWeekOpen = (int) ($weeklyOverview['current_week_open'] ?? 0);
-$currentWeekProgress = (int) ($weeklyOverview['current_week_progress'] ?? 0);
-$currentWeekResolved = (int) ($weeklyOverview['current_week_resolved'] ?? 0);
-$currentWeekClosed = (int) ($weeklyOverview['current_week_closed'] ?? 0);
-if ($previousWeekTotal > 0) {
-    $totalDeltaPercent = (int) round((($currentWeekTotal - $previousWeekTotal) / $previousWeekTotal) * 100);
-} elseif ($currentWeekTotal > 0) {
-    $totalDeltaPercent = 100;
-} else {
-    $totalDeltaPercent = 0;
-}
-
 $dashboardStats = [
     [
         'variant' => 'total',
@@ -142,9 +117,6 @@ $dashboardStats = [
         'value' => (int) $total,
         'subtitle' => 'All non-trash tickets in system',
         'icon' => 'fa-stopwatch',
-        'trend_value' => abs($totalDeltaPercent) . '%',
-        'trend_caption' => 'vs last week',
-        'trend_direction' => $totalDeltaPercent >= 0 ? 'up' : 'down',
     ],
     [
         'variant' => 'open',
@@ -152,9 +124,6 @@ $dashboardStats = [
         'value' => (int) $open,
         'subtitle' => 'Awaiting response',
         'icon' => 'fa-folder-open',
-        'trend_value' => (string) $currentWeekOpen,
-        'trend_caption' => 'this week',
-        'trend_direction' => 'up',
     ],
     [
         'variant' => 'progress',
@@ -162,9 +131,6 @@ $dashboardStats = [
         'value' => (int) $progress,
         'subtitle' => 'Currently being worked',
         'icon' => 'fa-gear',
-        'trend_value' => (string) $currentWeekProgress,
-        'trend_caption' => 'this week',
-        'trend_direction' => 'down',
     ],
     [
         'variant' => 'resolved',
@@ -172,9 +138,6 @@ $dashboardStats = [
         'value' => (int) $resolved,
         'subtitle' => 'Completed tickets',
         'icon' => 'fa-circle-check',
-        'trend_value' => (string) $currentWeekResolved,
-        'trend_caption' => 'this week',
-        'trend_direction' => 'down',
     ],
     [
         'variant' => 'closed',
@@ -182,9 +145,6 @@ $dashboardStats = [
         'value' => (int) $closed,
         'subtitle' => 'Confirmed by requesters',
         'icon' => 'fa-lock',
-        'trend_value' => (string) $currentWeekClosed,
-        'trend_caption' => 'this week',
-        'trend_direction' => 'down',
     ],
 ];
 /* ===== DEPARTMENT DATA ===== */
@@ -366,61 +326,11 @@ if ($recentRes) {
             --stat-chip-color:#475569;
         }
 
-        .admin-stat-trend{
-            position:absolute;
-            top:16px;
-            right:18px;
-            display:inline-flex;
-            align-items:flex-start;
-            gap:8px;
-            padding:8px 12px;
-            border-radius:14px;
-            background:var(--stat-chip-bg, #f8fafc);
-            color:var(--stat-chip-color, #334155);
-            font-weight:700;
-            line-height:1;
-            white-space:nowrap;
-        }
-
-        .admin-stat-trend-icon{
-            display:inline-flex;
-            align-items:center;
-            justify-content:center;
-            width:16px;
-            height:16px;
-            flex:0 0 16px;
-            margin-top:1px;
-        }
-
-        .admin-stat-trend i{
-            font-size:14px;
-        }
-
-        .admin-stat-trend-text{
-            display:flex;
-            flex-direction:column;
-            align-items:flex-start;
-            gap:4px;
-        }
-
-        .admin-stat-trend-value{
-            font-size:0.98rem;
-            font-weight:700;
-            line-height:1;
-        }
-
-        .admin-stat-trend-caption{
-            font-size:0.78rem;
-            font-weight:600;
-            color:#64748b;
-            line-height:1.05;
-        }
-
         .admin-stat-main{
             display:flex;
             align-items:flex-start;
             gap:16px;
-            padding-right:118px;
+            padding-right:0;
         }
 
         .admin-stat-copy{
@@ -465,7 +375,7 @@ if ($recentRes) {
             color:#64748b;
             font-weight:500;
             margin-top:2px;
-            padding-right:118px;
+            padding-right:0;
         }
 
         .recent-tickets-title{
@@ -656,10 +566,6 @@ if ($recentRes) {
                 font-size:20px;
             }
 
-            .admin-stat-trend{
-                top:14px;
-                right:14px;
-            }
         }
     </style>
 </head>
@@ -684,15 +590,6 @@ if ($recentRes) {
             <section class="admin-stats-grid">
                 <?php foreach ($dashboardStats as $stat): ?>
                     <div class="admin-stat-card <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>">
-                        <div class="admin-stat-trend">
-                            <span class="admin-stat-trend-icon">
-                                <i class="fas <?= $stat['trend_direction'] === 'down' ? 'fa-arrow-down' : 'fa-arrow-up' ?>"></i>
-                            </span>
-                            <span class="admin-stat-trend-text">
-                                <span class="admin-stat-trend-value"><?= htmlspecialchars($stat['trend_value'], ENT_QUOTES, 'UTF-8') ?></span>
-                                <span class="admin-stat-trend-caption"><?= htmlspecialchars($stat['trend_caption'], ENT_QUOTES, 'UTF-8') ?></span>
-                            </span>
-                        </div>
                         <div class="admin-stat-main">
                             <div class="admin-stat-icon <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>">
                                 <i class="fas <?= htmlspecialchars($stat['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>

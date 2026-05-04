@@ -5,32 +5,76 @@ require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/user_permissions.php';
 $csrfToken = csrf_token();
 $canManageTicketReceiving = isset($conn) && $conn instanceof mysqli && user_permissions_can_manage($conn);
+
+$adminNavSections = [
+    'Main' => [
+        ['href' => 'dashboard.php', 'label' => 'Dashboard', 'icon' => 'fa-gauge-high', 'active' => ['dashboard.php']],
+        ['href' => 'all_tickets.php', 'label' => 'All Tickets', 'icon' => 'fa-ticket', 'active' => ['all_tickets.php', 'view_ticket.php']],
+        ['href' => 'analytics.php', 'label' => 'Analytics', 'icon' => 'fa-chart-line', 'active' => ['analytics.php']],
+    ],
+    'Management' => [
+        ['href' => 'create_admin.php', 'label' => 'Admin Management', 'icon' => 'fa-users-gear', 'active' => ['create_admin.php', 'manage_users.php']],
+        ['href' => 'manage_ticket_receiving.php', 'label' => 'Ticket Routing Control', 'icon' => 'fa-route', 'active' => ['manage_ticket_receiving.php'], 'visible' => $canManageTicketReceiving],
+        ['href' => 'manage_kb.php', 'label' => 'Knowledge Base', 'icon' => 'fa-book-open', 'active' => ['manage_kb.php', 'edit_kb.php', 'add_kb.php']],
+    ],
+    'Tools' => [
+        ['href' => 'conference_bookings.php', 'label' => 'Conference Bookings', 'icon' => 'fa-calendar-check', 'active' => ['conference_bookings.php', 'manage_rooms.php']],
+        ['href' => 'notifications.php', 'label' => 'Notifications', 'icon' => 'fa-bell', 'active' => ['notifications.php']],
+    ],
+    'Account' => [
+        ['href' => 'profile.php', 'label' => 'Profile', 'icon' => 'fa-user', 'active' => ['profile.php']],
+        ['href' => 'logout.php', 'label' => 'Logout', 'icon' => 'fa-right-from-bracket', 'active' => []],
+    ],
+];
+
+$currentPageLabel = 'Admin';
+foreach ($adminNavSections as $items) {
+    foreach ($items as $item) {
+        if (($item['visible'] ?? true) && in_array($current_page, $item['active'], true)) {
+            $currentPageLabel = $item['label'];
+            break 2;
+        }
+    }
+}
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<header class="admin-navbar">
-    <div class="admin-navbar-left">
+<aside class="admin-sidebar" id="adminSidebar" aria-label="Admin navigation">
+    <a href="dashboard.php" class="admin-sidebar-brand">
         <img src="../assets/img/UPDATEDlogo.png" alt="Logo" class="admin-logo-img">
         <div>
             <div class="admin-logo-text-main">Leads Helpdesk</div>
             <div class="admin-logo-text-sub">Admin</div>
         </div>
-    </div>
+    </a>
 
-    <button class="admin-navbar-toggle" id="adminNavbarToggle" aria-label="Toggle navigation" style="display:none;">
-        <span></span><span></span><span></span>
-    </button>
-
-    <nav class="admin-navbar-center" id="adminNavbarCenter">
-        <a href="dashboard.php" class="admin-nav-link <?= $current_page == 'dashboard.php' ? 'active' : '' ?>">Dashboard</a>
-        <a href="all_tickets.php" class="admin-nav-link <?= ($current_page == 'all_tickets.php' || $current_page == 'view_ticket.php') ? 'active' : '' ?>">All Tickets</a>
-        <a href="analytics.php" class="admin-nav-link <?= $current_page == 'analytics.php' ? 'active' : '' ?>">Analytics</a>
-        <a href="create_admin.php" class="admin-nav-link <?= ($current_page == 'create_admin.php' || $current_page == 'manage_users.php') ? 'active' : '' ?>">Admin Management</a>
-        <?php if ($canManageTicketReceiving): ?>
-        <a href="manage_ticket_receiving.php" class="admin-nav-link <?= $current_page == 'manage_ticket_receiving.php' ? 'active' : '' ?>">Ticket Routing Control</a>
-        <?php endif; ?>
-        <a href="conference_bookings.php" class="admin-nav-link <?= ($current_page == 'conference_bookings.php' || $current_page == 'manage_rooms.php') ? 'active' : '' ?>">Conference Bookings</a>
-        <a href="manage_kb.php" class="admin-nav-link <?= ($current_page == 'manage_kb.php' || $current_page == 'edit_kb.php' || $current_page == 'add_kb.php') ? 'active' : '' ?>">Knowledge Base</a>
+    <nav class="admin-sidebar-nav" id="adminNavbarCenter">
+        <?php foreach ($adminNavSections as $sectionLabel => $items): ?>
+            <div class="admin-nav-section">
+                <div class="admin-nav-section-title"><?= htmlspecialchars($sectionLabel, ENT_QUOTES, 'UTF-8'); ?></div>
+                <?php foreach ($items as $item): ?>
+                    <?php if (!($item['visible'] ?? true)) continue; ?>
+                    <?php $isActive = in_array($current_page, $item['active'], true); ?>
+                    <a href="<?= htmlspecialchars($item['href'], ENT_QUOTES, 'UTF-8'); ?>" class="admin-nav-link <?= $isActive ? 'active' : '' ?>">
+                        <span class="admin-nav-icon"><i class="fas <?= htmlspecialchars($item['icon'], ENT_QUOTES, 'UTF-8'); ?>"></i></span>
+                        <span class="admin-nav-label"><?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8'); ?></span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        <?php endforeach; ?>
     </nav>
+</aside>
+<button type="button" class="admin-sidebar-backdrop" id="adminSidebarBackdrop" aria-label="Close navigation" hidden></button>
+
+<header class="admin-navbar admin-main-header">
+    <div class="admin-main-header-left">
+        <button class="admin-navbar-toggle" id="adminNavbarToggle" aria-label="Toggle navigation" aria-controls="adminSidebar" aria-expanded="false">
+            <span></span><span></span><span></span>
+        </button>
+        <div>
+            <div class="admin-topbar-kicker">Admin Console</div>
+            <div class="admin-topbar-title"><?= htmlspecialchars($currentPageLabel, ENT_QUOTES, 'UTF-8'); ?></div>
+        </div>
+    </div>
 
     <div class="admin-navbar-right">
         <!-- Notification Bell -->
@@ -57,9 +101,11 @@ $canManageTicketReceiving = isset($conn) && $conn instanceof mysqli && user_perm
         <div class="admin-user-dropdown">
             <button type="button" class="admin-user-pill" aria-label="<?= htmlspecialchars($_SESSION['email'] ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?>" aria-expanded="false">
                 <span class="admin-user-icon"><i class="fas fa-user"></i></span>
+                <span class="admin-user-email"><?= htmlspecialchars($_SESSION['email'] ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?></span>
                 <span class="admin-arrow"><i class="fas fa-chevron-down" style="font-size: 10px;"></i></span>
             </button>
             <div class="admin-dropdown-menu">
+                <a href="profile.php">Profile</a>
                 <a href="logout.php" class="logout-link">Logout</a>
             </div>
         </div>
@@ -79,20 +125,317 @@ window.TM_HIDE_ADMIN_CHAT = true;
     <span id="globalChatBadge" class="chat-badge"></span>
 </button>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const toggleBtn = document.getElementById('adminNavbarToggle');
-    const navCenter = document.getElementById('adminNavbarCenter');
-
-    if (toggleBtn && navCenter) {
-        toggleBtn.addEventListener('click', function() {
-            navCenter.classList.toggle('show');
-        });
-    }
-});
-</script>
-
 <style>
+/* Admin sidebar shell */
+:root {
+    --admin-sidebar-width: 282px;
+    --admin-shell-border: #e4eadf;
+    --admin-shell-green: #1B5E20;
+    --admin-shell-green-dark: #144a1e;
+    --admin-shell-yellow: #F4C430;
+}
+
+.admin-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 4100;
+    width: var(--admin-sidebar-width);
+    background: linear-gradient(180deg, #164f20 0%, #123f1b 100%);
+    color: #ffffff;
+    border-right: 1px solid rgba(244, 196, 48, 0.28);
+    box-shadow: 18px 0 36px rgba(15, 23, 42, 0.14);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.admin-sidebar-brand {
+    min-height: 94px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #ffffff;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 -3px 0 rgba(244, 196, 48, 0.82);
+}
+
+.admin-sidebar .admin-logo-img {
+    width: 54px;
+    height: 54px;
+    flex: 0 0 54px;
+    object-fit: contain;
+    background: #ffffff;
+    padding: 6px;
+    border-radius: 14px;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+}
+
+.admin-sidebar .admin-logo-text-main {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.admin-sidebar .admin-logo-text-sub {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 2px;
+}
+
+.admin-sidebar-nav {
+    padding: 18px 14px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.admin-nav-section-title {
+    padding: 0 12px 8px;
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.admin-sidebar .admin-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.84);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.2;
+    border: 1px solid transparent;
+    transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.admin-sidebar .admin-nav-link:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.14);
+    transform: translateX(2px);
+}
+
+.admin-sidebar .admin-nav-link.active {
+    color: #163f1b;
+    background: linear-gradient(180deg, #ffe89a 0%, var(--admin-shell-yellow) 100%);
+    border-color: rgba(244, 196, 48, 0.95);
+    box-shadow: 0 10px 20px rgba(5, 20, 8, 0.22);
+}
+
+.admin-nav-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 28px;
+    background: rgba(255, 255, 255, 0.1);
+    color: currentColor;
+}
+
+.admin-nav-label {
+    min-width: 0;
+    white-space: normal;
+}
+
+.admin-navbar.admin-main-header {
+    position: sticky;
+    top: 0;
+    z-index: 3900;
+    min-height: 72px;
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    background: rgba(255, 255, 255, 0.96);
+    color: #1f2937;
+    border-bottom: 1px solid var(--admin-shell-border);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    backdrop-filter: blur(14px);
+}
+
+.admin-main-header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.admin-topbar-kicker {
+    color: #78907a;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1.2;
+}
+
+.admin-topbar-title {
+    color: #172033;
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.admin-navbar.admin-main-header .admin-navbar-toggle {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    border: 1px solid #dbe5d8;
+    background: #ffffff;
+    color: var(--admin-shell-green);
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0;
+}
+
+.admin-navbar.admin-main-header .admin-navbar-toggle span {
+    width: 18px;
+    height: 2px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--admin-shell-green);
+}
+
+.admin-main-header .admin-navbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+}
+
+.admin-main-header .notification-bell {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    color: #24412a;
+    background: #f3f7f1;
+    border: 1px solid #dfe8db;
+    padding: 0;
+}
+
+.admin-main-header .notification-bell:hover {
+    transform: translateY(-1px);
+    background: #ecf5e8;
+}
+
+.admin-main-header .notification-dot,
+.admin-main-header .notification-badge {
+    border-color: #ffffff;
+}
+
+.admin-main-header .admin-user-pill {
+    min-height: 42px;
+    background: #ffffff;
+    border: 1px solid #dfe8db;
+    color: #1f2937;
+    border-radius: 12px;
+    padding: 0 12px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.admin-main-header .admin-user-pill:hover {
+    background: #f7faf6;
+}
+
+.admin-user-email {
+    max-width: 210px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+}
+
+.admin-sidebar-backdrop {
+    display: none;
+}
+
+@media (min-width: 1025px) {
+    body {
+        padding-left: var(--admin-sidebar-width);
+    }
+}
+
+@media (max-width: 1024px) {
+    body {
+        padding-left: 0;
+    }
+
+    .admin-sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.22s ease;
+    }
+
+    body.admin-sidebar-open {
+        overflow: hidden;
+    }
+
+    body.admin-sidebar-open .admin-sidebar {
+        transform: translateX(0);
+    }
+
+    .admin-sidebar-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 4050;
+        display: none;
+        border: 0;
+        background: rgba(15, 23, 42, 0.42);
+    }
+
+    body.admin-sidebar-open .admin-sidebar-backdrop {
+        display: block;
+    }
+
+    .admin-navbar.admin-main-header {
+        min-height: 66px;
+        padding: 0 16px;
+    }
+
+    .admin-navbar.admin-main-header .admin-navbar-toggle {
+        display: inline-flex;
+    }
+}
+
+@media (max-width: 640px) {
+    .admin-sidebar {
+        width: min(86vw, 310px);
+    }
+
+    .admin-topbar-kicker {
+        display: none;
+    }
+
+    .admin-topbar-title {
+        font-size: 16px;
+    }
+
+    .admin-user-email {
+        display: none;
+    }
+
+    .admin-main-header .admin-navbar-right {
+        gap: 8px;
+    }
+}
+
 /* Notification Styles */
 .admin-navbar {
     position: relative;
@@ -752,18 +1095,27 @@ document.addEventListener('DOMContentLoaded', function() {
             el.textContent = toRelative(ts);
         });
     }
-    // Mobile navbar toggle
+    // Mobile sidebar toggle
     const adminToggle = document.getElementById('adminNavbarToggle');
-    const adminCenter = document.getElementById('adminNavbarCenter');
-    if (adminToggle && adminCenter) {
+    const sidebar = document.getElementById('adminSidebar');
+    const sidebarBackdrop = document.getElementById('adminSidebarBackdrop');
+    function setSidebarOpen(isOpen) {
+        document.body.classList.toggle('admin-sidebar-open', isOpen);
+        if (adminToggle) adminToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        if (sidebarBackdrop) sidebarBackdrop.hidden = !isOpen;
+    }
+    if (adminToggle && sidebar) {
         adminToggle.addEventListener('click', function(e) {
             e.stopPropagation();
-            adminCenter.classList.toggle('show');
+            setSidebarOpen(!document.body.classList.contains('admin-sidebar-open'));
         });
-        document.addEventListener('click', function(e) {
-            if (!adminCenter.contains(e.target) && !adminToggle.contains(e.target)) {
-                adminCenter.classList.remove('show');
-            }
+        sidebar.addEventListener('click', function(e) {
+            if (e.target.closest('a')) setSidebarOpen(false);
+        });
+    }
+    if (sidebarBackdrop) {
+        sidebarBackdrop.addEventListener('click', function() {
+            setSidebarOpen(false);
         });
     }
 
