@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
 }
 
 $q = trim((string) ($_GET['q'] ?? ''));
-$limit = (int) ($_GET['limit'] ?? 3);
+$limit = (int) ($_GET['limit'] ?? 6);
 $page = (int) ($_GET['page'] ?? 1);
 if ($limit < 1) $limit = 1;
 if ($limit > 200) $limit = 200;

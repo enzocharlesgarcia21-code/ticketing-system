@@ -178,9 +178,31 @@ function analytics_apply_company_filter(array &$where, array &$params, string &$
     $types .= 's';
 }
 
-// Determine selected date range (default to current month)
-$start_date = $_GET['start_date'] ?? date('Y-m-01');
-$end_date = $_GET['end_date'] ?? date('Y-m-d');
+// Determine selected date range. When no dates are selected, default to the
+// month of the latest ticket so analytics does not look empty after month rollovers.
+$defaultEndDate = date('Y-m-d');
+$latestTicketDateRes = $conn->query("SELECT MAX(DATE(created_at)) AS latest_ticket_date FROM employee_tickets WHERE created_at IS NOT NULL");
+if ($latestTicketDateRes) {
+    $latestTicketDateRow = $latestTicketDateRes->fetch_assoc();
+    $latestTicketDate = trim((string) ($latestTicketDateRow['latest_ticket_date'] ?? ''));
+    if ($latestTicketDate !== '') {
+        $defaultEndDate = $latestTicketDate;
+    }
+    $latestTicketDateRes->free();
+}
+$defaultStartDate = date('Y-m-01', strtotime($defaultEndDate));
+$isValidDate = static function (string $date): bool {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return false;
+    [$year, $month, $day] = array_map('intval', explode('-', $date));
+    return checkdate($month, $day, $year);
+};
+$requestedStartDate = trim((string) ($_GET['start_date'] ?? ''));
+$requestedEndDate = trim((string) ($_GET['end_date'] ?? ''));
+$start_date = $isValidDate($requestedStartDate) ? $requestedStartDate : $defaultStartDate;
+$end_date = $isValidDate($requestedEndDate) ? $requestedEndDate : $defaultEndDate;
+if (strtotime($start_date) > strtotime($end_date)) {
+    [$start_date, $end_date] = [$end_date, $start_date];
+}
 
 $category_filter = trim((string) ($_GET['category'] ?? ''));
 $raw_company_filter = trim((string) ($_GET['company'] ?? ''));
@@ -195,7 +217,7 @@ if ($analyticsIsEmployeeView) {
     $department_filter = trim((string) ($_SESSION['department'] ?? ''));
 }
 
-$allowed_statuses = ['Open', 'In Progress', 'Resolved'];
+$allowed_statuses = ['Open', 'In Progress', 'Closed'];
 if (!in_array($status_filter, $allowed_statuses, true)) $status_filter = '';
 
 $company_options = [
@@ -256,31 +278,32 @@ if ($status_filter !== '') {
 }
 
 // 2. Metrics for Selected Range (Based on created_at)
-// Received: Created in this range excluding closed tickets
-// Resolved: Created in this range AND status is Resolved (Cohort analysis)
+// Received: Created in this range excluding trash.
+// Closed: Created in this range AND status is Closed.
 
 $metricsQuery = $conn->prepare("
     SELECT 
         COUNT(*) as received,
-        SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) as resolved
+        SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END) as resolved
     FROM employee_tickets 
     WHERE DATE(created_at) BETWEEN ? AND ?
-      AND COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash')
+      AND COALESCE(NULLIF(status,''),'') <> 'Trash'
 ");
 $metricsQuery->bind_param("ss", $start_date, $end_date);
 $metricsQuery->execute();
 $metrics = $metricsQuery->get_result()->fetch_assoc();
 
-// 3. Resolution-time analytics for the last 7 weekdays ending at the selected end date.
+// 3. Close-time analytics for the last 5 weekdays ending at the selected end date.
 $trendAnchorDate = new DateTimeImmutable($end_date ?: date('Y-m-d'));
-$currentTrendDates = analytics_last_n_weekdays($trendAnchorDate, 7);
+$currentTrendDates = analytics_last_n_weekdays($trendAnchorDate, 5);
 $trendStartDate = $currentTrendDates[0];
 $trendEndDate = $currentTrendDates[count($currentTrendDates) - 1];
-$previousTrendDates = analytics_last_n_weekdays($trendStartDate->modify('-1 day'), 7);
+$previousTrendDates = analytics_last_n_weekdays($trendStartDate->modify('-1 day'), 5);
 $previousTrendStartDate = $previousTrendDates[0];
 $previousTrendEndDate = $previousTrendDates[count($previousTrendDates) - 1];
-$resolutionMinutesExpr = "TIMESTAMPDIFF(MINUTE, t.created_at, t.resolved_at)";
-$resolutionSecondsExpr = "TIMESTAMPDIFF(SECOND, t.started_at, t.resolved_at)";
+$completionAtExpr = "COALESCE(t.closed_at, t.resolved_at)";
+$resolutionMinutesExpr = "TIMESTAMPDIFF(MINUTE, t.created_at, $completionAtExpr)";
+$resolutionSecondsExpr = "TIMESTAMPDIFF(SECOND, t.started_at, $completionAtExpr)";
 
 $formatResolutionMinutes = static function ($minutes): string {
     $minutes = (float) $minutes;
@@ -304,12 +327,12 @@ $summary = [
 $metricsSql = "
     SELECT
         COUNT(*) as received,
-        SUM(CASE WHEN t.status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
+        SUM(CASE WHEN t.status = 'Closed' THEN 1 ELSE 0 END) as resolved,
         SUM(CASE WHEN t.status = 'Open' THEN 1 ELSE 0 END) as open_tickets,
         SUM(CASE WHEN t.status = 'In Progress' THEN 1 ELSE 0 END) as in_progress_tickets
     FROM employee_tickets t
     WHERE " . implode(" AND ", $ticket_where) . "
-      AND COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')
+      AND COALESCE(NULLIF(t.status,''),'') <> 'Trash'
 ";
 $mStmt = $conn->prepare($metricsSql);
 if ($mStmt) {
@@ -334,12 +357,12 @@ $previousStart = $previousTrendStartDate->format('Y-m-d');
 $previousEnd = $previousTrendEndDate->format('Y-m-d');
 
 $resolutionRangeWhere = [
-    "t.status = 'Resolved'",
-    "t.resolved_at IS NOT NULL",
+    "t.status = 'Closed'",
+    "$completionAtExpr IS NOT NULL",
     "t.created_at IS NOT NULL",
     "$resolutionMinutesExpr >= 0",
-    "WEEKDAY(t.resolved_at) < 5",
-    "DATE(t.resolved_at) BETWEEN ? AND ?",
+    "WEEKDAY($completionAtExpr) < 5",
+    "DATE($completionAtExpr) BETWEEN ? AND ?",
 ];
 $resolutionRangeParams = [$previousStart, $currentEnd];
 $resolutionRangeTypes = "ss";
@@ -373,10 +396,10 @@ $previousResolvedCount = 0;
 
 $resolutionSummarySql = "
     SELECT
-        AVG(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? AND WEEKDAY(t.resolved_at) < 5 THEN $resolutionMinutesExpr END) AS current_avg_minutes,
-        SUM(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? AND WEEKDAY(t.resolved_at) < 5 THEN 1 ELSE 0 END) AS current_resolved_count,
-        AVG(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? AND WEEKDAY(t.resolved_at) < 5 THEN $resolutionMinutesExpr END) AS previous_avg_minutes,
-        SUM(CASE WHEN DATE(t.resolved_at) BETWEEN ? AND ? AND WEEKDAY(t.resolved_at) < 5 THEN 1 ELSE 0 END) AS previous_resolved_count
+        AVG(CASE WHEN DATE($completionAtExpr) BETWEEN ? AND ? AND WEEKDAY($completionAtExpr) < 5 THEN $resolutionMinutesExpr END) AS current_avg_minutes,
+        SUM(CASE WHEN DATE($completionAtExpr) BETWEEN ? AND ? AND WEEKDAY($completionAtExpr) < 5 THEN 1 ELSE 0 END) AS current_resolved_count,
+        AVG(CASE WHEN DATE($completionAtExpr) BETWEEN ? AND ? AND WEEKDAY($completionAtExpr) < 5 THEN $resolutionMinutesExpr END) AS previous_avg_minutes,
+        SUM(CASE WHEN DATE($completionAtExpr) BETWEEN ? AND ? AND WEEKDAY($completionAtExpr) < 5 THEN 1 ELSE 0 END) AS previous_resolved_count
     FROM employee_tickets t
     WHERE " . implode(" AND ", $resolutionRangeWhere) . "
 ";
@@ -406,12 +429,12 @@ $dailyLabels = [];
 $dailyValues = [];
 $dailyMinutesMap = [];
 $dailyTrendWhere = [
-    "t.status = 'Resolved'",
-    "t.resolved_at IS NOT NULL",
+    "t.status = 'Closed'",
+    "$completionAtExpr IS NOT NULL",
     "t.created_at IS NOT NULL",
     "$resolutionMinutesExpr >= 0",
-    "WEEKDAY(t.resolved_at) < 5",
-    "DATE(t.resolved_at) BETWEEN ? AND ?",
+    "WEEKDAY($completionAtExpr) < 5",
+    "DATE($completionAtExpr) BETWEEN ? AND ?",
 ];
 $dailyTrendParams = [$currentStart, $currentEnd];
 $dailyTrendTypes = "ss";
@@ -440,12 +463,12 @@ if ($status_filter !== '') {
 
 $dailyTrendSql = "
     SELECT
-        DATE(t.resolved_at) AS resolved_day,
+        DATE($completionAtExpr) AS resolved_day,
         AVG($resolutionMinutesExpr) AS avg_minutes
     FROM employee_tickets t
     WHERE " . implode(" AND ", $dailyTrendWhere) . "
-    GROUP BY DATE(t.resolved_at)
-    ORDER BY DATE(t.resolved_at) ASC
+    GROUP BY DATE($completionAtExpr)
+    ORDER BY DATE($completionAtExpr) ASC
 ";
 $dailyTrendStmt = $conn->prepare($dailyTrendSql);
 if ($dailyTrendStmt) {
@@ -535,11 +558,11 @@ $resolutionBucketCounts = [
     'Over 4 hours' => 0,
 ];
 $resolutionBucketWhere = [
-    "t.status = 'Resolved'",
+    "t.status = 'Closed'",
     "t.started_at IS NOT NULL",
-    "t.resolved_at IS NOT NULL",
+    "$completionAtExpr IS NOT NULL",
     "$resolutionSecondsExpr >= 0",
-    "DATE(t.resolved_at) BETWEEN ? AND ?",
+    "DATE($completionAtExpr) BETWEEN ? AND ?",
 ];
 $resolutionBucketParams = [$start_date, $end_date];
 $resolutionBucketTypes = "ss";
@@ -589,7 +612,7 @@ if ($resolutionBucketStmt) {
     $resolutionBucketStmt->close();
 }
 $resolutionBucketTotal = array_sum($resolutionBucketCounts);
-$resolutionTopBucketLabel = 'No resolved tickets in the selected range';
+$resolutionTopBucketLabel = 'No closed tickets in the selected range';
 $resolutionTopBucketPercent = 0;
 if ($resolutionBucketTotal > 0) {
     arsort($resolutionBucketCounts);
@@ -606,6 +629,54 @@ $trendSummaryBadgeIcon = $trendDeltaDirection === 'down'
 $trendSummaryBadgeText = !empty($trendDayStats) || $trendAverageSeconds > 0
     ? ($trendDeltaPercent !== 0 ? abs($trendDeltaPercent) . '%' : '0%')
     : 'No data';
+
+$hasCurrentTrendData = $currentResolvedCount > 0 || $trendAverageSeconds > 0 || !empty($trendDayStats);
+$trendComparisonTitle = 'No closed tickets';
+$trendComparisonDetail = 'No data for the last 5 weekdays';
+$trendComparisonMain = 'No data';
+$trendComparisonSub = 'No previous data';
+$trendSummaryBadgeText = 'No data';
+$trendSummaryBadgeIcon = 'fa-circle-info';
+$trendSummaryBadgeClass = 'flat';
+
+if ($hasCurrentTrendData) {
+    $currentAvgLabel = formatHandlingTimeDetailed((int) $trendAverageSeconds);
+    $previousAvgLabel = formatHandlingTimeDetailed((int) $previousTrendAverageSeconds);
+
+    if ($previousResolvedCount <= 0 || $previousTrendAverageSeconds <= 0) {
+        $trendComparisonTitle = 'No previous data';
+        $trendComparisonDetail = 'Current average is ' . $currentAvgLabel;
+        $trendComparisonMain = 'New data';
+        $trendComparisonSub = 'No previous closed tickets';
+        $trendSummaryBadgeText = 'New data';
+        $trendSummaryBadgeIcon = 'fa-circle-info';
+        $trendSummaryBadgeClass = 'flat';
+    } elseif ($trendDeltaPercent > 25) {
+        $trendComparisonTitle = 'Slower than before';
+        $trendComparisonDetail = 'Previous average was ' . $previousAvgLabel;
+        $trendComparisonMain = 'Slower';
+        $trendComparisonSub = 'Previous avg: ' . $previousAvgLabel;
+        $trendSummaryBadgeText = 'Slower';
+        $trendSummaryBadgeIcon = 'fa-arrow-trend-up';
+        $trendSummaryBadgeClass = 'up';
+    } elseif ($trendDeltaPercent < -25) {
+        $trendComparisonTitle = 'Faster than before';
+        $trendComparisonDetail = 'Previous average was ' . $previousAvgLabel;
+        $trendComparisonMain = 'Faster';
+        $trendComparisonSub = 'Previous avg: ' . $previousAvgLabel;
+        $trendSummaryBadgeText = 'Faster';
+        $trendSummaryBadgeIcon = 'fa-arrow-trend-down';
+        $trendSummaryBadgeClass = 'down';
+    } else {
+        $trendComparisonTitle = 'About the same';
+        $trendComparisonDetail = 'Previous average was ' . $previousAvgLabel;
+        $trendComparisonMain = 'Stable';
+        $trendComparisonSub = 'Previous avg: ' . $previousAvgLabel;
+        $trendSummaryBadgeText = 'Stable';
+        $trendSummaryBadgeIcon = 'fa-minus';
+        $trendSummaryBadgeClass = 'flat';
+    }
+}
 
 $companyExpr = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''), '')";
 $departmentExpr = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''), '')";
@@ -922,7 +993,7 @@ foreach ($assigneeLabels as $idx => $name) {
     ];
 }
 
-$trendSubtitle = 'Daily average (last 7 weekdays)';
+$trendSubtitle = 'Daily average (last 5 weekdays)';
 
 $entries = (int) ($_GET['entries'] ?? 5);
 $allowed_entries = [5, 10, 25, 50, 100];
@@ -960,9 +1031,9 @@ $ticketsSql = "
         t.category,
         COALESCE(a.name, 'Unassigned') as assignee_name,
         t.started_at,
-        t.resolved_at,
+        COALESCE(t.closed_at, t.resolved_at) as resolved_at,
         t.status,
-        TIMESTAMPDIFF(SECOND, t.started_at, t.resolved_at) as duration_seconds
+        TIMESTAMPDIFF(SECOND, t.started_at, COALESCE(t.closed_at, t.resolved_at)) as duration_seconds
     FROM employee_tickets t
     JOIN users u ON t.user_id = u.id
     LEFT JOIN users a ON t.assigned_user_id = a.id
@@ -990,9 +1061,9 @@ if ($ticketsStmt) {
     $ticketsStmt->close();
 }
 
-// Optional: Daily Received vs Resolved (Inside selected month)
+// Optional: Daily Received vs Closed (Inside selected month)
 // Received: based on created_at
-// Resolved: based on resolved_at (performance) or status? 
+// Closed: based on completion timestamp (performance) or status?
 // Usually "Daily Activity" tracks when things happened.
 // I'll stick to the "Weekly Avg Handling Time" as the main chart requested.
 
@@ -1610,11 +1681,12 @@ if ($ticketsStmt) {
             display: inline-flex;
             align-items: center;
             gap: 10px;
-            min-height: 52px;
+            min-height: 58px;
             padding: 0 16px;
             border-radius: 18px;
             font-weight: 800;
-            flex: 0 0 auto;
+            flex: 0 1 230px;
+            max-width: 260px;
         }
         .trend-delta-badge.up {
             background: linear-gradient(180deg, #fff3eb 0%, #ffeddc 100%);
@@ -1632,7 +1704,8 @@ if ($ticketsStmt) {
             display: flex;
             flex-direction: column;
             gap: 4px;
-            line-height: 1;
+            line-height: 1.15;
+            min-width: 0;
         }
         .trend-delta-value {
             font-size: 1.02rem;
@@ -1642,6 +1715,7 @@ if ($ticketsStmt) {
             font-size: 0.82rem;
             font-weight: 700;
             color: #64748b;
+            white-space: normal;
         }
         body.employee-analytics-page .trend-overview-card {
             flex-direction: column;
@@ -2300,12 +2374,12 @@ if ($ticketsStmt) {
                 <div class="analytics-card resolved">
                     <div class="analytics-card-top">
                         <div>
-                            <div class="analytics-label">Resolved</div>
+                            <div class="analytics-label">Closed</div>
                             <div class="analytics-value"><?= number_format((int) ($summary['resolved'] ?? 0)) ?></div>
                         </div>
                         <div class="analytics-icon"><i class="fa-solid fa-circle-check"></i></div>
                     </div>
-                    <div class="analytics-sub">Resolved tickets</div>
+                    <div class="analytics-sub">Closed tickets</div>
                 </div>
                 <div class="analytics-card avg-time">
                     <div class="analytics-card-top">
@@ -2365,12 +2439,12 @@ if ($ticketsStmt) {
                 <div class="chart-card trend-card">
                     <div class="chart-header">
                         <div class="chart-heading">
-                            <div class="chart-title">Resolution Time Trend</div>
-                            <p class="chart-subtitle"><?= htmlspecialchars($trendSubtitle, ENT_QUOTES, 'UTF-8') ?></p>
+                            <div class="chart-title">Average Close Time by Day</div>
+                            <p class="chart-subtitle">Lower is better. Each point shows the average time to close tickets that day.</p>
                         </div>
                         <div class="trend-period-pill">
                             <i class="fa-regular fa-calendar"></i>
-                            <span>Last 7 weekdays</span>
+                            <span>Last 5 weekdays</span>
                         </div>
                     </div>
                     <div class="trend-overview-card">
@@ -2378,14 +2452,14 @@ if ($ticketsStmt) {
                             <div class="trend-overview-icon"><i class="fa-regular fa-clock"></i></div>
                             <div class="trend-overview-copy">
                                 <div class="trend-overview-value"><?= htmlspecialchars(formatHandlingTimeDetailed((int) $trendAverageSeconds), ENT_QUOTES, 'UTF-8') ?></div>
-                                <div class="trend-overview-label">Avg Resolution Time</div>
+                                <div class="trend-overview-label">Average for last 5 weekdays</div>
                             </div>
                         </div>
                         <div class="trend-delta-badge <?= htmlspecialchars($trendSummaryBadgeClass, ENT_QUOTES, 'UTF-8') ?>">
                             <i class="fa-solid <?= htmlspecialchars($trendSummaryBadgeIcon, ENT_QUOTES, 'UTF-8') ?>"></i>
                             <div class="trend-delta-copy">
                                 <span class="trend-delta-value"><?= htmlspecialchars($trendSummaryBadgeText, ENT_QUOTES, 'UTF-8') ?></span>
-                                <span class="trend-delta-label">vs previous 7 weekdays</span>
+                                <span class="trend-delta-label"><?= htmlspecialchars($trendComparisonDetail, ENT_QUOTES, 'UTF-8') ?></span>
                             </div>
                         </div>
                     </div>
@@ -2396,28 +2470,26 @@ if ($ticketsStmt) {
                         <div class="trend-mini-card fastest">
                             <div class="trend-mini-top">
                                 <span class="trend-mini-icon"><i class="fa-regular fa-circle-check"></i></span>
-                                <span class="trend-mini-title">Fastest</span>
+                                <span class="trend-mini-title">Best Day</span>
                             </div>
                             <div class="trend-mini-main"><?= htmlspecialchars($trendFastestDay['label'] ?? 'No data', ENT_QUOTES, 'UTF-8') ?></div>
-                            <div class="trend-mini-sub"><?= $trendFastestDay ? htmlspecialchars(number_format((float) $trendFastestDay['hours'], 1) . 'h', ENT_QUOTES, 'UTF-8') : 'No resolved tickets' ?></div>
+                            <div class="trend-mini-sub"><?= $trendFastestDay ? 'Avg ' . htmlspecialchars(number_format((float) $trendFastestDay['hours'], 1) . 'h', ENT_QUOTES, 'UTF-8') : 'No closed tickets' ?></div>
                         </div>
                         <div class="trend-mini-card peak">
                             <div class="trend-mini-top">
                                 <span class="trend-mini-icon"><i class="fa-solid fa-fire-flame-curved"></i></span>
-                                <span class="trend-mini-title">Peak</span>
+                                <span class="trend-mini-title">Slowest Day</span>
                             </div>
                             <div class="trend-mini-main"><?= htmlspecialchars($trendPeakDay['label'] ?? 'No data', ENT_QUOTES, 'UTF-8') ?></div>
-                            <div class="trend-mini-sub"><?= $trendPeakDay ? htmlspecialchars(number_format((float) $trendPeakDay['hours'], 1) . 'h', ENT_QUOTES, 'UTF-8') : 'No resolved tickets' ?></div>
+                            <div class="trend-mini-sub"><?= $trendPeakDay ? 'Avg ' . htmlspecialchars(number_format((float) $trendPeakDay['hours'], 1) . 'h', ENT_QUOTES, 'UTF-8') : 'No closed tickets' ?></div>
                         </div>
                         <div class="trend-mini-card trend">
                             <div class="trend-mini-top">
                                 <span class="trend-mini-icon"><i class="fa-solid fa-arrow-trend-up"></i></span>
-                                <span class="trend-mini-title">Trend</span>
+                                <span class="trend-mini-title">Compared</span>
                             </div>
-                            <div class="trend-mini-main">
-                                <?= !empty($trendDayStats) ? htmlspecialchars(($trendDeltaPercent !== 0 ? ($trendDeltaPercent > 0 ? '+' : '') . $trendDeltaPercent . '%' : '0%'), ENT_QUOTES, 'UTF-8') : 'No data' ?>
-                            </div>
-                            <div class="trend-mini-sub">vs previous 7 weekdays</div>
+                            <div class="trend-mini-main"><?= htmlspecialchars($trendComparisonMain, ENT_QUOTES, 'UTF-8') ?></div>
+                            <div class="trend-mini-sub"><?= htmlspecialchars($trendComparisonSub, ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                     </div>
                     <div class="insight-pill">
@@ -2425,9 +2497,9 @@ if ($ticketsStmt) {
                             <i class="fa-regular fa-lightbulb"></i>
                             <span>
                                 <?php if ($resolutionBucketTotal > 0): ?>
-                                    Most resolved tickets took <?= htmlspecialchars($resolutionTopBucketLabel, ENT_QUOTES, 'UTF-8') ?> (<?= (int) $resolutionTopBucketPercent ?>%)
+                                    Most closed tickets took <?= htmlspecialchars($resolutionTopBucketLabel, ENT_QUOTES, 'UTF-8') ?> (<?= (int) $resolutionTopBucketPercent ?>%)
                                 <?php else: ?>
-                                    No resolved tickets in the selected range
+                                    No closed tickets in the selected range
                                 <?php endif; ?>
                             </span>
                         </div>
@@ -2786,7 +2858,7 @@ if ($ticketsStmt) {
         data: {
             labels: <?= json_encode($trendWeeks) ?>,
             datasets: [{
-                label: 'Avg Resolution Time (Hours)',
+                label: 'Avg Close Time (Hours)',
                 data: trendDataPoints,
                 borderColor: '#2f8cff',
                 backgroundColor: trendGradient,
@@ -2833,8 +2905,8 @@ if ($ticketsStmt) {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            if (context.raw === null || typeof context.raw === 'undefined') return 'No resolved tickets';
-                            return 'Avg time: ' + Number(context.raw).toFixed(1) + 'h';
+                            if (context.raw === null || typeof context.raw === 'undefined') return 'No closed tickets';
+                            return 'Avg close time: ' + Number(context.raw).toFixed(1) + 'h';
                         }
                     }
                 },

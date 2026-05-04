@@ -116,28 +116,6 @@ $adminId = (int) ($_SESSION['user_id'] ?? 0);
 $allowedViews = ['all', 'my_open', 'resolved'];
 if (!in_array($view, $allowedViews, true)) $view = '';
 
-$sidebarCounts = [
-    'all' => 0,
-    'my_open' => 0,
-    'resolved' => 0,
-];
-$cntStmt = $conn->prepare("
-    SELECT
-        SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') THEN 1 ELSE 0 END) AS all_total,
-        SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_total,
-        SUM(CASE WHEN COALESCE(NULLIF(status,''),'') NOT IN ('Closed','Trash') AND status IN ('Open','In Progress') THEN 1 ELSE 0 END) AS my_open_total
-    FROM employee_tickets
-");
-if ($cntStmt) {
-    $cntStmt->execute();
-    $cntRes = $cntStmt->get_result();
-    $cntRow = $cntRes ? $cntRes->fetch_assoc() : null;
-    $cntStmt->close();
-    $sidebarCounts['all'] = (int) ($cntRow['all_total'] ?? 0);
-    $sidebarCounts['resolved'] = (int) ($cntRow['resolved_total'] ?? 0);
-    $sidebarCounts['my_open'] = (int) ($cntRow['my_open_total'] ?? 0);
-}
-
 $query = "
 SELECT employee_tickets.*, users.name, users.email, users.department AS user_department
 FROM employee_tickets
@@ -263,21 +241,7 @@ $result = $stmt->get_result();
 <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
-        .at-layout { width: 100%; max-width: 1560px; min-width: 0; display: flex; gap: 18px; align-items: flex-start; }
-        .at-sidebar { width: 260px; flex: 0 0 260px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px; box-shadow: 0 4px 10px rgba(2,6,23,0.04); position: static; top: auto; min-height: 580px; height: auto; display: flex; flex-direction: column; align-self: flex-start; }
-        .at-sidebar-section + .at-sidebar-section { margin-top: 16px; }
-        .at-sidebar-title { font-size: 12px; font-weight: 800; color: #475569; display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 8px; text-transform: none; }
-        .at-sidebar-add { width: 28px; height: 28px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: #f1f5f9; color: #1b5e20; border: 1px solid #e2e8f0; cursor: pointer; }
-        .at-sidebar-add:active { transform: translateY(1px); }
-        .at-sidebar-link { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px; border-radius: 12px; text-decoration: none; color: #0f172a; font-size: 13px; font-weight: 600; border: 1px solid transparent; }
-        .at-sidebar-link:hover { background: #f8fafc; border-color: #e2e8f0; }
-        .at-sidebar-link.active { background: rgba(27, 94, 32, 0.10); border-color: rgba(27, 94, 32, 0.25); }
-        .at-sidebar-left { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
-        .at-sidebar-icon { width: 28px; height: 28px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: #f1f5f9; color: #1b5e20; flex: 0 0 28px; }
-        .at-sidebar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .at-sidebar-count { min-width: 28px; height: 22px; padding: 0 8px; border-radius: 999px; background: #f1f5f9; color: #334155; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
-        .at-sidebar-link.active .at-sidebar-count { background: #1b5e20; color: #ffffff; }
-        .at-sidebar-link.disabled { opacity: 0.45; pointer-events: none; }
+        .at-layout { width: 100%; max-width: 1560px; min-width: 0; display: block; }
         .at-main { flex: 1 1 auto; min-width: 0; max-width: 100%; }
         .at-main .admin-content { max-width: none; min-width: 0; }
         .at-main .admin-card { max-width: 100%; min-width: 0; }
@@ -438,7 +402,6 @@ $result = $stmt->get_result();
             min-width: 1040px;
         }
         @media (max-width: 1100px) {
-            .at-sidebar { display: none; }
             .at-layout { max-width: 1200px; }
             .table-footer-bar {
                 flex-wrap: wrap;
@@ -505,36 +468,6 @@ $result = $stmt->get_result();
 
     <div class="admin-container">
         <div class="at-layout">
-            <aside class="at-sidebar" aria-label="Views">
-                <div class="at-sidebar-section">
-                    <div class="at-sidebar-title">Views</div>
-                    <a class="at-sidebar-link <?php echo $view === '' ? 'active' : ''; ?>" href="all_tickets.php">
-                        <span class="at-sidebar-left">
-                            <span class="at-sidebar-icon"><i class="fa-regular fa-rectangle-list"></i></span>
-                            <span class="at-sidebar-label">All Tickets</span>
-                        </span>
-                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['all'] ?? 0); ?></span>
-                    </a>
-                    <a class="at-sidebar-link <?php echo $view === 'my_open' ? 'active' : ''; ?>" href="all_tickets.php?view=my_open">
-                        <span class="at-sidebar-left">
-                            <span class="at-sidebar-icon"><i class="fa-regular fa-circle-check"></i></span>
-                            <span class="at-sidebar-label">Open &amp; Pending </span>
-                        </span>
-                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['my_open'] ?? 0); ?></span>
-                    </a>
-                </div>
-
-                <div class="at-sidebar-section">
-                    <a class="at-sidebar-link <?php echo $view === 'resolved' ? 'active' : ''; ?>" href="all_tickets.php?view=resolved">
-                        <span class="at-sidebar-left">
-                            <span class="at-sidebar-icon"><i class="fa-solid fa-check"></i></span>
-                            <span class="at-sidebar-label">All Resolved Tickets</span>
-                        </span>
-                        <span class="at-sidebar-count"><?php echo (int) ($sidebarCounts['resolved'] ?? 0); ?></span>
-                    </a>
-                </div>
-            </aside>
-
             <div class="at-main">
                 <div class="admin-content">
 

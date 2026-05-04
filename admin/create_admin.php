@@ -33,13 +33,13 @@ $search = isset($_GET['search']) ? trim((string) $_GET['search']) : '';
 $queryBase = "SELECT id, name, email, department FROM users WHERE department = 'IT' AND role = 'employee'";
 if ($search !== '') {
     $term = '%' . $search . '%';
-    $search_stmt = $conn->prepare($queryBase . " AND (name LIKE ? OR email LIKE ?) ORDER BY name ASC LIMIT 3");
+    $search_stmt = $conn->prepare($queryBase . " AND (name LIKE ? OR email LIKE ?) ORDER BY name ASC LIMIT 6");
     $search_stmt->bind_param("ss", $term, $term);
     $search_stmt->execute();
     $result = $search_stmt->get_result();
     $search_stmt->close();
 } else {
-    $result = $conn->query($queryBase . " ORDER BY name ASC LIMIT 3");
+    $result = $conn->query($queryBase . " ORDER BY name ASC LIMIT 6");
 }
 
 // Query Current IT Admins
@@ -333,6 +333,8 @@ user_permissions_ensure_table($conn);
         }
         .table-card {
             background: transparent;
+            min-width: 0;
+            overflow-x: auto;
         }
         .employee-cell {
             display: flex;
@@ -1312,11 +1314,13 @@ user_permissions_ensure_table($conn);
             height: 100%;
             display: flex;
             flex-direction: column;
+            min-width: 0;
         }
         .admin-bottom-grid > .mgmt-card > .mgmt-card-body {
             flex: 1 1 auto;
             display: flex;
             flex-direction: column;
+            min-width: 0;
         }
         .admin-bottom-grid > .mgmt-card .table-card { flex: 1 1 auto; }
         .admin-bottom-grid > .mgmt-card .admin-card-grid { flex: 1 1 auto; align-content: start; }
@@ -1389,6 +1393,75 @@ user_permissions_ensure_table($conn);
         .dept-technical { background: #fee2e2; border-color: #fecaca; color: #991b1b; }
         .dept-e-comm { background: #e0e7ff; border-color: #c7d2fe; color: #3730a3; }
         .dept-lingap { background: #cffafe; border-color: #a5f3fc; color: #0e7490; }
+
+        .promote-table-card {
+            width: 100%;
+            overflow-x: hidden;
+            overflow-y: hidden;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+        }
+        .promote-table-card .user-table {
+            table-layout: fixed;
+            width: 100%;
+            min-width: 0;
+            margin: 0;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        .promote-table-card .user-table th,
+        .promote-table-card .user-table td {
+            padding: 10px 10px;
+            font-size: 12px;
+            line-height: 1.25;
+        }
+        .promote-table-card .user-table th {
+            font-size: 10.5px;
+            letter-spacing: 0.03em;
+        }
+        .promote-table-card .user-table th:nth-child(1),
+        .promote-table-card .user-table td:nth-child(1) { width: 25%; }
+        .promote-table-card .user-table th:nth-child(2),
+        .promote-table-card .user-table td:nth-child(2) { width: 40%; }
+        .promote-table-card .user-table th:nth-child(3),
+        .promote-table-card .user-table td:nth-child(3) { width: 15%; }
+        .promote-table-card .user-table th:nth-child(4),
+        .promote-table-card .user-table td:nth-child(4) {
+            width: 20%;
+            white-space: nowrap;
+        }
+        .promote-table-card .user-table td:nth-child(2) {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .promote-table-card .employee-cell {
+            min-width: 0;
+            gap: 8px;
+        }
+        .promote-table-card .employee-cell > span:last-child {
+            min-width: 0;
+            overflow-wrap: anywhere;
+            font-size: 13px;
+            line-height: 1.2;
+        }
+        .promote-table-card .employee-avatar {
+            width: 30px;
+            height: 30px;
+            font-size: 13px;
+        }
+        .promote-table-card .dept-badge {
+            padding: 5px 8px;
+            font-size: 11px;
+        }
+        .promote-table-card .promote-btn {
+            min-width: 0;
+            max-width: 100%;
+            padding: 8px 10px;
+            font-size: 12px;
+            border-radius: 8px;
+            gap: 6px;
+        }
 
         @media (max-width: 1100px) {
             .admin-bottom-grid { grid-template-columns: 1fr; }
@@ -1876,7 +1949,7 @@ user_permissions_ensure_table($conn);
                         </div>
                     </form>
 
-                    <div class="table-card">
+                    <div class="table-card promote-table-card">
                         <table class="user-table">
                             <thead>
                                 <tr>
@@ -1971,7 +2044,7 @@ user_permissions_ensure_table($conn);
     window.TM_ADMIN_CURRENT_USER_ID = <?php echo (int) ($_SESSION['user_id'] ?? 0); ?>;
     window.TM_CAN_MANAGE_USER_ACCESS = <?php echo $canManageUserAccess ? 'true' : 'false'; ?>;
     window.TM_USERS_PAGE_SIZE = 5;
-    window.TM_IT_PAGE_SIZE = 3;
+    window.TM_IT_PAGE_SIZE = 6;
     window.TM_IT_ADMINS_PAGE_SIZE = 4;
     var companyDepartments = {
         "@leadsagri.com": <?php echo json_encode(array_values($lapc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
@@ -2285,7 +2358,7 @@ user_permissions_ensure_table($conn);
         if (!wrap || !info || !controls) return;
         var total = Number(tmItState.total || 0);
         var page = Number(tmItState.page || 1);
-        var limit = Number(tmItState.limit || window.TM_IT_PAGE_SIZE || 3);
+        var limit = Number(tmItState.limit || window.TM_IT_PAGE_SIZE || 6);
         var totalPages = Number(tmItState.totalPages || Math.max(1, Math.ceil(total / Math.max(1, limit))));
 
         if (!total || totalPages <= 1) {
@@ -2323,7 +2396,7 @@ user_permissions_ensure_table($conn);
         var q = input ? input.value.trim() : '';
         var p = typeof page === 'number' && page > 0 ? page : (tmItState.page || 1);
         tmItState.page = p;
-        tmItState.limit = Number(window.TM_IT_PAGE_SIZE) || 3;
+        tmItState.limit = Number(window.TM_IT_PAGE_SIZE) || 6;
         var url = 'ajax_it_employees.php?q=' + encodeURIComponent(q) + '&limit=' + encodeURIComponent(String(tmItState.limit)) + '&page=' + encodeURIComponent(String(tmItState.page));
         fetch(url, { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })

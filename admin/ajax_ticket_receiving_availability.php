@@ -56,6 +56,12 @@ if ($itemType === 'department') {
         echo json_encode(['ok' => false, 'error' => 'Invalid department selected.']);
         exit;
     }
+
+    if ($receivingEnabled && !ticket_receiving_is_company_enabled($conn, $companyKey)) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Turn on the subsidiary first before enabling its departments.']);
+        exit;
+    }
 } else {
     $departmentName = '';
 }
