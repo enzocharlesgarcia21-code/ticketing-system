@@ -132,7 +132,7 @@ if ($view !== '') {
         $query .= " AND employee_tickets.status = 'Resolved'";
     }
 }
-$query .= " AND COALESCE(NULLIF(employee_tickets.status,''),'') NOT IN ('Closed','Trash')";
+$query .= " AND COALESCE(NULLIF(employee_tickets.status,''),'') <> 'Trash'";
 
 if (!empty($department)) {
     $deptKey = $department_key !== '' ? $department_key : ticket_department_key_from_value((string) $department);
@@ -546,6 +546,7 @@ $result = $stmt->get_result();
                             <option value="Open" <?= $status=='Open'?'selected':'' ?>>Open</option>
                             <option value="In Progress" <?= $status=='In Progress'?'selected':'' ?>>In Progress</option>
                             <option value="Resolved" <?= $status=='Resolved'?'selected':'' ?>>Resolved</option>
+                            <option value="Closed" <?= $status=='Closed'?'selected':'' ?>>Closed</option>
                         </select>
 
                         <a href="all_tickets.php" class="clear-btn" id="clearFiltersBtn">Clear Filters</a>
