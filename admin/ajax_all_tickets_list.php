@@ -141,7 +141,7 @@ $types = '';
 
 $allowedViews = ['all', 'my_open', 'unresolved', 'resolved'];
 if (!in_array($view, $allowedViews, true)) $view = '';
-$where[] = "COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')";
+$where[] = "COALESCE(NULLIF(t.status,''),'') <> 'Trash'";
 if ($view !== '') {
     if ($view === 'my_open') {
         $where[] = "t.status IN ('Open','In Progress')";

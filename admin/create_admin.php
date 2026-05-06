@@ -1306,9 +1306,10 @@ user_permissions_ensure_table($conn);
         }
         .admin-bottom-grid {
             display: grid;
-            grid-template-columns: 1.45fr 0.95fr;
+            grid-template-columns: minmax(0, 1.45fr) minmax(480px, 0.95fr);
             gap: 18px;
             align-items: stretch;
+            min-height: 560px;
         }
         .admin-bottom-grid > .mgmt-card {
             height: 100%;
@@ -1323,7 +1324,7 @@ user_permissions_ensure_table($conn);
             min-width: 0;
         }
         .admin-bottom-grid > .mgmt-card .table-card { flex: 1 1 auto; }
-        .admin-bottom-grid > .mgmt-card .admin-card-grid { flex: 1 1 auto; align-content: start; }
+        .admin-bottom-grid > .mgmt-card .admin-card-grid { flex: 1 1 auto; align-content: stretch; }
         .admin-bottom-grid > .mgmt-card .users-pagination {
             margin-top: auto;
             margin-left: 4px;
@@ -1333,7 +1334,14 @@ user_permissions_ensure_table($conn);
         .admin-card-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-auto-rows: minmax(0, 1fr);
             gap: 12px;
+            min-height: 0;
+        }
+        #itAdminsGrid .admin-card {
+            min-height: 0;
+            height: 100%;
+            justify-content: center;
         }
         .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 34%; text-align: left; }
         .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 36%; text-align: left; }
