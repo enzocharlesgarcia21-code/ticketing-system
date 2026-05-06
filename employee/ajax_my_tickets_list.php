@@ -44,6 +44,103 @@ function current_employee_email(mysqli $conn, int $userId): string
     return $email;
 }
 
+function my_tickets_sla_filter_condition(string $sla): string
+{
+    $activeStatus = "LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')";
+    $priority = "LOWER(TRIM(COALESCE(t.priority, '')))";
+    $ageHigh = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+    $ageMedium = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 4 DAY)";
+
+    if ($sla === 'High') {
+        return "($activeStatus AND ($priority = 'critical' OR ($priority NOT IN ('critical', 'high') AND $ageHigh)))";
+    }
+    if ($sla === 'Medium') {
+        return "($activeStatus AND ($priority = 'high' OR ($priority NOT IN ('critical', 'high') AND $ageMedium AND NOT ($ageHigh))))";
+    }
+    if ($sla === 'Low') {
+        return "($activeStatus AND $priority NOT IN ('critical', 'high') AND NOT ($ageMedium))";
+    }
+    return '';
+}
+
+function my_tickets_filter_clauses(mysqli $conn, string $search, string $company, string $department, string $status, string $sla, string &$types, array &$params): array
+{
+    $where = [];
+    $search = trim($search);
+    $company = trim($company);
+    $department = trim($department);
+    $status = trim($status);
+    $sla = trim($sla);
+
+    if ($search !== '') {
+        $like = '%' . $search . '%';
+        $where[] = "(
+            CAST(t.id AS CHAR) LIKE ?
+            OR CONCAT('#', t.id) LIKE ?
+            OR COALESCE(t.subject, '') LIKE ?
+            OR COALESCE(t.category, '') LIKE ?
+            OR COALESCE(t.requester_name, '') LIKE ?
+            OR COALESCE(t.requester_email, '') LIKE ?
+        )";
+        $types .= 'ssssss';
+        array_push($params, $like, $like, $like, $like, $like, $like);
+    }
+
+    if ($company !== '') {
+        $aliases = array_values(array_unique(array_filter(array_map(static function ($value): string {
+            return strtoupper(trim((string) $value));
+        }, ticket_company_aliases($company)), static function ($value): bool {
+            return $value !== '';
+        })));
+        if (count($aliases) > 0) {
+            $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_company, ''), t.company, ''))) IN (" . implode(',', array_fill(0, count($aliases), '?')) . ")";
+            $types .= str_repeat('s', count($aliases));
+            foreach ($aliases as $alias) {
+                $params[] = $alias;
+            }
+        }
+    }
+
+    if ($department !== '' && ticket_normalize_company($company) === '@leadsagri.com') {
+        $allowedDepartments = ticket_lapc_departments();
+        if (in_array($department, $allowedDepartments, true)) {
+            $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department, ''))) = UPPER(?)";
+            $types .= 's';
+            $params[] = $department;
+        }
+    }
+
+    if ($status !== '') {
+        $allowedStatuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
+        if (in_array($status, $allowedStatuses, true)) {
+            $where[] = "t.status = ?";
+            $types .= 's';
+            $params[] = $status;
+        }
+    }
+
+    if ($sla !== '') {
+        $allowedSlas = ['Low', 'Medium', 'High'];
+        if (in_array($sla, $allowedSlas, true)) {
+            $slaCondition = my_tickets_sla_filter_condition($sla);
+            if ($slaCondition !== '') {
+                $where[] = $slaCondition;
+            }
+        }
+    }
+
+    return $where;
+}
+
+function my_tickets_bind_params(mysqli_stmt $stmt, string $types, array &$params): bool
+{
+    $refs = [&$types];
+    foreach ($params as $key => &$value) {
+        $refs[] = &$value;
+    }
+    return (bool) call_user_func_array([$stmt, 'bind_param'], $refs);
+}
+
 function submitted_ticket_target_label(array $row): string
 {
     $assignedCompanyRaw = (string) (($row['assigned_company'] ?? '') !== '' ? $row['assigned_company'] : ($row['company'] ?? ''));
@@ -64,6 +161,40 @@ function submitted_ticket_target_label(array $row): string
     }
 
     return '-';
+}
+
+function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+{
+    $statusKey = strtolower(trim($status));
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
+    $priorityKey = strtolower(trim($priority));
+    if ($priorityKey === 'critical') {
+        return '<span class="badge badge-high">High</span>';
+    }
+    if ($priorityKey === 'high') {
+        return '<span class="badge badge-medium">Medium</span>';
+    }
+    $createdAt = trim($createdAt);
+    if ($createdAt === '') return '-';
+    try {
+        $created = new DateTimeImmutable($createdAt);
+    } catch (Throwable $e) {
+        return '-';
+    }
+    $now = new DateTimeImmutable('now');
+    $createdDay = $created->setTime(0, 0, 0);
+    $nowDay = $now->setTime(0, 0, 0);
+    $diff = $nowDay->diff($createdDay);
+    $days = (int) ($diff->days ?? 0);
+    if ($diff->invert !== 1) $days = 0;
+
+    if ($days >= 7) {
+        return '<span class="badge badge-high">High</span>';
+    }
+    if ($days >= 4) {
+        return '<span class="badge badge-medium">Medium</span>';
+    }
+    return '<span class="badge badge-low">Low</span>';
 }
 
 function can_follow_up_ticket_status(string $status): bool
@@ -291,15 +422,32 @@ $user_email = current_employee_email($conn, $user_id);
 follow_up_sync_user_ticket_cooldowns($conn, $user_id);
 $page = (int) ($_GET['page'] ?? 1);
 $limit = (int) ($_GET['limit'] ?? 10);
+$search = trim((string) ($_GET['search'] ?? ''));
+$companyFilter = trim((string) ($_GET['company'] ?? ''));
+$departmentFilter = trim((string) ($_GET['department'] ?? ''));
+$statusFilter = trim((string) ($_GET['status'] ?? ''));
+$slaFilter = trim((string) ($_GET['sla'] ?? ''));
 
 if ($page < 1) $page = 1;
 if ($limit < 1) $limit = 1;
 if ($limit > 100) $limit = 100;
+if (ticket_normalize_company($companyFilter) !== '@leadsagri.com' || !in_array($departmentFilter, ticket_lapc_departments(), true)) {
+    $departmentFilter = '';
+}
+if (!in_array($slaFilter, ['Low', 'Medium', 'High'], true)) {
+    $slaFilter = '';
+}
+
+$where = ["(t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)"];
+$types = 'is';
+$params = [$user_id, $user_email];
+$where = array_merge($where, my_tickets_filter_clauses($conn, $search, $companyFilter, $departmentFilter, $statusFilter, $slaFilter, $types, $params));
+$whereSql = implode(' AND ', $where);
 
 $countStmt = $conn->prepare("
     SELECT COUNT(*) AS total
-    FROM employee_tickets
-    WHERE (user_id = ? OR LOWER(TRIM(COALESCE(requester_email, ''))) = ?)
+    FROM employee_tickets t
+    WHERE $whereSql
 ");
 if (!$countStmt) {
     http_response_code(500);
@@ -307,7 +455,7 @@ if (!$countStmt) {
     exit;
 }
 
-$countStmt->bind_param("is", $user_id, $user_email);
+my_tickets_bind_params($countStmt, $types, $params);
 $countStmt->execute();
 $countResult = $countStmt->get_result();
 $countRow = $countResult ? $countResult->fetch_assoc() : null;
@@ -343,7 +491,7 @@ $stmt = $conn->prepare("
             ELSE 0
         END AS follow_up_in_cooldown
     FROM employee_tickets t
-    WHERE (t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)
+    WHERE $whereSql
     ORDER BY t.created_at DESC
     LIMIT ?, ?
 ");
@@ -353,7 +501,9 @@ if (!$stmt) {
     exit;
 }
 
-$stmt->bind_param("isii", $user_id, $user_email, $offset, $limit);
+$listTypes = $types . 'ii';
+$listParams = array_merge($params, [$offset, $limit]);
+my_tickets_bind_params($stmt, $listTypes, $listParams);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -366,6 +516,7 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '<td data-label="Status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', (string) ($row['status'] ?? ''))) . '">' . h((string) ($row['status'] ?? '')) . '</span></td>';
         $rowsHtml .= '<td data-label="Passed To">' . h(submitted_ticket_target_label($row)) . '</td>';
         $rowsHtml .= '<td data-label="Date">' . h(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now')))) . '</td>';
+        $rowsHtml .= '<td data-label="SLA" class="my-tickets-sla-cell">' . my_tickets_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')) . '</td>';
         $rowsHtml .= '<td data-label="Action" class="follow-up-cell"><div class="ticket-action-buttons">';
         $rowsHtml .= follow_up_button_html($row);
         $rowsHtml .= close_ticket_button_html($row);
@@ -373,7 +524,7 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '</tr>';
     }
 } else {
-    $rowsHtml = '<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-ticket-alt" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tickets submitted yet.</p></div></td></tr>';
+    $rowsHtml = '<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-ticket-alt" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tickets submitted yet.</p></div></td></tr>';
 }
 $stmt->close();
 

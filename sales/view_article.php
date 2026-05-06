@@ -48,7 +48,59 @@ while ($row = $relatedResult->fetch_assoc()) {
     $relatedArticles[] = $row;
 }
 
+function kb_sanitize_article_html($html) {
+    $html = preg_replace('/<div\b[^>]*>/i', '<p>', (string) $html);
+    $html = preg_replace('/<\/div>/i', '</p>', $html);
+    $html = strip_tags($html, '<p><br><strong><b><em><i><u><h1><h2><h3><ul><ol><li><blockquote><a><img><table><thead><tbody><tr><th><td>');
+
+    return preg_replace_callback('/<([a-z0-9]+)([^>]*)>/i', function ($match) {
+        $tag = strtolower($match[1]);
+        $attributes = $match[2] ?? '';
+        $allowed = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'h1', 'h2', 'h3', 'ul', 'ol', 'li', 'blockquote', 'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td'];
+
+        if (!in_array($tag, $allowed, true)) {
+            return '';
+        }
+
+        if ($tag === 'a') {
+            $href = '';
+            if (preg_match('/\shref\s*=\s*([\'"])(.*?)\1/i', $attributes, $hrefMatch)) {
+                $candidate = trim(html_entity_decode($hrefMatch[2], ENT_QUOTES, 'UTF-8'));
+                if ($candidate !== '' && !preg_match('/^(javascript|data):/i', $candidate)) {
+                    $href = htmlspecialchars($candidate, ENT_QUOTES, 'UTF-8');
+                }
+            }
+
+            return $href !== ''
+                ? '<a href="' . $href . '" target="_blank" rel="noopener noreferrer">'
+                : '<a>';
+        }
+
+        if ($tag === 'img') {
+            $src = '';
+            $alt = '';
+            if (preg_match('/\ssrc\s*=\s*([\'"])(.*?)\1/i', $attributes, $srcMatch)) {
+                $candidate = trim(html_entity_decode($srcMatch[2], ENT_QUOTES, 'UTF-8'));
+                if ($candidate !== '' && !preg_match('/^(javascript):/i', $candidate)) {
+                    $src = htmlspecialchars($candidate, ENT_QUOTES, 'UTF-8');
+                }
+            }
+            if (preg_match('/\salt\s*=\s*([\'"])(.*?)\1/i', $attributes, $altMatch)) {
+                $alt = htmlspecialchars($altMatch[2], ENT_QUOTES, 'UTF-8');
+            }
+
+            return $src !== '' ? '<img src="' . $src . '" alt="' . $alt . '">' : '';
+        }
+
+        return '<' . $tag . '>';
+    }, $html);
+}
+
 function renderArticleContent($text) {
+    if ((string) $text !== strip_tags((string) $text)) {
+        return kb_sanitize_article_html((string) $text);
+    }
+
     // 1. Escape HTML for safety
     $text = htmlspecialchars($text);
     
@@ -341,6 +393,25 @@ function renderArticleContent($text) {
             background-color: rgba(255, 255, 255, 0.58);
         }
 
+        .article-video-feature {
+            padding: 34px 40px 6px;
+            background-color: rgba(255, 255, 255, 0.58);
+        }
+
+        .article-video-feature-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #111827;
+            margin: 0 0 14px;
+        }
+
+        .article-video-frame {
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+            background: #000;
+        }
+
         .article-resources,
         .related-articles-section {
             background:
@@ -413,6 +484,36 @@ function renderArticleContent($text) {
             height: auto;
             border-radius: 8px;
             margin: 1em 0;
+        }
+
+        .article-content a {
+            color: #047857;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .article-content a:hover {
+            text-decoration: underline;
+        }
+
+        .article-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5em 0;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+
+        .article-content th,
+        .article-content td {
+            border: 1px solid #D1D5DB;
+            padding: 10px 12px;
+            text-align: left;
+        }
+
+        .article-content th {
+            background: #F3F4F6;
+            color: #111827;
         }
 
         .article-image-gallery {
@@ -628,7 +729,7 @@ function renderArticleContent($text) {
                 justify-content: center;
             }
 
-            .article-header, .article-content {
+            .article-header, .article-content, .article-video-feature {
                 padding: 24px;
             }
             .article-title {
@@ -713,6 +814,41 @@ function renderArticleContent($text) {
                 </h1>
             </div>
 
+            <?php if (!empty($article['article_video'])): ?>
+                <div class="article-video-feature">
+                    <h3 class="article-video-feature-title">Video</h3>
+                    <div class="article-video-frame">
+                        <?php if (strpos($article['article_video'], 'uploads/') === 0): ?>
+                            <video controls style="width: 100%; display: block;">
+                                <source src="../<?= htmlspecialchars($article['article_video']) ?>" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                        <?php else: ?>
+                            <?php
+                                $url = $article['article_video'];
+                                $video_id = '';
+                                if (preg_match('/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i', $url, $matches)) {
+                                    $video_id = $matches[1];
+                                }
+                            ?>
+                            <?php if ($video_id): ?>
+                                <div style="position: relative; padding-bottom: 56.25%; height: 0;">
+                                    <iframe src="https://www.youtube.com/embed/<?= htmlspecialchars($video_id) ?>"
+                                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                            allowfullscreen>
+                                    </iframe>
+                                </div>
+                            <?php else: ?>
+                                <div style="padding: 20px; text-align: center; color: white;">
+                                    <a href="<?= htmlspecialchars($url) ?>" target="_blank" style="color: #10B981;">Watch Video on External Site</a>
+                                </div>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <div class="article-content">
                 <?php if (!empty($article_image_urls)): ?>
                     <div class="article-image-gallery">
@@ -729,7 +865,7 @@ function renderArticleContent($text) {
             <!-- Additional Resources -->
             <?php 
                 $links = json_decode($article['article_links'] ?? '[]', true);
-                $has_resources = !empty($links) || !empty($article['article_presentation']) || !empty($article['article_video']);
+                $has_resources = !empty($links) || !empty($article['article_presentation']);
             ?>
 
             <?php if ($has_resources): ?>
@@ -849,43 +985,6 @@ function renderArticleContent($text) {
                                         <span>Download</span>
                                     </a>
                                 </div>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-
-                    <!-- Video -->
-                    <?php if (!empty($article['article_video'])): ?>
-                        <div>
-                            <h3 style="font-size: 16px; font-weight: 600; color: #374151; margin-bottom: 12px;">Video </h3>
-                            <div style="border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); background: black;">
-                                <?php if (strpos($article['article_video'], 'uploads/') === 0): ?>
-                                    <video controls style="width: 100%; display: block;">
-                                        <source src="../<?= htmlspecialchars($article['article_video']) ?>" type="video/mp4">
-                                        Your browser does not support the video tag.
-                                    </video>
-                                <?php else: ?>
-                                    <?php
-                                        $url = $article['article_video'];
-                                        $video_id = '';
-                                        // Extract YouTube ID (simple regex)
-                                        if (preg_match('/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i', $url, $matches)) {
-                                            $video_id = $matches[1];
-                                        }
-                                    ?>
-                                    <?php if ($video_id): ?>
-                                        <div style="position: relative; padding-bottom: 56.25%; height: 0;">
-                                            <iframe src="https://www.youtube.com/embed/<?= htmlspecialchars($video_id) ?>" 
-                                                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" 
-                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                                    allowfullscreen>
-                                            </iframe>
-                                        </div>
-                                    <?php else: ?>
-                                        <div style="padding: 20px; text-align: center; color: white;">
-                                            <a href="<?= htmlspecialchars($url) ?>" target="_blank" style="color: #10B981;">Watch Video on External Site</a>
-                                        </div>
-                                    <?php endif; ?>
-                                <?php endif; ?>
                             </div>
                         </div>
                     <?php endif; ?>

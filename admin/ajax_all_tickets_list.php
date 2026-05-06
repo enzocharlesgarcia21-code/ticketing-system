@@ -66,10 +66,10 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
     $priorityKey = strtolower(trim($priority));
     if ($priorityKey === 'critical') {
-        return '<span class="badge badge-critical">Breached</span>';
+        return '<span class="badge badge-high">High</span>';
     }
     if ($priorityKey === 'high') {
-        return '<span class="badge badge-high">At Risk</span>';
+        return '<span class="badge badge-medium">Medium</span>';
     }
     $createdAt = trim($createdAt);
     if ($createdAt === '') return '-';
@@ -84,12 +84,12 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     if ($diff->invert !== 1) $days = 0;
 
     if ($days >= 7) {
-        return '<span class="badge badge-critical">Breached</span>';
+        return '<span class="badge badge-high">High</span>';
     }
     if ($days >= 4) {
-        return '<span class="badge badge-high">At Risk</span>';
+        return '<span class="badge badge-medium">Medium</span>';
     }
-    return '<span class="badge badge-low">On Track</span>';
+    return '<span class="badge badge-low">Low</span>';
 }
 
 function assigned_target_label(array $row): string
@@ -141,7 +141,7 @@ $types = '';
 
 $allowedViews = ['all', 'my_open', 'unresolved', 'resolved'];
 if (!in_array($view, $allowedViews, true)) $view = '';
-$where[] = "COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')";
+$where[] = "COALESCE(NULLIF(t.status,''),'') <> 'Trash'";
 if ($view !== '') {
     if ($view === 'my_open') {
         $where[] = "t.status IN ('Open','In Progress')";

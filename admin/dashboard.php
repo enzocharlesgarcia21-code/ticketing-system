@@ -34,10 +34,10 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
     $priorityKey = strtolower(trim($priority));
     if ($priorityKey === 'critical') {
-        return '<span class="badge badge-critical">Breached</span>';
+        return '<span class="badge badge-high">High</span>';
     }
     if ($priorityKey === 'high') {
-        return '<span class="badge badge-high">At Risk</span>';
+        return '<span class="badge badge-medium">Medium</span>';
     }
     if ($createdAt === '') return '-';
     try {
@@ -53,12 +53,12 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     if ($diff->invert !== 1) $days = 0;
 
     if ($days >= 7) {
-        return '<span class="badge badge-critical">Breached</span>';
+        return '<span class="badge badge-high">High</span>';
     }
     if ($days >= 4) {
-        return '<span class="badge badge-high">At Risk</span>';
+        return '<span class="badge badge-medium">Medium</span>';
     }
-    return '<span class="badge badge-low">On Track</span>';
+    return '<span class="badge badge-low">Low</span>';
 }
 
 function assigned_target_label(array $row): string
@@ -117,6 +117,7 @@ $dashboardStats = [
         'value' => (int) $total,
         'subtitle' => 'All non-trash tickets in system',
         'icon' => 'fa-stopwatch',
+        'href' => 'all_tickets.php',
     ],
     [
         'variant' => 'open',
@@ -124,6 +125,7 @@ $dashboardStats = [
         'value' => (int) $open,
         'subtitle' => 'Awaiting response',
         'icon' => 'fa-folder-open',
+        'href' => 'all_tickets.php?status=Open',
     ],
     [
         'variant' => 'progress',
@@ -131,6 +133,7 @@ $dashboardStats = [
         'value' => (int) $progress,
         'subtitle' => 'Currently being worked',
         'icon' => 'fa-gear',
+        'href' => 'all_tickets.php?status=In+Progress',
     ],
     [
         'variant' => 'resolved',
@@ -138,6 +141,7 @@ $dashboardStats = [
         'value' => (int) $resolved,
         'subtitle' => 'Completed tickets',
         'icon' => 'fa-circle-check',
+        'href' => 'all_tickets.php?status=Resolved',
     ],
     [
         'variant' => 'closed',
@@ -145,6 +149,7 @@ $dashboardStats = [
         'value' => (int) $closed,
         'subtitle' => 'Confirmed by requesters',
         'icon' => 'fa-lock',
+        'href' => 'all_tickets.php?status=Closed',
     ],
 ];
 /* ===== DEPARTMENT DATA ===== */
@@ -280,10 +285,49 @@ if ($recentRes) {
             overflow:hidden;
             background:
                 linear-gradient(90deg, var(--stat-accent, #4ade80) 0 6px, #ffffff 6px 100%);
+            color:inherit;
+            text-decoration:none;
+            cursor:pointer;
+            transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
         }
 
         .admin-stat-card::before{
             content:none;
+        }
+
+        .admin-stat-card::after{
+            content:'\f061';
+            font-family:'Font Awesome 6 Free';
+            font-weight:900;
+            position:absolute;
+            top:18px;
+            right:18px;
+            width:30px;
+            height:30px;
+            border-radius:999px;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            color:var(--stat-chip-color, #1B5E20);
+            background:var(--stat-chip-bg, #ecfdf3);
+            opacity:0;
+            transform:translateX(-4px);
+            transition:opacity .16s ease, transform .16s ease;
+            font-size:12px;
+        }
+
+        .admin-stat-card:hover,
+        .admin-stat-card:focus-visible{
+            border-color:var(--stat-accent, #4ade80);
+            box-shadow:0 18px 38px rgba(15, 23, 42, 0.11);
+            transform:translateY(-2px);
+            outline:none;
+        }
+
+        .admin-stat-card:hover::after,
+        .admin-stat-card:focus-visible::after{
+            opacity:1;
+            transform:translateX(0);
         }
 
         .admin-stat-card.total{
@@ -376,6 +420,20 @@ if ($recentRes) {
             font-weight:500;
             margin-top:2px;
             padding-right:0;
+        }
+
+        .admin-stat-action{
+            display:inline-flex;
+            align-items:center;
+            gap:6px;
+            width:max-content;
+            margin-top:14px;
+            padding:6px 10px;
+            border-radius:999px;
+            background:var(--stat-chip-bg, #ecfdf3);
+            color:var(--stat-chip-color, #1B5E20);
+            font-size:12px;
+            font-weight:700;
         }
 
         .recent-tickets-title{
@@ -550,6 +608,11 @@ if ($recentRes) {
                 padding-right:0;
             }
 
+            .admin-stat-action{
+                margin-left:auto;
+                margin-right:auto;
+            }
+
             .admin-stat-card{
                 padding:18px 18px 16px;
                 border-radius:18px;
@@ -589,7 +652,7 @@ if ($recentRes) {
 
             <section class="admin-stats-grid">
                 <?php foreach ($dashboardStats as $stat): ?>
-                    <div class="admin-stat-card <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>">
+                    <a class="admin-stat-card <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>" href="<?= htmlspecialchars($stat['href'], ENT_QUOTES, 'UTF-8') ?>" aria-label="View <?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?> tickets">
                         <div class="admin-stat-main">
                             <div class="admin-stat-icon <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>">
                                 <i class="fas <?= htmlspecialchars($stat['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
@@ -600,7 +663,8 @@ if ($recentRes) {
                             </div>
                         </div>
                         <div class="admin-stat-subtext"><?= htmlspecialchars($stat['subtitle'], ENT_QUOTES, 'UTF-8') ?></div>
-                    </div>
+                        <div class="admin-stat-action">View tickets <i class="fas fa-arrow-right"></i></div>
+                    </a>
                 <?php endforeach; ?>
             </section>
 

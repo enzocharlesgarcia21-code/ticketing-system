@@ -72,6 +72,7 @@ foreach ($availabilityRows as $companyRow) {
         }
 
         body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background:
                 radial-gradient(circle at top left, rgba(21, 101, 52, 0.05), transparent 25%),
                 linear-gradient(180deg, #f7f9fc 0%, #eef3f8 100%);
@@ -104,9 +105,10 @@ foreach ($availabilityRows as $companyRow) {
 
         .routing-intro h1 {
             margin: 0 0 12px;
-            color: #155b2a;
-            font-size: 24px;
-            font-weight: 800;
+            color: #111827;
+            font-size: 2.05rem;
+            font-weight: 600;
+            letter-spacing: -0.03em;
             line-height: 1.1;
         }
 
@@ -172,7 +174,7 @@ foreach ($availabilityRows as $companyRow) {
         .routing-stat-value {
             color: #1b2a41;
             font-size: 34px;
-            font-weight: 800;
+            font-weight: 400;
             line-height: 1;
             margin-bottom: 6px;
         }
@@ -214,6 +216,148 @@ foreach ($availabilityRows as $companyRow) {
             overflow: hidden;
         }
 
+        .routing-save-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-top: 16px;
+            padding: 16px 18px;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid rgba(223, 230, 239, 0.98);
+            border-radius: 18px;
+            box-shadow: var(--route-shadow);
+        }
+
+        .routing-save-summary {
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .routing-save-btn {
+            min-height: 42px;
+            padding: 0 18px;
+            border: 0;
+            border-radius: 12px;
+            background: #1B5E20;
+            color: #ffffff;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 800;
+            box-shadow: 0 12px 22px rgba(27, 94, 32, 0.22);
+            transition: background 0.16s ease, opacity 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        .routing-save-btn:hover:not(:disabled) {
+            background: #144a1e;
+            transform: translateY(-1px);
+            box-shadow: 0 16px 28px rgba(27, 94, 32, 0.26);
+        }
+
+        .routing-save-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+            box-shadow: none;
+        }
+
+        .routing-confirm-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 7000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(15, 23, 42, 0.28);
+            backdrop-filter: blur(2px);
+        }
+
+        .routing-confirm-overlay.is-visible {
+            display: flex;
+        }
+
+        .routing-confirm-dialog {
+            width: min(420px, 100%);
+            padding: 28px 28px 22px;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24);
+            text-align: center;
+        }
+
+        .routing-confirm-icon {
+            width: 58px;
+            height: 58px;
+            margin: 0 auto 16px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #eaf7ec;
+            color: #1B5E20;
+            box-shadow: 0 0 0 8px rgba(27, 94, 32, 0.08);
+            font-size: 24px;
+        }
+
+        .routing-confirm-title {
+            margin: 0 0 8px;
+            color: #172033;
+            font-size: 20px;
+            font-weight: 800;
+        }
+
+        .routing-confirm-text {
+            margin: 0;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .routing-confirm-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-top: 24px;
+            padding-top: 18px;
+            border-top: 1px solid #edf2f7;
+        }
+
+        .routing-confirm-actions.is-single {
+            grid-template-columns: 1fr;
+        }
+
+        .routing-confirm-btn {
+            min-height: 42px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 800;
+            transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+        }
+
+        .routing-confirm-btn.is-cancel {
+            border: 1px solid #dbe4ee;
+            background: #ffffff;
+            color: #334155;
+        }
+
+        .routing-confirm-btn.is-save {
+            border: 1px solid #1B5E20;
+            background: #1B5E20;
+            color: #ffffff;
+        }
+
+        .routing-confirm-btn.is-ok {
+            border: 1px solid #1B5E20;
+            background: #1B5E20;
+            color: #ffffff;
+        }
+
+        .routing-confirm-btn:hover {
+            transform: translateY(-1px);
+        }
+
         .routing-master-control {
             display: flex;
             align-items: center;
@@ -230,7 +374,7 @@ foreach ($availabilityRows as $companyRow) {
         .routing-master-title {
             color: #1b2a41;
             font-size: 16px;
-            font-weight: 800;
+            font-weight: 400;
             margin-bottom: 4px;
         }
 
@@ -350,7 +494,7 @@ foreach ($availabilityRows as $companyRow) {
         .route-company-name {
             color: #22324d;
             font-size: 17px;
-            font-weight: 800;
+            font-weight: 400;
             line-height: 1.2;
             margin-bottom: 4px;
         }
@@ -408,6 +552,10 @@ foreach ($availabilityRows as $companyRow) {
 
         .route-switch.is-enabled {
             background: #55c375;
+        }
+
+        .route-switch.is-pending {
+            box-shadow: 0 0 0 4px rgba(244, 196, 48, 0.18);
         }
 
         .route-switch.is-enabled::after {
@@ -528,6 +676,11 @@ foreach ($availabilityRows as $companyRow) {
             .routing-master-action {
                 justify-content: space-between;
                 width: 100%;
+            }
+
+            .routing-save-bar {
+                align-items: stretch;
+                flex-direction: column;
             }
 
         }
@@ -695,6 +848,34 @@ foreach ($availabilityRows as $companyRow) {
             <div>No routes match the current filters.</div>
         </div>
     </section>
+
+    <div class="routing-save-bar">
+        <div class="routing-save-summary" id="routeSaveSummary">No pending changes.</div>
+        <button type="button" class="routing-save-btn" id="routeSaveButton" disabled>Save Changes</button>
+    </div>
+</div>
+
+<div class="routing-confirm-overlay" id="routeSaveConfirm" role="dialog" aria-modal="true" aria-labelledby="routeSaveConfirmTitle">
+    <div class="routing-confirm-dialog">
+        <div class="routing-confirm-icon" aria-hidden="true"><i class="fa-solid fa-check"></i></div>
+        <h2 class="routing-confirm-title" id="routeSaveConfirmTitle">Save Changes?</h2>
+        <p class="routing-confirm-text">This will update the ticket receiving availability for the selected company or department.</p>
+        <div class="routing-confirm-actions">
+            <button type="button" class="routing-confirm-btn is-cancel" id="routeSaveCancel">Cancel</button>
+            <button type="button" class="routing-confirm-btn is-save" id="routeSaveConfirmBtn">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<div class="routing-confirm-overlay" id="routeSaveSuccess" role="dialog" aria-modal="true" aria-labelledby="routeSaveSuccessTitle">
+    <div class="routing-confirm-dialog">
+        <div class="routing-confirm-icon" aria-hidden="true"><i class="fa-solid fa-check"></i></div>
+        <h2 class="routing-confirm-title" id="routeSaveSuccessTitle">Changes Saved</h2>
+        <p class="routing-confirm-text">Ticket receiving availability was successfully updated.</p>
+        <div class="routing-confirm-actions is-single">
+            <button type="button" class="routing-confirm-btn is-ok" id="routeSaveSuccessOk">OK</button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -705,6 +886,14 @@ const activeRouteCount = document.getElementById('activeRouteCount');
 const inactiveRouteCount = document.getElementById('inactiveRouteCount');
 const allRoutesToggle = document.getElementById('allRoutesToggle');
 const allRoutesMasterState = document.getElementById('allRoutesMasterState');
+const routeSaveButton = document.getElementById('routeSaveButton');
+const routeSaveSummary = document.getElementById('routeSaveSummary');
+const routeSaveConfirm = document.getElementById('routeSaveConfirm');
+const routeSaveCancel = document.getElementById('routeSaveCancel');
+const routeSaveConfirmBtn = document.getElementById('routeSaveConfirmBtn');
+const routeSaveSuccess = document.getElementById('routeSaveSuccess');
+const routeSaveSuccessOk = document.getElementById('routeSaveSuccessOk');
+let isSavingRoutes = false;
 
 function setAvailabilityFeedback(message, type) {
     if (!availabilityFeedback) return;
@@ -754,9 +943,36 @@ function updateMasterToggleState(active, inactive) {
     const allEnabled = total > 0 && inactive === 0;
     allRoutesToggle.classList.toggle('is-enabled', allEnabled);
     allRoutesToggle.setAttribute('data-next-enabled', allEnabled ? '0' : '1');
-    allRoutesToggle.disabled = total === 0 || allRoutesToggle.disabled;
+    allRoutesToggle.disabled = total === 0 || isSavingRoutes;
     if (allRoutesMasterState) {
         allRoutesMasterState.textContent = total === 0 ? 'No routes' : (allEnabled ? 'All On' : (active === 0 ? 'All Off' : 'Some Off'));
+    }
+}
+
+function routeButtonEnabled(button) {
+    return button.classList.contains('is-enabled');
+}
+
+function pendingRouteButtons() {
+    return Array.from(document.querySelectorAll('.availability-toggle')).filter(function(button) {
+        return button.classList.contains('is-pending');
+    });
+}
+
+function markRoutePending(button) {
+    const originalEnabled = String(button.getAttribute('data-original-enabled') || '0') === '1';
+    button.classList.toggle('is-pending', routeButtonEnabled(button) !== originalEnabled);
+}
+
+function updateSaveBar() {
+    const pendingCount = pendingRouteButtons().length;
+    if (routeSaveSummary) {
+        routeSaveSummary.textContent = pendingCount === 0
+            ? 'No pending changes.'
+            : pendingCount + ' pending ' + (pendingCount === 1 ? 'change' : 'changes') + '. Click Save Changes to apply.';
+    }
+    if (routeSaveButton) {
+        routeSaveButton.disabled = pendingCount === 0 || isSavingRoutes;
     }
 }
 
@@ -771,6 +987,7 @@ function updateRowVisualState(button, enabled) {
     if (button.classList.contains('route-switch')) {
         button.classList.toggle('is-enabled', enabled);
         button.setAttribute('data-next-enabled', enabled ? '0' : '1');
+        markRoutePending(button);
     }
 
     if (button.getAttribute('data-item-type') === 'company') {
@@ -832,28 +1049,20 @@ function saveAvailability(button, nextEnabled) {
 }
 
 document.querySelectorAll('.availability-toggle').forEach(function(button) {
+    button.setAttribute('data-original-enabled', button.classList.contains('is-enabled') ? '1' : '0');
+
     button.addEventListener('click', function() {
+        if (isSavingRoutes) return;
         const nextEnabled = String(button.getAttribute('data-next-enabled') || '0') === '1' ? '1' : '0';
         if (nextEnabled === '1' && !canEnableDepartment(button)) {
             setAvailabilityFeedback('Turn on the subsidiary first before enabling its departments.', 'error');
             return;
         }
 
-        button.disabled = true;
+        updateRowVisualState(button, nextEnabled === '1');
+        recalcRouteCounts();
+        updateSaveBar();
         setAvailabilityFeedback('', 'success');
-
-        saveAvailability(button, nextEnabled)
-        .then(function(payload) {
-            const enabled = nextEnabled === '1';
-            updateRowVisualState(button, enabled);
-            recalcRouteCounts();
-            setAvailabilityFeedback(payload.message || 'Availability updated successfully.', 'success');
-            button.disabled = false;
-        })
-        .catch(function(error) {
-            button.disabled = false;
-            setAvailabilityFeedback(error.message || 'Unable to update availability.', 'error');
-        });
     });
 });
 
@@ -871,55 +1080,148 @@ if (allRoutesToggle) {
             return;
         }
 
-        allRoutesToggle.disabled = true;
-        routeButtons.forEach(function(button) {
-            button.disabled = true;
+        buttonsToUpdate.forEach(function(button) {
+            updateRowVisualState(button, targetEnabled);
         });
-        setAvailabilityFeedback('Updating all routes...', 'success');
+        recalcRouteCounts();
+        updateSaveBar();
+        setAvailabilityFeedback(buttonsToUpdate.length + ' pending ' + (buttonsToUpdate.length === 1 ? 'change' : 'changes') + '. Click Save Changes to apply.', 'success');
+    });
+}
 
-        function updateBatch(buttons) {
-            return Promise.allSettled(buttons.map(function(button) {
-                return saveAvailability(button, nextEnabled).then(function(payload) {
-                    updateRowVisualState(button, targetEnabled);
-                    return payload;
-                });
-            }));
+function orderedPendingRouteButtons() {
+    return pendingRouteButtons().sort(function(a, b) {
+        function weight(button) {
+            const itemType = button.getAttribute('data-item-type');
+            const enabled = routeButtonEnabled(button);
+            if (enabled && itemType === 'company') return 0;
+            if (enabled && itemType === 'department') return 1;
+            if (!enabled && itemType === 'department') return 2;
+            return 3;
         }
+        return weight(a) - weight(b);
+    });
+}
 
-        const companyButtons = buttonsToUpdate.filter(function(button) {
-            return button.getAttribute('data-item-type') === 'company';
+function setRouteControlsDisabled(disabled) {
+    document.querySelectorAll('.availability-toggle').forEach(function(button) {
+        button.disabled = disabled;
+    });
+    if (allRoutesToggle) {
+        allRoutesToggle.disabled = disabled;
+    }
+}
+
+if (routeSaveButton) {
+    routeSaveButton.addEventListener('click', function() {
+        if (routeSaveButton.disabled || isSavingRoutes) return;
+        if (routeSaveConfirm) {
+            routeSaveConfirm.classList.add('is-visible');
+            if (routeSaveConfirmBtn) routeSaveConfirmBtn.focus();
+        }
+    });
+}
+
+function closeRouteSaveConfirm() {
+    if (routeSaveConfirm) {
+        routeSaveConfirm.classList.remove('is-visible');
+    }
+}
+
+function showRouteSaveSuccess() {
+    if (routeSaveSuccess) {
+        routeSaveSuccess.classList.add('is-visible');
+        if (routeSaveSuccessOk) routeSaveSuccessOk.focus();
+    }
+}
+
+function closeRouteSaveSuccess() {
+    if (routeSaveSuccess) {
+        routeSaveSuccess.classList.remove('is-visible');
+    }
+}
+
+if (routeSaveCancel) {
+    routeSaveCancel.addEventListener('click', closeRouteSaveConfirm);
+}
+
+if (routeSaveConfirm) {
+    routeSaveConfirm.addEventListener('click', function(event) {
+        if (event.target === routeSaveConfirm) {
+            closeRouteSaveConfirm();
+        }
+    });
+}
+
+if (routeSaveSuccessOk) {
+    routeSaveSuccessOk.addEventListener('click', closeRouteSaveSuccess);
+}
+
+if (routeSaveSuccess) {
+    routeSaveSuccess.addEventListener('click', function(event) {
+        if (event.target === routeSaveSuccess) {
+            closeRouteSaveSuccess();
+        }
+    });
+}
+
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' && routeSaveConfirm && routeSaveConfirm.classList.contains('is-visible')) {
+        closeRouteSaveConfirm();
+    }
+    if (event.key === 'Escape' && routeSaveSuccess && routeSaveSuccess.classList.contains('is-visible')) {
+        closeRouteSaveSuccess();
+    }
+});
+
+if (routeSaveConfirmBtn) {
+    routeSaveConfirmBtn.addEventListener('click', function() {
+        closeRouteSaveConfirm();
+        const buttonsToSave = orderedPendingRouteButtons();
+        if (buttonsToSave.length === 0 || isSavingRoutes) return;
+
+        isSavingRoutes = true;
+        setRouteControlsDisabled(true);
+        updateSaveBar();
+        setAvailabilityFeedback('Saving route changes...', 'success');
+
+        const results = [];
+        let chain = Promise.resolve();
+        buttonsToSave.forEach(function(button) {
+            chain = chain.then(function() {
+                const nextEnabled = routeButtonEnabled(button) ? '1' : '0';
+                return saveAvailability(button, nextEnabled)
+                    .then(function(payload) {
+                        button.setAttribute('data-original-enabled', nextEnabled);
+                        markRoutePending(button);
+                        results.push({ ok: true, payload: payload });
+                    })
+                    .catch(function(error) {
+                        results.push({ ok: false, error: error });
+                    });
+            });
         });
-        const departmentButtons = buttonsToUpdate.filter(function(button) {
-            return button.getAttribute('data-item-type') === 'department';
-        });
-        const batches = targetEnabled ? [companyButtons, departmentButtons] : [departmentButtons, companyButtons];
 
-        updateBatch(batches[0]).then(function(firstResults) {
-            return updateBatch(batches[1]).then(function(secondResults) {
-                return firstResults.concat(secondResults);
-            });
-        }).then(function(results) {
-            const failed = results.filter(function(result) {
-                return result.status === 'rejected';
-            });
-
-            routeButtons.forEach(function(button) {
-                button.disabled = false;
-            });
-            allRoutesToggle.disabled = false;
+        chain.then(function() {
+            const failed = results.filter(function(result) { return !result.ok; });
+            isSavingRoutes = false;
+            setRouteControlsDisabled(false);
             recalcRouteCounts();
+            updateSaveBar();
 
             if (failed.length > 0) {
-                setAvailabilityFeedback((buttonsToUpdate.length - failed.length) + ' routes updated. ' + failed.length + ' routes failed to update.', 'error');
+                setAvailabilityFeedback((buttonsToSave.length - failed.length) + ' changes saved. ' + failed.length + ' failed to save.', 'error');
                 return;
             }
 
-            setAvailabilityFeedback(targetEnabled ? 'All ticket receiving routes are now enabled.' : 'All ticket receiving routes are now disabled.', 'success');
+            setAvailabilityFeedback('Ticket receiving changes saved successfully.', 'success');
+            showRouteSaveSuccess();
         });
     });
 }
 
 recalcRouteCounts();
+updateSaveBar();
 if (routeEmptyState) {
     routeEmptyState.classList.toggle('is-visible', document.querySelectorAll('.route-group').length === 0);
 }

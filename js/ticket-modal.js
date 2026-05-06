@@ -18,6 +18,8 @@
   var messengerAttachmentFiles = [];
   var attachmentCategorySeq = 0;
   var sapDisplaySeq = 0;
+  var CHAT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+  var CHAT_ATTACHMENT_MAX_LABEL = '10 MB';
   var imagePreviewSources = [];
   var imagePreviewIndex = -1;
   var chatPermissionState = { canChat: true, lockedMessage: '', handlerName: '', statusLabel: '' };
@@ -875,6 +877,44 @@
     if (size < 1024) return String(Math.max(1, Math.round(size))) + ' B';
     if (size < (1024 * 1024)) return String(Math.round(size / 102.4) / 10) + ' KB';
     return String(Math.round(size / (1024 * 102.4)) / 10) + ' MB';
+  }
+  function chatAttachmentTooLarge(file) {
+    return !!(file && Number(file.size || 0) > CHAT_ATTACHMENT_MAX_BYTES);
+  }
+  function chatAttachmentSizeMessage(file) {
+    var name = file && file.name ? String(file.name) : 'Selected file';
+    return name + ' is too large. Chat attachments must be ' + CHAT_ATTACHMENT_MAX_LABEL + ' or smaller.';
+  }
+  function showChatAttachmentError(message) {
+    if (typeof showMessengerConfirm === 'function' && document.getElementById('tmMessengerStyles')) {
+      showMessengerConfirm({
+        title: 'Attachment Too Large',
+        message: message,
+        confirmText: 'OK',
+        hideCancel: true
+      });
+      return;
+    }
+    if (typeof window !== 'undefined' && window.alert) {
+      window.alert(message);
+    }
+  }
+  function filterChatAttachmentFiles(files) {
+    var accepted = [];
+    var rejected = [];
+    (Array.isArray(files) ? files : []).forEach(function (file) {
+      if (chatAttachmentTooLarge(file)) {
+        rejected.push(file);
+      } else if (file) {
+        accepted.push(file);
+      }
+    });
+    if (rejected.length) {
+      showChatAttachmentError(rejected.length === 1
+        ? chatAttachmentSizeMessage(rejected[0])
+        : 'Some selected files are too large. Chat attachments must be ' + CHAT_ATTACHMENT_MAX_LABEL + ' or smaller.');
+    }
+    return accepted;
   }
   function isImageAttachmentFile(file) {
     if (!file) return false;
@@ -2369,6 +2409,12 @@
       });
       attachInput.addEventListener('change', function () {
         var file = attachInput.files && attachInput.files[0] ? attachInput.files[0] : null;
+        if (chatAttachmentTooLarge(file)) {
+          attachInput.value = '';
+          setChatModalAttachment(null);
+          showChatAttachmentError(chatAttachmentSizeMessage(file));
+          return;
+        }
         setChatModalAttachment(file);
       });
     }
@@ -2730,6 +2776,10 @@
     var btn = qs('chatModalSendBtn');
     var hasAttachment = !!chatModalAttachmentFile;
     if (!message && !hasAttachment) return;
+    if (chatAttachmentTooLarge(chatModalAttachmentFile)) {
+      showChatAttachmentError(chatAttachmentSizeMessage(chatModalAttachmentFile));
+      return;
+    }
     if (btn && btn.disabled) return;
     var ticketId = String(ticketIdEl.value || '');
     if (btn) btn.disabled = true;
@@ -3347,7 +3397,8 @@
         if (!attachBtn.disabled) attachInput.click();
       });
       attachInput.addEventListener('change', function () {
-        var selected = attachInput.files ? Array.prototype.slice.call(attachInput.files) : [];
+        var selected = filterChatAttachmentFiles(attachInput.files ? Array.prototype.slice.call(attachInput.files) : []);
+        attachInput.value = '';
         setMessengerAttachments(messengerAttachmentFiles.concat(selected));
       });
     }
@@ -3967,6 +4018,11 @@
     var message = input.value.trim();
     var files = Array.isArray(messengerAttachmentFiles) ? messengerAttachmentFiles.slice() : [];
     if (!ticketId || (!message && files.length === 0)) return;
+    var oversizedFile = files.find(chatAttachmentTooLarge);
+    if (oversizedFile) {
+      showChatAttachmentError(chatAttachmentSizeMessage(oversizedFile));
+      return;
+    }
     if (input.disabled || input.readOnly || messengerPermissionState.canChat !== true) return;
     if (btn && btn.disabled) return;
     if (btn) btn.disabled = true;
