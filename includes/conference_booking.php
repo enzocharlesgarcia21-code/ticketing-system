@@ -16,6 +16,7 @@ function conference_booking_ensure_tables(mysqli $conn): void
             room_name VARCHAR(150) NOT NULL UNIQUE,
             description TEXT NULL,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
+            unavailable_reason TEXT NULL,
             saturday_enabled TINYINT(1) NOT NULL DEFAULT 0,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             KEY idx_conference_rooms_active (is_active)
@@ -48,6 +49,7 @@ function conference_booking_ensure_tables(mysqli $conn): void
         'room_name' => "VARCHAR(150) NOT NULL",
         'description' => "TEXT NULL",
         'is_active' => "TINYINT(1) NOT NULL DEFAULT 1",
+        'unavailable_reason' => "TEXT NULL",
         'saturday_enabled' => "TINYINT(1) NOT NULL DEFAULT 0",
         'created_at' => "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     ];
@@ -277,7 +279,7 @@ function conference_booking_active_rooms(mysqli $conn): array
 
     $rooms = [];
     $res = $conn->query("
-        SELECT id, room_name, description, is_active, saturday_enabled, created_at
+        SELECT id, room_name, description, is_active, unavailable_reason, saturday_enabled, created_at
         FROM conference_rooms
         WHERE is_active = 1
         ORDER BY room_name ASC, id ASC
@@ -361,7 +363,7 @@ function conference_booking_find_room(mysqli $conn, int $roomId): ?array
     }
 
     $stmt = $conn->prepare("
-        SELECT id, room_name, description, is_active, saturday_enabled
+        SELECT id, room_name, description, is_active, unavailable_reason, saturday_enabled
         FROM conference_rooms
         WHERE id = ?
         LIMIT 1
@@ -385,7 +387,7 @@ function conference_room_all(mysqli $conn): array
 
     $rooms = [];
     $res = $conn->query("
-        SELECT id, room_name, description, is_active, saturday_enabled, created_at
+        SELECT id, room_name, description, is_active, unavailable_reason, saturday_enabled, created_at
         FROM conference_rooms
         ORDER BY is_active DESC, room_name ASC, id ASC
     ");
@@ -538,6 +540,37 @@ function updateRoom(mysqli $conn, int $id, string $name, string $description, in
             return ['ok' => false, 'error' => 'A conference room with that name already exists.'];
         }
         return ['ok' => false, 'error' => 'Unable to update the room right now.'];
+    }
+
+    return ['ok' => true, 'room_id' => $id];
+}
+
+function conference_room_update_unavailable_reason(mysqli $conn, int $id, string $reason): array
+{
+    conference_booking_ensure_tables($conn);
+
+    $id = (int) $id;
+    $reason = trim($reason);
+    if ($id <= 0) {
+        return ['ok' => false, 'error' => 'Invalid conference room selected.'];
+    }
+
+    $stmt = $conn->prepare("
+        UPDATE conference_rooms
+        SET unavailable_reason = ?
+        WHERE id = ?
+        LIMIT 1
+    ");
+    if (!$stmt) {
+        return ['ok' => false, 'error' => 'Unable to update the room note right now.'];
+    }
+
+    $stmt->bind_param("si", $reason, $id);
+    $ok = $stmt->execute();
+    $stmt->close();
+
+    if (!$ok) {
+        return ['ok' => false, 'error' => 'Unable to update the room note right now.'];
     }
 
     return ['ok' => true, 'room_id' => $id];

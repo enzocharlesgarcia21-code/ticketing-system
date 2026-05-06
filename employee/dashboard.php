@@ -71,11 +71,17 @@ $closedStmt->close();
 
 /* Recent Tickets (created by this employee) */
 $recentStmt = $conn->prepare("
-    SELECT id, subject, category, status, created_at
-    FROM employee_tickets
-    WHERE user_id = ?
-      AND COALESCE(NULLIF(status,''),'') <> 'Trash'
-    ORDER BY created_at DESC
+    SELECT
+        t.*,
+        u.name AS requester_name,
+        u.email AS user_email,
+        u.department AS user_department,
+        u.company AS user_company
+    FROM employee_tickets t
+    LEFT JOIN users u ON u.id = t.user_id
+    WHERE t.user_id = ?
+      AND COALESCE(NULLIF(t.status,''),'') <> 'Trash'
+    ORDER BY t.created_at DESC
     LIMIT 5
 ");
 $recentStmt->bind_param("i", $user_id);
@@ -114,13 +120,26 @@ if ($receivedStmt) {
     while ($receivedResult && ($ticketRow = $receivedResult->fetch_assoc())) {
         if (ticket_user_is_handler_candidate($ticketRow, $user_id, $userContext)) {
             $receivedTickets[] = $ticketRow;
-            if (count($receivedTickets) >= 5) {
-                break;
-            }
         }
     }
     $receivedStmt->close();
 }
+
+usort($receivedTickets, static function (array $a, array $b): int {
+    $rankA = dashboard_sla_rank((string) ($a['created_at'] ?? ''), (string) ($a['status'] ?? ''), (string) ($a['priority'] ?? ''));
+    $rankB = dashboard_sla_rank((string) ($b['created_at'] ?? ''), (string) ($b['status'] ?? ''), (string) ($b['priority'] ?? ''));
+    if ($rankA !== $rankB) {
+        return $rankA <=> $rankB;
+    }
+
+    $dateA = strtotime((string) ($a['created_at'] ?? '')) ?: 0;
+    $dateB = strtotime((string) ($b['created_at'] ?? '')) ?: 0;
+    if ($rankA < 3) {
+        return $dateA <=> $dateB;
+    }
+    return $dateB <=> $dateA;
+});
+$receivedTickets = array_slice($receivedTickets, 0, 5);
 
 function dashboard_status_class(string $status): string
 {
@@ -133,6 +152,98 @@ function dashboard_ticket_category(array $row): string
     if ($category !== '') return $category;
     $subject = trim((string) ($row['subject'] ?? ''));
     return $subject !== '' ? $subject : 'General Concern';
+}
+
+function dashboard_source_label(array $row): string
+{
+    $sourceEmail = trim((string) (($row['requester_email'] ?? '') !== '' ? $row['requester_email'] : ($row['user_email'] ?? '')));
+    $sourceCompanyRaw = (string) (($row['company'] ?? '') !== '' ? $row['company'] : ($row['user_company'] ?? ''));
+    if ($sourceCompanyRaw === '' && $sourceEmail !== '' && strpos($sourceEmail, '@') !== false) {
+        $sourceCompanyRaw = '@' . strtolower(substr(strrchr($sourceEmail, '@'), 1));
+    }
+    $sourceCompany = ticket_normalize_company($sourceCompanyRaw);
+    $sourceDept = trim((string) (($row['department'] ?? '') !== '' ? $row['department'] : ($row['user_department'] ?? '')));
+
+    if ($sourceCompany === '@leadsagri.com' && $sourceDept !== '') {
+        return ticket_department_display_name($sourceDept);
+    }
+
+    $companyLabel = ticket_company_display_name($sourceCompanyRaw);
+    if ($companyLabel !== '') {
+        return $companyLabel;
+    }
+
+    if ($sourceDept !== '') {
+        return ticket_department_display_name($sourceDept);
+    }
+
+    return '-';
+}
+
+function dashboard_requester_info(array $row): array
+{
+    $name = trim((string) (($row['requester_name'] ?? '') !== '' ? $row['requester_name'] : ($row['user_name'] ?? '')));
+    $email = trim((string) (($row['requester_email'] ?? '') !== '' ? $row['requester_email'] : ($row['user_email'] ?? '')));
+    $description = (string) ($row['description'] ?? '');
+
+    if ($description !== '') {
+        if ($name === '' && preg_match('/REQUESTER NAME:\s*(.+)$/im', $description, $m)) {
+            $name = trim($m[1]);
+        }
+        if ($email === '' && preg_match('/REQUESTER EMAIL:\s*(.+)$/im', $description, $m)) {
+            $email = trim($m[1]);
+        }
+    }
+
+    return [
+        'name' => $name !== '' ? $name : 'Unknown Requester',
+        'email' => $email,
+    ];
+}
+
+function dashboard_sla_rank(string $createdAt, string $status, string $priority = ''): int
+{
+    $statusKey = strtolower(trim($status));
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return 3;
+
+    $priorityKey = strtolower(trim($priority));
+    if ($priorityKey === 'critical') return 0;
+    if ($priorityKey === 'high') return 1;
+
+    $createdAt = trim($createdAt);
+    if ($createdAt === '') return 3;
+
+    try {
+        $created = new DateTimeImmutable($createdAt);
+    } catch (Throwable $e) {
+        return 3;
+    }
+
+    $now = new DateTimeImmutable('now');
+    $createdDay = $created->setTime(0, 0, 0);
+    $nowDay = $now->setTime(0, 0, 0);
+    $diff = $nowDay->diff($createdDay);
+    $days = (int) ($diff->days ?? 0);
+    if ($diff->invert !== 1) $days = 0;
+
+    if ($days >= 7) return 0;
+    if ($days >= 4) return 1;
+    return 2;
+}
+
+function dashboard_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+{
+    $rank = dashboard_sla_rank($createdAt, $status, $priority);
+    if ($rank === 0) {
+        return '<span class="badge badge-high">High</span>';
+    }
+    if ($rank === 1) {
+        return '<span class="badge badge-medium">Medium</span>';
+    }
+    if ($rank === 2) {
+        return '<span class="badge badge-low">Low</span>';
+    }
+    return '-';
 }
 ?>
 
@@ -407,8 +518,9 @@ function dashboard_ticket_category(array $row): string
         }
 
         body.employee-dashboard-page .dashboard-container {
-            max-width: 1160px;
-            padding: 34px 20px 54px;
+            width: min(calc(100% - 72px), 1480px);
+            max-width: none;
+            padding: 34px 0 54px;
         }
 
         body.employee-dashboard-page .content-wrapper {
@@ -576,7 +688,7 @@ function dashboard_ticket_category(array $row): string
         }
 
         body.employee-dashboard-page .dashboard-ticket-table th {
-            padding: 14px 12px;
+            padding: 16px 20px;
             background: #f8fafc;
             border-bottom: 1px solid #1B5E20;
             color: #1B5E20;
@@ -598,7 +710,7 @@ function dashboard_ticket_category(array $row): string
         }
 
         body.employee-dashboard-page .dashboard-ticket-table td {
-            padding: 14px 12px;
+            padding: 18px 20px;
             border-bottom: 1px solid #edf2f7;
             color: #334155;
             font-size: 13px;
@@ -618,25 +730,94 @@ function dashboard_ticket_category(array $row): string
         }
 
         body.employee-dashboard-page .dashboard-ticket-id {
-            width: 70px;
+            width: 116px;
             color: #334155;
             font-weight: 500;
         }
 
         body.employee-dashboard-page .dashboard-ticket-category {
-            max-width: 210px;
+            max-width: 240px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
             font-weight: 700;
         }
 
+        body.employee-dashboard-page .dashboard-ticket-requester {
+            min-width: 230px;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-requester strong {
+            display: block;
+            color: #172b4d;
+            font-size: 14px;
+            line-height: 1.25;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-requester small {
+            display: block;
+            margin-top: 3px;
+            color: #0f2f57;
+            font-size: 12px;
+            line-height: 1.25;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-department {
+            min-width: 110px;
+            white-space: nowrap;
+        }
+
         body.employee-dashboard-page .dashboard-ticket-table .status-pill {
             font-weight: 400;
         }
 
+        body.employee-dashboard-page .dashboard-ticket-sla {
+            width: 120px;
+            white-space: nowrap;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-sla .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            min-height: 26px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 1;
+            text-decoration: none;
+            white-space: nowrap;
+            box-sizing: border-box;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-sla .badge-low {
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-sla .badge-high {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-sla .badge-medium {
+            background: #ffedd5;
+            color: #c2410c;
+            border: 1px solid #fed7aa;
+        }
+
+        body.employee-dashboard-page .dashboard-ticket-sla .badge-critical {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
         body.employee-dashboard-page .dashboard-ticket-date {
-            width: 116px;
+            width: 150px;
             white-space: nowrap;
         }
 
@@ -994,6 +1175,7 @@ function dashboard_ticket_category(array $row): string
             }
 
             body.employee-dashboard-page .dashboard-container {
+                width: auto;
                 padding: 22px 14px 36px;
             }
 
@@ -1016,7 +1198,7 @@ function dashboard_ticket_category(array $row): string
             }
 
             body.employee-dashboard-page .dashboard-ticket-table {
-                min-width: 560px;
+                min-width: 1040px;
             }
 
             body.employee-dashboard-page .recent-section .table-responsive table thead {
@@ -1302,8 +1484,11 @@ function dashboard_ticket_category(array $row): string
                             <tr>
                                 <th>ID</th>
                                 <th>Category</th>
+                                <th>Requested By</th>
+                                <th>From</th>
                                 <th>Status</th>
-                                <th>Date</th>
+                                <th>SLA</th>
+                                <th>Date Created</th>
                                 <th aria-hidden="true"></th>
                             </tr>
                         </thead>
@@ -1311,21 +1496,30 @@ function dashboard_ticket_category(array $row): string
                             <?php if (count($receivedTickets) > 0): ?>
                                 <?php foreach ($receivedTickets as $row): ?>
                                     <?php $status = (string) ($row['status'] ?? ''); ?>
+                                    <?php $requester = dashboard_requester_info($row); ?>
                                     <tr class="ticket-row received-ticket-row" data-id="<?= (int) $row['id']; ?>">
-                                        <td class="dashboard-ticket-id">#<?= (int) $row['id']; ?></td>
+                                        <td class="dashboard-ticket-id">#<?= str_pad((string) (int) $row['id'], 6, '0', STR_PAD_LEFT); ?></td>
                                         <td class="dashboard-ticket-category"><?= htmlspecialchars(dashboard_ticket_category($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="dashboard-ticket-requester">
+                                            <strong><?= htmlspecialchars($requester['name'], ENT_QUOTES, 'UTF-8'); ?></strong>
+                                            <?php if ($requester['email'] !== ''): ?>
+                                                <small><?= htmlspecialchars($requester['email'], ENT_QUOTES, 'UTF-8'); ?></small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="dashboard-ticket-department"><?= htmlspecialchars(dashboard_source_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td>
                                             <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($status), ENT_QUOTES, 'UTF-8'); ?>">
                                                 <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
                                             </span>
                                         </td>
+                                        <td class="dashboard-ticket-sla"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
                                         <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="5" class="dashboard-ticket-empty">No received tickets found.</td>
+                                    <td colspan="8" class="dashboard-ticket-empty">No received tickets found.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
@@ -1339,8 +1533,11 @@ function dashboard_ticket_category(array $row): string
                             <tr>
                                 <th>ID</th>
                                 <th>Category</th>
+                                <th>Requested By</th>
+                                <th>From</th>
                                 <th>Status</th>
-                                <th>Date</th>
+                                <th>SLA</th>
+                                <th>Date Created</th>
                                 <th aria-hidden="true"></th>
                             </tr>
                         </thead>
@@ -1348,21 +1545,30 @@ function dashboard_ticket_category(array $row): string
                             <?php if (count($raisedTickets) > 0): ?>
                                 <?php foreach ($raisedTickets as $row): ?>
                                     <?php $status = (string) ($row['status'] ?? ''); ?>
+                                    <?php $requester = dashboard_requester_info($row); ?>
                                     <tr class="ticket-row raised-ticket-row" data-id="<?= (int) $row['id']; ?>">
-                                        <td class="dashboard-ticket-id">#<?= (int) $row['id']; ?></td>
+                                        <td class="dashboard-ticket-id">#<?= str_pad((string) (int) $row['id'], 6, '0', STR_PAD_LEFT); ?></td>
                                         <td class="dashboard-ticket-category"><?= htmlspecialchars(dashboard_ticket_category($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="dashboard-ticket-requester">
+                                            <strong><?= htmlspecialchars($requester['name'], ENT_QUOTES, 'UTF-8'); ?></strong>
+                                            <?php if ($requester['email'] !== ''): ?>
+                                                <small><?= htmlspecialchars($requester['email'], ENT_QUOTES, 'UTF-8'); ?></small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="dashboard-ticket-department"><?= htmlspecialchars(dashboard_source_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td>
                                             <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($status), ENT_QUOTES, 'UTF-8'); ?>">
                                                 <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
                                             </span>
                                         </td>
+                                        <td class="dashboard-ticket-sla"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
                                         <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="5" class="dashboard-ticket-empty">No raised tickets found.</td>
+                                    <td colspan="8" class="dashboard-ticket-empty">No raised tickets found.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>

@@ -476,6 +476,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $rooms = conference_booking_active_rooms($conn);
+$allConferenceRooms = conference_room_all($conn);
+$roomUnavailableNotes = [];
+foreach ($allConferenceRooms as $roomNoteCandidate) {
+    $isRoomActive = (int) ($roomNoteCandidate['is_active'] ?? 0) === 1;
+    $unavailableReason = trim((string) ($roomNoteCandidate['unavailable_reason'] ?? ''));
+    if (!$isRoomActive && $unavailableReason !== '') {
+        $roomUnavailableNotes[] = [
+            'room_name' => trim((string) ($roomNoteCandidate['room_name'] ?? 'Conference Room')),
+            'reason' => $unavailableReason,
+        ];
+    }
+}
 $roomsById = [];
 $roomSaturdayMap = [];
 foreach ($rooms as $room) {
@@ -1644,6 +1656,50 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             color: #5b6b80;
             font-size: 13px;
             line-height: 1.65;
+        }
+
+        body.conference-booking-public-page .room-unavailable-notes {
+            display: grid;
+            gap: 10px;
+            margin: 0 0 18px;
+        }
+
+        body.conference-booking-public-page .room-unavailable-note {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 12px;
+            align-items: flex-start;
+            padding: 15px 18px;
+            border-radius: 18px;
+            border: 1px solid #fecaca;
+            background: #fef2f2;
+            color: #7f1d1d;
+        }
+
+        body.conference-booking-public-page .room-unavailable-note-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            background: #fee2e2;
+            color: #b91c1c;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+        }
+
+        body.conference-booking-public-page .room-unavailable-note-title {
+            margin: 0 0 4px;
+            color: #991b1b;
+            font-size: 14px;
+            font-weight: 800;
+        }
+
+        body.conference-booking-public-page .room-unavailable-note-copy {
+            margin: 0;
+            color: #7f1d1d;
+            font-size: 14px;
+            line-height: 1.55;
         }
 
         body.conference-booking-public-page .availability-legend {
@@ -3482,6 +3538,24 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                     </div>
                                 </div>
                             </div>
+
+                            <?php if (count($roomUnavailableNotes) > 0): ?>
+                                <div class="room-unavailable-notes" aria-label="Unavailable room notices">
+                                    <?php foreach ($roomUnavailableNotes as $roomUnavailableNote): ?>
+                                        <div class="room-unavailable-note">
+                                            <span class="room-unavailable-note-icon" aria-hidden="true"><i class="fas fa-circle-info"></i></span>
+                                            <div>
+                                                <p class="room-unavailable-note-title">
+                                                    <?= htmlspecialchars((string) ($roomUnavailableNote['room_name'] ?? 'Conference Room'), ENT_QUOTES, 'UTF-8'); ?> is unavailable
+                                                </p>
+                                                <p class="room-unavailable-note-copy">
+                                                    <?= htmlspecialchars((string) ($roomUnavailableNote['reason'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
 
                             <?php if (count($schedulerRooms) > 0 && $schedulerIntervalCount > 0): ?>
                                 <div class="scheduler-board-wrap">

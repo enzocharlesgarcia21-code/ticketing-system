@@ -95,6 +95,7 @@ $search = trim((string) ($_GET['search'] ?? ''));
 $department = trim((string) ($_GET['department'] ?? ''));
 $company_email = trim((string) ($_GET['company_email'] ?? ''));
 $status = trim((string) ($_GET['status'] ?? ''));
+$sla = trim((string) ($_GET['sla'] ?? ''));
 $page = (int) ($_GET['page'] ?? 1);
 $limit = (int) ($_GET['limit'] ?? 10);
 if ($page < 1) $page = 1;
@@ -122,12 +123,13 @@ $company_filter_options = [
     '@lingapleads.org' => 'LINGAP (@lingapleads.org)',
     '@primestocks.ph' => 'PCC (@primestocks.ph)',
 ];
-// Temporarily hide "Closed" from employee task filters until the status is re-enabled.
-$allowed_statuses = ['Open', 'In Progress', 'Resolved'];
+$allowed_statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
+$allowed_slas = ['Low', 'Medium', 'High'];
 $selected_company_departments = $allowed_departments_by_company[$company_email] ?? [];
 if (!array_key_exists($company_email, $allowed_departments_by_company) || !in_array($department, $selected_company_departments, true)) $department = '';
 if (!array_key_exists($company_email, $company_filter_options)) $company_email = '';
 if (!in_array($status, $allowed_statuses, true)) $status = '';
+if (!in_array($sla, $allowed_slas, true)) $sla = '';
 
 function task_source_label(array $row): string
 {
@@ -153,6 +155,59 @@ function task_source_label(array $row): string
     }
 
     return '-';
+}
+
+function task_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+{
+    $statusKey = strtolower(trim($status));
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
+    $priorityKey = strtolower(trim($priority));
+    if ($priorityKey === 'critical') {
+        return '<span class="badge badge-high">High</span>';
+    }
+    if ($priorityKey === 'high') {
+        return '<span class="badge badge-medium">Medium</span>';
+    }
+    $createdAt = trim($createdAt);
+    if ($createdAt === '') return '-';
+    try {
+        $created = new DateTimeImmutable($createdAt);
+    } catch (Throwable $e) {
+        return '-';
+    }
+    $now = new DateTimeImmutable('now');
+    $createdDay = $created->setTime(0, 0, 0);
+    $nowDay = $now->setTime(0, 0, 0);
+    $diff = $nowDay->diff($createdDay);
+    $days = (int) ($diff->days ?? 0);
+    if ($diff->invert !== 1) $days = 0;
+
+    if ($days >= 7) {
+        return '<span class="badge badge-high">High</span>';
+    }
+    if ($days >= 4) {
+        return '<span class="badge badge-medium">Medium</span>';
+    }
+    return '<span class="badge badge-low">Low</span>';
+}
+
+function task_sla_filter_condition(string $sla): string
+{
+    $activeStatus = "LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')";
+    $priority = "LOWER(TRIM(COALESCE(t.priority, '')))";
+    $ageHigh = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+    $ageMedium = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 4 DAY)";
+
+    if ($sla === 'High') {
+        return "($activeStatus AND ($priority = 'critical' OR ($priority NOT IN ('critical', 'high') AND $ageHigh)))";
+    }
+    if ($sla === 'Medium') {
+        return "($activeStatus AND ($priority = 'high' OR ($priority NOT IN ('critical', 'high') AND $ageMedium AND NOT ($ageHigh))))";
+    }
+    if ($sla === 'Low') {
+        return "($activeStatus AND $priority NOT IN ('critical', 'high') AND NOT ($ageMedium))";
+    }
+    return '';
 }
 
 $where = [];
@@ -201,11 +256,6 @@ $types .= "s";
 $params[] = $user_department;
 $types .= "s";
 
-// Temporarily deactivate closed tickets from the task list and total count.
-$where[] = "t.status <> ?";
-$params[] = 'Closed';
-$types .= "s";
-
 if ($search !== '') {
     $term = "%$search%";
     $searchId = preg_replace('/[^0-9]/', '', $search);
@@ -251,6 +301,13 @@ if ($status !== '') {
     $where[] = "t.status = ?";
     $params[] = $status;
     $types .= "s";
+}
+
+if ($sla !== '') {
+    $slaCondition = task_sla_filter_condition($sla);
+    if ($slaCondition !== '') {
+        $where[] = $slaCondition;
+    }
 }
 
 $sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department, u.company as user_company,
@@ -335,12 +392,13 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '<td class="task-ticket-requester"><div class="user-info"><strong>' . h((string) $dispName) . '</strong><br><small>' . h((string) $dispEmail) . '</small></div></td>';
         $rowsHtml .= '<td class="task-ticket-department">' . h(task_source_label($row)) . '</td>';
         $rowsHtml .= '<td class="task-ticket-status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', (string) $row['status'])) . '">' . h((string) $row['status']) . '</span></td>';
+        $rowsHtml .= '<td class="task-ticket-sla">' . task_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')) . '</td>';
         $rowsHtml .= '<td class="task-ticket-date">' . h(date("M d, Y", strtotime((string) $row['created_at']))) . '</td>';
         $rowsHtml .= '<td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>';
         $rowsHtml .= '</tr>';
     }
 } else {
-    $rowsHtml = '<tr><td colspan="7" style="text-align:center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tickets available for the selected filters.</p></div></td></tr>';
+    $rowsHtml = '<tr><td colspan="8" style="text-align:center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tickets available for the selected filters.</p></div></td></tr>';
   }
 $stmt->close();
 $showingFrom = $total > 0 ? ($offset + 1) : 0;
