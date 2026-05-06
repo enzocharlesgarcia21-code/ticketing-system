@@ -116,6 +116,7 @@ $search = $_GET['search'] ?? '';
 $department = $_GET['department'] ?? '';
 $company_email = $_GET['company_email'] ?? '';
 $status = $_GET['status'] ?? '';
+$sla = $_GET['sla'] ?? '';
  $userCompanyNorm = ticket_normalize_company((string) $user_company);
  $userEmailNorm = strtolower(trim((string) $user_email));
  $show_department_filter = ($userCompanyNorm === '@leadsagri.com')
@@ -140,8 +141,8 @@ $company_filter_options = [
     '@lingapleads.org' => 'LINGAP',
     '@primestocks.ph' => 'PCC',
 ];
-// Temporarily hide "Closed" from employee task filters until the status is re-enabled.
-$allowed_statuses = ['Open','In Progress','Resolved'];
+$allowed_statuses = ['Open','In Progress','Resolved','Closed'];
+$allowed_slas = ['Low', 'Medium', 'High'];
 
 $selected_company_departments = $allowed_departments_by_company[$company_email] ?? [];
 if (
@@ -156,6 +157,9 @@ if (!array_key_exists((string) $company_email, $company_filter_options)) {
 }
 if (!in_array($status, $allowed_statuses, true)) {
     $status = '';
+}
+if (!in_array($sla, $allowed_slas, true)) {
+    $sla = '';
 }
 
 function task_source_label(array $row): string
@@ -182,6 +186,59 @@ function task_source_label(array $row): string
     }
 
     return '-';
+}
+
+function task_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+{
+    $statusKey = strtolower(trim($status));
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
+    $priorityKey = strtolower(trim($priority));
+    if ($priorityKey === 'critical') {
+        return '<span class="badge badge-high">High</span>';
+    }
+    if ($priorityKey === 'high') {
+        return '<span class="badge badge-medium">Medium</span>';
+    }
+    $createdAt = trim($createdAt);
+    if ($createdAt === '') return '-';
+    try {
+        $created = new DateTimeImmutable($createdAt);
+    } catch (Throwable $e) {
+        return '-';
+    }
+    $now = new DateTimeImmutable('now');
+    $createdDay = $created->setTime(0, 0, 0);
+    $nowDay = $now->setTime(0, 0, 0);
+    $diff = $nowDay->diff($createdDay);
+    $days = (int) ($diff->days ?? 0);
+    if ($diff->invert !== 1) $days = 0;
+
+    if ($days >= 7) {
+        return '<span class="badge badge-high">High</span>';
+    }
+    if ($days >= 4) {
+        return '<span class="badge badge-medium">Medium</span>';
+    }
+    return '<span class="badge badge-low">Low</span>';
+}
+
+function task_sla_filter_condition(string $sla): string
+{
+    $activeStatus = "LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')";
+    $priority = "LOWER(TRIM(COALESCE(t.priority, '')))";
+    $ageHigh = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+    $ageMedium = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 4 DAY)";
+
+    if ($sla === 'High') {
+        return "($activeStatus AND ($priority = 'critical' OR ($priority NOT IN ('critical', 'high') AND $ageHigh)))";
+    }
+    if ($sla === 'Medium') {
+        return "($activeStatus AND ($priority = 'high' OR ($priority NOT IN ('critical', 'high') AND $ageMedium AND NOT ($ageHigh))))";
+    }
+    if ($sla === 'Low') {
+        return "($activeStatus AND $priority NOT IN ('critical', 'high') AND NOT ($ageMedium))";
+    }
+    return '';
 }
 
 // --- PAGINATION LOGIC ---
@@ -236,11 +293,6 @@ foreach ($companyAliases as $co) {
 $params[] = $user_department;
 $types .= "s";
 $params[] = $user_department;
-$types .= "s";
-
-// Temporarily deactivate closed tickets from the task list and total count.
-$where[] = "t.status <> ?";
-$params[] = 'Closed';
 $types .= "s";
 
 // 1. Search
@@ -307,6 +359,13 @@ if ($status !== '') {
     $where[] = "t.status = ?";
     $params[] = $status;
     $types .= "s";
+}
+
+if ($sla !== '') {
+    $slaCondition = task_sla_filter_condition($sla);
+    if ($slaCondition !== '') {
+        $where[] = $slaCondition;
+    }
 }
 
 // Construct SQL
@@ -387,6 +446,46 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
         body.employee-my-task-page .table-responsive .admin-table {
             margin: 0;
+        }
+
+        body.employee-my-task-page .task-ticket-sla .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            min-height: 26px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 1;
+            text-decoration: none;
+            white-space: nowrap;
+            box-sizing: border-box;
+        }
+
+        body.employee-my-task-page .task-ticket-sla .badge-low {
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+        }
+
+        body.employee-my-task-page .task-ticket-sla .badge-high {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }
+
+        body.employee-my-task-page .task-ticket-sla .badge-medium {
+            background: #ffedd5;
+            color: #c2410c;
+            border: 1px solid #fed7aa;
+        }
+
+        body.employee-my-task-page .task-ticket-sla .badge-critical {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
         }
 
         body.employee-my-task-page .table-responsive .admin-table th,
@@ -593,6 +692,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
             }
 
             body.employee-my-task-page .task-ticket-status,
+            body.employee-my-task-page .task-ticket-sla,
             body.employee-my-task-page .task-ticket-department {
                 display: none;
             }
@@ -904,6 +1004,15 @@ $showing_to = min($offset + $limit, (int) $total_records);
                             </select>
                         </div>
 
+                        <div class="select-wrapper small">
+                            <select name="sla" class="filter-select" id="filterSla">
+                                <option value="" <?= $sla === '' ? 'selected' : '' ?> hidden>All SLA</option>
+                                <?php foreach ($allowed_slas as $slaOption): ?>
+                                    <option value="<?= htmlspecialchars($slaOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $sla === $slaOption ? 'selected' : '' ?>><?= htmlspecialchars($slaOption, ENT_QUOTES, 'UTF-8'); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
                         <a href="my_task.php" class="clear-btn">Clear Filters</a>
                     </div>
                 </form>
@@ -920,6 +1029,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                 <th>Requested By</th>
                                 <th>From</th>
                                 <th>Status</th>
+                                <th>SLA</th>
                                 <th>Date Created</th>
                                 <th></th>
                             </tr>
@@ -961,13 +1071,14 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                         </span>
                                     </td>
 
+                                    <td class="task-ticket-sla"><?= task_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
                                     <td class="task-ticket-date"><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
                                     <td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>
                                 </tr>
                                 <?php } ?>
                                 <?php else: ?>
                                 <tr>
-                                    <td colspan="7" style="text-align:center; color: #94a3b8; padding: 40px;">
+                                    <td colspan="8" style="text-align:center; color: #94a3b8; padding: 40px;">
                                         <div class="empty-state">
                                             <i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i>
                                             <p>No tickets available for the selected filters.</p>
@@ -985,7 +1096,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 <div class="pagination-glass">
                     <div class="pagination-summary">Showing <?= number_format($showing_from) ?> - <?= number_format($showing_to) ?> of <?= number_format((int) $total_records) ?> tickets</div>
                     <?php if ($total_pages > 1): ?>
-                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>" 
                        data-page="<?= max(1, $page - 1) ?>"
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
                         &lsaquo; Previous
@@ -1027,7 +1138,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                             <?php if ($pagination_item === 'ellipsis'): ?>
                                 <span class="pagination-ellipsis">...</span>
                             <?php else: ?>
-                                <a href="?page=<?= $pagination_item; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>"
+                                <a href="?page=<?= $pagination_item; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>"
                                    data-page="<?= $pagination_item ?>"
                                    class="page-btn <?= ($pagination_item == $page) ? 'active' : ''; ?>">
                                     <?= $pagination_item; ?>
@@ -1036,7 +1147,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                         <?php endforeach; ?>
                     </div>
 
-                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>" 
+                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>" 
                        data-page="<?= min($total_pages, $page + 1) ?>"
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
                         Next &rsaquo;
@@ -1221,6 +1332,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
         var filterCompanyEl = document.getElementById('filterCompany');
         var filterDepartmentEl = document.getElementById('filterDepartment');
         var filterStatusEl = document.getElementById('filterStatus');
+        var filterSlaEl = document.getElementById('filterSla');
 
         if (filterCompanyEl) {
             filterCompanyEl.addEventListener('change', function() {
@@ -1237,6 +1349,12 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
         if (filterStatusEl) {
             filterStatusEl.addEventListener('change', function() {
+                refreshTasks(1);
+            });
+        }
+
+        if (filterSlaEl) {
+            filterSlaEl.addEventListener('change', function() {
                 refreshTasks(1);
             });
         }

@@ -34,10 +34,10 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
     $priorityKey = strtolower(trim($priority));
     if ($priorityKey === 'critical') {
-        return '<span class="badge badge-critical">Breached</span>';
+        return '<span class="badge badge-high">High</span>';
     }
     if ($priorityKey === 'high') {
-        return '<span class="badge badge-high">At Risk</span>';
+        return '<span class="badge badge-medium">Medium</span>';
     }
     if ($createdAt === '') return '-';
     try {
@@ -53,12 +53,12 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     if ($diff->invert !== 1) $days = 0;
 
     if ($days >= 7) {
-        return '<span class="badge badge-critical">Breached</span>';
+        return '<span class="badge badge-high">High</span>';
     }
     if ($days >= 4) {
-        return '<span class="badge badge-high">At Risk</span>';
+        return '<span class="badge badge-medium">Medium</span>';
     }
-    return '<span class="badge badge-low">On Track</span>';
+    return '<span class="badge badge-low">Low</span>';
 }
 
 function assigned_target_label(array $row): string

@@ -39,6 +39,103 @@ function current_employee_email(mysqli $conn, int $userId): string
     return $email;
 }
 
+function my_tickets_sla_filter_condition(string $sla): string
+{
+    $activeStatus = "LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')";
+    $priority = "LOWER(TRIM(COALESCE(t.priority, '')))";
+    $ageHigh = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
+    $ageMedium = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 4 DAY)";
+
+    if ($sla === 'High') {
+        return "($activeStatus AND ($priority = 'critical' OR ($priority NOT IN ('critical', 'high') AND $ageHigh)))";
+    }
+    if ($sla === 'Medium') {
+        return "($activeStatus AND ($priority = 'high' OR ($priority NOT IN ('critical', 'high') AND $ageMedium AND NOT ($ageHigh))))";
+    }
+    if ($sla === 'Low') {
+        return "($activeStatus AND $priority NOT IN ('critical', 'high') AND NOT ($ageMedium))";
+    }
+    return '';
+}
+
+function my_tickets_filter_clauses(mysqli $conn, string $search, string $company, string $department, string $status, string $sla, string &$types, array &$params): array
+{
+    $where = [];
+    $search = trim($search);
+    $company = trim($company);
+    $department = trim($department);
+    $status = trim($status);
+    $sla = trim($sla);
+
+    if ($search !== '') {
+        $like = '%' . $search . '%';
+        $where[] = "(
+            CAST(t.id AS CHAR) LIKE ?
+            OR CONCAT('#', t.id) LIKE ?
+            OR COALESCE(t.subject, '') LIKE ?
+            OR COALESCE(t.category, '') LIKE ?
+            OR COALESCE(t.requester_name, '') LIKE ?
+            OR COALESCE(t.requester_email, '') LIKE ?
+        )";
+        $types .= 'ssssss';
+        array_push($params, $like, $like, $like, $like, $like, $like);
+    }
+
+    if ($company !== '') {
+        $aliases = array_values(array_unique(array_filter(array_map(static function ($value): string {
+            return strtoupper(trim((string) $value));
+        }, ticket_company_aliases($company)), static function ($value): bool {
+            return $value !== '';
+        })));
+        if (count($aliases) > 0) {
+            $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_company, ''), t.company, ''))) IN (" . implode(',', array_fill(0, count($aliases), '?')) . ")";
+            $types .= str_repeat('s', count($aliases));
+            foreach ($aliases as $alias) {
+                $params[] = $alias;
+            }
+        }
+    }
+
+    if ($department !== '' && ticket_normalize_company($company) === '@leadsagri.com') {
+        $allowedDepartments = ticket_lapc_departments();
+        if (in_array($department, $allowedDepartments, true)) {
+            $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department, ''))) = UPPER(?)";
+            $types .= 's';
+            $params[] = $department;
+        }
+    }
+
+    if ($status !== '') {
+        $allowedStatuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
+        if (in_array($status, $allowedStatuses, true)) {
+            $where[] = "t.status = ?";
+            $types .= 's';
+            $params[] = $status;
+        }
+    }
+
+    if ($sla !== '') {
+        $allowedSlas = ['Low', 'Medium', 'High'];
+        if (in_array($sla, $allowedSlas, true)) {
+            $slaCondition = my_tickets_sla_filter_condition($sla);
+            if ($slaCondition !== '') {
+                $where[] = $slaCondition;
+            }
+        }
+    }
+
+    return $where;
+}
+
+function my_tickets_bind_params(mysqli_stmt $stmt, string $types, array &$params): bool
+{
+    $refs = [&$types];
+    foreach ($params as $key => &$value) {
+        $refs[] = &$value;
+    }
+    return (bool) call_user_func_array([$stmt, 'bind_param'], $refs);
+}
+
 function submitted_ticket_target_label(array $row): string
 {
     $assignedCompanyRaw = (string) (($row['assigned_company'] ?? '') !== '' ? $row['assigned_company'] : ($row['company'] ?? ''));
@@ -92,6 +189,40 @@ function feedback_assignee_display(array $ticket): array
         'context' => '',
         'display' => $name,
     ];
+}
+
+function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+{
+    $statusKey = strtolower(trim($status));
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
+    $priorityKey = strtolower(trim($priority));
+    if ($priorityKey === 'critical') {
+        return '<span class="badge badge-high">High</span>';
+    }
+    if ($priorityKey === 'high') {
+        return '<span class="badge badge-medium">Medium</span>';
+    }
+    $createdAt = trim($createdAt);
+    if ($createdAt === '') return '-';
+    try {
+        $created = new DateTimeImmutable($createdAt);
+    } catch (Throwable $e) {
+        return '-';
+    }
+    $now = new DateTimeImmutable('now');
+    $createdDay = $created->setTime(0, 0, 0);
+    $nowDay = $now->setTime(0, 0, 0);
+    $diff = $nowDay->diff($createdDay);
+    $days = (int) ($diff->days ?? 0);
+    if ($diff->invert !== 1) $days = 0;
+
+    if ($days >= 7) {
+        return '<span class="badge badge-high">High</span>';
+    }
+    if ($days >= 4) {
+        return '<span class="badge badge-medium">Medium</span>';
+    }
+    return '<span class="badge badge-low">Low</span>';
 }
 
 function follow_up_company_user_ids(mysqli $conn, string $company, int $excludeUserId = 0): array
@@ -918,13 +1049,70 @@ $shouldAutoShowFeedbackModal = isset($_GET['show_feedback']) && $_GET['show_feed
 $limit = 10;
 $page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
 if ($page < 1) $page = 1;
+$ticketSearch = trim((string) ($_GET['search'] ?? ''));
+$ticketCompanyFilter = trim((string) ($_GET['company'] ?? ''));
+$ticketDepartmentFilter = trim((string) ($_GET['department'] ?? ''));
+$ticketStatusFilter = trim((string) ($_GET['status'] ?? ''));
+$ticketSlaFilter = trim((string) ($_GET['sla'] ?? ''));
+
+$companyOptions = [
+    '@leads-farmex.com' => 'FARMEX / LAV',
+    '@farmasee.ph' => 'FARMASEE',
+    '@gpsci.net' => 'GPSCI',
+    '@leadsagri.com' => 'LAPC',
+    '@malvedaholdings.com' => 'MHC',
+    '@malvedaproperties.com' => 'MPDC',
+    '@leadstech-corp.com' => 'LTC',
+    '@lingapleads.org' => 'LINGAP',
+    '@primestocks.ph' => 'PCC',
+];
+$lapcDepartmentOptions = ticket_lapc_departments();
+$slaOptions = ['Low', 'Medium', 'High'];
+if (ticket_normalize_company($ticketCompanyFilter) !== '@leadsagri.com' || !in_array($ticketDepartmentFilter, $lapcDepartmentOptions, true)) {
+    $ticketDepartmentFilter = '';
+}
+if (!in_array($ticketSlaFilter, $slaOptions, true)) {
+    $ticketSlaFilter = '';
+}
+$companyStmt = $conn->prepare("
+    SELECT DISTINCT COALESCE(NULLIF(assigned_company, ''), company, '') AS company_value
+    FROM employee_tickets
+    WHERE (user_id = ? OR LOWER(TRIM(COALESCE(requester_email, ''))) = ?)
+      AND TRIM(COALESCE(NULLIF(assigned_company, ''), company, '')) <> ''
+    ORDER BY company_value ASC
+");
+if ($companyStmt) {
+    $companyStmt->bind_param("is", $user_id, $user_email);
+    $companyStmt->execute();
+    $companyRes = $companyStmt->get_result();
+    while ($companyRes && ($companyRow = $companyRes->fetch_assoc())) {
+        $rawCompany = trim((string) ($companyRow['company_value'] ?? ''));
+        if ($rawCompany === '') {
+            continue;
+        }
+        $normalizedCompany = ticket_normalize_company($rawCompany);
+        if ($normalizedCompany === '') {
+            $normalizedCompany = $rawCompany;
+        }
+        if (!isset($companyOptions[$normalizedCompany])) {
+            $companyOptions[$normalizedCompany] = ticket_company_display_name($rawCompany) ?: $rawCompany;
+        }
+    }
+    $companyStmt->close();
+}
+
+$ticketWhere = ["(t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)"];
+$ticketTypes = 'is';
+$ticketParams = [$user_id, $user_email];
+$ticketWhere = array_merge($ticketWhere, my_tickets_filter_clauses($conn, $ticketSearch, $ticketCompanyFilter, $ticketDepartmentFilter, $ticketStatusFilter, $ticketSlaFilter, $ticketTypes, $ticketParams));
+$ticketWhereSql = implode(' AND ', $ticketWhere);
 
 $countStmt = $conn->prepare("
     SELECT COUNT(*) AS total
-    FROM employee_tickets
-    WHERE (user_id = ? OR LOWER(TRIM(COALESCE(requester_email, ''))) = ?)
+    FROM employee_tickets t
+    WHERE $ticketWhereSql
 ");
-$countStmt->bind_param("is", $user_id, $user_email);
+my_tickets_bind_params($countStmt, $ticketTypes, $ticketParams);
 $countStmt->execute();
 $countResult = $countStmt->get_result();
 $countRow = $countResult ? $countResult->fetch_assoc() : null;
@@ -962,11 +1150,13 @@ $stmt = $conn->prepare("
             ELSE 0
         END AS follow_up_in_cooldown
     FROM employee_tickets t
-    WHERE (t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)
+    WHERE $ticketWhereSql
     ORDER BY t.created_at DESC
     LIMIT ?, ?
 ");
-$stmt->bind_param("isii", $user_id, $user_email, $offset, $limit);
+$ticketListTypes = $ticketTypes . 'ii';
+$ticketListParams = array_merge($ticketParams, [$offset, $limit]);
+my_tickets_bind_params($stmt, $ticketListTypes, $ticketListParams);
 $stmt->execute();
 $result = $stmt->get_result();
 unset($_SESSION['success']);
@@ -993,6 +1183,281 @@ $successMessage = '';
             display: flex;
             flex-direction: column;
         }
+        body.employee-my-tickets-page .my-tickets-filter-card {
+            background: #ffffff;
+            border: 1px solid #eef2f7;
+            border-radius: 16px;
+            box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+            padding: 24px 18px;
+            margin-bottom: 22px;
+        }
+        body.employee-my-tickets-page .my-tickets-filter-form {
+            display: grid;
+            grid-template-columns: minmax(320px, 1fr) 170px 170px 150px 124px;
+            gap: 16px;
+            align-items: center;
+        }
+        body.employee-my-tickets-page .my-tickets-filter-form.has-department-filter {
+            grid-template-columns: minmax(260px, 1fr) 170px minmax(240px, 300px) 170px 150px 124px;
+        }
+        body.employee-my-tickets-page .my-tickets-search-wrapper {
+            position: relative;
+            min-width: 0;
+        }
+        body.employee-my-tickets-page .my-tickets-search-icon {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #8fa1bd;
+            font-size: 18px;
+            pointer-events: none;
+        }
+        body.employee-my-tickets-page .my-tickets-search-input,
+        body.employee-my-tickets-page .my-tickets-filter-select {
+            width: 100%;
+            height: 48px;
+            border: 1px solid #dbe3ef;
+            border-radius: 9px;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
+        }
+        body.employee-my-tickets-page .my-tickets-search-input {
+            padding: 0 16px 0 50px;
+        }
+        body.employee-my-tickets-page .my-tickets-filter-select {
+            padding: 0 40px 0 16px;
+            appearance: none;
+            cursor: pointer;
+        }
+        body.employee-my-tickets-page .my-tickets-filter-select-wrap {
+            position: relative;
+        }
+        body.employee-my-tickets-page .my-tickets-company-select-wrap {
+            width: 100%;
+        }
+        body.employee-my-tickets-page .my-tickets-filter-select-wrap.is-hidden {
+            display: none;
+        }
+        body.employee-my-tickets-page .my-tickets-company-select-wrap .my-tickets-native-select {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+        body.employee-my-tickets-page .my-tickets-company-select-wrap::after {
+            display: none;
+        }
+        body.employee-my-tickets-page .my-tickets-company-trigger {
+            width: 100%;
+            height: 48px;
+            border: 1px solid #dbe3ef;
+            border-radius: 9px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        body.employee-my-tickets-page .my-tickets-company-trigger:focus-visible {
+            outline: none;
+            border-color: #94a3b8;
+            box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+        }
+        body.employee-my-tickets-page .my-tickets-company-trigger-icon {
+            color: #8da6c8;
+            font-size: 14px;
+            transition: transform 0.16s ease;
+        }
+        body.employee-my-tickets-page .my-tickets-company-select-wrap.is-open .my-tickets-company-trigger-icon {
+            transform: rotate(180deg);
+        }
+        body.employee-my-tickets-page .my-tickets-company-menu {
+            position: absolute;
+            top: calc(100% + 5px);
+            left: 0;
+            z-index: 50;
+            width: 100%;
+            margin: 0;
+            padding: 6px 0;
+            list-style: none;
+            background: #ffffff;
+            border: 1px solid #dbe3ef;
+            border-radius: 9px;
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+            display: none;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+        body.employee-my-tickets-page .my-tickets-company-select-wrap.is-open .my-tickets-company-menu {
+            display: block;
+        }
+        body.employee-my-tickets-page .my-tickets-company-option {
+            width: 100%;
+            min-height: 36px;
+            padding: 0 14px;
+            border: 0;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        body.employee-my-tickets-page .my-tickets-company-option:hover,
+        body.employee-my-tickets-page .my-tickets-company-option:focus,
+        body.employee-my-tickets-page .my-tickets-company-option.is-selected {
+            background: #f5f7fb;
+            color: #0f172a;
+            outline: none;
+        }
+        body.employee-my-tickets-page .my-tickets-department-select-wrap {
+            width: 100%;
+        }
+        body.employee-my-tickets-page .my-tickets-department-select-wrap .my-tickets-native-select {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+        body.employee-my-tickets-page .my-tickets-department-select-wrap::after {
+            display: none;
+        }
+        body.employee-my-tickets-page .my-tickets-department-trigger {
+            width: 100%;
+            height: 48px;
+            border: 1px solid #dbe3ef;
+            border-radius: 9px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0;
+            padding: 0 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        body.employee-my-tickets-page .my-tickets-department-trigger:focus-visible {
+            outline: none;
+            border-color: #94a3b8;
+            box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+        }
+        body.employee-my-tickets-page .my-tickets-department-trigger-icon {
+            color: #8da6c8;
+            font-size: 14px;
+            transition: transform 0.16s ease;
+        }
+        body.employee-my-tickets-page .my-tickets-department-select-wrap.is-open .my-tickets-department-trigger-icon {
+            transform: rotate(180deg);
+        }
+        body.employee-my-tickets-page .my-tickets-department-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            z-index: 60;
+            width: 100%;
+            margin: 0;
+            padding: 6px 0;
+            list-style: none;
+            background: #ffffff;
+            border: 1px solid #dbe3ef;
+            border-radius: 9px;
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+            display: none;
+            max-height: 560px;
+            overflow-y: auto;
+        }
+        body.employee-my-tickets-page .my-tickets-department-select-wrap.is-open .my-tickets-department-menu {
+            display: block;
+        }
+        body.employee-my-tickets-page .my-tickets-department-option {
+            width: 100%;
+            min-height: 36px;
+            padding: 0 14px;
+            border: 0;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        body.employee-my-tickets-page .my-tickets-department-option:hover,
+        body.employee-my-tickets-page .my-tickets-department-option:focus {
+            background: #f5f7fb;
+            outline: none;
+        }
+        body.employee-my-tickets-page .my-tickets-department-option.is-selected {
+            background: #f5f7fb;
+            color: #0f172a;
+            outline: none;
+        }
+        body.employee-my-tickets-page .my-tickets-filter-select-wrap::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #8fa1bd;
+            font-size: 12px;
+            pointer-events: none;
+        }
+        body.employee-my-tickets-page .my-tickets-search-input:focus,
+        body.employee-my-tickets-page .my-tickets-filter-select:focus {
+            border-color: #94a3b8;
+            box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+        }
+        body.employee-my-tickets-page .my-tickets-clear-btn {
+            height: 48px;
+            border: 1px solid #e2e8f0;
+            border-radius: 9px;
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 14px;
+            font-weight: 700;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+        }
+        body.employee-my-tickets-page .my-tickets-clear-btn:hover {
+            background: #e2e8f0;
+        }
+        @media (max-width: 980px) {
+            body.employee-my-tickets-page .my-tickets-filter-form,
+            body.employee-my-tickets-page .my-tickets-filter-form.has-department-filter {
+                grid-template-columns: 1fr;
+            }
+        }
         body.employee-my-tickets-page .my-tickets-table-shell {
             flex: 1 1 auto;
             min-height: 620px;
@@ -1013,7 +1478,7 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .my-tickets-table-responsive th:nth-child(2),
         body.employee-my-tickets-page .my-tickets-table-responsive td:nth-child(2) {
-            width: 26%;
+            width: 22%;
         }
         body.employee-my-tickets-page .my-tickets-table-responsive th:nth-child(3),
         body.employee-my-tickets-page .my-tickets-table-responsive td:nth-child(3) {
@@ -1021,7 +1486,7 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .my-tickets-table-responsive th:nth-child(4),
         body.employee-my-tickets-page .my-tickets-table-responsive td:nth-child(4) {
-            width: 28%;
+            width: 24%;
         }
         body.employee-my-tickets-page .my-tickets-table-responsive th:nth-child(5),
         body.employee-my-tickets-page .my-tickets-table-responsive td:nth-child(5) {
@@ -1029,7 +1494,47 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .my-tickets-table-responsive th:nth-child(6),
         body.employee-my-tickets-page .my-tickets-table-responsive td:nth-child(6) {
+            width: 110px;
+        }
+        body.employee-my-tickets-page .my-tickets-table-responsive th:nth-child(7),
+        body.employee-my-tickets-page .my-tickets-table-responsive td:nth-child(7) {
             width: 150px;
+        }
+        body.employee-my-tickets-page .my-tickets-sla-cell .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            min-height: 26px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 1;
+            text-decoration: none;
+            white-space: nowrap;
+            box-sizing: border-box;
+        }
+        body.employee-my-tickets-page .my-tickets-sla-cell .badge-low {
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+        }
+        body.employee-my-tickets-page .my-tickets-sla-cell .badge-high {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+        }
+
+        body.employee-my-tickets-page .my-tickets-sla-cell .badge-medium {
+            background: #ffedd5;
+            color: #c2410c;
+            border: 1px solid #fed7aa;
+        }
+        body.employee-my-tickets-page .my-tickets-sla-cell .badge-critical {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
         }
         body.employee-my-tickets-page #myTicketsTbody tr {
             height: 58px;
@@ -1852,16 +2357,116 @@ $successMessage = '';
                 </div>
             <?php endif; ?>
 
+            <div class="my-tickets-filter-card">
+                <form method="GET" action="my_tickets.php" id="myTicketsFilterForm" class="my-tickets-filter-form <?= ticket_normalize_company($ticketCompanyFilter) === '@leadsagri.com' ? 'has-department-filter' : ''; ?>">
+                    <div class="my-tickets-search-wrapper">
+                        <i class="fas fa-search my-tickets-search-icon" aria-hidden="true"></i>
+                        <input
+                            type="search"
+                            name="search"
+                            id="myTicketsSearchInput"
+                            class="my-tickets-search-input"
+                            value="<?= htmlspecialchars($ticketSearch, ENT_QUOTES, 'UTF-8'); ?>"
+                            placeholder="Search by ID, name, email or subject..."
+                            autocomplete="off"
+                        >
+                    </div>
+                    <div class="my-tickets-filter-select-wrap my-tickets-company-select-wrap" id="myTicketsCompanyDropdown">
+                        <select name="company" id="myTicketsCompanyFilter" class="my-tickets-filter-select my-tickets-native-select" tabindex="-1" aria-hidden="true">
+                            <option value="">All Company</option>
+                            <?php foreach ($companyOptions as $companyValue => $companyLabel): ?>
+                                <option value="<?= htmlspecialchars((string) $companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $ticketCompanyFilter === (string) $companyValue ? 'selected' : ''; ?>>
+                                    <?= htmlspecialchars((string) $companyLabel, ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="button" class="my-tickets-company-trigger" id="myTicketsCompanyTrigger" aria-haspopup="listbox" aria-expanded="false">
+                            <span id="myTicketsCompanyTriggerText"><?= htmlspecialchars($ticketCompanyFilter !== '' && isset($companyOptions[$ticketCompanyFilter]) ? (string) $companyOptions[$ticketCompanyFilter] : 'All Company', ENT_QUOTES, 'UTF-8'); ?></span>
+                            <i class="fas fa-chevron-down my-tickets-company-trigger-icon" aria-hidden="true"></i>
+                        </button>
+                        <ul class="my-tickets-company-menu" id="myTicketsCompanyMenu" role="listbox" aria-labelledby="myTicketsCompanyTrigger">
+                            <?php foreach ($companyOptions as $companyValue => $companyLabel): ?>
+                                <li>
+                                    <button
+                                        type="button"
+                                        class="my-tickets-company-option <?= $ticketCompanyFilter === (string) $companyValue ? 'is-selected' : ''; ?>"
+                                        role="option"
+                                        aria-selected="<?= $ticketCompanyFilter === (string) $companyValue ? 'true' : 'false'; ?>"
+                                        data-value="<?= htmlspecialchars((string) $companyValue, ENT_QUOTES, 'UTF-8'); ?>"
+                                    >
+                                        <?= htmlspecialchars((string) $companyLabel, ENT_QUOTES, 'UTF-8'); ?>
+                                    </button>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                    <div class="my-tickets-filter-select-wrap my-tickets-department-select-wrap <?= ticket_normalize_company($ticketCompanyFilter) === '@leadsagri.com' ? '' : 'is-hidden'; ?>" id="myTicketsDepartmentDropdown">
+                        <select name="department" id="myTicketsDepartmentFilter" class="my-tickets-filter-select my-tickets-native-select" tabindex="-1" aria-hidden="true">
+                            <option value="">All Department</option>
+                            <?php foreach ($lapcDepartmentOptions as $departmentOption): ?>
+                                <option value="<?= htmlspecialchars((string) $departmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $ticketDepartmentFilter === (string) $departmentOption ? 'selected' : ''; ?>>
+                                    <?= htmlspecialchars((string) $departmentOption, ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="button" class="my-tickets-department-trigger" id="myTicketsDepartmentTrigger" aria-haspopup="listbox" aria-expanded="false">
+                            <span id="myTicketsDepartmentTriggerText"><?= htmlspecialchars($ticketDepartmentFilter !== '' ? $ticketDepartmentFilter : 'All Department', ENT_QUOTES, 'UTF-8'); ?></span>
+                            <i class="fas fa-chevron-down my-tickets-department-trigger-icon" aria-hidden="true"></i>
+                        </button>
+                        <ul class="my-tickets-department-menu" id="myTicketsDepartmentMenu" role="listbox" aria-labelledby="myTicketsDepartmentTrigger">
+                            <li>
+                                <button type="button" class="my-tickets-department-option <?= $ticketDepartmentFilter === '' ? 'is-selected' : ''; ?>" role="option" aria-selected="<?= $ticketDepartmentFilter === '' ? 'true' : 'false'; ?>" data-value="">All Department</button>
+                            </li>
+                            <?php foreach ($lapcDepartmentOptions as $departmentOption): ?>
+                                <li>
+                                    <button
+                                        type="button"
+                                        class="my-tickets-department-option <?= $ticketDepartmentFilter === (string) $departmentOption ? 'is-selected' : ''; ?>"
+                                        role="option"
+                                        aria-selected="<?= $ticketDepartmentFilter === (string) $departmentOption ? 'true' : 'false'; ?>"
+                                        data-value="<?= htmlspecialchars((string) $departmentOption, ENT_QUOTES, 'UTF-8'); ?>"
+                                    >
+                                        <?= htmlspecialchars((string) $departmentOption, ENT_QUOTES, 'UTF-8'); ?>
+                                    </button>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                    <div class="my-tickets-filter-select-wrap">
+                        <select name="status" id="myTicketsStatusFilter" class="my-tickets-filter-select">
+                            <option value="">All Status</option>
+                            <?php foreach (['Open', 'In Progress', 'Resolved', 'Closed'] as $statusOption): ?>
+                                <option value="<?= htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $ticketStatusFilter === $statusOption ? 'selected' : ''; ?>>
+                                    <?= htmlspecialchars($statusOption, ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="my-tickets-filter-select-wrap">
+                        <select name="sla" id="myTicketsSlaFilter" class="my-tickets-filter-select">
+                            <option value="" <?= $ticketSlaFilter === '' ? 'selected' : ''; ?> hidden>All SLA</option>
+                            <?php foreach ($slaOptions as $slaOption): ?>
+                                <option value="<?= htmlspecialchars($slaOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $ticketSlaFilter === $slaOption ? 'selected' : ''; ?>>
+                                    <?= htmlspecialchars($slaOption, ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <a href="my_tickets.php" class="my-tickets-clear-btn">Clear Filters</a>
+                </form>
+            </div>
+
             <div class="table-card my-tickets-card">
                 <div class="my-tickets-table-shell">
                 <div class="table-responsive my-tickets-table-responsive">
                     <table>
                         <colgroup>
                             <col style="width: 90px;">
-                            <col style="width: 26%;">
+                            <col style="width: 22%;">
                             <col style="width: 140px;">
-                            <col style="width: 28%;">
+                            <col style="width: 24%;">
                             <col style="width: 150px;">
+                            <col style="width: 110px;">
                             <col style="width: 150px;">
                         </colgroup>
                         <thead>
@@ -1871,6 +2476,7 @@ $successMessage = '';
                                 <th>Status</th>
                                 <th>Passed To</th>
                                 <th>Date Created</th>
+                                <th>SLA</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -1889,6 +2495,7 @@ $successMessage = '';
                                     </td>
                                     <td data-label="Passed To"><?= htmlspecialchars(submitted_ticket_target_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td data-label="Date"><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
+                                    <td data-label="SLA" class="my-tickets-sla-cell"><?= my_tickets_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
                                     <td data-label="Action" class="follow-up-cell">
                                         <div class="ticket-action-buttons">
                                         <?php if (can_follow_up_ticket_status((string) ($row['status'] ?? ''))): ?>
@@ -1939,7 +2546,7 @@ $successMessage = '';
                                 <?php endwhile; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="6" style="text-align: center; color: #94a3b8; padding: 40px;">
+                                    <td colspan="7" style="text-align: center; color: #94a3b8; padding: 40px;">
                                         <div class="empty-state">
                                             <i class="fas fa-ticket-alt" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i>
                                             <p>No tickets submitted yet.</p>
@@ -2133,8 +2740,23 @@ $successMessage = '';
     <script>
     var myTicketsBodyEl = document.getElementById('myTicketsTbody');
     var myTicketsPaginationEl = document.getElementById('myTicketsPagination');
+    var myTicketsFilterForm = document.getElementById('myTicketsFilterForm');
+    var myTicketsSearchInput = document.getElementById('myTicketsSearchInput');
+    var myTicketsCompanyFilter = document.getElementById('myTicketsCompanyFilter');
+    var myTicketsDepartmentFilter = document.getElementById('myTicketsDepartmentFilter');
+    var myTicketsStatusFilter = document.getElementById('myTicketsStatusFilter');
+    var myTicketsSlaFilter = document.getElementById('myTicketsSlaFilter');
+    var myTicketsCompanyDropdown = document.getElementById('myTicketsCompanyDropdown');
+    var myTicketsCompanyTrigger = document.getElementById('myTicketsCompanyTrigger');
+    var myTicketsCompanyTriggerText = document.getElementById('myTicketsCompanyTriggerText');
+    var myTicketsCompanyMenu = document.getElementById('myTicketsCompanyMenu');
+    var myTicketsDepartmentDropdown = document.getElementById('myTicketsDepartmentDropdown');
+    var myTicketsDepartmentTrigger = document.getElementById('myTicketsDepartmentTrigger');
+    var myTicketsDepartmentTriggerText = document.getElementById('myTicketsDepartmentTriggerText');
+    var myTicketsDepartmentMenu = document.getElementById('myTicketsDepartmentMenu');
     var myTicketsCurrentPage = <?= (int) $page ?>;
     var myTicketsAutoRefreshMs = 10000;
+    var myTicketsFilterTimer = null;
     var followUpInFlight = {};
     var followUpFeedbackOverlay = document.getElementById('followUpFeedbackOverlay');
     var followUpFeedbackDialog = document.getElementById('followUpFeedbackDialog');
@@ -2178,6 +2800,26 @@ $successMessage = '';
         return !!(overlay && overlay.style.display === 'flex');
     }
 
+    function getMyTicketsFilterValues() {
+        return {
+            search: myTicketsSearchInput ? String(myTicketsSearchInput.value || '').trim() : '',
+            company: myTicketsCompanyFilter ? String(myTicketsCompanyFilter.value || '').trim() : '',
+            department: myTicketsDepartmentFilter && shouldShowMyTicketsDepartmentDropdown() ? String(myTicketsDepartmentFilter.value || '').trim() : '',
+            status: myTicketsStatusFilter ? String(myTicketsStatusFilter.value || '').trim() : '',
+            sla: myTicketsSlaFilter ? String(myTicketsSlaFilter.value || '').trim() : ''
+        };
+    }
+
+    function applyMyTicketsFilterParams(params) {
+        var filters = getMyTicketsFilterValues();
+        if (filters.search) params.set('search', filters.search);
+        if (filters.company) params.set('company', filters.company);
+        if (filters.department) params.set('department', filters.department);
+        if (filters.status) params.set('status', filters.status);
+        if (filters.sla) params.set('sla', filters.sla);
+        return filters;
+    }
+
     function refreshMyTickets(page, updateHistory) {
         if (!myTicketsBodyEl || !myTicketsPaginationEl) return;
         var nextPage = parseInt(page || myTicketsCurrentPage || 1, 10);
@@ -2185,6 +2827,7 @@ $successMessage = '';
         var params = new URLSearchParams();
         params.set('page', String(nextPage));
         params.set('limit', '10');
+        applyMyTicketsFilterParams(params);
         fetch('ajax_my_tickets_list.php?' + params.toString(), { method: 'GET', credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (data) {
@@ -2196,9 +2839,275 @@ $successMessage = '';
                 if (updateHistory === false) return;
                 var url = new URL(window.location.href);
                 url.searchParams.set('page', String(myTicketsCurrentPage));
+                ['search', 'company', 'department', 'status', 'sla'].forEach(function(key) {
+                    if (params.get(key)) {
+                        url.searchParams.set(key, params.get(key));
+                    } else {
+                        url.searchParams.delete(key);
+                    }
+                });
                 history.replaceState({}, '', url.toString());
             })
             .catch(function () {});
+    }
+
+    function scheduleMyTicketsFilterRefresh() {
+        window.clearTimeout(myTicketsFilterTimer);
+        myTicketsFilterTimer = window.setTimeout(function() {
+            refreshMyTickets(1, true);
+        }, 250);
+    }
+
+    function shouldShowMyTicketsDepartmentDropdown() {
+        return !!(myTicketsCompanyFilter && String(myTicketsCompanyFilter.value || '').toLowerCase() === '@leadsagri.com');
+    }
+
+    function getMyTicketsCompanyOptionButtons() {
+        if (!myTicketsCompanyMenu) return [];
+        return Array.prototype.slice.call(myTicketsCompanyMenu.querySelectorAll('.my-tickets-company-option'));
+    }
+
+    function getMyTicketsDepartmentOptionButtons() {
+        if (!myTicketsDepartmentMenu) return [];
+        return Array.prototype.slice.call(myTicketsDepartmentMenu.querySelectorAll('.my-tickets-department-option'));
+    }
+
+    function closeMyTicketsCompanyDropdown() {
+        if (!myTicketsCompanyDropdown || !myTicketsCompanyTrigger) return;
+        myTicketsCompanyDropdown.classList.remove('is-open');
+        myTicketsCompanyTrigger.setAttribute('aria-expanded', 'false');
+    }
+
+    function closeMyTicketsDepartmentDropdown() {
+        if (!myTicketsDepartmentDropdown || !myTicketsDepartmentTrigger) return;
+        myTicketsDepartmentDropdown.classList.remove('is-open');
+        myTicketsDepartmentTrigger.setAttribute('aria-expanded', 'false');
+    }
+
+    function openMyTicketsCompanyDropdown() {
+        if (!myTicketsCompanyDropdown || !myTicketsCompanyTrigger) return;
+        closeMyTicketsDepartmentDropdown();
+        myTicketsCompanyDropdown.classList.add('is-open');
+        myTicketsCompanyTrigger.setAttribute('aria-expanded', 'true');
+    }
+
+    function openMyTicketsDepartmentDropdown() {
+        if (!myTicketsDepartmentDropdown || !myTicketsDepartmentTrigger || !shouldShowMyTicketsDepartmentDropdown()) return;
+        closeMyTicketsCompanyDropdown();
+        myTicketsDepartmentDropdown.classList.add('is-open');
+        myTicketsDepartmentTrigger.setAttribute('aria-expanded', 'true');
+    }
+
+    function syncMyTicketsCompanyDropdown(value) {
+        value = String(value || '');
+        var selectedLabel = 'All Company';
+        getMyTicketsCompanyOptionButtons().forEach(function(optionBtn) {
+            var isSelected = String(optionBtn.getAttribute('data-value') || '') === value;
+            optionBtn.classList.toggle('is-selected', isSelected);
+            optionBtn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+            if (isSelected) selectedLabel = optionBtn.textContent.trim() || 'All Company';
+        });
+        if (myTicketsCompanyTriggerText) {
+            myTicketsCompanyTriggerText.textContent = selectedLabel;
+        }
+    }
+
+    function syncMyTicketsDepartmentDropdown(value) {
+        value = String(value || '');
+        var selectedLabel = 'All Department';
+        getMyTicketsDepartmentOptionButtons().forEach(function(optionBtn) {
+            var isSelected = String(optionBtn.getAttribute('data-value') || '') === value;
+            optionBtn.classList.toggle('is-selected', isSelected);
+            optionBtn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+            if (isSelected) selectedLabel = optionBtn.textContent.trim() || 'All Department';
+        });
+        if (myTicketsDepartmentTriggerText) {
+            myTicketsDepartmentTriggerText.textContent = selectedLabel;
+        }
+    }
+
+    function updateMyTicketsDepartmentVisibility() {
+        if (!myTicketsDepartmentDropdown) return;
+        var shouldShow = shouldShowMyTicketsDepartmentDropdown();
+        myTicketsDepartmentDropdown.classList.toggle('is-hidden', !shouldShow);
+        if (myTicketsFilterForm) {
+            myTicketsFilterForm.classList.toggle('has-department-filter', shouldShow);
+        }
+        if (!shouldShow) {
+            closeMyTicketsDepartmentDropdown();
+            if (myTicketsDepartmentFilter) {
+                myTicketsDepartmentFilter.value = '';
+            }
+            syncMyTicketsDepartmentDropdown('');
+        }
+    }
+
+    function focusMyTicketsCompanyOption(direction) {
+        var optionButtons = getMyTicketsCompanyOptionButtons();
+        if (!optionButtons.length) return;
+        var activeIndex = optionButtons.indexOf(document.activeElement);
+        var selectedIndex = optionButtons.findIndex(function(optionBtn) {
+            return optionBtn.classList.contains('is-selected');
+        });
+        var currentIndex = activeIndex >= 0 ? activeIndex : Math.max(selectedIndex, 0);
+        var nextIndex = direction === 'up'
+            ? (currentIndex - 1 + optionButtons.length) % optionButtons.length
+            : (currentIndex + 1) % optionButtons.length;
+        optionButtons[nextIndex].focus();
+    }
+
+    function focusMyTicketsDepartmentOption(direction) {
+        var optionButtons = getMyTicketsDepartmentOptionButtons();
+        if (!optionButtons.length) return;
+        var activeIndex = optionButtons.indexOf(document.activeElement);
+        var selectedIndex = optionButtons.findIndex(function(optionBtn) {
+            return optionBtn.classList.contains('is-selected');
+        });
+        var currentIndex = activeIndex >= 0 ? activeIndex : Math.max(selectedIndex, 0);
+        var nextIndex = direction === 'up'
+            ? (currentIndex - 1 + optionButtons.length) % optionButtons.length
+            : (currentIndex + 1) % optionButtons.length;
+        optionButtons[nextIndex].focus();
+    }
+
+    if (myTicketsFilterForm) {
+        myTicketsFilterForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            refreshMyTickets(1, true);
+        });
+    }
+    if (myTicketsSearchInput) {
+        myTicketsSearchInput.addEventListener('input', scheduleMyTicketsFilterRefresh);
+    }
+    if (myTicketsCompanyTrigger) {
+        myTicketsCompanyTrigger.addEventListener('click', function() {
+            if (myTicketsCompanyDropdown && myTicketsCompanyDropdown.classList.contains('is-open')) {
+                closeMyTicketsCompanyDropdown();
+            } else {
+                openMyTicketsCompanyDropdown();
+            }
+        });
+        myTicketsCompanyTrigger.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openMyTicketsCompanyDropdown();
+                var selectedOption = myTicketsCompanyMenu ? myTicketsCompanyMenu.querySelector('.my-tickets-company-option.is-selected') : null;
+                var firstOption = myTicketsCompanyMenu ? myTicketsCompanyMenu.querySelector('.my-tickets-company-option') : null;
+                if (selectedOption) {
+                    selectedOption.focus();
+                } else if (firstOption) {
+                    firstOption.focus();
+                }
+            }
+        });
+    }
+    getMyTicketsCompanyOptionButtons().forEach(function(optionBtn) {
+        optionBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var value = String(optionBtn.getAttribute('data-value') || '');
+            if (myTicketsCompanyFilter) {
+                myTicketsCompanyFilter.value = value;
+            }
+            syncMyTicketsCompanyDropdown(value);
+            updateMyTicketsDepartmentVisibility();
+            closeMyTicketsCompanyDropdown();
+            if (shouldShowMyTicketsDepartmentDropdown()) {
+                openMyTicketsDepartmentDropdown();
+            }
+            refreshMyTickets(1, true);
+        });
+        optionBtn.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeMyTicketsCompanyDropdown();
+                if (myTicketsCompanyTrigger) myTicketsCompanyTrigger.focus();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                focusMyTicketsCompanyOption('down');
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                focusMyTicketsCompanyOption('up');
+            }
+        });
+    });
+    document.addEventListener('click', function(e) {
+        if (myTicketsCompanyDropdown && !myTicketsCompanyDropdown.contains(e.target)) {
+            closeMyTicketsCompanyDropdown();
+        }
+        if (myTicketsDepartmentDropdown && !myTicketsDepartmentDropdown.contains(e.target)) {
+            closeMyTicketsDepartmentDropdown();
+        }
+    });
+    if (myTicketsCompanyFilter) {
+        myTicketsCompanyFilter.addEventListener('change', function() {
+            syncMyTicketsCompanyDropdown(myTicketsCompanyFilter.value);
+            updateMyTicketsDepartmentVisibility();
+            refreshMyTickets(1, true);
+        });
+    }
+    if (myTicketsDepartmentTrigger) {
+        myTicketsDepartmentTrigger.addEventListener('click', function() {
+            if (myTicketsDepartmentDropdown && myTicketsDepartmentDropdown.classList.contains('is-open')) {
+                closeMyTicketsDepartmentDropdown();
+            } else {
+                openMyTicketsDepartmentDropdown();
+            }
+        });
+        myTicketsDepartmentTrigger.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openMyTicketsDepartmentDropdown();
+                var selectedOption = myTicketsDepartmentMenu ? myTicketsDepartmentMenu.querySelector('.my-tickets-department-option.is-selected') : null;
+                var firstOption = myTicketsDepartmentMenu ? myTicketsDepartmentMenu.querySelector('.my-tickets-department-option') : null;
+                if (selectedOption) {
+                    selectedOption.focus();
+                } else if (firstOption) {
+                    firstOption.focus();
+                }
+            }
+        });
+    }
+    getMyTicketsDepartmentOptionButtons().forEach(function(optionBtn) {
+        optionBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var value = String(optionBtn.getAttribute('data-value') || '');
+            if (myTicketsDepartmentFilter) {
+                myTicketsDepartmentFilter.value = value;
+            }
+            syncMyTicketsDepartmentDropdown(value);
+            closeMyTicketsDepartmentDropdown();
+            refreshMyTickets(1, true);
+        });
+        optionBtn.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeMyTicketsDepartmentDropdown();
+                if (myTicketsDepartmentTrigger) myTicketsDepartmentTrigger.focus();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                focusMyTicketsDepartmentOption('down');
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                focusMyTicketsDepartmentOption('up');
+            }
+        });
+    });
+    if (myTicketsDepartmentFilter) {
+        myTicketsDepartmentFilter.addEventListener('change', function() {
+            syncMyTicketsDepartmentDropdown(myTicketsDepartmentFilter.value);
+            refreshMyTickets(1, true);
+        });
+    }
+    updateMyTicketsDepartmentVisibility();
+    if (myTicketsStatusFilter) {
+        myTicketsStatusFilter.addEventListener('change', function() {
+            refreshMyTickets(1, true);
+        });
+    }
+    if (myTicketsSlaFilter) {
+        myTicketsSlaFilter.addEventListener('change', function() {
+            refreshMyTickets(1, true);
+        });
     }
 
     function parseFollowUpTimestamp(value) {
