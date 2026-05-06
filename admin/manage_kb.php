@@ -276,19 +276,24 @@ $result = $conn->query("
 $articles = [];
 $total_views = 0;
 $unique_categories = [];
+$unique_departments = [];
 
 if ($result) {
     while ($row = $result->fetch_assoc()) {
         $articles[] = $row;
         $total_views += isset($row['unique_views']) ? (int) $row['unique_views'] : 0;
+        if (!empty($row['sub_category'])) {
+            $unique_categories[$row['sub_category']] = true;
+        }
         if (!empty($row['category'])) {
-            $unique_categories[$row['category']] = true;
+            $unique_departments[$row['category']] = true;
         }
     }
 }
 
 $total_articles = count($articles);
 $categories_count = count($unique_categories);
+$departments_count = count($unique_departments);
 
 // Pre-defined categories
 $categories = $kb_department_categories;
@@ -436,7 +441,7 @@ unset($recent_articles_query['recent_page']);
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 18px;
             margin-bottom: 18px;
         }
@@ -463,6 +468,7 @@ unset($recent_articles_query['recent_page']);
         .stat-card.green-accent { box-shadow: inset 0 -3px 0 #18b48f, 0 14px 30px rgba(80, 71, 123, 0.08); }
         .stat-card.blue-accent { box-shadow: inset 0 -3px 0 #5793ff, 0 14px 30px rgba(80, 71, 123, 0.08); }
         .stat-card.purple-accent { box-shadow: inset 0 -3px 0 #a370ff, 0 14px 30px rgba(80, 71, 123, 0.08); }
+        .stat-card.yellow-accent { box-shadow: inset 0 -3px 0 #f2b441, 0 14px 30px rgba(80, 71, 123, 0.08); }
 
         .stat-icon {
             width: 56px;
@@ -477,6 +483,7 @@ unset($recent_articles_query['recent_page']);
         .stat-icon.green { background: #ECFDF5; color: #059669; }
         .stat-icon.blue { background: #EFF6FF; color: #2563EB; }
         .stat-icon.purple { background: #F5F3FF; color: #7C3AED; }
+        .stat-icon.yellow { background: #FFFBEB; color: #D97706; }
 
         .stat-info h3 {
             margin: 0;
@@ -549,6 +556,76 @@ unset($recent_articles_query['recent_page']);
             padding: 6px 12px;
             border-radius: 999px;
             font-weight: 500;
+        }
+
+        .kb-view-panel.is-showing-all .kb-pagination {
+            display: none;
+        }
+
+        .kb-item.is-page-hidden {
+            display: none;
+        }
+
+        .kb-view-panel.is-showing-all .kb-item.is-page-hidden {
+            display: grid;
+        }
+
+        .kb-view-all-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid #B7E4C7;
+            background: rgba(255, 255, 255, 0.88);
+            color: #166534;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            box-shadow: 0 8px 18px rgba(22, 101, 52, 0.08);
+            transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .kb-view-all-btn:hover {
+            background: #F0FDF4;
+            border-color: #86EFAC;
+            transform: translateY(-1px);
+        }
+
+        .kb-all-articles-modal .modal-content {
+            width: min(92vw, 1180px);
+            max-width: 1180px;
+            min-height: auto;
+            max-height: calc(100vh - 96px);
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .kb-all-articles-modal .modal-header {
+            padding: 24px 28px;
+            margin: 0;
+        }
+
+        .kb-all-articles-body {
+            overflow-y: auto;
+            max-height: calc(100vh - 198px);
+            padding-bottom: 18px;
+        }
+
+        .kb-all-articles-body .kb-list-head {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            border-top: 1px solid rgba(228, 231, 245, 0.95);
+            border-bottom: 1px solid rgba(228, 231, 245, 0.95);
+        }
+
+        .kb-all-articles-count {
+            color: #667085;
+            font-size: 14px;
+            font-weight: 500;
+            margin-left: 12px;
         }
 
         .kb-list-head {
@@ -1334,7 +1411,57 @@ unset($recent_articles_query['recent_page']);
             background: linear-gradient(180deg, #eceef3 0%, #dfe3eb 100%) !important;
             color: #2e3345 !important;
         }
-        .kb-create-content {
+        .kb-editor-shell {
+            border: 1px solid #D1D5DB;
+            border-radius: 12px;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .kb-editor-toolbar {
+            min-height: 46px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 10px;
+            border-bottom: 0;
+            background: #FFFFFF;
+            overflow-x: auto;
+            scrollbar-width: thin;
+        }
+
+        .kb-editor-btn {
+            width: 34px;
+            height: 34px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #1F2937;
+            font-size: 15px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.15s ease, color 0.15s ease;
+            flex: 0 0 auto;
+        }
+
+        .kb-editor-btn:hover,
+        .kb-editor-btn:focus-visible {
+            background: #EEF8F2;
+            color: #0B5D25;
+            outline: none;
+        }
+
+        .kb-editor-separator {
+            width: 1px;
+            height: 24px;
+            margin: 0 4px;
+            background: #E5E7EB;
+            flex: 0 0 auto;
+        }
+
+        .kb-editor-content {
             height: 240px;
             min-height: 240px;
             max-height: 240px;
@@ -1343,6 +1470,39 @@ unset($recent_articles_query['recent_page']);
             overflow-x: hidden;
             scrollbar-gutter: stable;
             word-break: break-word;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            padding: 18px;
+            line-height: 1.55;
+            outline: none;
+        }
+
+        .kb-editor-content:empty::before {
+            content: attr(data-placeholder);
+            color: #9CA3AF;
+            pointer-events: none;
+        }
+
+        .kb-editor-content:focus {
+            box-shadow: none !important;
+        }
+
+        .kb-editor-content ul,
+        .kb-editor-content ol {
+            margin: 0 0 12px;
+            padding-left: 24px;
+        }
+
+        .kb-editor-content blockquote {
+            margin: 8px 0;
+            padding-left: 14px;
+            border-left: 3px solid #D1D5DB;
+            color: #4B5563;
+        }
+
+        .kb-create-content {
+            display: none;
         }
         .kb-content-group {
             flex: 1 1 auto;
@@ -1686,6 +1846,10 @@ unset($recent_articles_query['recent_page']);
         }
 
         @media (max-width: 1080px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
             .kb-table-card {
                 min-height: auto;
             }
@@ -1715,6 +1879,12 @@ unset($recent_articles_query['recent_page']);
 
             .kb-pagination-links {
                 justify-content: center;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -1777,6 +1947,15 @@ unset($recent_articles_query['recent_page']);
                     <p>Categories</p>
                 </div>
             </div>
+            <div class="stat-card yellow-accent">
+                <div class="stat-icon yellow">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-info">
+                    <h3><?= $departments_count ?></h3>
+                    <p>Departments</p>
+                </div>
+            </div>
         </div>
 
         <div class="kb-table-card kb-section-card">
@@ -1785,8 +1964,11 @@ unset($recent_articles_query['recent_page']);
                     <div class="kb-category-panel-head">
                         <h3 class="kb-category-panel-title">
                             <i class="fas fa-file-lines"></i>
-                            Recent Articles
+                            <span data-recent-articles-title>Recent Articles</span>
                         </h3>
+                        <button type="button" class="kb-view-all-btn" data-show-all-articles>
+                            View All Articles <i class="fas fa-chevron-right"></i>
+                        </button>
                     </div>
 
                     <div class="kb-list-head">
@@ -1798,9 +1980,12 @@ unset($recent_articles_query['recent_page']);
                     </div>
 
                     <div class="kb-article-stack">
-                        <?php foreach ($recent_articles_page_items as $row): ?>
-                            <?php $row_meta = $category_meta[$row['category']] ?? $category_meta['Uncategorized']; ?>
-                            <div class="kb-item">
+                        <?php foreach ($recent_articles as $article_index => $row): ?>
+                            <?php
+                            $row_meta = $category_meta[$row['category']] ?? $category_meta['Uncategorized'];
+                            $is_recent_page_item = $article_index >= $recent_articles_offset && $article_index < ($recent_articles_offset + $recent_articles_per_page);
+                            ?>
+                            <div class="kb-item<?= $is_recent_page_item ? '' : ' is-page-hidden' ?>">
                                 <div>
                                     <div class="kb-col-label">Article Title</div>
                                     <div class="article-title"><?= htmlspecialchars($row['title']) ?></div>
@@ -1891,6 +2076,9 @@ unset($recent_articles_query['recent_page']);
                                 <i class="fas <?= htmlspecialchars($panel_meta['icon']) ?>"></i>
                                 <?= htmlspecialchars($category_name) ?>
                             </h3>
+                            <button type="button" class="kb-view-all-btn" data-show-all-articles>
+                                View All Articles <i class="fas fa-chevron-right"></i>
+                            </button>
                         </div>
 
                         <div class="kb-list-head">
@@ -1967,7 +2155,7 @@ unset($recent_articles_query['recent_page']);
                         <span class="kb-section-icon" style="background: linear-gradient(135deg, #4aa99b 0%, #3f8d86 100%);">
                             <i class="fas fa-folder"></i>
                         </span>
-                        <div class="kb-table-title">Categories</div>
+                        <div class="kb-table-title">Departments</div>
                     </div>
                 </div>
 
@@ -1998,6 +2186,78 @@ unset($recent_articles_query['recent_page']);
 
     </div>
 </div>
+
+<?php if (count($articles) > 0): ?>
+<div id="allArticlesModal" class="modal-overlay kb-all-articles-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">
+                <i class="fas fa-file-lines" style="color: #166534;"></i>
+                All Articles
+                <span class="kb-all-articles-count"><?= number_format($total_articles) ?> total</span>
+            </div>
+            <button type="button" class="close-modal" onclick="closeAllArticlesModal()">&times;</button>
+        </div>
+
+        <div class="kb-all-articles-body">
+            <div class="kb-list-head">
+                <div>Article Title</div>
+                <div>Category</div>
+                <div>Views</div>
+                <div>Created Date</div>
+                <div style="text-align:center;">Actions</div>
+            </div>
+
+            <div class="kb-article-stack">
+                <?php foreach ($articles as $row): ?>
+                    <?php $row_meta = $category_meta[$row['category']] ?? $category_meta['Uncategorized']; ?>
+                    <div class="kb-item">
+                        <div>
+                            <div class="kb-col-label">Article Title</div>
+                            <div class="article-title"><?= htmlspecialchars($row['title']) ?></div>
+                        </div>
+                        <div>
+                            <div class="kb-col-label">Category</div>
+                            <span class="badge-category tone-<?= htmlspecialchars($row_meta['tone']) ?>">
+                                <?= htmlspecialchars($row['category']) ?>
+                            </span>
+                        </div>
+                        <div class="meta-text">
+                            <div class="kb-col-label">Views</div>
+                            <button
+                                type="button"
+                                class="kb-views-btn"
+                                onclick="showArticleViewers(<?= (int) $row['id'] ?>)"
+                                aria-label="Show viewers for <?= htmlspecialchars($row['title'], ENT_QUOTES, 'UTF-8') ?>"
+                            >
+                                <i class="far fa-eye"></i>
+                                <span class="kb-views-btn-count"><?= isset($row['unique_views']) ? number_format((int) $row['unique_views']) : '0' ?></span>
+                            </button>
+                        </div>
+                        <div class="meta-text">
+                            <div class="kb-col-label">Created Date</div>
+                            <?= date('M d, Y', strtotime($row['created_at'])) ?>
+                        </div>
+                        <div>
+                            <div class="kb-col-label">Actions</div>
+                            <div class="actions-cell">
+                                <a href="edit_kb.php?id=<?= $row['id'] ?>" class="action-btn btn-edit">
+                                    <i class="fas fa-pencil-alt"></i> Edit
+                                </a>
+                                <a href="javascript:void(0)"
+                                   class="action-btn btn-delete"
+                                   onclick="confirmDelete(<?= $row['id'] ?>)">
+                                    <i class="fas fa-trash-alt"></i> Delete
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Add Article Modal -->
 <div id="addArticleModal" class="modal-overlay">
@@ -2067,7 +2327,20 @@ unset($recent_articles_query['recent_page']);
 
                     <div class="form-group kb-content-group">
                         <label class="form-label">Content</label>
-                        <textarea name="content" class="form-control kb-create-content" rows="6" placeholder="Write article content here..."></textarea>
+                        <div class="kb-editor-shell" id="kb-editor-shell">
+                            <div class="kb-editor-toolbar" role="toolbar" aria-label="Article content formatting">
+                                <button type="button" class="kb-editor-btn" data-editor-action="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
+                                <button type="button" class="kb-editor-btn" data-editor-action="italic" title="Italic" aria-label="Italic"><em>I</em></button>
+                                <button type="button" class="kb-editor-btn" data-editor-action="underline" title="Underline" aria-label="Underline"><u>U</u></button>
+                                <button type="button" class="kb-editor-btn" data-editor-action="heading" title="Heading" aria-label="Heading"><i class="fas fa-font"></i></button>
+                                <span class="kb-editor-separator" aria-hidden="true"></span>
+                                <button type="button" class="kb-editor-btn" data-editor-action="bulleted" title="Bullet list" aria-label="Bullet list"><i class="fas fa-list-ul"></i></button>
+                                <button type="button" class="kb-editor-btn" data-editor-action="numbered" title="Numbered list" aria-label="Numbered list"><i class="fas fa-list-ol"></i></button>
+                                <button type="button" class="kb-editor-btn" data-editor-action="quote" title="Paragraph quote" aria-label="Paragraph quote"><i class="fas fa-paragraph"></i></button>
+                            </div>
+                            <div class="form-control kb-editor-content" id="kb-editor-content" contenteditable="true" data-placeholder="Write article content here..." aria-label="Article content"></div>
+                            <textarea name="content" class="kb-create-content" id="kb-content-input" rows="6"></textarea>
+                        </div>
                     </div>
 
                 </div>
@@ -2230,10 +2503,25 @@ function addLink() {
     container.appendChild(div);
 }
 
+function openAllArticlesModal() {
+    const allArticlesModal = document.getElementById('allArticlesModal');
+    if (!allArticlesModal) return;
+    allArticlesModal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeAllArticlesModal() {
+    const allArticlesModal = document.getElementById('allArticlesModal');
+    if (!allArticlesModal) return;
+    allArticlesModal.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     const tiles = document.querySelectorAll('[data-category-target]');
     const panels = document.querySelectorAll('[data-articles-view]');
     const recentPanel = document.querySelector('[data-articles-view="recent"]');
+    const viewAllButtons = document.querySelectorAll('[data-show-all-articles]');
     if (!tiles.length || !panels.length || !recentPanel) return;
 
     function showArticlesView(target) {
@@ -2261,6 +2549,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 item.classList.toggle('is-active', item === tile);
             });
             showArticlesView(target);
+        });
+    });
+
+    viewAllButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+            openAllArticlesModal();
         });
     });
 });
@@ -2400,6 +2694,66 @@ document.addEventListener('click', function(e) {
     const kbDefaultTicketCategories = <?= json_encode($kb_default_ticket_categories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     const kbKnownCompanyDepartments = <?= json_encode($kb_company_departments, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     let addImageDataTransfer = new DataTransfer();
+
+    function setupKbContentEditor() {
+        const editorShell = document.getElementById('kb-editor-shell');
+        const toolbar = editorShell ? editorShell.querySelector('.kb-editor-toolbar') : null;
+        const editor = editorShell ? editorShell.querySelector('.kb-editor-content') : null;
+        const contentInput = document.getElementById('kb-content-input');
+        if (!editorShell || !toolbar || !editor || !contentInput) return;
+
+        function syncEditorContent() {
+            contentInput.value = editor.innerHTML.trim();
+        }
+
+        function runEditorCommand(command, value) {
+            editor.focus();
+            document.execCommand(command, false, value || null);
+            syncEditorContent();
+        }
+
+        toolbar.addEventListener('mousedown', function(event) {
+            if (event.target.closest('[data-editor-action]')) {
+                event.preventDefault();
+            }
+        });
+
+        toolbar.addEventListener('click', function(event) {
+            const button = event.target.closest('[data-editor-action]');
+            if (!button) return;
+
+            const action = button.getAttribute('data-editor-action');
+            switch (action) {
+                case 'bold':
+                    runEditorCommand('bold');
+                    break;
+                case 'italic':
+                    runEditorCommand('italic');
+                    break;
+                case 'underline':
+                    runEditorCommand('underline');
+                    break;
+                case 'heading':
+                    runEditorCommand('formatBlock', '<h2>');
+                    break;
+                case 'bulleted':
+                    runEditorCommand('insertUnorderedList');
+                    break;
+                case 'numbered':
+                    runEditorCommand('insertOrderedList');
+                    break;
+                case 'quote':
+                    runEditorCommand('formatBlock', '<blockquote>');
+                    break;
+            }
+        });
+
+        editor.addEventListener('input', syncEditorContent);
+        editor.addEventListener('blur', syncEditorContent);
+        window.syncKbContentEditor = syncEditorContent;
+    }
+
+    setupKbContentEditor();
     
     function openModal() {
         addModal.style.display = 'flex';
@@ -2569,6 +2923,9 @@ document.addEventListener('click', function(e) {
     const kbPublishBtn = document.getElementById('kb-publish-btn');
     if (kbAddForm && kbPublishBtn) {
         kbAddForm.addEventListener('submit', function() {
+            if (typeof window.syncKbContentEditor === 'function') {
+                window.syncKbContentEditor();
+            }
             kbPublishBtn.disabled = true;
             kbPublishBtn.textContent = 'Publishing...';
         });
@@ -2585,6 +2942,10 @@ document.addEventListener('click', function(e) {
         }
         addImageDataTransfer = new DataTransfer();
         document.querySelector('#addArticleModal form').reset();
+        const editor = document.getElementById('kb-editor-content');
+        if (editor) editor.innerHTML = '';
+        const contentInput = document.getElementById('kb-content-input');
+        if (contentInput) contentInput.value = '';
         syncSubCategoryVisibility();
         if (kbPublishBtn) {
             kbPublishBtn.disabled = false;
@@ -2594,6 +2955,10 @@ document.addEventListener('click', function(e) {
 
     // Close modals when clicking outside
     window.onclick = function(event) {
+        const allArticlesModal = document.getElementById('allArticlesModal');
+        if (event.target == allArticlesModal) {
+            closeAllArticlesModal();
+        }
         if (event.target == addModal) {
             closeModal();
         }

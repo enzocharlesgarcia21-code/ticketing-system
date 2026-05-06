@@ -2153,13 +2153,8 @@ body.dark-mode .tm-btn-secondary:hover {
 .tm-tab-content {
     display: none;
     padding: 24px;
-    animation: fadeInContent 0.2s ease-out;
 }
 .tm-tab-content.active { display: block; }
-@keyframes fadeInContent {
-    from { opacity: 0; transform: translateY(4px); }
-    to   { opacity: 1; transform: translateY(0); }
-}
 
 /* Chat Integration within Tab */
 .chat-wrapper {

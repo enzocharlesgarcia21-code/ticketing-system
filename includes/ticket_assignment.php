@@ -1255,11 +1255,19 @@ function ticket_chat_upload_dir(): string
     return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
 }
 
+function ticket_chat_attachment_max_bytes(): int
+{
+    return 10 * 1024 * 1024;
+}
+
 function ticket_chat_store_attachment(array $file): array
 {
     $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
     if ($errorCode === UPLOAD_ERR_NO_FILE) {
         return ['ok' => true, 'has_file' => false];
+    }
+    if ($errorCode === UPLOAD_ERR_INI_SIZE || $errorCode === UPLOAD_ERR_FORM_SIZE) {
+        return ['ok' => false, 'error' => 'Chat attachments must be 10 MB or smaller.'];
     }
     if ($errorCode !== UPLOAD_ERR_OK) {
         return ['ok' => false, 'error' => 'Unable to upload the attachment right now.'];
@@ -1284,7 +1292,7 @@ function ticket_chat_store_attachment(array $file): array
     if ($originalName === '' || $tmpPath === '' || !in_array($ext, $allowedExtensions, true)) {
         return ['ok' => false, 'error' => 'Please upload only JPG, PNG, PDF, DOC, or DOCX files.'];
     }
-    if ($size <= 0 || $size > (10 * 1024 * 1024)) {
+    if ($size <= 0 || $size > ticket_chat_attachment_max_bytes()) {
         return ['ok' => false, 'error' => 'Chat attachments must be 10 MB or smaller.'];
     }
 

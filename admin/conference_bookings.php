@@ -163,10 +163,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $roomId = (int) ($_POST['room_id'] ?? 0);
         $isActive = ((string) ($_POST['is_active'] ?? '0') === '1') ? 1 : 0;
+        $unavailableReason = trim((string) ($_POST['unavailable_reason'] ?? ''));
         $room = conference_booking_find_room($conn, $roomId);
 
         if (!$room) {
             $_SESSION['conference_room_flash_error'] = 'Conference room not found.';
+        } elseif ($isActive === 0 && $unavailableReason === '') {
+            $_SESSION['conference_room_flash_error'] = 'Please add a reason before turning the room off.';
         } else {
             $result = updateRoom(
                 $conn,
@@ -177,6 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
 
             if (!empty($result['ok'])) {
+                conference_room_update_unavailable_reason($conn, $roomId, $isActive === 1 ? '' : $unavailableReason);
                 $roomName = trim((string) ($room['room_name'] ?? 'the selected room'));
                 $_SESSION['conference_room_flash_success'] = $roomName . ' is now ' . ($isActive === 1 ? 'available for booking.' : 'unavailable for booking.');
             } else {
@@ -1457,18 +1461,20 @@ function conference_admin_booking_status_text(string $status): string
             line-height: 1.65;
         }
         .room-delete-confirm-actions {
-            padding: 20px 30px 24px;
+            padding: 14px 30px 20px;
             border-top: 1px solid #e5e7eb;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
             background: #ffffff;
         }
         .room-delete-confirm-btn {
-            min-height: 50px;
-            border-radius: 18px;
+            min-width: 132px;
+            min-height: 40px;
+            padding: 8px 16px;
+            border-radius: 12px;
             border: 2px solid transparent;
-            font-size: 15px;
+            font-size: 13px;
             font-weight: 800;
             cursor: pointer;
             transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
@@ -1477,21 +1483,24 @@ function conference_admin_booking_status_text(string $status): string
             transform: translateY(-1px);
         }
         .room-delete-confirm-btn-delete {
-            background: linear-gradient(180deg, #f04e67 0%, #de3950 100%);
-            border-color: #9f1239;
+            background: #e9415a;
+            border-color: #e9415a;
             color: #ffffff;
-            box-shadow: 0 12px 24px rgba(225, 29, 72, 0.24);
+            box-shadow: none;
         }
         .room-delete-confirm-btn-delete:hover {
-            box-shadow: 0 16px 28px rgba(225, 29, 72, 0.28);
+            background: #dc354f;
+            border-color: #dc354f;
+            box-shadow: 0 8px 18px rgba(225, 29, 72, 0.16);
         }
         .room-delete-confirm-btn-cancel {
-            background: linear-gradient(180deg, #f8fafc 0%, #e8edf5 100%);
-            border-color: #475569;
+            background: #ffffff;
+            border-color: #cbd5e1;
             color: #273047;
         }
         .room-delete-confirm-btn-cancel:hover {
-            background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%);
+            background: #f8fafc;
+            border-color: #94a3b8;
         }
         .room-modal-header {
             padding: 22px 24px 20px;
@@ -1888,6 +1897,42 @@ function conference_admin_booking_status_text(string $status): string
             font-size: 12px;
             font-weight: 700;
             line-height: 1.35;
+        }
+        .room-unavailable-note {
+            flex-basis: 100%;
+            margin-top: 4px;
+            max-width: 260px;
+            color: #991b1b;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.45;
+        }
+        .room-unavailable-reason-field {
+            width: 100%;
+            min-height: 118px;
+            resize: vertical;
+            border: 1px solid #cbd5e1;
+            border-radius: 14px;
+            padding: 13px 14px;
+            color: #0f172a;
+            font-size: 14px;
+            line-height: 1.5;
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .room-unavailable-reason-field:focus {
+            border-color: #16a34a;
+            box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
+        }
+        #roomUnavailableReasonConfirm .room-delete-confirm-actions {
+            padding-top: 12px;
+            justify-content: center;
+        }
+        #roomUnavailableReasonConfirm .room-delete-confirm-btn {
+            min-width: 124px;
+            min-height: 38px;
+            border-radius: 999px;
+            font-size: 13px;
         }
         .room-edit-btn {
             display: inline-flex;
@@ -2712,16 +2757,24 @@ function conference_admin_booking_status_text(string $status): string
                                                     <input type="hidden" name="action" value="toggle_conference_room_status">
                                                     <input type="hidden" name="room_id" value="<?php echo $roomId; ?>">
                                                     <input type="hidden" name="is_active" value="<?php echo $isActive ? '0' : '1'; ?>">
+                                                    <input type="hidden" name="unavailable_reason" value="">
                                                     <div class="room-status-toggle-wrap">
                                                         <button
                                                             type="submit"
                                                             class="room-status-toggle-button <?php echo $isActive ? 'is-active' : ''; ?>"
+                                                            data-room-status-toggle
+                                                            data-room-name="<?php echo htmlspecialchars((string) ($room['room_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                                                             aria-label="<?php echo $isActive ? 'Mark room as unavailable for booking' : 'Mark room as available for booking'; ?>"
                                                             title="<?php echo $isActive ? 'Set as unavailable for booking' : 'Set as available for booking'; ?>"
                                                         ></button>
                                                         <span class="room-status-toggle-text">
                                                             <?php echo htmlspecialchars(conference_room_status_text((int) ($room['is_active'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>
                                                         </span>
+                                                        <?php if (!$isActive && trim((string) ($room['unavailable_reason'] ?? '')) !== ''): ?>
+                                                            <div class="room-unavailable-note">
+                                                                Reason: <?php echo htmlspecialchars((string) ($room['unavailable_reason'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+                                                            </div>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </form>
                                             </td>
@@ -2801,6 +2854,20 @@ function conference_admin_booking_status_text(string $status): string
                     </form>
                 </div>
             </div>
+            <div class="room-delete-confirm" id="roomUnavailableReasonConfirm" aria-hidden="true">
+                <div class="room-delete-confirm-card" role="dialog" aria-modal="true" aria-labelledby="roomUnavailableReasonTitle">
+                    <div class="room-delete-confirm-body">
+                        <div class="room-delete-confirm-icon" aria-hidden="true"><i class="fas fa-note-sticky"></i></div>
+                        <h3 class="room-delete-confirm-title" id="roomUnavailableReasonTitle">Turn room off?</h3>
+                        <p class="room-delete-confirm-copy" id="roomUnavailableReasonCopy">Add a note explaining why this room will be unavailable for booking.</p>
+                        <textarea id="roomUnavailableReasonInput" class="room-unavailable-reason-field" placeholder="Enter reason..." required></textarea>
+                    </div>
+                    <div class="room-delete-confirm-actions">
+                        <button type="button" class="room-delete-confirm-btn room-delete-confirm-btn-delete" id="roomUnavailableReasonSubmit">Turn Off Room</button>
+                        <button type="button" class="room-delete-confirm-btn room-delete-confirm-btn-cancel" id="roomUnavailableReasonCancel">Cancel</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -2844,6 +2911,12 @@ function conference_admin_booking_status_text(string $status): string
             const deleteConfirmRoomId = document.getElementById('roomDeleteConfirmRoomId');
             const deleteConfirmCopy = document.getElementById('roomDeleteConfirmCopy');
             const deleteConfirmCancel = document.getElementById('roomDeleteConfirmCancel');
+            const unavailableReasonConfirm = document.getElementById('roomUnavailableReasonConfirm');
+            const unavailableReasonTitle = document.getElementById('roomUnavailableReasonTitle');
+            const unavailableReasonCopy = document.getElementById('roomUnavailableReasonCopy');
+            const unavailableReasonInput = document.getElementById('roomUnavailableReasonInput');
+            const unavailableReasonSubmit = document.getElementById('roomUnavailableReasonSubmit');
+            const unavailableReasonCancel = document.getElementById('roomUnavailableReasonCancel');
             const bookingDeleteConfirm = document.getElementById('bookingDeleteConfirm');
             const bookingDeleteConfirmTitle = document.getElementById('bookingDeleteConfirmTitle');
             const bookingDeleteConfirmBookingId = document.getElementById('bookingDeleteConfirmBookingId');
@@ -2863,6 +2936,7 @@ function conference_admin_booking_status_text(string $status): string
             const roomFilterButtons = document.querySelectorAll('.room-filter-trigger');
             const bookingsPerPage = 5;
             let currentBookingPage = 1;
+            let pendingUnavailableForm = null;
             const roomFormDefaults = <?php echo json_encode([
                 'mode' => $roomFormMode,
                 'room_id' => (int) ($roomFormState['room_id'] ?? 0),
@@ -2888,7 +2962,7 @@ function conference_admin_booking_status_text(string $status): string
             const shouldOpenModal = <?php echo $openRoomModal ? 'true' : 'false'; ?>;
             const shouldOpenBookingEditModal = <?php echo $openBookingEditModal ? 'true' : 'false'; ?>;
 
-            if (!modal || !bookingEditModal || !roomFormAction || !roomFormRoomId || !roomFormName || !roomFormDescription || !roomFormActiveValue || !roomFormTitle || !roomFormHelp || !roomFormSubmitText || !cancelEditButton || !bookingEditBookingId || !bookingEditRoomId || !bookingEditDate || !bookingEditStartHour || !bookingEditStartMinute || !bookingEditStartPeriod || !bookingEditEndHour || !bookingEditEndMinute || !bookingEditEndPeriod || !bookingEditPurpose || !deleteConfirm || !deleteConfirmRoomId || !deleteConfirmCopy || !deleteConfirmCancel || !bookingDeleteConfirm || !bookingDeleteConfirmTitle || !bookingDeleteConfirmBookingId || !bookingDeleteConfirmAction || !bookingDeleteConfirmCopy || !bookingDeleteConfirmSubmit || !bookingDeleteConfirmCancel) {
+            if (!modal || !bookingEditModal || !roomFormAction || !roomFormRoomId || !roomFormName || !roomFormDescription || !roomFormActiveValue || !roomFormTitle || !roomFormHelp || !roomFormSubmitText || !cancelEditButton || !bookingEditBookingId || !bookingEditRoomId || !bookingEditDate || !bookingEditStartHour || !bookingEditStartMinute || !bookingEditStartPeriod || !bookingEditEndHour || !bookingEditEndMinute || !bookingEditEndPeriod || !bookingEditPurpose || !deleteConfirm || !deleteConfirmRoomId || !deleteConfirmCopy || !deleteConfirmCancel || !unavailableReasonConfirm || !unavailableReasonTitle || !unavailableReasonCopy || !unavailableReasonInput || !unavailableReasonSubmit || !unavailableReasonCancel || !bookingDeleteConfirm || !bookingDeleteConfirmTitle || !bookingDeleteConfirmBookingId || !bookingDeleteConfirmAction || !bookingDeleteConfirmCopy || !bookingDeleteConfirmSubmit || !bookingDeleteConfirmCancel) {
                 return;
             }
 
@@ -2897,6 +2971,7 @@ function conference_admin_booking_status_text(string $status): string
                     modal.classList.contains('is-open') ||
                     bookingEditModal.classList.contains('is-open') ||
                     deleteConfirm.classList.contains('is-open') ||
+                    unavailableReasonConfirm.classList.contains('is-open') ||
                     bookingDeleteConfirm.classList.contains('is-open');
                 document.body.classList.toggle('room-modal-active', hasOpenOverlay);
             }
@@ -2924,6 +2999,7 @@ function conference_admin_booking_status_text(string $status): string
 
             function closeModal() {
                 closeDeleteConfirm();
+                closeUnavailableReasonConfirm();
                 modal.classList.remove('is-open');
                 modal.setAttribute('aria-hidden', 'true');
                 syncBodyModalState();
@@ -3013,6 +3089,27 @@ function conference_admin_booking_status_text(string $status): string
                 deleteConfirm.classList.remove('is-open');
                 deleteConfirm.setAttribute('aria-hidden', 'true');
                 deleteConfirmRoomId.value = '';
+                syncBodyModalState();
+            }
+
+            function openUnavailableReasonConfirm(form, roomName) {
+                pendingUnavailableForm = form;
+                unavailableReasonInput.value = '';
+                unavailableReasonTitle.textContent = roomName ? 'Turn off ' + roomName + '?' : 'Turn room off?';
+                unavailableReasonCopy.textContent = 'Add a note explaining why this room will be unavailable for booking.';
+                unavailableReasonConfirm.classList.add('is-open');
+                unavailableReasonConfirm.setAttribute('aria-hidden', 'false');
+                syncBodyModalState();
+                setTimeout(function () {
+                    unavailableReasonInput.focus();
+                }, 30);
+            }
+
+            function closeUnavailableReasonConfirm() {
+                unavailableReasonConfirm.classList.remove('is-open');
+                unavailableReasonConfirm.setAttribute('aria-hidden', 'true');
+                unavailableReasonInput.value = '';
+                pendingUnavailableForm = null;
                 syncBodyModalState();
             }
 
@@ -3360,6 +3457,49 @@ function conference_admin_booking_status_text(string $status): string
                 });
             });
 
+            document.querySelectorAll('.room-status-toggle-form').forEach(function (form) {
+                form.addEventListener('submit', function (event) {
+                    const actionInput = form.querySelector('input[name="action"]');
+                    const activeInput = form.querySelector('input[name="is_active"]');
+                    const reasonInput = form.querySelector('input[name="unavailable_reason"]');
+                    if (!actionInput || actionInput.value !== 'toggle_conference_room_status' || !activeInput) {
+                        return;
+                    }
+
+                    if (String(activeInput.value || '') === '0' && reasonInput && reasonInput.value.trim() === '') {
+                        const toggleButton = form.querySelector('[data-room-status-toggle]');
+                        const roomName = toggleButton ? String(toggleButton.getAttribute('data-room-name') || '').trim() : '';
+                        event.preventDefault();
+                        openUnavailableReasonConfirm(form, roomName);
+                    }
+                });
+            });
+
+            unavailableReasonSubmit.addEventListener('click', function () {
+                const reason = unavailableReasonInput.value.trim();
+                if (reason === '') {
+                    unavailableReasonInput.focus();
+                    return;
+                }
+                if (!pendingUnavailableForm) {
+                    closeUnavailableReasonConfirm();
+                    return;
+                }
+
+                const reasonInput = pendingUnavailableForm.querySelector('input[name="unavailable_reason"]');
+                if (reasonInput) {
+                    reasonInput.value = reason;
+                }
+                const formToSubmit = pendingUnavailableForm;
+                pendingUnavailableForm = null;
+                unavailableReasonConfirm.classList.remove('is-open');
+                unavailableReasonConfirm.setAttribute('aria-hidden', 'true');
+                syncBodyModalState();
+                formToSubmit.submit();
+            });
+
+            unavailableReasonCancel.addEventListener('click', closeUnavailableReasonConfirm);
+
             closeTargets.forEach(function (target) {
                 target.addEventListener('click', closeModal);
             });
@@ -3465,6 +3605,12 @@ function conference_admin_booking_status_text(string $status): string
                 }
             });
 
+            unavailableReasonConfirm.addEventListener('click', function (event) {
+                if (event.target === unavailableReasonConfirm) {
+                    closeUnavailableReasonConfirm();
+                }
+            });
+
             bookingDeleteConfirm.addEventListener('click', function (event) {
                 if (event.target === bookingDeleteConfirm) {
                     closeBookingDeleteConfirm();
@@ -3491,6 +3637,10 @@ function conference_admin_booking_status_text(string $status): string
                 }
                 if (event.key === 'Escape' && deleteConfirm.classList.contains('is-open')) {
                     closeDeleteConfirm();
+                    return;
+                }
+                if (event.key === 'Escape' && unavailableReasonConfirm.classList.contains('is-open')) {
+                    closeUnavailableReasonConfirm();
                     return;
                 }
                 if (event.key === 'Escape' && modal.classList.contains('is-open')) {
