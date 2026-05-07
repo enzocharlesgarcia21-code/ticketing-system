@@ -116,7 +116,7 @@ if (!$ticket || ((int) ($ticket['user_id'] ?? 0) !== $userId && strtolower(trim(
     $redirectWithMessage('error', 'You are not allowed to submit feedback for this ticket.', true);
 }
 
-if (!in_array((string) ($ticket['status'] ?? ''), ['Resolved', 'Closed'], true) || (string) ($ticket['feedback_status'] ?? '') !== 'pending') {
+if (!in_array((string) ($ticket['status'] ?? ''), ['Resolved', 'Closed'], true) || ((string) ($ticket['feedback_status'] ?? '') !== 'pending' && $ticket['feedback_status'] !== null)) {
     $redirectWithMessage('error', 'This ticket is no longer waiting for feedback.');
 }
 
