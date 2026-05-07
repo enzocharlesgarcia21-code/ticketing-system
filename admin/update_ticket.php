@@ -35,7 +35,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // --- FETCH OLD DATA FOR COMPARISON & NOTIFICATIONS ---
+    // Try with all optional columns first; fall back to minimal set if columns are missing.
     $old_stmt = $conn->prepare("SELECT user_id, requester_email, status, assigned_department, assigned_company, assigned_group, assigned_user_id, assigned_to, company, admin_note FROM employee_tickets WHERE id = ?");
+    if (!$old_stmt) {
+        // Some optional columns may not exist yet — retry with minimal set
+        $old_stmt = $conn->prepare("SELECT user_id, NULL AS requester_email, status, assigned_department, NULL AS assigned_company, NULL AS assigned_group, NULL AS assigned_user_id, NULL AS assigned_to, company, admin_note FROM employee_tickets WHERE id = ?");
+        if (!$old_stmt) {
+            error_log('admin/update_ticket.php: old_stmt prepare failed: ' . $conn->error);
+            header("Location: all_tickets.php");
+            exit();
+        }
+    }
     $old_stmt->bind_param("i", $id);
     $old_stmt->execute();
     $old_res = $old_stmt->get_result();
