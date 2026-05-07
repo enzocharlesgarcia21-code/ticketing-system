@@ -348,8 +348,20 @@ function notif_insert_system(mysqli $conn, int $userId, int $ticketId, string $m
 
     $stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, title, message, type, action_type) VALUES (?, ?, ?, ?, ?, ?)");
     if (!$stmt) {
-        error_log('Notification insert prepare failed | userId=' . (string) $userId . ' ticketId=' . (string) $ticketId . ' err=' . (string) $conn->error);
-        return false;
+        error_log('Notification insert prepare failed (full) | userId=' . (string) $userId . ' ticketId=' . (string) $ticketId . ' err=' . (string) $conn->error);
+        // Fallback: title/action_type columns may not exist on this server yet — use basic INSERT
+        $stmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, message, type) VALUES (?, ?, ?, ?)");
+        if (!$stmt) {
+            error_log('Notification insert prepare failed (basic fallback) | userId=' . (string) $userId . ' ticketId=' . (string) $ticketId . ' err=' . (string) $conn->error);
+            return false;
+        }
+        $stmt->bind_param("iiss", $userId, $ticketId, $message, $type);
+        $ok = $stmt->execute();
+        if (!$ok) {
+            error_log('Notification insert failed (basic fallback) | userId=' . (string) $userId . ' ticketId=' . (string) $ticketId . ' err=' . (string) $stmt->error);
+        }
+        $stmt->close();
+        return (bool) $ok;
     }
     $stmt->bind_param("iissss", $userId, $ticketId, $title, $message, $type, $actionType);
     $ok = $stmt->execute();
