@@ -994,7 +994,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
         'type' => $flashType,
         'message' => $flashMessage,
     ];
-    header("Location: my_tickets.php");
+    if ($flashType === 'success' && $ticketId > 0) {
+        header("Location: my_tickets.php?show_feedback=1&ticket_id=" . $ticketId);
+    } else {
+        header("Location: my_tickets.php");
+    }
     exit();
 }
 follow_up_sync_user_ticket_cooldowns($conn, $user_id);
@@ -1026,7 +1030,7 @@ $pendingFeedbackStmt = $conn->prepare("
     LEFT JOIN users assignee
         ON assignee.id = COALESCE(NULLIF(t.assigned_user_id, 0), NULLIF(t.assigned_to, 0))
     WHERE (t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)
-      AND t.status = 'Resolved'
+      AND t.status IN ('Resolved', 'Closed')
       AND t.feedback_status = 'pending'
       AND COALESCE(NULLIF(t.assigned_to, 0), NULLIF(t.assigned_user_id, 0)) IS NOT NULL
     ORDER BY t.resolved_at DESC, t.id DESC
