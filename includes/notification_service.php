@@ -252,20 +252,58 @@ function notif_user_id_by_email(mysqli $conn, string $email): int
 
 function notif_requester_user_id(mysqli $conn, array $ticket): int
 {
-    $requesterUserId = notif_user_id_by_email($conn, (string) ($ticket['requester_email'] ?? ''));
-    if ($requesterUserId > 0) {
-        return $requesterUserId;
-    }
-
-    $creatorEmail = trim((string) ($ticket['creator_email'] ?? ''));
-    if ($creatorEmail !== '' && strcasecmp($creatorEmail, (string) ($ticket['requester_email'] ?? '')) !== 0) {
-        $requesterUserId = notif_user_id_by_email($conn, $creatorEmail);
-        if ($requesterUserId > 0) {
-            return $requesterUserId;
+    // For shared-account (sales) tickets, requester_email identifies the actual requester
+    $requesterEmail = trim((string) ($ticket['requester_email'] ?? ''));
+    if ($requesterEmail !== '') {
+        $found = notif_user_id_by_email($conn, $requesterEmail);
+        if ($found > 0) {
+            return $found;
         }
     }
 
-    return (int) ($ticket['user_id'] ?? 0);
+    // For regular tickets the ticket's own user_id IS the requester — use it directly
+    $userId = (int) ($ticket['user_id'] ?? 0);
+    if ($userId > 0) {
+        return $userId;
+    }
+
+    // Last resort: look up by creator_email (computed field from notif_ticket_data)
+    $creatorEmail = trim((string) ($ticket['creator_email'] ?? ''));
+    if ($creatorEmail !== '' && strcasecmp($creatorEmail, $requesterEmail) !== 0) {
+        $found = notif_user_id_by_email($conn, $creatorEmail);
+        if ($found > 0) {
+            return $found;
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * Returns ALL user IDs that should receive requester-side notifications for a ticket.
+ * For shared/sales-account tickets this includes both the submitting account (user_id)
+ * and the actual requester found via requester_email, so neither misses the notification.
+ */
+function notif_requester_user_ids(mysqli $conn, array $ticket): array
+{
+    $ids = [];
+
+    // Always include the account that submitted the ticket
+    $ownerId = (int) ($ticket['user_id'] ?? 0);
+    if ($ownerId > 0) {
+        $ids[] = $ownerId;
+    }
+
+    // For shared/sales-account tickets, also notify the actual requester by email
+    $requesterEmail = trim((string) ($ticket['requester_email'] ?? ''));
+    if ($requesterEmail !== '') {
+        $found = notif_user_id_by_email($conn, $requesterEmail);
+        if ($found > 0 && $found !== $ownerId) {
+            $ids[] = $found;
+        }
+    }
+
+    return array_values(array_unique(array_filter($ids)));
 }
 
 function notif_admin_user_ids(mysqli $conn): array
@@ -716,6 +754,7 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
     }
 
     $creatorId = notif_requester_user_id($conn, $ticket);
+    $creatorIds = notif_requester_user_ids($conn, $ticket);
     $creatorEmail = trim((string) ($ticket['creator_email'] ?? ''));
     $ticketNumber = notif_ticket_number($ticketId);
     $title = strcasecmp($newStatus, 'Closed') === 0 ? 'Ticket Closed' : 'Ticket Status Updated';
@@ -742,8 +781,12 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
         : ('Your ticket #' . $ticketId . ' status was updated to ' . $newStatus . $bySuffix . '.');
 
     $inserted = 0;
-    if (!$skipSystem && $creatorId > 0 && notif_insert_system($conn, $creatorId, $ticketId, $message, strcasecmp($newStatus, 'Closed') === 0 ? 'ticket_closed' : 'status_update', 15, strcasecmp($newStatus, 'Closed') === 0 ? 'close' : 'update', $title)) {
-        $inserted = 1;
+    if (!$skipSystem) {
+        foreach ($creatorIds as $cId) {
+            if ($cId > 0 && notif_insert_system($conn, $cId, $ticketId, $message, strcasecmp($newStatus, 'Closed') === 0 ? 'ticket_closed' : 'status_update', 15, strcasecmp($newStatus, 'Closed') === 0 ? 'close' : 'update', $title)) {
+                $inserted++;
+            }
+        }
     }
 
     if ($skipEmail) {
