@@ -517,9 +517,9 @@ function notif_ticket_data(mysqli $conn, int $ticketId): ?array
         LIMIT 1
     ");
     if (!$stmt) {
-        // Fallback: requester_name / requester_email columns may not exist yet on this server.
-        // Use a simpler query so notifications still work.
-        error_log('notif_ticket_data: primary prepare failed (ticketId=' . $ticketId . ') err=' . $conn->error . ' — retrying without requester columns');
+        // Fallback 1: requester_name / requester_email / assigned_group / assigned_company
+        // may not exist yet. Try without optional columns.
+        error_log('notif_ticket_data: primary prepare failed (ticketId=' . $ticketId . ') err=' . $conn->error . ' — retrying without requester/group columns');
         $stmt = $conn->prepare("
             SELECT
                 t.id,
@@ -532,11 +532,10 @@ function notif_ticket_data(mysqli $conn, int $ticketId): ?array
                 t.status,
                 t.created_at,
                 t.updated_at,
-                t.started_at,
                 t.assigned_user_id,
                 t.assigned_department,
-                t.assigned_group,
-                t.assigned_company,
+                NULL AS assigned_group,
+                NULL AS assigned_company,
                 NULL AS requester_name,
                 NULL AS requester_email,
                 creator.name AS creator_name,
@@ -551,8 +550,40 @@ function notif_ticket_data(mysqli $conn, int $ticketId): ?array
             LIMIT 1
         ");
         if (!$stmt) {
-            error_log('notif_ticket_data: fallback prepare also failed (ticketId=' . $ticketId . ') err=' . $conn->error);
-            return null;
+            // Fallback 2: ultra-minimal — only columns present in every schema version.
+            error_log('notif_ticket_data: fallback1 prepare also failed (ticketId=' . $ticketId . ') err=' . $conn->error . ' — trying ultra-minimal');
+            $stmt = $conn->prepare("
+                SELECT
+                    t.id,
+                    t.user_id,
+                    t.subject,
+                    t.priority,
+                    t.status,
+                    t.created_at,
+                    NULL AS category,
+                    NULL AS description,
+                    NULL AS attachment,
+                    NULL AS updated_at,
+                    NULL AS assigned_user_id,
+                    t.department AS assigned_department,
+                    NULL AS assigned_group,
+                    NULL AS assigned_company,
+                    NULL AS requester_name,
+                    NULL AS requester_email,
+                    creator.name AS creator_name,
+                    creator.email AS creator_email,
+                    NULL AS assignee_name,
+                    NULL AS assignee_email,
+                    NULL AS assignee_department
+                FROM employee_tickets t
+                LEFT JOIN users creator ON creator.id = t.user_id
+                WHERE t.id = ?
+                LIMIT 1
+            ");
+            if (!$stmt) {
+                error_log('notif_ticket_data: all fallbacks failed (ticketId=' . $ticketId . ') err=' . $conn->error);
+                return null;
+            }
         }
     }
     $stmt->bind_param("i", $ticketId);
