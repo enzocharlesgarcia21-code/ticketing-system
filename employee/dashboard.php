@@ -248,36 +248,6 @@ function dashboard_sla_rank(string $createdAt, string $status, string $priority 
 
     $priorityKey = strtolower(trim($priority));
     if ($priorityKey === 'critical') return 0;
-
-$pendingFeedbackTickets = [];
-$pendingFeedbackStmt = $conn->prepare("\n    SELECT\n        t.id,\n        t.subject,\n        t.feedback_status,\n        t.status,\n        t.company,\n        t.assigned_company,\n        t.assigned_department,\n        t.assigned_group,\n        COALESCE(NULLIF(assignee.full_name, ''), NULLIF(assignee.name, ''), 'Support Team') AS assignee_name,\n        assignee.department AS assignee_department,\n        assignee.company AS assignee_company\n    FROM employee_tickets t\n    LEFT JOIN users assignee\n        ON assignee.id = COALESCE(NULLIF(t.assigned_user_id, 0), NULLIF(t.assigned_to, 0))\n    WHERE (t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)\n      AND t.status = 'Resolved'\n      AND t.feedback_status = 'pending'\n      AND COALESCE(NULLIF(t.assigned_to, 0), NULLIF(t.assigned_user_id, 0)) IS NOT NULL\n    ORDER BY t.resolved_at DESC, t.id DESC\n");
-if ($pendingFeedbackStmt) {
-    $pendingFeedbackStmt->bind_param("is", $user_id, $user_email);
-    $pendingFeedbackStmt->execute();
-    $pendingFeedbackRes = $pendingFeedbackStmt->get_result();
-    while ($pendingFeedbackRes && ($pendingFeedbackRow = $pendingFeedbackRes->fetch_assoc())) {
-        $pendingFeedbackRow['assignee_display'] = feedback_assignee_display($pendingFeedbackRow);
-        $pendingFeedbackTickets[(int) ($pendingFeedbackRow['id'] ?? 0)] = $pendingFeedbackRow;
-    }
-    $pendingFeedbackStmt->close();
-}
-
-$feedbackModalTicketId = 0;
-if ($requestedTicketId > 0 && isset($pendingFeedbackTickets[$requestedTicketId])) {
-    $feedbackModalTicketId = $requestedTicketId;
-} elseif ($feedbackFlashTicketId > 0 && isset($pendingFeedbackTickets[$feedbackFlashTicketId])) {
-    $feedbackModalTicketId = $feedbackFlashTicketId;
-} else {
-    foreach ($pendingFeedbackTickets as $pendingFeedbackTicketId => $_pendingFeedbackTicket) {
-        $feedbackModalTicketId = (int) $pendingFeedbackTicketId;
-        break;
-    }
-}
-
-$feedbackModalTicket = $feedbackModalTicketId > 0 && isset($pendingFeedbackTickets[$feedbackModalTicketId])
-    ? $pendingFeedbackTickets[$feedbackModalTicketId]
-    : null;
-$shouldAutoShowFeedbackModal = !$showFeedbackSuccessModal && $feedbackModalTicket !== null;
     if ($priorityKey === 'high') return 1;
 
     $createdAt = trim($createdAt);
@@ -315,6 +285,36 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
     }
     return '-';
 }
+
+$pendingFeedbackTickets = [];
+$pendingFeedbackStmt = $conn->prepare("\n    SELECT\n        t.id,\n        t.subject,\n        t.feedback_status,\n        t.status,\n        t.company,\n        t.assigned_company,\n        t.assigned_department,\n        t.assigned_group,\n        COALESCE(NULLIF(assignee.full_name, ''), NULLIF(assignee.name, ''), 'Support Team') AS assignee_name,\n        assignee.department AS assignee_department,\n        assignee.company AS assignee_company\n    FROM employee_tickets t\n    LEFT JOIN users assignee\n        ON assignee.id = COALESCE(NULLIF(t.assigned_user_id, 0), NULLIF(t.assigned_to, 0))\n    WHERE (t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)\n      AND t.status = 'Resolved'\n      AND t.feedback_status = 'pending'\n      AND COALESCE(NULLIF(t.assigned_to, 0), NULLIF(t.assigned_user_id, 0)) IS NOT NULL\n    ORDER BY t.resolved_at DESC, t.id DESC\n");
+if ($pendingFeedbackStmt) {
+    $pendingFeedbackStmt->bind_param("is", $user_id, $user_email);
+    $pendingFeedbackStmt->execute();
+    $pendingFeedbackRes = $pendingFeedbackStmt->get_result();
+    while ($pendingFeedbackRes && ($pendingFeedbackRow = $pendingFeedbackRes->fetch_assoc())) {
+        $pendingFeedbackRow['assignee_display'] = feedback_assignee_display($pendingFeedbackRow);
+        $pendingFeedbackTickets[(int) ($pendingFeedbackRow['id'] ?? 0)] = $pendingFeedbackRow;
+    }
+    $pendingFeedbackStmt->close();
+}
+
+$feedbackModalTicketId = 0;
+if ($requestedTicketId > 0 && isset($pendingFeedbackTickets[$requestedTicketId])) {
+    $feedbackModalTicketId = $requestedTicketId;
+} elseif ($feedbackFlashTicketId > 0 && isset($pendingFeedbackTickets[$feedbackFlashTicketId])) {
+    $feedbackModalTicketId = $feedbackFlashTicketId;
+} else {
+    foreach ($pendingFeedbackTickets as $pendingFeedbackTicketId => $_pendingFeedbackTicket) {
+        $feedbackModalTicketId = (int) $pendingFeedbackTicketId;
+        break;
+    }
+}
+
+$feedbackModalTicket = $feedbackModalTicketId > 0 && isset($pendingFeedbackTickets[$feedbackModalTicketId])
+    ? $pendingFeedbackTickets[$feedbackModalTicketId]
+    : null;
+$shouldAutoShowFeedbackModal = !$showFeedbackSuccessModal && $feedbackModalTicket !== null;
 ?>
 
 <!DOCTYPE html>
