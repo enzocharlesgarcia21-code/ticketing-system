@@ -503,26 +503,11 @@ $updateOk = false;
                         'attachments' => $attachments,
                         'assignee_emails' => $assigneeEmails,
                         'extra_lines' => $sharedUpdateLines,
-                        'skip_email' => true,
                     ]
                 );
 
                 flush_ticket_update_redirect("my_task.php");
                 $responseFlushed = true;
-
-                notif_send_ticket_status_update(
-                    $conn,
-                    (int) $id,
-                    (string) ($old_data['status'] ?? ''),
-                    (string) $new_status,
-                    $updateSourceLabel,
-                    [
-                        'attachments' => $attachments,
-                        'assignee_emails' => $assigneeEmails,
-                        'extra_lines' => $sharedUpdateLines,
-                        'skip_system' => true,
-                    ]
-                );
             } else {
                 flush_ticket_update_redirect("my_task.php");
                 $responseFlushed = true;

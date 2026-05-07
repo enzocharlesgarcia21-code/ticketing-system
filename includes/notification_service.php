@@ -250,22 +250,33 @@ function notif_user_id_by_email(mysqli $conn, string $email): int
     return $row ? (int) ($row['id'] ?? 0) : 0;
 }
 
-function notif_requester_user_id(mysqli $conn, array $ticket): int
+function notif_requester_user_ids(mysqli $conn, array $ticket): array
 {
-    $requesterUserId = notif_user_id_by_email($conn, (string) ($ticket['requester_email'] ?? ''));
-    if ($requesterUserId > 0) {
-        return $requesterUserId;
-    }
+    $ids = [];
+    $emails = [
+        (string) ($ticket['requester_email'] ?? ''),
+        (string) ($ticket['creator_email'] ?? ''),
+    ];
 
-    $creatorEmail = trim((string) ($ticket['creator_email'] ?? ''));
-    if ($creatorEmail !== '' && strcasecmp($creatorEmail, (string) ($ticket['requester_email'] ?? '')) !== 0) {
-        $requesterUserId = notif_user_id_by_email($conn, $creatorEmail);
-        if ($requesterUserId > 0) {
-            return $requesterUserId;
+    foreach ($emails as $email) {
+        $userId = notif_user_id_by_email($conn, $email);
+        if ($userId > 0) {
+            $ids[] = $userId;
         }
     }
 
-    return (int) ($ticket['user_id'] ?? 0);
+    $fallbackUserId = (int) ($ticket['user_id'] ?? 0);
+    if ($fallbackUserId > 0) {
+        $ids[] = $fallbackUserId;
+    }
+
+    return notif_unique_user_ids($ids);
+}
+
+function notif_requester_user_id(mysqli $conn, array $ticket): int
+{
+    $requesterUserIds = notif_requester_user_ids($conn, $ticket);
+    return $requesterUserIds[0] ?? 0;
 }
 
 function notif_admin_user_ids(mysqli $conn): array
@@ -715,7 +726,7 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
         return ['inserted' => 0, 'emailed' => 0];
     }
 
-    $creatorId = notif_requester_user_id($conn, $ticket);
+    $creatorIds = notif_requester_user_ids($conn, $ticket);
     $creatorEmail = trim((string) ($ticket['creator_email'] ?? ''));
     $ticketNumber = notif_ticket_number($ticketId);
     $title = strcasecmp($newStatus, 'Closed') === 0 ? 'Ticket Closed' : 'Ticket Status Updated';
@@ -742,8 +753,12 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
         : ('Your ticket #' . $ticketId . ' status was updated to ' . $newStatus . $bySuffix . '.');
 
     $inserted = 0;
-    if (!$skipSystem && $creatorId > 0 && notif_insert_system($conn, $creatorId, $ticketId, $message, strcasecmp($newStatus, 'Closed') === 0 ? 'ticket_closed' : 'status_update', 15, strcasecmp($newStatus, 'Closed') === 0 ? 'close' : 'update', $title)) {
-        $inserted = 1;
+    if (!$skipSystem) {
+        foreach ($creatorIds as $creatorId) {
+            if (notif_insert_system($conn, (int) $creatorId, $ticketId, $message, strcasecmp($newStatus, 'Closed') === 0 ? 'ticket_closed' : 'status_update', 15, strcasecmp($newStatus, 'Closed') === 0 ? 'close' : 'update', $title)) {
+                $inserted++;
+            }
+        }
     }
 
     if ($skipEmail) {
