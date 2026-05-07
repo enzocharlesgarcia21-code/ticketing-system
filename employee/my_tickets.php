@@ -1031,7 +1031,7 @@ $pendingFeedbackStmt = $conn->prepare("
         ON assignee.id = COALESCE(NULLIF(t.assigned_user_id, 0), NULLIF(t.assigned_to, 0))
     WHERE (t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)
       AND t.status IN ('Resolved', 'Closed')
-      AND t.feedback_status = 'pending'
+      AND (t.feedback_status = 'pending' OR t.feedback_status IS NULL)
       AND COALESCE(NULLIF(t.assigned_to, 0), NULLIF(t.assigned_user_id, 0)) IS NOT NULL
     ORDER BY t.resolved_at DESC, t.id DESC
 ");
@@ -1050,6 +1050,13 @@ $feedbackModalTicket = $feedbackModalTicketId > 0 && isset($pendingFeedbackTicke
     ? $pendingFeedbackTickets[$feedbackModalTicketId]
     : null;
 $shouldAutoShowFeedbackModal = isset($_GET['show_feedback']) && $_GET['show_feedback'] === '1';
+// Auto-show for the first pending-feedback ticket on page load (e.g. after ticket is resolved)
+if (!$shouldAutoShowFeedbackModal && $feedbackModalTicket === null && !empty($pendingFeedbackTickets)) {
+    $firstId = (int) array_key_first($pendingFeedbackTickets);
+    $feedbackModalTicketId   = $firstId;
+    $feedbackModalTicket     = $pendingFeedbackTickets[$firstId];
+    $shouldAutoShowFeedbackModal = true;
+}
 $limit = 10;
 $page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
 if ($page < 1) $page = 1;
@@ -3614,9 +3621,7 @@ $successMessage = '';
     });
     window.TM_ON_TICKET_MODAL_CLOSE = function (ticketMeta) {
         var ticketId = parseInt(ticketMeta && ticketMeta.id ? ticketMeta.id : '', 10);
-        var status = String(ticketMeta && ticketMeta.status ? ticketMeta.status : '');
-        var feedbackStatus = String(ticketMeta && ticketMeta.feedback_status ? ticketMeta.feedback_status : '');
-        if (ticketId > 0 && /^resolved$/i.test(status) && /^pending$/i.test(feedbackStatus)) {
+        if (ticketId > 0) {
             showFeedbackModalForTicket(ticketId);
         }
     };
