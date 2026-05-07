@@ -247,7 +247,8 @@ if ($insertedAll) {
             (int) $ticket_id,
             'Open',
             'In Progress',
-            $statusUpdatedBy
+            $statusUpdatedBy,
+            ['skip_email' => true]
         );
     }
 
