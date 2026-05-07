@@ -136,10 +136,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             admin_note = ?,
             is_read = 1, 
             updated_at = NOW(),
-            feedback_status = CASE
-                WHEN ? = 'Resolved' THEN 'pending'
-                ELSE feedback_status
-            END,
             resolved_at = CASE 
                 WHEN (? = 'Resolved' OR ? = 'Closed') AND resolved_at IS NULL THEN NOW() 
                 WHEN ? = 'Open' THEN NULL
@@ -147,10 +143,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             END
         WHERE id = ?
     ");
-    
-    $update->bind_param("ssssiisssssi", $new_status, $newDeptNorm, $newCompanyNorm, $effective_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $new_status, $new_status, $id);
+
+    if (!$update) {
+        error_log('admin/update_ticket.php: UPDATE prepare failed: ' . $conn->error);
+        header("Location: all_tickets.php");
+        exit();
+    }
+
+    $update->bind_param("ssssiissssi", $new_status, $newDeptNorm, $newCompanyNorm, $effective_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $new_status, $id);
     
     if ($update->execute()) {
+        // Separately set feedback_status = 'pending' when admin resolves a ticket.
+        // Done as a separate query so the main update never fails if the column doesn't exist yet.
+        if ($new_status === 'Resolved') {
+            $conn->query("UPDATE employee_tickets SET feedback_status = 'pending' WHERE id = " . (int)$id . " AND COALESCE(feedback_status, '') NOT IN ('submitted', 'skipped')");
+        }
         $_SESSION['success'] = "Ticket #$id successfully updated.";
 
         // --- TICKET ACTIVITY LOG: Status change ---

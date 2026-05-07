@@ -1043,6 +1043,39 @@ if ($pendingFeedbackStmt) {
         $pendingFeedbackTickets[(int) ($pendingFeedbackRow['id'] ?? 0)] = $pendingFeedbackRow;
     }
     $pendingFeedbackStmt->close();
+} else {
+    // Fallback: requester_email / feedback_status / full_name columns may not exist yet
+    $pendingFeedbackFallback = $conn->prepare("
+        SELECT
+            t.id,
+            t.subject,
+            NULL AS feedback_status,
+            t.status,
+            t.company,
+            t.assigned_company,
+            t.assigned_department,
+            t.assigned_group,
+            COALESCE(NULLIF(assignee.name, ''), 'Support Team') AS assignee_name,
+            assignee.department AS assignee_department,
+            assignee.company AS assignee_company
+        FROM employee_tickets t
+        LEFT JOIN users assignee
+            ON assignee.id = COALESCE(NULLIF(t.assigned_user_id, 0), NULLIF(t.assigned_to, 0))
+        WHERE t.user_id = ?
+          AND t.status IN ('Resolved', 'Closed')
+        ORDER BY t.id DESC
+        LIMIT 5
+    ");
+    if ($pendingFeedbackFallback) {
+        $pendingFeedbackFallback->bind_param("i", $user_id);
+        $pendingFeedbackFallback->execute();
+        $pendingFeedbackRes = $pendingFeedbackFallback->get_result();
+        while ($pendingFeedbackRes && ($pendingFeedbackRow = $pendingFeedbackRes->fetch_assoc())) {
+            $pendingFeedbackRow['assignee_display'] = feedback_assignee_display($pendingFeedbackRow);
+            $pendingFeedbackTickets[(int) ($pendingFeedbackRow['id'] ?? 0)] = $pendingFeedbackRow;
+        }
+        $pendingFeedbackFallback->close();
+    }
 }
 $feedbackModalTicketId = $requestedTicketId > 0 ? $requestedTicketId : $feedbackFlashTicketId;
 $feedbackModalTicket = $feedbackModalTicketId > 0 && isset($pendingFeedbackTickets[$feedbackModalTicketId])
