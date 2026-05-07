@@ -1046,6 +1046,9 @@ $feedbackModalTicket = $feedbackModalTicketId > 0 && isset($pendingFeedbackTicke
     ? $pendingFeedbackTickets[$feedbackModalTicketId]
     : null;
 $shouldAutoShowFeedbackModal = isset($_GET['show_feedback']) && $_GET['show_feedback'] === '1';
+if (!$shouldAutoShowFeedbackModal && $feedbackFlash === null && $requestedTicketId > 0 && $feedbackModalTicket !== null) {
+    $shouldAutoShowFeedbackModal = true;
+}
 $limit = 10;
 $page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
 if ($page < 1) $page = 1;
@@ -2497,7 +2500,18 @@ $successMessage = '';
                                     <td data-label="Date"><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
                                     <td data-label="SLA" class="my-tickets-sla-cell"><?= my_tickets_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
                                     <td data-label="Action" class="follow-up-cell">
+                                        <?php $hasPendingFeedback = isset($pendingFeedbackTickets[(int) ($row['id'] ?? 0)]); ?>
                                         <div class="ticket-action-buttons">
+                                        <?php if ($hasPendingFeedback): ?>
+                                            <button
+                                                type="button"
+                                                class="close-ticket-btn"
+                                                onclick="event.stopPropagation(); showFeedbackModalForTicket(<?= (int) $row['id']; ?>);"
+                                                aria-label="Rate support for ticket #<?= (int) $row['id']; ?>"
+                                            >
+                                                <span>Rate Support</span>
+                                            </button>
+                                        <?php endif; ?>
                                         <?php if (can_follow_up_ticket_status((string) ($row['status'] ?? ''))): ?>
                                             <?php
                                                 $followUpSendCount = (int) ($row['follow_up_stage'] ?? $row['follow_up_send_count'] ?? 0);
