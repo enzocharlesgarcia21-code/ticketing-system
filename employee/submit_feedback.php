@@ -16,6 +16,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 csrf_validate();
 
 $userId = (int) ($_SESSION['user_id'] ?? 0);
+$userEmail = strtolower(trim((string) ($_SESSION['email'] ?? '')));
 $ticketId = isset($_POST['ticket_id']) ? (int) $_POST['ticket_id'] : 0;
 $rating = isset($_POST['rating']) ? (int) $_POST['rating'] : 0;
 $comment = trim((string) ($_POST['comment'] ?? ''));
@@ -88,6 +89,7 @@ $ticketStmt = $conn->prepare("
         employee_tickets.id,
         employee_tickets.subject,
         employee_tickets.user_id,
+        employee_tickets.requester_email,
         employee_tickets.status,
         employee_tickets.feedback_status,
         employee_tickets.assigned_to,
@@ -110,11 +112,11 @@ $ticketRes = $ticketStmt->get_result();
 $ticket = $ticketRes ? $ticketRes->fetch_assoc() : null;
 $ticketStmt->close();
 
-if (!$ticket || (int) ($ticket['user_id'] ?? 0) !== $userId) {
+if (!$ticket || ((int) ($ticket['user_id'] ?? 0) !== $userId && strtolower(trim((string) ($ticket['requester_email'] ?? ''))) !== $userEmail)) {
     $redirectWithMessage('error', 'You are not allowed to submit feedback for this ticket.', true);
 }
 
-if ((string) ($ticket['status'] ?? '') !== 'Resolved' || (string) ($ticket['feedback_status'] ?? '') !== 'pending') {
+if (!in_array((string) ($ticket['status'] ?? ''), ['Resolved', 'Closed'], true) || (string) ($ticket['feedback_status'] ?? '') !== 'pending') {
     $redirectWithMessage('error', 'This ticket is no longer waiting for feedback.');
 }
 
