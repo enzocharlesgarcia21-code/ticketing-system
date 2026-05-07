@@ -136,6 +136,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             admin_note = ?,
             is_read = 1, 
             updated_at = NOW(),
+            feedback_status = CASE
+                WHEN ? = 'Resolved' THEN 'pending'
+                ELSE feedback_status
+            END,
             resolved_at = CASE 
                 WHEN (? = 'Resolved' OR ? = 'Closed') AND resolved_at IS NULL THEN NOW() 
                 WHEN ? = 'Open' THEN NULL
@@ -144,7 +148,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         WHERE id = ?
     ");
     
-    $update->bind_param("ssssiissssi", $new_status, $newDeptNorm, $newCompanyNorm, $effective_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $new_status, $id);
+    $update->bind_param("ssssiisssssi", $new_status, $newDeptNorm, $newCompanyNorm, $effective_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $new_status, $new_status, $id);
     
     if ($update->execute()) {
         $_SESSION['success'] = "Ticket #$id successfully updated.";

@@ -1032,7 +1032,6 @@ $pendingFeedbackStmt = $conn->prepare("
     WHERE (t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)
       AND t.status IN ('Resolved', 'Closed')
       AND (t.feedback_status = 'pending' OR t.feedback_status IS NULL)
-      AND COALESCE(NULLIF(t.assigned_to, 0), NULLIF(t.assigned_user_id, 0)) IS NOT NULL
     ORDER BY t.resolved_at DESC, t.id DESC
 ");
 if ($pendingFeedbackStmt) {
