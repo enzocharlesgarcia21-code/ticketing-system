@@ -16,28 +16,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
 csrf_validate();
 
 $userId = (int) ($_SESSION['user_id'] ?? 0);
-$userEmail = strtolower(trim((string) ($_SESSION['email'] ?? '')));
-$emailLookupStmt = null;
-$emailLookupRes = null;
-$emailLookupRow = null;
-$emailLookupValue = '';
-$emailLookupId = $userId;
-$emailLookupType = 'i';
-$emailLookupQuery = "SELECT email FROM users WHERE id = ? LIMIT 1";
-$emailLookupPrepare = $conn->prepare($emailLookupQuery);
-if ($userEmail === '' && $emailLookupPrepare) {
-    $emailLookupStmt = $emailLookupPrepare;
-    $emailLookupStmt->bind_param($emailLookupType, $emailLookupId);
-    $emailLookupStmt->execute();
-    $emailLookupRes = $emailLookupStmt->get_result();
-    $emailLookupRow = $emailLookupRes ? $emailLookupRes->fetch_assoc() : null;
-    $emailLookupStmt->close();
-    $emailLookupValue = strtolower(trim((string) ($emailLookupRow['email'] ?? '')));
-    if ($emailLookupValue !== '') {
-        $userEmail = $emailLookupValue;
-        $_SESSION['email'] = $userEmail;
-    }
-}
 $ticketId = isset($_POST['ticket_id']) ? (int) $_POST['ticket_id'] : 0;
 $rating = isset($_POST['rating']) ? (int) $_POST['rating'] : 0;
 $comment = trim((string) ($_POST['comment'] ?? ''));
@@ -110,7 +88,6 @@ $ticketStmt = $conn->prepare("
         employee_tickets.id,
         employee_tickets.subject,
         employee_tickets.user_id,
-        employee_tickets.requester_email,
         employee_tickets.status,
         employee_tickets.feedback_status,
         employee_tickets.assigned_to,
@@ -133,12 +110,7 @@ $ticketRes = $ticketStmt->get_result();
 $ticket = $ticketRes ? $ticketRes->fetch_assoc() : null;
 $ticketStmt->close();
 
-$ownsTicketById = $ticket && (int) ($ticket['user_id'] ?? 0) === $userId;
-$ownsTicketByEmail = $ticket
-    && $userEmail !== ''
-    && strtolower(trim((string) ($ticket['requester_email'] ?? ''))) === $userEmail;
-
-if (!$ticket || (!$ownsTicketById && !$ownsTicketByEmail)) {
+if (!$ticket || (int) ($ticket['user_id'] ?? 0) !== $userId) {
     $redirectWithMessage('error', 'You are not allowed to submit feedback for this ticket.', true);
 }
 
