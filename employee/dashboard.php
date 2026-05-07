@@ -16,6 +16,8 @@ $feedbackFlash = isset($_SESSION['feedback_flash']) && is_array($_SESSION['feedb
 if ($feedbackFlash !== null) {
     unset($_SESSION['feedback_flash']);
 }
+$requestedTicketId = isset($_GET['ticket_id']) ? (int) $_GET['ticket_id'] : 0;
+$feedbackFlashTicketId = (int) ($feedbackFlash['ticket_id'] ?? 0);
 $showFeedbackSuccessModal = $feedbackFlash && (($feedbackFlash['type'] ?? '') === 'success') && !empty($feedbackFlash['message']);
 
 /* Fetch profile context */
@@ -180,6 +182,44 @@ function dashboard_source_label(array $row): string
     return '-';
 }
 
+function feedback_assignee_display(array $ticket): array
+{
+    $name = trim((string) ($ticket['assignee_name'] ?? ''));
+    if ($name === '') {
+        $name = 'Support Team';
+    }
+
+    $department = trim((string) (($ticket['assignee_department'] ?? '') !== ''
+        ? $ticket['assignee_department']
+        : (($ticket['assigned_group'] ?? '') !== '' ? $ticket['assigned_group'] : ($ticket['assigned_department'] ?? ''))));
+    if ($department !== '') {
+        $departmentLabel = ticket_department_display_name($department);
+        return [
+            'name' => $name,
+            'context' => $departmentLabel,
+            'display' => $name . ' • ' . $departmentLabel,
+        ];
+    }
+
+    $companyRaw = (string) (($ticket['assigned_company'] ?? '') !== ''
+        ? $ticket['assigned_company']
+        : (($ticket['assignee_company'] ?? '') !== '' ? $ticket['assignee_company'] : ($ticket['company'] ?? '')));
+    $companyLabel = ticket_company_display_name($companyRaw);
+    if ($companyLabel !== '') {
+        return [
+            'name' => $name,
+            'context' => $companyLabel,
+            'display' => $name . ' • ' . $companyLabel,
+        ];
+    }
+
+    return [
+        'name' => $name,
+        'context' => '',
+        'display' => $name,
+    ];
+}
+
 function dashboard_requester_info(array $row): array
 {
     $name = trim((string) (($row['requester_name'] ?? '') !== '' ? $row['requester_name'] : ($row['user_name'] ?? '')));
@@ -208,6 +248,36 @@ function dashboard_sla_rank(string $createdAt, string $status, string $priority 
 
     $priorityKey = strtolower(trim($priority));
     if ($priorityKey === 'critical') return 0;
+
+$pendingFeedbackTickets = [];
+$pendingFeedbackStmt = $conn->prepare("\n    SELECT\n        t.id,\n        t.subject,\n        t.feedback_status,\n        t.status,\n        t.company,\n        t.assigned_company,\n        t.assigned_department,\n        t.assigned_group,\n        COALESCE(NULLIF(assignee.full_name, ''), NULLIF(assignee.name, ''), 'Support Team') AS assignee_name,\n        assignee.department AS assignee_department,\n        assignee.company AS assignee_company\n    FROM employee_tickets t\n    LEFT JOIN users assignee\n        ON assignee.id = COALESCE(NULLIF(t.assigned_user_id, 0), NULLIF(t.assigned_to, 0))\n    WHERE (t.user_id = ? OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)\n      AND t.status = 'Resolved'\n      AND t.feedback_status = 'pending'\n      AND COALESCE(NULLIF(t.assigned_to, 0), NULLIF(t.assigned_user_id, 0)) IS NOT NULL\n    ORDER BY t.resolved_at DESC, t.id DESC\n");
+if ($pendingFeedbackStmt) {
+    $pendingFeedbackStmt->bind_param("is", $user_id, $user_email);
+    $pendingFeedbackStmt->execute();
+    $pendingFeedbackRes = $pendingFeedbackStmt->get_result();
+    while ($pendingFeedbackRes && ($pendingFeedbackRow = $pendingFeedbackRes->fetch_assoc())) {
+        $pendingFeedbackRow['assignee_display'] = feedback_assignee_display($pendingFeedbackRow);
+        $pendingFeedbackTickets[(int) ($pendingFeedbackRow['id'] ?? 0)] = $pendingFeedbackRow;
+    }
+    $pendingFeedbackStmt->close();
+}
+
+$feedbackModalTicketId = 0;
+if ($requestedTicketId > 0 && isset($pendingFeedbackTickets[$requestedTicketId])) {
+    $feedbackModalTicketId = $requestedTicketId;
+} elseif ($feedbackFlashTicketId > 0 && isset($pendingFeedbackTickets[$feedbackFlashTicketId])) {
+    $feedbackModalTicketId = $feedbackFlashTicketId;
+} else {
+    foreach ($pendingFeedbackTickets as $pendingFeedbackTicketId => $_pendingFeedbackTicket) {
+        $feedbackModalTicketId = (int) $pendingFeedbackTicketId;
+        break;
+    }
+}
+
+$feedbackModalTicket = $feedbackModalTicketId > 0 && isset($pendingFeedbackTickets[$feedbackModalTicketId])
+    ? $pendingFeedbackTickets[$feedbackModalTicketId]
+    : null;
+$shouldAutoShowFeedbackModal = !$showFeedbackSuccessModal && $feedbackModalTicket !== null;
     if ($priorityKey === 'high') return 1;
 
     $createdAt = trim($createdAt);
@@ -1375,12 +1445,13 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
     </div>
 
     <div id="mobileSidebarOverlay" class="mobile-sidebar-overlay" aria-hidden="true"></div>
-    <?php if ($showFeedbackSuccessModal): ?>
+    <?php if ($showFeedbackSuccessModal || $feedbackModalTicket): ?>
     <div
         id="feedbackModalOverlay"
-        class="feedback-modal-overlay is-visible"
-        aria-hidden="false"
+        class="feedback-modal-overlay<?= ($showFeedbackSuccessModal || $shouldAutoShowFeedbackModal) ? ' is-visible' : ''; ?>"
+        aria-hidden="<?= ($showFeedbackSuccessModal || $shouldAutoShowFeedbackModal) ? 'false' : 'true'; ?>"
     >
+        <?php if ($showFeedbackSuccessModal): ?>
         <div class="feedback-modal-dialog feedback-modal-dialog-success" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
             <div class="feedback-modal-header">
                 <div class="feedback-modal-success-icon" aria-hidden="true">&#10003;</div>
@@ -1402,53 +1473,142 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                 </div>
             </div>
         </div>
+        <?php else: ?>
+        <?php $feedbackAssigneeDisplay = $feedbackModalTicket ? feedback_assignee_display($feedbackModalTicket) : ['name' => 'Support Team', 'context' => '', 'display' => 'Support Team']; ?>
+        <div class="feedback-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
+            <div class="feedback-modal-header">
+                <h2 id="feedbackModalTitle" class="feedback-modal-title">Rate Your Support Experience</h2>
+                <p id="feedbackModalSubtitle" class="feedback-modal-subtitle">This ticket was resolved by <?= htmlspecialchars((string) ($feedbackAssigneeDisplay['display'] ?? 'Support Team'), ENT_QUOTES, 'UTF-8'); ?>.</p>
+            </div>
+            <div class="feedback-modal-body">
+                <?php if ($feedbackFlash && !empty($feedbackFlash['message'])): ?>
+                    <div class="feedback-flash <?= (($feedbackFlash['type'] ?? '') === 'success') ? 'is-success' : 'is-error'; ?>">
+                        <?= htmlspecialchars((string) $feedbackFlash['message'], ENT_QUOTES, 'UTF-8'); ?>
+                    </div>
+                <?php endif; ?>
+
+                <div class="feedback-ticket-chip">
+                    <strong id="feedbackTicketChipId">#<?= (int) $feedbackModalTicket['id']; ?></strong>
+                    <span id="feedbackTicketChipSubject"><?= htmlspecialchars((string) ($feedbackModalTicket['subject'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
+                </div>
+
+                <form method="POST" action="submit_feedback.php" class="feedback-form" id="feedbackForm">
+                    <?= csrf_field(); ?>
+                    <input type="hidden" name="ticket_id" id="feedbackTicketIdInput" value="<?= (int) $feedbackModalTicket['id']; ?>">
+                    <input type="hidden" name="redirect_to" value="<?= htmlspecialchars('dashboard.php?ticket_id=' . (int) $feedbackModalTicket['id'], ENT_QUOTES, 'UTF-8'); ?>">
+
+                    <div>
+                        <label class="feedback-label" for="feedbackRating5">How would you rate the support?</label>
+                        <div class="feedback-stars" id="feedbackStars">
+                            <?php for ($rating = 1; $rating <= 5; $rating++): ?>
+                                <input
+                                    class="feedback-star-input"
+                                    type="radio"
+                                    name="rating"
+                                    id="feedbackRating<?= $rating; ?>"
+                                    value="<?= $rating; ?>"
+                                    <?= ($rating === 5) ? 'required' : ''; ?>
+                                >
+                                <label class="feedback-star" for="feedbackRating<?= $rating; ?>" data-rating="<?= $rating; ?>" aria-label="<?= $rating; ?> star<?= $rating > 1 ? 's' : ''; ?>">
+                                    <i class="fas fa-star"></i>
+                                </label>
+                            <?php endfor; ?>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="feedback-label" for="feedbackComment">Additional Comment</label>
+                        <textarea
+                            id="feedbackComment"
+                            name="comment"
+                            class="feedback-textarea"
+                            placeholder="Tell us how the support experience went and anything we can improve."
+                        ></textarea>
+                    </div>
+
+                    <div class="feedback-actions">
+                        <button type="button" class="feedback-cancel-btn" id="feedbackModalDismissBtn">Close</button>
+                        <button type="submit" class="feedback-submit-btn">Submit Feedback</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 
     <div class="dashboard-container">
-        <div class="stats-grid">
-            <div class="stat-card total">
-                <div class="stat-icon">
-                    <i class="fas fa-ticket-alt"></i>
+        <div class="content-wrapper">
+
+                        <!-- 3ï¸âƒ£ HERO SECTION -->
+            <div class="hero-section">
+                <div class="hero-copy">
+                    <h1 class="hero-title">Welcome back, <?= htmlspecialchars($_SESSION['name']); ?></h1>
+                    <div class="hero-dept">
+                        <?= htmlspecialchars($_SESSION['department']); ?> Department
+                        <?php if (!empty($company)): ?>
+                            <span class="company-text">&bull; <?= htmlspecialchars($company); ?></span>
+                        <?php endif; ?>
+                    </div>
+                    <p class="hero-subtitle">Here's an overview of your helpdesk activity.</p>
                 </div>
-                <div class="stat-label">Total Tickets</div>
-                <div class="stat-value"><?= $total ?></div>
+                <a href="request_ticket.php" class="hero-action">
+                    <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                    <span>Create Ticket</span>
+                </a>
             </div>
 
-            <div class="stat-card open">
-                <div class="stat-icon">
-                    <i class="fas fa-exclamation-circle"></i>
+            <!-- 4ï¸âƒ£ STATISTICS CARDS -->
+            <div class="stats-grid">
+                <!-- Total Tickets -->
+                <div class="stat-card total">
+                    <div class="stat-icon">
+                        <i class="fas fa-ticket-alt"></i>
+                    </div>
+                    <div class="stat-label">Total Tickets</div>
+                    <div class="stat-value"><?= $total ?></div>
                 </div>
-                <div class="stat-label">Open</div>
-                <div class="stat-value"><?= $open ?></div>
+
+                <!-- Open -->
+                <div class="stat-card open">
+                    <div class="stat-icon">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <div class="stat-label">Open</div>
+                    <div class="stat-value"><?= $open ?></div>
+                </div>
+
+                <!-- In Progress -->
+                <div class="stat-card progress">
+                    <div class="stat-icon">
+                        <i class="fas fa-spinner"></i>
+                    </div>
+                    <div class="stat-label">In Progress</div>
+                    <div class="stat-value"><?= $progress ?></div>
+                </div>
+
+                <!-- Resolved -->
+                <div class="stat-card resolved">
+                    <div class="stat-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-label">Resolved</div>
+                    <div class="stat-value"><?= $resolved ?></div>
+                </div>
+
+                <!-- Closed -->
+                <div class="stat-card closed">
+                    <div class="stat-icon">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <div class="stat-label">Closed</div>
+                    <div class="stat-value"><?= $closed ?></div>
+                </div>
+
             </div>
 
-            <div class="stat-card progress">
-                <div class="stat-icon">
-                    <i class="fas fa-spinner"></i>
-                </div>
-                <div class="stat-label">In Progress</div>
-                <div class="stat-value"><?= $progress ?></div>
-            </div>
-
-            <div class="stat-card resolved">
-                <div class="stat-icon">
-                    <i class="fas fa-check-circle"></i>
-                </div>
-                <div class="stat-label">Resolved</div>
-                <div class="stat-value"><?= $resolved ?></div>
-            </div>
-
-            <div class="stat-card closed">
-                <div class="stat-icon">
-                    <i class="fas fa-lock"></i>
-                </div>
-                <div class="stat-label">Closed</div>
-                <div class="stat-value"><?= $closed ?></div>
-            </div>
-        </div>
-
-        <div class="dashboard-ticket-grid">
+            <!-- 5ï¸âƒ£ RECENT TICKETS SECTION -->
+            <div class="dashboard-ticket-grid">
                 <section class="dashboard-ticket-panel" aria-labelledby="receivedTicketsTitle">
                     <h2 id="receivedTicketsTitle" class="dashboard-ticket-title">Assigned Tickets</h2>
                     <table class="dashboard-ticket-table">
@@ -1601,17 +1761,71 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
     <!-- JS Script -->
     <script src="../js/employee-dashboard.js"></script>
     <script>
+    var pendingFeedbackTickets = <?php echo json_encode($pendingFeedbackTickets, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?> || {};
     var feedbackModal = document.getElementById('feedbackModalOverlay');
     var feedbackDismissBtn = document.getElementById('feedbackModalDismissBtn');
+    var feedbackStarsWrap = document.getElementById('feedbackStars');
+    var feedbackTicketIdInput = document.getElementById('feedbackTicketIdInput');
+    var feedbackFormEl = document.getElementById('feedbackForm');
+    var feedbackCommentEl = document.getElementById('feedbackComment');
+    var feedbackModalSubtitle = document.getElementById('feedbackModalSubtitle');
+    var feedbackTicketChipId = document.getElementById('feedbackTicketChipId');
+    var feedbackTicketChipSubject = document.getElementById('feedbackTicketChipSubject');
+    var initialFeedbackTicketId = <?= (int) $feedbackModalTicketId; ?>;
+    var shouldAutoShowFeedbackModal = <?= $shouldAutoShowFeedbackModal ? 'true' : 'false'; ?>;
 
     function dashboardFeedbackModalOpen() {
         return !!(feedbackModal && feedbackModal.classList.contains('is-visible'));
+    }
+
+    function paintFeedbackStars(activeRating) {
+        if (!feedbackStarsWrap) return;
+        Array.prototype.slice.call(feedbackStarsWrap.querySelectorAll('.feedback-star')).forEach(function (label) {
+            var rating = parseInt(label.getAttribute('data-rating') || '0', 10);
+            label.classList.toggle('is-active', rating > 0 && rating <= activeRating);
+        });
     }
 
     function closeFeedbackModal() {
         if (!feedbackModal) return;
         feedbackModal.classList.remove('is-visible');
         feedbackModal.setAttribute('aria-hidden', 'true');
+    }
+
+    function showFeedbackModalForTicket(ticketId) {
+        var ticketKey = String(parseInt(ticketId || 0, 10) || '');
+        if (!ticketKey || !pendingFeedbackTickets[ticketKey] || !feedbackModal || !feedbackFormEl || !feedbackTicketIdInput) {
+            return false;
+        }
+        var ticket = pendingFeedbackTickets[ticketKey];
+        var assigneeDisplay = ticket.assignee_display && typeof ticket.assignee_display === 'object'
+            ? String(ticket.assignee_display.display || ticket.assignee_display.name || 'Support Team')
+            : 'Support Team';
+        var redirectInput = feedbackFormEl.querySelector('input[name="redirect_to"]');
+
+        if (feedbackTicketChipId) {
+            feedbackTicketChipId.textContent = '#' + ticketKey;
+        }
+        if (feedbackTicketChipSubject) {
+            feedbackTicketChipSubject.textContent = String(ticket.subject || '');
+        }
+        if (feedbackModalSubtitle) {
+            feedbackModalSubtitle.textContent = 'This ticket was resolved by ' + assigneeDisplay + '.';
+        }
+        feedbackTicketIdInput.value = ticketKey;
+        if (redirectInput) {
+            redirectInput.value = 'dashboard.php?ticket_id=' + encodeURIComponent(ticketKey);
+        }
+        Array.prototype.slice.call(feedbackFormEl.querySelectorAll('.feedback-star-input')).forEach(function (inputEl) {
+            inputEl.checked = false;
+        });
+        if (feedbackCommentEl) {
+            feedbackCommentEl.value = '';
+        }
+        paintFeedbackStars(0);
+        feedbackModal.classList.add('is-visible');
+        feedbackModal.setAttribute('aria-hidden', 'false');
+        return true;
     }
 
     (function () {
@@ -1632,6 +1846,31 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                 closeFeedbackModal();
             }
         });
+
+        if (feedbackStarsWrap) {
+            var feedbackStarInputs = Array.prototype.slice.call(feedbackStarsWrap.querySelectorAll('.feedback-star-input'));
+            Array.prototype.slice.call(feedbackStarsWrap.querySelectorAll('.feedback-star')).forEach(function (label) {
+                label.addEventListener('mouseenter', function () {
+                    paintFeedbackStars(parseInt(label.getAttribute('data-rating') || '0', 10));
+                });
+                label.addEventListener('click', function () {
+                    paintFeedbackStars(parseInt(label.getAttribute('data-rating') || '0', 10));
+                });
+            });
+            feedbackStarsWrap.addEventListener('mouseleave', function () {
+                var checked = feedbackStarInputs.find(function (input) { return input.checked; });
+                paintFeedbackStars(checked ? parseInt(checked.value || '0', 10) : 0);
+            });
+            feedbackStarInputs.forEach(function (input) {
+                input.addEventListener('change', function () {
+                    paintFeedbackStars(parseInt(input.value || '0', 10));
+                });
+            });
+        }
+
+        if (shouldAutoShowFeedbackModal && initialFeedbackTicketId > 0) {
+            showFeedbackModalForTicket(initialFeedbackTicketId);
+        }
     })();
 
     (function () {
@@ -1799,6 +2038,9 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
         row.addEventListener('click', function () {
             var id = this.getAttribute('data-id');
             if (!id) return;
+            if (showFeedbackModalForTicket(id)) {
+                return;
+            }
             window.location.href = 'my_tickets.php?ticket_id=' + encodeURIComponent(id);
         });
     });
