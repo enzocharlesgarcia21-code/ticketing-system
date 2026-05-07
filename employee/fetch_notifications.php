@@ -8,6 +8,7 @@ header('Pragma: no-cache');
 header('Expires: 0');
 
 notif_ensure_action_type_column($conn);
+notif_ensure_title_column($conn);
 notif_ensure_requester_identity_columns($conn);
 ticket_apply_sla_priority($conn);
 

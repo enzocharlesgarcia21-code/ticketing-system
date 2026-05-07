@@ -1050,13 +1050,6 @@ $feedbackModalTicket = $feedbackModalTicketId > 0 && isset($pendingFeedbackTicke
     ? $pendingFeedbackTickets[$feedbackModalTicketId]
     : null;
 $shouldAutoShowFeedbackModal = isset($_GET['show_feedback']) && $_GET['show_feedback'] === '1';
-// Auto-show for the first pending-feedback ticket on page load (e.g. after ticket is resolved)
-if (!$shouldAutoShowFeedbackModal && $feedbackModalTicket === null && !empty($pendingFeedbackTickets)) {
-    $firstId = (int) array_key_first($pendingFeedbackTickets);
-    $feedbackModalTicketId   = $firstId;
-    $feedbackModalTicket     = $pendingFeedbackTickets[$firstId];
-    $shouldAutoShowFeedbackModal = true;
-}
 $limit = 10;
 $page = isset($_GET['page']) ? (int) $_GET['page'] : 1;
 if ($page < 1) $page = 1;

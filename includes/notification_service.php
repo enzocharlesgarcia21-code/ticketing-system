@@ -504,7 +504,45 @@ function notif_ticket_data(mysqli $conn, int $ticketId): ?array
         WHERE t.id = ?
         LIMIT 1
     ");
-    if (!$stmt) return null;
+    if (!$stmt) {
+        // Fallback: requester_name / requester_email columns may not exist yet on this server.
+        // Use a simpler query so notifications still work.
+        error_log('notif_ticket_data: primary prepare failed (ticketId=' . $ticketId . ') err=' . $conn->error . ' — retrying without requester columns');
+        $stmt = $conn->prepare("
+            SELECT
+                t.id,
+                t.user_id,
+                t.subject,
+                t.category,
+                t.description,
+                t.attachment,
+                t.priority,
+                t.status,
+                t.created_at,
+                t.updated_at,
+                t.started_at,
+                t.assigned_user_id,
+                t.assigned_department,
+                t.assigned_group,
+                t.assigned_company,
+                NULL AS requester_name,
+                NULL AS requester_email,
+                creator.name AS creator_name,
+                creator.email AS creator_email,
+                assignee.name AS assignee_name,
+                assignee.email AS assignee_email,
+                assignee.department AS assignee_department
+            FROM employee_tickets t
+            LEFT JOIN users creator ON creator.id = t.user_id
+            LEFT JOIN users assignee ON assignee.id = t.assigned_user_id
+            WHERE t.id = ?
+            LIMIT 1
+        ");
+        if (!$stmt) {
+            error_log('notif_ticket_data: fallback prepare also failed (ticketId=' . $ticketId . ') err=' . $conn->error);
+            return null;
+        }
+    }
     $stmt->bind_param("i", $ticketId);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -745,16 +783,19 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
     $newStatus = trim($newStatus);
     $updatedBy = trim($updatedBy);
     if ($ticketId <= 0 || $newStatus === '' || strcasecmp($oldStatus, $newStatus) === 0) {
+        error_log('notif_send_ticket_status_update: skipped (ticketId=' . $ticketId . ' old=' . $oldStatus . ' new=' . $newStatus . ')');
         return ['inserted' => 0, 'emailed' => 0];
     }
 
     $ticket = notif_ticket_data($conn, $ticketId);
     if (!$ticket) {
+        error_log('notif_send_ticket_status_update: ticket not found (ticketId=' . $ticketId . ')');
         return ['inserted' => 0, 'emailed' => 0];
     }
 
     $creatorId = notif_requester_user_id($conn, $ticket);
     $creatorIds = notif_requester_user_ids($conn, $ticket);
+    error_log('notif_send_ticket_status_update: ticketId=' . $ticketId . ' old=' . $oldStatus . ' new=' . $newStatus . ' creatorIds=' . implode(',', $creatorIds));
     $creatorEmail = trim((string) ($ticket['creator_email'] ?? ''));
     $ticketNumber = notif_ticket_number($ticketId);
     $title = strcasecmp($newStatus, 'Closed') === 0 ? 'Ticket Closed' : 'Ticket Status Updated';
