@@ -16,6 +16,11 @@ function can_requester_close_ticket_status(string $status): bool
     return trim($status) === 'Resolved';
 }
 
+function can_requester_reopen_ticket_status(string $status): bool
+{
+    return trim($status) === 'Closed';
+}
+
 function current_employee_email(mysqli $conn, int $userId): string
 {
     $email = strtolower(trim((string) ($_SESSION['email'] ?? '')));
@@ -1001,6 +1006,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
     }
     exit();
 }
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') === 'reopen_ticket') {
+    csrf_validate();
+
+    $ticketId = (int) ($_POST['ticket_id'] ?? 0);
+    $flashType = 'error';
+    $flashMessage = 'Only closed tickets can be reopened.';
+
+    if ($ticketId > 0) {
+        $ticketStmt = $conn->prepare("
+            SELECT id, status
+            FROM employee_tickets
+            WHERE id = ?
+              AND (user_id = ? OR LOWER(TRIM(COALESCE(requester_email, ''))) = ?)
+            LIMIT 1
+        ");
+        if ($ticketStmt) {
+            $ticketStmt->bind_param("iis", $ticketId, $user_id, $user_email);
+            $ticketStmt->execute();
+            $ticketRes = $ticketStmt->get_result();
+            $ticket = $ticketRes ? $ticketRes->fetch_assoc() : null;
+            $ticketStmt->close();
+
+            if ($ticket && can_requester_reopen_ticket_status((string) ($ticket['status'] ?? ''))) {
+                $updateStmt = $conn->prepare("
+                    UPDATE employee_tickets
+                    SET status = 'Open',
+                        feedback_status = NULL,
+                        updated_at = NOW(),
+                        resolved_at = NULL
+                    WHERE id = ?
+                      AND (user_id = ? OR LOWER(TRIM(COALESCE(requester_email, ''))) = ?)
+                      AND status = 'Closed'
+                    LIMIT 1
+                ");
+                if ($updateStmt) {
+                    $updateStmt->bind_param("iis", $ticketId, $user_id, $user_email);
+                    $updateStmt->execute();
+                    if ($updateStmt->affected_rows > 0) {
+                        $flashType = 'success';
+                        $flashMessage = 'Ticket reopened successfully.';
+                    }
+                    $updateStmt->close();
+                }
+            }
+        }
+    }
+
+    $_SESSION['my_tickets_flash'] = [
+        'type' => $flashType,
+        'message' => $flashMessage,
+    ];
+    header("Location: my_tickets.php");
+    exit();
+}
 follow_up_sync_user_ticket_cooldowns($conn, $user_id);
 $myTicketsFlash = isset($_SESSION['my_tickets_flash']) && is_array($_SESSION['my_tickets_flash']) ? $_SESSION['my_tickets_flash'] : null;
 if ($myTicketsFlash !== null) {
@@ -1594,7 +1653,9 @@ $successMessage = '';
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-width: 112px;
+            width: 124px;
+            min-width: 124px;
+            height: 38px;
             min-height: 38px;
             padding: 0 18px;
             position: relative;
@@ -1618,7 +1679,9 @@ $successMessage = '';
             align-items: center;
             justify-content: center;
             gap: 7px;
+            width: 124px;
             min-width: 124px;
+            height: 38px;
             min-height: 38px;
             padding: 0 18px;
             border: 1px solid #bfdbfe;
@@ -1637,6 +1700,40 @@ $successMessage = '';
             box-shadow: 0 8px 18px rgba(29, 78, 216, 0.12);
         }
         body.employee-my-tickets-page .close-ticket-btn:disabled {
+            opacity: 0.72;
+            cursor: wait;
+            transform: none;
+        }
+        body.employee-my-tickets-page .reopen-ticket-form {
+            margin: 0;
+            display: inline-flex;
+        }
+        body.employee-my-tickets-page .reopen-ticket-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            width: 124px;
+            min-width: 124px;
+            height: 38px;
+            min-height: 38px;
+            padding: 0 18px;
+            border: 1px solid #bbf7d0;
+            border-radius: 999px;
+            background: #dcfce7;
+            color: #166534;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            box-shadow: none;
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+        }
+        body.employee-my-tickets-page .reopen-ticket-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(22, 101, 52, 0.12);
+        }
+        body.employee-my-tickets-page .reopen-ticket-btn:disabled {
             opacity: 0.72;
             cursor: wait;
             transform: none;
@@ -2576,6 +2673,20 @@ $successMessage = '';
                                                 </button>
                                             </form>
                                         <?php endif; ?>
+                                        <?php
+                                        /*
+                                        if (can_requester_reopen_ticket_status((string) ($row['status'] ?? ''))): ?>
+                                            <form method="POST" action="my_tickets.php" class="reopen-ticket-form">
+                                                <?= csrf_field(); ?>
+                                                <input type="hidden" name="action" value="reopen_ticket">
+                                                <input type="hidden" name="ticket_id" value="<?= (int) $row['id']; ?>">
+                                                <button type="submit" class="reopen-ticket-btn" aria-label="Re-open ticket #<?= (int) $row['id']; ?>">
+                                                    <span>Re-open Ticket</span>
+                                                </button>
+                                            </form>
+                                        <?php endif;
+                                        */
+                                        ?>
                                         </div>
                                     </td>
                                 </tr>
@@ -2639,6 +2750,34 @@ $successMessage = '';
                 <p id="followUpFeedbackText" class="follow-up-feedback-text">Follow up sent successfully.</p>
                 <div class="follow-up-feedback-actions">
                     <button type="button" id="followUpFeedbackBtn" class="follow-up-feedback-btn">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="followUpConfirmOverlay" class="close-ticket-confirm-overlay" aria-hidden="true">
+        <div class="close-ticket-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="followUpConfirmTitle">
+            <div class="close-ticket-confirm-body">
+                <h2 id="followUpConfirmTitle" class="close-ticket-confirm-title">Follow Up Ticket?</h2>
+                <p class="close-ticket-confirm-text">
+                    Do you want to send a follow up for this ticket?
+                </p>
+                <div class="close-ticket-confirm-actions">
+                    <button type="button" id="followUpConfirmBtn" class="close-ticket-confirm-submit">Yes</button>
+                    <button type="button" id="followUpCancelBtn" class="close-ticket-confirm-cancel">No</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="reopenTicketConfirmOverlay" class="close-ticket-confirm-overlay" aria-hidden="true">
+        <div class="close-ticket-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="reopenTicketConfirmTitle">
+            <div class="close-ticket-confirm-body">
+                <h2 id="reopenTicketConfirmTitle" class="close-ticket-confirm-title">Re-open Ticket?</h2>
+                <p class="close-ticket-confirm-text">
+                    Do you want to re-open this ticket? This means your issue needs more support.
+                </p>
+                <div class="close-ticket-confirm-actions">
+                    <button type="button" id="reopenTicketConfirmBtn" class="close-ticket-confirm-submit">Yes</button>
+                    <button type="button" id="reopenTicketCancelBtn" class="close-ticket-confirm-cancel">No</button>
                 </div>
             </div>
         </div>
@@ -2795,6 +2934,9 @@ $successMessage = '';
     var myTicketsFilterTimer = null;
     var followUpInFlight = {};
     var followUpFeedbackOverlay = document.getElementById('followUpFeedbackOverlay');
+    var followUpConfirmOverlay = document.getElementById('followUpConfirmOverlay');
+    var followUpConfirmBtn = document.getElementById('followUpConfirmBtn');
+    var followUpCancelBtn = document.getElementById('followUpCancelBtn');
     var followUpFeedbackDialog = document.getElementById('followUpFeedbackDialog');
     var followUpFeedbackLabel = document.getElementById('followUpFeedbackLabel');
     var followUpFeedbackTitle = document.getElementById('followUpFeedbackTitle');
@@ -2804,6 +2946,11 @@ $successMessage = '';
     var followUpFeedbackClose = document.getElementById('followUpFeedbackClose');
     var followUpFeedbackState = '';
     var followUpCooldownTimers = {};
+    var pendingFollowUpAction = null;
+    var reopenTicketConfirmOverlay = document.getElementById('reopenTicketConfirmOverlay');
+    var reopenTicketConfirmBtn = document.getElementById('reopenTicketConfirmBtn');
+    var reopenTicketCancelBtn = document.getElementById('reopenTicketCancelBtn');
+    var pendingReopenTicketForm = null;
     var closeTicketConfirmOverlay = document.getElementById('closeTicketConfirmOverlay');
     var closeTicketCancelBtn = document.getElementById('closeTicketCancelBtn');
     var closeTicketConfirmBtn = document.getElementById('closeTicketConfirmBtn');
@@ -2829,6 +2976,64 @@ $successMessage = '';
             token = String(window.TM_CSRF_TOKEN || '');
         }
         return token;
+    }
+
+    function ensureMyTicketsReopenButtons(rootEl) {
+        var scope = rootEl && rootEl.querySelectorAll ? rootEl : document;
+        var rows = scope.querySelectorAll('.ticket-row[data-id]');
+        rows.forEach(function (row) {
+            var statusPill = row.querySelector('.status-pill');
+            var actionButtons = row.querySelector('.ticket-action-buttons');
+            var ticketId = parseInt(row.getAttribute('data-id') || '', 10);
+            if (!statusPill || !actionButtons || ticketId <= 0) return;
+
+            var isClosed = String(statusPill.textContent || '').trim().toLowerCase() === 'closed';
+            var existingReopenForm = actionButtons.querySelector('.reopen-ticket-form');
+            if (existingReopenForm) {
+                existingReopenForm.remove();
+            }
+            if (!isClosed) {
+                return;
+            }
+            /*
+            if (existingReopenForm) return;
+
+            var formEl = document.createElement('form');
+            formEl.method = 'POST';
+            formEl.action = 'my_tickets.php';
+            formEl.className = 'reopen-ticket-form';
+
+            var csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = getMyTicketsCsrfToken();
+            formEl.appendChild(csrfInput);
+
+            var actionInput = document.createElement('input');
+            actionInput.type = 'hidden';
+            actionInput.name = 'action';
+            actionInput.value = 'reopen_ticket';
+            formEl.appendChild(actionInput);
+
+            var ticketInput = document.createElement('input');
+            ticketInput.type = 'hidden';
+            ticketInput.name = 'ticket_id';
+            ticketInput.value = String(ticketId);
+            formEl.appendChild(ticketInput);
+
+            var buttonEl = document.createElement('button');
+            buttonEl.type = 'submit';
+            buttonEl.className = 'reopen-ticket-btn';
+            buttonEl.setAttribute('aria-label', 'Re-open ticket #' + ticketId);
+
+            var buttonText = document.createElement('span');
+            buttonText.textContent = 'Re-open Ticket';
+            buttonEl.appendChild(buttonText);
+
+            formEl.appendChild(buttonEl);
+            actionButtons.appendChild(formEl);
+            */
+        });
     }
 
     function myTicketsModalOpen() {
@@ -2870,6 +3075,7 @@ $successMessage = '';
                 if (!data || !data.ok) return;
                 myTicketsBodyEl.innerHTML = data.rows_html || '';
                 myTicketsPaginationEl.innerHTML = data.pagination_html || '';
+                ensureMyTicketsReopenButtons(myTicketsBodyEl);
                 myTicketsCurrentPage = parseInt(data.page || nextPage, 10) || 1;
                 initializeFollowUpCooldownButtons(myTicketsBodyEl);
                 if (updateHistory === false) return;
@@ -3346,6 +3552,69 @@ $successMessage = '';
         followUpFeedbackOverlay.setAttribute('aria-hidden', 'true');
     }
 
+    function openFollowUpConfirm(ticketId, buttonEl) {
+        if (!followUpConfirmOverlay || !followUpConfirmBtn || !ticketId || !buttonEl) {
+            return false;
+        }
+        pendingFollowUpAction = {
+            ticketId: ticketId,
+            button: buttonEl
+        };
+        followUpConfirmOverlay.classList.add('is-visible');
+        followUpConfirmOverlay.setAttribute('aria-hidden', 'false');
+        window.setTimeout(function () {
+            try { followUpConfirmBtn.focus(); } catch (e) {}
+        }, 0);
+        return true;
+    }
+
+    function closeFollowUpConfirm() {
+        if (!followUpConfirmOverlay) return;
+        pendingFollowUpAction = null;
+        followUpConfirmOverlay.classList.remove('is-visible');
+        followUpConfirmOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function submitPendingFollowUp() {
+        if (!pendingFollowUpAction) return;
+        var followUpAction = pendingFollowUpAction;
+        closeFollowUpConfirm();
+        sendFollowUp(followUpAction.ticketId, followUpAction.button);
+    }
+
+    function openReopenTicketConfirm(formEl) {
+        if (!reopenTicketConfirmOverlay || !reopenTicketConfirmBtn) {
+            return false;
+        }
+        pendingReopenTicketForm = formEl;
+        reopenTicketConfirmOverlay.classList.add('is-visible');
+        reopenTicketConfirmOverlay.setAttribute('aria-hidden', 'false');
+        window.setTimeout(function () {
+            try { reopenTicketConfirmBtn.focus(); } catch (e) {}
+        }, 0);
+        return true;
+    }
+
+    function closeReopenTicketConfirm() {
+        if (!reopenTicketConfirmOverlay) return;
+        pendingReopenTicketForm = null;
+        reopenTicketConfirmOverlay.classList.remove('is-visible');
+        reopenTicketConfirmOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function submitPendingReopenTicket() {
+        if (!pendingReopenTicketForm) return;
+        var formEl = pendingReopenTicketForm;
+        var submitBtn = formEl.querySelector('.reopen-ticket-btn');
+        formEl.setAttribute('data-confirmed-reopen', '1');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span>Re-opening...</span>';
+        }
+        closeReopenTicketConfirm();
+        formEl.submit();
+    }
+
     function openCloseTicketConfirm(formEl) {
         if (!closeTicketConfirmOverlay || !closeTicketConfirmBtn) {
             return false;
@@ -3528,13 +3797,18 @@ $successMessage = '';
             }
             var followUpTicketId = parseInt(followUpBtn.getAttribute('data-ticket-id') || '', 10);
             if (followUpTicketId > 0) {
-                sendFollowUp(followUpTicketId, followUpBtn);
+                openFollowUpConfirm(followUpTicketId, followUpBtn);
             }
             return;
         }
 
         var closeTicketBtn = e.target && e.target.closest ? e.target.closest('.close-ticket-btn') : null;
         if (closeTicketBtn) {
+            e.stopPropagation();
+            return;
+        }
+        var reopenTicketBtn = e.target && e.target.closest ? e.target.closest('.reopen-ticket-btn') : null;
+        if (reopenTicketBtn) {
             e.stopPropagation();
             return;
         }
@@ -3556,17 +3830,32 @@ $successMessage = '';
 
     document.addEventListener('submit', function (e) {
         var closeTicketForm = e.target && e.target.closest ? e.target.closest('.close-ticket-form') : null;
-        if (!closeTicketForm) return;
-        e.stopPropagation();
-        if (closeTicketForm.getAttribute('data-confirmed-close') !== '1') {
-            e.preventDefault();
-            openCloseTicketConfirm(closeTicketForm);
+        if (closeTicketForm) {
+            e.stopPropagation();
+            if (closeTicketForm.getAttribute('data-confirmed-close') !== '1') {
+                e.preventDefault();
+                openCloseTicketConfirm(closeTicketForm);
+                return;
+            }
+            var submitBtn = closeTicketForm.querySelector('.close-ticket-btn');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span>Closing...</span>';
+            }
             return;
         }
-        var submitBtn = closeTicketForm.querySelector('.close-ticket-btn');
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span>Closing...</span>';
+        var reopenTicketForm = e.target && e.target.closest ? e.target.closest('.reopen-ticket-form') : null;
+        if (!reopenTicketForm) return;
+        e.stopPropagation();
+        if (reopenTicketForm.getAttribute('data-confirmed-reopen') !== '1') {
+            e.preventDefault();
+            openReopenTicketConfirm(reopenTicketForm);
+            return;
+        }
+        var reopenBtn = reopenTicketForm.querySelector('.reopen-ticket-btn');
+        if (reopenBtn) {
+            reopenBtn.disabled = true;
+            reopenBtn.innerHTML = '<span>Re-opening...</span>';
         }
     });
 
@@ -3582,6 +3871,32 @@ $successMessage = '';
         followUpFeedbackOverlay.addEventListener('click', function (e) {
             if (e.target === followUpFeedbackOverlay) {
                 closeFollowUpFeedback();
+            }
+        });
+    }
+    if (followUpCancelBtn) {
+        followUpCancelBtn.addEventListener('click', closeFollowUpConfirm);
+    }
+    if (followUpConfirmBtn) {
+        followUpConfirmBtn.addEventListener('click', submitPendingFollowUp);
+    }
+    if (followUpConfirmOverlay) {
+        followUpConfirmOverlay.addEventListener('click', function (e) {
+            if (e.target === followUpConfirmOverlay) {
+                closeFollowUpConfirm();
+            }
+        });
+    }
+    if (reopenTicketCancelBtn) {
+        reopenTicketCancelBtn.addEventListener('click', closeReopenTicketConfirm);
+    }
+    if (reopenTicketConfirmBtn) {
+        reopenTicketConfirmBtn.addEventListener('click', submitPendingReopenTicket);
+    }
+    if (reopenTicketConfirmOverlay) {
+        reopenTicketConfirmOverlay.addEventListener('click', function (e) {
+            if (e.target === reopenTicketConfirmOverlay) {
+                closeReopenTicketConfirm();
             }
         });
     }
@@ -3632,6 +3947,7 @@ $successMessage = '';
             });
         });
     }
+    ensureMyTicketsReopenButtons(myTicketsBodyEl);
     initializeFollowUpCooldownButtons(document);
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && myTicketsFeedbackModalOpen()) {
@@ -3639,6 +3955,12 @@ $successMessage = '';
         }
         if (e.key === 'Escape' && followUpFeedbackOverlay && followUpFeedbackOverlay.classList.contains('is-visible')) {
             closeFollowUpFeedback();
+        }
+        if (e.key === 'Escape' && followUpConfirmOverlay && followUpConfirmOverlay.classList.contains('is-visible')) {
+            closeFollowUpConfirm();
+        }
+        if (e.key === 'Escape' && reopenTicketConfirmOverlay && reopenTicketConfirmOverlay.classList.contains('is-visible')) {
+            closeReopenTicketConfirm();
         }
         if (e.key === 'Escape' && closeTicketConfirmOverlay && closeTicketConfirmOverlay.classList.contains('is-visible')) {
             closeCloseTicketConfirm();
