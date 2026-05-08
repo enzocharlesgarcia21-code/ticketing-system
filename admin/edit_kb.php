@@ -387,6 +387,65 @@ $selected_sub_category = $current_sub_category;
             font-family: inherit;
             overflow-y: auto;
         }
+        .kb-editor-shell {
+            border: 1px solid #D1D5DB;
+            border-radius: 12px;
+            background: #ffffff;
+            overflow: hidden;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .kb-editor-shell:focus-within {
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+        .kb-editor-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            padding: 10px 12px;
+            background: #F8FAFC;
+            border-bottom: 1px solid #E5E7EB;
+        }
+        .kb-editor-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: #1F2937;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+        .kb-editor-btn:hover {
+            background: #E5E7EB;
+            color: #111827;
+        }
+        .kb-editor-separator {
+            width: 1px;
+            height: 28px;
+            background: #D1D5DB;
+            margin: 0 4px;
+        }
+        .kb-editor-content {
+            min-height: 260px;
+            padding: 18px 20px;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            line-height: 1.6;
+            overflow-y: auto;
+        }
+        .kb-editor-content:empty::before {
+            content: attr(data-placeholder);
+            color: #9CA3AF;
+        }
+        .kb-edit-content-input {
+            display: none;
+        }
         .kb-edit-form-grid {
             display: grid;
             grid-template-columns: minmax(0, 1.65fr) 400px;
@@ -879,7 +938,20 @@ $selected_sub_category = $current_sub_category;
 
                         <div class="form-group">
                             <label class="form-label">Content</label>
-                            <textarea name="content" class="form-control" rows="6" placeholder="Write acticle content here..."><?= htmlspecialchars($article['content']) ?></textarea>
+                            <div class="kb-editor-shell" id="kb-edit-editor-shell">
+                                <div class="kb-editor-toolbar" role="toolbar" aria-label="Article content formatting">
+                                    <button type="button" class="kb-editor-btn" data-editor-action="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
+                                    <button type="button" class="kb-editor-btn" data-editor-action="italic" title="Italic" aria-label="Italic"><em>I</em></button>
+                                    <button type="button" class="kb-editor-btn" data-editor-action="underline" title="Underline" aria-label="Underline"><u>U</u></button>
+                                    <button type="button" class="kb-editor-btn" data-editor-action="heading" title="Heading" aria-label="Heading"><i class="fas fa-font"></i></button>
+                                    <span class="kb-editor-separator" aria-hidden="true"></span>
+                                    <button type="button" class="kb-editor-btn" data-editor-action="bulleted" title="Bullet list" aria-label="Bullet list"><i class="fas fa-list-ul"></i></button>
+                                    <button type="button" class="kb-editor-btn" data-editor-action="numbered" title="Numbered list" aria-label="Numbered list"><i class="fas fa-list-ol"></i></button>
+                                    <button type="button" class="kb-editor-btn" data-editor-action="quote" title="Paragraph quote" aria-label="Paragraph quote"><i class="fas fa-paragraph"></i></button>
+                                </div>
+                                <div class="kb-editor-content" id="kb-edit-editor-content" contenteditable="true" data-placeholder="Write article content here..." aria-label="Article content"></div>
+                                <textarea name="content" id="kb-edit-content-input" class="kb-edit-content-input"><?= htmlspecialchars($article['content']) ?></textarea>
+                            </div>
                         </div>
                     </div>
 
@@ -1344,6 +1416,72 @@ $selected_sub_category = $current_sub_category;
             autoResizeTextarea(textarea);
         });
     });
+
+    function setupEditKbContentEditor() {
+        const editorShell = document.getElementById('kb-edit-editor-shell');
+        const toolbar = editorShell ? editorShell.querySelector('.kb-editor-toolbar') : null;
+        const editor = document.getElementById('kb-edit-editor-content');
+        const contentInput = document.getElementById('kb-edit-content-input');
+        if (!editorShell || !toolbar || !editor || !contentInput) return;
+
+        editor.innerHTML = contentInput.value || '';
+
+        function syncEditorContent() {
+            contentInput.value = editor.innerHTML.trim();
+        }
+
+        function runEditorCommand(command, value) {
+            editor.focus();
+            document.execCommand(command, false, value || null);
+            syncEditorContent();
+        }
+
+        toolbar.addEventListener('mousedown', function(event) {
+            if (event.target.closest('[data-editor-action]')) {
+                event.preventDefault();
+            }
+        });
+
+        toolbar.addEventListener('click', function(event) {
+            const button = event.target.closest('[data-editor-action]');
+            if (!button) return;
+
+            const action = button.getAttribute('data-editor-action');
+            switch (action) {
+                case 'bold':
+                    runEditorCommand('bold');
+                    break;
+                case 'italic':
+                    runEditorCommand('italic');
+                    break;
+                case 'underline':
+                    runEditorCommand('underline');
+                    break;
+                case 'heading':
+                    runEditorCommand('formatBlock', '<h2>');
+                    break;
+                case 'bulleted':
+                    runEditorCommand('insertUnorderedList');
+                    break;
+                case 'numbered':
+                    runEditorCommand('insertOrderedList');
+                    break;
+                case 'quote':
+                    runEditorCommand('formatBlock', '<blockquote>');
+                    break;
+            }
+        });
+
+        editor.addEventListener('input', syncEditorContent);
+        editor.addEventListener('blur', syncEditorContent);
+
+        const form = editor.closest('form');
+        if (form) {
+            form.addEventListener('submit', syncEditorContent);
+        }
+    }
+
+    setupEditKbContentEditor();
 
 </script>
 

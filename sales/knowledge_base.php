@@ -78,7 +78,20 @@ function kb_category_meta(string $category): array
         'Uncategorized' => ['icon' => 'fa-folder-open', 'tone' => 'slate'],
     ];
 
-    return $map[$label] ?? $map['Uncategorized'];
+    if (isset($map[$label])) {
+        return $map[$label];
+    }
+
+    $fallback = [
+        ['icon' => 'fa-folder-open', 'tone' => 'slate'],
+        ['icon' => 'fa-folder-tree', 'tone' => 'blue'],
+        ['icon' => 'fa-folder', 'tone' => 'mint'],
+        ['icon' => 'fa-bookmark', 'tone' => 'violet'],
+        ['icon' => 'fa-layer-group', 'tone' => 'emerald'],
+    ];
+    $hash = abs(crc32($label));
+
+    return $fallback[$hash % count($fallback)];
 }
 
 function kb_is_standard_category(string $category): bool
@@ -221,15 +234,18 @@ if ($catStmt) {
             continue;
         }
         $normalizedCategory = kb_category_label($rawCategory);
-        if (!kb_is_standard_category($normalizedCategory)) {
-            $normalizedCategory = 'Uncategorized';
-        }
         if (!isset($categoryCounts[$normalizedCategory])) {
             $categoryCounts[$normalizedCategory] = 0;
         }
         $categoryCounts[$normalizedCategory] += (int) ($row['total_articles'] ?? 0);
     }
     $catStmt->close();
+}
+
+foreach (array_keys($categoryCounts) as $categoryName) {
+    if (!in_array($categoryName, $fixedCategories, true)) {
+        $fixedCategories[] = $categoryName;
+    }
 }
 
 foreach ($fixedCategories as $fixedCategory) {
@@ -243,6 +259,39 @@ foreach ($fixedCategories as $fixedCategory) {
     ];
     $categoryMap[$categoryIndex] = $fixedCategory;
     $categoryIndex++;
+}
+
+$rankedCategoryCards = $categoryCards;
+usort($rankedCategoryCards, function ($a, $b) {
+    $aHasArticles = (int) ($a['total_articles'] ?? 0) > 0 ? 1 : 0;
+    $bHasArticles = (int) ($b['total_articles'] ?? 0) > 0 ? 1 : 0;
+    if ($aHasArticles !== $bHasArticles) {
+        return $bHasArticles <=> $aHasArticles;
+    }
+
+    $articleCompare = ((int) ($b['total_articles'] ?? 0)) <=> ((int) ($a['total_articles'] ?? 0));
+    if ($articleCompare !== 0) {
+        return $articleCompare;
+    }
+
+    return strcasecmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
+});
+
+$maxHomeDepartmentCards = 8;
+$homeDepartmentCards = $rankedCategoryCards;
+$otherDepartmentCards = [];
+if (count($rankedCategoryCards) > $maxHomeDepartmentCards) {
+    $homeDepartmentCards = array_slice($rankedCategoryCards, 0, $maxHomeDepartmentCards - 1);
+    $otherDepartmentCards = array_slice($rankedCategoryCards, $maxHomeDepartmentCards - 1);
+    $homeDepartmentCards[] = [
+        'id' => 0,
+        'raw' => '__other_departments',
+        'label' => 'Others',
+        'icon' => 'fa-ellipsis',
+        'tone' => 'slate',
+        'total_articles' => count($otherDepartmentCards),
+        'is_other_link' => true,
+    ];
 }
 
 // 3. Most recent articles for homepage section
@@ -286,9 +335,10 @@ if ($search !== '') {
 
 $selectedCategory = trim((string) ($_GET['category'] ?? ''));
 $selectedSubCategory = trim((string) ($_GET['sub'] ?? ''));
+$showOtherDepartments = (trim((string) ($_GET['view'] ?? '')) === 'other_departments' && !empty($otherDepartmentCards));
 $activeCategory = ($selectedCategory !== '' && in_array($selectedCategory, $fixedCategories, true)) ? $selectedCategory : '';
 $showCategoryView = ($activeCategory !== '');
-$showHomeSections = ($search === '' && !$showCategoryView);
+$showHomeSections = ($search === '' && !$showCategoryView && !$showOtherDepartments);
 $othersSubcategories = [];
 $categoryArticles = [];
 $categoryViewTitle = $activeCategory;
@@ -377,6 +427,7 @@ if ($showCategoryView) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Knowledge Base | Leads Helpdesk</title>
+    <link rel="stylesheet" href="../css/employee-dashboard.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* Knowledge Base Specific Styles */
@@ -1215,6 +1266,44 @@ if ($showCategoryView) {
                 grid-template-columns: 1fr;
             }
         }
+
+        /* Match employee knowledge base department card sizing and spacing exactly */
+        .categories-section.home-departments {
+            max-width: 920px;
+            margin: 0 auto 36px;
+        }
+
+        .home-departments .category-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px 24px;
+        }
+
+        .home-departments .category-card {
+            min-height: 92px;
+            gap: 18px;
+            padding: 18px 22px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.94);
+            border-color: rgba(226, 232, 240, 0.92);
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+        }
+
+        .home-departments .category-icon {
+            width: 58px;
+            height: 58px;
+            border-radius: 999px;
+            font-size: 23px;
+        }
+
+        .home-departments .category-info h4 {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .home-departments .category-info p {
+            font-size: 15px;
+        }
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
@@ -1431,13 +1520,34 @@ if ($showCategoryView) {
                     </div>
                 <?php endif; ?>
             </div>
+        <?php elseif ($showOtherDepartments): ?>
+            <div class="categories-section home-departments">
+                <a href="knowledge_base.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
+                <h2 class="categories-title">Others</h2>
+                <div class="category-grid">
+                    <?php foreach ($otherDepartmentCards as $categoryCard): ?>
+                        <a
+                            href="knowledge_base.php?category=<?= urlencode($categoryCard['raw']) ?>"
+                            class="category-card tone-<?= htmlspecialchars($categoryCard['tone']) ?>"
+                        >
+                            <div class="category-icon">
+                                <i class="fas <?= htmlspecialchars($categoryCard['icon']) ?>"></i>
+                            </div>
+                            <div class="category-info">
+                                <h4><?= htmlspecialchars($categoryCard['label']) ?></h4>
+                                <p><?= number_format((int) ($categoryCard['total_articles'] ?? 0)) ?> Article<?= (int) ($categoryCard['total_articles'] ?? 0) === 1 ? '' : 's' ?></p>
+                            </div>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
         <?php else: ?>
             <div class="categories-section home-departments">
                 <h2 class="categories-title">Departments</h2>
                 <div class="category-grid">
-                    <?php foreach ($categoryCards as $categoryCard): ?>
+                    <?php foreach ($homeDepartmentCards as $categoryCard): ?>
                         <a
-                            href="knowledge_base.php?category=<?= urlencode($categoryCard['raw']) ?>"
+                            href="<?= !empty($categoryCard['is_other_link']) ? 'knowledge_base.php?view=other_departments' : 'knowledge_base.php?category=' . urlencode($categoryCard['raw']) ?>"
                             class="category-card tone-<?= htmlspecialchars($categoryCard['tone']) ?>"
                         >
                             <div class="category-icon">
