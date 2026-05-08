@@ -5,6 +5,14 @@ require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/user_permissions.php';
 $csrfToken = csrf_token();
 $canManageTicketReceiving = isset($conn) && $conn instanceof mysqli && user_permissions_can_manage($conn);
+$appBasePath = rtrim(str_replace('\\', '/', dirname(dirname($_SERVER['SCRIPT_NAME']))), '/');
+$adminBaseUrl = ($appBasePath !== '' ? $appBasePath : '') . '/admin';
+
+function admin_nav_url(string $path): string
+{
+    global $adminBaseUrl;
+    return $adminBaseUrl . '/' . ltrim($path, '/');
+}
 
 $adminNavSections = [
     'Main' => [
@@ -51,7 +59,7 @@ foreach ($adminNavSections as $items) {
     <button type="button" class="admin-sidebar-collapse-btn" id="adminSidebarCollapseBtn" aria-label="Collapse sidebar" aria-pressed="false" title="Collapse sidebar">
         <i class="fas fa-angles-left" aria-hidden="true"></i>
     </button>
-    <a href="dashboard.php" class="admin-sidebar-brand">
+    <a href="<?= htmlspecialchars(admin_nav_url('dashboard.php'), ENT_QUOTES, 'UTF-8'); ?>" class="admin-sidebar-brand">
         <img src="../assets/img/UPDATEDlogo.png" alt="Logo" class="admin-logo-img">
         <div class="admin-brand-copy">
             <div class="admin-logo-text-main">Leads Helpdesk</div>
@@ -66,7 +74,7 @@ foreach ($adminNavSections as $items) {
                 <?php foreach ($items as $item): ?>
                     <?php if (!($item['visible'] ?? true)) continue; ?>
                     <?php $isActive = in_array($current_page, $item['active'], true); ?>
-                    <a href="<?= htmlspecialchars($item['href'], ENT_QUOTES, 'UTF-8'); ?>" class="admin-nav-link <?= $isActive ? 'active' : '' ?>" data-tooltip="<?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8'); ?>" title="<?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8'); ?>">
+                    <a href="<?= htmlspecialchars(admin_nav_url($item['href']), ENT_QUOTES, 'UTF-8'); ?>" class="admin-nav-link <?= $isActive ? 'active' : '' ?>" data-tooltip="<?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8'); ?>" title="<?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8'); ?>">
                         <span class="admin-nav-icon"><i class="fas <?= htmlspecialchars($item['icon'], ENT_QUOTES, 'UTF-8'); ?>"></i></span>
                         <span class="admin-nav-label"><?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8'); ?></span>
                     </a>
@@ -104,7 +112,7 @@ foreach ($adminNavSections as $items) {
                     <div class="notif-empty">No new notifications</div>
                 </div>
                 <div class="notif-footer">
-                    <a href="notifications.php">View All Notifications</a>
+                    <a href="<?= htmlspecialchars(admin_nav_url('notifications.php'), ENT_QUOTES, 'UTF-8'); ?>">View All Notifications</a>
                 </div>
             </div>
         </div>
@@ -123,6 +131,7 @@ foreach ($adminNavSections as $items) {
 <script>
 window.TM_CSRF_TOKEN = <?php echo json_encode($csrfToken, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 window.TM_HIDE_ADMIN_CHAT = true;
+window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 </script>
 
 <button type="button" id="globalChatFab" class="tm-global-chat-fab" onclick="window.TMGlobalChat && window.TMGlobalChat.open()" hidden aria-hidden="true">
@@ -1274,6 +1283,12 @@ body .tm-global-chat-fab,
 </script>
 
 <script>
+const ADMIN_NAV_BASE_URL = window.ADMIN_BASE_URL || '/admin';
+
+function adminNavUrl(path) {
+    return ADMIN_NAV_BASE_URL + '/' + String(path || '').replace(/^\/+/, '');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     function setGlobalChatBadge(n) {
         const badge = document.getElementById('globalChatBadge');
@@ -1294,7 +1309,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (window.TM_CSRF_TOKEN) formData.append('csrf_token', String(window.TM_CSRF_TOKEN));
         const headers = { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' };
         if (window.TM_CSRF_TOKEN) headers['X-CSRF-Token'] = String(window.TM_CSRF_TOKEN);
-        fetch('chat_fetch.php', { method: 'POST', body: formData, headers: headers })
+        fetch(adminNavUrl('chat_fetch.php'), { method: 'POST', body: formData, headers: headers })
             .then(r => r.text())
             .then(txt => {
                 let data = null;
@@ -1443,7 +1458,7 @@ function toggleNotifications() {
 }
 
 function fetchAdminNotifications() {
-    fetch('fetch_notifications.php?_=' + Date.now(), { cache: 'no-store' })
+    fetch(adminNavUrl('fetch_notifications.php') + '?_=' + Date.now(), { cache: 'no-store' })
         .then(response => {
             if (response.status === 403) {
                 // Session expired
@@ -1605,15 +1620,15 @@ function handleNotificationClick(notifId, ticketId, type) {
     formData.append('id', notifId);
     formData.append('csrf_token', <?php echo json_encode(csrf_token()); ?>);
     
-    fetch('mark_notification_read.php', {
+    fetch(adminNavUrl('mark_notification_read.php'), {
         method: 'POST',
         body: formData
     }).then(() => {
         if ((type || '').toString() === 'conference_booking') {
-            window.location.href = 'conference_bookings.php';
+            window.location.href = adminNavUrl('conference_bookings.php');
             return;
         }
-        window.location.href = `all_tickets.php?ticket_id=${ticketId}`;
+        window.location.href = adminNavUrl(`all_tickets.php?ticket_id=${ticketId}`);
     });
 }
 

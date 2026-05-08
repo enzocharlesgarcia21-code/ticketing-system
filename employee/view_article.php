@@ -5,14 +5,15 @@ require_once '../includes/kb_media.php';
 kb_ensure_article_views_table($conn);
 
 // Protect page
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
-    header("Location: employee_login.php");
+$current_role = (string) ($_SESSION['role'] ?? '');
+if (!isset($_SESSION['user_id']) || !in_array($current_role, ['employee', 'admin'], true)) {
+    header("Location: " . ($current_role === 'admin' ? '../admin/admin_login.php' : 'employee_login.php'));
     exit();
 }
 
 // Validate ID
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
-    header("Location: knowledge_base.php");
+    header("Location: " . ($current_role === 'admin' ? '../admin/manage_kb.php' : 'knowledge_base.php'));
     exit();
 }
 
@@ -24,7 +25,7 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 if ($result->num_rows === 0) {
-    header("Location: knowledge_base.php");
+    header("Location: " . ($current_role === 'admin' ? '../admin/manage_kb.php' : 'knowledge_base.php'));
     exit();
 }
 
@@ -34,7 +35,8 @@ if ($registered_view) {
     $article['views'] = (int) ($article['views'] ?? 0) + 1;
 }
 $article_image_urls = kb_resolve_asset_urls($article['image_path'] ?? '');
-$back_url = 'knowledge_base.php';
+$back_url = $current_role === 'admin' ? '../admin/manage_kb.php' : 'knowledge_base.php';
+$is_embed = isset($_GET['embed']) && $_GET['embed'] === '1';
 
 function kb_article_category_label(string $category): string
 {
@@ -208,10 +210,19 @@ function renderArticleContent($text) {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
+        body.embed-preview {
+            background: #f8fafc;
+        }
+
         .article-container {
             max-width: 900px;
             margin: 0 auto;
             padding: 40px 20px;
+        }
+
+        body.embed-preview .article-container {
+            max-width: 100%;
+            padding: 18px;
         }
 
         .back-link {
@@ -582,16 +593,24 @@ function renderArticleContent($text) {
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="<?= $is_embed ? 'embed-preview' : '' ?>">
 
-    <?php include '../includes/employee_navbar.php'; ?>
+    <?php if (!$is_embed): ?>
+        <?php if ($current_role === 'admin'): ?>
+            <?php include '../includes/admin_navbar.php'; ?>
+        <?php else: ?>
+            <?php include '../includes/employee_navbar.php'; ?>
+        <?php endif; ?>
+    <?php endif; ?>
 
     <div class="article-container">
         
-        <a href="<?= htmlspecialchars($back_url) ?>" class="back-link" aria-label="Back to Category Articles">
-            <i class="fas fa-arrow-left"></i>
-            <span>Back</span>
-        </a>
+        <?php if (!$is_embed): ?>
+            <a href="<?= htmlspecialchars($back_url) ?>" class="back-link" aria-label="Back to Category Articles">
+                <i class="fas fa-arrow-left"></i>
+                <span>Back</span>
+            </a>
+        <?php endif; ?>
 
         <article class="article-card">
             <div class="article-header">
