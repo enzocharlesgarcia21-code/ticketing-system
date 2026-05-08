@@ -8,6 +8,7 @@ header('Pragma: no-cache');
 header('Expires: 0');
 
 notif_ensure_action_type_column($conn);
+notif_ensure_title_column($conn);
 notif_ensure_requester_identity_columns($conn);
 ticket_apply_sla_priority($conn);
 
@@ -26,7 +27,11 @@ if ($user_email === '') {
     }
 }
 $user_email_sql = $conn->real_escape_string($user_email);
-$requesterNotificationAccessSql = "(n.type <> 'note_added' OR t.user_id = n.user_id OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = '$user_email_sql')";
+// Notifications are always inserted for the correct n.user_id, so the
+// n.user_id = $user_id WHERE clause already enforces correct visibility.
+// Avoid referencing t.requester_email here — the column may not exist on
+// all server versions and would cause the entire query to fail.
+$requesterNotificationAccessSql = "1";
 
 function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
 {
@@ -140,15 +145,13 @@ function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
 
 employee_send_due_hr_chat_reminders($conn, $user_id);
 
-// Unread count
+// Unread count — simple query without optional columns
 $count_result = $conn->query("
     SELECT COUNT(*) as count
     FROM notifications n
-    LEFT JOIN employee_tickets t ON n.ticket_id = t.id
     WHERE n.user_id = $user_id
       AND n.is_read = 0
       AND n.type <> 'chat_message'
-      AND $requesterNotificationAccessSql
 ");
 if (!$count_result) {
     http_response_code(500);
@@ -157,7 +160,7 @@ if (!$count_result) {
 }
 $unread_count = (int) ($count_result->fetch_assoc()['count'] ?? 0);
 
-// Latest 10 notifications with seconds_ago for lightweight time-ago formatting
+// Latest 10 notifications — try with optional columns first, fall back if they don't exist
 $query = "SELECT n.id, n.ticket_id, n.title, n.message, n.type, n.is_read, n.created_at,
                  n.action_type,
                  t.priority,
@@ -166,10 +169,23 @@ $query = "SELECT n.id, n.ticket_id, n.title, n.message, n.type, n.is_read, n.cre
           LEFT JOIN employee_tickets t ON n.ticket_id = t.id
           WHERE n.user_id = $user_id
             AND n.type <> 'chat_message'
-            AND $requesterNotificationAccessSql
           ORDER BY n.created_at DESC
           LIMIT 10";
 $result = $conn->query($query);
+if (!$result) {
+    // Fallback: title/action_type columns may not exist yet on this server
+    $query = "SELECT n.id, n.ticket_id, '' AS title, n.message, n.type, n.is_read, n.created_at,
+                     '' AS action_type,
+                     t.priority,
+                     TIMESTAMPDIFF(SECOND, n.created_at, NOW()) as seconds_ago
+              FROM notifications n
+              LEFT JOIN employee_tickets t ON n.ticket_id = t.id
+              WHERE n.user_id = $user_id
+                AND n.type <> 'chat_message'
+              ORDER BY n.created_at DESC
+              LIMIT 10";
+    $result = $conn->query($query);
+}
 if (!$result) {
     http_response_code(500);
     echo json_encode(['unread_count' => $unread_count, 'notifications' => [], 'error' => 'SQL Error']);

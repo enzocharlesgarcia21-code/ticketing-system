@@ -110,7 +110,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // --- PERMISSION CHECK ---
     // Employee can only update tickets assigned to their department AND company
+    // Try with optional columns first; fall back if they don't exist yet.
     $check_stmt = $conn->prepare("SELECT user_id, requester_email, status, assigned_department, assigned_group, assigned_company, assigned_user_id, assigned_to, admin_note, company FROM employee_tickets WHERE id = ?");
+    if (!$check_stmt) {
+        $check_stmt = $conn->prepare("SELECT user_id, NULL AS requester_email, status, assigned_department, NULL AS assigned_group, NULL AS assigned_company, NULL AS assigned_user_id, NULL AS assigned_to, admin_note, company FROM employee_tickets WHERE id = ?");
+        if (!$check_stmt) {
+            error_log('employee/update_ticket.php: check_stmt prepare failed: ' . $conn->error);
+            header("Location: my_task.php?error=dbfail");
+            exit();
+        }
+    }
     $check_stmt->bind_param("i", $id);
     $check_stmt->execute();
     $check_res = $check_stmt->get_result();
