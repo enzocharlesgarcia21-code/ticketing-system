@@ -68,6 +68,49 @@ $closedStmt->execute();
 $closed = (int) (($closedStmt->get_result()->fetch_assoc()['count'] ?? 0));
 $closedStmt->close();
 
+$submittedDashboardStats = [
+    [
+        'variant' => 'total',
+        'label' => 'Total Tickets',
+        'value' => $total,
+        'subtitle' => 'All non-trash tickets in system',
+        'icon' => 'fa-stopwatch',
+        'href' => 'my_tickets.php',
+    ],
+    [
+        'variant' => 'open',
+        'label' => 'Open',
+        'value' => $open,
+        'subtitle' => 'Awaiting response',
+        'icon' => 'fa-folder-open',
+        'href' => 'my_tickets.php?status=Open',
+    ],
+    [
+        'variant' => 'progress',
+        'label' => 'In Progress',
+        'value' => $progress,
+        'subtitle' => 'Currently being worked',
+        'icon' => 'fa-gear',
+        'href' => 'my_tickets.php?status=In+Progress',
+    ],
+    [
+        'variant' => 'resolved',
+        'label' => 'Resolved',
+        'value' => $resolved,
+        'subtitle' => 'Completed tickets',
+        'icon' => 'fa-check-circle',
+        'href' => 'my_tickets.php?status=Resolved',
+    ],
+    [
+        'variant' => 'closed',
+        'label' => 'Closed',
+        'value' => $closed,
+        'subtitle' => 'Confirmed by requesters',
+        'icon' => 'fa-lock',
+        'href' => 'my_tickets.php?status=Closed',
+    ],
+];
+
 
 /* Recent Tickets (created by this employee) */
 $recentStmt = $conn->prepare("
@@ -139,6 +182,66 @@ usort($receivedTickets, static function (array $a, array $b): int {
     }
     return $dateB <=> $dateA;
 });
+
+$assignedStatusCounts = [
+    'Open' => 0,
+    'In Progress' => 0,
+    'Resolved' => 0,
+    'Closed' => 0,
+];
+foreach ($receivedTickets as $ticketRow) {
+    $ticketStatus = (string) ($ticketRow['status'] ?? '');
+    if (isset($assignedStatusCounts[$ticketStatus])) {
+        $assignedStatusCounts[$ticketStatus]++;
+    }
+}
+$assignedTotal = array_sum($assignedStatusCounts);
+$assignedDashboardStats = [
+    [
+        'variant' => 'total',
+        'label' => 'Total Tickets',
+        'value' => $assignedTotal,
+        'subtitle' => 'All assigned non-trash tickets',
+        'icon' => 'fa-stopwatch',
+        'href' => 'my_task.php',
+    ],
+    [
+        'variant' => 'open',
+        'label' => 'Open',
+        'value' => $assignedStatusCounts['Open'],
+        'subtitle' => 'Awaiting response',
+        'icon' => 'fa-folder-open',
+        'href' => 'my_task.php?status=Open',
+    ],
+    [
+        'variant' => 'progress',
+        'label' => 'In Progress',
+        'value' => $assignedStatusCounts['In Progress'],
+        'subtitle' => 'Currently being worked',
+        'icon' => 'fa-gear',
+        'href' => 'my_task.php?status=In+Progress',
+    ],
+    [
+        'variant' => 'resolved',
+        'label' => 'Resolved',
+        'value' => $assignedStatusCounts['Resolved'],
+        'subtitle' => 'Completed tickets',
+        'icon' => 'fa-check-circle',
+        'href' => 'my_task.php?status=Resolved',
+    ],
+    [
+        'variant' => 'closed',
+        'label' => 'Closed',
+        'value' => $assignedStatusCounts['Closed'],
+        'subtitle' => 'Confirmed by requesters',
+        'icon' => 'fa-lock',
+        'href' => 'my_task.php?status=Closed',
+    ],
+];
+$dashboardStatSets = [
+    'submitted' => $submittedDashboardStats,
+    'assigned' => $assignedDashboardStats,
+];
 $receivedTickets = array_slice($receivedTickets, 0, 5);
 
 function dashboard_status_class(string $status): string
@@ -609,53 +712,296 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
             margin: 10px 0 0;
         }
 
-        body.employee-dashboard-page .stat-card {
-            min-height: 142px;
-            padding: 24px 24px 22px;
+        body.employee-dashboard-page .cards-panel {
+            padding: 18px 18px 16px;
             border: 1px solid #e5e7eb;
-            border-top: 3px solid #f4c430;
-            border-radius: 14px;
+            border-radius: 18px;
             background: #ffffff;
             box-shadow: 0 12px 26px rgba(15, 23, 42, 0.07);
         }
 
-        body.employee-dashboard-page .stat-icon {
-            width: 38px;
-            height: 38px;
-            margin-bottom: 18px;
+        body.employee-dashboard-page .card-filter-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin: 0;
+            flex-wrap: nowrap;
+        }
+
+        body.employee-dashboard-page .card-filter-label {
+            color: #475569;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        body.employee-dashboard-page .card-filter-dropdown {
+            position: relative;
+            flex: 0 0 auto;
+        }
+
+        body.employee-dashboard-page .card-filter-trigger {
+            min-width: 190px;
+            height: 40px;
+            padding: 0 38px 0 12px;
+            border: 1px solid #dbe4ee;
             border-radius: 10px;
-            font-size: 16px;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 13px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            cursor: pointer;
         }
 
-        body.employee-dashboard-page .stat-card.total .stat-icon,
-        body.employee-dashboard-page .stat-card.progress .stat-icon,
-        body.employee-dashboard-page .stat-card.resolved .stat-icon {
-            background: #dcfce7;
-            color: #11651f;
+        body.employee-dashboard-page .card-filter-trigger-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
         }
 
-        body.employee-dashboard-page .stat-card.closed .stat-icon {
-            background: #e0e7ff;
-            color: #1e40af;
+        body.employee-dashboard-page .card-filter-trigger-icon {
+            width: 18px;
+            text-align: center;
+            color: #166534;
+            flex: 0 0 18px;
         }
 
-        body.employee-dashboard-page .stat-card.open .stat-icon {
-            background: #fef9c3;
-            color: #d97706;
+        body.employee-dashboard-page .card-filter-trigger-caret {
+            color: #475569;
+            font-size: 12px;
+            flex: 0 0 auto;
+        }
+
+        body.employee-dashboard-page .card-filter-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            min-width: 190px;
+            padding: 6px;
+            border: 1px solid #dbe4ee;
+            border-radius: 10px;
+            background: #ffffff;
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+            z-index: 20;
+        }
+
+        body.employee-dashboard-page .card-filter-menu[hidden] {
+            display: none;
+        }
+
+        body.employee-dashboard-page .card-filter-option {
+            width: 100%;
+            min-height: 38px;
+            padding: 0 10px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        body.employee-dashboard-page .card-filter-option:hover {
+            background: #f8fafc;
+        }
+
+        body.employee-dashboard-page .card-filter-option-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        body.employee-dashboard-page .card-filter-option-icon {
+            width: 18px;
+            text-align: center;
+            color: #166534;
+            flex: 0 0 18px;
+        }
+
+        body.employee-dashboard-page .card-filter-option-check {
+            color: #16a34a;
+            font-size: 12px;
+            opacity: 0;
+        }
+
+        body.employee-dashboard-page .card-filter-option.is-active .card-filter-option-check {
+            opacity: 1;
+        }
+
+        body.employee-dashboard-page .stats-grid[hidden] {
+            display: none;
+        }
+
+        body.employee-dashboard-page .stat-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 168px;
+            padding: 18px 20px 16px;
+            border: 1px solid #e0e8f2;
+            border-radius: 18px;
+            background:
+                linear-gradient(90deg, var(--stat-accent, #4ade80) 0 7px, #ffffff 7px 100%);
+            box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+            color: inherit;
+            text-decoration: none;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+        }
+
+        body.employee-dashboard-page .stat-card::after {
+            content: none;
+        }
+
+        body.employee-dashboard-page .stat-card:hover,
+        body.employee-dashboard-page .stat-card:focus-visible {
+            border-color: var(--stat-accent, #f4c430);
+            box-shadow: 0 22px 48px rgba(15, 23, 42, 0.12);
+            transform: translateY(-2px);
+            outline: none;
+        }
+
+        body.employee-dashboard-page .stat-card.total {
+            --stat-accent: #22c55e;
+            --stat-icon-bg: #e4f5ea;
+            --stat-icon-color: #087029;
+            --stat-chip-bg: #ecfdf3;
+            --stat-chip-color: #11651f;
+        }
+
+        body.employee-dashboard-page .stat-card.open {
+            --stat-accent: #4fb7ff;
+            --stat-icon-bg: #fffde9;
+            --stat-icon-color: #f2b500;
+            --stat-chip-bg: #edf7ff;
+            --stat-chip-color: #2d9bf0;
+        }
+
+        body.employee-dashboard-page .stat-card.progress {
+            --stat-accent: #9b6bff;
+            --stat-icon-bg: #e4f5ea;
+            --stat-icon-color: #087029;
+            --stat-chip-bg: #f5edff;
+            --stat-chip-color: #7c3aed;
+        }
+
+        body.employee-dashboard-page .stat-card.resolved {
+            --stat-accent: #ffab2e;
+            --stat-icon-bg: #e4f5ea;
+            --stat-icon-color: #0b6b35;
+            --stat-chip-bg: #fff4e8;
+            --stat-chip-color: #f97316;
+        }
+
+        body.employee-dashboard-page .stat-card.closed {
+            --stat-accent: #94a3b8;
+            --stat-icon-bg: #eef3f9;
+            --stat-icon-color: #475569;
+            --stat-chip-bg: #f8fafc;
+            --stat-chip-color: #334155;
+        }
+
+        body.employee-dashboard-page .stat-main {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        body.employee-dashboard-page .stat-copy {
+            min-width: 0;
+        }
+
+        body.employee-dashboard-page .stat-icon {
+            flex: 0 0 auto;
+            width: 52px;
+            height: 52px;
+            margin-bottom: 0;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--stat-icon-bg, #e4f5ea);
+            color: var(--stat-icon-color, #087029);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.42);
+            font-size: 22px;
         }
 
         body.employee-dashboard-page .stat-label {
-            margin-bottom: 8px;
-            color: #64748b;
-            font-size: 13px;
-            font-weight: 500;
+            margin: 2px 0 6px;
+            color: #081635;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.2;
         }
 
         body.employee-dashboard-page .stat-value {
-            color: #111827;
-            font-size: 30px;
+            color: #17213d;
+            font-size: 40px;
             line-height: 1;
             font-weight: 500;
+            letter-spacing: 0;
+        }
+
+        body.employee-dashboard-page .stat-subtext {
+            margin-top: 12px;
+            color: #58708f;
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 1.35;
+        }
+
+        body.employee-dashboard-page .stat-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: max-content;
+            margin-top: 12px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: var(--stat-chip-bg, #ecfdf3);
+            color: var(--stat-chip-color, #11651f);
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1;
+            transition: transform 0.16s ease;
+        }
+
+        body.employee-dashboard-page .stat-card:hover .stat-action,
+        body.employee-dashboard-page .stat-card:focus-visible .stat-action {
+            transform: translateX(2px);
+        }
+
+        @media (max-width: 1400px) {
+            body.employee-dashboard-page .stats-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 992px) {
+            body.employee-dashboard-page .stats-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            body.employee-dashboard-page .stat-card {
+                min-height: 204px;
+            }
         }
 
         body.employee-dashboard-page .dashboard-ticket-grid {
@@ -1188,8 +1534,35 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                 grid-template-columns: 1fr;
             }
 
+            body.employee-dashboard-page .cards-panel {
+                padding: 14px;
+                border-radius: 16px;
+            }
+
+            body.employee-dashboard-page .card-filter-row {
+                justify-content: flex-start;
+                margin-bottom: 8px;
+            }
+
             body.employee-dashboard-page .stat-card {
-                min-height: 118px;
+                min-height: 148px;
+                padding: 14px 16px 12px;
+                border-radius: 16px;
+            }
+
+            body.employee-dashboard-page .stat-icon {
+                width: 46px;
+                height: 46px;
+                font-size: 20px;
+            }
+
+            body.employee-dashboard-page .stat-value {
+                font-size: 36px;
+            }
+
+            body.employee-dashboard-page .stat-subtext {
+                margin-top: 10px;
+                font-size: 13px;
             }
 
             body.employee-dashboard-page .dashboard-ticket-panel {
@@ -1427,52 +1800,55 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
             </div>
 
             <!-- 4ï¸âƒ£ STATISTICS CARDS -->
-            <div class="stats-grid">
-                <!-- Total Tickets -->
-                <div class="stat-card total">
-                    <div class="stat-icon">
-                        <i class="fas fa-ticket-alt"></i>
+            <div class="cards-panel">
+                <div class="card-filter-row">
+                    <label class="card-filter-label" for="dashboardCardFilter">Show cards:</label>
+                    <div class="card-filter-dropdown">
+                        <button type="button" class="card-filter-trigger" id="dashboardCardFilter" aria-haspopup="true" aria-expanded="false">
+                            <span class="card-filter-trigger-label">
+                                <i class="fas fa-file-lines card-filter-trigger-icon" aria-hidden="true"></i>
+                                <span id="dashboardCardFilterText">My Submitted Tickets</span>
+                            </span>
+                            <i class="fas fa-chevron-down card-filter-trigger-caret" aria-hidden="true"></i>
+                        </button>
+                        <div class="card-filter-menu" id="dashboardCardFilterMenu" hidden>
+                            <button type="button" class="card-filter-option is-active" data-card-filter-value="submitted" data-card-filter-label="My Submitted Tickets" data-card-filter-icon="fa-file-lines">
+                                <span class="card-filter-option-label">
+                                    <i class="fas fa-file-lines card-filter-option-icon" aria-hidden="true"></i>
+                                    <span>My Submitted Tickets</span>
+                                </span>
+                                <i class="fas fa-check card-filter-option-check" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="card-filter-option" data-card-filter-value="assigned" data-card-filter-label="Assigned Tickets" data-card-filter-icon="fa-user-check">
+                                <span class="card-filter-option-label">
+                                    <i class="fas fa-user-check card-filter-option-icon" aria-hidden="true"></i>
+                                    <span>Assigned Tickets</span>
+                                </span>
+                                <i class="fas fa-check card-filter-option-check" aria-hidden="true"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="stat-label">Total Tickets</div>
-                    <div class="stat-value"><?= $total ?></div>
                 </div>
 
-                <!-- Open -->
-                <div class="stat-card open">
-                    <div class="stat-icon">
-                        <i class="fas fa-exclamation-circle"></i>
+                <?php foreach ($dashboardStatSets as $setKey => $stats): ?>
+                    <div class="stats-grid" data-card-set="<?= htmlspecialchars($setKey, ENT_QUOTES, 'UTF-8') ?>" <?= $setKey === 'submitted' ? '' : 'hidden' ?>>
+                        <?php foreach ($stats as $stat): ?>
+                            <a class="stat-card <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>" href="<?= htmlspecialchars($stat['href'], ENT_QUOTES, 'UTF-8') ?>" aria-label="View <?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?> tickets">
+                                <div class="stat-main">
+                                    <div class="stat-icon">
+                                        <i class="fas <?= htmlspecialchars($stat['icon'], ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i>
+                                    </div>
+                                    <div class="stat-copy">
+                                        <div class="stat-label"><?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?></div>
+                                        <div class="stat-value"><?= (int) $stat['value'] ?></div>
+                                    </div>
+                                </div>
+                                <div class="stat-subtext"><?= htmlspecialchars($stat['subtitle'], ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="stat-action">View tickets <i class="fas fa-arrow-right" aria-hidden="true"></i></div>
+                            </a>
+                        <?php endforeach; ?>
                     </div>
-                    <div class="stat-label">Open</div>
-                    <div class="stat-value"><?= $open ?></div>
-                </div>
-
-                <!-- In Progress -->
-                <div class="stat-card progress">
-                    <div class="stat-icon">
-                        <i class="fas fa-spinner"></i>
-                    </div>
-                    <div class="stat-label">In Progress</div>
-                    <div class="stat-value"><?= $progress ?></div>
-                </div>
-
-                <!-- Resolved -->
-                <div class="stat-card resolved">
-                    <div class="stat-icon">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                    <div class="stat-label">Resolved</div>
-                    <div class="stat-value"><?= $resolved ?></div>
-                </div>
-
-                <!-- Closed -->
-                <div class="stat-card closed">
-                    <div class="stat-icon">
-                        <i class="fas fa-lock"></i>
-                    </div>
-                    <div class="stat-label">Closed</div>
-                    <div class="stat-value"><?= $closed ?></div>
-                </div>
-
+                <?php endforeach; ?>
             </div>
 
             <!-- 5ï¸âƒ£ RECENT TICKETS SECTION -->
@@ -1834,6 +2210,62 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
             window.location.href = 'my_task.php?ticket_id=' + encodeURIComponent(id);
         });
     });
+
+    (function () {
+        var filter = document.getElementById('dashboardCardFilter');
+        var filterText = document.getElementById('dashboardCardFilterText');
+        var filterMenu = document.getElementById('dashboardCardFilterMenu');
+        var filterIcon = filter ? filter.querySelector('.card-filter-trigger-icon') : null;
+        var options = document.querySelectorAll('[data-card-filter-value]');
+        var grids = document.querySelectorAll('[data-card-set]');
+        if (!filter || !filterMenu || !filterText || !filterIcon || !grids.length || !options.length) return;
+
+        function setActiveCardSet(value, label, iconClass) {
+            grids.forEach(function (grid) {
+                grid.hidden = grid.getAttribute('data-card-set') !== value;
+            });
+            options.forEach(function (option) {
+                option.classList.toggle('is-active', option.getAttribute('data-card-filter-value') === value);
+            });
+            filterText.textContent = label;
+            filterIcon.className = 'fas ' + iconClass + ' card-filter-trigger-icon';
+            filter.setAttribute('data-card-filter-value', value);
+        }
+
+        function closeMenu() {
+            filterMenu.hidden = true;
+            filter.setAttribute('aria-expanded', 'false');
+        }
+
+        filter.addEventListener('click', function () {
+            var shouldOpen = filterMenu.hidden;
+            filterMenu.hidden = !shouldOpen;
+            filter.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        });
+
+        options.forEach(function (option) {
+            option.addEventListener('click', function () {
+                setActiveCardSet(
+                    option.getAttribute('data-card-filter-value') || 'submitted',
+                    option.getAttribute('data-card-filter-label') || 'My Submitted Tickets',
+                    option.getAttribute('data-card-filter-icon') || 'fa-file-lines'
+                );
+                closeMenu();
+            });
+        });
+
+        document.addEventListener('click', function (event) {
+            if (!filterMenu.hidden && !event.target.closest('.card-filter-dropdown')) {
+                closeMenu();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && !filterMenu.hidden) {
+                closeMenu();
+            }
+        });
+    })();
 
     </script>
 

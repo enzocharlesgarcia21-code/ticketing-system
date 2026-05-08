@@ -1376,6 +1376,41 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 refreshTasks(nextPage);
             }
         });
+
+        function syncClosedTicketTabs() {
+            var modal = document.getElementById('ticketModal');
+            if (!modal || modal.style.display !== 'flex') return;
+            var statusChip = modal.querySelector('.tm-header .tm-chip');
+            if (!statusChip) return;
+            var isClosed = String(statusChip.textContent || '').trim().toLowerCase() === 'closed';
+            if (!isClosed) return;
+
+            var updateTab = modal.querySelector('.tm-tab[data-tab="actions"]');
+            var chatTab = modal.querySelector('.tm-tab[data-tab="conversation"]');
+            var updateContent = modal.querySelector('#tab-actions');
+
+            if (updateTab) updateTab.style.display = 'none';
+            if (chatTab) chatTab.style.display = 'none';
+            if (updateContent) updateContent.style.display = 'none';
+
+            var activeTab = modal.querySelector('.tm-tab.active');
+            if (activeTab && (activeTab.getAttribute('data-tab') === 'actions' || activeTab.getAttribute('data-tab') === 'conversation')) {
+                TMTicketModal.switchTab('info');
+            }
+        }
+
+        var ticketModalObserver = new MutationObserver(function () {
+            syncClosedTicketTabs();
+        });
+        var ticketModalEl = document.getElementById('ticketModal');
+        if (ticketModalEl) {
+            ticketModalObserver.observe(ticketModalEl, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['style']
+            });
+        }
         
         var params = new URLSearchParams(window.location.search);
         var tid = params.get('ticket_id') || params.get('id');
