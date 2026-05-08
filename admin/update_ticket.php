@@ -35,7 +35,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // --- FETCH OLD DATA FOR COMPARISON & NOTIFICATIONS ---
+    // Try with all optional columns first; fall back to minimal set if columns are missing.
     $old_stmt = $conn->prepare("SELECT user_id, requester_email, status, assigned_department, assigned_company, assigned_group, assigned_user_id, assigned_to, company, admin_note FROM employee_tickets WHERE id = ?");
+    if (!$old_stmt) {
+        // Some optional columns may not exist yet — retry with minimal set
+        $old_stmt = $conn->prepare("SELECT user_id, NULL AS requester_email, status, assigned_department, NULL AS assigned_company, NULL AS assigned_group, NULL AS assigned_user_id, NULL AS assigned_to, company, admin_note FROM employee_tickets WHERE id = ?");
+        if (!$old_stmt) {
+            error_log('admin/update_ticket.php: old_stmt prepare failed: ' . $conn->error);
+            header("Location: all_tickets.php");
+            exit();
+        }
+    }
     $old_stmt->bind_param("i", $id);
     $old_stmt->execute();
     $old_res = $old_stmt->get_result();
@@ -143,10 +153,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             END
         WHERE id = ?
     ");
-    
+
+    if (!$update) {
+        error_log('admin/update_ticket.php: UPDATE prepare failed: ' . $conn->error);
+        header("Location: all_tickets.php");
+        exit();
+    }
+
     $update->bind_param("ssssiissssi", $new_status, $newDeptNorm, $newCompanyNorm, $effective_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $new_status, $id);
     
     if ($update->execute()) {
+        // Separately set feedback_status = 'pending' when admin resolves a ticket.
+        // Done as a separate query so the main update never fails if the column doesn't exist yet.
+        if ($new_status === 'Resolved') {
+            $conn->query("UPDATE employee_tickets SET feedback_status = 'pending' WHERE id = " . (int)$id . " AND COALESCE(feedback_status, '') NOT IN ('submitted', 'skipped')");
+        }
         $_SESSION['success'] = "Ticket #$id successfully updated.";
 
         // --- TICKET ACTIVITY LOG: Status change ---
