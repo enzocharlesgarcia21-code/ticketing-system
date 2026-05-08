@@ -368,11 +368,86 @@ foreach (array_keys($articles_by_category) as $category_name) {
         $category_order[] = $category_name;
     }
 }
+$fixed_department_cards = [
+    'IT',
+    'HR',
+    'Accounting',
+    'Marketing',
+    'Admin & Legal',
+    'Management',
+    'Diagnostics / Lingap',
+    'Technical',
+];
+$department_counts = [];
+foreach ($articles_by_category as $category_name => $category_articles) {
+    $department_counts[$category_name] = count($category_articles);
+    if ($category_name !== '' && !in_array($category_name, $fixed_department_cards, true)) {
+        $fixed_department_cards[] = $category_name;
+    }
+}
+
+$department_folder_cards = [];
+foreach ($fixed_department_cards as $department_name) {
+    $meta = kb_meta_for_department((string) $department_name, $category_meta, $fallback_meta_cycle);
+    $department_folder_cards[] = [
+        'raw' => $department_name,
+        'label' => $department_name,
+        'tone' => $meta['tone'],
+        'icon' => $meta['icon'],
+        'total_articles' => (int) ($department_counts[$department_name] ?? 0),
+        'is_other_link' => false,
+    ];
+}
+
+usort($department_folder_cards, function ($a, $b) {
+    $aHasArticles = (int) ($a['total_articles'] ?? 0) > 0 ? 1 : 0;
+    $bHasArticles = (int) ($b['total_articles'] ?? 0) > 0 ? 1 : 0;
+    if ($aHasArticles !== $bHasArticles) {
+        return $bHasArticles <=> $aHasArticles;
+    }
+
+    $articleCompare = ((int) ($b['total_articles'] ?? 0)) <=> ((int) ($a['total_articles'] ?? 0));
+    if ($articleCompare !== 0) {
+        return $articleCompare;
+    }
+
+    return strcasecmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
+});
+
+$max_home_department_cards = 8;
+$home_department_cards = $department_folder_cards;
+$other_department_cards = [];
+if (count($department_folder_cards) > $max_home_department_cards) {
+    $home_department_cards = array_slice($department_folder_cards, 0, $max_home_department_cards - 1);
+    $other_department_cards = array_slice($department_folder_cards, $max_home_department_cards - 1);
+    $other_meta = kb_meta_for_department('Uncategorized', $category_meta, $fallback_meta_cycle);
+    $home_department_cards[] = [
+        'raw' => '__other_departments',
+        'label' => 'Others',
+        'tone' => $other_meta['tone'],
+        'icon' => 'fa-ellipsis',
+        'total_articles' => count($other_department_cards),
+        'is_other_link' => true,
+    ];
+}
+
+$departments_count = count($department_folder_cards);
 $default_open_category = '';
-foreach ($category_order as $category_name) {
-    if (!empty($articles_by_category[$category_name])) {
-        $default_open_category = $category_name;
+foreach ($home_department_cards as $department_card) {
+    if (!empty($department_card['is_other_link'])) {
+        continue;
+    }
+    if (((int) ($department_card['total_articles'] ?? 0)) > 0) {
+        $default_open_category = (string) ($department_card['raw'] ?? '');
         break;
+    }
+}
+if ($default_open_category === '') {
+    foreach ($category_order as $category_name) {
+        if (!empty($articles_by_category[$category_name])) {
+            $default_open_category = $category_name;
+            break;
+        }
     }
 }
 $recent_articles = $articles;
@@ -414,7 +489,8 @@ unset($recent_articles_query['recent_page']);
 
         .kb-wrapper {
             padding: 28px 36px 48px;
-            max-width: 1160px;
+            width: min(100%, 1360px);
+            max-width: 1360px;
             margin: 0 auto;
         }
 
@@ -533,6 +609,7 @@ unset($recent_articles_query['recent_page']);
         .kb-table-card {
             margin-bottom: 26px;
             min-height: 520px;
+            width: 100%;
         }
 
         .kb-section-header,
@@ -743,6 +820,15 @@ unset($recent_articles_query['recent_page']);
             padding: 18px;
         }
 
+        .kb-other-departments-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+            padding: 22px 28px 28px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
         .kb-category-tile {
             width: 100%;
             text-align: left;
@@ -893,6 +979,11 @@ unset($recent_articles_query['recent_page']);
             min-height: 100%;
             display: flex;
             flex-direction: column;
+            width: 100%;
+        }
+
+        .kb-view-panel.is-full-height {
+            min-height: 760px;
         }
 
         .kb-view-panel.is-hidden {
@@ -1172,10 +1263,10 @@ unset($recent_articles_query['recent_page']);
             background: rgba(0, 0, 0, 0.6); /* Darker overlay */
             z-index: 12000;
             justify-content: center;
-            align-items: flex-start;
+            align-items: center;
             animation: fadeIn 0.2s ease-out;
             backdrop-filter: blur(4px); /* Stronger blur */
-            padding: 96px 24px 32px;
+            padding: 32px 24px;
             overflow-y: auto;
             box-sizing: border-box;
         }
@@ -1184,8 +1275,8 @@ unset($recent_articles_query['recent_page']);
             background: white;
             padding: 28px;
             border-radius: 16px;
-            width: min(90vw, 1080px);
-            max-width: 1080px;
+            width: min(96vw, 1260px);
+            max-width: 1260px;
             min-height: min(760px, calc(100vh - 148px));
             max-height: calc(100vh - 128px);
             overflow-y: auto; /* Enable scrolling */
@@ -1311,6 +1402,9 @@ unset($recent_articles_query['recent_page']);
 
         #addArticleModal .modal-content {
             overflow: hidden;
+            width: min(96vw, 1280px);
+            max-width: 1280px;
+            margin: auto;
         }
 
         #addArticleModal .close-modal {
@@ -1333,7 +1427,9 @@ unset($recent_articles_query['recent_page']);
             flex: 1 1 auto;
             flex-direction: column;
             min-height: 0;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 6px;
         }
 
         /* Form Styles in Modal */
@@ -1343,14 +1439,15 @@ unset($recent_articles_query['recent_page']);
 
         .kb-modal-form-grid {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 400px;
+            grid-template-columns: minmax(0, 0.9fr) 480px;
             gap: 24px;
             align-items: stretch;
             margin-top: 10px;
-            flex: 1 1 auto;
+            flex: 0 0 auto;
             min-height: 0;
-            overflow-y: auto;
+            overflow: visible;
             padding-right: 12px;
+            padding-bottom: 8px;
         }
 
         .kb-modal-main-column {
@@ -1395,6 +1492,48 @@ unset($recent_articles_query['recent_page']);
             border-color: #10B981;
             outline: none;
             box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
+        }
+
+        input[type="file"].kb-file-input {
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #FFFFFF 0%, #FBFCFD 100%);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+            color: #374151;
+            cursor: pointer;
+        }
+
+        input[type="file"].kb-file-input::file-selector-button {
+            margin-right: 12px;
+            padding: 10px 14px;
+            border: 1px solid #D1D5DB;
+            border-radius: 10px;
+            background: #FFFFFF;
+            color: #111827;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input[type="file"].kb-file-input::-webkit-file-upload-button {
+            margin-right: 12px;
+            padding: 10px 14px;
+            border: 1px solid #D1D5DB;
+            border-radius: 10px;
+            background: #FFFFFF;
+            color: #111827;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input[type="file"].kb-file-input:hover::file-selector-button,
+        input[type="file"].kb-file-input:hover::-webkit-file-upload-button {
+            background: #F9FAFB;
+            border-color: #9CA3AF;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
         }
 
         textarea.form-control {
@@ -1690,6 +1829,9 @@ unset($recent_articles_query['recent_page']);
             .kb-category-grid-admin {
                 grid-template-columns: 1fr;
             }
+            .kb-other-departments-grid {
+                grid-template-columns: 1fr;
+            }
             .modal-overlay {
                 padding: 76px 20px 20px;
                 align-items: flex-start;
@@ -1751,10 +1893,12 @@ unset($recent_articles_query['recent_page']);
             width: 100%;
             display: flex;
             justify-content: center;
-            margin-top: 8px;
-            padding-top: 0;
-            border-top: none;
+            margin-top: 18px;
+            padding: 18px 0 6px;
+            border-top: 1px solid #E5E7EB;
             align-items: center;
+            flex: 0 0 auto;
+            background: #FFFFFF;
         }
         .kb-main-submit-wrap .btn-submit {
             width: 320px;
@@ -1800,6 +1944,79 @@ unset($recent_articles_query['recent_page']);
             color: #10B981;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
             font-weight: 600;
+        }
+        .kb-selected-file {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+            padding: 12px 14px;
+            border: 1px solid #E5E7EB;
+            border-radius: 12px;
+            background: #FFFFFF;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+        }
+        .kb-selected-file.is-visible {
+            display: flex;
+        }
+        .kb-selected-file-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            font-size: 20px;
+            background: #FFF7ED;
+            color: #EA580C;
+        }
+        .kb-selected-file.video-file .kb-selected-file-icon {
+            background: #F3E8FF;
+            color: #7C3AED;
+        }
+        .kb-selected-file-name {
+            min-width: 0;
+            flex: 1 1 auto;
+            font-size: 15px;
+            font-weight: 500;
+            color: #1F2937;
+            line-height: 1.35;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .kb-selected-file-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 0 0 auto;
+        }
+        .kb-file-action-btn {
+            min-height: 38px;
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 1px solid #D1D5DB;
+            background: #FFFFFF;
+            color: #374151;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+        .kb-file-action-btn:hover {
+            background: #F9FAFB;
+            border-color: #9CA3AF;
+        }
+        .kb-file-action-btn.is-remove {
+            border-color: #FECACA;
+            color: #EF4444;
+            background: #FFFFFF;
+        }
+        .kb-file-action-btn.is-remove:hover {
+            background: #FEF2F2;
+            border-color: #FCA5A5;
+            color: #DC2626;
         }
         .link-row {
             display: flex;
@@ -2189,6 +2406,60 @@ unset($recent_articles_query['recent_page']);
                         </div>
                     </div>
                 <?php endforeach; ?>
+
+                <?php foreach ($department_folder_cards as $department_card): ?>
+                    <?php if (((int) ($department_card['total_articles'] ?? 0)) > 0) continue; ?>
+                    <div class="kb-view-panel is-hidden" data-articles-view="<?= htmlspecialchars((string) $department_card['raw'], ENT_QUOTES, 'UTF-8') ?>">
+                        <div class="kb-category-panel-head">
+                            <h3 class="kb-category-panel-title">
+                                <i class="fas <?= htmlspecialchars((string) $department_card['icon']) ?>"></i>
+                                <?= htmlspecialchars((string) $department_card['label']) ?>
+                            </h3>
+                            <button type="button" class="kb-view-all-btn" data-show-all-articles>
+                                View All Articles <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="kb-empty-state">
+                            <div style="font-size: 18px; font-weight: 700; color: #374151;">No articles yet</div>
+                            <div style="margin-top: 10px;">This department does not have any knowledge base articles yet.</div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+
+                <?php if (!empty($other_department_cards)): ?>
+                    <div class="kb-view-panel is-hidden is-full-height" data-articles-view="__other_departments">
+                        <div class="kb-category-panel-head">
+                            <h3 class="kb-category-panel-title">
+                                <i class="fas fa-ellipsis"></i>
+                                Others
+                            </h3>
+                            <button type="button" class="kb-view-all-btn" data-show-all-articles>
+                                View All Articles <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+
+                        <div class="kb-category-grid-admin">
+                            <?php foreach ($other_department_cards as $department_card): ?>
+                                <button
+                                    type="button"
+                                    class="kb-category-tile tone-<?= htmlspecialchars((string) $department_card['tone']) ?>"
+                                    data-category-target="<?= htmlspecialchars((string) $department_card['raw'], ENT_QUOTES, 'UTF-8') ?>"
+                                >
+                                    <span class="kb-category-tile-icon">
+                                        <i class="fas <?= htmlspecialchars((string) $department_card['icon']) ?>"></i>
+                                    </span>
+                                    <div>
+                                        <div class="kb-category-tile-name"><?= htmlspecialchars((string) $department_card['label']) ?></div>
+                                        <div class="kb-category-tile-meta">
+                                            <span>Browse articles</span>
+                                        </div>
+                                    </div>
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
             <?php else: ?>
                 <div class="kb-list-body">
                     <div class="kb-empty-state">
@@ -2212,22 +2483,19 @@ unset($recent_articles_query['recent_page']);
                 </div>
 
                 <div class="kb-category-grid-admin">
-                    <?php foreach ($category_order as $category_name): ?>
-                        <?php $category_articles = $articles_by_category[$category_name] ?? []; ?>
-                        <?php if (empty($category_articles)) continue; ?>
-                        <?php $meta = kb_meta_for_department((string) $category_name, $category_meta, $fallback_meta_cycle); ?>
+                    <?php foreach ($home_department_cards as $department_card): ?>
                         <button
                             type="button"
-                            class="kb-category-tile tone-<?= htmlspecialchars($meta['tone']) ?>"
-                            data-category-target="<?= htmlspecialchars($category_name, ENT_QUOTES, 'UTF-8') ?>"
+                            class="kb-category-tile tone-<?= htmlspecialchars((string) $department_card['tone']) ?>"
+                            data-category-target="<?= htmlspecialchars((string) $department_card['raw'], ENT_QUOTES, 'UTF-8') ?>"
                         >
                             <span class="kb-category-tile-icon">
-                                <i class="fas <?= htmlspecialchars($meta['icon']) ?>"></i>
+                                <i class="fas <?= htmlspecialchars((string) $department_card['icon']) ?>"></i>
                             </span>
                             <div>
-                                <div class="kb-category-tile-name"><?= htmlspecialchars($category_name) ?></div>
+                                <div class="kb-category-tile-name"><?= htmlspecialchars((string) $department_card['label']) ?></div>
                                 <div class="kb-category-tile-meta">
-                                    <span><?= count($category_articles) ?> Article<?= count($category_articles) === 1 ? '' : 's' ?></span>
+                                    <span>Browse articles</span>
                                 </div>
                             </div>
                         </button>
@@ -2428,7 +2696,15 @@ unset($recent_articles_query['recent_page']);
 
                         <div class="resource-item">
                             <label class="resource-label">Presentation (PPT/PPTX)</label>
-                            <input type="file" name="presentation" class="form-control" accept=".ppt, .pptx">
+                            <input type="file" name="presentation" id="kb-presentation-input" class="form-control kb-file-input" accept=".ppt, .pptx">
+                            <div class="kb-selected-file" id="kb-presentation-selected">
+                                <span class="kb-selected-file-icon"><i class="fas fa-file-powerpoint"></i></span>
+                                <div class="kb-selected-file-name" id="kb-presentation-file-name"></div>
+                                <div class="kb-selected-file-actions">
+                                    <button type="button" class="kb-file-action-btn" onclick="triggerPresentationChange()">Change</button>
+                                    <button type="button" class="kb-file-action-btn is-remove" onclick="removePresentationFile()">Remove</button>
+                                </div>
+                            </div>
                             <small style="color: #6B7280; display: block; margin-top: 5px;">Supported formats: .ppt, .pptx</small>
                         </div>
 
@@ -2447,7 +2723,15 @@ unset($recent_articles_query['recent_page']);
                             </div>
                             
                             <div id="video-upload-input">
-                                <input type="file" name="video_file" class="form-control" accept=".mp4" onchange="updateRemoveButtonVisibility()">
+                                <input type="file" name="video_file" id="kb-video-file-input" class="form-control kb-file-input" accept=".mp4" onchange="updateRemoveButtonVisibility()">
+                                <div class="kb-selected-file video-file" id="kb-video-selected">
+                                    <span class="kb-selected-file-icon"><i class="fas fa-file-video"></i></span>
+                                    <div class="kb-selected-file-name" id="kb-video-file-name"></div>
+                                    <div class="kb-selected-file-actions">
+                                        <button type="button" class="kb-file-action-btn" onclick="triggerVideoFileChange()">Change</button>
+                                        <button type="button" class="kb-file-action-btn is-remove" onclick="removeVideo()">Remove</button>
+                                    </div>
+                                </div>
                                 <small style="color: #6B7280; display: block; margin-top: 5px;">Supported format: .mp4</small>
                             </div>
                             
@@ -2586,6 +2870,23 @@ document.addEventListener('DOMContentLoaded', function () {
     const recentPanel = document.querySelector('[data-articles-view="recent"]');
     const viewAllButtons = document.querySelectorAll('[data-show-all-articles]');
     const articleRows = document.querySelectorAll('.kb-item[data-article-href]');
+    const presentationInput = document.getElementById('kb-presentation-input');
+    const videoFileInput = document.getElementById('kb-video-file-input');
+
+    if (presentationInput) {
+        updateSelectedFileCard(presentationInput, 'kb-presentation-selected', 'kb-presentation-file-name');
+        presentationInput.addEventListener('change', function () {
+            updateSelectedFileCard(presentationInput, 'kb-presentation-selected', 'kb-presentation-file-name');
+        });
+    }
+
+    if (videoFileInput) {
+        updateSelectedFileCard(videoFileInput, 'kb-video-selected', 'kb-video-file-name');
+        videoFileInput.addEventListener('change', function () {
+            updateSelectedFileCard(videoFileInput, 'kb-video-selected', 'kb-video-file-name');
+            updateRemoveButtonVisibility();
+        });
+    }
 
     function showArticlesView(target) {
         panels.forEach(function (panel) {
@@ -2651,6 +2952,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+
+    updateRemoveButtonVisibility();
 });
 
 function removeLink(btn) {
@@ -2668,17 +2971,47 @@ function setVideoType(type, btn) {
     updateRemoveButtonVisibility();
 }
 
+function updateSelectedFileCard(input, wrapperId, nameId) {
+    const wrapper = document.getElementById(wrapperId);
+    const nameEl = document.getElementById(nameId);
+    if (!wrapper || !nameEl) return;
+
+    const hasFile = !!(input && input.files && input.files.length > 0);
+    wrapper.classList.toggle('is-visible', hasFile);
+    nameEl.textContent = hasFile ? input.files[0].name : '';
+
+    if (input) {
+        input.style.display = hasFile ? 'none' : 'block';
+    }
+}
+
+function triggerPresentationChange() {
+    const input = document.getElementById('kb-presentation-input');
+    if (input) input.click();
+}
+
+function removePresentationFile() {
+    const input = document.getElementById('kb-presentation-input');
+    if (!input) return;
+    input.value = '';
+    updateSelectedFileCard(input, 'kb-presentation-selected', 'kb-presentation-file-name');
+}
+
+function triggerVideoFileChange() {
+    const input = document.getElementById('kb-video-file-input');
+    if (input) input.click();
+}
+
 function updateRemoveButtonVisibility() {
     const type = document.getElementById('video_type_input').value;
     const removeBtn = document.getElementById('btn-remove-video');
+    const fileInput = document.getElementById('kb-video-file-input');
     if (!removeBtn) return;
 
     let hasContent = false;
     let btnText = 'Remove Video';
 
     if (type === 'upload') {
-        btnText = 'Remove Video';
-        const fileInput = document.querySelector('input[name="video_file"]');
         if (fileInput && fileInput.files.length > 0) {
             hasContent = true;
         }
@@ -2691,15 +3024,22 @@ function updateRemoveButtonVisibility() {
     }
 
     removeBtn.innerHTML = '<i class="fas fa-trash-alt"></i> ' + btnText;
-    removeBtn.style.display = hasContent ? 'inline-flex' : 'none';
+    removeBtn.style.display = (type === 'url' && hasContent) ? 'inline-flex' : 'none';
+
+    if (fileInput) {
+        fileInput.style.display = (type === 'upload' && hasContent) ? 'none' : 'block';
+    }
 }
 
 function removeVideo() {
     const type = document.getElementById('video_type_input').value;
     
     if (type === 'upload') {
-        const fileInput = document.querySelector('input[name="video_file"]');
-        if (fileInput) fileInput.value = '';
+        const fileInput = document.getElementById('kb-video-file-input');
+        if (fileInput) {
+            fileInput.value = '';
+            updateSelectedFileCard(fileInput, 'kb-video-selected', 'kb-video-file-name');
+        }
     } else if (type === 'url') {
         const urlInput = document.querySelector('input[name="video_url"]');
         if (urlInput) urlInput.value = '';
