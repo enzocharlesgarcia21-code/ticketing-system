@@ -111,7 +111,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
 
         body.employee-feedback-page .content-wrapper {
             max-width: 1480px;
-            padding-top: 28px;
+            padding-top: 6px;
         }
 
         body.employee-feedback-page .feedback-page-shell {
@@ -568,7 +568,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
 
         @media (max-width: 768px) {
             body.employee-feedback-page .content-wrapper {
-                padding-top: 18px;
+                padding-top: 6px;
             }
 
             body.employee-feedback-page .feedback-hero {

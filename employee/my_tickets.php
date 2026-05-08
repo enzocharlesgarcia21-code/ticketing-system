@@ -2500,7 +2500,7 @@ $successMessage = '';
                             id="myTicketsSearchInput"
                             class="my-tickets-search-input"
                             value="<?= htmlspecialchars($ticketSearch, ENT_QUOTES, 'UTF-8'); ?>"
-                            placeholder="Search by ID, name, email or subject..."
+                            placeholder="Search by ID or category..."
                             autocomplete="off"
                         >
                     </div>

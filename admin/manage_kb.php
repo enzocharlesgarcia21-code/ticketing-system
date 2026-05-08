@@ -66,7 +66,6 @@ $kb_ticket_categories_by_department = [
         'Request for Company Property',
         'SSS Sickness and Benefit Concern',
         'Training Request',
-        'Others',
     ],
     'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Technical Support'],
     'Marketing' => ['Marketing Request'],
@@ -89,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $category = trim((string) ($_POST['category'] ?? ''));
     $custom_department = trim((string) ($_POST['custom_department'] ?? ''));
     $sub_category = trim((string) ($_POST['sub_category'] ?? ''));
+    $custom_sub_category = trim((string) ($_POST['custom_sub_category'] ?? ''));
     $content = trim((string) ($_POST['content'] ?? ''));
     $visible_to_sales = 1;
     $has_uploaded_image = false;
@@ -113,37 +113,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     if ($error_msg === '') {
         $missing_fields = [];
+        $is_other_department = $category === '__other';
         if ($title === '') $missing_fields[] = 'article title';
         if ($category === '') $missing_fields[] = 'department';
-        if ($category === '__other' && $custom_department === '') $missing_fields[] = 'specific department';
-        if ($sub_category === '') $missing_fields[] = 'category';
+        if ($is_other_department && $custom_department === '') $missing_fields[] = 'specific department';
+        if (!$is_other_department && $sub_category === '') $missing_fields[] = 'category';
+        if ($is_other_department && $custom_sub_category === '') $missing_fields[] = 'category';
+        if ($sub_category === '__other' && $custom_sub_category === '') $missing_fields[] = 'other category';
         if (!empty($missing_fields)) {
             $error_msg = 'Please fill in all required fields: ' . implode(', ', $missing_fields) . '.';
         }
     }
 
     if ($error_msg === '' && $category === '__other') {
-        $matched_department = '';
-        foreach ($kb_company_departments as $company_department) {
-            if (strcasecmp($custom_department, $company_department) === 0) {
-                $matched_department = $company_department;
-                break;
-            }
-        }
-        if ($matched_department === '') {
-            $error_msg = "Please enter a valid company department.";
-        } else {
-            $category = $matched_department;
-        }
+        $category = $custom_department;
+        $sub_category = $custom_sub_category;
     }
 
-    if ($error_msg === '' && !in_array($category, $kb_all_allowed_departments, true)) {
+    if ($error_msg === '' && !($category === $custom_department && $custom_department !== '') && !in_array($category, $kb_all_allowed_departments, true)) {
         $error_msg = "Please select a valid department.";
     }
-    if ($error_msg === '') {
+    if ($error_msg === '' && $sub_category === '__other') {
+        $sub_category = $custom_sub_category;
+    }
+    if ($error_msg === '' && !($custom_department !== '' && $category === $custom_department)) {
         $allowed_sub_categories = $kb_ticket_categories_by_department[$category] ?? $kb_default_ticket_categories;
         if (!in_array($sub_category, $allowed_sub_categories, true)) {
-            $error_msg = "Please select a valid category for the selected department.";
+            $is_custom_sub_category = $custom_sub_category !== '' && strcasecmp($sub_category, $custom_sub_category) === 0;
+            if (!$is_custom_sub_category) {
+                $error_msg = "Please select a valid category for the selected department.";
+            }
         }
     }
 
@@ -323,6 +322,27 @@ $category_aliases = [
     'procurement' => 'Admin & Legal',
     'others' => 'Management',
 ];
+$fallback_meta_cycle = [
+    ['icon' => 'fa-folder-open', 'tone' => 'slate'],
+    ['icon' => 'fa-folder-tree', 'tone' => 'blue'],
+    ['icon' => 'fa-folder', 'tone' => 'mint'],
+    ['icon' => 'fa-bookmark', 'tone' => 'violet'],
+    ['icon' => 'fa-layer-group', 'tone' => 'emerald'],
+];
+
+function kb_meta_for_department(string $department_name, array &$category_meta, array $fallback_meta_cycle): array
+{
+    $trimmed_name = trim($department_name);
+    if ($trimmed_name === '') {
+        return $category_meta['Uncategorized'];
+    }
+    if (!isset($category_meta[$trimmed_name])) {
+        $meta_index = count($category_meta) % count($fallback_meta_cycle);
+        $category_meta[$trimmed_name] = $fallback_meta_cycle[$meta_index];
+    }
+    return $category_meta[$trimmed_name];
+}
+
 $articles_by_category = [];
 foreach ($categories as $category_name) {
     $articles_by_category[$category_name] = [];
@@ -337,17 +357,16 @@ foreach ($articles as $article_row) {
         $category_name = $category_aliases[$category_lookup_key];
         $article_row['category'] = $category_name;
     }
-    if ($category_name !== 'Uncategorized' && !in_array($category_name, $categories, true)) {
-        $category_name = 'Uncategorized';
-    }
     if (!isset($articles_by_category[$category_name])) {
         $articles_by_category[$category_name] = [];
     }
     $articles_by_category[$category_name][] = $article_row;
 }
-$category_order = $categories;
-if (!empty($articles_by_category['Uncategorized'])) {
-    $category_order[] = 'Uncategorized';
+$category_order = [];
+foreach (array_keys($articles_by_category) as $category_name) {
+    if (!empty($articles_by_category[$category_name])) {
+        $category_order[] = $category_name;
+    }
 }
 $default_open_category = '';
 foreach ($category_order as $category_name) {
@@ -441,9 +460,10 @@ unset($recent_articles_query['recent_page']);
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 18px;
             margin-bottom: 18px;
+            align-items: stretch;
         }
 
         .stat-card {
@@ -457,6 +477,7 @@ unset($recent_articles_query['recent_page']);
             display: flex;
             align-items: center;
             gap: 16px;
+            min-height: 102px;
             transition: transform 0.2s, box-shadow 0.2s;
         }
 
@@ -889,6 +910,10 @@ unset($recent_articles_query['recent_page']);
             border-top: 1px solid rgba(231, 233, 244, 0.95);
         }
 
+        .kb-item[data-article-href] {
+            cursor: pointer;
+        }
+
         .kb-item:hover {
             background: rgba(255, 255, 255, 0.78);
         }
@@ -1173,6 +1198,7 @@ unset($recent_articles_query['recent_page']);
             margin: 0 auto;
         }
 
+
         /* Tab Styles */
         .modal-tabs {
             display: flex;
@@ -1283,6 +1309,33 @@ unset($recent_articles_query['recent_page']);
             background-color: #F3F4F6;
         }
 
+        #addArticleModal .modal-content {
+            overflow: hidden;
+        }
+
+        #addArticleModal .close-modal {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            z-index: 8;
+            width: 38px;
+            height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.96);
+            border: 1px solid #E5E7EB;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+        }
+
+        #addArticleModal form {
+            display: flex;
+            flex: 1 1 auto;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
         /* Form Styles in Modal */
         .form-group {
             margin-bottom: 20px;
@@ -1294,6 +1347,10 @@ unset($recent_articles_query['recent_page']);
             gap: 24px;
             align-items: stretch;
             margin-top: 10px;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 12px;
         }
 
         .kb-modal-main-column {
@@ -1938,15 +1995,6 @@ unset($recent_articles_query['recent_page']);
                     <p>Total Views</p>
                 </div>
             </div>
-            <div class="stat-card purple-accent">
-                <div class="stat-icon purple">
-                    <i class="fas fa-tags"></i>
-                </div>
-                <div class="stat-info">
-                    <h3><?= $categories_count ?></h3>
-                    <p>Categories</p>
-                </div>
-            </div>
             <div class="stat-card yellow-accent">
                 <div class="stat-icon yellow">
                     <i class="fas fa-users"></i>
@@ -1982,10 +2030,11 @@ unset($recent_articles_query['recent_page']);
                     <div class="kb-article-stack">
                         <?php foreach ($recent_articles as $article_index => $row): ?>
                             <?php
-                            $row_meta = $category_meta[$row['category']] ?? $category_meta['Uncategorized'];
+                            $row_meta = kb_meta_for_department((string) ($row['category'] ?? ''), $category_meta, $fallback_meta_cycle);
+                            $row_category_label = trim((string) ($row['sub_category'] ?? '')) !== '' ? (string) $row['sub_category'] : (string) ($row['category'] ?? 'Uncategorized');
                             $is_recent_page_item = $article_index >= $recent_articles_offset && $article_index < ($recent_articles_offset + $recent_articles_per_page);
                             ?>
-                            <div class="kb-item<?= $is_recent_page_item ? '' : ' is-page-hidden' ?>">
+                            <div class="kb-item<?= $is_recent_page_item ? '' : ' is-page-hidden' ?>" data-article-href="../employee/view_article.php?id=<?= (int) $row['id'] ?>">
                                 <div>
                                     <div class="kb-col-label">Article Title</div>
                                     <div class="article-title"><?= htmlspecialchars($row['title']) ?></div>
@@ -1993,7 +2042,7 @@ unset($recent_articles_query['recent_page']);
                                 <div>
                                     <div class="kb-col-label">Category</div>
                                     <span class="badge-category tone-<?= htmlspecialchars($row_meta['tone']) ?>">
-                                        <?= htmlspecialchars($row['category']) ?>
+                                        <?= htmlspecialchars($row_category_label) ?>
                                     </span>
                                 </div>
                                 <div class="meta-text">
@@ -2069,7 +2118,7 @@ unset($recent_articles_query['recent_page']);
                 <?php foreach ($category_order as $category_name): ?>
                     <?php $category_articles = $articles_by_category[$category_name] ?? []; ?>
                     <?php if (empty($category_articles)) continue; ?>
-                    <?php $panel_meta = $category_meta[$category_name] ?? $category_meta['Uncategorized']; ?>
+                    <?php $panel_meta = kb_meta_for_department((string) $category_name, $category_meta, $fallback_meta_cycle); ?>
                     <div class="kb-view-panel is-hidden" data-articles-view="<?= htmlspecialchars($category_name, ENT_QUOTES, 'UTF-8') ?>">
                         <div class="kb-category-panel-head">
                             <h3 class="kb-category-panel-title">
@@ -2091,8 +2140,11 @@ unset($recent_articles_query['recent_page']);
 
                         <div class="kb-article-stack">
                             <?php foreach ($category_articles as $row): ?>
-                                <?php $row_meta = $category_meta[$row['category']] ?? $category_meta['Uncategorized']; ?>
-                                <div class="kb-item">
+                                <?php
+                                $row_meta = kb_meta_for_department((string) ($row['category'] ?? ''), $category_meta, $fallback_meta_cycle);
+                                $row_category_label = trim((string) ($row['sub_category'] ?? '')) !== '' ? (string) $row['sub_category'] : (string) ($row['category'] ?? 'Uncategorized');
+                                ?>
+                                <div class="kb-item" data-article-href="../employee/view_article.php?id=<?= (int) $row['id'] ?>">
                                     <div>
                                         <div class="kb-col-label">Article Title</div>
                                         <div class="article-title"><?= htmlspecialchars($row['title']) ?></div>
@@ -2100,7 +2152,7 @@ unset($recent_articles_query['recent_page']);
                                     <div>
                                         <div class="kb-col-label">Category</div>
                                         <span class="badge-category tone-<?= htmlspecialchars($row_meta['tone']) ?>">
-                                            <?= htmlspecialchars($row['category']) ?>
+                                            <?= htmlspecialchars($row_category_label) ?>
                                         </span>
                                     </div>
                                     <div class="meta-text">
@@ -2163,7 +2215,7 @@ unset($recent_articles_query['recent_page']);
                     <?php foreach ($category_order as $category_name): ?>
                         <?php $category_articles = $articles_by_category[$category_name] ?? []; ?>
                         <?php if (empty($category_articles)) continue; ?>
-                        <?php $meta = $category_meta[$category_name] ?? $category_meta['Uncategorized']; ?>
+                        <?php $meta = kb_meta_for_department((string) $category_name, $category_meta, $fallback_meta_cycle); ?>
                         <button
                             type="button"
                             class="kb-category-tile tone-<?= htmlspecialchars($meta['tone']) ?>"
@@ -2210,8 +2262,11 @@ unset($recent_articles_query['recent_page']);
 
             <div class="kb-article-stack">
                 <?php foreach ($articles as $row): ?>
-                    <?php $row_meta = $category_meta[$row['category']] ?? $category_meta['Uncategorized']; ?>
-                    <div class="kb-item">
+                    <?php
+                    $row_meta = kb_meta_for_department((string) ($row['category'] ?? ''), $category_meta, $fallback_meta_cycle);
+                    $row_category_label = trim((string) ($row['sub_category'] ?? '')) !== '' ? (string) $row['sub_category'] : (string) ($row['category'] ?? 'Uncategorized');
+                    ?>
+                    <div class="kb-item" data-article-href="../employee/view_article.php?id=<?= (int) $row['id'] ?>">
                         <div>
                             <div class="kb-col-label">Article Title</div>
                             <div class="article-title"><?= htmlspecialchars($row['title']) ?></div>
@@ -2219,7 +2274,7 @@ unset($recent_articles_query['recent_page']);
                         <div>
                             <div class="kb-col-label">Category</div>
                             <span class="badge-category tone-<?= htmlspecialchars($row_meta['tone']) ?>">
-                                <?= htmlspecialchars($row['category']) ?>
+                                <?= htmlspecialchars($row_category_label) ?>
                             </span>
                         </div>
                         <div class="meta-text">
@@ -2311,6 +2366,14 @@ unset($recent_articles_query['recent_page']);
                         >
                             <option value="" disabled selected hidden>Select department first</option>
                         </select>
+                        <input
+                            type="text"
+                            name="custom_sub_category"
+                            id="kb-custom-sub-category"
+                            class="form-control"
+                            placeholder="Type custom category"
+                            style="display:none; margin-top: 12px;"
+                        >
                     </div>
 
                     <div class="form-group">
@@ -2522,7 +2585,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const panels = document.querySelectorAll('[data-articles-view]');
     const recentPanel = document.querySelector('[data-articles-view="recent"]');
     const viewAllButtons = document.querySelectorAll('[data-show-all-articles]');
-    if (!tiles.length || !panels.length || !recentPanel) return;
+    const articleRows = document.querySelectorAll('.kb-item[data-article-href]');
 
     function showArticlesView(target) {
         panels.forEach(function (panel) {
@@ -2530,31 +2593,62 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    showArticlesView('recent');
-
-    tiles.forEach(function (tile) {
-        tile.addEventListener('click', function () {
-            const wasActive = tile.classList.contains('is-active');
-            const target = tile.getAttribute('data-category-target');
-
-            if (wasActive) {
-                tiles.forEach(function (item) {
-                    item.classList.remove('is-active');
-                });
-                showArticlesView('recent');
-                return;
+    function scrollPanelIntoView(target) {
+        let panel = null;
+        panels.forEach(function(candidate) {
+            if (!panel && candidate.getAttribute('data-articles-view') === target) {
+                panel = candidate;
             }
-
-            tiles.forEach(function (item) {
-                item.classList.toggle('is-active', item === tile);
-            });
-            showArticlesView(target);
         });
-    });
+        if (!panel) return;
+        const panelTop = panel.getBoundingClientRect().top + window.scrollY - 96;
+        window.scrollTo({
+            top: Math.max(panelTop, 0),
+            behavior: 'smooth'
+        });
+    }
+
+    if (tiles.length && panels.length && recentPanel) {
+        showArticlesView('recent');
+
+        tiles.forEach(function (tile) {
+            tile.addEventListener('click', function () {
+                const wasActive = tile.classList.contains('is-active');
+                const target = tile.getAttribute('data-category-target');
+
+                if (wasActive) {
+                    tiles.forEach(function (item) {
+                        item.classList.remove('is-active');
+                    });
+                    showArticlesView('recent');
+                    scrollPanelIntoView('recent');
+                    return;
+                }
+
+                tiles.forEach(function (item) {
+                    item.classList.toggle('is-active', item === tile);
+                });
+                showArticlesView(target);
+                scrollPanelIntoView(target);
+            });
+        });
+    }
 
     viewAllButtons.forEach(function(button) {
         button.addEventListener('click', function() {
             openAllArticlesModal();
+        });
+    });
+
+    articleRows.forEach(function(row) {
+        row.addEventListener('click', function(event) {
+            if (event.target.closest('a, button, input, select, textarea, label')) {
+                return;
+            }
+            const href = row.getAttribute('data-article-href');
+            if (href) {
+                window.location.href = href;
+            }
         });
     });
 });
@@ -2690,6 +2784,7 @@ document.addEventListener('click', function(e) {
     const kbCategorySelect = document.getElementById('kb-category-select');
     const kbCustomDepartment = document.getElementById('kb-custom-department');
     const kbSubCategory = document.getElementById('kb-sub-category');
+    const kbCustomSubCategory = document.getElementById('kb-custom-sub-category');
     const kbDepartmentTicketCategories = <?= json_encode($kb_ticket_categories_by_department, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     const kbDefaultTicketCategories = <?= json_encode($kb_default_ticket_categories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     const kbKnownCompanyDepartments = <?= json_encode($kb_company_departments, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
@@ -2878,15 +2973,21 @@ document.addEventListener('click', function(e) {
         }
 
         if (isOtherDepartment) {
-            const typedDepartment = kbCustomDepartment ? kbCustomDepartment.value.trim() : '';
-            resolvedDepartment = kbKnownCompanyDepartments.find(function(departmentName) {
-                return departmentName.toLowerCase() === typedDepartment.toLowerCase();
-            }) || '';
+            kbSubCategory.innerHTML = '';
+            kbSubCategory.disabled = true;
+            kbSubCategory.required = false;
+            kbSubCategory.style.display = 'none';
+            if (kbCustomSubCategory) {
+                kbCustomSubCategory.style.display = 'block';
+                kbCustomSubCategory.required = true;
+            }
+            return;
         }
 
         const categoryOptions = resolvedDepartment
             ? (kbDepartmentTicketCategories[resolvedDepartment] || kbDefaultTicketCategories)
             : [];
+        kbSubCategory.style.display = 'block';
         kbSubCategory.innerHTML = '';
 
         const placeholder = document.createElement('option');
@@ -2895,7 +2996,7 @@ document.addEventListener('click', function(e) {
         placeholder.selected = true;
         placeholder.hidden = true;
         placeholder.textContent = selectedDepartment
-            ? (isOtherDepartment && !resolvedDepartment ? 'Enter a matching company department first' : 'Select Category')
+            ? 'Select Category'
             : 'Select department first';
         kbSubCategory.appendChild(placeholder);
 
@@ -2906,8 +3007,28 @@ document.addEventListener('click', function(e) {
             kbSubCategory.appendChild(option);
         });
 
+        if (resolvedDepartment) {
+            const otherOption = document.createElement('option');
+            otherOption.value = '__other';
+            otherOption.textContent = 'Others';
+            kbSubCategory.appendChild(otherOption);
+        }
+
         kbSubCategory.disabled = !resolvedDepartment;
         kbSubCategory.required = true;
+        syncCustomSubCategoryVisibility();
+    }
+
+    function syncCustomSubCategoryVisibility() {
+        if (!kbSubCategory || !kbCustomSubCategory) return;
+        const isOtherCategory = kbSubCategory.value === '__other';
+        const isOtherDepartment = kbCategorySelect && kbCategorySelect.value === '__other';
+        const shouldShow = isOtherDepartment || isOtherCategory;
+        kbCustomSubCategory.style.display = shouldShow ? 'block' : 'none';
+        kbCustomSubCategory.required = shouldShow;
+        if (!shouldShow) {
+            kbCustomSubCategory.value = '';
+        }
     }
 
     if (kbCategorySelect) {
@@ -2917,6 +3038,9 @@ document.addEventListener('click', function(e) {
     if (kbCustomDepartment) {
         kbCustomDepartment.addEventListener('input', syncSubCategoryVisibility);
         kbCustomDepartment.addEventListener('blur', syncSubCategoryVisibility);
+    }
+    if (kbSubCategory) {
+        kbSubCategory.addEventListener('change', syncCustomSubCategoryVisibility);
     }
 
     const kbAddForm = document.querySelector('#addArticleModal form');
@@ -2953,16 +3077,7 @@ document.addEventListener('click', function(e) {
         }
     }
 
-    // Close modals when clicking outside
-    window.onclick = function(event) {
-        const allArticlesModal = document.getElementById('allArticlesModal');
-        if (event.target == allArticlesModal) {
-            closeAllArticlesModal();
-        }
-        if (event.target == addModal) {
-            closeModal();
-        }
-    }
+    // Keep KB modals open when the backdrop is clicked.
 
     // SweetAlert2 Delete Confirmation
     function confirmDelete(id) {
