@@ -117,8 +117,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if ($title === '') $missing_fields[] = 'article title';
         if ($category === '') $missing_fields[] = 'department';
         if ($is_other_department && $custom_department === '') $missing_fields[] = 'specific department';
-        if (!$is_other_department && $sub_category === '') $missing_fields[] = 'category';
-        if ($is_other_department && $custom_sub_category === '') $missing_fields[] = 'category';
         if ($sub_category === '__other' && $custom_sub_category === '') $missing_fields[] = 'other category';
         if (!empty($missing_fields)) {
             $error_msg = 'Please fill in all required fields: ' . implode(', ', $missing_fields) . '.';
@@ -136,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     if ($error_msg === '' && $sub_category === '__other') {
         $sub_category = $custom_sub_category;
     }
-    if ($error_msg === '' && !($custom_department !== '' && $category === $custom_department)) {
+    if ($error_msg === '' && $sub_category !== '' && !($custom_department !== '' && $category === $custom_department)) {
         $allowed_sub_categories = $kb_ticket_categories_by_department[$category] ?? $kb_default_ticket_categories;
         if (!in_array($sub_category, $allowed_sub_categories, true)) {
             $is_custom_sub_category = $custom_sub_category !== '' && strcasecmp($sub_category, $custom_sub_category) === 0;
@@ -247,7 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     } else {
         if ($error_msg === '') {
-            $error_msg = "Article title, department, and category are required.";
+            $error_msg = "Article title and department are required.";
         }
     }
 }
@@ -2624,12 +2622,11 @@ unset($recent_articles_query['recent_page']);
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Category<span class="required-asterisk">*</span></label>
+                        <label class="form-label">Category</label>
                         <select
                             name="sub_category"
                             id="kb-sub-category"
                             class="form-control"
-                            required
                             disabled
                         >
                             <option value="" disabled selected hidden>Select department first</option>
@@ -3355,7 +3352,7 @@ document.addEventListener('click', function(e) {
         }
 
         kbSubCategory.disabled = !resolvedDepartment;
-        kbSubCategory.required = true;
+        kbSubCategory.required = false;
         syncCustomSubCategoryVisibility();
     }
 
