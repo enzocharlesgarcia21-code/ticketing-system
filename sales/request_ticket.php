@@ -2860,6 +2860,9 @@ $normalized_company_id = $selectedRecipientCompany;
             margin-top: 0;
             display: flex;
             justify-content: flex-end;
+            position: relative;
+            z-index: 2;
+            pointer-events: auto;
         }
         body.sales-request-ticket-page .sap-request-actions-group {
             display: inline-flex;
@@ -2868,6 +2871,9 @@ $normalized_company_id = $selectedRecipientCompany;
             gap: 16px;
             flex-wrap: wrap;
             width: auto;
+            position: relative;
+            z-index: 2;
+            pointer-events: auto;
         }
         body.sales-request-ticket-page .sap-request-add-btn {
             min-height: 40px;
@@ -2883,6 +2889,9 @@ $normalized_company_id = $selectedRecipientCompany;
             cursor: pointer;
             box-shadow: 0 10px 20px rgba(27, 94, 32, 0.18);
             transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+            position: relative;
+            z-index: 3;
+            pointer-events: auto;
         }
         body.sales-request-ticket-page .sap-request-add-btn:hover {
             transform: translateY(-1px);
@@ -4748,7 +4757,7 @@ $normalized_company_id = $selectedRecipientCompany;
                                 </svg>
                                 <span id="chooseFileBtnText">Choose File</span>
                             </label>
-                            <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx">
+                            <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" onchange="if (window.TMSalesAttachmentFallbackAdd) window.TMSalesAttachmentFallbackAdd(this.files, this);">
                             <span id="file-name" class="attachment-file-name file-name">No file chosen</span>
                         </div>
                         <small id="attachmentHelpText" class="form-text attachment-help-text">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files)</small>
@@ -4783,6 +4792,280 @@ $normalized_company_id = $selectedRecipientCompany;
         <div class="attachment-preview-body" id="attachmentPreviewBody"></div>
     </div>
 </div>
+
+<script>
+window.TMSalesAttachmentFallbackAdd = (function() {
+    var MAX_FILES = 5;
+    var MAX_BYTES = 5 * 1024 * 1024;
+    var ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
+
+    function getExt(name) {
+        var parts = String(name || '').toLowerCase().split('.');
+        return parts.length > 1 ? parts.pop() : '';
+    }
+
+    function createTransfer(files) {
+        try {
+            var transfer = new DataTransfer();
+            Array.from(files || []).forEach(function(file) {
+                transfer.items.add(file);
+            });
+            return transfer;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function syncGlobalFiles(files, input) {
+        window.attachmentFiles = Array.from(files || []);
+        var transfer = createTransfer(window.attachmentFiles);
+        if (transfer) {
+            window.dt = transfer;
+            if (input) {
+                input.files = transfer.files;
+            }
+        }
+    }
+
+    function render(input) {
+        var fileNameEl = document.getElementById('file-name');
+        var preview = document.getElementById('attachment-preview');
+        var files = Array.isArray(window.attachmentFiles) ? window.attachmentFiles : [];
+
+        if (fileNameEl) {
+            var count = files.length;
+            fileNameEl.textContent = count === 0 ? 'No file chosen' : (count === 1 ? files[0].name : (count + ' files selected'));
+        }
+
+        if (!preview) {
+            return;
+        }
+
+        preview.innerHTML = '';
+
+        files.forEach(function(file, idx) {
+            var url = '';
+            try {
+                url = URL.createObjectURL(file);
+            } catch (error) {}
+
+            var row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.justifyContent = 'space-between';
+            row.style.gap = '12px';
+            row.style.padding = '10px 12px';
+            row.style.border = '1px solid #e5e7eb';
+            row.style.borderRadius = '10px';
+            row.style.background = '#f8fafc';
+            row.style.marginBottom = '10px';
+
+            var left = document.createElement('button');
+            left.type = 'button';
+            left.style.display = 'flex';
+            left.style.alignItems = 'center';
+            left.style.gap = '10px';
+            left.style.minWidth = '0';
+            left.style.flex = '1 1 auto';
+            left.style.padding = '0';
+            left.style.border = '0';
+            left.style.background = 'transparent';
+            left.style.textAlign = 'left';
+            left.style.cursor = 'pointer';
+
+            if (url && typeof window.openNormalAttachmentPreviewAt === 'function') {
+                left.addEventListener('click', function() {
+                    if (!Array.isArray(window.normalAttachmentPreviewItems)) {
+                        return;
+                    }
+                    window.openNormalAttachmentPreviewAt(idx);
+                });
+            } else {
+                left.disabled = true;
+                left.style.cursor = 'default';
+            }
+
+            var icon = document.createElement('div');
+            icon.style.width = '36px';
+            icon.style.height = '36px';
+            icon.style.borderRadius = '10px';
+            icon.style.display = 'flex';
+            icon.style.alignItems = 'center';
+            icon.style.justifyContent = 'center';
+            icon.style.background = 'transparent';
+            icon.style.color = '#16a34a';
+            icon.style.fontWeight = '900';
+
+            if (String(file.type || '').startsWith('image/') && url) {
+                var img = document.createElement('img');
+                img.src = url;
+                img.alt = '';
+                img.style.width = '28px';
+                img.style.height = '28px';
+                img.style.objectFit = 'cover';
+                img.style.borderRadius = '8px';
+                icon.style.background = '#ffffff';
+                icon.appendChild(img);
+            } else {
+                icon.textContent = 'FILE';
+            }
+
+            var meta = document.createElement('div');
+            meta.style.display = 'flex';
+            meta.style.flexDirection = 'column';
+            meta.style.minWidth = '0';
+
+            var name = document.createElement('div');
+            name.textContent = file.name;
+            name.style.fontWeight = '700';
+            name.style.color = '#0f172a';
+            name.style.fontSize = '13px';
+            name.style.overflow = 'hidden';
+            name.style.textOverflow = 'ellipsis';
+            name.style.whiteSpace = 'nowrap';
+            meta.appendChild(name);
+
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.textContent = 'x';
+            removeBtn.style.border = '1px solid #e2e8f0';
+            removeBtn.style.background = '#ffffff';
+            removeBtn.style.color = '#ef4444';
+            removeBtn.style.fontWeight = '900';
+            removeBtn.style.width = '40px';
+            removeBtn.style.height = '40px';
+            removeBtn.style.padding = '0';
+            removeBtn.style.borderRadius = '10px';
+            removeBtn.style.cursor = 'pointer';
+            removeBtn.style.fontSize = '18px';
+            removeBtn.style.lineHeight = '1';
+            removeBtn.addEventListener('click', function() {
+                if (url) {
+                    try { URL.revokeObjectURL(url); } catch (error) {}
+                }
+                window.attachmentFiles = (window.attachmentFiles || []).filter(function(_, fileIndex) {
+                    return fileIndex !== idx;
+                });
+                syncGlobalFiles(window.attachmentFiles, input);
+                render(input);
+            });
+
+            left.appendChild(icon);
+            left.appendChild(meta);
+            row.appendChild(left);
+            row.appendChild(removeBtn);
+            preview.appendChild(row);
+        });
+
+        if (Array.isArray(window.normalAttachmentPreviewItems)) {
+            window.normalAttachmentPreviewItems = files.map(function(file) {
+                var fileUrl = '';
+                try {
+                    fileUrl = URL.createObjectURL(file);
+                } catch (error) {}
+                return { file: file, url: fileUrl };
+            });
+        }
+    }
+
+    function showAttachmentError(message) {
+        var errorEl = document.getElementById('attachment-error');
+        var toastEl = document.getElementById('attachment-toast');
+        if (errorEl) {
+            errorEl.textContent = message || '';
+            errorEl.style.display = message ? 'block' : 'none';
+        }
+        if (toastEl) {
+            toastEl.textContent = message || '';
+            toastEl.style.display = message ? 'block' : 'none';
+            if (message) {
+                window.setTimeout(function() {
+                    if (toastEl.textContent === message) {
+                        toastEl.style.display = 'none';
+                        toastEl.textContent = '';
+                    }
+                }, 4000);
+            }
+        }
+    }
+
+    function add(filesLike, input) {
+        var incoming = Array.from(filesLike || []);
+        var nextFiles = Array.isArray(window.attachmentFiles) ? window.attachmentFiles.slice() : [];
+        var blockedMax = false;
+        var blockedSize = false;
+        var unsupported = false;
+
+        incoming.forEach(function(file) {
+            var ext = getExt(file && file.name);
+            if (ALLOWED_EXT.indexOf(ext) === -1) {
+                unsupported = true;
+                return;
+            }
+
+            var exists = nextFiles.some(function(existing) {
+                return existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified;
+            });
+            if (exists) {
+                return;
+            }
+
+            if (nextFiles.length >= MAX_FILES) {
+                blockedMax = true;
+                return;
+            }
+
+            var totalBytes = (file && file.size) ? file.size : 0;
+            nextFiles.forEach(function(existing) {
+                totalBytes += (existing && existing.size) ? existing.size : 0;
+            });
+            if (totalBytes > MAX_BYTES) {
+                blockedSize = true;
+                return;
+            }
+
+            nextFiles.push(file);
+        });
+
+        if (unsupported) {
+            showAttachmentError('Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.');
+        } else if (blockedSize) {
+            showAttachmentError('Attachment too large. Max 5MB total.');
+        } else if (blockedMax) {
+            showAttachmentError('Maximum 5 attachments allowed. Extra files were not added.');
+        } else {
+            showAttachmentError('');
+        }
+
+        syncGlobalFiles(nextFiles, input);
+        if (input) {
+            input.value = '';
+        }
+        render(input);
+    }
+
+    window.TMSalesAttachmentFallbackRender = render;
+    window.TMSalesResetAttachments = function() {
+        var input = document.getElementById('attachments');
+        syncGlobalFiles([], input);
+        if (input) {
+            input.value = '';
+        }
+        showAttachmentError('');
+        render(input);
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var input = document.getElementById('attachments');
+        if (!Array.isArray(window.attachmentFiles)) {
+            syncGlobalFiles([], input);
+        }
+        render(input);
+    });
+
+    return add;
+})();
+</script>
 
 <div id="successModal" class="ticket-modal" aria-hidden="true">
     <div class="ticket-modal-content" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
@@ -4947,6 +5230,17 @@ function getCurrentSapReportValues() {
     };
 }
 
+function cloneSapReport(report) {
+    var source = report || {};
+    return {
+        name: String(source.name || ''),
+        position: String(source.position || ''),
+        immediate_head: String(source.immediate_head || ''),
+        company: String(source.company || ''),
+        department: String(source.department || '')
+    };
+}
+
 function getFirstIncompleteCurrentSapField() {
     var currentCard = getCurrentSapCard();
     if (!currentCard) return null;
@@ -4977,6 +5271,8 @@ function getSapCardDisplayName(report, index) {
 }
 
 var savedSapReports = [];
+var currentSapViewKey = 'current';
+var currentSapDraft = null;
 
 function createHiddenSapInput(index, fieldName, value) {
     if (!sapSavedReportsHost) return;
@@ -4997,6 +5293,26 @@ function renderSavedSapReports() {
         createHiddenSapInput(index, 'company', report.company);
         createHiddenSapInput(index, 'department', report.department);
     });
+}
+
+function setCurrentSapReportValues(report) {
+    var safeReport = report || {};
+    var nameInput = getSapField('name');
+    var positionInput = getSapField('position');
+    var immediateHeadInput = getSapField('immediate_head');
+    var companyInput = getSapField('company');
+    var departmentInput = getSapField('department');
+
+    if (nameInput) nameInput.value = String(safeReport.name || '');
+    if (positionInput) positionInput.value = String(safeReport.position || '');
+    if (immediateHeadInput) immediateHeadInput.value = String(safeReport.immediate_head || '');
+    if (companyInput) companyInput.value = String(safeReport.company || '');
+
+    syncSapDepartmentVisibility(getCurrentSapCard());
+
+    if (departmentInput) {
+        departmentInput.value = String(safeReport.department || '');
+    }
 }
 
 function updateCurrentSapFieldNames() {
@@ -5021,6 +5337,7 @@ function clearCurrentSapForm() {
         departmentInput.value = '';
     }
     syncSapDepartmentVisibility(getCurrentSapCard());
+    currentSapDraft = cloneSapReport(getCurrentSapReportValues());
 }
 
 function syncCurrentSapDepartment() {
@@ -5053,9 +5370,20 @@ function syncSapDepartmentVisibility(card) {
 }
 
 function syncSapCardState() {
-    var currentReport = getCurrentSapReportValues();
+    if (currentSapViewKey === 'current') {
+        currentSapDraft = cloneSapReport(getCurrentSapReportValues());
+    }
+    var currentReport = cloneSapReport(currentSapDraft || getCurrentSapReportValues());
     var totalEmployees = savedSapReports.length + 1;
     var currentEmployeeNumber = totalEmployees;
+    if (currentSapViewKey !== 'current') {
+        var selectedIndex = parseInt(currentSapViewKey, 10);
+        if (!isNaN(selectedIndex) && selectedIndex >= 0 && selectedIndex < savedSapReports.length) {
+            currentEmployeeNumber = selectedIndex + 1;
+        } else {
+            currentSapViewKey = 'current';
+        }
+    }
     if (sapRequestCounter) {
         sapRequestCounter.textContent = 'Employee ' + currentEmployeeNumber + ' of ' + totalEmployees;
     }
@@ -5065,12 +5393,13 @@ function syncSapCardState() {
             var option = document.createElement('option');
             option.value = String(reportIndex);
             option.textContent = getSapCardDisplayName(report, reportIndex);
+            option.selected = currentSapViewKey === String(reportIndex);
             sapEmployeeSwitcher.appendChild(option);
         });
         var currentOption = document.createElement('option');
         currentOption.value = 'current';
         currentOption.textContent = getSapCardDisplayName(currentReport, savedSapReports.length);
-        currentOption.selected = true;
+        currentOption.selected = currentSapViewKey === 'current';
         sapEmployeeSwitcher.appendChild(currentOption);
     }
     var currentCard = getCurrentSapCard();
@@ -5103,20 +5432,22 @@ function initializeSavedSapReportsFromDom() {
     }).map(function(index) {
         return grouped[index];
     });
+    currentSapDraft = cloneSapReport(getCurrentSapReportValues());
     renderSavedSapReports();
 }
 
 function saveCurrentSapEmployee() {
     var incompleteField = getFirstIncompleteCurrentSapField();
     if (incompleteField) {
-        setInlineFormError('Please complete the current SAP employee report before adding another employee.');
-        try { incompleteField.focus(); } catch (focusError) {}
+        showSapAddEmployeeError(incompleteField);
         return false;
     }
     var report = getCurrentSapReportValues();
     savedSapReports.push(report);
     renderSavedSapReports();
     clearCurrentSapForm();
+    currentSapViewKey = 'current';
+    currentSapDraft = cloneSapReport(getCurrentSapReportValues());
     syncSapCardState();
     var firstInput = getSapField('name');
     if (firstInput) {
@@ -5130,11 +5461,39 @@ function removeLastSavedSapEmployee() {
     if (savedSapReports.length === 0) return;
     savedSapReports.pop();
     renderSavedSapReports();
+    currentSapViewKey = 'current';
+    currentSapDraft = cloneSapReport(getCurrentSapReportValues());
     syncSapCardState();
 }
 
+function loadSavedSapReportIntoCurrentForm(reportIndex) {
+    if (currentSapViewKey === 'current') {
+        currentSapDraft = cloneSapReport(getCurrentSapReportValues());
+    }
+    var numericIndex = parseInt(reportIndex, 10);
+    if (isNaN(numericIndex) || numericIndex < 0 || numericIndex >= savedSapReports.length) {
+        currentSapViewKey = 'current';
+        setCurrentSapReportValues(cloneSapReport(currentSapDraft || getCurrentSapReportValues()));
+        syncSapCardState();
+        return;
+    }
+    currentSapViewKey = String(numericIndex);
+    setCurrentSapReportValues(savedSapReports[numericIndex]);
+    syncSapCardState();
+}
+
+function showSapAddEmployeeError(field) {
+    setInlineFormError('Please complete the current SAP employee report before adding another employee.');
+    if (sapRequestSection) {
+        sapRequestSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    if (field) {
+        try { field.focus(); } catch (focusError) {}
+    }
+}
+
 function addSapCard() {
-    saveCurrentSapEmployee();
+    return saveCurrentSapEmployee();
 }
 
 function syncRequestGridRows() {
@@ -6317,17 +6676,24 @@ if (sapAddEmployeeBtn) {
     sapAddEmployeeBtn.addEventListener('click', function(event) {
         event.preventDefault();
         event.stopPropagation();
-        if (getFirstIncompleteCurrentSapField()) {
-            saveCurrentSapEmployee();
-            return;
+        var incompleteField = getFirstIncompleteCurrentSapField();
+        if (incompleteField) {
+            showSapAddEmployeeError(incompleteField);
+            return false;
         }
-        addSapCard();
+        return addSapCard();
     });
 }
 if (sapEmployeeSwitcher) {
     sapEmployeeSwitcher.addEventListener('change', function() {
-        sapEmployeeSwitcher.value = 'current';
-        syncSapCardState();
+        var selectedValue = String(sapEmployeeSwitcher.value || 'current');
+        if (selectedValue === 'current') {
+            currentSapViewKey = 'current';
+            setCurrentSapReportValues(cloneSapReport(currentSapDraft || getCurrentSapReportValues()));
+            syncSapCardState();
+            return;
+        }
+        loadSavedSapReportIntoCurrentForm(selectedValue);
     });
 }
 if (sapRequestList) {
@@ -6341,6 +6707,7 @@ if (sapRequestList) {
     sapRequestList.addEventListener('input', function(event) {
         var target = event.target;
         if (!(target instanceof Element)) return;
+        currentSapViewKey = 'current';
         if (target.matches('[data-sap-field="name"]')) {
             syncSapCardState();
         }
@@ -6348,6 +6715,7 @@ if (sapRequestList) {
     sapRequestList.addEventListener('change', function(event) {
         var target = event.target;
         if (!(target instanceof Element)) return;
+        currentSapViewKey = 'current';
         if (target.matches('[data-sap-field="company"]')) {
             syncSapDepartmentVisibility(target.closest('[data-sap-card]'));
             syncSapCardState();
@@ -6392,7 +6760,15 @@ var attachmentPreviewMeta = document.getElementById('attachmentPreviewMeta');
 var attachmentPreviewClose = document.getElementById('attachmentPreviewClose');
 var attachmentPreviewPrev = document.getElementById('attachmentPreviewPrev');
 var attachmentPreviewNext = document.getElementById('attachmentPreviewNext');
-var dt = new DataTransfer();
+function createAttachmentTransfer() {
+    try {
+        return new DataTransfer();
+    } catch (error) {
+        return null;
+    }
+}
+var dt = createAttachmentTransfer();
+var attachmentFiles = [];
 var objectUrls = [];
 var normalAttachmentPreviewItems = [];
 var activeAttachmentPreviewItems = [];
@@ -6422,6 +6798,19 @@ function clearObjectUrls() {
     closeInlineAttachmentPreview();
     while (objectUrls.length) {
         try { URL.revokeObjectURL(objectUrls.pop()); } catch (e) {}
+    }
+}
+
+function syncAttachmentInputFiles() {
+    if (!attachmentInput) return;
+    dt = createAttachmentTransfer();
+    if (dt) {
+        attachmentFiles.forEach(function(file) {
+            dt.items.add(file);
+        });
+        attachmentInput.files = dt.files;
+    } else if (attachmentFiles.length === 0) {
+        attachmentInput.value = '';
     }
 }
 
@@ -6707,16 +7096,16 @@ document.addEventListener('keydown', function(event) {
 
 function syncFiles() {
     if (!attachmentInput) return;
-    attachmentInput.files = dt.files;
+    syncAttachmentInputFiles();
     if (fileNameEl) {
-        var n = dt.files.length;
-        fileNameEl.textContent = n === 0 ? 'No file chosen' : (n === 1 ? dt.files[0].name : (n + ' files selected'));
+        var n = attachmentFiles.length;
+        fileNameEl.textContent = n === 0 ? 'No file chosen' : (n === 1 ? attachmentFiles[0].name : (n + ' files selected'));
     }
     if (!preview) return;
     clearObjectUrls();
     normalAttachmentPreviewItems = [];
     preview.innerHTML = '';
-    Array.from(dt.files).forEach(function (file, idx) {
+    attachmentFiles.forEach(function (file, idx) {
         var url = URL.createObjectURL(file);
         objectUrls.push(url);
         normalAttachmentPreviewItems.push({ file: file, url: url });
@@ -6787,24 +7176,15 @@ function syncFiles() {
         name.style.textOverflow = 'ellipsis';
         name.style.whiteSpace = 'nowrap';
 
-        var size = document.createElement('div');
-        var kb = Math.round((file.size || 0) / 1024);
-        size.textContent = kb + ' KB';
-        size.style.color = '#64748b';
-        size.style.fontSize = '12px';
-        size.style.fontWeight = '600';
-
         meta.appendChild(name);
-        meta.appendChild(size);
 
-        var right = document.createElement('div');
         var removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.textContent = 'x';
         removeBtn.style.border = '1px solid #e2e8f0';
         removeBtn.style.background = '#ffffff';
         removeBtn.style.color = '#ef4444';
-        removeBtn.style.fontWeight = '800';
+        removeBtn.style.fontWeight = '900';
         removeBtn.style.width = '40px';
         removeBtn.style.height = '40px';
         removeBtn.style.padding = '0';
@@ -6814,20 +7194,18 @@ function syncFiles() {
         removeBtn.style.lineHeight = '1';
         removeBtn.addEventListener('click', function () {
             try { URL.revokeObjectURL(url); } catch (e) {}
-            var ndt = new DataTransfer();
-            Array.from(dt.files).forEach(function (f, i) {
-                if (i !== idx) ndt.items.add(f);
+            attachmentFiles = attachmentFiles.filter(function(_, fileIndex) {
+                return fileIndex !== idx;
             });
-            dt = ndt;
+            if (attachmentInput) attachmentInput.value = '';
             syncFiles();
         });
-        right.appendChild(removeBtn);
 
         left.appendChild(icon);
         left.appendChild(meta);
 
         row.appendChild(left);
-        row.appendChild(right);
+        row.appendChild(removeBtn);
         preview.appendChild(row);
     });
 }
@@ -6870,47 +7248,55 @@ function getExt(name) {
     return parts.length > 1 ? parts.pop() : '';
 }
 
-if (attachmentInput) {
-    attachmentInput.addEventListener('change', function (e) {
-        var blockedMax = false;
-        var hasUnsupportedType = false;
-        var validFiles = [];
-        Array.from(e.target.files || []).forEach(function (file) {
-            var ext = getExt(file && file.name);
-            if (ALLOWED_EXT.indexOf(ext) === -1) {
-                hasUnsupportedType = true;
-                return;
-            }
-            validFiles.push(file);
-        });
-        if (hasUnsupportedType) {
-            attachmentInput.value = '';
-            showError('Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.');
+function addAttachmentFiles(selectedFiles) {
+    var blockedMax = false;
+    var hasUnsupportedType = false;
+    var validFiles = [];
+
+    Array.from(selectedFiles || []).forEach(function (file) {
+        var ext = getExt(file && file.name);
+        if (ALLOWED_EXT.indexOf(ext) === -1) {
+            hasUnsupportedType = true;
             return;
         }
-        validFiles.forEach(function (file) {
-            if (dt.files.length >= MAX_FILES) {
-                blockedMax = true;
-                return;
-            }
-            var nextTotal = (file && file.size || 0);
-            Array.from(dt.files).forEach(function (f) { nextTotal += (f && f.size) ? f.size : 0; });
-            if (nextTotal > MAX_BYTES) {
-                showError('Attachment too large. Max 5MB total.');
-                return;
-            }
-            var exists = Array.from(dt.files).some(function (f) {
-                return f.name === file.name && f.size === file.size && f.lastModified === file.lastModified;
-            });
-            if (!exists) dt.items.add(file);
-        });
-        attachmentInput.value = '';
-        if (blockedMax) {
-            showError('Maximum 5 attachments allowed. Extra files were not added.');
-        } else {
-            showError('');
+        validFiles.push(file);
+    });
+
+    if (hasUnsupportedType) {
+        if (attachmentInput) attachmentInput.value = '';
+        showError('Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.');
+        return;
+    }
+
+    validFiles.forEach(function (file) {
+        if (attachmentFiles.length >= MAX_FILES) {
+            blockedMax = true;
+            return;
         }
-        syncFiles();
+        var nextTotal = (file && file.size || 0);
+        attachmentFiles.forEach(function (f) { nextTotal += (f && f.size) ? f.size : 0; });
+        if (nextTotal > MAX_BYTES) {
+            showError('Attachment too large. Max 5MB total.');
+            return;
+        }
+        var exists = attachmentFiles.some(function (f) {
+            return f.name === file.name && f.size === file.size && f.lastModified === file.lastModified;
+        });
+        if (!exists) attachmentFiles.push(file);
+    });
+
+    if (attachmentInput && dt) attachmentInput.value = '';
+    if (blockedMax) {
+        showError('Maximum 5 attachments allowed. Extra files were not added.');
+    } else {
+        showError('');
+    }
+    syncFiles();
+}
+
+if (attachmentInput) {
+    attachmentInput.addEventListener('change', function (e) {
+        addAttachmentFiles(e.target.files || []);
     });
 }
 
@@ -6976,7 +7362,9 @@ function validateSssUploads() {
 }
 
 window.TMSalesResetAttachments = function() {
-    dt = new DataTransfer();
+    attachmentFiles = [];
+    dt = createAttachmentTransfer();
+    if (attachmentInput) attachmentInput.value = '';
     syncFiles();
     showError('');
 };
@@ -7003,12 +7391,12 @@ if (formEl) {
         var isKamiAttachmentRequired = isLapcHrSelected && selectedCategory === 'Attendance & Timekeeping';
         var isHrSssSelected = isLapcHrSelected && selectedCategory === 'SSS Sickness and Benefit Concern';
         var isHrMedicalCashAdvanceSelected = isLapcHrSelected && selectedCategory === 'Medical Cash Advance';
-        var badType = Array.from(dt.files).find(function (file) {
+        var badType = attachmentFiles.find(function (file) {
             var ext = getExt(file && file.name);
             return ALLOWED_EXT.indexOf(ext) === -1;
         });
         var total = 0;
-        Array.from(dt.files).forEach(function (f) { total += (f && f.size) ? f.size : 0; });
+        attachmentFiles.forEach(function (f) { total += (f && f.size) ? f.size : 0; });
 
         setInlineFormError('');
 
@@ -7261,27 +7649,365 @@ if (formEl) {
                 return;
             }
         }
-        if (isKamiAttachmentRequired && dt.files.length === 0) {
+        if (isKamiAttachmentRequired && attachmentFiles.length === 0) {
             e.preventDefault();
             showError('Attachment is required for Attendance & Timekeeping.');
             return;
         }
-        if (isHrMedicalCashAdvanceSelected && dt.files.length === 0) {
+        if (isHrMedicalCashAdvanceSelected && attachmentFiles.length === 0) {
             e.preventDefault();
             showError('Supporting Information is required for Medical Cash Advance.');
             return;
         }
-        if (!isHrSssSelected && (dt.files.length > MAX_FILES || badType || total > MAX_BYTES)) {
+        if (!isHrSssSelected && (attachmentFiles.length > MAX_FILES || badType || total > MAX_BYTES)) {
             e.preventDefault();
-            showError(dt.files.length > MAX_FILES ? 'Maximum 5 attachments allowed.' : (badType ? 'Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.' : 'Attachment too large. Max 5MB total.'));
+            showError(attachmentFiles.length > MAX_FILES ? 'Maximum 5 attachments allowed.' : (badType ? 'Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.' : 'Attachment too large. Max 5MB total.'));
             return;
         }
+        syncAttachmentInputFiles();
         showError('');
     });
 }
 </script>
 
 <script>
+(function() {
+    function runSapFallback() {
+        var sapSection = document.getElementById('sapRequestSection');
+        var sapList = document.getElementById('sapRequestList');
+        var sapSavedHost = document.getElementById('sapSavedReportsHost');
+        var sapCounter = document.getElementById('sapRequestCounter');
+        var sapSwitcher = document.getElementById('sapEmployeeSwitcher');
+        var addButton = document.getElementById('sapAddEmployeeBtn');
+        var ajaxError = document.getElementById('ajaxError');
+
+        if (!sapSection || !sapList || !sapSavedHost || !addButton) return;
+
+        var currentCard = sapList.querySelector('[data-sap-card]');
+        if (!currentCard) return;
+
+        var addButtonClone = addButton.cloneNode(true);
+        addButton.parentNode.replaceChild(addButtonClone, addButton);
+        addButton = addButtonClone;
+
+        var removeButton = currentCard.querySelector('[data-remove-sap-report]');
+        if (removeButton) {
+            var removeClone = removeButton.cloneNode(true);
+            removeButton.parentNode.replaceChild(removeClone, removeButton);
+            removeButton = removeClone;
+        }
+        var currentViewKey = 'current';
+        var currentDraft = null;
+
+        function getField(fieldName) {
+            return currentCard.querySelector('[data-sap-field="' + fieldName + '"]');
+        }
+
+        function getSavedReports() {
+            var grouped = {};
+            Array.from(sapSavedHost.querySelectorAll('input[type="hidden"]')).forEach(function(input) {
+                var match = String(input.name || '').match(/^sap_reports\[(\d+)\]\[(name|position|immediate_head|company|department)\]$/);
+                if (!match) return;
+                var index = match[1];
+                var field = match[2];
+                if (!grouped[index]) {
+                    grouped[index] = { name: '', position: '', immediate_head: '', company: '', department: '' };
+                }
+                grouped[index][field] = input.value || '';
+            });
+            return Object.keys(grouped).sort(function(a, b) {
+                return parseInt(a, 10) - parseInt(b, 10);
+            }).map(function(index) {
+                return grouped[index];
+            });
+        }
+
+        function renderSavedReports(reports) {
+            sapSavedHost.innerHTML = '';
+            reports.forEach(function(report, index) {
+                ['name', 'position', 'immediate_head', 'company', 'department'].forEach(function(field) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'sap_reports[' + index + '][' + field + ']';
+                    input.value = report[field] || '';
+                    sapSavedHost.appendChild(input);
+                });
+            });
+        }
+
+        function setCurrentValues(report) {
+            var safeReport = report || {};
+            var nameInput = getField('name');
+            var positionInput = getField('position');
+            var immediateHeadInput = getField('immediate_head');
+            var companyInput = getField('company');
+            var departmentInput = getField('department');
+
+            if (nameInput) nameInput.value = String(safeReport.name || '');
+            if (positionInput) positionInput.value = String(safeReport.position || '');
+            if (immediateHeadInput) immediateHeadInput.value = String(safeReport.immediate_head || '');
+            if (companyInput) companyInput.value = String(safeReport.company || '');
+
+            syncDepartmentVisibility();
+
+            if (departmentInput) {
+                departmentInput.value = String(safeReport.department || '');
+            }
+        }
+
+        function syncCurrentFieldNames(savedReports) {
+            var currentIndex = savedReports.length;
+            ['name', 'position', 'immediate_head', 'company', 'department'].forEach(function(field) {
+                var input = getField(field);
+                if (input) {
+                    input.name = 'sap_reports[' + currentIndex + '][' + field + ']';
+                }
+            });
+        }
+
+        function syncDepartmentVisibility() {
+            var companyInput = getField('company');
+            var departmentInput = getField('department');
+            var departmentWrap = currentCard.querySelector('[data-sap-department-wrap]');
+            var departmentField = currentCard.querySelector('[data-sap-department-field]');
+            var shouldShowDepartment = !!companyInput && String(companyInput.value || '') === '@leadsagri.com';
+
+            if (departmentWrap) {
+                departmentWrap.classList.toggle('is-visible', shouldShowDepartment);
+            }
+            if (departmentField) {
+                departmentField.classList.toggle('is-visible', shouldShowDepartment);
+            }
+            if (departmentInput) {
+                departmentInput.disabled = !shouldShowDepartment;
+                if (shouldShowDepartment) {
+                    departmentInput.setAttribute('required', 'required');
+                } else {
+                    departmentInput.removeAttribute('required');
+                    departmentInput.value = '';
+                }
+            }
+        }
+
+        function getCurrentValues() {
+            return {
+                name: String((getField('name') || {}).value || '').trim(),
+                position: String((getField('position') || {}).value || '').trim(),
+                immediate_head: String((getField('immediate_head') || {}).value || '').trim(),
+                company: String((getField('company') || {}).value || '').trim(),
+                department: String((getField('department') || {}).value || '').trim()
+            };
+        }
+
+        function cloneReport(report) {
+            var source = report || {};
+            return {
+                name: String(source.name || ''),
+                position: String(source.position || ''),
+                immediate_head: String(source.immediate_head || ''),
+                company: String(source.company || ''),
+                department: String(source.department || '')
+            };
+        }
+
+        function clearCurrentValues() {
+            ['name', 'position', 'immediate_head', 'company', 'department'].forEach(function(field) {
+                var input = getField(field);
+                if (input) {
+                    input.value = '';
+                }
+            });
+            syncDepartmentVisibility();
+            currentDraft = cloneReport(getCurrentValues());
+        }
+
+        function showSapError(message, field) {
+            if (ajaxError) {
+                ajaxError.textContent = message;
+                ajaxError.style.display = 'block';
+                ajaxError.setAttribute('tabindex', '-1');
+            }
+            sapSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (field) {
+                try { field.focus(); } catch (error) {}
+            }
+        }
+
+        function clearSapError() {
+            if (!ajaxError) return;
+            ajaxError.style.display = 'none';
+            ajaxError.textContent = '';
+        }
+
+        function getFirstIncompleteField() {
+            var requiredFields = ['name', 'position', 'immediate_head', 'company'];
+            for (var i = 0; i < requiredFields.length; i += 1) {
+                var input = getField(requiredFields[i]);
+                if (input && !String(input.value || '').trim()) {
+                    return input;
+                }
+            }
+            var companyInput = getField('company');
+            var departmentInput = getField('department');
+            if (
+                companyInput
+                && String(companyInput.value || '') === '@leadsagri.com'
+                && departmentInput
+                && !departmentInput.disabled
+                && !String(departmentInput.value || '').trim()
+            ) {
+                return departmentInput;
+            }
+            return null;
+        }
+
+        function syncUi() {
+            var savedReports = getSavedReports();
+            if (currentViewKey === 'current') {
+                currentDraft = cloneReport(getCurrentValues());
+            }
+            var totalEmployees = savedReports.length + 1;
+            var currentEmployeeNumber = totalEmployees;
+            if (currentViewKey !== 'current') {
+                var selectedIndex = parseInt(currentViewKey, 10);
+                if (!isNaN(selectedIndex) && selectedIndex >= 0 && selectedIndex < savedReports.length) {
+                    currentEmployeeNumber = selectedIndex + 1;
+                } else {
+                    currentViewKey = 'current';
+                }
+            }
+
+            if (sapCounter) {
+                sapCounter.textContent = 'Employee ' + currentEmployeeNumber + ' of ' + totalEmployees;
+            }
+
+            if (sapSwitcher) {
+                sapSwitcher.innerHTML = '';
+                savedReports.forEach(function(report, index) {
+                    var option = document.createElement('option');
+                    option.value = String(index);
+                    option.textContent = String(report.name || '').trim() !== '' ? report.name : ('Employee ' + (index + 1));
+                    option.selected = currentViewKey === String(index);
+                    sapSwitcher.appendChild(option);
+                });
+
+                var currentValues = cloneReport(currentDraft || getCurrentValues());
+                var currentOption = document.createElement('option');
+                currentOption.value = 'current';
+                currentOption.selected = currentViewKey === 'current';
+                currentOption.textContent = String(currentValues.name || '').trim() !== '' ? currentValues.name : ('Employee ' + totalEmployees);
+                sapSwitcher.appendChild(currentOption);
+            }
+
+            if (removeButton) {
+                removeButton.style.display = totalEmployees > 1 ? '' : 'none';
+            }
+
+            syncCurrentFieldNames(savedReports);
+            syncDepartmentVisibility();
+        }
+
+        addButton.addEventListener('click', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            var incompleteField = getFirstIncompleteField();
+            if (incompleteField) {
+                showSapError('Please complete the current SAP employee report before adding another employee.', incompleteField);
+                return false;
+            }
+
+            var savedReports = getSavedReports();
+            savedReports.push(getCurrentValues());
+            renderSavedReports(savedReports);
+            clearCurrentValues();
+            currentViewKey = 'current';
+            currentDraft = cloneReport(getCurrentValues());
+            clearSapError();
+            syncUi();
+
+            var firstInput = getField('name');
+            if (firstInput) {
+                try { firstInput.focus(); } catch (error) {}
+            }
+            return false;
+        });
+
+        if (removeButton) {
+            removeButton.addEventListener('click', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                var savedReports = getSavedReports();
+                if (savedReports.length === 0) {
+                    syncUi();
+                    return false;
+                }
+
+                savedReports.pop();
+                renderSavedReports(savedReports);
+                currentViewKey = 'current';
+                currentDraft = cloneReport(getCurrentValues());
+                clearSapError();
+                syncUi();
+                return false;
+            });
+        }
+
+        if (sapSwitcher) {
+            sapSwitcher.addEventListener('change', function() {
+                var selectedValue = String(sapSwitcher.value || 'current');
+                var savedReports = getSavedReports();
+                if (selectedValue === 'current') {
+                    currentViewKey = 'current';
+                    setCurrentValues(cloneReport(currentDraft || getCurrentValues()));
+                    syncUi();
+                    return;
+                }
+
+                var selectedIndex = parseInt(selectedValue, 10);
+                if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= savedReports.length) {
+                    currentViewKey = 'current';
+                    setCurrentValues(cloneReport(currentDraft || getCurrentValues()));
+                    syncUi();
+                    return;
+                }
+
+                if (currentViewKey === 'current') {
+                    currentDraft = cloneReport(getCurrentValues());
+                }
+                currentViewKey = String(selectedIndex);
+                setCurrentValues(savedReports[selectedIndex]);
+                syncUi();
+            });
+        }
+
+        ['name', 'position', 'immediate_head', 'company', 'department'].forEach(function(field) {
+            var input = getField(field);
+            if (!input) return;
+            input.addEventListener('input', function() {
+                currentViewKey = 'current';
+                clearSapError();
+                syncUi();
+            });
+            input.addEventListener('change', function() {
+                currentViewKey = 'current';
+                clearSapError();
+                syncUi();
+            });
+        });
+
+        currentDraft = cloneReport(getCurrentValues());
+        syncUi();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', runSapFallback);
+    } else {
+        runSapFallback();
+    }
+})();
+
 function closeModal(){
     var m = document.getElementById('successModal');
     if (!m) return;
