@@ -2321,7 +2321,7 @@ $successMessage = '';
             padding: 14px 16px;
             border-radius: 12px;
             border: 1px solid #e5e7eb;
-            resize: vertical;
+            resize: none;
             font: inherit;
             font-size: 15px;
             color: #0f172a;

@@ -1823,7 +1823,30 @@
 
     function closeMenu() {
       menu.classList.remove('show');
+      menu.classList.remove('is-above');
+      menu.style.maxHeight = '';
       trigger.setAttribute('aria-expanded', 'false');
+    }
+
+    function positionMenu() {
+      var gap = 8;
+      var viewportPadding = 16;
+      var rect = trigger.getBoundingClientRect();
+      var clipTop = viewportPadding;
+      var clipBottom = window.innerHeight - viewportPadding;
+      var modalScrollArea = wrapper.closest('.tm-body') || wrapper.closest('.modal-content');
+      if (modalScrollArea) {
+        var modalRect = modalScrollArea.getBoundingClientRect();
+        clipTop = Math.max(clipTop, modalRect.top + gap);
+        clipBottom = Math.min(clipBottom, modalRect.bottom - gap);
+      }
+      var spaceBelow = clipBottom - rect.bottom - gap;
+      var spaceAbove = rect.top - clipTop - gap;
+      var shouldOpenAbove = spaceBelow < 240 && spaceAbove > spaceBelow;
+      var availableSpace = shouldOpenAbove ? spaceAbove : spaceBelow;
+      var maxHeight = Math.max(140, Math.min(320, Math.floor(availableSpace)));
+      menu.classList.toggle('is-above', shouldOpenAbove);
+      menu.style.maxHeight = maxHeight + 'px';
     }
 
     function renderOptions() {
@@ -1868,8 +1891,13 @@
       closeMenu();
       if (willOpen) {
         renderOptions();
+        positionMenu();
         menu.classList.add('show');
         trigger.setAttribute('aria-expanded', 'true');
+        var selected = menu.querySelector('.tm-select-menu-option.is-selected');
+        if (selected && typeof selected.scrollIntoView === 'function') {
+          selected.scrollIntoView({ block: 'nearest' });
+        }
       }
     });
 
