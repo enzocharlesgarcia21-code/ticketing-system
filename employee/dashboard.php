@@ -1184,7 +1184,7 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
 
 
         body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
-            width: min(100%, 780px);
+            width: min(100%, 560px);
             max-height: calc(100vh - 44px);
             border-radius: 18px;
         }
@@ -1251,7 +1251,7 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-actions {
-            justify-content: flex-end;
+            justify-content: center;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-submit-btn {
@@ -1761,15 +1761,6 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                 <p class="feedback-modal-subtitle">Your feedback has been submitted.<br>Thank you for sharing your support experience.</p>
             </div>
             <div class="feedback-modal-body">
-                <div class="feedback-flash is-success">
-                    <div class="feedback-success-message-icon" aria-hidden="true">
-                        <i class="far fa-envelope"></i>
-                    </div>
-                    <div class="feedback-success-message-copy">
-                        <strong>Your feedback has been successfully</strong><br>
-                        <?= htmlspecialchars((string) $feedbackFlash['message'], ENT_QUOTES, 'UTF-8'); ?>
-                    </div>
-                </div>
                 <div class="feedback-actions">
                     <button type="button" class="feedback-submit-btn" id="feedbackModalDismissBtn">Done</button>
                 </div>

@@ -501,6 +501,10 @@ user_permissions_ensure_table($conn);
         .password-field .form-control {
             padding-right: 44px;
         }
+        .password-field .form-control::-ms-reveal,
+        .password-field .form-control::-ms-clear {
+            display: none;
+        }
         .password-eye {
             position: absolute;
             top: 50%;

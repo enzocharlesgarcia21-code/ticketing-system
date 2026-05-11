@@ -4742,12 +4742,12 @@ $normalized_company_id = $selectedRecipientCompany;
                     <div class="form-group" id="attachmentContainer">
                         <label><span id="attachmentLabelText">Attachment</span> <span id="attachmentOptionalText">(Optional)</span><span id="attachmentRequiredAsterisk" class="required-asterisk" style="display:none;">*</span></label>
                         <div class="attachment-upload-shell file-control">
-                            <button type="button" id="choose-file-btn" class="file-button" aria-label="Choose file">
+                            <label for="attachments" id="choose-file-btn" class="file-button" role="button" tabindex="0" aria-label="Choose file">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                     <path d="M20 17.5A3.5 3.5 0 0 1 16.5 21H7a5 5 0 0 1-1-9.9V11a6 6 0 0 1 11.53-1.999.75.75 0 1 1-1.4.55A4.5 4.5 0 0 0 7.75 11v.77a.75.75 0 0 1-.63.74A3.5 3.5 0 0 0 7 19.5h9.5A2 2 0 0 0 18.5 15a.75.75 0 1 1 1.5 0zM12 7.5a.75.75 0 0 1 .75.75V12h1.94a.75.75 0 1 1 0 1.5H12.75v1.94a.75.75 0 0 1-1.5 0V13.5H9.31a.75.75 0 1 1 0-1.5h1.94V8.25A.75.75 0 0 1 12 7.5z"/>
                                 </svg>
                                 <span id="chooseFileBtnText">Choose File</span>
-                            </button>
+                            </label>
                             <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx">
                             <span id="file-name" class="attachment-file-name file-name">No file chosen</span>
                         </div>
@@ -5971,7 +5971,11 @@ function toggleHrExtraFields() {
     if (otherDescriptionSection) otherDescriptionSection.style.display = shouldShowSssBenefits ? 'none' : '';
 
     if (attachmentInput) attachmentInput.disabled = shouldShowSssBenefits || shouldShowEmailRequest;
-    if (chooseBtn) chooseBtn.disabled = shouldShowSssBenefits || shouldShowEmailRequest;
+    if (chooseBtn) {
+        var isAttachmentPickerDisabled = shouldShowSssBenefits || shouldShowEmailRequest;
+        chooseBtn.setAttribute('aria-disabled', isAttachmentPickerDisabled ? 'true' : 'false');
+        chooseBtn.tabIndex = isAttachmentPickerDisabled ? -1 : 0;
+    }
     if (attachmentOptionalText) attachmentOptionalText.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment) ? 'none' : '';
     if (attachmentOptionalText && shouldShowMarketingRequest) attachmentOptionalText.style.display = 'none';
     if (attachmentRequiredAsterisk) attachmentRequiredAsterisk.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment) ? '' : 'none';
@@ -6403,7 +6407,13 @@ var SSS_MAX_FILE_BYTES = 10 * 1024 * 1024;
 var toastTimer = null;
 
 if (chooseBtn) {
-    chooseBtn.addEventListener('click', function () {
+    chooseBtn.addEventListener('click', function (event) {
+        event.preventDefault();
+        if (attachmentInput && !attachmentInput.disabled) attachmentInput.click();
+    });
+    chooseBtn.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
         if (attachmentInput && !attachmentInput.disabled) attachmentInput.click();
     });
 }
