@@ -625,9 +625,9 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                         <i class="fas fa-comment-dots"></i>
                     </div>
                     <div>
-                        <h1>Feedback Dashboard</h1>
-                        <p>Review feedback submitted by requestors for resolved tickets.</p>
-                        <p>Entries are ordered from newest to oldest so you can quickly scan recent responses.</p>
+                        <h1>My Feedback Dashboard</h1>
+                        <p>This feedback is only for your own ticket-handling performance as an individual support assignee.</p>
+                        <p>Review how requestors rated the tickets you handled, with newest responses shown first.</p>
                     </div>
                 </section>
 
@@ -683,8 +683,8 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                             <i class="fas fa-message"></i>
                         </div>
                         <div>
-                            <h2 class="feedback-section-title">Support Feedback</h2>
-                            <p class="feedback-section-subtitle">Ratings and comments from requestors on resolved tickets.</p>
+                            <h2 class="feedback-section-title">My Support Feedback</h2>
+                            <p class="feedback-section-subtitle">Ratings and comments from requestors for tickets assigned to you.</p>
                         </div>
                     </div>
 

@@ -33,7 +33,7 @@ function time_ago_days(string $dateTime): string
 function sla_badge_html(string $createdAt, string $status, string $priority = ''): string
 {
     $statusKey = strtolower(trim($status));
-    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return '<span class="sla-empty">-</span>';
     $priorityKey = strtolower(trim($priority));
     if ($priorityKey === 'critical') {
         return '<span class="badge badge-high">High</span>';
@@ -41,11 +41,11 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     if ($priorityKey === 'high') {
         return '<span class="badge badge-medium">Medium</span>';
     }
-    if ($createdAt === '') return '-';
+    if ($createdAt === '') return '<span class="sla-empty">-</span>';
     try {
         $created = new DateTimeImmutable($createdAt);
     } catch (Throwable $e) {
-        return '-';
+        return '<span class="sla-empty">-</span>';
     }
     $now = new DateTimeImmutable('now');
     $createdDay = $created->setTime(0, 0, 0);
@@ -61,6 +61,25 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
         return '<span class="badge badge-medium">Medium</span>';
     }
     return '<span class="badge badge-low">Low</span>';
+}
+
+function sla_filter_condition_sql(string $tableAlias, string $sla): string
+{
+    $sla = strtolower(trim($sla));
+    if (!in_array($sla, ['low', 'medium', 'high'], true)) return '';
+
+    $statusExpr = "LOWER(COALESCE(NULLIF($tableAlias.status,''),''))";
+    $priorityExpr = "LOWER(COALESCE(NULLIF($tableAlias.priority,''),''))";
+    $ageExpr = "DATEDIFF(CURDATE(), DATE($tableAlias.created_at))";
+    $activeExpr = "$tableAlias.created_at IS NOT NULL AND $statusExpr NOT IN ('resolved','closed')";
+
+    if ($sla === 'low') {
+        return "$activeExpr AND $priorityExpr NOT IN ('critical','high') AND $ageExpr < 4";
+    }
+    if ($sla === 'medium') {
+        return "$activeExpr AND ($priorityExpr = 'high' OR ($priorityExpr NOT IN ('critical','high') AND $ageExpr BETWEEN 4 AND 6))";
+    }
+    return "$activeExpr AND ($priorityExpr = 'critical' OR ($priorityExpr NOT IN ('critical','high') AND $ageExpr >= 7))";
 }
 
 function assigned_target_label(array $row): string
@@ -106,7 +125,7 @@ if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
 
 $department = $_GET['department'] ?? '';
 $company_email = $_GET['company_email'] ?? '';
-$priority   = $_GET['priority']   ?? '';
+$sla        = trim((string) ($_GET['sla'] ?? ($_GET['priority'] ?? '')));
 $status     = $_GET['status']     ?? '';
 $search     = $_GET['search']     ?? '';
 $view       = (string) ($_GET['view'] ?? '');
@@ -150,9 +169,13 @@ if (!empty($department)) {
     }
 }
 
-if (!empty($priority)) {
-    $priority = $conn->real_escape_string($priority);
-    $query .= " AND employee_tickets.priority = '$priority'";
+if (!empty($sla)) {
+    $slaCondition = sla_filter_condition_sql('employee_tickets', (string) $sla);
+    if ($slaCondition !== '') {
+        $query .= " AND ($slaCondition)";
+    } else {
+        $sla = '';
+    }
 }
 
 if (!empty($status)) {
@@ -266,7 +289,7 @@ $result = $stmt->get_result();
         }
         #filterForm #recipientFilterSelect { flex-basis: 220px; }
         #filterForm #departmentFilterSelect { width: 100%; }
-        #filterForm select[name="priority"] { flex: 0 1 132px; }
+        #filterForm select[name="sla"] { flex: 0 1 132px; }
         #filterForm select[name="status"] { flex: 0 1 132px; }
         #filterForm .clear-btn {
             flex: 0 0 auto;
@@ -401,6 +424,10 @@ $result = $stmt->get_result();
             width: 100%;
             min-width: 1040px;
         }
+        .sla-empty {
+            display: inline-block;
+            margin-left: 10px;
+        }
         @media (max-width: 1100px) {
             .at-layout { max-width: 1200px; }
             .table-footer-bar {
@@ -534,11 +561,11 @@ $result = $stmt->get_result();
                             </select>
                         </div>
 
-                        <select name="priority" class="filter-select" onchange="submitForm()">
-                            <option value="" <?= $priority === '' ? 'selected' : '' ?>>All Priority</option>
-                            <option value="Low" <?= $priority=='Low'?'selected':'' ?>>Low</option>
-                            <option value="High" <?= $priority=='High'?'selected':'' ?>>High</option>
-                            <option value="Critical" <?= $priority=='Critical'?'selected':'' ?>>Critical</option>
+                        <select name="sla" class="filter-select" onchange="submitForm()">
+                            <option value="" <?= $sla === '' ? 'selected' : '' ?>>All SLA</option>
+                            <option value="Low" <?= $sla=='Low'?'selected':'' ?>>Low</option>
+                            <option value="Medium" <?= $sla=='Medium'?'selected':'' ?>>Medium</option>
+                            <option value="High" <?= $sla=='High'?'selected':'' ?>>High</option>
                         </select>
 
                         <select name="status" class="filter-select" onchange="submitForm()">
@@ -562,7 +589,6 @@ $result = $stmt->get_result();
                             <tr>
                                 <th>ID</th>
                                 <th>Requested By</th>
-                                <th>Priority</th>
                                 <th>Status</th>
                                 <th>Department</th>
                                 <th>Created</th>
@@ -595,11 +621,6 @@ $result = $stmt->get_result();
                                         <small><?= htmlspecialchars($dispEmail, ENT_QUOTES, 'UTF-8'); ?></small>
                                     </div>
                                 </td>
-                                <td data-label="Priority">
-                                    <span class="badge badge-<?= strtolower($row['priority']); ?>">
-                                        <?= htmlspecialchars($row['priority'], ENT_QUOTES, 'UTF-8'); ?>
-                                    </span>
-                                </td>
                                 <td data-label="Status">
                                     <span class="status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
                                         <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
@@ -608,11 +629,11 @@ $result = $stmt->get_result();
                                         <span class="new-badge">NEW</span>
                                     <?php endif; ?>
                                 </td>
-                                <td data-label="Original Dept"><?php 
+                                <td data-label="Department"><?php 
                                     $origDept = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
                                     echo htmlspecialchars($origDept !== '' ? ticket_department_display_name((string) $origDept) : 'Sales');
                                 ?></td>
-                                <td data-label="Date"><?= htmlspecialchars(time_ago_days((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td data-label="Created"><?= htmlspecialchars(time_ago_days((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td data-label="SLA"><?= sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
                                 <td data-label="Assign To"><?= htmlspecialchars(assigned_target_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
                             </tr>
@@ -645,7 +666,7 @@ $result = $stmt->get_result();
                     <?php if ($total_pages > 1): ?>
                     <div class="pagination-glass">
                         <!-- Previous Link -->
-                        <a href="?page=<?= $page - 1; ?>&limit=<?= $limit; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
+                        <a href="?page=<?= $page - 1; ?>&limit=<?= $limit; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&sla=<?= urlencode($sla); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
                            data-page="<?= max(1, $page - 1) ?>"
                            class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
                             &lsaquo; Previous
@@ -688,7 +709,7 @@ $result = $stmt->get_result();
                                 <?php if ($pagination_item === 'ellipsis'): ?>
                                     <span class="pagination-ellipsis">...</span>
                                 <?php else: ?>
-                                    <a href="?page=<?= $pagination_item; ?>&limit=<?= $limit; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
+                                    <a href="?page=<?= $pagination_item; ?>&limit=<?= $limit; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&sla=<?= urlencode($sla); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
                                        data-page="<?= $pagination_item ?>"
                                        class="page-btn <?= ($pagination_item == $page) ? 'active' : ''; ?>">
                                         <?= $pagination_item; ?>
@@ -698,7 +719,7 @@ $result = $stmt->get_result();
                         </div>
 
                         <!-- Next Link -->
-                        <a href="?page=<?= $page + 1; ?>&limit=<?= $limit; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&priority=<?= urlencode($priority); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
+                        <a href="?page=<?= $page + 1; ?>&limit=<?= $limit; ?>&search=<?= urlencode($search); ?>&department=<?= urlencode($department); ?>&company_email=<?= urlencode($company_email); ?>&sla=<?= urlencode($sla); ?>&status=<?= urlencode($status); ?>&view=<?= urlencode($view); ?>" 
                            data-page="<?= min($total_pages, $page + 1) ?>"
                            class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
                             Next &rsaquo;
