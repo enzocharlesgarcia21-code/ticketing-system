@@ -63,7 +63,7 @@ function time_ago_days(string $dateTime): string
 function sla_badge_html(string $createdAt, string $status, string $priority = ''): string
 {
     $statusKey = strtolower(trim($status));
-    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return '<span class="sla-empty">-</span>';
     $priorityKey = strtolower(trim($priority));
     if ($priorityKey === 'critical') {
         return '<span class="badge badge-high">High</span>';
@@ -72,11 +72,11 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
         return '<span class="badge badge-medium">Medium</span>';
     }
     $createdAt = trim($createdAt);
-    if ($createdAt === '') return '-';
+    if ($createdAt === '') return '<span class="sla-empty">-</span>';
     try {
         $created = new DateTimeImmutable($createdAt);
     } catch (Throwable $e) {
-        return '-';
+        return '<span class="sla-empty">-</span>';
     }
     $now = new DateTimeImmutable('now');
     $diff = $now->diff($created);
@@ -90,6 +90,25 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
         return '<span class="badge badge-medium">Medium</span>';
     }
     return '<span class="badge badge-low">Low</span>';
+}
+
+function sla_filter_condition_sql(string $tableAlias, string $sla): string
+{
+    $sla = strtolower(trim($sla));
+    if (!in_array($sla, ['low', 'medium', 'high'], true)) return '';
+
+    $statusExpr = "LOWER(COALESCE(NULLIF($tableAlias.status,''),''))";
+    $priorityExpr = "LOWER(COALESCE(NULLIF($tableAlias.priority,''),''))";
+    $ageExpr = "DATEDIFF(CURDATE(), DATE($tableAlias.created_at))";
+    $activeExpr = "$tableAlias.created_at IS NOT NULL AND $statusExpr NOT IN ('resolved','closed')";
+
+    if ($sla === 'low') {
+        return "$activeExpr AND $priorityExpr NOT IN ('critical','high') AND $ageExpr < 4";
+    }
+    if ($sla === 'medium') {
+        return "$activeExpr AND ($priorityExpr = 'high' OR ($priorityExpr NOT IN ('critical','high') AND $ageExpr BETWEEN 4 AND 6))";
+    }
+    return "$activeExpr AND ($priorityExpr = 'critical' OR ($priorityExpr NOT IN ('critical','high') AND $ageExpr >= 7))";
 }
 
 function assigned_target_label(array $row): string
@@ -122,7 +141,7 @@ function assigned_target_label(array $row): string
 
 $search = trim((string) ($_GET['search'] ?? ''));
 $department = trim((string) ($_GET['department'] ?? ''));
-$priority = trim((string) ($_GET['priority'] ?? ''));
+$sla = trim((string) ($_GET['sla'] ?? ($_GET['priority'] ?? '')));
 $status = trim((string) ($_GET['status'] ?? ''));
 $companyEmail = trim((string) ($_GET['company_email'] ?? ''));
 $view = trim((string) ($_GET['view'] ?? ''));
@@ -167,10 +186,13 @@ if ($department !== '') {
     }
 }
 
-if ($priority !== '') {
-    $where[] = "t.priority = ?";
-    $params[] = $priority;
-    $types .= 's';
+if ($sla !== '') {
+    $slaCondition = sla_filter_condition_sql('t', $sla);
+    if ($slaCondition !== '') {
+        $where[] = $slaCondition;
+    } else {
+        $sla = '';
+    }
 }
 
 if ($status !== '') {
@@ -288,7 +310,6 @@ while ($res && ($row = $res->fetch_assoc())) {
     $assignedDept = ticket_department_key_from_value((string) ($row['assigned_department'] ?? ''));
     $isUnread = (int) ($row['is_read'] ?? 1) === 0;
     $id = (int) ($row['id'] ?? 0);
-    $priorityVal = (string) ($row['priority'] ?? '');
     $statusVal = (string) ($row['status'] ?? '');
     $createdAt = (string) ($row['created_at'] ?? '');
     $dateStr = $createdAt !== '' ? time_ago_days($createdAt) : '';
@@ -296,10 +317,9 @@ while ($res && ($row = $res->fetch_assoc())) {
     $rowsHtml .= '<tr class="ticket-row" data-id="' . (string) $id . '" style="cursor:pointer;' . ($isUnread ? 'background:rgba(27, 94, 32, 0.08);' : '') . '">';
     $rowsHtml .= '<td data-label="ID">#' . str_pad((string) $id, 6, '0', STR_PAD_LEFT) . '</td>';
     $rowsHtml .= '<td data-label="Requested By"><div class="user-info"><strong>' . h($dispName) . '</strong><br><small>' . h($dispEmail) . '</small></div></td>';
-    $rowsHtml .= '<td data-label="Priority"><span class="badge badge-' . h(strtolower($priorityVal)) . '">' . h($priorityVal) . '</span></td>';
     $rowsHtml .= '<td data-label="Status"><span class="status-' . h(strtolower(str_replace(' ', '-', $statusVal))) . '">' . h($statusVal) . '</span>' . ($isUnread ? '<span class="new-badge">NEW</span>' : '') . '</td>';
-    $rowsHtml .= '<td data-label="Original Dept">' . h($origDeptDisplay) . '</td>';
-    $rowsHtml .= '<td data-label="Date">' . h($dateStr) . '</td>';
+    $rowsHtml .= '<td data-label="Department">' . h($origDeptDisplay) . '</td>';
+    $rowsHtml .= '<td data-label="Created">' . h($dateStr) . '</td>';
     $rowsHtml .= '<td data-label="SLA">' . $slaHtml . '</td>';
     $rowsHtml .= '<td data-label="Assign To">' . h(assigned_target_label($row)) . '</td>';
     $rowsHtml .= '</tr>';
@@ -310,7 +330,7 @@ $queryBase = [
     'search' => $search,
     'department' => $department,
     'company_email' => $companyEmail,
-    'priority' => $priority,
+    'sla' => $sla,
     'status' => $status,
     'view' => $view,
     'limit' => $limit,

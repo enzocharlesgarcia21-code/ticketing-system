@@ -217,7 +217,7 @@ if ($analyticsIsEmployeeView) {
     $department_filter = trim((string) ($_SESSION['department'] ?? ''));
 }
 
-$allowed_statuses = ['Open', 'In Progress', 'Closed'];
+$allowed_statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
 if (!in_array($status_filter, $allowed_statuses, true)) $status_filter = '';
 
 $company_options = [
@@ -320,6 +320,7 @@ $formatResolutionMinutes = static function ($minutes): string {
 $summary = [
     'received' => 0,
     'resolved' => 0,
+    'closed' => 0,
     'open' => 0,
     'in_progress' => 0,
     'avg_seconds' => 0,
@@ -327,7 +328,8 @@ $summary = [
 $metricsSql = "
     SELECT
         COUNT(*) as received,
-        SUM(CASE WHEN t.status = 'Closed' THEN 1 ELSE 0 END) as resolved,
+        SUM(CASE WHEN t.status = 'Resolved' THEN 1 ELSE 0 END) as resolved_tickets,
+        SUM(CASE WHEN t.status = 'Closed' THEN 1 ELSE 0 END) as closed_tickets,
         SUM(CASE WHEN t.status = 'Open' THEN 1 ELSE 0 END) as open_tickets,
         SUM(CASE WHEN t.status = 'In Progress' THEN 1 ELSE 0 END) as in_progress_tickets
     FROM employee_tickets t
@@ -345,7 +347,8 @@ if ($mStmt) {
     $mStmt->execute();
     $mRow = $mStmt->get_result()->fetch_assoc();
     $summary['received'] = (int) ($mRow['received'] ?? 0);
-    $summary['resolved'] = (int) ($mRow['resolved'] ?? 0);
+    $summary['resolved'] = (int) ($mRow['resolved_tickets'] ?? 0);
+    $summary['closed'] = (int) ($mRow['closed_tickets'] ?? 0);
     $summary['open'] = (int) ($mRow['open_tickets'] ?? 0);
     $summary['in_progress'] = (int) ($mRow['in_progress_tickets'] ?? 0);
     $mStmt->close();
@@ -909,7 +912,7 @@ $assigneeSql = "
     WHERE " . implode(" AND ", $assigneeWhere) . "
     GROUP BY TRIM(a.name)
     ORDER BY total DESC
-    LIMIT 5
+    LIMIT 8
 ";
 $asStmt = $conn->prepare($assigneeSql);
 if ($asStmt) {
@@ -976,6 +979,9 @@ $assigneeAccentSets = [
     ['bg' => '#dbeafe', 'text' => '#2f80ed', 'bar' => 'linear-gradient(90deg, #2f80ed, #3b82f6)'],
     ['bg' => '#f3e8ff', 'text' => '#a855f7', 'bar' => 'linear-gradient(90deg, #a855f7, #c084fc)'],
     ['bg' => '#fee2e2', 'text' => '#fb7185', 'bar' => 'linear-gradient(90deg, #fb7185, #ff7a33)'],
+    ['bg' => '#dcfce7', 'text' => '#16a34a', 'bar' => 'linear-gradient(90deg, #16a34a, #22c55e)'],
+    ['bg' => '#ffedd5', 'text' => '#f97316', 'bar' => 'linear-gradient(90deg, #f97316, #fb923c)'],
+    ['bg' => '#cffafe', 'text' => '#0891b2', 'bar' => 'linear-gradient(90deg, #0891b2, #06b6d4)'],
 ];
 $assigneeMax = !empty($assigneeCounts) ? max($assigneeCounts) : 0;
 $assigneeCards = [];
@@ -1404,7 +1410,7 @@ if ($ticketsStmt) {
 
         .analytics-metrics {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 16px;
             margin-bottom: 22px;
         }
@@ -1441,19 +1447,20 @@ if ($ticketsStmt) {
             --metric-icon-color: #28a85b;
         }
         .analytics-card.resolved {
+            --metric-accent: #14b8a6;
+            --metric-label: #0d9488;
+            --metric-icon-bg: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+            --metric-icon-border: #99f6e4;
+            --metric-icon-color: #0f9f8e;
+        }
+        .analytics-card.closed {
             --metric-accent: #ffb427;
             --metric-label: #dc8c00;
             --metric-icon-bg: linear-gradient(180deg, #fff6e8 0%, #ffefd7 100%);
             --metric-icon-border: #f6d8a1;
             --metric-icon-color: #d99a00;
         }
-        .analytics-card.closed {
-            --metric-accent: #8a95ab;
-            --metric-label: #7b839b;
-            --metric-icon-bg: linear-gradient(180deg, #f0f3fa 0%, #e6ebf4 100%);
-            --metric-icon-border: #d5ddeb;
-            --metric-icon-color: #6d7692;
-        }
+        .analytics-card.open,
         .analytics-card.avg-time {
             --metric-accent: #2196f3;
             --metric-label: #2385db;
@@ -1597,9 +1604,9 @@ if ($ticketsStmt) {
             flex: 0 0 360px;
         }
         .chart-card.trend-card .chart-container {
-            height: 252px;
+            height: 332px;
             margin-top: 2px;
-            flex: 0 0 252px;
+            flex: 1 1 332px;
         }
         .trend-card {
             gap: 18px;
@@ -1725,63 +1732,6 @@ if ($ticketsStmt) {
             width: 100%;
             justify-content: flex-start;
         }
-        .trend-mini-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 14px;
-        }
-        .trend-mini-card {
-            min-width: 0;
-            padding: 16px 18px;
-            border-radius: 18px;
-            border: 1px solid #e3eaf4;
-            background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
-            box-shadow: 0 12px 28px rgba(148, 163, 184, 0.1);
-        }
-        .trend-mini-top {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 12px;
-        }
-        .trend-mini-icon {
-            width: 38px;
-            height: 38px;
-            border-radius: 12px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            flex: 0 0 38px;
-        }
-        .trend-mini-card.fastest .trend-mini-icon {
-            background: linear-gradient(180deg, #ecfdf3 0%, #dcfce7 100%);
-            color: #16a34a;
-        }
-        .trend-mini-card.peak .trend-mini-icon {
-            background: linear-gradient(180deg, #fff3eb 0%, #ffe7d1 100%);
-            color: #f97316;
-        }
-        .trend-mini-card.trend .trend-mini-icon {
-            background: linear-gradient(180deg, #f3ebff 0%, #ede9fe 100%);
-            color: #7c3aed;
-        }
-        .trend-mini-title {
-            font-size: 0.92rem;
-            font-weight: 800;
-            color: #1f2937;
-        }
-        .trend-mini-main {
-            font-size: 1rem;
-            font-weight: 800;
-            color: #111827;
-            margin-bottom: 4px;
-        }
-        .trend-mini-sub {
-            font-size: 0.92rem;
-            color: #64748b;
-            font-weight: 700;
-        }
         .insight-pill {
             margin-top: auto;
             min-height: 56px;
@@ -1815,7 +1765,7 @@ if ($ticketsStmt) {
             font-weight: 800;
         }
         .trend-card .insight-pill {
-            margin-top: 0;
+            margin-top: auto;
         }
         .category-legend-grid {
             display: grid;
@@ -1860,8 +1810,9 @@ if ($ticketsStmt) {
         .assignee-list {
             display: flex;
             flex-direction: column;
-            gap: 22px;
+            gap: 18px;
             margin-top: 4px;
+            margin-bottom: 18px;
             flex: 1 1 auto;
         }
         .assignee-item {
@@ -1871,8 +1822,8 @@ if ($ticketsStmt) {
             align-items: center;
         }
         .assignee-avatar {
-            width: 54px;
-            height: 54px;
+            width: 48px;
+            height: 48px;
             border-radius: 16px;
             display: inline-flex;
             align-items: center;
@@ -1921,6 +1872,7 @@ if ($ticketsStmt) {
         }
         .assignee-total-pill {
             margin-top: auto;
+            flex: 0 0 auto;
             min-height: 56px;
             border-radius: 16px;
             background: linear-gradient(180deg, #f0fff7 0%, #e9fbf2 100%);
@@ -1965,6 +1917,9 @@ if ($ticketsStmt) {
             color: #1B5E20;
             background: transparent;
             font-weight: 800;
+        }
+        .tickets-table .time-cell {
+            text-align: center;
         }
         .tickets-table tbody tr:hover td {
             background: #f9fbfc;
@@ -2118,9 +2073,6 @@ if ($ticketsStmt) {
             .analytics-metrics {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
-            .trend-mini-grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-            }
         }
         @media (max-width: 900px) {
             body.employee-analytics-page .admin-container {
@@ -2144,9 +2096,6 @@ if ($ticketsStmt) {
             .trend-delta-badge {
                 width: 100%;
                 justify-content: flex-start;
-            }
-            .trend-mini-grid {
-                grid-template-columns: 1fr;
             }
         }
         @media (max-width: 640px) {
@@ -2371,17 +2320,7 @@ if ($ticketsStmt) {
                     </div>
                     <div class="analytics-sub">All tickets in the selected range</div>
                 </div>
-                <div class="analytics-card resolved">
-                    <div class="analytics-card-top">
-                        <div>
-                            <div class="analytics-label">Closed</div>
-                            <div class="analytics-value"><?= number_format((int) ($summary['resolved'] ?? 0)) ?></div>
-                        </div>
-                        <div class="analytics-icon"><i class="fa-solid fa-circle-check"></i></div>
-                    </div>
-                    <div class="analytics-sub">Closed tickets</div>
-                </div>
-                <div class="analytics-card avg-time">
+                <div class="analytics-card open">
                     <div class="analytics-card-top">
                         <div>
                             <div class="analytics-label">Open Tickets</div>
@@ -2394,12 +2333,32 @@ if ($ticketsStmt) {
                 <div class="analytics-card in-progress">
                     <div class="analytics-card-top">
                         <div>
-                            <div class="analytics-label">In Progress</div>
+                            <div class="analytics-label">In Progress Tickets</div>
                             <div class="analytics-value"><?= number_format((int) ($summary['in_progress'] ?? 0)) ?></div>
                         </div>
                         <div class="analytics-icon"><i class="fa-solid fa-spinner"></i></div>
                     </div>
                     <div class="analytics-sub">Tickets currently being handled</div>
+                </div>
+                <div class="analytics-card resolved">
+                    <div class="analytics-card-top">
+                        <div>
+                            <div class="analytics-label">Resolved Tickets</div>
+                            <div class="analytics-value"><?= number_format((int) ($summary['resolved'] ?? 0)) ?></div>
+                        </div>
+                        <div class="analytics-icon"><i class="fa-solid fa-circle-check"></i></div>
+                    </div>
+                    <div class="analytics-sub">Resolved tickets</div>
+                </div>
+                <div class="analytics-card closed">
+                    <div class="analytics-card-top">
+                        <div>
+                            <div class="analytics-label">Closed Tickets</div>
+                            <div class="analytics-value"><?= number_format((int) ($summary['closed'] ?? 0)) ?></div>
+                        </div>
+                        <div class="analytics-icon"><i class="fa-solid fa-lock"></i></div>
+                    </div>
+                    <div class="analytics-sub">Closed tickets</div>
                 </div>
             </div>
 
@@ -2466,32 +2425,6 @@ if ($ticketsStmt) {
                     <div class="chart-container">
                         <canvas id="trendChart"></canvas>
                     </div>
-                    <div class="trend-mini-grid">
-                        <div class="trend-mini-card fastest">
-                            <div class="trend-mini-top">
-                                <span class="trend-mini-icon"><i class="fa-regular fa-circle-check"></i></span>
-                                <span class="trend-mini-title">Best Day</span>
-                            </div>
-                            <div class="trend-mini-main"><?= htmlspecialchars($trendFastestDay['label'] ?? 'No data', ENT_QUOTES, 'UTF-8') ?></div>
-                            <div class="trend-mini-sub"><?= $trendFastestDay ? 'Avg ' . htmlspecialchars(number_format((float) $trendFastestDay['hours'], 1) . 'h', ENT_QUOTES, 'UTF-8') : 'No closed tickets' ?></div>
-                        </div>
-                        <div class="trend-mini-card peak">
-                            <div class="trend-mini-top">
-                                <span class="trend-mini-icon"><i class="fa-solid fa-fire-flame-curved"></i></span>
-                                <span class="trend-mini-title">Slowest Day</span>
-                            </div>
-                            <div class="trend-mini-main"><?= htmlspecialchars($trendPeakDay['label'] ?? 'No data', ENT_QUOTES, 'UTF-8') ?></div>
-                            <div class="trend-mini-sub"><?= $trendPeakDay ? 'Avg ' . htmlspecialchars(number_format((float) $trendPeakDay['hours'], 1) . 'h', ENT_QUOTES, 'UTF-8') : 'No closed tickets' ?></div>
-                        </div>
-                        <div class="trend-mini-card trend">
-                            <div class="trend-mini-top">
-                                <span class="trend-mini-icon"><i class="fa-solid fa-arrow-trend-up"></i></span>
-                                <span class="trend-mini-title">Compared</span>
-                            </div>
-                            <div class="trend-mini-main"><?= htmlspecialchars($trendComparisonMain, ENT_QUOTES, 'UTF-8') ?></div>
-                            <div class="trend-mini-sub"><?= htmlspecialchars($trendComparisonSub, ENT_QUOTES, 'UTF-8') ?></div>
-                        </div>
-                    </div>
                     <div class="insight-pill">
                         <div class="insight-pill-label">
                             <i class="fa-regular fa-lightbulb"></i>
@@ -2503,13 +2436,12 @@ if ($ticketsStmt) {
                                 <?php endif; ?>
                             </span>
                         </div>
-                        <span class="insight-pill-value"><i class="fa-solid fa-chevron-right"></i></span>
                     </div>
                 </div>
                 <div class="chart-card assignee-card">
                     <div class="chart-header">
                         <div class="chart-title">Tickets per Assignee</div>
-                        <p class="chart-subtitle">Top 5 assignees by selected tickets</p>
+                        <p class="chart-subtitle">Top 8 assignees by selected tickets</p>
                     </div>
                     <?php if (count($assigneeCards) > 0): ?>
                         <div class="assignee-list">
@@ -2576,9 +2508,9 @@ if ($ticketsStmt) {
                                         <td><?= htmlspecialchars((string) ($t['subject'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
                                         <td><?= htmlspecialchars((string) ($t['category'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
                                         <td><?= htmlspecialchars((string) ($t['assignee_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-                                        <td><?= $startedAt !== '' ? htmlspecialchars(date('M d, Y g:i A', strtotime($startedAt)), ENT_QUOTES, 'UTF-8') : '-' ?></td>
-                                        <td><?= $resolvedAt !== '' ? htmlspecialchars(date('M d, Y g:i A', strtotime($resolvedAt)), ENT_QUOTES, 'UTF-8') : '-' ?></td>
-                                        <td><?= ($startedAt !== '' && $resolvedAt !== '' && $durationSec > 0) ? htmlspecialchars(formatHandlingTime($durationSec), ENT_QUOTES, 'UTF-8') : '-' ?></td>
+                                        <td class="time-cell"><?= $startedAt !== '' ? htmlspecialchars(date('M d, Y g:i A', strtotime($startedAt)), ENT_QUOTES, 'UTF-8') : '-' ?></td>
+                                        <td class="time-cell"><?= $resolvedAt !== '' ? htmlspecialchars(date('M d, Y g:i A', strtotime($resolvedAt)), ENT_QUOTES, 'UTF-8') : '-' ?></td>
+                                        <td class="time-cell"><?= ($startedAt !== '' && $resolvedAt !== '' && $durationSec > 0) ? htmlspecialchars(formatHandlingTime($durationSec), ENT_QUOTES, 'UTF-8') : '-' ?></td>
                                         <td><span class="status-badge status-<?= htmlspecialchars($statusSlug, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($status !== '' ? $status : '-', ENT_QUOTES, 'UTF-8') ?></span></td>
                                     </tr>
                                 <?php endforeach; ?>
