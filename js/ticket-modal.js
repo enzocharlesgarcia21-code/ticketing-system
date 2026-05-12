@@ -246,6 +246,105 @@
     wrap.appendChild(menu);
     return wrap;
   }
+  function createMessageEditedNode(msg) {
+    if (!(msg && msg.is_edited)) return null;
+    var editedBtn = document.createElement('button');
+    editedBtn.type = 'button';
+    editedBtn.className = 'chat-edited';
+    editedBtn.textContent = 'Edited';
+    editedBtn.setAttribute('aria-label', 'View previous message');
+    editedBtn.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      showMessageEditHistory(msg);
+    });
+    return editedBtn;
+  }
+  function createMessageMetaNode(msg, timeText) {
+    var meta = document.createElement('div');
+    meta.className = 'chat-meta';
+    var editedNode = createMessageEditedNode(msg);
+    if (editedNode) meta.appendChild(editedNode);
+    var timeDiv = document.createElement('div');
+    timeDiv.classList.add('chat-time');
+    setMessageTimeWithStatus(timeDiv, msg, timeText);
+    meta.appendChild(timeDiv);
+    return meta;
+  }
+  function setMessageTimeWithStatus(timeDiv, msg, timeText) {
+    if (!timeDiv) return;
+    timeDiv.textContent = '';
+    var timeSpan = document.createElement('span');
+    timeSpan.className = 'chat-time-text';
+    timeSpan.textContent = String(timeText || '');
+    timeDiv.appendChild(timeSpan);
+    if (!(msg && msg.is_me)) return;
+    var status = document.createElement('span');
+    var seen = msg.is_read === true;
+    status.className = 'chat-read-status' + (seen ? ' seen' : ' delivered');
+    status.setAttribute('aria-label', seen ? 'Seen' : 'Delivered');
+    status.textContent = seen ? '✓✓' : '✓';
+    timeDiv.appendChild(status);
+  }
+  function ensureMessageEditHistoryExists() {
+    if (qs('tmMessageEditHistory')) return;
+    var dialog = document.createElement('div');
+    dialog.id = 'tmMessageEditHistory';
+    dialog.className = 'tm-message-history-overlay';
+    dialog.innerHTML =
+      '<div class="tm-message-history-box" role="dialog" aria-modal="true" aria-labelledby="tmMessageEditHistoryTitle">' +
+      '  <div class="tm-message-history-head">' +
+      '    <div class="tm-message-history-title" id="tmMessageEditHistoryTitle">Previous message</div>' +
+      '    <button type="button" class="tm-message-history-close" id="tmMessageEditHistoryClose" aria-label="Close">&times;</button>' +
+      '  </div>' +
+      '  <div class="tm-message-history-list" id="tmMessageEditHistoryList"></div>' +
+      '</div>';
+    document.body.appendChild(dialog);
+    dialog.addEventListener('click', function (event) {
+      if (event.target === dialog) hideMessageEditHistory();
+    });
+    var closeBtn = qs('tmMessageEditHistoryClose');
+    if (closeBtn) closeBtn.addEventListener('click', hideMessageEditHistory);
+  }
+  function hideMessageEditHistory() {
+    var dialog = qs('tmMessageEditHistory');
+    if (dialog) dialog.style.display = 'none';
+  }
+  function showMessageEditHistory(msg) {
+    ensureMessageEditHistoryExists();
+    var dialog = qs('tmMessageEditHistory');
+    var list = qs('tmMessageEditHistoryList');
+    if (!dialog || !list) return;
+    var currentMessage = String(msg && msg.message != null ? msg.message : '').trim();
+    var seenMessages = {};
+    var history = (Array.isArray(msg && msg.edit_history) ? msg.edit_history : []).filter(function (item) {
+      var previousMessage = String(item && item.message != null ? item.message : '').trim();
+      if (previousMessage === '' || previousMessage === currentMessage || seenMessages[previousMessage]) {
+        return false;
+      }
+      seenMessages[previousMessage] = true;
+      return true;
+    });
+    if (!history.length) {
+      list.innerHTML = '<div class="tm-message-history-empty">No edited message is available for this chat.</div>';
+    } else {
+      list.innerHTML = '';
+      history.forEach(function (item, index) {
+        var row = document.createElement('div');
+        row.className = 'tm-message-history-item';
+        var meta = document.createElement('div');
+        meta.className = 'tm-message-history-meta';
+        meta.textContent = 'Edited chat' + (history.length > 1 ? ' ' + String(index + 1) : '') + (item && item.edited_at ? ' - ' + String(item.edited_at) : '');
+        var text = document.createElement('div');
+        text.className = 'tm-message-history-text';
+        text.textContent = String(item && item.message != null ? item.message : '');
+        row.appendChild(meta);
+        row.appendChild(text);
+        list.appendChild(row);
+      });
+    }
+    dialog.style.display = 'flex';
+  }
   function setModalVariant(modalContent, variant) {
     if (!modalContent || !modalContent.classList) return;
     modalContent.classList.remove('tm-unavailable-modal');
@@ -1134,6 +1233,13 @@
       if (!existing.message && msg && msg.message) existing.message = msg.message;
       if (msg && msg.attachment) existing.attachments.push(msg.attachment);
       if (msg && msg.created_at) existing.created_at = msg.created_at;
+      existing.is_edited = !!(existing.is_edited || (msg && msg.is_edited));
+      if (msg && msg.edited_at) existing.edited_at = msg.edited_at;
+      if (!Array.isArray(existing.edit_history)) existing.edit_history = [];
+      if (msg && Array.isArray(msg.edit_history) && msg.edit_history.length) {
+        existing.edit_history = existing.edit_history.concat(msg.edit_history);
+      }
+      existing.is_read = existing.is_read === true && (!msg || msg.is_read === true);
       existing.can_edit = existing.can_edit && (!msg || msg.can_edit !== false);
       existing.can_delete = existing.can_delete && (!msg || msg.can_delete !== false);
     });
@@ -2345,13 +2451,11 @@
     messages.forEach(function (msg) {
       var bubble = document.createElement('div');
       bubble.classList.add('chat-bubble', (msg.is_me ? 'me' : 'other'));
+      if (msg && msg.is_edited) bubble.classList.add('has-edited-meta');
       var contentDiv = document.createElement('div');
       contentDiv.textContent = msg.message;
-      var timeDiv = document.createElement('div');
-      timeDiv.classList.add('chat-time');
-      timeDiv.textContent = msg.created_at;
       bubble.appendChild(contentDiv);
-      bubble.appendChild(timeDiv);
+      bubble.appendChild(createMessageMetaNode(msg, msg.created_at));
       container.appendChild(bubble);
     });
     if (scrollBottom || isNearBottom) container.scrollTop = container.scrollHeight;
@@ -2760,6 +2864,7 @@
     messages.forEach(function (msg) {
       var bubble = document.createElement('div');
       bubble.classList.add('chat-bubble', (msg.is_me ? 'me' : 'other'));
+      if (msg && msg.is_edited) bubble.classList.add('has-edited-meta');
       var ticketIdEl = qs('chatModalTicketId');
       var ticketId = ticketIdEl ? String(ticketIdEl.value || '') : '';
       var actionsNode = createMessageActionsNode(msg, ticketId, function () {
@@ -2786,10 +2891,7 @@
       }
       var attachmentNode = createMessageAttachmentNode(msg && msg.attachment ? msg.attachment : null);
       if (attachmentNode) bubble.appendChild(attachmentNode);
-      var timeDiv = document.createElement('div');
-      timeDiv.classList.add('chat-time');
-      timeDiv.textContent = msg.created_at;
-      bubble.appendChild(timeDiv);
+      bubble.appendChild(createMessageMetaNode(msg, msg.created_at));
       container.appendChild(bubble);
     });
     if (scrollBottom || isNearBottom) container.scrollTop = container.scrollHeight;
@@ -3056,7 +3158,7 @@
         '.tm-messenger-edit-overlay{position:fixed;inset:0;background:rgba(15,23,42,.58);display:none;align-items:center;justify-content:center;z-index:2147483647;padding:18px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}' +
         '.tm-messenger-edit-box{width:min(520px,92vw);background:#ffffff;border:1px solid #dbe7df;border-radius:20px;box-shadow:0 28px 72px rgba(15,23,42,.24);padding:22px 22px 18px;display:flex;flex-direction:column;gap:14px;}' +
         '.tm-messenger-edit-title{font-size:18px;font-weight:900;color:#0f172a;line-height:1.2;letter-spacing:-.02em;}' +
-        '.tm-messenger-edit-input{width:100%;min-height:128px;resize:vertical;border:1.5px solid #dbe3ec;border-radius:14px;padding:14px 16px;font-size:14px;color:#0f172a;outline:none;background:#ffffff;line-height:1.55;font-family:inherit;box-shadow:inset 0 1px 2px rgba(15,23,42,.04);appearance:none;-webkit-appearance:none;}' +
+        '.tm-messenger-edit-input{width:100%;min-height:128px;resize:none;border:1.5px solid #dbe3ec;border-radius:14px;padding:14px 16px;font-size:14px;color:#0f172a;outline:none;background:#ffffff;line-height:1.55;font-family:inherit;box-shadow:inset 0 1px 2px rgba(15,23,42,.04);appearance:none;-webkit-appearance:none;}' +
         '.tm-messenger-edit-input:focus{border-color:#86efac;box-shadow:0 0 0 4px rgba(34,197,94,.12);}' +
         '.tm-messenger-edit-actions{display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;}' +
         '.tm-messenger-edit-btn{appearance:none;-webkit-appearance:none;border:none;border-radius:12px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer;min-width:96px;line-height:1;}' +
@@ -3150,13 +3252,41 @@
         '.tm-chat-attachment-group .tm-chat-attachment-link:not(.tm-chat-attachment-button) .tm-chat-attachment-name{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;line-height:1.25;}' +
         '.tm-messenger-send{border:none;background:#1B5E20;color:#fff;border-radius:12px;padding:12px 14px;font-weight:900;cursor:pointer;min-width:86px;}' +
         '.tm-messenger-send:disabled{opacity:.6;cursor:not-allowed;}' +
-        '.tm-messenger-overlay .chat-bubble{max-width:80%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;display:flex;flex-direction:column;gap:4px;box-shadow:0 1px 2px rgba(0,0,0,.04);}' +
+        '.tm-messenger-overlay .chat-bubble{max-width:80%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;display:flex;flex-direction:column;gap:4px;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:visible;margin-bottom:24px;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta{margin-bottom:44px;}' +
         '.tm-messenger-overlay .chat-bubble.me{align-self:flex-end;background:#1B5E20;color:#fff;border-bottom-right-radius:4px;}' +
         '.tm-messenger-overlay .chat-bubble.other{align-self:flex-start;background:#f1f5f9;color:#0f172a;border-bottom-left-radius:4px;}' +
         '.tm-messenger-overlay .chat-sender{font-size:12px;font-weight:800;opacity:.9;}' +
         '.tm-messenger-overlay .chat-bubble.me .chat-sender{color:#fff;}' +
         '.tm-messenger-overlay .chat-bubble.other .chat-sender{color:#475569;}' +
-        '.tm-messenger-overlay .chat-time{font-size:11px;font-weight:700;opacity:.75;margin-top:2px;align-self:flex-end;}' +
+        '.tm-messenger-overlay .chat-time{position:absolute;right:10px;bottom:-19px;z-index:2;font-size:11px;font-weight:800;color:#111827;opacity:1;margin-top:0;align-self:auto;text-shadow:none;display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;white-space:nowrap;}' +
+        '.tm-messenger-overlay .chat-bubble.other .chat-time{right:auto;left:10px;color:#111827;}' +
+        '.tm-messenger-overlay .chat-edited{position:absolute;right:10px;bottom:-35px;z-index:2;font-size:11px;font-weight:800;color:#2563eb;line-height:1.2;align-self:auto;text-shadow:none;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-edited{right:10px;left:auto;width:84px;text-align:center;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-time{justify-content:center;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-time{bottom:-19px;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-edited{bottom:-35px;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta.other .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta.other .chat-edited{right:auto;left:10px;}' +
+        '.tm-messenger-overlay .chat-bubble.other .chat-edited{right:auto;left:10px;}' +
+        '.tm-messenger-overlay .chat-bubble.me .chat-edited{color:#60a5fa;}' +
+        '.tm-messenger-overlay .chat-read-status{display:inline-flex;align-items:center;font-size:11px;font-weight:900;letter-spacing:-1px;line-height:1;color:#4b5563;}' +
+        '.tm-messenger-overlay .chat-read-status.seen{color:#2563eb;}' +
+        '.tm-messenger-overlay .chat-bubble .chat-meta{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px;align-self:flex-end;max-width:100%;white-space:nowrap;}' +
+        '.tm-messenger-overlay .chat-bubble.other .chat-meta{align-self:flex-start;justify-content:flex-start;}' +
+        '.tm-messenger-overlay .chat-bubble .chat-meta .chat-time,.tm-messenger-overlay .chat-bubble .chat-meta .chat-edited,.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-meta .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-meta .chat-edited,.tm-messenger-overlay .chat-bubble.other .chat-meta .chat-time,.tm-messenger-overlay .chat-bubble.other .chat-meta .chat-edited{position:static;inset:auto;width:auto;text-align:inherit;margin:0;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta{margin-bottom:24px;}' +
+        '.tm-messenger-overlay .chat-bubble .chat-meta .chat-edited{appearance:none;-webkit-appearance:none;border:none;background:transparent;padding:0;cursor:pointer;font:inherit;color:#2563eb;text-decoration:underline;text-underline-offset:2px;}' +
+        '.tm-messenger-overlay .chat-bubble.me .chat-meta .chat-edited{color:#60a5fa;}' +
+        '.tm-message-history-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(15,23,42,.52);z-index:2147483647;}' +
+        '.tm-message-history-box{width:min(520px,92vw);max-height:min(620px,86vh);overflow:hidden;background:#fff;border:1px solid #dbe4ee;border-radius:18px;box-shadow:0 28px 72px rgba(15,23,42,.26);display:flex;flex-direction:column;}' +
+        '.tm-message-history-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid #e5e7eb;}' +
+        '.tm-message-history-title{font-size:16px;font-weight:900;color:#0f172a;}' +
+        '.tm-message-history-close{width:34px;height:34px;border:none;border-radius:10px;background:#f1f5f9;color:#334155;cursor:pointer;font-size:24px;line-height:1;}' +
+        '.tm-message-history-list{overflow:auto;padding:14px 18px 18px;display:flex;flex-direction:column;gap:12px;}' +
+        '.tm-message-history-item{border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc;padding:12px 14px;}' +
+        '.tm-message-history-meta{color:#64748b;font-size:12px;font-weight:800;margin-bottom:8px;}' +
+        '.tm-message-history-text{color:#0f172a;font-size:14px;line-height:1.5;white-space:pre-wrap;word-break:break-word;}' +
+        '.tm-message-history-empty{color:#64748b;font-weight:700;text-align:center;padding:24px 8px;}' +
         '@media (max-width: 820px){.tm-messenger-panel{width:96vw;height:86vh}.tm-messenger-left{width:260px;min-width:260px;max-width:260px}}' +
         '@media (max-width: 768px){' +
           '.tm-messenger-overlay{align-items:flex-end;justify-content:center;padding:0;}' +
@@ -3241,7 +3371,8 @@
         '.tm-messenger-overlay.employee-style .tm-messenger-menu{top:calc(100% + 10px);min-width:208px;border-radius:18px;padding:10px;box-shadow:0 20px 46px rgba(15,23,42,.16);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-menu-item{padding:12px 14px;font-size:14px;font-weight:400;border-radius:12px;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-messages{padding:20px 22px 16px;background:linear-gradient(180deg,#ffffff 0%,#fbfbfd 100%);gap:18px;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble{position:relative;overflow:visible;display:flex;flex-direction:column;max-width:min(68%,460px);margin-top:24px;padding:16px 18px 14px;border-radius:24px;border:1px solid #e6edf3;box-shadow:0 16px 34px rgba(15,23,42,.08);gap:8px;backdrop-filter:blur(2px);transition:transform .18s ease,box-shadow .18s ease;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble{position:relative;overflow:visible;display:flex;flex-direction:column;max-width:min(68%,460px);margin-top:24px;margin-bottom:28px;padding:16px 18px 14px;border-radius:24px;border:1px solid #e6edf3;box-shadow:0 16px 34px rgba(15,23,42,.08);gap:8px;backdrop-filter:blur(2px);transition:transform .18s ease,box-shadow .18s ease;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta{margin-bottom:50px;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble:hover{transform:translateY(-1px);}' +
         '.tm-messenger-overlay.employee-style .chat-bubble::after{content:"";position:absolute;bottom:10px;width:18px;height:18px;border-radius:0 0 16px 0;transform:rotate(45deg);z-index:0;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.other{background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%);color:#0f172a;border-color:#e5edf4;border-bottom-left-radius:12px;}' +
@@ -3266,9 +3397,27 @@
         '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-sender{left:10px;color:#3a4b63;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .chat-message-text,.tm-messenger-overlay.employee-style .chat-bubble > div:not(.chat-sender):not(.chat-time):not(.tm-msg-actions):not(.tm-chat-attachment){position:relative;z-index:1;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .tm-chat-attachment{position:relative;z-index:1;margin-top:4px;}' +
-        '.tm-messenger-overlay.employee-style .chat-time{position:relative;z-index:1;font-size:12px;font-weight:800;opacity:.92;align-self:flex-end;margin-top:4px;letter-spacing:.01em;padding:2px 0 0;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-time{color:rgba(255,255,255,.92);}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-time{color:#7b8aa5;}' +
+        '.tm-messenger-overlay.employee-style .chat-time{position:absolute;right:12px;bottom:-22px;z-index:2;font-size:12px;font-weight:900;opacity:1;align-self:auto;margin-top:0;letter-spacing:.01em;padding:0;color:#111827;text-shadow:none;display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;white-space:nowrap;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-time{color:#111827;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-time{right:auto;left:12px;color:#111827;}' +
+        '.tm-messenger-overlay.employee-style .chat-edited{position:absolute;right:12px;bottom:-42px;z-index:2;font-size:12px;font-weight:900;color:#2563eb;line-height:1.2;align-self:auto;text-shadow:none;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-edited{right:12px;left:auto;width:88px;text-align:center;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-time{justify-content:center;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-time{bottom:-24px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-edited{bottom:-42px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta.other .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta.other .chat-edited{right:auto;left:12px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-edited{right:auto;left:12px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-edited{color:#60a5fa;}' +
+        '.tm-messenger-overlay.employee-style .chat-read-status{display:inline-flex;align-items:center;font-size:12px;font-weight:900;letter-spacing:-1px;line-height:1;color:#4b5563;}' +
+        '.tm-messenger-overlay.employee-style .chat-read-status.seen{color:#2563eb;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px;align-self:flex-end;max-width:100%;white-space:nowrap;position:relative;z-index:1;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta{align-self:flex-start;justify-content:flex-start;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time,.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-edited,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-meta .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-meta .chat-edited,.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta .chat-edited{position:static;inset:auto;width:auto;text-align:inherit;margin:0;padding:0;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta{margin-bottom:28px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time{color:rgba(17,24,39,.9);}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-meta .chat-time{color:rgba(255,255,255,.92);}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-edited{appearance:none;-webkit-appearance:none;border:none;background:transparent;cursor:pointer;font:inherit;color:#2563eb;text-decoration:underline;text-underline-offset:2px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-meta .chat-edited{color:#bfdbfe;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-locked-state{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:16px;padding:32px 20px;color:#475569;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-lock-title-row{display:inline-flex;align-items:center;gap:12px;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-locked-icon{width:34px;height:34px;border-radius:10px;background:#f3f4f6;color:#4b5563;display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}' +
@@ -3811,6 +3960,15 @@
         senderName: msg && msg.sender_name != null ? String(msg.sender_name) : '',
         message: msg && msg.message != null ? String(msg.message) : '',
         createdAt: msg && msg.created_at != null ? String(msg.created_at) : '',
+        isEdited: !!(msg && msg.is_edited),
+        editedAt: msg && msg.edited_at != null ? String(msg.edited_at) : '',
+        editHistory: Array.isArray(msg && msg.edit_history) ? msg.edit_history.map(function (item) {
+          return {
+            message: String(item && item.message != null ? item.message : ''),
+            editedAt: String(item && item.edited_at != null ? item.edited_at : '')
+          };
+        }) : [],
+        isRead: !!(msg && msg.is_read),
         isMe: !!(msg && msg.is_me),
         attachments: Array.isArray(msg && msg.attachments) ? msg.attachments.map(function (att) {
           return {
@@ -3835,6 +3993,7 @@
     groupedMessages.forEach(function (msg) {
       var bubble = document.createElement('div');
       bubble.classList.add('chat-bubble', (msg.is_me ? 'me' : 'other'));
+      if (msg && msg.is_edited) bubble.classList.add('has-edited-meta');
       var ticketIdEl = qs('tmMessengerTicketId');
       var ticketId = ticketIdEl ? String(ticketIdEl.value || '') : '';
       var actionsNode = createMessageActionsNode(msg, ticketId, function () {
@@ -3861,10 +4020,7 @@
       }
       var attachmentNode = createMessageAttachmentsNode(msg && msg.attachments ? msg.attachments : (msg && msg.attachment ? [msg.attachment] : []));
       if (attachmentNode) bubble.appendChild(attachmentNode);
-      var timeDiv = document.createElement('div');
-      timeDiv.classList.add('chat-time');
-      timeDiv.textContent = formatChatTimeDisplay(msg.created_at);
-      bubble.appendChild(timeDiv);
+      bubble.appendChild(createMessageMetaNode(msg, formatChatTimeDisplay(msg.created_at)));
       container.appendChild(bubble);
     });
     if (scrollBottom || isNearBottom) container.scrollTop = container.scrollHeight;
@@ -3908,7 +4064,7 @@
     }
     var timeDiv = document.createElement('div');
     timeDiv.classList.add('chat-time');
-    timeDiv.textContent = timeText || formatHHMM(new Date());
+    setMessageTimeWithStatus(timeDiv, { is_me: isMe, is_read: false }, timeText || formatHHMM(new Date()));
     bubble.appendChild(timeDiv);
     container.appendChild(bubble);
     container.scrollTop = container.scrollHeight;

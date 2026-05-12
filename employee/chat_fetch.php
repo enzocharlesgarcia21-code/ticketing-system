@@ -377,7 +377,7 @@ if ($clearReminder) {
 
 // Fetch messages
 $stmt = $conn->prepare("
-    SELECT tm.id, tm.ticket_id, tm.sender_id, tm.message, tm.message_group_id, tm.attachment_stored_name, tm.attachment_original_name, tm.created_at, u.name as sender_name, u.role as sender_role
+    SELECT tm.id, tm.ticket_id, tm.sender_id, tm.message, tm.message_group_id, tm.attachment_stored_name, tm.attachment_original_name, tm.is_read, tm.created_at, tm.edited_at, u.name as sender_name, u.role as sender_role
     FROM ticket_messages tm
     JOIN users u ON tm.sender_id = u.id
     WHERE tm.ticket_id = ?
@@ -389,8 +389,21 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 $messages = [];
+$editHistory = ticket_chat_edit_history_by_ticket($conn, $ticket_id);
 while ($row = $result->fetch_assoc()) {
     $isMine = ((int) $row['sender_id'] === $current_user_id);
+    $messageId = (string) ($row['id'] ?? '');
+    $messageText = (string) ($row['message'] ?? '');
+    $messageHistory = [];
+    $seenHistoryMessages = [];
+    foreach (($editHistory[$messageId] ?? []) as $historyItem) {
+        $historyText = trim((string) ($historyItem['message'] ?? ''));
+        if ($historyText === '' || $historyText === trim($messageText) || isset($seenHistoryMessages[$historyText])) {
+            continue;
+        }
+        $seenHistoryMessages[$historyText] = true;
+        $messageHistory[] = $historyItem;
+    }
     $messages[] = [
         'id' => $row['id'],
         'sender_id' => $row['sender_id'],
@@ -403,9 +416,13 @@ while ($row = $result->fetch_assoc()) {
             'is_image' => ticket_chat_attachment_is_image((string) $row['attachment_stored_name']),
         ] : null,
         'created_at' => date('H:i', strtotime($row['created_at'])),
+        'is_read' => ((int) ($row['is_read'] ?? 0) === 1),
+        'is_edited' => !empty($row['edited_at']),
+        'edited_at' => !empty($row['edited_at']) ? date('H:i', strtotime($row['edited_at'])) : '',
+        'edit_history' => $messageHistory,
         'is_me' => $isMine,
         'role' => $row['sender_role'],
-        'can_edit' => $isMine,
+        'can_edit' => $isMine && empty($row['edited_at']),
         'can_delete' => $isMine
     ];
 }

@@ -1213,6 +1213,7 @@ function ticket_ensure_chat_tables(mysqli $conn): void
                 attachment_original_name VARCHAR(255) NULL,
                 is_read TINYINT(1) NOT NULL DEFAULT 0,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                edited_at DATETIME NULL,
                 KEY idx_ticket_id (ticket_id),
                 KEY idx_sender_id (sender_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
@@ -1228,6 +1229,7 @@ function ticket_ensure_chat_tables(mysqli $conn): void
         'attachment_original_name' => "VARCHAR(255) NULL",
         'is_read' => "TINYINT(1) NOT NULL DEFAULT 0",
         'created_at' => "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        'edited_at' => "DATETIME NULL",
     ];
     $existing = [];
     $res = $conn->query("SHOW COLUMNS FROM ticket_messages");
@@ -1242,6 +1244,73 @@ function ticket_ensure_chat_tables(mysqli $conn): void
             $conn->query("ALTER TABLE ticket_messages ADD COLUMN $col $ddl");
         }
     }
+
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS ticket_message_edits (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            message_id INT NOT NULL,
+            ticket_id INT NOT NULL,
+            edited_by INT NOT NULL,
+            previous_message TEXT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_message_id (message_id),
+            KEY idx_ticket_id (ticket_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+}
+
+function ticket_chat_record_message_edit(mysqli $conn, int $messageId, int $ticketId, int $editedBy, string $previousMessage): void
+{
+    $stmt = $conn->prepare("
+        INSERT INTO ticket_message_edits (message_id, ticket_id, edited_by, previous_message)
+        VALUES (?, ?, ?, ?)
+    ");
+    if (!$stmt) {
+        return;
+    }
+    $stmt->bind_param("iiis", $messageId, $ticketId, $editedBy, $previousMessage);
+    $stmt->execute();
+    $stmt->close();
+}
+
+function ticket_chat_edit_history_by_ticket(mysqli $conn, int $ticketId): array
+{
+    $history = [];
+    if ($ticketId <= 0) {
+        return $history;
+    }
+    $stmt = $conn->prepare("
+        SELECT e.message_id, e.previous_message, e.created_at, u.name AS edited_by_name
+        FROM ticket_message_edits e
+        LEFT JOIN users u ON u.id = e.edited_by
+        WHERE e.ticket_id = ?
+        ORDER BY e.created_at DESC, e.id DESC
+    ");
+    if (!$stmt) {
+        return $history;
+    }
+    $stmt->bind_param("i", $ticketId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res ? $res->fetch_assoc() : null) {
+        if (!$row) {
+            break;
+        }
+        $messageId = (string) ($row['message_id'] ?? '');
+        if ($messageId === '') {
+            continue;
+        }
+        if (!isset($history[$messageId])) {
+            $history[$messageId] = [];
+        }
+        $history[$messageId][] = [
+            'message' => (string) ($row['previous_message'] ?? ''),
+            'edited_at' => !empty($row['created_at']) ? date('M d, Y h:i A', strtotime((string) $row['created_at'])) : '',
+            'edited_by' => (string) ($row['edited_by_name'] ?? ''),
+        ];
+    }
+    $stmt->close();
+    return $history;
 }
 
 function ticket_chat_attachment_is_image(string $filename): bool
@@ -2062,8 +2131,6 @@ function ticket_priority_escalation_due_at(array $ticket, string $targetPriority
 
 function ticket_priority_escalation_notification_time(mysqli $conn, int $ticketId, string $targetPriority): ?string
 {
-    $message = 'Ticket #' . notif_ticket_number($ticketId) . ' priority has been escalated to ' . $targetPriority . '. Immediate attention is required.';
-    $title = 'Ticket Priority Escalated';
     $actionType = 'update';
     $type = 'priority_escalated';
 
@@ -2072,14 +2139,16 @@ function ticket_priority_escalation_notification_time(mysqli $conn, int $ticketI
         FROM notifications
         WHERE ticket_id = ?
           AND type = ?
-          AND message = ?
+          AND message LIKE ?
+          AND message LIKE ?
           AND COALESCE(action_type, '') = ?
-          AND COALESCE(title, '') = ?
     ");
     if (!$stmt) {
         return null;
     }
-    $stmt->bind_param("issss", $ticketId, $type, $message, $actionType, $title);
+    $ticketNeedle = '%Ticket #' . notif_ticket_number($ticketId) . '%';
+    $priorityNeedle = '%to ' . $targetPriority . '%';
+    $stmt->bind_param("issss", $ticketId, $type, $ticketNeedle, $priorityNeedle, $actionType);
     $stmt->execute();
     $res = $stmt->get_result();
     $row = $res ? $res->fetch_assoc() : null;

@@ -12,6 +12,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 }
 
 $user_id = (int) $_SESSION['user_id'];
+notif_backfill_priority_escalation_notifications($conn);
 
 $clearAdminPendingChat = $conn->prepare("
     UPDATE notifications
@@ -116,10 +117,8 @@ function notif_section_label($datetime) {
 
 function notif_priority_from_message(string $message): string
 {
-    if (preg_match('/escalated to\s+(critical|high|medium|low)\b/i', $message, $matches)) {
-        return strtolower((string) ($matches[1] ?? ''));
-    }
-    return '';
+    $transition = notif_priority_transition_from_message($message);
+    return strtolower((string) ($transition['to'] ?? ''));
 }
 ?>
 
@@ -273,6 +272,42 @@ function notif_priority_from_message(string $message): string
         .priority-badge.priority-medium { color:#d4a017; background:#fff9db; }
         .priority-badge.priority-low { color:#43A047; background:#f2fbf3; }
         .priority-badge.priority-neutral { color:#64748b; background:#f8fafc; border-color:#cbd5e1; }
+        .priority-transition-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 36px;
+            gap: 8px;
+            padding: 0 16px;
+            border-radius: 14px;
+            border: 2px solid currentColor;
+            background: #fff7f7;
+            color: #dc2626;
+            font-size: 13px;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .priority-transition-badge.priority-medium { color: #d4a017; background: #fff9db; }
+        .priority-transition-badge.priority-high,
+        .priority-transition-badge.priority-critical { color: #dc2626; background: #fff7f7; }
+        .priority-transition-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            background: #dc2626;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.24);
+        }
+        .priority-transition-badge.priority-medium .priority-transition-icon {
+            background: #d4a017;
+        }
+        .priority-transition-icon i {
+            color: #ffffff;
+            font-size: 12px;
+        }
         .notif-icon.type-assigned { background: linear-gradient(135deg, #60a5fa, #2563eb); }
         .notif-icon.type-updated { background: linear-gradient(135deg, #60a5fa, #2563eb); }
         .notif-icon.type-reassigned { background: linear-gradient(135deg, #b77cf5, #9333ea); }
@@ -285,6 +320,13 @@ function notif_priority_from_message(string $message): string
         .notif-icon.type-high { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
         .notif-icon.type-low { background: linear-gradient(135deg, #58b368, #43A047); }
         .notif-icon.type-medium { background: linear-gradient(135deg, #fcd34d, #f59e0b); }
+        .notif-item-row.notif-priority-escalation {
+            background: linear-gradient(180deg, #fffafa 0%, #fff5f5 100%);
+            border-color: #fecaca;
+        }
+        .notif-item-row.notif-priority-escalation:hover {
+            background: linear-gradient(180deg, #fff7f7 0%, #feecec 100%);
+        }
         .notif-icon.type-card {
             border-radius: 16px;
         }
@@ -517,16 +559,31 @@ function notif_priority_from_message(string $message): string
                                 $priorityClass = $priorityKey !== '' ? 'priority-' . $priorityKey : 'priority-neutral';
                                 $ticketIdJs = isset($row['ticket_id']) && $row['ticket_id'] !== null ? (int) $row['ticket_id'] : null;
                                 $actionType = notif_normalize_action_type((string) ($row['action_type'] ?? ''), $typeKey);
+                                $priorityTransition = $typeKey === 'priority_escalated'
+                                    ? notif_priority_transition_from_message((string) ($row['message'] ?? ''))
+                                    : ['from' => '', 'to' => ''];
                                 $priorityLabel = ($typeKey !== 'note_added' && $priorityKey !== '')
                                     ? '<span class="priority-badge ' . $priorityClass . '">' . htmlspecialchars(ucfirst($priorityKey), ENT_QUOTES, 'UTF-8') . '</span>'
                                     : '';
+                                if ($typeKey === 'priority_escalated' && $priorityKey !== '') {
+                                    $fromPriority = trim((string) ($priorityTransition['from'] ?? ''));
+                                    $toPriority = trim((string) ($priorityTransition['to'] ?? ucfirst($priorityKey)));
+                                    $transitionText = ($fromPriority !== '' ? $fromPriority . ' &rarr; ' : '') . ($toPriority !== '' ? $toPriority : ucfirst($priorityKey));
+                                    $priorityLabel = '<span class="priority-transition-badge ' . $priorityClass . '"><span class="priority-transition-icon"><i class="fas fa-exclamation"></i></span><span>' . $transitionText . '</span></span>';
+                                }
                                 $iconClass = 'fa-ticket';
                                 $iconTypeClass = 'type-neutral';
                                 $accentColor = '#94a3b8';
                                 $dotColor = '#94a3b8';
                                 $customTitle = trim((string) ($row['title'] ?? ''));
                                 $titleText = $customTitle !== '' ? $customTitle : 'Ticket Update';
-                                if ($priorityKey === 'critical') {
+                                if ($typeKey === 'priority_escalated' && in_array($priorityKey, ['medium', 'high', 'critical'], true)) {
+                                    $iconClass = 'fa-exclamation';
+                                    $iconTypeClass = 'type-critical type-card';
+                                    $accentColor = '#ef4444';
+                                    $dotColor = '#ef4444';
+                                    $titleText = 'Priority Escalation';
+                                } elseif ($priorityKey === 'critical') {
                                     $iconClass = 'fa-exclamation';
                                     $iconTypeClass = 'type-critical type-card';
                                     $accentColor = '#E53935';
@@ -622,7 +679,7 @@ function notif_priority_from_message(string $message): string
                                 <div class="notif-section-card">
                                 <?php $currentSection = $sectionLabel; ?>
                             <?php endif; ?>
-                            <a class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?> <?= $typeKey === 'follow_up' ? 'notif-follow-up' : '' ?> <?= $typeKey === 'hr_chat_pending' ? 'notif-chat-pending' : '' ?>"
+                            <a class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?> <?= $typeKey === 'follow_up' ? 'notif-follow-up' : '' ?> <?= $typeKey === 'hr_chat_pending' ? 'notif-chat-pending' : '' ?> <?= $typeKey === 'priority_escalated' ? 'notif-priority-escalation' : '' ?>"
                                href="<?= htmlspecialchars($notificationHref, ENT_QUOTES, 'UTF-8') ?>"
                                data-notification-id="<?= (int) $row['id'] ?>"
                                data-ticket-id="<?= $ticketIdJs !== null ? (int) $ticketIdJs : '' ?>"
