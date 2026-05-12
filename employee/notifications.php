@@ -13,6 +13,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
 }
 
 $user_id = (int) $_SESSION['user_id'];
+notif_backfill_priority_escalation_notifications($conn);
 $user_email = strtolower(trim((string) ($_SESSION['email'] ?? '')));
 if ($user_email === '') {
     $user_email = strtolower(trim((string) (notif_user_contact($conn, $user_id)['email'] ?? '')));
@@ -105,10 +106,8 @@ function notif_section_label($datetime) {
 
 function notif_priority_from_message(string $message): string
 {
-    if (preg_match('/escalated to\s+(critical|high|medium|low)\b/i', $message, $matches)) {
-        return strtolower((string) ($matches[1] ?? ''));
-    }
-    return '';
+    $transition = notif_priority_transition_from_message($message);
+    return strtolower((string) ($transition['to'] ?? ''));
 }
 ?>
 
@@ -349,6 +348,49 @@ function notif_priority_from_message(string $message): string
         .priority-badge.priority-medium { color:#d4a017; background:#fff9db; }
         .priority-badge.priority-low { color:#43A047; background:#f2fbf3; }
         .priority-badge.priority-neutral { color:#64748b; background:#f8fafc; border-color:#cbd5e1; }
+        .priority-transition-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 36px;
+            gap: 8px;
+            padding: 0 16px;
+            border-radius: 14px;
+            border: 2px solid currentColor;
+            background: #fff7f7;
+            color: #dc2626;
+            font-size: 13px;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .priority-transition-badge.priority-medium { color: #d4a017; background: #fff9db; }
+        .priority-transition-badge.priority-high,
+        .priority-transition-badge.priority-critical { color: #dc2626; background: #fff7f7; }
+        .priority-transition-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            background: #dc2626;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.24);
+        }
+        .priority-transition-badge.priority-medium .priority-transition-icon {
+            background: #d4a017;
+        }
+        .priority-transition-icon i {
+            color: #ffffff;
+            font-size: 12px;
+        }
+        .notif-item-row.notif-priority-escalation {
+            background: linear-gradient(180deg, #fffafa 0%, #fff5f5 100%);
+            border-color: #fecaca;
+        }
+        .notif-item-row.notif-priority-escalation:hover {
+            background: linear-gradient(180deg, #fff7f7 0%, #feecec 100%);
+        }
         .notif-keyword {
             display: inline-flex;
             align-items: center;
@@ -392,15 +434,15 @@ function notif_priority_from_message(string $message): string
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 8px;
-            padding: 20px;
+            gap: 12px;
+            padding: 30px 12px 16px;
             flex-wrap: wrap;
         }
         .page-link {
-            min-width: 40px;
-            height: 40px;
-            padding: 0 15px;
-            border: 1px solid #d7e2ea;
+            min-width: 44px;
+            height: 44px;
+            padding: 0 16px;
+            border: 1px solid #dbe4ee;
             border-radius: 999px;
             text-decoration: none;
             color: #1f2937;
@@ -408,30 +450,45 @@ function notif_priority_from_message(string $message): string
             align-items: center;
             justify-content: center;
             background: #ffffff;
-            font-weight: 600;
-            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
-            transition: all 0.2s ease;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
         }
-        .page-link:hover {
+        .page-link:hover:not(.active):not(.disabled) {
             background: #f8fafc;
             transform: translateY(-1px);
             border-color: #cbd5e1;
         }
         .page-link.active {
-            background-color: #166534;
+            background: #166534;
             color: white;
             border-color: #166534;
-            box-shadow: 0 10px 18px rgba(22, 101, 52, 0.22);
+            box-shadow: 0 18px 28px rgba(22, 101, 52, 0.22);
         }
         .page-link.prev,
         .page-link.next {
-            min-width: 110px;
-            padding: 0 18px;
+            min-width: 118px;
+            color: #475569;
+            font-weight: 700;
         }
         .page-link.disabled {
-            opacity: 0.45;
+            opacity: 0.55;
             pointer-events: none;
             box-shadow: none;
+            color: #94a3b8;
+        }
+        .page-ellipsis {
+            min-width: 32px;
+            height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            font-size: 18px;
+            font-weight: 800;
+            user-select: none;
         }
         .mark-read-btn {
             background: none;
@@ -751,9 +808,18 @@ function notif_priority_from_message(string $message): string
                                 }
                             }
                             $priorityClass = $priorityKey !== '' ? 'priority-' . $priorityKey : 'priority-neutral';
+                            $priorityTransition = $typeJs === 'priority_escalated'
+                                ? notif_priority_transition_from_message((string) ($row['message'] ?? ''))
+                                : ['from' => '', 'to' => ''];
                             $priorityLabel = $priorityKey !== ''
                                 ? '<span class="priority-badge ' . $priorityClass . '">' . htmlspecialchars(ucfirst($priorityKey), ENT_QUOTES, 'UTF-8') . '</span>'
                                 : '';
+                            if ($typeJs === 'priority_escalated' && $priorityKey !== '') {
+                                $fromPriority = trim((string) ($priorityTransition['from'] ?? ''));
+                                $toPriority = trim((string) ($priorityTransition['to'] ?? ucfirst($priorityKey)));
+                                $transitionText = ($fromPriority !== '' ? $fromPriority . ' &rarr; ' : '') . ($toPriority !== '' ? $toPriority : ucfirst($priorityKey));
+                                $priorityLabel = '<span class="priority-transition-badge ' . $priorityClass . '"><span class="priority-transition-icon"><i class="fas fa-exclamation"></i></span><span>' . $transitionText . '</span></span>';
+                            }
                             $iconClass = 'fa-sticky-note';
                             $bgClass = '#e2e8f0';
                             $colorClass = '#64748b';
@@ -761,7 +827,13 @@ function notif_priority_from_message(string $message): string
                             $dotColor = '#94a3b8';
                             $ticketIdJs = isset($row['ticket_id']) && $row['ticket_id'] !== null ? (int) $row['ticket_id'] : null;
                             $actionType = notif_normalize_action_type((string) ($row['action_type'] ?? ''), $typeJs);
-                            if ($priorityKey === 'critical') {
+                            if ($typeJs === 'priority_escalated' && in_array($priorityKey, ['medium', 'high', 'critical'], true)) {
+                                $iconClass = 'fa-exclamation';
+                                $bgClass = 'linear-gradient(135deg, #ef4444, #dc2626)';
+                                $colorClass = '#ffffff';
+                                $accentColor = '#ef4444';
+                                $dotColor = '#ef4444';
+                            } elseif ($priorityKey === 'critical') {
                                 $iconClass = 'fa-exclamation';
                                 $bgClass = 'linear-gradient(135deg, #ef4444, #dc2626)';
                                 $colorClass = '#ffffff';
@@ -843,7 +915,8 @@ function notif_priority_from_message(string $message): string
                             $displayMessage = notif_display_message($typeJs, (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
                                 $isFollowUp = $typeJs === 'follow_up';
                                 $titleText = 'Ticket Update';
-                                if ($priorityKey === 'critical') $titleText = 'Priority Escalation';
+                                if ($typeJs === 'priority_escalated' && in_array($priorityKey, ['medium', 'high', 'critical'], true)) $titleText = 'Priority Escalation';
+                                elseif ($priorityKey === 'critical') $titleText = 'Priority Escalation';
                                 elseif ($priorityKey === 'high') $titleText = 'Ticket Warning';
                                 elseif ($typeJs === 'conference_booking_deleted') $titleText = 'Conference Booking Deleted';
                             elseif ($actionType === 'assign') $titleText = 'Ticket Assigned';
@@ -873,7 +946,7 @@ function notif_priority_from_message(string $message): string
                             <div class="notif-section-card">
                             <?php $currentSection = $sectionLabel; ?>
                         <?php endif; ?>
-                        <div class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?> <?= $typeJs === 'hr_chat_pending' ? 'notif-chat-pending' : '' ?> <?= $typeJs === 'follow_up' ? 'notif-follow-up' : '' ?>"
+                        <div class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?> <?= $typeJs === 'hr_chat_pending' ? 'notif-chat-pending' : '' ?> <?= $typeJs === 'follow_up' ? 'notif-follow-up' : '' ?> <?= $typeJs === 'priority_escalated' ? 'notif-priority-escalation' : '' ?>"
                              style="--notif-accent: <?= htmlspecialchars($accentColor, ENT_QUOTES, 'UTF-8') ?>; --notif-dot: <?= htmlspecialchars($dotColor, ENT_QUOTES, 'UTF-8') ?>;"
                              role="button"
                              tabindex="0"
@@ -915,9 +988,32 @@ function notif_priority_from_message(string $message): string
             <?php if($total_pages > 1): ?>
             <div class="pagination">
                 <a href="?page=<?= max(1, $page - 1) ?>" class="page-link prev <?= ($page <= 1) ? 'disabled' : '' ?>">&lsaquo; Previous</a>
-                <?php for($i = 1; $i <= $total_pages; $i++): ?>
-                    <a href="?page=<?= $i ?>" class="page-link <?= $i == $page ? 'active' : '' ?>"><?= $i ?></a>
-                <?php endfor; ?>
+                <?php
+                    $paginationPages = [];
+                    $addPage = static function (int $pageNumber) use (&$paginationPages, $total_pages): void {
+                        if ($pageNumber >= 1 && $pageNumber <= $total_pages) {
+                            $paginationPages[$pageNumber] = true;
+                        }
+                    };
+
+                    $addPage(1);
+                    $addPage(2);
+                    $addPage(3);
+                    $addPage((int) $page - 1);
+                    $addPage((int) $page);
+                    $addPage((int) $page + 1);
+                    $addPage((int) $total_pages);
+                    $paginationNumbers = array_keys($paginationPages);
+                    sort($paginationNumbers, SORT_NUMERIC);
+                    $previousPageNumber = 0;
+                ?>
+                <?php foreach($paginationNumbers as $pageNumber): ?>
+                    <?php if($previousPageNumber > 0 && $pageNumber > $previousPageNumber + 1): ?>
+                        <span class="page-ellipsis">...</span>
+                    <?php endif; ?>
+                    <a href="?page=<?= (int) $pageNumber ?>" class="page-link <?= ((int) $pageNumber === (int) $page) ? 'active' : '' ?>"><?= (int) $pageNumber ?></a>
+                    <?php $previousPageNumber = (int) $pageNumber; ?>
+                <?php endforeach; ?>
                 <a href="?page=<?= min($total_pages, $page + 1) ?>" class="page-link next <?= ($page >= $total_pages) ? 'disabled' : '' ?>">Next &rsaquo;</a>
             </div>
             <?php endif; ?>

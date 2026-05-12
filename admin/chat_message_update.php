@@ -34,7 +34,7 @@ if ($ticket_id <= 0 || $message_id <= 0) {
 }
 
 $msgStmt = $conn->prepare("
-    SELECT id, sender_id, attachment_stored_name
+    SELECT id, sender_id, message, attachment_stored_name, edited_at
     FROM ticket_messages
     WHERE id = ? AND ticket_id = ?
     LIMIT 1
@@ -63,6 +63,12 @@ if (!$is_admin && !$isMine) {
     exit;
 }
 
+if (!empty($messageRow['edited_at'])) {
+    http_response_code(409);
+    echo json_encode(['error' => 'This message has already been edited.']);
+    exit;
+}
+
 $hasAttachment = trim((string) ($messageRow['attachment_stored_name'] ?? '')) !== '';
 if ($new_message === '' && !$hasAttachment) {
     http_response_code(400);
@@ -70,7 +76,18 @@ if ($new_message === '' && !$hasAttachment) {
     exit;
 }
 
-$upd = $conn->prepare("UPDATE ticket_messages SET message = ? WHERE id = ? AND ticket_id = ? LIMIT 1");
+$old_message = (string) ($messageRow['message'] ?? '');
+if ($new_message === $old_message) {
+    echo json_encode([
+        'success' => true,
+        'message_id' => $message_id,
+        'message' => $new_message,
+        'is_edited' => !empty($messageRow['edited_at'] ?? null),
+    ]);
+    exit;
+}
+
+$upd = $conn->prepare("UPDATE ticket_messages SET message = ?, edited_at = NOW() WHERE id = ? AND ticket_id = ? LIMIT 1");
 if (!$upd) {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to prepare update']);
@@ -85,10 +102,13 @@ if (!$upd->execute()) {
 }
 $upd->close();
 
+ticket_chat_record_message_edit($conn, $message_id, $ticket_id, $current_user_id, $old_message);
+
 echo json_encode([
     'success' => true,
     'message_id' => $message_id,
     'message' => $new_message,
+    'is_edited' => true,
 ]);
 exit;
 ?>

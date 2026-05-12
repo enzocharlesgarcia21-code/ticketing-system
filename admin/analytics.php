@@ -912,7 +912,7 @@ $assigneeSql = "
     WHERE " . implode(" AND ", $assigneeWhere) . "
     GROUP BY TRIM(a.name)
     ORDER BY total DESC
-    LIMIT 8
+    LIMIT 5
 ";
 $asStmt = $conn->prepare($assigneeSql);
 if ($asStmt) {
@@ -1523,21 +1523,21 @@ if ($ticketsStmt) {
         .analytics-charts {
             display: grid;
             grid-template-columns: 1fr 1.12fr 0.92fr;
-            gap: 22px;
+            gap: 18px;
             margin-bottom: 24px;
             align-items: stretch;
         }
         .chart-card {
-            padding: 26px 28px 24px;
+            padding: 22px 26px 20px;
             min-width: 0;
-            min-height: 580px;
+            min-height: 440px;
             height: 100%;
             display: flex;
             flex-direction: column;
         }
         .chart-header {
-            margin-bottom: 18px;
-            min-height: 52px;
+            margin-bottom: 14px;
+            min-height: 44px;
         }
         .category-card .chart-header {
             display: flex;
@@ -1596,20 +1596,20 @@ if ($ticketsStmt) {
         }
         .chart-container {
             position: relative;
-            height: 300px;
+            height: 240px;
             width: 100%;
         }
         .chart-card.category-card .chart-container {
-            height: 360px;
-            flex: 0 0 360px;
+            height: 300px;
+            flex: 0 0 300px;
         }
         .chart-card.trend-card .chart-container {
-            height: 332px;
+            height: 260px;
             margin-top: 2px;
-            flex: 1 1 332px;
+            flex: 1 1 260px;
         }
         .trend-card {
-            gap: 18px;
+            gap: 14px;
         }
         .trend-card .chart-header {
             display: flex;
@@ -1641,8 +1641,8 @@ if ($ticketsStmt) {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 18px;
-            padding: 18px 20px;
+            gap: 16px;
+            padding: 14px 18px;
             border-radius: 22px;
             border: 1px solid #dfe8f5;
             background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
@@ -1655,8 +1655,8 @@ if ($ticketsStmt) {
             min-width: 0;
         }
         .trend-overview-icon {
-            width: 64px;
-            height: 64px;
+            width: 54px;
+            height: 54px;
             border-radius: 18px;
             display: inline-flex;
             align-items: center;
@@ -1664,15 +1664,15 @@ if ($ticketsStmt) {
             background: linear-gradient(180deg, #eaf3ff 0%, #dce9ff 100%);
             color: #2f8cff;
             border: 1px solid #cfe0fb;
-            font-size: 26px;
-            flex: 0 0 64px;
+            font-size: 23px;
+            flex: 0 0 54px;
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.75);
         }
         .trend-overview-copy {
             min-width: 0;
         }
         .trend-overview-value {
-            font-size: 3rem;
+            font-size: 2.55rem;
             line-height: 1;
             letter-spacing: -0.05em;
             font-weight: 800;
@@ -1688,8 +1688,8 @@ if ($ticketsStmt) {
             display: inline-flex;
             align-items: center;
             gap: 10px;
-            min-height: 58px;
-            padding: 0 16px;
+            min-height: 52px;
+            padding: 0 14px;
             border-radius: 18px;
             font-weight: 800;
             flex: 0 1 230px;
@@ -1734,7 +1734,7 @@ if ($ticketsStmt) {
         }
         .insight-pill {
             margin-top: auto;
-            min-height: 56px;
+            min-height: 48px;
             border-radius: 14px;
             border: 1px solid #dce9f7;
             background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
@@ -1742,7 +1742,7 @@ if ($ticketsStmt) {
             align-items: center;
             justify-content: space-between;
             gap: 14px;
-            padding: 0 18px;
+            padding: 0 16px;
             color: #1f2937;
             font-weight: 700;
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
@@ -1770,9 +1770,9 @@ if ($ticketsStmt) {
         .category-legend-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px 18px;
+            gap: 10px 16px;
             margin-top: auto;
-            padding-top: 16px;
+            padding-top: 12px;
         }
         .category-legend-item {
             display: flex;
@@ -1810,32 +1810,38 @@ if ($ticketsStmt) {
         .assignee-list {
             display: flex;
             flex-direction: column;
-            gap: 18px;
-            margin-top: 4px;
-            margin-bottom: 18px;
+            gap: 14px;
+            margin-top: 0;
+            margin-bottom: 14px;
             flex: 1 1 auto;
+        }
+        .assignee-card .assignee-list {
+            justify-content: space-between;
+            gap: 0;
+            min-height: 0;
         }
         .assignee-item {
             display: grid;
-            grid-template-columns: 54px minmax(0, 1fr) auto;
-            gap: 16px;
+            grid-template-columns: 48px minmax(0, 1fr) auto;
+            gap: 14px;
             align-items: center;
+            min-height: 48px;
         }
         .assignee-avatar {
-            width: 48px;
-            height: 48px;
-            border-radius: 16px;
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 800;
         }
         .assignee-main {
             min-width: 0;
         }
         .assignee-name {
-            margin: 0 0 10px;
+            margin: 0 0 8px;
             color: #1f2937;
             font-size: 15px;
             font-weight: 800;
@@ -1845,7 +1851,7 @@ if ($ticketsStmt) {
         }
         .assignee-bar-track {
             width: 100%;
-            height: 12px;
+            height: 10px;
             border-radius: 999px;
             background: #eef2f7;
             overflow: hidden;
@@ -1871,16 +1877,16 @@ if ($ticketsStmt) {
             font-weight: 700;
         }
         .assignee-total-pill {
-            margin-top: auto;
+            margin-top: 0;
             flex: 0 0 auto;
-            min-height: 56px;
+            min-height: 48px;
             border-radius: 16px;
             background: linear-gradient(180deg, #f0fff7 0%, #e9fbf2 100%);
             border: 1px solid #cfeedd;
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 0 18px;
+            padding: 0 16px;
             color: #0f5132;
             font-size: 15px;
             font-weight: 800;
@@ -2061,6 +2067,10 @@ if ($ticketsStmt) {
             font-size: 18px;
             font-weight: 800;
             letter-spacing: 0.08em;
+        }
+        body.employee-analytics-page .admin-content,
+        body.employee-analytics-page .admin-content *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
+            font-weight: 400 !important;
         }
 
         @media (max-width: 1280px) {
@@ -2441,7 +2451,7 @@ if ($ticketsStmt) {
                 <div class="chart-card assignee-card">
                     <div class="chart-header">
                         <div class="chart-title">Tickets per Assignee</div>
-                        <p class="chart-subtitle">Top 8 assignees by selected tickets</p>
+                        <p class="chart-subtitle">Top 5 assignees by selected tickets</p>
                     </div>
                     <?php if (count($assigneeCards) > 0): ?>
                         <div class="assignee-list">
@@ -2702,6 +2712,9 @@ if ($ticketsStmt) {
         });
     }
 
+    const isEmployeeAnalyticsView = <?= $analyticsIsEmployeeView ? 'true' : 'false' ?>;
+    const analyticsChartTextWeight = isEmployeeAnalyticsView ? '400' : '800';
+    const analyticsChartAxisWeight = isEmployeeAnalyticsView ? '400' : '600';
     const catCtx = document.getElementById('categoryChart').getContext('2d');
     const companyChart = new Chart(catCtx, {
         type: 'doughnut',
@@ -2730,7 +2743,15 @@ if ($ticketsStmt) {
                 },
                 datalabels: {
                     color: '#ffffff',
-                    font: { weight: '800', size: 12 },
+                    font: function(context) {
+                        var total = companyChartTotal(activeCompanyChartData);
+                        var value = Number(context.dataset.data[context.dataIndex] || 0);
+                        var pct = total > 0 ? (value / total) * 100 : 0;
+                        return {
+                            weight: analyticsChartTextWeight,
+                            size: pct <= 2 ? 7 : (pct <= 4 ? 8 : 10)
+                        };
+                    },
                     formatter: function(value) {
                         var total = companyChartTotal(activeCompanyChartData);
                         if (!total || !value) return '';
@@ -2784,7 +2805,6 @@ if ($ticketsStmt) {
     const trendDataPoints = <?= json_encode($trendAvgHours) ?>;
     const trendPeakIndex = <?= json_encode($trendPeakDay['index'] ?? null) ?>;
     const trendFastestIndex = <?= json_encode($trendFastestDay['index'] ?? null) ?>;
-    const isEmployeeAnalyticsView = <?= $analyticsIsEmployeeView ? 'true' : 'false' ?>;
     new Chart(trendCtx, {
         type: 'line',
         data: {
@@ -2850,7 +2870,7 @@ if ($ticketsStmt) {
                     clip: false,
                     color: '#0f172a',
                     font: {
-                        weight: '800',
+                        weight: analyticsChartTextWeight,
                         size: 11
                     },
                     formatter: function(value) {
@@ -2878,7 +2898,7 @@ if ($ticketsStmt) {
                         padding: 10,
                         font: {
                             size: 13,
-                            weight: 600
+                            weight: analyticsChartAxisWeight
                         },
                         callback: function(value) {
                             var rounded = Math.round(Number(value) || 0);
@@ -2897,7 +2917,7 @@ if ($ticketsStmt) {
                         padding: 8,
                         font: {
                             size: 13,
-                            weight: 600
+                            weight: analyticsChartAxisWeight
                         }
                     }
                 }

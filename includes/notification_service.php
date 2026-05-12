@@ -67,6 +67,34 @@ function notif_ensure_title_column(mysqli $conn): void
     }
 }
 
+function notif_ensure_priority_escalation_notification_columns(mysqli $conn): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    $columns = [
+        'auto_escalated_high_at' => "DATETIME NULL",
+        'auto_escalated_critical_at' => "DATETIME NULL",
+        'auto_escalated_high_notified_at' => "DATETIME NULL",
+        'auto_escalated_critical_notified_at' => "DATETIME NULL",
+    ];
+
+    foreach ($columns as $column => $ddl) {
+        $hasColumn = false;
+        $res = $conn->query("SHOW COLUMNS FROM employee_tickets LIKE '$column'");
+        if ($res && $res->fetch_assoc()) {
+            $hasColumn = true;
+        }
+        if ($res instanceof mysqli_result) {
+            $res->free();
+        }
+        if (!$hasColumn) {
+            $conn->query("ALTER TABLE employee_tickets ADD COLUMN $column $ddl");
+        }
+    }
+}
+
 function notif_action_type_from_legacy_type(string $type): string
 {
     $type = trim($type);
@@ -449,6 +477,42 @@ function notif_has_system_record(mysqli $conn, int $userId, int $ticketId, strin
     return (bool) $exists;
 }
 
+function notif_has_priority_escalation_record(mysqli $conn, int $userId, int $ticketId, string $targetPriority): bool
+{
+    $userId = (int) $userId;
+    $ticketId = (int) $ticketId;
+    $targetPriority = trim($targetPriority);
+    if ($userId <= 0 || $ticketId <= 0 || $targetPriority === '') {
+        return false;
+    }
+
+    notif_ensure_action_type_column($conn);
+    $type = 'priority_escalated';
+    $actionType = 'update';
+    $ticketNeedle = '%Ticket #' . notif_ticket_number($ticketId) . '%';
+    $priorityNeedle = '%to ' . $targetPriority . '%';
+    $stmt = $conn->prepare("
+        SELECT id
+        FROM notifications
+        WHERE user_id = ?
+          AND ticket_id = ?
+          AND type = ?
+          AND message LIKE ?
+          AND message LIKE ?
+          AND COALESCE(action_type, '') = ?
+        LIMIT 1
+    ");
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param("iissss", $userId, $ticketId, $type, $ticketNeedle, $priorityNeedle, $actionType);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $exists = $res && $res->fetch_assoc();
+    $stmt->close();
+    return (bool) $exists;
+}
+
 function notif_insert_admins(mysqli $conn, int $ticketId, string $message, string $type = 'ticket', string $actionType = '', string $title = ''): void
 {
     $ids = notif_admin_user_ids($conn);
@@ -592,6 +656,154 @@ function notif_ticket_data(mysqli $conn, int $ticketId): ?array
     $row = $res ? $res->fetch_assoc() : null;
     $stmt->close();
     return $row ?: null;
+}
+
+function notif_priority_escalation_old_priority(mysqli $conn, int $ticketId, string $targetPriority): string
+{
+    $ticketId = (int) $ticketId;
+    $targetPriority = trim($targetPriority);
+    if ($ticketId <= 0 || $targetPriority === '') {
+        return '';
+    }
+
+    $tableExists = false;
+    $tblRes = $conn->query("SHOW TABLES LIKE 'ticket_activity'");
+    if ($tblRes && $tblRes->fetch_assoc()) {
+        $tableExists = true;
+    }
+    if ($tblRes instanceof mysqli_result) {
+        $tblRes->free();
+    }
+
+    if ($tableExists) {
+        $stmt = $conn->prepare("
+            SELECT description
+            FROM ticket_activity
+            WHERE ticket_id = ?
+              AND activity_type = 'priority_escalated'
+              AND description LIKE ?
+            ORDER BY created_at ASC
+            LIMIT 1
+        ");
+        if ($stmt) {
+            $needle = '% to ' . $targetPriority . '%';
+            $stmt->bind_param("is", $ticketId, $needle);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
+            $stmt->close();
+            $description = (string) ($row['description'] ?? '');
+            if (preg_match('/from\s+(critical|high|medium|low)\s+to\s+' . preg_quote($targetPriority, '/') . '\b/i', $description, $matches)) {
+                return ucfirst(strtolower((string) ($matches[1] ?? '')));
+            }
+        }
+    }
+
+    return strcasecmp($targetPriority, 'Critical') === 0 ? 'High' : 'Medium';
+}
+
+function notif_priority_escalation_recipient_ids(mysqli $conn, array $ticket): array
+{
+    $ids = [];
+    $ids = array_merge($ids, notif_requester_user_ids($conn, $ticket));
+
+    $assignedUserId = (int) ($ticket['assigned_user_id'] ?? 0);
+    if ($assignedUserId > 0) {
+        $ids[] = $assignedUserId;
+    }
+
+    $department = trim((string) ($ticket['assigned_group'] ?? ''));
+    if ($department === '') {
+        $department = trim((string) ($ticket['assigned_department'] ?? ''));
+    }
+    if ($department !== '') {
+        $ids = array_merge($ids, notif_department_user_ids($conn, $department));
+    }
+
+    $ids = array_merge($ids, notif_admin_user_ids($conn));
+    return notif_unique_user_ids($ids);
+}
+
+function notif_backfill_priority_escalation_notifications(mysqli $conn): int
+{
+    notif_ensure_priority_escalation_notification_columns($conn);
+    notif_ensure_requester_identity_columns($conn);
+
+    $sql = "
+        SELECT
+            t.id,
+            t.user_id,
+            t.priority,
+            t.status,
+            t.created_at,
+            t.assigned_user_id,
+            t.assigned_department,
+            t.assigned_group,
+            t.requester_name,
+            t.requester_email,
+            t.auto_escalated_high_at,
+            t.auto_escalated_critical_at
+        FROM employee_tickets t
+        WHERE t.auto_escalated_high_at IS NOT NULL
+           OR t.auto_escalated_critical_at IS NOT NULL
+           OR (LOWER(TRIM(COALESCE(t.priority, ''))) IN ('high', 'critical') AND DATE_ADD(t.created_at, INTERVAL 3 DAY) <= NOW())
+           OR (LOWER(TRIM(COALESCE(t.priority, ''))) = 'critical' AND DATE_ADD(t.created_at, INTERVAL 6 DAY) <= NOW())
+        ORDER BY COALESCE(t.auto_escalated_critical_at, t.auto_escalated_high_at) DESC
+        LIMIT 300
+    ";
+    $res = $conn->query($sql);
+    if (!$res) {
+        return 0;
+    }
+
+    $inserted = 0;
+    while ($ticket = $res->fetch_assoc()) {
+        $ticketId = (int) ($ticket['id'] ?? 0);
+        if ($ticketId <= 0) {
+            continue;
+        }
+        $createdAt = trim((string) ($ticket['created_at'] ?? ''));
+        $createdTs = $createdAt !== '' ? strtotime($createdAt) : false;
+        $priorityKey = strtolower(trim((string) ($ticket['priority'] ?? '')));
+        $highAt = trim((string) ($ticket['auto_escalated_high_at'] ?? ''));
+        $criticalAt = trim((string) ($ticket['auto_escalated_critical_at'] ?? ''));
+        if ($highAt === '' && in_array($priorityKey, ['high', 'critical'], true) && $createdTs !== false) {
+            $dueTs = strtotime('+3 days', $createdTs);
+            if ($dueTs !== false && $dueTs <= time()) {
+                $highAt = date('Y-m-d H:i:s', $dueTs);
+            }
+        }
+        if ($criticalAt === '' && $priorityKey === 'critical' && $createdTs !== false) {
+            $dueTs = strtotime('+6 days', $createdTs);
+            if ($dueTs !== false && $dueTs <= time()) {
+                $criticalAt = date('Y-m-d H:i:s', $dueTs);
+            }
+        }
+        $stages = [
+            ['target' => 'High', 'at' => $highAt],
+            ['target' => 'Critical', 'at' => $criticalAt],
+        ];
+        $recipientIds = notif_priority_escalation_recipient_ids($conn, $ticket);
+        foreach ($stages as $stage) {
+            $targetPriority = (string) $stage['target'];
+            $createdAt = (string) $stage['at'];
+            if ($createdAt === '') {
+                continue;
+            }
+            $oldPriority = notif_priority_escalation_old_priority($conn, $ticketId, $targetPriority);
+            $message = 'Ticket #' . notif_ticket_number($ticketId) . ' was escalated from ' . $oldPriority . ' to ' . $targetPriority . ' due to SLA delay. Please review and take action.';
+            foreach ($recipientIds as $userId) {
+                if (notif_has_priority_escalation_record($conn, (int) $userId, $ticketId, $targetPriority)) {
+                    continue;
+                }
+                if (notif_insert_system_at($conn, (int) $userId, $ticketId, $message, $createdAt, 'priority_escalated', 'update', 'Priority Escalation')) {
+                    $inserted++;
+                }
+            }
+        }
+    }
+    $res->free();
+    return $inserted;
 }
 
 function notif_ticket_email_attachments(mysqli $conn, int $ticketId, string $legacyAttachment = ''): array
@@ -757,8 +969,9 @@ function sendPriorityEscalationNotification(mysqli $conn, array $ticket, array $
         return ['inserted' => 0, 'notified' => 0, 'emailed' => 0];
     }
 
-    $title = 'Ticket Priority Escalated';
-    $message = 'Ticket #' . notif_ticket_number($ticketId) . ' priority has been escalated to ' . $newPriority . '. Immediate attention is required.';
+    $title = 'Priority Escalation';
+    $oldPriorityLabel = trim($oldPriority) !== '' ? trim($oldPriority) : 'Low';
+    $message = 'Ticket #' . notif_ticket_number($ticketId) . ' was escalated from ' . $oldPriorityLabel . ' to ' . $newPriority . ' due to SLA delay. Please review and take action.';
     $type = 'priority_escalated';
     $actionType = 'update';
     $inserted = 0;
@@ -1029,6 +1242,30 @@ function notif_display_message(string $type, string $message, int $ticketId = 0)
             : "A private note was added to a ticket.";
     }
     return notif_replace_company_domains($message);
+}
+
+function notif_priority_transition_from_message(string $message): array
+{
+    $message = trim($message);
+    if ($message === '') {
+        return ['from' => '', 'to' => ''];
+    }
+
+    if (preg_match('/\bescalated\s+from\s+(critical|high|medium|low)\s+to\s+(critical|high|medium|low)\b/i', $message, $matches)) {
+        return [
+            'from' => ucfirst(strtolower((string) ($matches[1] ?? ''))),
+            'to' => ucfirst(strtolower((string) ($matches[2] ?? ''))),
+        ];
+    }
+
+    if (preg_match('/\bescalated\s+to\s+(critical|high|medium|low)\b/i', $message, $matches)) {
+        return [
+            'from' => '',
+            'to' => ucfirst(strtolower((string) ($matches[1] ?? ''))),
+        ];
+    }
+
+    return ['from' => '', 'to' => ''];
 }
 
 function notif_message_highlight_html(string $message): string
