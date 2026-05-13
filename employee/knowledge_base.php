@@ -457,9 +457,10 @@ if ($showCategoryView) {
         }
 
         .kb-title {
-            color: #1B5E20;
-            font-size: 30px;
-            font-weight: 500;
+            color: var(--primary-green);
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
             margin-bottom: 34px;
         }
 

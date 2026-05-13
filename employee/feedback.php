@@ -24,6 +24,11 @@ $feedbackStmt = $conn->prepare("
             NULLIF(TRIM(feedback_requestor.name), ''),
             NULLIF(TRIM(et.requester_name), '')
         ) AS requester_name,
+        COALESCE(
+            NULLIF(TRIM(ticket_creator.department), ''),
+            NULLIF(TRIM(feedback_requestor.department), ''),
+            NULLIF(TRIM(et.department), '')
+        ) AS creator_department,
         tf.rating,
         tf.comment,
         tf.created_at
@@ -98,6 +103,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Feedback | Leads Agri Helpdesk</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
+    <link rel="stylesheet" href="../css/view-tickets.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
@@ -120,37 +126,20 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         }
 
         body.employee-feedback-page .feedback-hero {
-            display: flex;
-            align-items: center;
-            gap: 28px;
-            background: linear-gradient(135deg, #1B5E20 0%, #144a1e 100%);
-            color: #ffffff;
-            border-radius: 14px;
-            padding: 26px 34px;
-            border-top: 4px solid #facc15;
-            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+            color: #0f172a;
         }
 
         body.employee-feedback-page .feedback-hero-icon {
-            width: 88px;
-            height: 88px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex: 0 0 auto;
-            background: #ffffff;
-            color: #1B5E20;
-            box-shadow: inset 0 0 0 10px rgba(4, 120, 87, 0.08);
-            font-size: 34px;
+            display: none;
         }
 
         body.employee-feedback-page .feedback-hero h1 {
             margin: 0 0 8px;
-            font-size: 30px;
-            line-height: 1.1;
-            font-weight: 500;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
             letter-spacing: 0;
+            color: var(--primary-green);
         }
 
         body.employee-feedback-page .feedback-hero p {
@@ -158,12 +147,12 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             max-width: 760px;
             font-size: 16px;
             line-height: 1.5;
-            color: rgba(255, 255, 255, 0.88);
+            color: #475569;
         }
 
         body.employee-feedback-page .feedback-summary-grid {
             display: grid;
-            grid-template-columns: minmax(300px, 0.85fr) minmax(520px, 2.15fr);
+            grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
             gap: 24px;
         }
 
@@ -177,9 +166,13 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
 
         body.employee-feedback-page .feedback-average-card {
             display: grid;
-            grid-template-columns: 96px 1fr;
+            grid-template-columns: 1fr;
             align-items: center;
-            gap: 28px;
+            align-content: center;
+            justify-items: center;
+            text-align: center;
+            gap: 0;
+            padding: 22px 24px;
         }
 
         body.employee-feedback-page .feedback-average-icon {
@@ -205,6 +198,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         body.employee-feedback-page .feedback-score-line {
             display: flex;
             align-items: baseline;
+            justify-content: center;
             gap: 10px;
             color: #1B5E20;
         }
@@ -395,11 +389,30 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             border-bottom: none;
         }
 
+        body.employee-feedback-page .feedback-ticket-row {
+            cursor: pointer;
+        }
+
+        body.employee-feedback-page .feedback-ticket-row:hover td,
+        body.employee-feedback-page .feedback-ticket-row:focus-within td {
+            background: #f8fbf9;
+        }
+
         body.employee-feedback-page .feedback-ticket-id {
             font-weight: 500;
             color: #1B5E20;
             white-space: nowrap;
             font-size: 16px;
+        }
+
+        body.employee-feedback-page .feedback-ticket-link {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        body.employee-feedback-page .feedback-ticket-link:hover,
+        body.employee-feedback-page .feedback-ticket-link:focus {
+            text-decoration: underline;
         }
 
         body.employee-feedback-page .feedback-category-pill {
@@ -625,7 +638,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                         <i class="fas fa-comment-dots"></i>
                     </div>
                     <div>
-                        <h1>My Feedback Dashboard</h1>
+                        <h1>My Support Feedback</h1>
                         <p>This feedback is only for your own ticket-handling performance as an individual support assignee.</p>
                         <p>Review how requestors rated the tickets you handled, with newest responses shown first.</p>
                     </div>
@@ -633,9 +646,6 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
 
                 <section class="feedback-summary-grid" aria-label="Feedback summary">
                     <div class="feedback-card feedback-average-card">
-                        <div class="feedback-average-icon" aria-hidden="true">
-                            <i class="fas fa-star"></i>
-                        </div>
                         <div>
                             <h2 class="feedback-card-title">Average Rating</h2>
                             <div class="feedback-score-line">
@@ -678,16 +688,6 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 </section>
 
                 <section class="feedback-section">
-                    <div class="feedback-section-header">
-                        <div class="feedback-section-icon" aria-hidden="true">
-                            <i class="fas fa-message"></i>
-                        </div>
-                        <div>
-                            <h2 class="feedback-section-title">My Support Feedback</h2>
-                            <p class="feedback-section-subtitle">Ratings and comments from requestors for tickets assigned to you.</p>
-                        </div>
-                    </div>
-
                     <?php if (count($feedbackRows) > 0): ?>
                         <div class="feedback-table-wrap">
                             <table class="feedback-table">
@@ -695,7 +695,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                                     <tr>
                                         <th>Ticket ID</th>
                                         <th>Category</th>
-                                        <th>Requestor</th>
+                                        <th>Creator</th>
                                         <th>Department</th>
                                         <th>Rating</th>
                                         <th>Comment</th>
@@ -705,17 +705,21 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                                 <tbody>
                                     <?php foreach ($feedbackRows as $row): ?>
                                         <?php
+                                            $ticketId = (int) ($row['ticket_id'] ?? 0);
                                             $ratingValue = max(1, min(5, (int) ($row['rating'] ?? 0)));
                                             $requesterName = feedback_requester_name($row);
                                             $category = trim((string) ($row['category'] ?? ''));
                                             if ($category === '') $category = trim((string) ($row['subject'] ?? 'General Concern'));
-                                            $department = trim((string) ($row['assigned_group'] ?? ''));
-                                            if ($department === '') $department = trim((string) ($row['assigned_department'] ?? ''));
+                                            $department = trim((string) ($row['creator_department'] ?? ''));
                                             if ($department === '') $department = 'Department';
                                             $comment = trim((string) ($row['comment'] ?? ''));
                                         ?>
-                                        <tr>
-                                            <td class="feedback-ticket-id">#<?= (int) ($row['ticket_id'] ?? 0); ?></td>
+                                        <tr class="feedback-ticket-row" data-ticket-id="<?= $ticketId; ?>" tabindex="0" role="link" aria-label="Open ticket #<?= $ticketId; ?>">
+                                            <td class="feedback-ticket-id">
+                                                <a class="feedback-ticket-link" href="#ticket-<?= $ticketId; ?>" data-feedback-ticket-link data-ticket-id="<?= $ticketId; ?>">
+                                                    #<?= $ticketId; ?>
+                                                </a>
+                                            </td>
                                             <td>
                                                 <span class="feedback-category-pill">
                                                     <i class="fas fa-tag" aria-hidden="true"></i>
@@ -764,6 +768,60 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         </div>
     </div>
 
+    <div id="ticketModal" class="modal-overlay">
+        <div class="modal-content" id="modalContent"></div>
+    </div>
+
+    <div id="imagePreviewModal" class="image-preview-modal" onclick="TMTicketModal.closeImagePreview(event)">
+        <div class="preview-content">
+            <button type="button" class="preview-close" onclick="TMTicketModal.closeImagePreview(event)" aria-label="Close preview">X</button>
+            <button type="button" class="preview-nav preview-prev" onclick="TMTicketModal.stepImagePreview(-1)" aria-label="Previous attachment"><i class="fas fa-chevron-left"></i></button>
+            <img id="previewImage" src="" alt="Preview" class="preview-image">
+            <button type="button" class="preview-nav preview-next" onclick="TMTicketModal.stepImagePreview(1)" aria-label="Next attachment"><i class="fas fa-chevron-right"></i></button>
+        </div>
+    </div>
+
+    <script>
+    window.TM_CURRENT_USER = <?php echo json_encode([
+        'id' => $_SESSION['user_id'] ?? null,
+        'name' => $_SESSION['name'] ?? null,
+        'email' => $_SESSION['email'] ?? null,
+        'department' => $_SESSION['department'] ?? null,
+        'company' => $_SESSION['company'] ?? null,
+        'role' => $_SESSION['role'] ?? null
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    window.TM_HIDE_QUICK_TAGS = true;
+    window.TM_DEPARTMENT_LABEL_TEXT = 'Assigned Department';
+    window.TM_DEPARTMENT_REQUIRED = true;
+    window.TM_SHOW_DEPARTMENT_USER_SELECT = true;
+    window.TM_DEPARTMENT_USERS_ENDPOINT = 'ajax_department_users.php';
+    </script>
+    <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
+    <script>
+    function openFeedbackTicket(ticketId) {
+        if (!ticketId || !window.TMTicketModal || typeof window.TMTicketModal.open !== 'function') {
+            return;
+        }
+        window.TMTicketModal.open(ticketId);
+    }
+
+    document.querySelectorAll('.feedback-ticket-row[data-ticket-id]').forEach(function(row) {
+        row.addEventListener('click', function(event) {
+            var link = event.target && event.target.closest ? event.target.closest('[data-feedback-ticket-link]') : null;
+            if (link) {
+                event.preventDefault();
+            }
+            openFeedbackTicket(row.getAttribute('data-ticket-id'));
+        });
+        row.addEventListener('keydown', function(event) {
+            if (event.key !== 'Enter' && event.key !== ' ') {
+                return;
+            }
+            event.preventDefault();
+            openFeedbackTicket(row.getAttribute('data-ticket-id'));
+        });
+    });
+    </script>
     <script src="../js/employee-dashboard.js"></script>
 </body>
 </html>

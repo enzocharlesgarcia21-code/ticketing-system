@@ -9,6 +9,16 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 ticket_apply_sla_priority($conn);
 
+function admin_sla_display_label(string $slaLevel): string
+{
+    $map = [
+        'Low' => 'On Track',
+        'Medium' => 'At Risk',
+        'High' => 'Breach',
+    ];
+    return $map[$slaLevel] ?? $slaLevel;
+}
+
 function time_ago_days(string $dateTime): string
 {
     $dateTime = trim($dateTime);
@@ -34,10 +44,10 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
     $priorityKey = strtolower(trim($priority));
     if ($priorityKey === 'critical') {
-        return '<span class="badge badge-high">High</span>';
+        return '<span class="badge badge-high">' . htmlspecialchars(admin_sla_display_label('High'), ENT_QUOTES, 'UTF-8') . '</span>';
     }
     if ($priorityKey === 'high') {
-        return '<span class="badge badge-medium">Medium</span>';
+        return '<span class="badge badge-medium">' . htmlspecialchars(admin_sla_display_label('Medium'), ENT_QUOTES, 'UTF-8') . '</span>';
     }
     if ($createdAt === '') return '-';
     try {
@@ -53,12 +63,12 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     if ($diff->invert !== 1) $days = 0;
 
     if ($days >= 7) {
-        return '<span class="badge badge-high">High</span>';
+        return '<span class="badge badge-high">' . htmlspecialchars(admin_sla_display_label('High'), ENT_QUOTES, 'UTF-8') . '</span>';
     }
     if ($days >= 4) {
-        return '<span class="badge badge-medium">Medium</span>';
+        return '<span class="badge badge-medium">' . htmlspecialchars(admin_sla_display_label('Medium'), ENT_QUOTES, 'UTF-8') . '</span>';
     }
-    return '<span class="badge badge-low">Low</span>';
+    return '<span class="badge badge-low">' . htmlspecialchars(admin_sla_display_label('Low'), ENT_QUOTES, 'UTF-8') . '</span>';
 }
 
 function assigned_target_label(array $row): string

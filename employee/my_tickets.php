@@ -8,7 +8,7 @@ notif_ensure_requester_identity_columns($conn);
 function can_follow_up_ticket_status(string $status): bool
 {
     $status = strtoupper(trim($status));
-    return $status === 'OPEN' || $status === 'IN PROGRESS';
+    return $status !== '' && $status !== 'RESOLVED' && $status !== 'CLOSED';
 }
 
 function can_requester_close_ticket_status(string $status): bool
@@ -44,21 +44,44 @@ function current_employee_email(mysqli $conn, int $userId): string
     return $email;
 }
 
+function my_tickets_sla_display_label(string $slaLevel): string
+{
+    $map = [
+        'Low' => 'On Track',
+        'Medium' => 'At Risk',
+        'High' => 'Breach',
+    ];
+    return $map[$slaLevel] ?? $slaLevel;
+}
+
+function my_tickets_normalize_sla_filter(string $sla): string
+{
+    $sla = trim($sla);
+    $map = [
+        'On Track' => 'Low',
+        'At Risk' => 'Medium',
+        'Breach' => 'High',
+        'Low' => 'Low',
+        'Medium' => 'Medium',
+        'High' => 'High',
+    ];
+    return $map[$sla] ?? '';
+}
+
 function my_tickets_sla_filter_condition(string $sla): string
 {
+    $sla = my_tickets_normalize_sla_filter($sla);
     $activeStatus = "LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')";
-    $priority = "LOWER(TRIM(COALESCE(t.priority, '')))";
-    $ageHigh = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-    $ageMedium = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 4 DAY)";
+    $ageDays = "DATEDIFF(CURDATE(), DATE(t.created_at))";
 
     if ($sla === 'High') {
-        return "($activeStatus AND ($priority = 'critical' OR ($priority NOT IN ('critical', 'high') AND $ageHigh)))";
+        return "($activeStatus AND $ageDays >= 7)";
     }
     if ($sla === 'Medium') {
-        return "($activeStatus AND ($priority = 'high' OR ($priority NOT IN ('critical', 'high') AND $ageMedium AND NOT ($ageHigh))))";
+        return "($activeStatus AND $ageDays BETWEEN 4 AND 6)";
     }
     if ($sla === 'Low') {
-        return "($activeStatus AND $priority NOT IN ('critical', 'high') AND NOT ($ageMedium))";
+        return "($activeStatus AND $ageDays < 4)";
     }
     return '';
 }
@@ -120,7 +143,7 @@ function my_tickets_filter_clauses(mysqli $conn, string $search, string $company
     }
 
     if ($sla !== '') {
-        $allowedSlas = ['Low', 'Medium', 'High'];
+        $allowedSlas = ['On Track', 'At Risk', 'Breach'];
         if (in_array($sla, $allowedSlas, true)) {
             $slaCondition = my_tickets_sla_filter_condition($sla);
             if ($slaCondition !== '') {
@@ -196,23 +219,16 @@ function feedback_assignee_display(array $ticket): array
     ];
 }
 
-function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+function my_tickets_effective_sla_level(string $createdAt, string $status, string $priority = ''): string
 {
     $statusKey = strtolower(trim($status));
-    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
-    $priorityKey = strtolower(trim($priority));
-    if ($priorityKey === 'critical') {
-        return '<span class="badge badge-high">High</span>';
-    }
-    if ($priorityKey === 'high') {
-        return '<span class="badge badge-medium">Medium</span>';
-    }
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return '';
     $createdAt = trim($createdAt);
-    if ($createdAt === '') return '-';
+    if ($createdAt === '') return 'Low';
     try {
         $created = new DateTimeImmutable($createdAt);
     } catch (Throwable $e) {
-        return '-';
+        return 'Low';
     }
     $now = new DateTimeImmutable('now');
     $createdDay = $created->setTime(0, 0, 0);
@@ -222,12 +238,19 @@ function my_tickets_sla_badge_html(string $createdAt, string $status, string $pr
     if ($diff->invert !== 1) $days = 0;
 
     if ($days >= 7) {
-        return '<span class="badge badge-high">High</span>';
+        return 'High';
     }
     if ($days >= 4) {
-        return '<span class="badge badge-medium">Medium</span>';
+        return 'Medium';
     }
-    return '<span class="badge badge-low">Low</span>';
+    return 'Low';
+}
+
+function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+{
+    $slaLevel = my_tickets_effective_sla_level($createdAt, $status, $priority);
+    if ($slaLevel === '') return '-';
+    return '<span class="badge badge-' . strtolower($slaLevel) . '">' . htmlspecialchars(my_tickets_sla_display_label($slaLevel), ENT_QUOTES, 'UTF-8') . '</span>';
 }
 
 function follow_up_company_user_ids(mysqli $conn, string $company, int $excludeUserId = 0): array
@@ -408,7 +431,34 @@ function follow_up_ensure_cooldown_columns(mysqli $conn): void
     }
 }
 
-function follow_up_available_at_from_state(string $baseTimestamp, int $sendCount): ?string
+function follow_up_cooldown_hours(string $priority, int $sendCount): int
+{
+    // Follow-up cadence by ticket urgency:
+    // High/Critical: every 4 hours. Medium: 24h, then 12h, then every 6h.
+    // Low: 48h, then 24h, then every 12h. Unknown priorities fall back to 24h.
+    $priority = strtolower(trim($priority));
+    $sendCount = max(0, $sendCount);
+
+    if ($priority === 'high' || $priority === 'critical') {
+        return 4;
+    }
+
+    if ($priority === 'medium') {
+        if ($sendCount <= 0) return 24;
+        if ($sendCount === 1) return 12;
+        return 6;
+    }
+
+    if ($priority === 'low') {
+        if ($sendCount <= 0) return 48;
+        if ($sendCount === 1) return 24;
+        return 12;
+    }
+
+    return 24;
+}
+
+function follow_up_available_at_from_state(string $baseTimestamp, int $sendCount, string $priority): ?string
 {
     $baseTimestamp = trim($baseTimestamp);
     if ($baseTimestamp === '') {
@@ -420,13 +470,8 @@ function follow_up_available_at_from_state(string $baseTimestamp, int $sendCount
         return null;
     }
 
-    if ($sendCount <= 0) {
-        $availableTimestamp = strtotime('+24 hours', $timestamp);
-    } elseif ($sendCount === 1) {
-        $availableTimestamp = strtotime('+12 hours', $timestamp);
-    } else {
-        $availableTimestamp = strtotime('+6 hours', $timestamp);
-    }
+    $cooldownHours = follow_up_cooldown_hours($priority, $sendCount);
+    $availableTimestamp = strtotime('+' . $cooldownHours . ' hours', $timestamp);
 
     if ($availableTimestamp === false) {
         return null;
@@ -480,11 +525,12 @@ function follow_up_notification_event_state(mysqli $conn, int $ticketId): array
     ];
 }
 
-function follow_up_store_ticket_cooldown_state(mysqli $conn, int $ticketId, string $lastSentAt, int $stage): void
+function follow_up_store_ticket_cooldown_state(mysqli $conn, int $ticketId, string $lastSentAt, int $sendCount): void
 {
     follow_up_ensure_cooldown_columns($conn);
     $lastSentAt = trim($lastSentAt);
-    $stage = max(0, min(3, (int) $stage));
+    $sendCount = max(0, (int) $sendCount);
+    $stage = min(3, $sendCount);
     $stmt = $conn->prepare("
         UPDATE employee_tickets
         SET follow_up_last_sent_at = ?,
@@ -496,7 +542,7 @@ function follow_up_store_ticket_cooldown_state(mysqli $conn, int $ticketId, stri
     if (!$stmt) {
         return;
     }
-    $stmt->bind_param("siii", $lastSentAt, $stage, $stage, $ticketId);
+    $stmt->bind_param("siii", $lastSentAt, $stage, $sendCount, $ticketId);
     $stmt->execute();
     $stmt->close();
 }
@@ -508,8 +554,10 @@ function follow_up_ticket_cooldown_state(mysqli $conn, int $ticketId, bool $migr
     $stmt = $conn->prepare("
         SELECT
             created_at,
+            priority,
             follow_up_last_sent_at,
-            follow_up_cooldown_stage
+            follow_up_cooldown_stage,
+            follow_up_send_count
         FROM employee_tickets
         WHERE id = ?
         LIMIT 1
@@ -517,6 +565,7 @@ function follow_up_ticket_cooldown_state(mysqli $conn, int $ticketId, bool $migr
     if (!$stmt) {
         return [
             'created_at' => null,
+            'priority' => '',
             'last_sent_at' => null,
             'follow_up_send_count' => 0,
         ];
@@ -529,33 +578,37 @@ function follow_up_ticket_cooldown_state(mysqli $conn, int $ticketId, bool $migr
 
     $lastSentAt = trim((string) ($row['follow_up_last_sent_at'] ?? ''));
     $createdAt = trim((string) ($row['created_at'] ?? ''));
-    $stage = max(0, min(3, (int) ($row['follow_up_cooldown_stage'] ?? 0)));
+    $priority = trim((string) ($row['priority'] ?? ''));
+    $storedCount = max(0, (int) ($row['follow_up_send_count'] ?? ($row['follow_up_cooldown_stage'] ?? 0)));
     if (!$migrateLegacy) {
         return [
             'created_at' => $createdAt !== '' ? $createdAt : null,
+            'priority' => $priority,
             'last_sent_at' => $lastSentAt !== '' ? $lastSentAt : null,
-            'follow_up_send_count' => $stage,
+            'follow_up_send_count' => $storedCount,
         ];
     }
 
     $derived = follow_up_notification_event_state($conn, $ticketId);
     $derivedLastSentAt = trim((string) ($derived['last_sent_at'] ?? ''));
-    $derivedStage = max(0, min(3, (int) ($derived['follow_up_send_count'] ?? 0)));
-    if (($derivedLastSentAt !== '' || $derivedStage > 0)
-        && ($derivedLastSentAt !== $lastSentAt || $derivedStage !== $stage)
+    $derivedCount = max(0, (int) ($derived['follow_up_send_count'] ?? 0));
+    if (($derivedLastSentAt !== '' || $derivedCount > 0)
+        && ($derivedLastSentAt !== $lastSentAt || $derivedCount !== $storedCount)
     ) {
-        follow_up_store_ticket_cooldown_state($conn, $ticketId, $derivedLastSentAt, $derivedStage);
+        follow_up_store_ticket_cooldown_state($conn, $ticketId, $derivedLastSentAt, $derivedCount);
         return [
             'created_at' => $createdAt !== '' ? $createdAt : null,
+            'priority' => $priority,
             'last_sent_at' => $derivedLastSentAt !== '' ? $derivedLastSentAt : null,
-            'follow_up_send_count' => $derivedStage,
+            'follow_up_send_count' => $derivedCount,
         ];
     }
 
     return [
         'created_at' => $createdAt !== '' ? $createdAt : null,
+        'priority' => $priority,
         'last_sent_at' => $lastSentAt !== '' ? $lastSentAt : null,
-        'follow_up_send_count' => $stage,
+        'follow_up_send_count' => $storedCount,
     ];
 }
 
@@ -567,7 +620,8 @@ function follow_up_sync_user_ticket_cooldowns(mysqli $conn, int $userId): void
         SELECT DISTINCT
             t.id,
             t.follow_up_last_sent_at,
-            t.follow_up_cooldown_stage
+            t.follow_up_cooldown_stage,
+            t.follow_up_send_count
         FROM employee_tickets t
         INNER JOIN notifications n
             ON n.ticket_id = t.id
@@ -589,28 +643,33 @@ function follow_up_sync_user_ticket_cooldowns(mysqli $conn, int $userId): void
         }
         $derived = follow_up_notification_event_state($conn, $ticketId);
         $derivedLastSentAt = trim((string) ($derived['last_sent_at'] ?? ''));
-        $derivedStage = max(0, min(3, (int) ($derived['follow_up_send_count'] ?? 0)));
-        if ($derivedLastSentAt !== '' || $derivedStage > 0) {
-            follow_up_store_ticket_cooldown_state($conn, $ticketId, $derivedLastSentAt, $derivedStage);
+        $derivedCount = max(0, (int) ($derived['follow_up_send_count'] ?? 0));
+        if ($derivedLastSentAt !== '' || $derivedCount > 0) {
+            follow_up_store_ticket_cooldown_state($conn, $ticketId, $derivedLastSentAt, $derivedCount);
         }
     }
     $stmt->close();
 }
 
-function follow_up_cooldown_window(mysqli $conn, int $ticketId): array
+function follow_up_cooldown_window_from_values(string $createdAt, string $lastSentAt, int $sendCount, string $priority): array
 {
-    $state = follow_up_ticket_cooldown_state($conn, $ticketId, true);
-    $createdAt = trim((string) ($state['created_at'] ?? ''));
-    $lastSentAt = trim((string) ($state['last_sent_at'] ?? ''));
-    $sendCount = (int) ($state['follow_up_send_count'] ?? 0);
-    $cooldownBaseTimestamp = $sendCount > 0 ? $lastSentAt : $createdAt;
-    $availableAt = follow_up_available_at_from_state($cooldownBaseTimestamp, $sendCount);
+    $createdAt = trim($createdAt);
+    $lastSentAt = trim($lastSentAt);
+    $priority = trim($priority);
+    $cooldownUrgency = my_tickets_effective_sla_level($createdAt, 'Open', $priority);
+    if ($cooldownUrgency === '') {
+        $cooldownUrgency = $priority;
+    }
+    $sendCount = max(0, $sendCount);
+    $cooldownBaseTimestamp = $sendCount > 0 ? ($lastSentAt !== '' ? $lastSentAt : $createdAt) : $createdAt;
+    $availableAt = follow_up_available_at_from_state($cooldownBaseTimestamp, $sendCount, $cooldownUrgency);
     $availableTimestamp = $availableAt !== null ? strtotime($availableAt) : false;
     $serverNowTimestamp = time();
     $remainingSeconds = $availableTimestamp !== false ? max(0, $availableTimestamp - $serverNowTimestamp) : 0;
 
     return [
         'created_at' => $createdAt !== '' ? $createdAt : null,
+        'priority' => $cooldownUrgency,
         'last_sent_at' => $lastSentAt !== '' ? $lastSentAt : null,
         'available_at' => $availableAt,
         'available_at_ts' => $availableTimestamp !== false ? (int) $availableTimestamp : null,
@@ -621,15 +680,21 @@ function follow_up_cooldown_window(mysqli $conn, int $ticketId): array
     ];
 }
 
-function follow_up_cooldown_duration_label(int $sendCount): string
+function follow_up_cooldown_window(mysqli $conn, int $ticketId): array
 {
-    if ($sendCount <= 0) {
-        return '24 hours';
-    }
-    if ($sendCount === 1) {
-        return '12 hours';
-    }
-    return '6 hours';
+    $state = follow_up_ticket_cooldown_state($conn, $ticketId, true);
+    return follow_up_cooldown_window_from_values(
+        (string) ($state['created_at'] ?? ''),
+        (string) ($state['last_sent_at'] ?? ''),
+        (int) ($state['follow_up_send_count'] ?? 0),
+        (string) ($state['priority'] ?? '')
+    );
+}
+
+function follow_up_cooldown_duration_label(int $sendCount, string $priority): string
+{
+    $hours = follow_up_cooldown_hours($priority, $sendCount);
+    return $hours . ' ' . ($hours === 1 ? 'hour' : 'hours');
 }
 
 function follow_up_cooldown_label_from_remaining_seconds(int $remainingSeconds): string
@@ -638,19 +703,32 @@ function follow_up_cooldown_label_from_remaining_seconds(int $remainingSeconds):
     $hours = (int) floor($remainingSeconds / 3600);
     $minutes = (int) floor(($remainingSeconds % 3600) / 60);
     $seconds = (int) ($remainingSeconds % 60);
-    return sprintf('Available in %02d:%02d:%02d', $hours, $minutes, $seconds);
+    if ($hours > 0) {
+        return 'Next follow-up available in ' . $hours . 'h ' . $minutes . 'm';
+    }
+    if ($minutes > 0) {
+        return 'Next follow-up available in ' . $minutes . 'm';
+    }
+    return 'Next follow-up available in ' . $seconds . 's';
 }
 
 function follow_up_cooldown_message(array $window): string
 {
     $availableAt = trim((string) ($window['available_at'] ?? ''));
+    $remainingSeconds = (int) ($window['remaining_seconds'] ?? 0);
+    $priority = trim((string) ($window['priority'] ?? ''));
+    $priorityLabel = $priority !== '' ? ucfirst(strtolower($priority)) . ' urgency tickets' : 'this urgency level';
     if ($availableAt === '') {
         return 'Follow up was already sent for this ticket.';
     }
 
+    if ($remainingSeconds > 0) {
+        return follow_up_cooldown_label_from_remaining_seconds($remainingSeconds) . '.';
+    }
+
     $timestamp = strtotime($availableAt);
     if ($timestamp === false) {
-        return 'Follow up can be sent again after ' . follow_up_cooldown_duration_label((int) ($window['follow_up_send_count'] ?? 0)) . '.';
+        return 'Follow up available after ' . follow_up_cooldown_duration_label((int) ($window['follow_up_send_count'] ?? 0), $priority) . ' for ' . $priorityLabel . '.';
     }
 
     return 'Follow up can be sent again on ' . date('M d, Y h:i A', $timestamp) . '.';
@@ -704,7 +782,7 @@ function follow_up_record_send(mysqli $conn, int $ticketId): array
     // The caller already syncs any legacy history before inserting new follow-up notifications,
     // so we must not re-derive from the freshly inserted recipient rows here.
     $state = follow_up_ticket_cooldown_state($conn, $ticketId, false);
-    $nextCount = min(3, max(0, (int) ($state['follow_up_send_count'] ?? 0)) + 1);
+    $nextCount = max(0, (int) ($state['follow_up_send_count'] ?? 0)) + 1;
     $lastSentAt = date('Y-m-d H:i:s');
     follow_up_store_ticket_cooldown_state($conn, $ticketId, $lastSentAt, $nextCount);
 
@@ -773,6 +851,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
             t.user_id,
             t.category,
             t.status,
+            t.priority,
             t.company,
             t.assigned_company,
             t.assigned_department,
@@ -808,7 +887,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
     $statusLabel = trim((string) ($ticket['status'] ?? ''));
     if (!can_follow_up_ticket_status($statusLabel)) {
         http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Follow up is only available for Open and In Progress tickets.']);
+        echo json_encode(['ok' => false, 'error' => 'Follow up is only available until the ticket is Resolved or Closed.']);
         exit;
     }
 
@@ -944,7 +1023,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     exit();
 }
 
-ticket_apply_sla_priority($conn);
 follow_up_ensure_cooldown_columns($conn);
 
 $user_id = (int) $_SESSION['user_id'];
@@ -1149,6 +1227,10 @@ $ticketCompanyFilter = trim((string) ($_GET['company'] ?? ''));
 $ticketDepartmentFilter = trim((string) ($_GET['department'] ?? ''));
 $ticketStatusFilter = trim((string) ($_GET['status'] ?? ''));
 $ticketSlaFilter = trim((string) ($_GET['sla'] ?? ''));
+$ticketSlaLevel = my_tickets_normalize_sla_filter($ticketSlaFilter);
+if ($ticketSlaLevel !== '') {
+    $ticketSlaFilter = my_tickets_sla_display_label($ticketSlaLevel);
+}
 
 $companyOptions = [
     '@leads-farmex.com' => 'FARMEX / LAV',
@@ -1162,11 +1244,11 @@ $companyOptions = [
     '@primestocks.ph' => 'PCC',
 ];
 $lapcDepartmentOptions = ticket_lapc_departments();
-$slaOptions = ['Low', 'Medium', 'High'];
+$slaOptions = ['On Track', 'At Risk', 'Breach'];
 if (ticket_normalize_company($ticketCompanyFilter) !== '@leadsagri.com' || !in_array($ticketDepartmentFilter, $lapcDepartmentOptions, true)) {
     $ticketDepartmentFilter = '';
 }
-if (!in_array($ticketSlaFilter, $slaOptions, true)) {
+if ($ticketSlaLevel === '') {
     $ticketSlaFilter = '';
 }
 $companyStmt = $conn->prepare("
@@ -1225,20 +1307,28 @@ $stmt = $conn->prepare("
     SELECT
         t.*,
         t.follow_up_last_sent_at AS last_follow_up_sent_at,
-        t.follow_up_cooldown_stage AS follow_up_stage,
+        t.follow_up_send_count AS follow_up_stage,
         CASE
-            WHEN t.follow_up_cooldown_stage <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
-            WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 12 HOUR)
-            WHEN t.follow_up_cooldown_stage >= 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 6 HOUR)
-            ELSE NULL
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) >= 7 THEN DATE_ADD(COALESCE(NULLIF(t.follow_up_last_sent_at, ''), t.created_at), INTERVAL 4 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+            ELSE DATE_ADD(t.created_at, INTERVAL 24 HOUR)
         END AS follow_up_available_at,
         CASE
             WHEN (
                 CASE
-                    WHEN t.follow_up_cooldown_stage <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
-                    WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 12 HOUR)
-                    WHEN t.follow_up_cooldown_stage >= 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 6 HOUR)
-                    ELSE NULL
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) >= 7 THEN DATE_ADD(COALESCE(NULLIF(t.follow_up_last_sent_at, ''), t.created_at), INTERVAL 4 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+                    ELSE DATE_ADD(t.created_at, INTERVAL 24 HOUR)
                 END
             ) > NOW()
             THEN 1
@@ -1246,7 +1336,7 @@ $stmt = $conn->prepare("
         END AS follow_up_in_cooldown
     FROM employee_tickets t
     WHERE $ticketWhereSql
-    ORDER BY t.created_at DESC
+    ORDER BY CASE WHEN t.status = 'Closed' THEN 1 ELSE 0 END ASC, t.created_at DESC
     LIMIT ?, ?
 ");
 $ticketListTypes = $ticketTypes . 'ii';
@@ -1644,6 +1734,13 @@ $successMessage = '';
             justify-content: center;
             gap: 8px;
             flex-wrap: wrap;
+        }
+        body.employee-my-tickets-page .follow-up-cooldown-note {
+            flex-basis: 100%;
+            color: #64748b;
+            font-size: 11px;
+            line-height: 1.25;
+            text-align: center;
         }
         body.employee-my-tickets-page .close-ticket-form {
             margin: 0;
@@ -2633,21 +2730,27 @@ $successMessage = '';
                                         <div class="ticket-action-buttons">
                                         <?php if (can_follow_up_ticket_status((string) ($row['status'] ?? ''))): ?>
                                             <?php
-                                                $followUpSendCount = (int) ($row['follow_up_stage'] ?? $row['follow_up_send_count'] ?? 0);
-                                                $followUpInCooldown = !empty($row['follow_up_in_cooldown']);
-                                                $followUpAvailableAt = trim((string) ($row['follow_up_available_at'] ?? ''));
+                                                $followUpSendCount = (int) ($row['follow_up_send_count'] ?? $row['follow_up_stage'] ?? 0);
+                                                $followUpWindow = follow_up_cooldown_window_from_values(
+                                                    (string) ($row['created_at'] ?? ''),
+                                                    (string) ($row['last_follow_up_sent_at'] ?? $row['follow_up_last_sent_at'] ?? ''),
+                                                    $followUpSendCount,
+                                                    (string) ($row['priority'] ?? '')
+                                                );
+                                                $followUpInCooldown = !empty($followUpWindow['in_cooldown']);
+                                                $followUpAvailableAt = trim((string) ($followUpWindow['available_at'] ?? ''));
                                                 $followUpAvailableTs = 0;
-                                                $followUpRemainingSeconds = 0;
+                                                $followUpRemainingSeconds = (int) ($followUpWindow['remaining_seconds'] ?? 0);
                                                 if ($followUpInCooldown && $followUpAvailableAt !== '') {
                                                     $followUpTimestamp = strtotime($followUpAvailableAt);
                                                     if ($followUpTimestamp !== false) {
                                                         $followUpAvailableTs = (int) $followUpTimestamp;
-                                                        $followUpRemainingSeconds = max(0, $followUpAvailableTs - time());
                                                     }
                                                 }
                                                 $followUpCooldownLabel = $followUpInCooldown
                                                     ? follow_up_cooldown_label_from_remaining_seconds($followUpRemainingSeconds)
                                                     : '';
+                                                $followUpButtonText = $followUpInCooldown && $followUpSendCount > 0 ? 'Follow Up Sent' : 'Follow Up';
                                             ?>
                                             <?php if (!($followUpSendCount <= 0 && $followUpInCooldown)): ?>
                                             <button
@@ -2655,12 +2758,15 @@ $successMessage = '';
                                                 class="follow-up-btn<?= $followUpInCooldown ? ' is-sent follow-up-cooldown' : ''; ?>"
                                                 data-ticket-id="<?= (int) $row['id']; ?>"
                                                 aria-label="<?= $followUpInCooldown ? 'Follow up is on cooldown for ticket #' : 'Follow up ticket #'; ?><?= (int) $row['id']; ?>"
-                                                <?= $followUpInCooldown ? 'aria-disabled="true" tabindex="-1"' : ''; ?>
+                                                <?= $followUpInCooldown ? 'aria-disabled="true" tabindex="-1" disabled' : ''; ?>
                                                 <?= $followUpInCooldown && $followUpAvailableAt !== '' ? 'data-available-at="' . htmlspecialchars($followUpAvailableAt, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>
                                                 <?= $followUpInCooldown && $followUpAvailableTs > 0 ? 'data-available-at-ts="' . $followUpAvailableTs . '"' : ''; ?>
                                                 <?= $followUpInCooldown ? 'data-remaining-seconds="' . $followUpRemainingSeconds . '"' : ''; ?>
                                                 <?= $followUpInCooldown && $followUpCooldownLabel !== '' ? 'data-cooldown-label="' . htmlspecialchars($followUpCooldownLabel, ENT_QUOTES, 'UTF-8') . '"' : ''; ?>
-                                            ><?= $followUpInCooldown ? 'Follow Up Sent' : 'Follow Up'; ?></button>
+                                            ><?= htmlspecialchars($followUpButtonText, ENT_QUOTES, 'UTF-8'); ?></button>
+                                            <?php if ($followUpInCooldown && $followUpCooldownLabel !== ''): ?>
+                                                <span class="follow-up-cooldown-note"><?= htmlspecialchars($followUpCooldownLabel, ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <?php endif; ?>
                                             <?php endif; ?>
                                         <?php endif; ?>
                                         <?php if (can_requester_close_ticket_status((string) ($row['status'] ?? ''))): ?>
@@ -3382,10 +3488,13 @@ $successMessage = '';
         var hours = Math.floor(seconds / 3600);
         var minutes = Math.floor((seconds % 3600) / 60);
         var secs = seconds % 60;
-        return 'Available in '
-            + String(hours).padStart(2, '0') + ':'
-            + String(minutes).padStart(2, '0') + ':'
-            + String(secs).padStart(2, '0');
+        if (hours > 0) {
+            return 'Next follow-up available in ' + hours + 'h ' + minutes + 'm';
+        }
+        if (minutes > 0) {
+            return 'Next follow-up available in ' + minutes + 'm';
+        }
+        return 'Next follow-up available in ' + secs + 's';
     }
 
     function clearFollowUpCooldownTimer(buttonEl) {
@@ -3419,6 +3528,10 @@ $successMessage = '';
         if (ticketId > 0) {
             buttonEl.setAttribute('aria-label', 'Follow up ticket #' + ticketId);
         }
+        var noteEl = buttonEl.parentElement ? buttonEl.parentElement.querySelector('.follow-up-cooldown-note') : null;
+        if (noteEl && noteEl.parentNode) {
+            noteEl.parentNode.removeChild(noteEl);
+        }
     }
 
     function scheduleFollowUpCooldown(buttonEl) {
@@ -3444,8 +3557,13 @@ $successMessage = '';
         var updateLabel = function () {
             var elapsedSeconds = Math.floor((Date.now() - startedAtMs) / 1000);
             var remainingSeconds = Math.max(initialRemainingSeconds - elapsedSeconds, 0);
-            buttonEl.setAttribute('data-cooldown-label', formatFollowUpCooldownLabel(remainingSeconds));
+            var cooldownLabel = formatFollowUpCooldownLabel(remainingSeconds);
+            buttonEl.setAttribute('data-cooldown-label', cooldownLabel);
             buttonEl.setAttribute('data-remaining-seconds', String(remainingSeconds));
+            var noteEl = buttonEl.parentElement ? buttonEl.parentElement.querySelector('.follow-up-cooldown-note') : null;
+            if (noteEl) {
+                noteEl.textContent = cooldownLabel;
+            }
             if (remainingSeconds <= 0) {
                 restoreFollowUpButtonActive(buttonEl);
             }
@@ -3700,8 +3818,8 @@ $successMessage = '';
 
     function setFollowUpButtonCooldown(buttonEl, availableAt, availableAtTs, remainingSeconds) {
         if (!buttonEl) return;
-        buttonEl.disabled = false;
-        buttonEl.removeAttribute('disabled');
+        buttonEl.disabled = true;
+        buttonEl.setAttribute('disabled', 'disabled');
         buttonEl.classList.add('is-sent', 'follow-up-cooldown');
         buttonEl.setAttribute('aria-disabled', 'true');
         buttonEl.setAttribute('tabindex', '-1');
@@ -3721,7 +3839,17 @@ $successMessage = '';
             nextRemainingSeconds = availableAtMs ? Math.max(Math.ceil((availableAtMs - Date.now()) / 1000), 0) : 0;
         }
         buttonEl.setAttribute('data-remaining-seconds', String(nextRemainingSeconds));
-        buttonEl.setAttribute('data-cooldown-label', formatFollowUpCooldownLabel(nextRemainingSeconds));
+        var cooldownLabel = formatFollowUpCooldownLabel(nextRemainingSeconds);
+        buttonEl.setAttribute('data-cooldown-label', cooldownLabel);
+        var noteEl = buttonEl.parentElement ? buttonEl.parentElement.querySelector('.follow-up-cooldown-note') : null;
+        if (!noteEl && buttonEl.parentElement) {
+            noteEl = document.createElement('span');
+            noteEl.className = 'follow-up-cooldown-note';
+            buttonEl.parentElement.insertBefore(noteEl, buttonEl.nextSibling);
+        }
+        if (noteEl) {
+            noteEl.textContent = cooldownLabel;
+        }
         var ticketId = parseInt(buttonEl.getAttribute('data-ticket-id') || '', 10);
         if (ticketId > 0) {
             buttonEl.setAttribute('aria-label', 'Follow up is on cooldown for ticket #' + ticketId);

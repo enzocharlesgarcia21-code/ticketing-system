@@ -282,7 +282,7 @@ window.TM_MESSENGER_STYLE = 'employee';
     top: 0;
     bottom: 0;
     width: 5px;
-    background: var(--notif-accent, #1B5E20);
+    background: #1B5E20 !important;
     border-radius: 0;
 }
 .notif-item.notif-chat-pending.unread::after {

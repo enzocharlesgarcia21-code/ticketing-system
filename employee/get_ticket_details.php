@@ -471,8 +471,12 @@ if ($row = $result->fetch_assoc()) {
     if ($row['is_sales_ticket'] && !$hasActualAssignee) {
         $canUpdateTab = ticket_user_is_handler_candidate($row, $currentUserId, $userContext);
     }
-    $row['can_update_tab'] = $canUpdateTab;
     $row = ticket_chat_apply_effective_handler($row);
+    $row['can_claim_ticket'] = ticket_user_can_manual_claim($row, $currentUserId, $userContext);
+    if (!empty($row['can_claim_ticket'])) {
+        $canUpdateTab = false;
+    }
+    $row['can_update_tab'] = $canUpdateTab;
     $hasAccess = ticket_user_matches_requester($row, $currentUserId, $userContext)
         || ticket_user_is_handler_candidate($row, $currentUserId, $userContext);
     if (!$hasAccess) {
@@ -495,6 +499,8 @@ if ($row = $result->fetch_assoc()) {
     $row['assigned_to_department'] = isset($row['assigned_to_department']) ? (string) $row['assigned_to_department'] : '';
     if ($row['can_chat']) {
         $row['chat_locked_message'] = '';
+    } elseif (!empty($row['can_claim_ticket'])) {
+        $row['chat_locked_message'] = 'Claim this ticket first before joining the conversation.';
     } elseif ($chatClosedMessage !== '') {
         $row['chat_locked_message'] = $chatClosedMessage;
     } elseif ($row['assigned_to_name'] !== '') {
@@ -558,6 +564,30 @@ if ($row = $result->fetch_assoc()) {
         }
     }
     $row['duration'] = $duration;
+
+    // Load the full saved activity history so the employee modal can show
+    // real assignment/reassignment events instead of falling back to the
+    // current assignee snapshot.
+    $row['ticket_activity'] = [];
+    $activityStmt = $conn->prepare("
+        SELECT activity_type, description, created_at
+        FROM ticket_activity
+        WHERE ticket_id = ?
+        ORDER BY created_at ASC, id ASC
+    ");
+    if ($activityStmt) {
+        $activityStmt->bind_param("i", $id);
+        $activityStmt->execute();
+        $activityRes = $activityStmt->get_result();
+        while ($activityRes && ($activityRow = $activityRes->fetch_assoc())) {
+            $row['ticket_activity'][] = [
+                'activity_type' => (string) ($activityRow['activity_type'] ?? ''),
+                'description' => (string) ($activityRow['description'] ?? ''),
+                'created_at' => (string) ($activityRow['created_at'] ?? ''),
+            ];
+        }
+        $activityStmt->close();
+    }
 
     echo json_encode($row);
 } else {

@@ -11,6 +11,30 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 ticket_ensure_assignment_columns($conn);
 ticket_apply_sla_priority($conn);
 
+function admin_sla_display_label(string $slaLevel): string
+{
+    $map = [
+        'Low' => 'On Track',
+        'Medium' => 'At Risk',
+        'High' => 'Breach',
+    ];
+    return $map[$slaLevel] ?? $slaLevel;
+}
+
+function admin_normalize_sla_filter(string $sla): string
+{
+    $sla = trim($sla);
+    $map = [
+        'On Track' => 'Low',
+        'At Risk' => 'Medium',
+        'Breach' => 'High',
+        'Low' => 'Low',
+        'Medium' => 'Medium',
+        'High' => 'High',
+    ];
+    return $map[$sla] ?? '';
+}
+
 function time_ago_days(string $dateTime): string
 {
     $dateTime = trim($dateTime);
@@ -36,10 +60,10 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '<span class="sla-empty">-</span>';
     $priorityKey = strtolower(trim($priority));
     if ($priorityKey === 'critical') {
-        return '<span class="badge badge-high">High</span>';
+        return '<span class="badge badge-high">' . htmlspecialchars(admin_sla_display_label('High'), ENT_QUOTES, 'UTF-8') . '</span>';
     }
     if ($priorityKey === 'high') {
-        return '<span class="badge badge-medium">Medium</span>';
+        return '<span class="badge badge-medium">' . htmlspecialchars(admin_sla_display_label('Medium'), ENT_QUOTES, 'UTF-8') . '</span>';
     }
     if ($createdAt === '') return '<span class="sla-empty">-</span>';
     try {
@@ -55,17 +79,17 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
     if ($diff->invert !== 1) $days = 0;
 
     if ($days >= 7) {
-        return '<span class="badge badge-high">High</span>';
+        return '<span class="badge badge-high">' . htmlspecialchars(admin_sla_display_label('High'), ENT_QUOTES, 'UTF-8') . '</span>';
     }
     if ($days >= 4) {
-        return '<span class="badge badge-medium">Medium</span>';
+        return '<span class="badge badge-medium">' . htmlspecialchars(admin_sla_display_label('Medium'), ENT_QUOTES, 'UTF-8') . '</span>';
     }
-    return '<span class="badge badge-low">Low</span>';
+    return '<span class="badge badge-low">' . htmlspecialchars(admin_sla_display_label('Low'), ENT_QUOTES, 'UTF-8') . '</span>';
 }
 
 function sla_filter_condition_sql(string $tableAlias, string $sla): string
 {
-    $sla = strtolower(trim($sla));
+    $sla = strtolower(admin_normalize_sla_filter($sla));
     if (!in_array($sla, ['low', 'medium', 'high'], true)) return '';
 
     $statusExpr = "LOWER(COALESCE(NULLIF($tableAlias.status,''),''))";
@@ -126,6 +150,10 @@ if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
 $department = $_GET['department'] ?? '';
 $company_email = $_GET['company_email'] ?? '';
 $sla        = trim((string) ($_GET['sla'] ?? ($_GET['priority'] ?? '')));
+$slaLevel = admin_normalize_sla_filter($sla);
+if ($slaLevel !== '') {
+    $sla = admin_sla_display_label($slaLevel);
+}
 $status     = $_GET['status']     ?? '';
 $search     = $_GET['search']     ?? '';
 $view       = (string) ($_GET['view'] ?? '');
@@ -563,9 +591,9 @@ $result = $stmt->get_result();
 
                         <select name="sla" class="filter-select" onchange="submitForm()">
                             <option value="" <?= $sla === '' ? 'selected' : '' ?>>All SLA</option>
-                            <option value="Low" <?= $sla=='Low'?'selected':'' ?>>Low</option>
-                            <option value="Medium" <?= $sla=='Medium'?'selected':'' ?>>Medium</option>
-                            <option value="High" <?= $sla=='High'?'selected':'' ?>>High</option>
+                            <option value="On Track" <?= $sla=='On Track'?'selected':'' ?>>On Track</option>
+                            <option value="At Risk" <?= $sla=='At Risk'?'selected':'' ?>>At Risk</option>
+                            <option value="Breach" <?= $sla=='Breach'?'selected':'' ?>>Breach</option>
                         </select>
 
                         <select name="status" class="filter-select" onchange="submitForm()">

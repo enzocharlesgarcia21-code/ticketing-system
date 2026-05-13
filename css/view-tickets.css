@@ -425,6 +425,44 @@
     z-index: 9;
 }
 
+.tm-tabs-actions {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 0;
+}
+
+.tm-claim-ticket-btn {
+    border: 1px solid #22c55e;
+    background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 10px 20px rgba(22, 163, 74, 0.18);
+}
+
+.tm-claim-ticket-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(22, 163, 74, 0.24);
+}
+
+.tm-claim-ticket-btn:disabled,
+.tm-claim-ticket-btn.is-loading {
+    opacity: 0.72;
+    cursor: wait;
+    transform: none;
+    box-shadow: none;
+}
+
 .chat-open-btn {
     background: #2563eb;
     color: #fff;

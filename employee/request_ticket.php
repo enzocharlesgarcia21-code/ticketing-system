@@ -4833,10 +4833,6 @@ if (count($sapFormEntries) === 0) {
             const options = Array.from(departmentSelect.options).filter(function(option) {
                 return String(option.value || '') !== '';
             });
-            if (options.length === 1 && String(departmentSelect.value || '') === '') {
-                departmentSelect.value = String(options[0].value || '');
-                departmentSelect.setAttribute('data-selected', String(options[0].value || ''));
-            }
             const currentValue = String(departmentSelect.value || '');
             departmentMenu.innerHTML = '';
             options.forEach(function(option) {
@@ -4858,9 +4854,9 @@ if (count($sapFormEntries) === 0) {
                 });
                 departmentMenu.appendChild(item);
             });
-            setStaticSelectState(departmentWrapper, departmentTrigger, departmentMenu, options.length <= 1);
+            setStaticSelectState(departmentWrapper, departmentTrigger, departmentMenu, false);
             syncDepartmentTriggerLabel();
-            departmentTrigger.disabled = !!departmentSelect.disabled || options.length <= 1;
+            departmentTrigger.disabled = !!departmentSelect.disabled;
             if (departmentSelect.disabled) {
                 closeDepartmentDropdown();
             }
@@ -4880,9 +4876,6 @@ if (count($sapFormEntries) === 0) {
             });
             if (selectedValue !== '' && !options.includes(selectedValue)) {
                 departmentSelect.value = '';
-            } else if (selectedValue === '' && options.length === 1) {
-                departmentSelect.value = String(options[0] || '');
-                departmentSelect.setAttribute('data-selected', String(options[0] || ''));
             }
             renderDepartmentDropdownOptions();
         }
@@ -5595,9 +5588,10 @@ if (count($sapFormEntries) === 0) {
         function toggleHrExtraFields() {
             if (!urgencyContainer || !priorityHidden) return;
             const shouldShow = isLapcHrSelection();
-            const shouldShowMarketingRequest = isMhcMarketingSelection();
-            const shouldShowUrgency = shouldShow || shouldShowMarketingRequest;
             const selectedCategory = categorySelect ? String(categorySelect.value || '') : '';
+            const isMhcMarketingDepartment = isMhcMarketingSelection();
+            const shouldShowMarketingRequest = isMhcMarketingDepartment && selectedCategory === 'Marketing Request';
+            const shouldShowUrgency = shouldShow || isMhcMarketingDepartment;
             const shouldShowConcernType = shouldShow && selectedCategory === 'Attendance & Timekeeping';
             const shouldShowConcernTypeOther = shouldShowConcernType && concernTypeSelect && String(concernTypeSelect.value || '') === 'Other';
             const shouldShowLeaveSubject = shouldShow && (selectedCategory === 'Leave Concern' || selectedCategory === 'Others');
@@ -5616,7 +5610,7 @@ if (count($sapFormEntries) === 0) {
             const shouldShowSapRequest = isLapcItSelection() && selectedCategory === 'SAP';
             const shouldRequireKamiAttachment = shouldShowConcernType;
             const shouldRequireMedicalAttachment = shouldShowMedicalCashAdvance;
-            setUrgencyOptions(shouldShowMarketingRequest ? 'marketing' : 'hr');
+            setUrgencyOptions(isMhcMarketingDepartment ? 'marketing' : 'hr');
             document.body.classList.toggle('kami-section-active', shouldShowConcernType);
             document.body.classList.toggle('other-section-active', shouldShowOtherDetailsStyle);
             document.body.classList.toggle('medical-cash-section-active', shouldShowMedicalCashAdvance);
