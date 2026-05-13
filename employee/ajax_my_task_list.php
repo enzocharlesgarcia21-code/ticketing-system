@@ -124,12 +124,12 @@ $company_filter_options = [
     '@primestocks.ph' => 'PCC (@primestocks.ph)',
 ];
 $allowed_statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
-$allowed_slas = ['Low', 'Medium', 'High'];
+$allowed_slas = ['On Track', 'At Risk', 'Breach'];
 $selected_company_departments = $allowed_departments_by_company[$company_email] ?? [];
 if (!array_key_exists($company_email, $allowed_departments_by_company) || !in_array($department, $selected_company_departments, true)) $department = '';
 if (!array_key_exists($company_email, $company_filter_options)) $company_email = '';
 if (!in_array($status, $allowed_statuses, true)) $status = '';
-if (!in_array($sla, $allowed_slas, true)) $sla = '';
+if (!in_array($sla, $allowed_slas, true) && !in_array($sla, ['Low', 'Medium', 'High'], true)) $sla = '';
 
 function task_source_label(array $row): string
 {
@@ -157,16 +157,40 @@ function task_source_label(array $row): string
     return '-';
 }
 
+function task_sla_display_label(string $slaLevel): string
+{
+    $map = [
+        'Low' => 'On Track',
+        'Medium' => 'At Risk',
+        'High' => 'Breach',
+    ];
+    return $map[$slaLevel] ?? $slaLevel;
+}
+
+function task_normalize_sla_filter(string $sla): string
+{
+    $sla = trim($sla);
+    $map = [
+        'On Track' => 'Low',
+        'At Risk' => 'Medium',
+        'Breach' => 'High',
+        'Low' => 'Low',
+        'Medium' => 'Medium',
+        'High' => 'High',
+    ];
+    return $map[$sla] ?? '';
+}
+
 function task_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
 {
     $statusKey = strtolower(trim($status));
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
     $priorityKey = strtolower(trim($priority));
     if ($priorityKey === 'critical') {
-        return '<span class="badge badge-high">High</span>';
+        return '<span class="badge badge-high">' . h(task_sla_display_label('High')) . '</span>';
     }
     if ($priorityKey === 'high') {
-        return '<span class="badge badge-medium">Medium</span>';
+        return '<span class="badge badge-medium">' . h(task_sla_display_label('Medium')) . '</span>';
     }
     $createdAt = trim($createdAt);
     if ($createdAt === '') return '-';
@@ -183,16 +207,17 @@ function task_sla_badge_html(string $createdAt, string $status, string $priority
     if ($diff->invert !== 1) $days = 0;
 
     if ($days >= 7) {
-        return '<span class="badge badge-high">High</span>';
+        return '<span class="badge badge-high">' . h(task_sla_display_label('High')) . '</span>';
     }
     if ($days >= 4) {
-        return '<span class="badge badge-medium">Medium</span>';
+        return '<span class="badge badge-medium">' . h(task_sla_display_label('Medium')) . '</span>';
     }
-    return '<span class="badge badge-low">Low</span>';
+    return '<span class="badge badge-low">' . h(task_sla_display_label('Low')) . '</span>';
 }
 
 function task_sla_filter_condition(string $sla): string
 {
+    $sla = task_normalize_sla_filter($sla);
     $activeStatus = "LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')";
     $priority = "LOWER(TRIM(COALESCE(t.priority, '')))";
     $ageHigh = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
@@ -218,6 +243,15 @@ $companyAliases = company_aliases_ajax((string) $user_company);
 if (count($companyAliases) === 0) {
     $companyAliases = [(string) $user_company];
 }
+$userDepartmentKey = ticket_department_key_from_value((string) $user_department);
+$userDepartmentAliases = [];
+foreach (array_merge([(string) $user_department, $userDepartmentKey], ticket_department_aliases_for_key($userDepartmentKey)) as $departmentAlias) {
+    $departmentAlias = strtoupper(trim((string) $departmentAlias));
+    if ($departmentAlias !== '') {
+        $userDepartmentAliases[$departmentAlias] = $departmentAlias;
+    }
+}
+$userDepartmentAliases = array_values($userDepartmentAliases);
 $companyCol = "COALESCE(NULLIF(t.assigned_company, ''), t.company)";
 $companyAliases = array_values(array_filter(array_map('trim', $companyAliases), static function ($v) { return $v !== ''; }));
 $companyAliasCond = count($companyAliases) > 0
@@ -228,11 +262,13 @@ $taskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned
 $sourceDeptExpr = "COALESCE(NULLIF(t.department, ''), NULLIF(u.department, ''))";
 $sourceEmailExpr = "COALESCE(NULLIF(t.requester_email, ''), NULLIF(u.email, ''))";
 $sourceCompanyExpr = "COALESCE(NULLIF(t.company, ''), NULLIF(u.company, ''), CASE WHEN $sourceEmailExpr LIKE '%@%' THEN CONCAT('@', LOWER(SUBSTRING_INDEX($sourceEmailExpr, '@', -1))) ELSE '' END)";
-$groupCond = "$taskDeptExpr = ?";
+$groupCond = count($userDepartmentAliases) > 0
+    ? ("UPPER($taskDeptExpr) IN (" . implode(', ', array_fill(0, count($userDepartmentAliases), '?')) . ")")
+    : "0=1";
 $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
 $requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
 
-$where[] = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND ((NOT $requiresGroupCond) OR (? = '' OR $groupCond))))";
+$where[] = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND ((NOT $requiresGroupCond) OR $groupCond)))";
 $params[] = $user_id;
 $types .= "i";
 $params[] = $user_id;
@@ -251,10 +287,10 @@ foreach ($companyAliases as $co) {
     $params[] = $co;
     $types .= "s";
 }
-$params[] = $user_department;
-$types .= "s";
-$params[] = $user_department;
-$types .= "s";
+foreach ($userDepartmentAliases as $departmentAlias) {
+    $params[] = $departmentAlias;
+    $types .= "s";
+}
 
 if ($search !== '') {
     $term = "%$search%";

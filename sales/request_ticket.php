@@ -79,7 +79,14 @@ $mhcDepartmentCategories = [
     ],
 ];
 
-$requestTicketCompanyOptions = ticket_receiving_available_company_options($conn);
+$requestTicketCompanyOptions = [
+    '@leadstech-corp.com' => 'LTC',
+    '@gpsci.net' => 'GPSCI',
+    '@leadsagri.com' => 'LAPC',
+    '@leads-farmex.com' => 'FARMEX / LAV',
+    '@malvedaholdings.com' => 'MHC',
+    '@malvedaproperties.com' => 'MPDC',
+];
 $requestTicketCompanies = array_keys($requestTicketCompanyOptions);
 $selectedRecipientCompany = normalize_sales_recipient_company((string) ($_POST['company_id'] ?? ''));
 if ($selectedRecipientCompany === '' && count($requestTicketCompanyOptions) === 1) {
@@ -299,8 +306,20 @@ function sales_request_process_upload_field(
     int $maxFiles,
     int $maxFileBytes,
     array $allowedTypes,
-    array $allowedMimes
+    array $allowedMimes,
+    ?int $maxTotalBytes = null,
+    ?string $unsupportedTypeError = null,
+    ?string $oversizeError = null
 ): array {
+    $unsupportedTypeError = trim((string) $unsupportedTypeError);
+    if ($unsupportedTypeError === '') {
+        $unsupportedTypeError = 'Please upload only JPG, PNG, PDF, DOC, or DOCX files for ' . $label . '.';
+    }
+    $oversizeError = trim((string) $oversizeError);
+    if ($oversizeError === '') {
+        $oversizeError = 'Each ' . $label . ' file must be 10 MB or smaller.';
+    }
+
     if (!isset($_FILES[$fieldName])) {
         if ($required) {
             return ['ok' => false, 'error' => 'Please upload the ' . $label . '.'];
@@ -351,6 +370,7 @@ function sales_request_process_upload_field(
 
     $finfo = class_exists('finfo') ? new finfo(FILEINFO_MIME_TYPE) : null;
     $uploadedFiles = [];
+    $totalUploadedBytes = 0;
 
     foreach ($names as $index => $originalName) {
         $errorCode = (int) ($errors[$index] ?? UPLOAD_ERR_NO_FILE);
@@ -360,7 +380,7 @@ function sales_request_process_upload_field(
 
         if ($errorCode === UPLOAD_ERR_INI_SIZE || $errorCode === UPLOAD_ERR_FORM_SIZE) {
             sales_request_cleanup_uploaded_files($uploadedFiles);
-            return ['ok' => false, 'error' => 'Each ' . $label . ' file must be 10 MB or smaller.'];
+            return ['ok' => false, 'error' => $oversizeError];
         }
 
         if ($errorCode !== UPLOAD_ERR_OK) {
@@ -368,19 +388,26 @@ function sales_request_process_upload_field(
             return ['ok' => false, 'error' => 'Unable to upload the ' . $label . ' file right now.'];
         }
 
-        $fileName = trim((string) $originalName);
+        $fileName = function_exists('ticket_pdf_sanitize_original_name')
+            ? ticket_pdf_sanitize_original_name((string) $originalName)
+            : basename(str_replace('\\', '/', trim((string) $originalName)));
         $fileTmp = trim((string) ($tmpNames[$index] ?? ''));
         $fileSize = (int) ($sizes[$index] ?? 0);
         $fileExt = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
 
         if ($fileName === '' || !in_array($fileExt, $allowedTypes, true)) {
             sales_request_cleanup_uploaded_files($uploadedFiles);
-            return ['ok' => false, 'error' => 'Please upload only JPG, PNG, PDF, DOC, or DOCX files for ' . $label . '.'];
+            return ['ok' => false, 'error' => $unsupportedTypeError];
         }
 
         if ($fileSize <= 0 || $fileSize > $maxFileBytes) {
             sales_request_cleanup_uploaded_files($uploadedFiles);
-            return ['ok' => false, 'error' => 'Each ' . $label . ' file must be 10 MB or smaller.'];
+            return ['ok' => false, 'error' => $oversizeError];
+        }
+
+        if ($maxTotalBytes !== null && ($totalUploadedBytes + $fileSize) > $maxTotalBytes) {
+            sales_request_cleanup_uploaded_files($uploadedFiles);
+            return ['ok' => false, 'error' => $oversizeError];
         }
 
         if ($finfo && $fileTmp !== '' && is_file($fileTmp)) {
@@ -388,7 +415,7 @@ function sales_request_process_upload_field(
             $allowed = $allowedMimes[$fileExt] ?? [];
             if ($mime !== '' && count($allowed) > 0 && !in_array($mime, $allowed, true)) {
                 sales_request_cleanup_uploaded_files($uploadedFiles);
-                return ['ok' => false, 'error' => 'Please upload only JPG, PNG, PDF, DOC, or DOCX files for ' . $label . '.'];
+                return ['ok' => false, 'error' => $unsupportedTypeError];
             }
         }
 
@@ -400,11 +427,16 @@ function sales_request_process_upload_field(
             return ['ok' => false, 'error' => 'Unable to save the ' . $label . ' file right now.'];
         }
 
+        if ($fileExt === 'pdf' && function_exists('ticket_pdf_generate_thumbnail')) {
+            ticket_pdf_generate_thumbnail($newFileName);
+        }
+
         $uploadedFiles[] = [
             'stored_name' => $newFileName,
             'original_name' => $label . ' - ' . $fileName,
             'stored_path' => $uploadPath,
         ];
+        $totalUploadedBytes += $fileSize;
     }
 
     if ($required && count($uploadedFiles) === 0) {
@@ -869,102 +901,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $attachmentName = null;
     $uploadedFiles = [];
 
-    
-
     if ($error_msg === '' && isset($_FILES['attachments']) && isset($_FILES['attachments']['name']) && is_array($_FILES['attachments']['name'])) {
-        $maxBytes = 5 * 1024 * 1024;
-        $maxFiles = 5;
-        $selectedFiles = 0;
-        $totalBytes = 0;
-        $allowedTypes = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
-        $allowedMimes = [
-            'jpg' => ['image/jpeg'],
-            'jpeg' => ['image/jpeg'],
-            'png' => ['image/png'],
-            'pdf' => ['application/pdf'],
-            'doc' => ['application/msword', 'application/vnd.ms-word', 'application/octet-stream'],
-            'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
-        ];
-        $finfo = null;
-        if (class_exists('finfo')) {
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-        }
-        $movedPaths = [];
-        $count = count($_FILES['attachments']['name']);
-        for ($i = 0; $i < $count; $i++) {
-            $err = $_FILES['attachments']['error'][$i] ?? UPLOAD_ERR_NO_FILE;
-            if ($err === UPLOAD_ERR_NO_FILE) continue;
-            $selectedFiles++;
-        }
-        if ($selectedFiles > $maxFiles) {
-            $error_msg = "Maximum 5 attachments allowed.";
-        }
-        for ($i = 0; $i < $count; $i++) {
-            if ($error_msg !== '') break;
-            $err = $_FILES['attachments']['error'][$i] ?? UPLOAD_ERR_NO_FILE;
-            if ($err === UPLOAD_ERR_NO_FILE) {
-                continue;
-            }
-            if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) {
-                $error_msg = "Attachment too large. Max 5MB per file.";
-                break;
-            }
-            if ($err !== UPLOAD_ERR_OK) {
-                $error_msg = "Attachment upload failed. Please try again.";
-                break;
-            }
+        $attachmentUploadResult = sales_request_process_upload_field(
+            'attachments',
+            'Attachment',
+            false,
+            5,
+            5 * 1024 * 1024,
+            ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
+            [
+                'jpg' => ['image/jpeg'],
+                'jpeg' => ['image/jpeg'],
+                'png' => ['image/png'],
+                'pdf' => ['application/pdf'],
+                'doc' => ['application/msword', 'application/vnd.ms-word', 'application/octet-stream'],
+                'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
+            ],
+            5 * 1024 * 1024,
+            'Please insert supported files only.',
+            'Attachment too large. Maximum total size is 5 MB.'
+        );
 
-            $origName = (string)($_FILES['attachments']['name'][$i] ?? '');
-            $fileTmp = (string)($_FILES['attachments']['tmp_name'][$i] ?? '');
-            $fileSize = (int)($_FILES['attachments']['size'][$i] ?? 0);
-            $fileExt = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
-
-            if (!in_array($fileExt, $allowedTypes, true)) {
-                $error_msg = "Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.";
-                break;
-            }
-            if ($fileSize <= 0 || $fileSize > $maxBytes) {
-                $error_msg = "Attachment too large. Max 5MB total.";
-                break;
-            }
-            if (($totalBytes + $fileSize) > $maxBytes) {
-                $error_msg = "Attachment too large. Max 5MB total.";
-                break;
-            }
-            if ($finfo && $fileTmp !== '' && is_file($fileTmp)) {
-                $mime = (string) $finfo->file($fileTmp);
-                $allowed = $allowedMimes[$fileExt] ?? [];
-                if ($mime !== '' && count($allowed) > 0 && !in_array($mime, $allowed, true)) {
-                    $error_msg = "Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.";
-                    break;
+        if (empty($attachmentUploadResult['ok'])) {
+            $error_msg = trim((string) ($attachmentUploadResult['error'] ?? 'Attachment upload failed.'));
+        } else {
+            foreach ((array) ($attachmentUploadResult['files'] ?? []) as $uploadedAttachmentFile) {
+                $uploadedFiles[] = $uploadedAttachmentFile;
+                if ($attachmentName === null) {
+                    $attachmentName = (string) ($uploadedAttachmentFile['stored_name'] ?? '');
                 }
             }
-
-            if (!is_dir("../uploads")) {
-                mkdir("../uploads", 0777, true);
-            }
-            $newFileName = time() . "_" . uniqid() . "." . $fileExt;
-            $uploadPath = "../uploads/" . $newFileName;
-            if (!move_uploaded_file($fileTmp, $uploadPath)) {
-                $error_msg = "Failed to save attachment. Please try again.";
-                break;
-            }
-            $movedPaths[] = $uploadPath;
-            $totalBytes += $fileSize;
-            $uploadedFiles[] = ['stored_name' => $newFileName, 'original_name' => $origName];
-        }
-
-        if ($error_msg !== '') {
-            foreach ($movedPaths as $p) {
-                if (is_string($p) && $p !== '' && file_exists($p)) {
-                    unlink($p);
-                }
-            }
-            $uploadedFiles = [];
         }
     }
 
-    if (count($uploadedFiles) > 0) {
+    if ($attachmentName === null && count($uploadedFiles) > 0) {
         $attachmentName = $uploadedFiles[0]['stored_name'];
     }
 
@@ -1731,6 +1701,15 @@ $normalized_company_id = $selectedRecipientCompany;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 18px;
             align-items: start;
+        }
+        body.sales-request-ticket-page .request-grid-row:not(.is-single) > .form-group {
+            grid-column: auto;
+        }
+        body.sales-request-ticket-page #recipientRow:has(#departmentGroup:not(.hidden)) {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        body.sales-request-ticket-page #recipientRow:has(#departmentGroup:not(.hidden)) > .form-group {
+            grid-column: auto;
         }
         body.sales-request-ticket-page .request-grid-row.is-single {
             grid-template-columns: 1fr;
@@ -4751,13 +4730,13 @@ $normalized_company_id = $selectedRecipientCompany;
                     <div class="form-group" id="attachmentContainer">
                         <label><span id="attachmentLabelText">Attachment</span> <span id="attachmentOptionalText">(Optional)</span><span id="attachmentRequiredAsterisk" class="required-asterisk" style="display:none;">*</span></label>
                         <div class="attachment-upload-shell file-control">
-                            <label for="attachments" id="choose-file-btn" class="file-button" role="button" tabindex="0" aria-label="Choose file">
+                            <button type="button" id="choose-file-btn" class="file-button" aria-label="Choose file">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                     <path d="M20 17.5A3.5 3.5 0 0 1 16.5 21H7a5 5 0 0 1-1-9.9V11a6 6 0 0 1 11.53-1.999.75.75 0 1 1-1.4.55A4.5 4.5 0 0 0 7.75 11v.77a.75.75 0 0 1-.63.74A3.5 3.5 0 0 0 7 19.5h9.5A2 2 0 0 0 18.5 15a.75.75 0 1 1 1.5 0zM12 7.5a.75.75 0 0 1 .75.75V12h1.94a.75.75 0 1 1 0 1.5H12.75v1.94a.75.75 0 0 1-1.5 0V13.5H9.31a.75.75 0 1 1 0-1.5h1.94V8.25A.75.75 0 0 1 12 7.5z"/>
                                 </svg>
                                 <span id="chooseFileBtnText">Choose File</span>
-                            </label>
-                            <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" onchange="if (window.TMSalesAttachmentFallbackAdd) window.TMSalesAttachmentFallbackAdd(this.files, this);">
+                            </button>
+                            <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" aria-label="Choose attachment files">
                             <span id="file-name" class="attachment-file-name file-name">No file chosen</span>
                         </div>
                         <small id="attachmentHelpText" class="form-text attachment-help-text">Supported formats: JPG, PNG, PDF, DOCX (Max 5 files)</small>
@@ -4859,6 +4838,28 @@ window.TMSalesAttachmentFallbackAdd = (function() {
             row.style.borderRadius = '10px';
             row.style.background = '#f8fafc';
             row.style.marginBottom = '10px';
+            row.style.cursor = url ? 'pointer' : 'default';
+            if (url) {
+                row.setAttribute('role', 'button');
+                row.setAttribute('tabindex', '0');
+                row.setAttribute('aria-label', 'Preview ' + file.name);
+                row.setAttribute('data-attachment-preview-index', String(idx));
+                row.addEventListener('click', function(event) {
+                    event.stopPropagation();
+                    if (typeof window.TMSalesOpenAttachmentPreviewAt !== 'function') {
+                        return;
+                    }
+                    window.TMSalesOpenAttachmentPreviewAt(idx);
+                });
+                row.addEventListener('keydown', function(event) {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    if (typeof window.TMSalesOpenAttachmentPreviewAt !== 'function') {
+                        return;
+                    }
+                    window.TMSalesOpenAttachmentPreviewAt(idx);
+                });
+            }
 
             var left = document.createElement('button');
             left.type = 'button';
@@ -4873,12 +4874,13 @@ window.TMSalesAttachmentFallbackAdd = (function() {
             left.style.textAlign = 'left';
             left.style.cursor = 'pointer';
 
-            if (url && typeof window.openNormalAttachmentPreviewAt === 'function') {
-                left.addEventListener('click', function() {
-                    if (!Array.isArray(window.normalAttachmentPreviewItems)) {
+            if (url) {
+                left.addEventListener('click', function(event) {
+                    event.stopPropagation();
+                    if (typeof window.TMSalesOpenAttachmentPreviewAt !== 'function') {
                         return;
                     }
-                    window.openNormalAttachmentPreviewAt(idx);
+                    window.TMSalesOpenAttachmentPreviewAt(idx);
                 });
             } else {
                 left.disabled = true;
@@ -4939,7 +4941,8 @@ window.TMSalesAttachmentFallbackAdd = (function() {
             removeBtn.style.cursor = 'pointer';
             removeBtn.style.fontSize = '18px';
             removeBtn.style.lineHeight = '1';
-            removeBtn.addEventListener('click', function() {
+            removeBtn.addEventListener('click', function(event) {
+                event.stopPropagation();
                 if (url) {
                     try { URL.revokeObjectURL(url); } catch (error) {}
                 }
@@ -5763,10 +5766,6 @@ function populateDepartments(options) {
             departmentMenu.appendChild(optionButton);
         }
     });
-    if (selectedValue === '' && options.length === 1) {
-        departmentSelect.value = String(options[0] || '');
-        departmentSelect.setAttribute('data-selected', String(options[0] || ''));
-    }
     syncDepartmentTriggerLabel();
 }
 
@@ -5778,6 +5777,7 @@ function toggleDepartmentField() {
         populateDepartments(lapcDepartments);
         departmentGroup.style.display = '';
         departmentGroup.classList.remove('hidden');
+        if (recipientRow) recipientRow.classList.remove('is-single');
         recipientGroup.classList.remove('full-width');
         departmentSelect.disabled = false;
         departmentSelect.setAttribute('required', 'required');
@@ -5786,6 +5786,7 @@ function toggleDepartmentField() {
         populateDepartments(mhcDepartments);
         departmentGroup.style.display = '';
         departmentGroup.classList.remove('hidden');
+        if (recipientRow) recipientRow.classList.remove('is-single');
         recipientGroup.classList.remove('full-width');
         departmentSelect.disabled = false;
         departmentSelect.setAttribute('required', 'required');
@@ -5793,6 +5794,7 @@ function toggleDepartmentField() {
     } else {
         departmentGroup.style.display = 'none';
         departmentGroup.classList.add('hidden');
+        if (recipientRow) recipientRow.classList.add('is-single');
         recipientGroup.classList.add('full-width');
         departmentSelect.value = '';
         departmentSelect.setAttribute('data-selected', '');
@@ -5805,9 +5807,9 @@ function toggleDepartmentField() {
     var departmentOptions = Array.from(departmentSelect.options).filter(function(option) {
         return String(option.value || '') !== '';
     });
-    setStaticDropdownState(departmentWrapper, departmentTrigger, departmentMenu, departmentOptions.length <= 1 && !departmentSelect.disabled);
+    setStaticDropdownState(departmentWrapper, departmentTrigger, departmentMenu, false);
     if (departmentTrigger) {
-        departmentTrigger.disabled = !!departmentSelect.disabled || (departmentOptions.length <= 1 && !departmentSelect.disabled);
+        departmentTrigger.disabled = !!departmentSelect.disabled;
     }
     syncRequestGridRows();
 }
@@ -6266,8 +6268,8 @@ function syncAttachmentCopy(mode) {
 
 function toggleHrExtraFields() {
     var shouldShow = isLapcHrSelection();
-    var shouldShowMarketingRequest = isLapcMarketingSelection();
     var selectedCategory = categorySelect ? String(categorySelect.value || '') : '';
+    var shouldShowMarketingRequest = isLapcMarketingSelection() && selectedCategory === 'Marketing Request';
     var shouldShowConcernType = shouldShow && selectedCategory === 'Attendance & Timekeeping';
     var shouldShowConcernTypeOther = shouldShowConcernType && concernTypeSelect && String(concernTypeSelect.value || '') === 'Other';
     var shouldShowLeaveSubject = shouldShow && (selectedCategory === 'Leave Concern' || selectedCategory === 'Others');
@@ -6771,6 +6773,7 @@ var dt = createAttachmentTransfer();
 var attachmentFiles = [];
 var objectUrls = [];
 var normalAttachmentPreviewItems = [];
+window.normalAttachmentPreviewItems = normalAttachmentPreviewItems;
 var activeAttachmentPreviewItems = [];
 var activeAttachmentPreviewIndex = -1;
 var activeAttachmentPreviewUrl = '';
@@ -7045,11 +7048,34 @@ function openAttachmentPreviewAt(index) {
 }
 
 function openNormalAttachmentPreviewAt(index) {
-    if (!normalAttachmentPreviewItems.length) return;
-    var item = normalAttachmentPreviewItems[index];
+    var items = (Array.isArray(window.normalAttachmentPreviewItems) && window.normalAttachmentPreviewItems.length)
+        ? window.normalAttachmentPreviewItems
+        : normalAttachmentPreviewItems;
+    if (!items.length) return;
+    var item = items[index];
     if (!item || !item.url) return;
-    openInlineAttachmentPreview(item.file, item.url, false, normalAttachmentPreviewItems, index);
+    openInlineAttachmentPreview(item.file, item.url, false, items, index);
 }
+window.openNormalAttachmentPreviewAt = openNormalAttachmentPreviewAt;
+window.TMSalesOpenAttachmentPreviewAt = function(index) {
+    var items = Array.isArray(window.normalAttachmentPreviewItems) ? window.normalAttachmentPreviewItems : [];
+    if (!items.length) {
+        var files = Array.isArray(window.attachmentFiles) && window.attachmentFiles.length
+            ? window.attachmentFiles
+            : attachmentFiles;
+        items = Array.from(files || []).map(function(file) {
+            var fileUrl = '';
+            try {
+                fileUrl = URL.createObjectURL(file);
+            } catch (error) {}
+            return { file: file, url: fileUrl };
+        }).filter(function(item) {
+            return !!item.url;
+        });
+        window.normalAttachmentPreviewItems = items;
+    }
+    openNormalAttachmentPreviewAt(index);
+};
 
 function showPreviousAttachmentPreview() {
     if (activeAttachmentPreviewIndex < 0) return;
@@ -7104,6 +7130,7 @@ function syncFiles() {
     if (!preview) return;
     clearObjectUrls();
     normalAttachmentPreviewItems = [];
+    window.normalAttachmentPreviewItems = normalAttachmentPreviewItems;
     preview.innerHTML = '';
     attachmentFiles.forEach(function (file, idx) {
         var url = URL.createObjectURL(file);
@@ -7120,6 +7147,20 @@ function syncFiles() {
         row.style.borderRadius = '10px';
         row.style.background = '#f8fafc';
         row.style.marginBottom = '10px';
+        row.style.cursor = 'pointer';
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
+        row.setAttribute('aria-label', 'Preview ' + file.name);
+        row.setAttribute('data-attachment-preview-index', String(idx));
+        row.addEventListener('click', function (event) {
+            event.stopPropagation();
+            openNormalAttachmentPreviewAt(idx);
+        });
+        row.addEventListener('keydown', function (event) {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            openNormalAttachmentPreviewAt(idx);
+        });
 
         var left = document.createElement('button');
         left.type = 'button';
@@ -7133,7 +7174,8 @@ function syncFiles() {
         left.style.background = 'transparent';
         left.style.textAlign = 'left';
         left.style.cursor = 'pointer';
-        left.addEventListener('click', function () {
+        left.addEventListener('click', function (event) {
+            event.stopPropagation();
             openNormalAttachmentPreviewAt(idx);
         });
 
@@ -7192,7 +7234,8 @@ function syncFiles() {
         removeBtn.style.cursor = 'pointer';
         removeBtn.style.fontSize = '18px';
         removeBtn.style.lineHeight = '1';
-        removeBtn.addEventListener('click', function () {
+        removeBtn.addEventListener('click', function (event) {
+            event.stopPropagation();
             try { URL.revokeObjectURL(url); } catch (e) {}
             attachmentFiles = attachmentFiles.filter(function(_, fileIndex) {
                 return fileIndex !== idx;
@@ -7297,6 +7340,30 @@ function addAttachmentFiles(selectedFiles) {
 if (attachmentInput) {
     attachmentInput.addEventListener('change', function (e) {
         addAttachmentFiles(e.target.files || []);
+    });
+}
+
+if (preview) {
+    preview.addEventListener('click', function(event) {
+        var target = event.target;
+        if (!(target instanceof Element)) return;
+        var trigger = target.closest('[data-attachment-preview-index]');
+        if (!trigger || !preview.contains(trigger)) return;
+        var index = parseInt(trigger.getAttribute('data-attachment-preview-index') || '-1', 10);
+        if (index < 0 || typeof window.TMSalesOpenAttachmentPreviewAt !== 'function') return;
+        event.preventDefault();
+        window.TMSalesOpenAttachmentPreviewAt(index);
+    });
+    preview.addEventListener('keydown', function(event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        var target = event.target;
+        if (!(target instanceof Element)) return;
+        var trigger = target.closest('[data-attachment-preview-index]');
+        if (!trigger || !preview.contains(trigger)) return;
+        var index = parseInt(trigger.getAttribute('data-attachment-preview-index') || '-1', 10);
+        if (index < 0 || typeof window.TMSalesOpenAttachmentPreviewAt !== 'function') return;
+        event.preventDefault();
+        window.TMSalesOpenAttachmentPreviewAt(index);
     });
 }
 

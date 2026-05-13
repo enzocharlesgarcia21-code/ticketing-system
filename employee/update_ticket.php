@@ -364,6 +364,21 @@ $updateOk = false;
         // Department reassignment
         if ($old_data['assigned_department'] !== $new_department) {
             $activity_desc = "Reassigned from " . $old_data['assigned_department'] . " to " . $new_department;
+            if ((int) $assigned_user_id > 0) {
+                $assigneeName = '';
+                $assigneeStmt = $conn->prepare("SELECT name FROM users WHERE id = ? LIMIT 1");
+                if ($assigneeStmt) {
+                    $assigneeStmt->bind_param("i", $assigned_user_id);
+                    $assigneeStmt->execute();
+                    $assigneeRes = $assigneeStmt->get_result();
+                    $assigneeRow = $assigneeRes ? $assigneeRes->fetch_assoc() : null;
+                    $assigneeStmt->close();
+                    $assigneeName = trim((string) ($assigneeRow['name'] ?? ''));
+                }
+                if ($assigneeName !== '') {
+                    $activity_desc .= " | Handled by: " . $assigneeName;
+                }
+            }
             $act = $conn->prepare("INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at) VALUES (?, 'department_change', ?, NOW())");
             if ($act) {
                 $act->bind_param("is", $id, $activity_desc);

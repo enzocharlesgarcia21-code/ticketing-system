@@ -44,21 +44,44 @@ function current_employee_email(mysqli $conn, int $userId): string
     return $email;
 }
 
+function my_tickets_sla_display_label(string $slaLevel): string
+{
+    $map = [
+        'Low' => 'On Track',
+        'Medium' => 'At Risk',
+        'High' => 'Breach',
+    ];
+    return $map[$slaLevel] ?? $slaLevel;
+}
+
+function my_tickets_normalize_sla_filter(string $sla): string
+{
+    $sla = trim($sla);
+    $map = [
+        'On Track' => 'Low',
+        'At Risk' => 'Medium',
+        'Breach' => 'High',
+        'Low' => 'Low',
+        'Medium' => 'Medium',
+        'High' => 'High',
+    ];
+    return $map[$sla] ?? '';
+}
+
 function my_tickets_sla_filter_condition(string $sla): string
 {
+    $sla = my_tickets_normalize_sla_filter($sla);
     $activeStatus = "LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')";
-    $priority = "LOWER(TRIM(COALESCE(t.priority, '')))";
-    $ageHigh = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-    $ageMedium = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 4 DAY)";
+    $ageDays = "DATEDIFF(CURDATE(), DATE(t.created_at))";
 
     if ($sla === 'High') {
-        return "($activeStatus AND ($priority = 'critical' OR ($priority NOT IN ('critical', 'high') AND $ageHigh)))";
+        return "($activeStatus AND $ageDays >= 7)";
     }
     if ($sla === 'Medium') {
-        return "($activeStatus AND ($priority = 'high' OR ($priority NOT IN ('critical', 'high') AND $ageMedium AND NOT ($ageHigh))))";
+        return "($activeStatus AND $ageDays BETWEEN 4 AND 6)";
     }
     if ($sla === 'Low') {
-        return "($activeStatus AND $priority NOT IN ('critical', 'high') AND NOT ($ageMedium))";
+        return "($activeStatus AND $ageDays < 4)";
     }
     return '';
 }
@@ -120,7 +143,7 @@ function my_tickets_filter_clauses(mysqli $conn, string $search, string $company
     }
 
     if ($sla !== '') {
-        $allowedSlas = ['Low', 'Medium', 'High'];
+        $allowedSlas = ['On Track', 'At Risk', 'Breach'];
         if (in_array($sla, $allowedSlas, true)) {
             $slaCondition = my_tickets_sla_filter_condition($sla);
             if ($slaCondition !== '') {
@@ -167,13 +190,6 @@ function my_tickets_sla_badge_html(string $createdAt, string $status, string $pr
 {
     $statusKey = strtolower(trim($status));
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
-    $priorityKey = strtolower(trim($priority));
-    if ($priorityKey === 'critical') {
-        return '<span class="badge badge-high">High</span>';
-    }
-    if ($priorityKey === 'high') {
-        return '<span class="badge badge-medium">Medium</span>';
-    }
     $createdAt = trim($createdAt);
     if ($createdAt === '') return '-';
     try {
@@ -189,12 +205,12 @@ function my_tickets_sla_badge_html(string $createdAt, string $status, string $pr
     if ($diff->invert !== 1) $days = 0;
 
     if ($days >= 7) {
-        return '<span class="badge badge-high">High</span>';
+        return '<span class="badge badge-high">' . h(my_tickets_sla_display_label('High')) . '</span>';
     }
     if ($days >= 4) {
-        return '<span class="badge badge-medium">Medium</span>';
+        return '<span class="badge badge-medium">' . h(my_tickets_sla_display_label('Medium')) . '</span>';
     }
-    return '<span class="badge badge-low">Low</span>';
+    return '<span class="badge badge-low">' . h(my_tickets_sla_display_label('Low')) . '</span>';
 }
 
 function can_follow_up_ticket_status(string $status): bool
@@ -414,7 +430,6 @@ function close_ticket_button_html(array $row): string
         . '</form>';
 }
 
-ticket_apply_sla_priority($conn);
 follow_up_ensure_cooldown_columns($conn);
 
 $user_id = (int) ($_SESSION['user_id'] ?? 0);
@@ -434,7 +449,7 @@ if ($limit > 100) $limit = 100;
 if (ticket_normalize_company($companyFilter) !== '@leadsagri.com' || !in_array($departmentFilter, ticket_lapc_departments(), true)) {
     $departmentFilter = '';
 }
-if (!in_array($slaFilter, ['Low', 'Medium', 'High'], true)) {
+if (my_tickets_normalize_sla_filter($slaFilter) === '') {
     $slaFilter = '';
 }
 
@@ -471,20 +486,28 @@ $stmt = $conn->prepare("
     SELECT
         t.*,
         t.follow_up_last_sent_at AS last_follow_up_sent_at,
-        t.follow_up_cooldown_stage AS follow_up_stage,
+        t.follow_up_send_count AS follow_up_stage,
         CASE
-            WHEN t.follow_up_cooldown_stage <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
-            WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 12 HOUR)
-            WHEN t.follow_up_cooldown_stage >= 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 6 HOUR)
-            ELSE NULL
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) >= 7 THEN DATE_ADD(COALESCE(NULLIF(t.follow_up_last_sent_at, ''), t.created_at), INTERVAL 4 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
+            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+            ELSE DATE_ADD(t.created_at, INTERVAL 24 HOUR)
         END AS follow_up_available_at,
         CASE
             WHEN (
                 CASE
-                    WHEN t.follow_up_cooldown_stage <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
-                    WHEN t.follow_up_cooldown_stage = 1 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 12 HOUR)
-                    WHEN t.follow_up_cooldown_stage >= 2 THEN DATE_ADD(t.follow_up_last_sent_at, INTERVAL 6 HOUR)
-                    ELSE NULL
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) >= 7 THEN DATE_ADD(COALESCE(NULLIF(t.follow_up_last_sent_at, ''), t.created_at), INTERVAL 4 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
+                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+                    ELSE DATE_ADD(t.created_at, INTERVAL 24 HOUR)
                 END
             ) > NOW()
             THEN 1
@@ -492,7 +515,7 @@ $stmt = $conn->prepare("
         END AS follow_up_in_cooldown
     FROM employee_tickets t
     WHERE $whereSql
-    ORDER BY t.created_at DESC
+    ORDER BY CASE WHEN t.status = 'Closed' THEN 1 ELSE 0 END ASC, t.created_at DESC
     LIMIT ?, ?
 ");
 if (!$stmt) {

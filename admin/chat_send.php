@@ -129,7 +129,7 @@ $userContext = ticket_build_user_context($conn, $sender_id, $_SESSION);
 $isHandlerCandidate = ticket_user_is_handler_candidate($ticket, $sender_id, $userContext);
 $ticketWasUnassigned = empty($ticket['assigned_to']);
 $autoProgressStatusChanged = false;
-if ($sender_id !== $requesterId && $ticketWasUnassigned && $isHandlerCandidate) {
+if ($sender_id !== $requesterId && $ticketWasUnassigned && $isHandlerCandidate && !ticket_requires_manual_claim($ticket)) {
     $oldStatusBeforeClaim = (string) ($ticket['status'] ?? '');
     $claimedBySender = ticket_claim_first_handler_on_reply($conn, $ticket_id, $sender_id);
     if ($claimedBySender && strcasecmp($oldStatusBeforeClaim, 'Open') === 0) {

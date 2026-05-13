@@ -328,6 +328,7 @@ if ($row = $result->fetch_assoc()) {
     $row['description'] = $clean_desc;
     $row = ticket_chat_apply_effective_handler($row);
     $userContext = ticket_build_user_context($conn, $currentUserId, $_SESSION);
+    $row['can_claim_ticket'] = false;
     $chatClosedMessage = ticket_chat_closed_status_message($row);
     $row['can_chat'] = $chatClosedMessage === '' && ticket_user_can_chat($row, $currentUserId, $userContext);
     $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
@@ -336,6 +337,8 @@ if ($row = $result->fetch_assoc()) {
     $row['assigned_to_department'] = isset($row['assigned_to_department']) ? (string) $row['assigned_to_department'] : '';
     if ($row['can_chat']) {
         $row['chat_locked_message'] = '';
+    } elseif (!empty($row['can_claim_ticket'])) {
+        $row['chat_locked_message'] = 'Claim this ticket first before joining the conversation.';
     } elseif ($chatClosedMessage !== '') {
         $row['chat_locked_message'] = $chatClosedMessage;
     } elseif ($row['assigned_to_name'] !== '') {
@@ -399,6 +402,27 @@ if ($row = $result->fetch_assoc()) {
         }
     }
     $row['duration'] = $duration;
+
+    $row['ticket_activity'] = [];
+    $activityStmt = $conn->prepare("
+        SELECT activity_type, description, created_at
+        FROM ticket_activity
+        WHERE ticket_id = ?
+        ORDER BY created_at ASC, id ASC
+    ");
+    if ($activityStmt) {
+        $activityStmt->bind_param("i", $id);
+        $activityStmt->execute();
+        $activityRes = $activityStmt->get_result();
+        while ($activityRes && ($activityRow = $activityRes->fetch_assoc())) {
+            $row['ticket_activity'][] = [
+                'activity_type' => (string) ($activityRow['activity_type'] ?? ''),
+                'description' => (string) ($activityRow['description'] ?? ''),
+                'created_at' => (string) ($activityRow['created_at'] ?? ''),
+            ];
+        }
+        $activityStmt->close();
+    }
 
     echo json_encode($row);
 } else {

@@ -64,13 +64,6 @@ function sla_badge_html(string $createdAt, string $status, string $priority = ''
 {
     $statusKey = strtolower(trim($status));
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '<span class="sla-empty">-</span>';
-    $priorityKey = strtolower(trim($priority));
-    if ($priorityKey === 'critical') {
-        return '<span class="badge badge-high">High</span>';
-    }
-    if ($priorityKey === 'high') {
-        return '<span class="badge badge-medium">Medium</span>';
-    }
     $createdAt = trim($createdAt);
     if ($createdAt === '') return '<span class="sla-empty">-</span>';
     try {
@@ -98,17 +91,16 @@ function sla_filter_condition_sql(string $tableAlias, string $sla): string
     if (!in_array($sla, ['low', 'medium', 'high'], true)) return '';
 
     $statusExpr = "LOWER(COALESCE(NULLIF($tableAlias.status,''),''))";
-    $priorityExpr = "LOWER(COALESCE(NULLIF($tableAlias.priority,''),''))";
     $ageExpr = "DATEDIFF(CURDATE(), DATE($tableAlias.created_at))";
     $activeExpr = "$tableAlias.created_at IS NOT NULL AND $statusExpr NOT IN ('resolved','closed')";
 
     if ($sla === 'low') {
-        return "$activeExpr AND $priorityExpr NOT IN ('critical','high') AND $ageExpr < 4";
+        return "$activeExpr AND $ageExpr < 4";
     }
     if ($sla === 'medium') {
-        return "$activeExpr AND ($priorityExpr = 'high' OR ($priorityExpr NOT IN ('critical','high') AND $ageExpr BETWEEN 4 AND 6))";
+        return "$activeExpr AND $ageExpr BETWEEN 4 AND 6";
     }
-    return "$activeExpr AND ($priorityExpr = 'critical' OR ($priorityExpr NOT IN ('critical','high') AND $ageExpr >= 7))";
+    return "$activeExpr AND $ageExpr >= 7";
 }
 
 function assigned_target_label(array $row): string

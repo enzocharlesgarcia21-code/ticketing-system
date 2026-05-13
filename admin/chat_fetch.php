@@ -154,7 +154,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             'last_message' => $canChat ? (string) $r['last_message'] : '',
             'last_sender_name' => $canChat ? (string) $r['last_sender_name'] : '',
             'can_chat' => $canChat,
-            'chat_locked_message' => $canChat ? '' : ($chatClosedMessage !== '' ? $chatClosedMessage : "You can't message. This ticket is already assigned.")
+            'chat_locked_message' => $canChat ? '' : (ticket_user_can_manual_claim($ticketRow, $current_user_id, $userContext)
+                ? 'Claim this ticket first before joining the conversation.'
+                : ($chatClosedMessage !== '' ? $chatClosedMessage : "You can't message. This ticket is already assigned."))
         ];
     }
     echo json_encode($rows, JSON_UNESCAPED_UNICODE);
@@ -217,9 +219,11 @@ $canViewClosedChat = $chatClosedMessage !== '' && (
 if (!$canChatForTicket && !$canViewClosedChat) {
     http_response_code(403);
     echo json_encode([
-        'error' => ($chatClosedMessage !== '' ? $chatClosedMessage : ($handlerId > 0
+        'error' => (ticket_user_can_manual_claim($ticket, $current_user_id, $userContext)
+            ? 'Claim this ticket first before joining the conversation.'
+            : ($chatClosedMessage !== '' ? $chatClosedMessage : ($handlerId > 0
             ? ('This ticket is already assigned to ' . ($handlerName !== '' ? $handlerName : 'another IT staff') . '.')
-            : 'You are not allowed to access this chat.'))
+            : 'You are not allowed to access this chat.')))
     ]);
     exit;
 }

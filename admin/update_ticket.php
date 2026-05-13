@@ -180,6 +180,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $act->close();
             }
         }
+        if ($oldDept !== $newDeptNorm) {
+            $activity_desc = "Reassigned from " . ($oldDept !== '' ? $oldDept : 'Unassigned') . " to " . ($newDeptNorm !== '' ? $newDeptNorm : 'Unassigned');
+            if ((int) $assigned_user_id > 0) {
+                $assigneeName = '';
+                $assigneeStmt = $conn->prepare("SELECT name FROM users WHERE id = ? LIMIT 1");
+                if ($assigneeStmt) {
+                    $assigneeStmt->bind_param("i", $assigned_user_id);
+                    $assigneeStmt->execute();
+                    $assigneeRes = $assigneeStmt->get_result();
+                    $assigneeRow = $assigneeRes ? $assigneeRes->fetch_assoc() : null;
+                    $assigneeStmt->close();
+                    $assigneeName = trim((string) ($assigneeRow['name'] ?? ''));
+                }
+                if ($assigneeName !== '') {
+                    $activity_desc .= " | Handled by: " . $assigneeName;
+                }
+            }
+            $actDept = $conn->prepare("INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at) VALUES (?, 'department_change', ?, NOW())");
+            if ($actDept) {
+                $actDept->bind_param("is", $id, $activity_desc);
+                $actDept->execute();
+                $actDept->close();
+            }
+        }
+        if ($oldCompany !== $newCompanyNorm) {
+            $activity_desc = "Reassigned from company " . ($oldCompany !== '' ? $oldCompany : 'Unassigned') . " to " . ($newCompanyNorm !== '' ? $newCompanyNorm : 'Unassigned');
+            $actCompany = $conn->prepare("INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at) VALUES (?, 'company_change', ?, NOW())");
+            if ($actCompany) {
+                $actCompany->bind_param("is", $id, $activity_desc);
+                $actCompany->execute();
+                $actCompany->close();
+            }
+        }
         // Optional explicit close activity
         if ($new_status === 'Closed') {
             $act2 = $conn->prepare("INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at) VALUES (?, 'status_change', 'Ticket closed', NOW())");

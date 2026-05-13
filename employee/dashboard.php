@@ -338,13 +338,13 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
 {
     $rank = dashboard_sla_rank($createdAt, $status, $priority);
     if ($rank === 0) {
-        return '<span class="badge badge-high">High</span>';
+        return '<span class="badge badge-high">Breach</span>';
     }
     if ($rank === 1) {
-        return '<span class="badge badge-medium">Medium</span>';
+        return '<span class="badge badge-medium">At Risk</span>';
     }
     if ($rank === 2) {
-        return '<span class="badge badge-low">Low</span>';
+        return '<span class="badge badge-low">On Track</span>';
     }
     return '-';
 }

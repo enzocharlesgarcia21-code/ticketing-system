@@ -379,6 +379,28 @@
       minute: '2-digit'
     });
   }
+  function getEffectiveSlaVariant(createdAt, status, priority) {
+    var statusKey = status == null ? '' : String(status).trim().toLowerCase();
+    if (statusKey === 'resolved' || statusKey === 'closed') return '';
+    if (!createdAt) return 'low';
+    var created = createdAt instanceof Date ? createdAt : new Date(createdAt);
+    if (isNaN(created.getTime())) return 'low';
+    var now = new Date();
+    var createdDay = new Date(created.getFullYear(), created.getMonth(), created.getDate());
+    var nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var diffMs = nowDay.getTime() - createdDay.getTime();
+    var days = diffMs > 0 ? Math.floor(diffMs / 86400000) : 0;
+    if (days >= 7) return 'high';
+    if (days >= 4) return 'medium';
+    return 'low';
+  }
+  function getEffectiveSlaLabel(createdAt, status, priority) {
+    var variant = getEffectiveSlaVariant(createdAt, status, priority);
+    if (variant === 'high') return 'Breach';
+    if (variant === 'medium') return 'At Risk';
+    if (variant === 'low') return 'On Track';
+    return '';
+  }
   function assignedCompanyUsesDepartment(companyValue) {
     var normalized = normalizeCompanyValue(companyValue);
     return normalized === '@leadsagri.com';
@@ -456,11 +478,56 @@
     var createdAt = ticket.created_at ? new Date(ticket.created_at) : null;
     var updatedAt = ticket.updated_at ? new Date(ticket.updated_at) : null;
     var fallbackWhen = updatedAt || createdAt;
-    var events = [{ title: 'Ticket created', when: createdAt }];
     var assignedInfo = getAssignedTargetParts(ticket);
-    if (assignedInfo.primary) events.push({ title: 'Assigned to ' + assignedInfo.primary, when: fallbackWhen });
-    if (ticket.admin_note && String(ticket.admin_note).trim() !== '') events.push({ title: 'Admin added a note', when: fallbackWhen });
-    if (ticket.status && ticket.status !== 'Open') events.push({ title: 'Status changed to ' + ticket.status, when: fallbackWhen });
+    var activityItems = Array.isArray(ticket && ticket.ticket_activity) ? ticket.ticket_activity : [];
+    var events = [{ title: 'Ticket created', when: createdAt }];
+    var hasAssignmentEvent = false;
+
+    activityItems.forEach(function (item) {
+      var type = String((item && item.activity_type) || '').trim().toLowerCase();
+      var raw = String((item && item.description) || '').trim();
+      var when = item && item.created_at ? new Date(item.created_at) : fallbackWhen;
+      var title = raw;
+
+      if (type === 'department_change') {
+        var deptMatch = raw.match(/to\s+([^|]+?)(?:\s*\|\s*Handled by:\s*(.+))?$/i);
+        var departmentLabel = deptMatch && deptMatch[1] ? String(deptMatch[1]).trim() : '';
+        var handlerLabel = deptMatch && deptMatch[2] ? String(deptMatch[2]).trim() : '';
+        title = departmentLabel ? ('Reassigned to ' + departmentLabel) : 'Ticket reassigned';
+        if (handlerLabel) {
+          title += ' | Handled by: ' + handlerLabel;
+        } else if (assignedInfo.handledBy) {
+          title += ' | Handled by: ' + assignedInfo.handledBy;
+        }
+        hasAssignmentEvent = true;
+      } else if (type === 'company_change') {
+        title = raw !== '' ? raw : 'Company changed';
+      } else if (type === 'status_change') {
+        title = raw !== '' ? raw : 'Status updated';
+      } else if (type === 'note_added') {
+        title = raw !== '' ? raw : 'Admin added a note';
+      } else if (type === 'priority_escalated') {
+        title = raw !== '' ? raw : 'Priority escalated';
+      } else if (raw !== '') {
+        title = raw;
+      }
+
+      if (title !== '') {
+        events.push({ title: title, when: when });
+      }
+    });
+
+    if (activityItems.length === 0 && assignedInfo.primary) {
+      var assignmentTitle = 'Assigned to ' + assignedInfo.primary;
+      if (assignedInfo.handledBy) {
+        assignmentTitle += ' | Handled by: ' + assignedInfo.handledBy;
+      }
+      events.push({ title: assignmentTitle, when: fallbackWhen });
+    }
+    if (activityItems.length === 0) {
+      if (ticket.admin_note && String(ticket.admin_note).trim() !== '') events.push({ title: 'Admin added a note', when: fallbackWhen });
+      if (ticket.status && ticket.status !== 'Open') events.push({ title: 'Status changed to ' + ticket.status, when: fallbackWhen });
+    }
     return '<div class="tm-timeline">' + events.map(function (e) {
       return '<div class="tm-timeline-item"><div class="tm-timeline-content"><div class="tm-timeline-title">' + escapeHtml(e.title) + '</div><div class="tm-timeline-time">' + formatTimelineTime(e.when) + '</div></div></div>';
     }).join('') + '</div>';
@@ -2116,6 +2183,7 @@
   function buildHtml(data) {
     var hideUpdateTab = typeof window !== 'undefined' && window.TM_HIDE_UPDATE_TAB === true;
     if (data && data.can_update_tab === false) hideUpdateTab = true;
+    var isClosedTicket = !!(data && String(data.status || '').trim().toLowerCase() === 'closed');
     var hideAdminChat = typeof window !== 'undefined' && window.TM_HIDE_ADMIN_CHAT === true;
     var hideRequesterAdminChatButton = typeof window !== 'undefined' && window.TM_HIDE_REQUESTOR_ADMIN_CHAT_BUTTON === true;
     var isSalesTicket = !!(data && data.is_sales_ticket);
@@ -2126,7 +2194,9 @@
       hasActualAssignee = parseInt(data.assigned_to || 0, 10) > 0;
     }
     if (isSalesTicket && !hasActualAssignee) hideUpdateTab = false;
+    if (isClosedTicket) hideUpdateTab = true;
     var hideConversationTab = hideAdminChat || isSalesTicket;
+    var showClaimButton = !!(data && data.can_claim_ticket === true);
     var hideAdminConversationButton = hideRequesterAdminChatButton || isSalesTicket;
     var hideQuickTags = typeof window !== 'undefined' && window.TM_HIDE_QUICK_TAGS === true;
     var showDepartmentUserSelect = typeof window !== 'undefined' && window.TM_SHOW_DEPARTMENT_USER_SELECT === true;
@@ -2134,7 +2204,9 @@
     var deptRequired = typeof window !== 'undefined' && window.TM_DEPARTMENT_REQUIRED === true;
     var deptLabelHtml = escapeHtml(deptLabelText) + (deptRequired ? ' <span class="tm-required-star">*</span>' : '');
     var statusSlug = data.status ? data.status.toLowerCase().replace(/\s+/g, '') : 'default';
-    var prioritySlug = data.priority ? data.priority.toLowerCase() : 'default';
+    var slaVariant = getEffectiveSlaVariant(data && data.created_at, data && data.status, data && data.priority);
+    var slaLabel = getEffectiveSlaLabel(data && data.created_at, data && data.status, data && data.priority) || '-';
+    var prioritySlug = slaVariant || 'default';
     var resolutionStart = (data && (data.started_at || data.created_at)) ? (data.started_at || data.created_at) : null;
     var resolutionEnd = (data && data.status && (/^(Resolved|Closed)$/i).test(String(data.status)))
       ? (data.resolved_at || data.updated_at || null)
@@ -2228,13 +2300,16 @@
       '        </div>' +
       '      </div></div>';
     var sapHeaderClass = isSapTicket(data, data && data.description ? data.description : '') ? ' tm-sap-header' : '';
+    var claimButtonHtml = showClaimButton
+      ? ('  <div class="tm-tabs-actions"><button type="button" class="tm-claim-ticket-btn" onclick="TMTicketModal.claimTicket(' + String(data.id) + ', this)"><i class="fas fa-user-check"></i><span>Claim Ticket</span></button></div>')
+      : '';
     return '' +
       '<div class="tm-header' + sapHeaderClass + '">' +
       '  <div class="tm-header-left">' +
       '    <div class="tm-title">' + escapeHtml(getDisplaySubject(data)) + '</div>' +
       '    <div class="tm-chips">' +
       '      <span class="tm-chip tm-chip-' + statusSlug + '">' + escapeHtml(data.status) + '</span>' +
-      '      <span class="tm-chip tm-chip-' + prioritySlug + '">' + escapeHtml(data.priority) + '</span>' +
+      '      <span class="tm-chip tm-chip-' + prioritySlug + '">' + escapeHtml(slaLabel) + '</span>' +
       '      <span class="tm-id">#' + String(data.id).padStart(6, '0') + '</span>' +
       '    </div>' +
       '  </div>' +
@@ -2244,6 +2319,7 @@
       '  <div class="tm-tab active" data-tab="info" onclick="TMTicketModal.switchTab(\'info\')">Information</div>' +
       (hideUpdateTab ? '' : '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Update</div>') +
       (hideConversationTab ? '' : '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Go to Chat</div>') +
+      claimButtonHtml +
       '</div>' +
       '<div class="tm-body">' +
       '  <div id="tab-info" class="tm-tab-content active">' +
@@ -2373,7 +2449,7 @@
     var ticketIdLabel = /^\d+$/.test(ticketId) ? String(ticketId).padStart(6, '0') : ticketId;
     var subject = getDisplaySubject(safe);
     var status = safe && safe.status ? String(safe.status) : '-';
-    var priority = safe && safe.priority ? String(safe.priority) : '-';
+    var priority = getEffectiveSlaLabel(safe && safe.created_at, safe && safe.status, safe && safe.priority) || '-';
     var requester = safe && safe.created_by_name ? String(safe.created_by_name) : '-';
     var requesterEmail = safe && safe.created_by_email ? String(safe.created_by_email) : '-';
     var assignedInfo = getAssignedTargetParts(safe);
@@ -2499,6 +2575,31 @@
     if (content) content.classList.add('active');
     if (tab) tab.classList.add('active');
     if (tabName === 'chat') { /* no-op: chat now opens in separate modal */ }
+  }
+  function claimTicket(ticketId, buttonEl) {
+    if (!ticketId) return;
+    if (buttonEl) {
+      buttonEl.disabled = true;
+      buttonEl.classList.add('is-loading');
+    }
+    var formData = new FormData();
+    formData.append('ticket_id', String(ticketId));
+    var token = getCsrfToken();
+    if (token) formData.append('csrf_token', token);
+    postJson('claim_ticket.php', formData)
+      .then(function (data) {
+        if (!data || data.ok !== true) {
+          throw new Error(String((data && (data.error || data.message)) || 'Unable to claim ticket.'));
+        }
+        open(ticketId);
+      })
+      .catch(function (err) {
+        if (buttonEl) {
+          buttonEl.disabled = false;
+          buttonEl.classList.remove('is-loading');
+        }
+        window.alert(err && err.message ? err.message : 'Unable to claim ticket.');
+      });
   }
   function ensureChatModalExists() {
     if (qs('chatModal')) return;
@@ -4575,6 +4676,7 @@
     open: open,
     close: close,
     switchTab: switchTab,
+    claimTicket: claimTicket,
     sendMessage: sendMessage,
     openChatModal: openChatModal,
     closeChatModal: closeChatModal,

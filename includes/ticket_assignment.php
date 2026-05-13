@@ -1070,19 +1070,44 @@ function ticket_is_shared_lapc_hr_chat(array $ticket): bool
 function ticket_chat_is_closed_by_status(array $ticket): bool
 {
     $status = trim((string) ($ticket['status'] ?? ''));
-    return strcasecmp($status, 'Resolved') === 0 || strcasecmp($status, 'Closed') === 0;
+    return strcasecmp($status, 'Closed') === 0;
 }
 
 function ticket_chat_closed_status_message(array $ticket): string
 {
     $status = trim((string) ($ticket['status'] ?? ''));
-    if (strcasecmp($status, 'Resolved') === 0) {
-        return 'Chat closed because this ticket is now resolved.';
-    }
     if (strcasecmp($status, 'Closed') === 0) {
         return 'Chat closed because this ticket is now closed.';
     }
     return '';
+}
+
+function ticket_requires_manual_claim(array $ticket): bool
+{
+    $status = trim((string) ($ticket['status'] ?? ''));
+    $assignedTo = isset($ticket['assigned_to']) ? (int) $ticket['assigned_to'] : 0;
+    $assignedUserId = isset($ticket['assigned_user_id']) ? (int) $ticket['assigned_user_id'] : 0;
+
+    if ($assignedTo > 0 || $assignedUserId > 0) {
+        return false;
+    }
+
+    return strcasecmp($status, 'In Progress') === 0 || strcasecmp($status, 'Resolved') === 0;
+}
+
+function ticket_user_can_manual_claim(array $ticket, int $userId, ?array $userContext = null): bool
+{
+    if ($userId <= 0 || $userContext === null) {
+        return false;
+    }
+    if (!ticket_requires_manual_claim($ticket)) {
+        return false;
+    }
+    if (ticket_user_matches_requester($ticket, $userId, $userContext)) {
+        return false;
+    }
+
+    return ticket_user_is_handler_candidate($ticket, $userId, $userContext);
 }
 
 function ticket_chat_effective_handler_id(array $ticket): int
@@ -1140,6 +1165,9 @@ function ticket_user_can_chat(array $ticket, int $userId, ?array $userContext = 
     if ($userId <= 0) return false;
     if (ticket_user_matches_requester($ticket, $userId, $userContext)) return true;
     if ($userContext === null) return false;
+    if (ticket_requires_manual_claim($ticket)) {
+        return false;
+    }
     if ($handlerId > 0) {
         return $userId === $handlerId;
     }
