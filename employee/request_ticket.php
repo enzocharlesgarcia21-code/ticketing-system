@@ -431,14 +431,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     ticket_ensure_assignment_columns($conn);
 
     $user_id    = $_SESSION['user_id'];
-    $default_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
+    $default_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'];
     $mpdc_categories = ['Engineerings', 'Client Based'];
     $lapc_department_categories = [
         'Admin & Legal' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
-        'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'],
+        'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
         'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
-        'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Technical Support'],
-        'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'],
+        'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
+        'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
     ];
     $mhc_department_categories = [
         'Marketing Creatives' => ['Marketing Request'],
@@ -1253,6 +1253,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $stmt->close();
 
+    $initialAssignmentLabel = notif_assignment_target_label((string) $assigned_company, (string) $assigned_department, $requiresDepartment ? 'the selected department' : 'the selected recipient');
+    ticket_record_activity($conn, (int) $ticket_id, 'assignment_created', 'Assigned to ' . $initialAssignmentLabel);
+
     request_ticket_meta_ensure_table($conn);
     $ticketMeta = [];
     if ($isLapcHrTicket && $hr_concern_type !== '') {
@@ -1443,13 +1446,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $attachments = notif_ticket_email_attachments($conn, (int) $ticket_id, (string) ($attachmentName ?? ''));
     $attachmentSummary = notif_ticket_attachment_summary($attachments);
 
-    $adminSubject = "New Ticket Submitted (#$ticketNumber)";
-    $adminTpl = notif_email_simple('New Ticket Submitted', [
+    $adminSubject = "Ticket Submitted (#$ticketNumber)";
+    $adminTpl = notif_email_simple('Ticket Submitted', [
         "Ticket ID: #$ticketNumber",
         "Title: $ticketSubject",
         "Category: $category",
         "Priority: $priority",
-        "Status: $ticketStatus",
+        "Current Status: $ticketStatus",
         "Assigned Department: $ticketAssignedDept",
         "Requested by: $requesterName",
         "Requester Email: $employeeEmail"
@@ -1467,15 +1470,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $assigneeLines = [
             "Ticket ID: #$ticketNumber",
             "Category: $category",
-            "Status: $ticketStatus",
+            "Current Status: $ticketStatus",
             "Requested by: $requesterName",
             "Description:\n$ticketDescription"
         ];
         if ($attachmentSummary !== '') {
             $assigneeLines[] = $attachmentSummary;
         }
-        $assigneeTpl = notif_email_simple('Ticket Assigned', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks((int) $ticket_id));
-        notif_email_send($assigneeEmails, "New Ticket Assigned (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
+        $assigneeTpl = notif_email_simple('Ticket Submitted', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks((int) $ticket_id));
+        notif_email_send($assigneeEmails, "Ticket Submitted (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
     }
 
     if ($employeeEmail !== '') {
@@ -1483,14 +1486,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $employeeLines = [
             "Ticket ID: #$ticketNumber",
             "Category: $category",
-            "Status: $ticketStatus",
+            "Current Status: $ticketStatus",
             "Assigned Department: $ticketAssignedDept",
             "Description:\n$ticketDescription"
         ];
         if ($attachmentSummary !== '') {
             $employeeLines[] = $attachmentSummary;
         }
-        $employeeTpl = notif_email_simple('Ticket Submitted', $employeeLines, 'View My Tickets', notif_ticket_link_employee_tickets((int) $ticket_id));
+        $employeeTpl = notif_email_simple('Ticket Submitted', $employeeLines, 'Go To Helpdesk', notif_ticket_link_employee_tickets((int) $ticket_id));
 
         $employeeOk = notif_email_send([$employeeEmail], $employeeSubject, (string) $employeeTpl['html'], (string) $employeeTpl['text'], $attachments);
         if (!$employeeOk) {
@@ -3624,7 +3627,6 @@ if (count($sapFormEntries) === 0) {
                                     <option value="Internet Concerns">Internet Concerns</option>
                                     <option value="Procurement">Procurement</option>
                                     <option value="Software">Software</option>
-                                    <option value="Technical Support">Technical Support</option>
                                 </select>
                                 <button type="button" class="form-control custom-select-trigger" id="categoryTrigger" aria-haspopup="listbox" aria-expanded="false">
                                     <span class="custom-select-value" id="categoryTriggerValue">Choose category</span>
@@ -4552,14 +4554,14 @@ if (count($sapFormEntries) === 0) {
         const sssUploadState = {};
         const lapcDepartments = <?= json_encode(array_values($lapcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mhcDepartments = <?= json_encode(array_values($mhcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const defaultCategories = <?= json_encode(['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const defaultCategories = <?= json_encode(['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mpdcCategories = <?= json_encode(['Engineerings', 'Client Based'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lapcDepartmentCategories = <?= json_encode([
             'Admin & Legal' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
-            'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'],
+            'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
             'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
-            'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Technical Support'],
-            'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'],
+            'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
+            'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mhcDepartmentCategories = <?= json_encode([
             'Marketing Creatives' => ['Marketing Request'],

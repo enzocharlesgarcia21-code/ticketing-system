@@ -169,7 +169,6 @@ $result = $stmt->get_result();
                                 <option <?= $category=='Software Issue'?'selected':'' ?>>Software Issue</option>
                                 <option <?= $category=='Email Problem'?'selected':'' ?>>Email Problem</option>
                                 <option <?= $category=='Account Access'?'selected':'' ?>>Account Access</option>
-                                <option <?= $category=='Technical Support'?'selected':'' ?>>Technical Support</option>
                                 <option <?= $category=='Other'?'selected':'' ?>>Other</option>
                             </select>
                             <i class="fas fa-chevron-down select-icon"></i>

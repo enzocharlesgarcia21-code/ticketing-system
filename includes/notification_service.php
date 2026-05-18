@@ -208,6 +208,35 @@ function notif_assignment_target_label(string $company, string $department = '',
     return trim($fallback) !== '' ? trim($fallback) : 'the selected recipient';
 }
 
+function notif_assignment_email_label(string $company, string $department = '', string $fallback = 'Unassigned'): string
+{
+    $company = trim($company);
+    $department = trim($department);
+    $companyLabel = trim(notif_replace_company_domains($company));
+    if ($companyLabel !== '' && strpos($companyLabel, '@') === 0) {
+        $companyLabel = ltrim($companyLabel, '@');
+    }
+
+    if (notif_company_requires_department($company)) {
+        if ($department !== '' && $companyLabel !== '') {
+            return $department . ' Department - ' . $companyLabel;
+        }
+        if ($department !== '') {
+            return $department . ' Department';
+        }
+    }
+
+    if ($companyLabel !== '') {
+        return $companyLabel;
+    }
+
+    if ($department !== '') {
+        return $department;
+    }
+
+    return trim($fallback) !== '' ? trim($fallback) : 'Unassigned';
+}
+
 function notif_base_url(): string
 {
     $scheme = 'http';
@@ -1054,7 +1083,14 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
     error_log('notif_send_ticket_status_update: ticketId=' . $ticketId . ' old=' . $oldStatus . ' new=' . $newStatus . ' creatorIds=' . implode(',', $creatorIds));
     $creatorEmail = trim((string) ($ticket['creator_email'] ?? ''));
     $ticketNumber = notif_ticket_number($ticketId);
-    $title = strcasecmp($newStatus, 'Closed') === 0 ? 'Ticket Closed' : 'Ticket Status Updated';
+    $title = 'Ticket Status Updated';
+    if (strcasecmp($oldStatus, 'Open') === 0 && strcasecmp($newStatus, 'In Progress') === 0) {
+        $title = 'Ticket Claimed';
+    } elseif (strcasecmp($newStatus, 'Resolved') === 0) {
+        $title = 'Ticket Resolved';
+    } elseif (strcasecmp($newStatus, 'Closed') === 0) {
+        $title = 'Ticket Closed';
+    }
     $attachments = isset($options['attachments']) && is_array($options['attachments']) ? $options['attachments'] : [];
     $assigneeEmails = isset($options['assignee_emails']) && is_array($options['assignee_emails']) ? $options['assignee_emails'] : [];
     $extraLines = isset($options['extra_lines']) && is_array($options['extra_lines']) ? $options['extra_lines'] : [];
@@ -1097,7 +1133,13 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
             'Ticket ID: #' . $ticketNumber,
         ];
         if ($updatedBy !== '') {
-            $lines[] = 'Updated by: ' . $updatedBy;
+            if ($title === 'Ticket Claimed') {
+                $lines[] = 'Handled By: ' . $updatedBy;
+            } elseif ($title === 'Ticket Resolved') {
+                $lines[] = 'Resolved By: ' . $updatedBy;
+            } else {
+                $lines[] = 'Updated By: ' . $updatedBy;
+            }
         }
         foreach ($extraLines as $line) {
             $line = trim((string) $line);
@@ -1118,7 +1160,13 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
             'Ticket ID: #' . $ticketNumber,
         ];
         if ($updatedBy !== '') {
-            $lines[] = 'Updated by: ' . $updatedBy;
+            if ($title === 'Ticket Claimed') {
+                $lines[] = 'Handled By: ' . $updatedBy;
+            } elseif ($title === 'Ticket Resolved') {
+                $lines[] = 'Resolved By: ' . $updatedBy;
+            } else {
+                $lines[] = 'Updated By: ' . $updatedBy;
+            }
         }
         foreach ($extraLines as $line) {
             $line = trim((string) $line);
@@ -1184,52 +1232,76 @@ function notif_send_pending_chat_email(mysqli $conn, int $userId, int $ticketId,
 function notif_email_simple(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
 {
     $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $normalizedTitle = strtolower(trim($title));
+    $introText = '';
+    if ($normalizedTitle === 'ticket submitted' || $normalizedTitle === 'new ticket submitted' || $normalizedTitle === 'new sales ticket') {
+        $introText = 'Your ticket has been successfully submitted and is now awaiting review.';
+    } elseif ($normalizedTitle === 'ticket claimed') {
+        $introText = 'Your ticket has been claimed by a support staff member and is now in progress.';
+    } elseif ($normalizedTitle === 'ticket reassigned') {
+        $introText = 'Your ticket has been reassigned to another department for further handling.';
+    } elseif ($normalizedTitle === 'ticket resolved') {
+        $introText = 'Your ticket has been marked as resolved. Please review the completed update.';
+    } elseif ($normalizedTitle === 'ticket closed') {
+        $introText = 'Your ticket has been closed. Please review the final update.';
+    } elseif ($normalizedTitle === 'ticket assigned') {
+        $introText = 'A support ticket has been assigned and is ready for handling.';
+    }
     $lineHtml = '';
     $lineText = '';
     foreach ($lines as $l) {
         $line = (string) $l;
+        if (strcasecmp(trim($line), 'Ticket has been updated.') === 0) {
+            continue;
+        }
+        $line = preg_replace('/^Status:\s*/i', 'Current Status: ', $line);
+        $line = preg_replace('/^Current status:\s*/i', 'Current Status: ', $line);
         $lineText .= $line . "\n";
         $safeLine = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
         if (preg_match('/^([A-Za-z][A-Za-z\s&]+:)(\s*.*)$/s', $safeLine, $matches)) {
             $safeLine = '<strong>' . $matches[1] . '</strong>' . $matches[2];
         }
-        $lineHtml .= '<div style="margin:0 0 6px 0">' . nl2br($safeLine) . '</div>';
+        $lineHtml .= '<div style="margin:0 0 20px 0; font-size:26px; line-height:1.55; color:#0f172a;">' . nl2br($safeLine) . '</div>';
     }
     $ctaLabelSafe = htmlspecialchars($ctaLabel, ENT_QUOTES, 'UTF-8');
     $ctaUrlSafe = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
     $ctaBlock = '';
     if ($ctaLabelSafe !== '' && $ctaUrlSafe !== '') {
         $ctaBlock = '
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:18px 0 0 0">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:28px 0 0 0">
                         <tr>
                             <td align="left" style="padding:0;">
-                                <a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="display:inline-block; background:#1B5E20; border:1px solid #1B5E20; border-radius:12px; padding:12px 18px; color:#ffffff; text-decoration:none; font-weight:800; font-size:15px; line-height:1.2;">
+                                <a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="display:block; width:100%; box-sizing:border-box; text-align:center; background:#05651f; border:1px solid #05651f; border-radius:16px; padding:18px 24px; color:#ffffff; text-decoration:none; font-weight:900; font-size:26px; line-height:1.2;">
                                     ' . $ctaLabelSafe . '
                                 </a>
                             </td>
                         </tr>
                     </table>';
         $ctaBlock .= '
-                    <div style="margin-top:10px;font-size:13px;line-height:1.4;color:#475569">
-                        If the button does not appear, use this link:
-                        <a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="color:#1B5E20;text-decoration:underline;font-weight:700">' . $ctaLabelSafe . '</a>
+                    <div style="margin-top:16px; font-size:18px; line-height:1.45; color:#475569;">
+                        If the button does not appear, use this link.
+                        <a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="color:#05651f; text-decoration:underline; font-weight:800;">' . $ctaLabelSafe . '</a>
                     </div>';
     }
+    $introHtml = $introText !== ''
+        ? '<div style="margin:0 0 28px 0; font-size:24px; line-height:1.45; color:#0f172a;">' . htmlspecialchars($introText, ENT_QUOTES, 'UTF-8') . '</div>'
+        : '';
     $bodyHtml = "
-        <div style='font-family:Arial, sans-serif; color:#0f172a; line-height:1.5'>
-            <div style='max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden'>
-                <div style='background:linear-gradient(90deg,#1B5E20,#144a1e);padding:18px 20px;color:#ffffff'>
-                    <div style='font-size:16px;font-weight:800'>Leads Agri Helpdesk</div>
-                    <div style='font-size:13px;font-weight:700;color:#FDE68A;margin-top:2px'>$safeTitle</div>
+        <div style='font-family:Arial, sans-serif; color:#0f172a; line-height:1.5; padding:18px 0;'>
+            <div style='max-width:850px;margin:0 auto;background:#ffffff;border:2px solid #d7e3f1;border-radius:26px;overflow:hidden;box-shadow:0 12px 40px rgba(15,23,42,0.06)'>
+                <div style='background:linear-gradient(90deg,#055f1f,#03551b);padding:42px 40px 30px;color:#ffffff'>
+                    <div style='font-size:28px;font-weight:900;line-height:1.15'>Leads Agri Helpdesk</div>
+                    <div style='font-size:20px;font-weight:900;color:#ffe44d;margin-top:12px'>$safeTitle</div>
                 </div>
-                <div style='padding:18px 20px'>
+                <div style='padding:40px 44px 38px'>
+                    $introHtml
                     $lineHtml
                     $ctaBlock
                 </div>
             </div>
         </div>
     ";
-    $bodyText = "Leads Agri Helpdesk\n$title\n\n" . $lineText . "\n$ctaLabel: $ctaUrl\n";
+    $bodyText = "Leads Agri Helpdesk\n$title\n\n" . ($introText !== '' ? ($introText . "\n\n") : '') . $lineText . "\n$ctaLabel: $ctaUrl\n";
     return ['html' => $bodyHtml, 'text' => $bodyText];
 }
 

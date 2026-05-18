@@ -25,7 +25,7 @@ $priority_selected = '';
 $assigned_department_selected = '';
 $lapcDepartments = ticket_receiving_available_departments($conn, '@leadsagri.com');
 $mhcDepartments = ticket_receiving_available_departments($conn, '@malvedaholdings.com');
-$defaultCategories = ['Hardware', 'Software', 'Documentation', 'Email', 'Internet Concerns', 'Procurement', 'Technical Support'];
+$defaultCategories = ['Hardware', 'Software', 'Documentation', 'Email', 'Internet Concerns', 'Procurement'];
 $mpdcCategories = ['Engineerings', 'Client Based'];
 $lapcDepartmentCategories = [
     'Admin & Legal' => [
@@ -40,7 +40,6 @@ $lapcDepartmentCategories = [
         'Internet Concerns',
         'Procurement',
         'Software',
-        'Technical Support',
     ],
     'HR' => [
         'Attendance & Timekeeping',
@@ -61,7 +60,6 @@ $lapcDepartmentCategories = [
         'Procurement',
         'SAP',
         'Software',
-        'Technical Support',
     ],
     'Machineries' => [
         'Documentation',
@@ -70,7 +68,6 @@ $lapcDepartmentCategories = [
         'Internet Concerns',
         'Procurement',
         'Software',
-        'Technical Support',
     ],
 ];
 $mhcDepartmentCategories = [
@@ -1144,6 +1141,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $success_msg = "Ticket successfully submitted! An admin will review it shortly.";
 
                 $ticket_number = str_pad((string) $ticket_id, 6, '0', STR_PAD_LEFT);
+                $initialAssignmentLabel = notif_assignment_target_label((string) $assigned_company, (string) $assigned_department, 'the selected recipient');
+                ticket_record_activity($conn, $ticket_id, 'assignment_created', 'Assigned to ' . $initialAssignmentLabel);
 
                 sales_request_meta_ensure_table($conn);
                 $ticketMeta = [];
@@ -1290,7 +1289,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
 
                 $ticketNumber = str_pad((string) $ticket_id, 6, '0', STR_PAD_LEFT);
-                $subjectLine = "New Sales Ticket (#$ticketNumber)";
+                $subjectLine = "Ticket Submitted (#$ticketNumber)";
                 $assignedRecipientLabel = ticket_company_display_name((string) $assigned_company);
                 if ($assignedRecipientLabel === '') {
                     $assignedRecipientLabel = (string) $assigned_company;
@@ -1299,20 +1298,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $attachments = notif_ticket_email_attachments($conn, $ticket_id, (string) ($attachmentName ?? ''));
                 $attachmentSummary = notif_ticket_attachment_summary($attachments);
 
-                $adminTpl = notif_email_simple('New Sales Ticket', [
+                $adminTpl = notif_email_simple('Ticket Submitted', [
                     "Ticket ID: #$ticketNumber",
                     "Title: $subject",
                     "Category: $category",
-                    "Status: $ticketStatus",
+                    "Current Status: $ticketStatus",
                     "Requester: $email",
                     "Assigned Recipient: $assignedRecipientLabel"
                 ], 'Open Ticket', notif_ticket_link_admin($ticket_id));
                 if ($requiresDepartment) {
-                    $adminTpl = notif_email_simple('New Sales Ticket', [
+                    $adminTpl = notif_email_simple('Ticket Submitted', [
                         "Ticket ID: #$ticketNumber",
                         "Title: $subject",
                         "Category: $category",
-                        "Status: $ticketStatus",
+                        "Current Status: $ticketStatus",
                         "Requester: $email",
                         "Assigned Department: $assigned_department",
                         "Assigned Recipient: $assignedRecipientLabel"
@@ -1327,7 +1326,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $assigneeLines = [
                         "Ticket ID: #$ticketNumber",
                         "Category: $category",
-                        "Status: $ticketStatus",
+                        "Current Status: $ticketStatus",
                         "Requester: $email",
                         "Assigned Recipient: $assignedRecipientLabel",
                         "Description:\n$raw_description"
@@ -1338,14 +1337,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     if ($attachmentSummary !== '') {
                         $assigneeLines[] = $attachmentSummary;
                     }
-                    $assigneeTpl = notif_email_simple('Ticket Assigned', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks($ticket_id));
-                    notif_email_send($assigneeEmails, "New Ticket Assigned (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
+                    $assigneeTpl = notif_email_simple('Ticket Submitted', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks($ticket_id));
+                    notif_email_send($assigneeEmails, "Ticket Submitted (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
                 }
 
                 $requesterLines = [
                     "Ticket ID: #$ticketNumber",
                     "Category: $category",
-                    "Status: $ticketStatus",
+                    "Current Status: $ticketStatus",
                     "Assigned Recipient: $assignedRecipientLabel",
                     "Description:\n$raw_description"
                 ];
@@ -3302,6 +3301,9 @@ $normalized_company_id = $selectedRecipientCompany;
             opacity: 0.6;
             cursor: not-allowed;
         }
+        .file-button svg {
+            flex: 0 0 auto;
+        }
         .file-name {
             color: #475569;
             font-size: 14px;
@@ -4730,12 +4732,12 @@ $normalized_company_id = $selectedRecipientCompany;
                     <div class="form-group" id="attachmentContainer">
                         <label><span id="attachmentLabelText">Attachment</span> <span id="attachmentOptionalText">(Optional)</span><span id="attachmentRequiredAsterisk" class="required-asterisk" style="display:none;">*</span></label>
                         <div class="attachment-upload-shell file-control">
-                            <button type="button" id="choose-file-btn" class="file-button" aria-label="Choose file">
+                            <label for="attachments" id="choose-file-btn" class="file-button" aria-label="Choose file" role="button" tabindex="0">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                     <path d="M20 17.5A3.5 3.5 0 0 1 16.5 21H7a5 5 0 0 1-1-9.9V11a6 6 0 0 1 11.53-1.999.75.75 0 1 1-1.4.55A4.5 4.5 0 0 0 7.75 11v.77a.75.75 0 0 1-.63.74A3.5 3.5 0 0 0 7 19.5h9.5A2 2 0 0 0 18.5 15a.75.75 0 1 1 1.5 0zM12 7.5a.75.75 0 0 1 .75.75V12h1.94a.75.75 0 1 1 0 1.5H12.75v1.94a.75.75 0 0 1-1.5 0V13.5H9.31a.75.75 0 1 1 0-1.5h1.94V8.25A.75.75 0 0 1 12 7.5z"/>
                                 </svg>
                                 <span id="chooseFileBtnText">Choose File</span>
-                            </button>
+                            </label>
                             <input type="file" name="attachments[]" id="attachments" class="file-hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" aria-label="Choose attachment files">
                             <span id="file-name" class="attachment-file-name file-name">No file chosen</span>
                         </div>

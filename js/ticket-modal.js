@@ -403,7 +403,13 @@
   }
   function assignedCompanyUsesDepartment(companyValue) {
     var normalized = normalizeCompanyValue(companyValue);
-    return normalized === '@leadsagri.com';
+    if (typeof window !== 'undefined' && window.TM_COMPANY_DEPARTMENT_OPTIONS) {
+      var configuredOptions = window.TM_COMPANY_DEPARTMENT_OPTIONS[normalized];
+      if (Array.isArray(configuredOptions) && configuredOptions.length > 0) {
+        return true;
+      }
+    }
+    return normalized === '@leadsagri.com' || normalized === '@malvedaholdings.com';
   }
   function companyDisplayName(companyValue) {
     var value = companyValue == null ? '' : String(companyValue).trim();
@@ -474,6 +480,28 @@
     }
     return lines.join('<br>');
   }
+  function formatEmailRequestType(value) {
+    var key = value == null ? '' : String(value).trim().toLowerCase();
+    var labels = {
+      'creation of email': 'Creation of email',
+      'forgot password': 'Forgot password',
+      'backup of email': 'Backup of email'
+    };
+    return labels[key] || String(value || '').trim();
+  }
+  function getEmailRequestTypeDisplay(ticket) {
+    if (!ticket || String(ticket.category || '').trim().toLowerCase() !== 'email') return '';
+    var assignedDept = String(ticket.assigned_group || ticket.assigned_department || '').trim().toUpperCase();
+    if (assignedDept !== 'IT') return '';
+
+    var meta = ticket.request_meta && typeof ticket.request_meta === 'object' ? ticket.request_meta : {};
+    var requestType = String(meta.email_request_type || ticket.email_request_type || '').trim();
+    if (!requestType && ticket.description) {
+      var match = String(ticket.description).match(/^\s*Email Request Type:\s*(.+)$/im);
+      requestType = match && match[1] ? String(match[1]).trim() : '';
+    }
+    return requestType ? formatEmailRequestType(requestType) : '';
+  }
   function renderTimeline(ticket) {
     var createdAt = ticket.created_at ? new Date(ticket.created_at) : null;
     var updatedAt = ticket.updated_at ? new Date(ticket.updated_at) : null;
@@ -482,6 +510,7 @@
     var activityItems = Array.isArray(ticket && ticket.ticket_activity) ? ticket.ticket_activity : [];
     var events = [{ title: 'Ticket created', when: createdAt }];
     var hasAssignmentEvent = false;
+    var hasClaimEvent = false;
 
     activityItems.forEach(function (item) {
       var type = String((item && item.activity_type) || '').trim().toLowerCase();
@@ -492,13 +521,7 @@
       if (type === 'department_change') {
         var deptMatch = raw.match(/to\s+([^|]+?)(?:\s*\|\s*Handled by:\s*(.+))?$/i);
         var departmentLabel = deptMatch && deptMatch[1] ? String(deptMatch[1]).trim() : '';
-        var handlerLabel = deptMatch && deptMatch[2] ? String(deptMatch[2]).trim() : '';
         title = departmentLabel ? ('Reassigned to ' + departmentLabel) : 'Ticket reassigned';
-        if (handlerLabel) {
-          title += ' | Handled by: ' + handlerLabel;
-        } else if (assignedInfo.handledBy) {
-          title += ' | Handled by: ' + assignedInfo.handledBy;
-        }
         hasAssignmentEvent = true;
       } else if (type === 'company_change') {
         title = raw !== '' ? raw : 'Company changed';
@@ -508,6 +531,9 @@
         title = raw !== '' ? raw : 'Admin added a note';
       } else if (type === 'priority_escalated') {
         title = raw !== '' ? raw : 'Priority escalated';
+      } else if (type === 'claim_ticket') {
+        title = raw !== '' ? raw : 'Ticket claimed';
+        hasClaimEvent = true;
       } else if (raw !== '') {
         title = raw;
       }
@@ -516,6 +542,19 @@
         events.push({ title: title, when: when });
       }
     });
+
+    if (!hasClaimEvent && ticket && Number(ticket.assigned_to || 0) > 0 && String(ticket.assigned_to_name || '').trim() !== '') {
+      var updatedAt = ticket.updated_at ? new Date(ticket.updated_at) : null;
+      if (updatedAt && !Number.isNaN(updatedAt.getTime())) {
+        var latestWhen = events.reduce(function (latest, item) {
+          var itemWhen = item && item.when instanceof Date ? item.when : null;
+          return itemWhen && !Number.isNaN(itemWhen.getTime()) && itemWhen > latest ? itemWhen : latest;
+        }, createdAt instanceof Date && !Number.isNaN(createdAt.getTime()) ? createdAt : fallbackWhen);
+        if (updatedAt.getTime() - latestWhen.getTime() > 30000) {
+          events.push({ title: 'Claimed by ' + String(ticket.assigned_to_name || '').trim(), when: updatedAt });
+        }
+      }
+    }
 
     if (activityItems.length === 0 && assignedInfo.primary) {
       var assignmentTitle = 'Assigned to ' + assignedInfo.primary;
@@ -528,6 +567,12 @@
       if (ticket.admin_note && String(ticket.admin_note).trim() !== '') events.push({ title: 'Admin added a note', when: fallbackWhen });
       if (ticket.status && ticket.status !== 'Open') events.push({ title: 'Status changed to ' + ticket.status, when: fallbackWhen });
     }
+    events.sort(function (a, b) {
+      var aTime = a && a.when instanceof Date && !Number.isNaN(a.when.getTime()) ? a.when.getTime() : 0;
+      var bTime = b && b.when instanceof Date && !Number.isNaN(b.when.getTime()) ? b.when.getTime() : 0;
+      return aTime - bTime;
+    });
+
     return '<div class="tm-timeline">' + events.map(function (e) {
       return '<div class="tm-timeline-item"><div class="tm-timeline-content"><div class="tm-timeline-title">' + escapeHtml(e.title) + '</div><div class="tm-timeline-time">' + formatTimelineTime(e.when) + '</div></div></div>';
     }).join('') + '</div>';
@@ -1697,6 +1742,7 @@
     { value: 'HR', label: 'HR' },
     { value: 'IT', label: 'IT' },
     { value: 'Institutional Sales (Bidding)', label: 'Institutional Sales (Bidding)' },
+    { value: 'Machineries', label: 'Machineries' },
     { value: 'Management', label: 'Management' },
     { value: 'Marketing', label: 'Marketing' },
     { value: 'New Business Segment', label: 'New Business Segment' },
@@ -1706,6 +1752,14 @@
     { value: 'Technical', label: 'Technical' }
   ];
   var mhcDeptOptions = [
+    { value: 'Admin & Legal', label: 'Admin & Legal' },
+    { value: 'E-Commerce', label: 'E-Commerce' },
+    { value: 'Executive', label: 'Executive' },
+    { value: 'Finance and Accounting', label: 'Finance and Accounting' },
+    { value: 'IT', label: 'IT' },
+    { value: 'Institutional Sales', label: 'Institutional Sales' },
+    { value: 'Management', label: 'Management' },
+    { value: 'Marketing', label: 'Marketing' },
     { value: 'Marketing Creatives', label: 'Marketing Creatives' }
   ];
   function normalizeCompanyValue(value) {
@@ -1799,10 +1853,24 @@
     return normalized;
   }
   function getDeptOptionsForCompany(companyValue) {
-    if (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true) return lapcDeptOptions;
     var normalizedCompany = normalizeCompanyValue(companyValue);
+    if (typeof window !== 'undefined' && window.TM_COMPANY_DEPARTMENT_OPTIONS) {
+      var configuredOptions = window.TM_COMPANY_DEPARTMENT_OPTIONS[normalizedCompany];
+      if (Array.isArray(configuredOptions) && configuredOptions.length > 0) {
+        return configuredOptions;
+      }
+    }
+    if (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true) return lapcDeptOptions;
     var rawCompany = companyValue == null ? '' : String(companyValue).trim().toLowerCase();
-    if (normalizedCompany === '@leadsagri.com') return lapcDeptOptions;
+    if (
+      normalizedCompany === '@leadsagri.com' ||
+      rawCompany === 'lapc' ||
+      rawCompany === 'lapc (@leadsagri.com)' ||
+      rawCompany === 'leads agricultural products corporation - lapc' ||
+      rawCompany === 'leadsagri.com'
+    ) {
+      return lapcDeptOptions;
+    }
     if (
       normalizedCompany === '@malvedaholdings.com' ||
       rawCompany === 'mhc' ||
@@ -1819,8 +1887,18 @@
   function preferredDeptValueForCompany(selectedValue, companyValue) {
     var raw = selectedValue == null ? '' : String(selectedValue).trim();
     var normalizedCompany = normalizeCompanyValue(companyValue);
-    var isLapcCompany = normalizedCompany === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
-    var isMhcCompany = normalizedCompany === '@malvedaholdings.com';
+    var rawCompany = companyValue == null ? '' : String(companyValue).trim().toLowerCase();
+    var isLapcCompany = normalizedCompany === '@leadsagri.com'
+      || rawCompany === 'lapc'
+      || rawCompany === 'lapc (@leadsagri.com)'
+      || rawCompany === 'leads agricultural products corporation - lapc'
+      || rawCompany === 'leadsagri.com'
+      || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
+    var isMhcCompany = normalizedCompany === '@malvedaholdings.com'
+      || rawCompany === 'mhc'
+      || rawCompany === 'mhc (@malvedaholdings.com)'
+      || rawCompany === 'malveda holdings corporation - mhc'
+      || rawCompany === 'malvedaholdings.com';
     var hasDepartmentOptions = isLapcCompany || isMhcCompany;
     if (raw.toLowerCase() === 'no departments available') {
       raw = '';
@@ -1860,8 +1938,18 @@
   }
   function buildDeptOptionsHtml(companyValue, selectedValue) {
     var normalizedCompany = normalizeCompanyValue(companyValue);
-    var isLapcCompany = normalizedCompany === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
-    var isMhcCompany = normalizedCompany === '@malvedaholdings.com';
+    var rawCompany = companyValue == null ? '' : String(companyValue).trim().toLowerCase();
+    var isLapcCompany = normalizedCompany === '@leadsagri.com'
+      || rawCompany === 'lapc'
+      || rawCompany === 'lapc (@leadsagri.com)'
+      || rawCompany === 'leads agricultural products corporation - lapc'
+      || rawCompany === 'leadsagri.com'
+      || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
+    var isMhcCompany = normalizedCompany === '@malvedaholdings.com'
+      || rawCompany === 'mhc'
+      || rawCompany === 'mhc (@malvedaholdings.com)'
+      || rawCompany === 'malveda holdings corporation - mhc'
+      || rawCompany === 'malvedaholdings.com';
     if (!isLapcCompany && !isMhcCompany) {
       return '                  <option value="" selected>No departments available</option>';
     }
@@ -2141,8 +2229,18 @@
     }
     function syncDeptAvailability(preferredValue) {
       var normalizedCompany = normalizeCompanyValue(companyEl.value);
-      var isLapcCompany = normalizedCompany === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
-      var isMhcCompany = normalizedCompany === '@malvedaholdings.com';
+      var rawCompany = companyEl.value == null ? '' : String(companyEl.value).trim().toLowerCase();
+      var isLapcCompany = normalizedCompany === '@leadsagri.com'
+        || rawCompany === 'lapc'
+        || rawCompany === 'lapc (@leadsagri.com)'
+        || rawCompany === 'leads agricultural products corporation - lapc'
+        || rawCompany === 'leadsagri.com'
+        || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
+      var isMhcCompany = normalizedCompany === '@malvedaholdings.com'
+        || rawCompany === 'mhc'
+        || rawCompany === 'mhc (@malvedaholdings.com)'
+        || rawCompany === 'malveda holdings corporation - mhc'
+        || rawCompany === 'malvedaholdings.com';
       var hasDepartmentOptions = isLapcCompany || isMhcCompany;
       var hiddenMirror = form.querySelector('input[type="hidden"][data-dept-mirror="1"]');
       var selectedValue = preferredDeptValueForCompany(preferredValue, companyEl.value);
@@ -2277,6 +2375,10 @@
     }
     var assignedCompanyValue = normalizeCompanyValue(data.assigned_company || data.company || '') || String(data.assigned_company || data.company || '');
     var assignedDeptValue = data.assigned_department || data.assigned_group || data.department || '';
+    var emailRequestTypeDisplay = getEmailRequestTypeDisplay(data);
+    var emailRequestTypeInfoHtml = emailRequestTypeDisplay
+      ? ('        <div class="tm-info-label">EMAIL REQUEST TYPE</div><div class="tm-info-value">' + escapeHtml(emailRequestTypeDisplay) + '</div>')
+      : '';
     var deptOptionsHtml = buildDeptOptionsHtml(assignedCompanyValue, assignedDeptValue);
     var assignedUserIdValue = '';
     var currentUserDeptKey = normalizeDepartmentKey(current && current.department ? current.department : '');
@@ -2328,6 +2430,8 @@
       '        <div class="tm-info-label">CREATED BY</div><div class="tm-info-value">' + (data.created_by_name ? escapeHtml(String(data.created_by_name)) : '-') + '</div>' +
       '        <div class="tm-info-label">EMAIL</div><div class="tm-info-value">' + (data.created_by_email ? escapeHtml(String(data.created_by_email)) : '-') + '</div>' +
       '        <div class="tm-info-label">DEPARTMENT</div><div class="tm-info-value">' + escapeHtml(dashIfUnknown(data.department)) + '</div>' +
+      '        <div class="tm-info-label">CATEGORY</div><div class="tm-info-value">' + (data.category ? escapeHtml(String(data.category)) : '-') + '</div>' +
+      emailRequestTypeInfoHtml +
       '        <div class="tm-info-label">CREATED AT</div><div class="tm-info-value">' + (data.created_at ? formatTimelineTime(data.created_at) : '-') + '</div>' +
       '        <div class="tm-info-label">LAST UPDATED</div><div class="tm-info-value">' + (data.updated_at ? formatTimelineTime(data.updated_at) : '-') + '</div>' +
       '        <div class="tm-info-label">ASSIGNED TO</div><div class="tm-info-value">' + buildAssignedTargetHtml(data) + '</div>' +
@@ -2461,6 +2565,10 @@
     var company = assignedInfo.showDepartment && assignedInfo.company ? companyDisplayName(assignedInfo.company) : '-';
     var createdAt = safe && safe.created_at ? formatTimelineTime(safe.created_at) : '-';
     var description = safe && safe.description ? String(safe.description) : '-';
+    var emailRequestTypeDisplay = getEmailRequestTypeDisplay(safe);
+    var emailRequestTypeInfoHtml = emailRequestTypeDisplay
+      ? ('        <div class="tm-info-label">EMAIL REQUEST TYPE</div><div class="tm-info-value">' + escapeHtml(emailRequestTypeDisplay) + '</div>')
+      : '';
     return '' +
       '<div class="tm-header">' +
       '  <div class="tm-header-left">' +
@@ -2479,6 +2587,8 @@
       '      <div class="tm-card tm-card-ticket-info"><div class="tm-card-header"><span class="tm-card-title">Ticket Information</span></div><div class="tm-card-body"><div class="tm-info-grid">' +
       '        <div class="tm-info-label">CREATED BY</div><div class="tm-info-value">' + escapeHtml(requester) + '</div>' +
       '        <div class="tm-info-label">EMAIL</div><div class="tm-info-value">' + escapeHtml(requesterEmail) + '</div>' +
+      '        <div class="tm-info-label">CATEGORY</div><div class="tm-info-value">' + (safe.category ? escapeHtml(String(safe.category)) : '-') + '</div>' +
+      emailRequestTypeInfoHtml +
       '        <div class="tm-info-label">ASSIGNED TO</div><div class="tm-info-value">' + escapeHtml(department) + '</div>' +
       '        <div class="tm-info-label">RECIPIENT</div><div class="tm-info-value">' + escapeHtml(company) + '</div>' +
       '        <div class="tm-info-label">CREATED AT</div><div class="tm-info-value">' + escapeHtml(createdAt) + '</div>' +
@@ -4534,9 +4644,6 @@
   function close() {
     var modal = qs('ticketModal');
     if (modal) modal.style.display = 'none';
-    if (typeof window !== 'undefined' && typeof window.TM_ON_TICKET_MODAL_CLOSE === 'function') {
-      try { window.TM_ON_TICKET_MODAL_CLOSE(lastTicketMeta); } catch (e) { }
-    }
     stopChat();
     stopChatBadge();
     closeChatModal();

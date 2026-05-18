@@ -478,7 +478,8 @@ if ($row = $result->fetch_assoc()) {
     }
     $row['can_update_tab'] = $canUpdateTab;
     $hasAccess = ticket_user_matches_requester($row, $currentUserId, $userContext)
-        || ticket_user_is_handler_candidate($row, $currentUserId, $userContext);
+        || ticket_user_is_handler_candidate($row, $currentUserId, $userContext)
+        || !empty($row['can_claim_ticket']);
     if (!$hasAccess) {
         $ticketData = $row;
         http_response_code(403);
@@ -568,6 +569,7 @@ if ($row = $result->fetch_assoc()) {
     // Load the full saved activity history so the employee modal can show
     // real assignment/reassignment events instead of falling back to the
     // current assignee snapshot.
+    ticket_ensure_activity_table($conn);
     $row['ticket_activity'] = [];
     $activityStmt = $conn->prepare("
         SELECT activity_type, description, created_at
@@ -587,6 +589,17 @@ if ($row = $result->fetch_assoc()) {
             ];
         }
         $activityStmt->close();
+    }
+    $existingActivityTypes = [];
+    foreach ($row['ticket_activity'] as $activityItem) {
+        $existingActivityTypes[strtolower((string) ($activityItem['activity_type'] ?? ''))] = true;
+    }
+    foreach (ticket_notification_activity_history($conn, $id) as $notificationActivity) {
+        $notificationActivityType = strtolower((string) ($notificationActivity['activity_type'] ?? ''));
+        if ($notificationActivityType !== '' && !isset($existingActivityTypes[$notificationActivityType])) {
+            $row['ticket_activity'][] = $notificationActivity;
+            $existingActivityTypes[$notificationActivityType] = true;
+        }
     }
 
     echo json_encode($row);

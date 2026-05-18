@@ -1777,9 +1777,17 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                 <div class="hero-copy">
                     <h1 class="hero-title">Welcome back, <?= htmlspecialchars($_SESSION['name']); ?></h1>
                     <div class="hero-dept">
-                        <?= htmlspecialchars($_SESSION['department']); ?> Department
-                        <?php if (!empty($company)): ?>
-                            <span class="company-text">&bull; <?= htmlspecialchars($company); ?></span>
+                        <?php
+                            $heroDepartment = trim((string) ($_SESSION['department'] ?? ''));
+                            $heroCompanyLabel = ticket_company_display_name((string) $company);
+                        ?>
+                        <?php if ($heroDepartment !== ''): ?>
+                            <?= htmlspecialchars($heroDepartment); ?> Department
+                            <?php if ($heroCompanyLabel !== ''): ?>
+                                <span class="company-text">&bull; <?= htmlspecialchars($heroCompanyLabel); ?></span>
+                            <?php endif; ?>
+                        <?php elseif ($heroCompanyLabel !== ''): ?>
+                            <?= htmlspecialchars($heroCompanyLabel); ?>
                         <?php endif; ?>
                     </div>
                     <p class="hero-subtitle">Here's an overview of your helpdesk activity.</p>

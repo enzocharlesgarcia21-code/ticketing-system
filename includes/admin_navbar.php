@@ -164,6 +164,7 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
     flex-direction: column;
     overflow-y: auto;
     overflow-x: hidden;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     transition: width 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease;
 }
 
@@ -279,6 +280,7 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
     font-size: 14px;
     font-weight: 700;
     line-height: 1.2;
+    font-family: inherit;
     border: 1px solid transparent;
     transition: none;
 }
@@ -318,6 +320,8 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
 .admin-nav-label {
     min-width: 0;
     white-space: normal;
+    font-family: inherit;
+    font-weight: inherit;
 }
 
 .admin-navbar.admin-main-header {
@@ -1454,7 +1458,36 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function toggleNotifications() {
     const dropdown = document.getElementById('notifDropdown');
-    if (dropdown) dropdown.classList.toggle('show');
+    if (!dropdown) return;
+
+    const willOpen = !dropdown.classList.contains('show');
+    dropdown.classList.toggle('show');
+
+    if (willOpen) {
+        acknowledgeAdminNotificationBadge();
+    }
+}
+
+window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT = window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT || 0;
+window.TM_ADMIN_NOTIF_ACK_COUNT = window.TM_ADMIN_NOTIF_ACK_COUNT || 0;
+
+function acknowledgeAdminNotificationBadge() {
+    const dot = document.getElementById('notifDot');
+    const badge = document.getElementById('notifBadge');
+    const unreadCount = Math.max(0, parseInt(String(window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT || 0), 10) || 0);
+
+    window.TM_ADMIN_NOTIF_ACK_COUNT = Math.max(
+        Math.max(0, parseInt(String(window.TM_ADMIN_NOTIF_ACK_COUNT || 0), 10) || 0),
+        unreadCount
+    );
+
+    if (dot) {
+        dot.style.display = 'none';
+    }
+    if (badge) {
+        badge.style.display = 'none';
+        badge.textContent = '';
+    }
 }
 
 function fetchAdminNotifications() {
@@ -1474,12 +1507,19 @@ function fetchAdminNotifications() {
             const dot = document.getElementById('notifDot');
             const badge = document.getElementById('notifBadge');
             const list = document.getElementById('notifList');
+            const unreadCount = Math.max(0, parseInt(String(data.unread_count || 0), 10) || 0);
+            const acknowledgedCount = Math.max(0, parseInt(String(window.TM_ADMIN_NOTIF_ACK_COUNT || 0), 10) || 0);
+            const visibleUnreadCount = Math.max(0, unreadCount - acknowledgedCount);
+            window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT = unreadCount;
+            if (unreadCount === 0) {
+                window.TM_ADMIN_NOTIF_ACK_COUNT = 0;
+            }
 
             // Update Badge
-            if (data.unread_count > 0) {
+            if (visibleUnreadCount > 0) {
                 dot.style.display = 'block';
                 badge.style.display = 'block';
-                badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                badge.textContent = visibleUnreadCount > 99 ? '99+' : visibleUnreadCount;
             } else {
                 dot.style.display = 'none';
                 badge.style.display = 'none';

@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/notification_service.php';
 require_once '../includes/ticket_assignment.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -19,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 csrf_validate();
 ticket_ensure_assignment_columns($conn);
+ticket_ensure_activity_table($conn);
 
 $ticketId = (int) ($_POST['ticket_id'] ?? 0);
 $currentUserId = (int) ($_SESSION['user_id'] ?? 0);
@@ -77,8 +79,7 @@ $claimStmt = $conn->prepare("
         started_at = CASE WHEN started_at IS NULL THEN NOW() ELSE started_at END,
         updated_at = NOW()
     WHERE id = ?
-      AND assigned_to IS NULL
-      AND (assigned_user_id IS NULL OR assigned_user_id = 0)
+      AND (assigned_to IS NULL OR assigned_to = 0)
 ");
 if (!$claimStmt) {
     http_response_code(500);
@@ -120,6 +121,59 @@ if ($activityStmt) {
     $activityStmt->bind_param("is", $ticketId, $activityDescription);
     $activityStmt->execute();
     $activityStmt->close();
+}
+
+if ((string) ($ticket['status'] ?? '') === 'Open') {
+    $statusActivityStmt = $conn->prepare("
+        INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at)
+        VALUES (?, 'status_change', 'Status changed to In Progress', NOW())
+    ");
+    if ($statusActivityStmt) {
+        $statusActivityStmt->bind_param("i", $ticketId);
+        $statusActivityStmt->execute();
+        $statusActivityStmt->close();
+    }
+
+    $ticketForNotification = notif_ticket_data($conn, $ticketId);
+    $sharedRequesterEmail = trim((string) ($ticketForNotification['requester_email'] ?? ''));
+    if ($ticketForNotification && $sharedRequesterEmail !== '') {
+        $currentAssignedCompany = ticket_normalize_company((string) ($ticketForNotification['assigned_company'] ?? ($ticket['assigned_company'] ?? '')));
+        $currentAssignedGroup = trim((string) ($ticketForNotification['assigned_group'] ?? ($ticketForNotification['assigned_department'] ?? ($ticket['assigned_group'] ?? $ticket['assigned_department'] ?? ''))));
+        $attachments = notif_ticket_email_attachments($conn, $ticketId, (string) ($ticketForNotification['attachment'] ?? ''));
+        $updateSourceLabel = ticket_activity_actor_label($conn, $currentUserId, $_SESSION);
+        $extraLines = [];
+
+        $ticketCategory = trim((string) ($ticketForNotification['category'] ?? ''));
+        if ($ticketCategory !== '') {
+            $extraLines[] = 'Category: ' . $ticketCategory;
+        }
+
+        $ticketDescription = trim((string) ($ticketForNotification['description'] ?? ''));
+        if ($ticketDescription !== '') {
+            $extraLines[] = "Description:\n" . $ticketDescription;
+        }
+
+        $ticketPriority = trim((string) ($ticketForNotification['priority'] ?? ''));
+        if ($ticketPriority !== '') {
+            $extraLines[] = 'Priority: ' . $ticketPriority;
+        }
+
+        $extraLines[] = 'Current status: In Progress';
+
+        notif_send_ticket_status_update(
+            $conn,
+            $ticketId,
+            'Open',
+            'In Progress',
+            $updateSourceLabel,
+            [
+                'attachments' => $attachments,
+                'assignee_emails' => ticket_assignee_notification_emails($conn, [$currentUserId], $currentAssignedCompany, $currentAssignedGroup, (int) ($ticketForNotification['user_id'] ?? 0)),
+                'extra_lines' => $extraLines,
+                'skip_system' => true,
+            ]
+        );
+    }
 }
 
 echo json_encode([
