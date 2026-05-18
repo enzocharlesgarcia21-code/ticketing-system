@@ -14,6 +14,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
 
     ticket_ensure_assignment_columns($conn);
+    ticket_ensure_activity_table($conn);
     notif_ensure_action_type_column($conn);
     notif_ensure_requester_identity_columns($conn);
 
@@ -121,10 +122,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     if ($new_status === 'Open') {
         $assigned_to = null;
-    } elseif ($new_status === 'In Progress' && (int) $assigned_to <= 0) {
-        if ((int) $assigned_user_id > 0) {
-            $assigned_to = (int) $assigned_user_id;
-        }
     }
     if ($new_status === $oldStatus && $newCompanyNorm === $oldCompany && $newDeptNorm === $oldDept && trim($newNoteNorm) === trim($oldNote)) {
         $_SESSION['success'] = "No changes were made.";
@@ -163,11 +160,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $update->bind_param("ssssiissssi", $new_status, $newDeptNorm, $newCompanyNorm, $effective_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $new_status, $id);
     
     if ($update->execute()) {
-        // Separately set feedback_status = 'pending' when admin resolves a ticket.
-        // Done as a separate query so the main update never fails if the column doesn't exist yet.
-        if ($new_status === 'Resolved') {
-            $conn->query("UPDATE employee_tickets SET feedback_status = 'pending' WHERE id = " . (int)$id . " AND COALESCE(feedback_status, '') NOT IN ('submitted', 'skipped')");
-        }
         $_SESSION['success'] = "Ticket #$id successfully updated.";
 
         // --- TICKET ACTIVITY LOG: Status change ---
@@ -312,7 +304,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $currentAssignedUserId = (int) ($ticket['assigned_user_id'] ?? 0);
             $assigneeIdsForEmail = $currentAssignedUserId > 0 ? [$currentAssignedUserId] : [];
             $assigneeEmails = ticket_assignee_notification_emails($conn, $assigneeIdsForEmail, $currentAssignedCompany, $currentAssignedGroup, (int) ($ticket['user_id'] ?? 0));
-            $updateSourceLabel = trim((string) ($_SESSION['department'] ?? 'Admin'));
+            $updateSourceLabel = ticket_activity_actor_label($conn, (int) ($_SESSION['user_id'] ?? 0), $_SESSION);
             if ($updateSourceLabel === '') {
                 $updateSourceLabel = 'Admin';
             }
@@ -332,6 +324,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $sharedUpdateLines[] = 'Priority: ' . $ticketPriority;
             }
             $sharedUpdateLines[] = 'Current status: ' . $new_status;
+            if ($requesterAssignmentChanged) {
+                $oldAssignedTargetLabel = notif_assignment_email_label((string) $oldCompany, (string) $oldDept, 'Unassigned');
+                if ($oldAssignedTargetLabel !== '') {
+                    $sharedUpdateLines[] = 'Reassigned From: ' . $oldAssignedTargetLabel;
+                }
+                $newAssignedTargetLabel = notif_assignment_email_label((string) $newCompanyNorm, (string) $newDeptNorm, '');
+                if ($newAssignedTargetLabel === '') {
+                    $newAssignedTargetLabel = notif_assignment_email_label((string) $currentAssignedCompany, (string) $currentAssignedGroup, '');
+                }
+                if ($newAssignedTargetLabel !== '') {
+                    $sharedUpdateLines[] = 'Reassigned To: ' . $newAssignedTargetLabel;
+                }
+            }
             if ($noteChanged && $notePreview !== '') {
                 $sharedUpdateLines[] = "Note from $updateSourceLabel:\n$notePreview";
             }
@@ -351,18 +356,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 );
             } else {
                 if ($requesterEmail !== '') {
+                    $requesterEmailTitle = 'Ticket Updated';
+                    if ($requesterAssignmentChanged) {
+                        $requesterEmailTitle = ($oldAssignedUserId > 0 || $oldCompany !== '' || $oldDept !== '') ? 'Ticket Reassigned' : 'Ticket Assigned';
+                    }
                     $requesterLines = array_merge([
                         "Ticket has been updated.",
                         "Ticket ID: #$ticketNumber",
                         "Subject: $ticketSubject",
                     ], $sharedUpdateLines);
-                    $requesterTpl = notif_email_simple('Ticket Updated', $requesterLines, 'View Ticket', notif_ticket_link_employee_tickets($id));
-                    if (!notif_email_send([$requesterEmail], "Ticket Update (#$ticketNumber)", (string) ($requesterTpl['html'] ?? ''), (string) ($requesterTpl['text'] ?? ''), $attachments)) {
+                    $requesterTpl = notif_email_simple($requesterEmailTitle, $requesterLines, 'View Ticket', notif_ticket_link_employee_tickets($id));
+                    if (!notif_email_send([$requesterEmail], $requesterEmailTitle . " (#$ticketNumber)", (string) ($requesterTpl['html'] ?? ''), (string) ($requesterTpl['text'] ?? ''), $attachments)) {
                         error_log('Ticket update email failed (requester) | ticketId=' . (string) $id);
                     }
                 }
 
                 if (count($assigneeEmails) > 0) {
+                    $assigneeEmailTitle = 'Ticket Updated';
+                    if ($requesterAssignmentChanged) {
+                        $assigneeEmailTitle = ($oldAssignedUserId > 0 || $oldCompany !== '' || $oldDept !== '') ? 'Ticket Reassigned' : 'Ticket Assigned';
+                    }
                     $assigneeLines = [
                         "Ticket has been updated.",
                         "Ticket ID: #$ticketNumber",
@@ -373,8 +386,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         $assigneeLines[] = 'Requester Email: ' . $requesterEmail;
                     }
                     $assigneeLines = array_merge($assigneeLines, $sharedUpdateLines);
-                    $assigneeTpl = notif_email_simple('Ticket Updated', $assigneeLines, 'View Task', notif_ticket_link_employee_tasks($id));
-                    if (!notif_email_send($assigneeEmails, "Ticket Update (#$ticketNumber)", (string) ($assigneeTpl['html'] ?? ''), (string) ($assigneeTpl['text'] ?? ''), $attachments)) {
+                    $assigneeTpl = notif_email_simple($assigneeEmailTitle, $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks($id));
+                    if (!notif_email_send($assigneeEmails, $assigneeEmailTitle . " (#$ticketNumber)", (string) ($assigneeTpl['html'] ?? ''), (string) ($assigneeTpl['text'] ?? ''), $attachments)) {
                         error_log('Ticket update email failed (assignee) | ticketId=' . (string) $id);
                     }
                 }

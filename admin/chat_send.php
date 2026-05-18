@@ -126,43 +126,7 @@ if (!$ticket) {
 }
 $requesterId = (int) ($ticket['user_id'] ?? 0);
 $userContext = ticket_build_user_context($conn, $sender_id, $_SESSION);
-$isHandlerCandidate = ticket_user_is_handler_candidate($ticket, $sender_id, $userContext);
-$ticketWasUnassigned = empty($ticket['assigned_to']);
 $autoProgressStatusChanged = false;
-if ($sender_id !== $requesterId && $ticketWasUnassigned && $isHandlerCandidate && !ticket_requires_manual_claim($ticket)) {
-    $oldStatusBeforeClaim = (string) ($ticket['status'] ?? '');
-    $claimedBySender = ticket_claim_first_handler_on_reply($conn, $ticket_id, $sender_id);
-    if ($claimedBySender && strcasecmp($oldStatusBeforeClaim, 'Open') === 0) {
-        $autoProgressStatusChanged = true;
-    }
-    $reloadStmt = $conn->prepare("
-        SELECT
-            t.id,
-            t.user_id,
-            t.assigned_user_id,
-            t.assigned_to,
-            t.assigned_department,
-            t.assigned_group,
-            t.assigned_company,
-            t.company,
-            t.subject,
-            t.priority,
-            t.status,
-            COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email
-        FROM employee_tickets t
-        LEFT JOIN users requester ON requester.id = t.user_id
-        WHERE t.id = ?
-        LIMIT 1
-    ");
-    if ($reloadStmt) {
-        $reloadStmt->bind_param("i", $ticket_id);
-        $reloadStmt->execute();
-        $reloadRes = $reloadStmt->get_result();
-        $reloadedTicket = $reloadRes ? $reloadRes->fetch_assoc() : null;
-        $reloadStmt->close();
-        if ($reloadedTicket) $ticket = $reloadedTicket;
-    }
-}
 $handlerId = ticket_chat_effective_handler_id($ticket);
 $fallbackAssigneeId = (int) ($ticket['assigned_user_id'] ?? 0);
 if (ticket_chat_is_closed_by_status($ticket)) {

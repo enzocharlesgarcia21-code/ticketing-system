@@ -1000,7 +1000,11 @@ document.addEventListener('DOMContentLoaded', function() {
         bell.addEventListener('click', function(e) {
             e.stopPropagation();
             if (userDropdown) userDropdown.classList.remove('show');
+            const willOpen = !dropdown.classList.contains('show');
             dropdown.classList.toggle('show');
+            if (willOpen) {
+                acknowledgeEmployeeNotificationBadge();
+            }
         });
     }
 
@@ -1055,6 +1059,28 @@ document.addEventListener('DOMContentLoaded', function() {
         return 'Older';
     }
 
+    window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT = window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT || 0;
+    window.TM_EMPLOYEE_NOTIF_ACK_COUNT = window.TM_EMPLOYEE_NOTIF_ACK_COUNT || 0;
+
+    function acknowledgeEmployeeNotificationBadge() {
+        const badge = document.getElementById('notifBadge');
+        const dot = document.getElementById('notifDot');
+        const unreadCount = Math.max(0, parseInt(String(window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT || 0), 10) || 0);
+
+        window.TM_EMPLOYEE_NOTIF_ACK_COUNT = Math.max(
+            Math.max(0, parseInt(String(window.TM_EMPLOYEE_NOTIF_ACK_COUNT || 0), 10) || 0),
+            unreadCount
+        );
+
+        if (badge) {
+            badge.textContent = '';
+            badge.style.display = 'none';
+        }
+        if (dot) {
+            dot.style.display = 'none';
+        }
+    }
+
     // Fetch Notifications
     function fetchNotifications() {
         fetch('fetch_notifications.php?_=' + Date.now(), { cache: 'no-store' })
@@ -1063,10 +1089,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 const badge = document.getElementById('notifBadge');
                 const dot = document.getElementById('notifDot');
                 const list = document.getElementById('notifList');
+                const unreadCount = Math.max(0, parseInt(String(data.unread_count || 0), 10) || 0);
+                const acknowledgedCount = Math.max(0, parseInt(String(window.TM_EMPLOYEE_NOTIF_ACK_COUNT || 0), 10) || 0);
+                const visibleUnreadCount = Math.max(0, unreadCount - acknowledgedCount);
+                window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT = unreadCount;
+                if (unreadCount === 0) {
+                    window.TM_EMPLOYEE_NOTIF_ACK_COUNT = 0;
+                }
 
                 // Update Badge
-                if (data.unread_count > 0) {
-                    badge.textContent = data.unread_count > 9 ? '9+' : data.unread_count;
+                if (visibleUnreadCount > 0) {
+                    badge.textContent = visibleUnreadCount > 9 ? '9+' : visibleUnreadCount;
                     badge.style.display = 'block';
                     dot.style.display = 'block';
                 } else {

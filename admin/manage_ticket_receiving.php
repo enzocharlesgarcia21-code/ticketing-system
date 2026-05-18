@@ -1000,6 +1000,19 @@ function updateRowVisualState(button, enabled) {
     }
 }
 
+function childDepartmentTogglesFor(button) {
+    if (button.getAttribute('data-item-type') !== 'company') {
+        return [];
+    }
+
+    const group = button.closest('.route-group');
+    if (!group) {
+        return [];
+    }
+
+    return Array.from(group.querySelectorAll('.route-departments .availability-toggle[data-item-type="department"]'));
+}
+
 function parentCompanyToggleFor(button) {
     const group = button.closest('.route-group');
     return group ? group.querySelector('.route-company-row .availability-toggle[data-item-type="company"]') : null;
@@ -1060,6 +1073,11 @@ document.querySelectorAll('.availability-toggle').forEach(function(button) {
         }
 
         updateRowVisualState(button, nextEnabled === '1');
+        if (button.getAttribute('data-item-type') === 'company' && nextEnabled === '0') {
+            childDepartmentTogglesFor(button).forEach(function(departmentButton) {
+                updateRowVisualState(departmentButton, false);
+            });
+        }
         recalcRouteCounts();
         updateSaveBar();
         setAvailabilityFeedback('', 'success');

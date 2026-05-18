@@ -311,7 +311,7 @@ $groupCond = count($userDepartmentAliases) > 0
 $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
 $requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
 
-$where[] = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND ((NOT $requiresGroupCond) OR $groupCond)))";
+$where[] = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND (((t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')) OR ((NOT $requiresGroupCond) OR $groupCond))))";
 $params[] = (int) $user_id;
 $types .= "i";
 $params[] = (int) $user_id;
@@ -1282,6 +1282,10 @@ $showing_to = min($offset + $limit, (int) $total_records);
         window.TM_DEPARTMENT_REQUIRED = true;
         window.TM_SHOW_DEPARTMENT_USER_SELECT = true;
         window.TM_DEPARTMENT_USERS_ENDPOINT = 'ajax_department_users.php';
+        window.TM_COMPANY_DEPARTMENT_OPTIONS = <?php echo json_encode([
+            '@leadsagri.com' => array_map(static fn($department) => ['value' => (string) $department, 'label' => (string) $department], ticket_lapc_departments()),
+            '@malvedaholdings.com' => array_map(static fn($department) => ['value' => (string) $department, 'label' => (string) $department], ticket_mhc_departments()),
+        ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     </script>
     <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
     <script>

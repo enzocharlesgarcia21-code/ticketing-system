@@ -3,6 +3,194 @@
 require_once __DIR__ . '/notification_service.php';
 require_once __DIR__ . '/pdf_thumbnail.php';
 
+function ticket_ensure_activity_table(mysqli $conn): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS ticket_activity (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            ticket_id INT NOT NULL,
+            activity_type VARCHAR(64) NOT NULL,
+            description TEXT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_ticket_activity_ticket (ticket_id),
+            INDEX idx_ticket_activity_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+}
+
+function ticket_record_activity(mysqli $conn, int $ticketId, string $activityType, string $description, ?string $createdAt = null): void
+{
+    if ($ticketId <= 0 || trim($activityType) === '' || trim($description) === '') {
+        return;
+    }
+
+    ticket_ensure_activity_table($conn);
+    if ($createdAt !== null && trim($createdAt) !== '') {
+        $stmt = $conn->prepare("
+            INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at)
+            VALUES (?, ?, ?, ?)
+        ");
+        if ($stmt) {
+            $stmt->bind_param("isss", $ticketId, $activityType, $description, $createdAt);
+            $stmt->execute();
+            $stmt->close();
+        }
+        return;
+    }
+
+    $stmt = $conn->prepare("
+        INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at)
+        VALUES (?, ?, ?, NOW())
+    ");
+    if ($stmt) {
+        $stmt->bind_param("iss", $ticketId, $activityType, $description);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
+function ticket_activity_actor_label(mysqli $conn, int $userId, array $session = []): string
+{
+    $name = trim((string) ($session['name'] ?? ($session['full_name'] ?? '')));
+    $department = trim((string) ($session['department'] ?? ''));
+
+    if ($userId > 0 && ($name === '' || $department === '')) {
+        $stmt = $conn->prepare("SELECT name, full_name, department FROM users WHERE id = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param("i", $userId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
+            $stmt->close();
+
+            if ($name === '') {
+                $name = trim((string) (($row['name'] ?? '') !== '' ? $row['name'] : ($row['full_name'] ?? '')));
+            }
+            if ($department === '') {
+                $department = trim((string) ($row['department'] ?? ''));
+            }
+        }
+    }
+
+    if ($name !== '' && $department !== '') {
+        return $name . ' (' . $department . ')';
+    }
+    if ($name !== '') {
+        return $name;
+    }
+    if ($department !== '') {
+        return $department;
+    }
+    return $userId > 0 ? ('user #' . $userId) : 'Unknown user';
+}
+
+function ticket_activity_notification_actor_label(mysqli $conn, int $ticketId, string $departmentLabel, string $createdAt): string
+{
+    $departmentLabel = trim($departmentLabel);
+    if ($ticketId <= 0 || $departmentLabel === '') {
+        return $departmentLabel;
+    }
+
+    $createdAtSql = trim($createdAt) !== '' ? $createdAt : date('Y-m-d H:i:s');
+    $stmt = $conn->prepare("
+        SELECT u.id, u.name, u.full_name, u.department
+        FROM notifications n
+        JOIN users u ON u.id = n.user_id
+        WHERE n.ticket_id = ?
+          AND n.type = 'dept_assigned'
+          AND n.action_type = 'assign'
+          AND n.created_at <= ?
+          AND LOWER(TRIM(u.department)) = LOWER(TRIM(?))
+        ORDER BY n.created_at ASC, n.id ASC
+        LIMIT 1
+    ");
+    if (!$stmt) {
+        return $departmentLabel;
+    }
+
+    $stmt->bind_param("iss", $ticketId, $createdAtSql, $departmentLabel);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    if (!$row) {
+        return $departmentLabel;
+    }
+
+    $name = trim((string) (($row['name'] ?? '') !== '' ? $row['name'] : ($row['full_name'] ?? '')));
+    $department = trim((string) ($row['department'] ?? $departmentLabel));
+    if ($name !== '' && $department !== '') {
+        return $name . ' (' . $department . ')';
+    }
+    return $name !== '' ? $name : $departmentLabel;
+}
+
+function ticket_notification_activity_history(mysqli $conn, int $ticketId): array
+{
+    if ($ticketId <= 0) return [];
+
+    $stmt = $conn->prepare("
+        SELECT type, action_type, message, created_at
+        FROM notifications
+        WHERE ticket_id = ?
+          AND type <> 'chat_message'
+        ORDER BY created_at ASC, id ASC
+    ");
+    if (!$stmt) return [];
+
+    $stmt->bind_param("i", $ticketId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $items = [];
+    $seen = [];
+
+    while ($res && ($row = $res->fetch_assoc())) {
+        $type = strtolower(trim((string) ($row['type'] ?? '')));
+        $actionType = strtolower(trim((string) ($row['action_type'] ?? '')));
+        $message = trim((string) ($row['message'] ?? ''));
+        $createdAt = (string) ($row['created_at'] ?? '');
+        $activityType = '';
+        $description = '';
+
+        if ($actionType === 'assign' && $type === 'new_ticket' && preg_match('/\bassigned to\s+(.+?)\.\s*$/i', $message, $m)) {
+            $activityType = 'assignment_created';
+            $description = 'Assigned to ' . trim((string) $m[1]);
+        } elseif ($type === 'status_update' && preg_match('/\bstatus was updated to\s+(.+?)(?:\s+by\s+(.+?))?\.\s*$/i', $message, $m)) {
+            $activityType = 'status_change';
+            $description = 'Status changed to ' . trim((string) $m[1]);
+            if (!empty($m[2])) {
+                $description .= ' by ' . ticket_activity_notification_actor_label($conn, $ticketId, trim((string) $m[2]), $createdAt);
+            }
+        } elseif ($actionType === 'reassign' && preg_match('/\breassigned to\s+(.+?)\.\s*$/i', $message, $m)) {
+            $activityType = 'department_change';
+            $description = 'Reassigned to ' . trim((string) $m[1]);
+        }
+
+        if ($activityType === '' || $description === '') {
+            continue;
+        }
+
+        $key = strtolower($activityType . '|' . $description . '|' . $createdAt);
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $items[] = [
+            'activity_type' => $activityType,
+            'description' => $description,
+            'created_at' => $createdAt,
+        ];
+    }
+    $stmt->close();
+
+    return $items;
+}
+
 function ticket_company_group_map(): array
 {
     $standard = ticket_standard_assigned_departments();
@@ -60,10 +248,11 @@ function ticket_lapc_departments(): array
         'Executive',
         'Finance and Accounting',
         'HR',
+        'Institutional Sales (Bidding)',
         'IT',
-        'Institutional Sales',
         'Machineries',
         'Management',
+        'Marketing',
         'New Business Segment',
         'Seed Production',
         'Supply Chain',
@@ -75,6 +264,14 @@ function ticket_lapc_departments(): array
 function ticket_mhc_departments(): array
 {
     return [
+        'Admin & Legal',
+        'E-Commerce',
+        'Executive',
+        'Finance and Accounting',
+        'IT',
+        'Institutional Sales',
+        'Management',
+        'Marketing',
         'Marketing Creatives',
     ];
 }
@@ -478,7 +675,7 @@ function ticket_notification_company_key(string $company): string
         return 'MPDC';
     }
     if ($company === '@gpsci.net') {
-        return 'GPCI';
+        return 'GPSCI';
     }
     if ($company === '@leads-farmex.com') {
         return 'FARMEX';
@@ -1021,6 +1218,19 @@ function ticket_user_is_handler_candidate(array $ticket, int $userId, array $use
     return ticket_company_matches_user($ticketCompany, $userCompany, $userEmail);
 }
 
+function ticket_user_is_claim_candidate(array $ticket, int $userId, array $userContext): bool
+{
+    $requesterId = isset($ticket['user_id']) ? (int) $ticket['user_id'] : 0;
+    $ticketCompany = (string) ($ticket['assigned_company'] ?? ($ticket['company'] ?? ''));
+    $userCompany = (string) ($userContext['company'] ?? '');
+    $userEmail = (string) ($userContext['email'] ?? '');
+
+    if ($userId <= 0) return false;
+    if ($userId === $requesterId) return false;
+
+    return ticket_company_matches_user($ticketCompany, $userCompany, $userEmail);
+}
+
 function ticket_requester_email(array $ticket): string
 {
     $candidates = [
@@ -1086,13 +1296,12 @@ function ticket_requires_manual_claim(array $ticket): bool
 {
     $status = trim((string) ($ticket['status'] ?? ''));
     $assignedTo = isset($ticket['assigned_to']) ? (int) $ticket['assigned_to'] : 0;
-    $assignedUserId = isset($ticket['assigned_user_id']) ? (int) $ticket['assigned_user_id'] : 0;
 
-    if ($assignedTo > 0 || $assignedUserId > 0) {
+    if ($assignedTo > 0) {
         return false;
     }
 
-    return strcasecmp($status, 'In Progress') === 0 || strcasecmp($status, 'Resolved') === 0;
+    return !in_array(strtolower($status), ['resolved', 'closed'], true);
 }
 
 function ticket_user_can_manual_claim(array $ticket, int $userId, ?array $userContext = null): bool
@@ -1107,7 +1316,7 @@ function ticket_user_can_manual_claim(array $ticket, int $userId, ?array $userCo
         return false;
     }
 
-    return ticket_user_is_handler_candidate($ticket, $userId, $userContext);
+    return ticket_user_is_claim_candidate($ticket, $userId, $userContext);
 }
 
 function ticket_chat_effective_handler_id(array $ticket): int

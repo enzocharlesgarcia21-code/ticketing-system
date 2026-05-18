@@ -54,7 +54,7 @@ $kb_company_departments = array_values(array_unique(array_merge(
     ticket_lapc_departments(),
     ticket_mhc_departments()
 )));
-$kb_default_ticket_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
+$kb_default_ticket_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'];
 $kb_ticket_categories_by_department = [
     'Admin & Legal' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
     'HR' => [
@@ -67,7 +67,7 @@ $kb_ticket_categories_by_department = [
         'SSS Sickness and Benefit Concern',
         'Training Request',
     ],
-    'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Technical Support'],
+    'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
     'Marketing' => ['Marketing Request'],
     'Accounting' => $kb_default_ticket_categories,
     'Management' => $kb_default_ticket_categories,

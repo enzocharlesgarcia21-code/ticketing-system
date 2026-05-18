@@ -403,6 +403,7 @@ if ($row = $result->fetch_assoc()) {
     }
     $row['duration'] = $duration;
 
+    ticket_ensure_activity_table($conn);
     $row['ticket_activity'] = [];
     $activityStmt = $conn->prepare("
         SELECT activity_type, description, created_at
@@ -422,6 +423,17 @@ if ($row = $result->fetch_assoc()) {
             ];
         }
         $activityStmt->close();
+    }
+    $existingActivityTypes = [];
+    foreach ($row['ticket_activity'] as $activityItem) {
+        $existingActivityTypes[strtolower((string) ($activityItem['activity_type'] ?? ''))] = true;
+    }
+    foreach (ticket_notification_activity_history($conn, $id) as $notificationActivity) {
+        $notificationActivityType = strtolower((string) ($notificationActivity['activity_type'] ?? ''));
+        if ($notificationActivityType !== '' && !isset($existingActivityTypes[$notificationActivityType])) {
+            $row['ticket_activity'][] = $notificationActivity;
+            $existingActivityTypes[$notificationActivityType] = true;
+        }
     }
 
     echo json_encode($row);

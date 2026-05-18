@@ -56,7 +56,7 @@ $kb_department_categories = [
     'Technical',
     'Diagnostics / Lingap',
 ];
-$kb_default_ticket_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
+$kb_default_ticket_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'];
 $kb_ticket_categories_by_department = [
     'Admin & Legal' => [
         'Phone Plan / Simcard',
@@ -82,7 +82,6 @@ $kb_ticket_categories_by_department = [
         'Procurement',
         'SAP',
         'Software',
-        'Technical Support',
     ],
     'Marketing' => [
         'Marketing Request',

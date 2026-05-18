@@ -2060,35 +2060,11 @@ user_permissions_ensure_table($conn);
     window.TM_IT_ADMINS_PAGE_SIZE = 4;
     var companyDepartments = {
         "@leadsagri.com": <?php echo json_encode(array_values($lapc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
-        "@gpsci.net": ["Accounting", "Sales"],
-        "@primestocks.ph": [
-            "Admin",
-            "Finance and Accounting",
-            "Maintenance",
-            "Management",
-            "Production",
-            "Quality Control",
-            "Supply Chain",
-            "Technical"
-        ],
+        "@gpsci.net": [],
+        "@primestocks.ph": [],
         "@malvedaholdings.com": <?php echo json_encode(array_values($mhc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
-        "@leads-farmex.com": [
-            "Business Development",
-            "Finance and Admin",
-            "Logistics",
-            "Management",
-            "Sales and Marketing",
-            "Special Project",
-            "Technical"
-        ],
-        "@leadstech-corp.com": [
-            "Admin",
-            "Finance and Accounting",
-            "Logistics",
-            "Marketing",
-            "Sales",
-            "Services & Logistics (Luzon)"
-        ],
+        "@leads-farmex.com": [],
+        "@leadstech-corp.com": [],
         "@farmasee.ph": [],
         "@malvedaproperties.com": [],
         "@lingapleads.org": [],

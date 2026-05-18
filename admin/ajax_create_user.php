@@ -151,11 +151,15 @@ if (!in_array($domain, $allowedDomains, true)) {
 
 $noDepartmentDomains = [
     '@farmasee.ph',
+    '@gpsci.net',
+    '@leads-farmex.com',
     '@malvedaproperties.com',
+    '@leadstech-corp.com',
     '@lingapleads.org',
     '@leads-eh.com',
     '@leadsanimalhealth.com',
     '@leadsav.com',
+    '@primestocks.ph',
 ];
 
 $email = $username . $domain;
