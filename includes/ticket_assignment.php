@@ -1221,12 +1221,19 @@ function ticket_user_is_handler_candidate(array $ticket, int $userId, array $use
 function ticket_user_is_claim_candidate(array $ticket, int $userId, array $userContext): bool
 {
     $requesterId = isset($ticket['user_id']) ? (int) $ticket['user_id'] : 0;
+    $ticketGroup = ticket_department_key_from_value((string) ($ticket['assigned_group'] ?? ($ticket['assigned_department'] ?? '')));
+    $userGroup = ticket_department_key_from_value((string) ($userContext['department'] ?? ''));
     $ticketCompany = (string) ($ticket['assigned_company'] ?? ($ticket['company'] ?? ''));
     $userCompany = (string) ($userContext['company'] ?? '');
     $userEmail = (string) ($userContext['email'] ?? '');
 
     if ($userId <= 0) return false;
     if ($userId === $requesterId) return false;
+    if ($ticketGroup !== '') {
+        if ($userGroup === '' || $ticketGroup !== $userGroup) {
+            return false;
+        }
+    }
 
     return ticket_company_matches_user($ticketCompany, $userCompany, $userEmail);
 }
