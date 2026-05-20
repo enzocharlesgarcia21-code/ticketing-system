@@ -264,14 +264,6 @@ function ticket_lapc_departments(): array
 function ticket_mhc_departments(): array
 {
     return [
-        'Admin & Legal',
-        'E-Commerce',
-        'Executive',
-        'Finance and Accounting',
-        'IT',
-        'Institutional Sales',
-        'Management',
-        'Marketing',
         'Marketing Creatives',
     ];
 }
