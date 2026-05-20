@@ -3308,9 +3308,11 @@ $normalized_company_id = $selectedRecipientCompany;
             color: #475569;
             font-size: 14px;
             text-align: left;
-            word-break: break-word;
             flex: 1 1 180px;
             min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .file-hidden {
             position: absolute;
@@ -4773,304 +4775,6 @@ $normalized_company_id = $selectedRecipientCompany;
         <div class="attachment-preview-body" id="attachmentPreviewBody"></div>
     </div>
 </div>
-
-<script>
-window.TMSalesAttachmentFallbackAdd = (function() {
-    var MAX_FILES = 5;
-    var MAX_BYTES = 5 * 1024 * 1024;
-    var ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
-
-    function getExt(name) {
-        var parts = String(name || '').toLowerCase().split('.');
-        return parts.length > 1 ? parts.pop() : '';
-    }
-
-    function createTransfer(files) {
-        try {
-            var transfer = new DataTransfer();
-            Array.from(files || []).forEach(function(file) {
-                transfer.items.add(file);
-            });
-            return transfer;
-        } catch (error) {
-            return null;
-        }
-    }
-
-    function syncGlobalFiles(files, input) {
-        window.attachmentFiles = Array.from(files || []);
-        var transfer = createTransfer(window.attachmentFiles);
-        if (transfer) {
-            window.dt = transfer;
-            if (input) {
-                input.files = transfer.files;
-            }
-        }
-    }
-
-    function render(input) {
-        var fileNameEl = document.getElementById('file-name');
-        var preview = document.getElementById('attachment-preview');
-        var files = Array.isArray(window.attachmentFiles) ? window.attachmentFiles : [];
-
-        if (fileNameEl) {
-            var count = files.length;
-            fileNameEl.textContent = count === 0 ? 'No file chosen' : (count === 1 ? files[0].name : (count + ' files selected'));
-        }
-
-        if (!preview) {
-            return;
-        }
-
-        preview.innerHTML = '';
-
-        files.forEach(function(file, idx) {
-            var url = '';
-            try {
-                url = URL.createObjectURL(file);
-            } catch (error) {}
-
-            var row = document.createElement('div');
-            row.style.display = 'flex';
-            row.style.alignItems = 'center';
-            row.style.justifyContent = 'space-between';
-            row.style.gap = '12px';
-            row.style.padding = '10px 12px';
-            row.style.border = '1px solid #e5e7eb';
-            row.style.borderRadius = '10px';
-            row.style.background = '#f8fafc';
-            row.style.marginBottom = '10px';
-            row.style.cursor = url ? 'pointer' : 'default';
-            if (url) {
-                row.setAttribute('role', 'button');
-                row.setAttribute('tabindex', '0');
-                row.setAttribute('aria-label', 'Preview ' + file.name);
-                row.setAttribute('data-attachment-preview-index', String(idx));
-                row.addEventListener('click', function(event) {
-                    event.stopPropagation();
-                    if (typeof window.TMSalesOpenAttachmentPreviewAt !== 'function') {
-                        return;
-                    }
-                    window.TMSalesOpenAttachmentPreviewAt(idx);
-                });
-                row.addEventListener('keydown', function(event) {
-                    if (event.key !== 'Enter' && event.key !== ' ') return;
-                    event.preventDefault();
-                    if (typeof window.TMSalesOpenAttachmentPreviewAt !== 'function') {
-                        return;
-                    }
-                    window.TMSalesOpenAttachmentPreviewAt(idx);
-                });
-            }
-
-            var left = document.createElement('button');
-            left.type = 'button';
-            left.style.display = 'flex';
-            left.style.alignItems = 'center';
-            left.style.gap = '10px';
-            left.style.minWidth = '0';
-            left.style.flex = '1 1 auto';
-            left.style.padding = '0';
-            left.style.border = '0';
-            left.style.background = 'transparent';
-            left.style.textAlign = 'left';
-            left.style.cursor = 'pointer';
-
-            if (url) {
-                left.addEventListener('click', function(event) {
-                    event.stopPropagation();
-                    if (typeof window.TMSalesOpenAttachmentPreviewAt !== 'function') {
-                        return;
-                    }
-                    window.TMSalesOpenAttachmentPreviewAt(idx);
-                });
-            } else {
-                left.disabled = true;
-                left.style.cursor = 'default';
-            }
-
-            var icon = document.createElement('div');
-            icon.style.width = '36px';
-            icon.style.height = '36px';
-            icon.style.borderRadius = '10px';
-            icon.style.display = 'flex';
-            icon.style.alignItems = 'center';
-            icon.style.justifyContent = 'center';
-            icon.style.background = 'transparent';
-            icon.style.color = '#16a34a';
-            icon.style.fontWeight = '900';
-
-            if (String(file.type || '').startsWith('image/') && url) {
-                var img = document.createElement('img');
-                img.src = url;
-                img.alt = '';
-                img.style.width = '28px';
-                img.style.height = '28px';
-                img.style.objectFit = 'cover';
-                img.style.borderRadius = '8px';
-                icon.style.background = '#ffffff';
-                icon.appendChild(img);
-            } else {
-                icon.textContent = 'FILE';
-            }
-
-            var meta = document.createElement('div');
-            meta.style.display = 'flex';
-            meta.style.flexDirection = 'column';
-            meta.style.minWidth = '0';
-
-            var name = document.createElement('div');
-            name.textContent = file.name;
-            name.style.fontWeight = '700';
-            name.style.color = '#0f172a';
-            name.style.fontSize = '13px';
-            name.style.overflow = 'hidden';
-            name.style.textOverflow = 'ellipsis';
-            name.style.whiteSpace = 'nowrap';
-            meta.appendChild(name);
-
-            var removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.textContent = 'x';
-            removeBtn.style.border = '1px solid #e2e8f0';
-            removeBtn.style.background = '#ffffff';
-            removeBtn.style.color = '#ef4444';
-            removeBtn.style.fontWeight = '900';
-            removeBtn.style.width = '40px';
-            removeBtn.style.height = '40px';
-            removeBtn.style.padding = '0';
-            removeBtn.style.borderRadius = '10px';
-            removeBtn.style.cursor = 'pointer';
-            removeBtn.style.fontSize = '18px';
-            removeBtn.style.lineHeight = '1';
-            removeBtn.addEventListener('click', function(event) {
-                event.stopPropagation();
-                if (url) {
-                    try { URL.revokeObjectURL(url); } catch (error) {}
-                }
-                window.attachmentFiles = (window.attachmentFiles || []).filter(function(_, fileIndex) {
-                    return fileIndex !== idx;
-                });
-                syncGlobalFiles(window.attachmentFiles, input);
-                render(input);
-            });
-
-            left.appendChild(icon);
-            left.appendChild(meta);
-            row.appendChild(left);
-            row.appendChild(removeBtn);
-            preview.appendChild(row);
-        });
-
-        if (Array.isArray(window.normalAttachmentPreviewItems)) {
-            window.normalAttachmentPreviewItems = files.map(function(file) {
-                var fileUrl = '';
-                try {
-                    fileUrl = URL.createObjectURL(file);
-                } catch (error) {}
-                return { file: file, url: fileUrl };
-            });
-        }
-    }
-
-    function showAttachmentError(message) {
-        var errorEl = document.getElementById('attachment-error');
-        var toastEl = document.getElementById('attachment-toast');
-        if (errorEl) {
-            errorEl.textContent = message || '';
-            errorEl.style.display = message ? 'block' : 'none';
-        }
-        if (toastEl) {
-            toastEl.textContent = message || '';
-            toastEl.style.display = message ? 'block' : 'none';
-            if (message) {
-                window.setTimeout(function() {
-                    if (toastEl.textContent === message) {
-                        toastEl.style.display = 'none';
-                        toastEl.textContent = '';
-                    }
-                }, 4000);
-            }
-        }
-    }
-
-    function add(filesLike, input) {
-        var incoming = Array.from(filesLike || []);
-        var nextFiles = Array.isArray(window.attachmentFiles) ? window.attachmentFiles.slice() : [];
-        var blockedMax = false;
-        var blockedSize = false;
-        var unsupported = false;
-
-        incoming.forEach(function(file) {
-            var ext = getExt(file && file.name);
-            if (ALLOWED_EXT.indexOf(ext) === -1) {
-                unsupported = true;
-                return;
-            }
-
-            var exists = nextFiles.some(function(existing) {
-                return existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified;
-            });
-            if (exists) {
-                return;
-            }
-
-            if (nextFiles.length >= MAX_FILES) {
-                blockedMax = true;
-                return;
-            }
-
-            var totalBytes = (file && file.size) ? file.size : 0;
-            nextFiles.forEach(function(existing) {
-                totalBytes += (existing && existing.size) ? existing.size : 0;
-            });
-            if (totalBytes > MAX_BYTES) {
-                blockedSize = true;
-                return;
-            }
-
-            nextFiles.push(file);
-        });
-
-        if (unsupported) {
-            showAttachmentError('Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.');
-        } else if (blockedSize) {
-            showAttachmentError('Attachment too large. Max 5MB total.');
-        } else if (blockedMax) {
-            showAttachmentError('Maximum 5 attachments allowed. Extra files were not added.');
-        } else {
-            showAttachmentError('');
-        }
-
-        syncGlobalFiles(nextFiles, input);
-        if (input) {
-            input.value = '';
-        }
-        render(input);
-    }
-
-    window.TMSalesAttachmentFallbackRender = render;
-    window.TMSalesResetAttachments = function() {
-        var input = document.getElementById('attachments');
-        syncGlobalFiles([], input);
-        if (input) {
-            input.value = '';
-        }
-        showAttachmentError('');
-        render(input);
-    };
-
-    document.addEventListener('DOMContentLoaded', function() {
-        var input = document.getElementById('attachments');
-        if (!Array.isArray(window.attachmentFiles)) {
-            syncGlobalFiles([], input);
-        }
-        render(input);
-    });
-
-    return add;
-})();
-</script>
 
 <div id="successModal" class="ticket-modal" aria-hidden="true">
     <div class="ticket-modal-content" role="dialog" aria-modal="true" aria-labelledby="successModalTitle">
@@ -6753,10 +6457,6 @@ sssUploadConfigs.forEach(function(config) {
 
 var attachmentInput = document.getElementById('attachments');
 var chooseBtn = document.getElementById('choose-file-btn');
-var fileNameEl = document.getElementById('file-name');
-var preview = document.getElementById('attachment-preview');
-var errorEl = document.getElementById('attachment-error');
-var toastEl = document.getElementById('attachment-toast');
 var attachmentPreviewModal = document.getElementById('attachmentPreviewModal');
 var attachmentPreviewBody = document.getElementById('attachmentPreviewBody');
 var attachmentPreviewTitle = document.getElementById('attachmentPreviewTitle');
@@ -6764,18 +6464,6 @@ var attachmentPreviewMeta = document.getElementById('attachmentPreviewMeta');
 var attachmentPreviewClose = document.getElementById('attachmentPreviewClose');
 var attachmentPreviewPrev = document.getElementById('attachmentPreviewPrev');
 var attachmentPreviewNext = document.getElementById('attachmentPreviewNext');
-function createAttachmentTransfer() {
-    try {
-        return new DataTransfer();
-    } catch (error) {
-        return null;
-    }
-}
-var dt = createAttachmentTransfer();
-var attachmentFiles = [];
-var objectUrls = [];
-var normalAttachmentPreviewItems = [];
-window.normalAttachmentPreviewItems = normalAttachmentPreviewItems;
 var activeAttachmentPreviewItems = [];
 var activeAttachmentPreviewIndex = -1;
 var activeAttachmentPreviewUrl = '';
@@ -6785,39 +6473,6 @@ var MAX_FILES = 5;
 var ALLOWED_EXT = ['jpg','jpeg','png','pdf','doc','docx'];
 var SSS_ALLOWED_EXT = ['jpg','jpeg','png','pdf','doc','docx'];
 var SSS_MAX_FILE_BYTES = 10 * 1024 * 1024;
-var toastTimer = null;
-
-if (chooseBtn) {
-    chooseBtn.addEventListener('click', function (event) {
-        event.preventDefault();
-        if (attachmentInput && !attachmentInput.disabled) attachmentInput.click();
-    });
-    chooseBtn.addEventListener('keydown', function (event) {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        if (attachmentInput && !attachmentInput.disabled) attachmentInput.click();
-    });
-}
-
-function clearObjectUrls() {
-    closeInlineAttachmentPreview();
-    while (objectUrls.length) {
-        try { URL.revokeObjectURL(objectUrls.pop()); } catch (e) {}
-    }
-}
-
-function syncAttachmentInputFiles() {
-    if (!attachmentInput) return;
-    dt = createAttachmentTransfer();
-    if (dt) {
-        attachmentFiles.forEach(function(file) {
-            dt.items.add(file);
-        });
-        attachmentInput.files = dt.files;
-    } else if (attachmentFiles.length === 0) {
-        attachmentInput.value = '';
-    }
-}
 
 function formatSize(bytes) {
     var b = Number(bytes || 0);
@@ -7049,36 +6704,6 @@ function openAttachmentPreviewAt(index) {
     openInlineAttachmentPreview(item.file, item.url, false, activeAttachmentPreviewItems, nextIndex);
 }
 
-function openNormalAttachmentPreviewAt(index) {
-    var items = (Array.isArray(window.normalAttachmentPreviewItems) && window.normalAttachmentPreviewItems.length)
-        ? window.normalAttachmentPreviewItems
-        : normalAttachmentPreviewItems;
-    if (!items.length) return;
-    var item = items[index];
-    if (!item || !item.url) return;
-    openInlineAttachmentPreview(item.file, item.url, false, items, index);
-}
-window.openNormalAttachmentPreviewAt = openNormalAttachmentPreviewAt;
-window.TMSalesOpenAttachmentPreviewAt = function(index) {
-    var items = Array.isArray(window.normalAttachmentPreviewItems) ? window.normalAttachmentPreviewItems : [];
-    if (!items.length) {
-        var files = Array.isArray(window.attachmentFiles) && window.attachmentFiles.length
-            ? window.attachmentFiles
-            : attachmentFiles;
-        items = Array.from(files || []).map(function(file) {
-            var fileUrl = '';
-            try {
-                fileUrl = URL.createObjectURL(file);
-            } catch (error) {}
-            return { file: file, url: fileUrl };
-        }).filter(function(item) {
-            return !!item.url;
-        });
-        window.normalAttachmentPreviewItems = items;
-    }
-    openNormalAttachmentPreviewAt(index);
-};
-
 function showPreviousAttachmentPreview() {
     if (activeAttachmentPreviewIndex < 0) return;
     openAttachmentPreviewAt(activeAttachmentPreviewIndex - 1);
@@ -7122,251 +6747,21 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-function syncFiles() {
-    if (!attachmentInput) return;
-    syncAttachmentInputFiles();
-    if (fileNameEl) {
-        var n = attachmentFiles.length;
-        fileNameEl.textContent = n === 0 ? 'No file chosen' : (n === 1 ? attachmentFiles[0].name : (n + ' files selected'));
-    }
-    if (!preview) return;
-    clearObjectUrls();
-    normalAttachmentPreviewItems = [];
-    window.normalAttachmentPreviewItems = normalAttachmentPreviewItems;
-    preview.innerHTML = '';
-    attachmentFiles.forEach(function (file, idx) {
-        var url = URL.createObjectURL(file);
-        objectUrls.push(url);
-        normalAttachmentPreviewItems.push({ file: file, url: url });
-
-        var row = document.createElement('div');
-        row.style.display = 'flex';
-        row.style.alignItems = 'center';
-        row.style.justifyContent = 'space-between';
-        row.style.gap = '12px';
-        row.style.padding = '10px 12px';
-        row.style.border = '1px solid #e5e7eb';
-        row.style.borderRadius = '10px';
-        row.style.background = '#f8fafc';
-        row.style.marginBottom = '10px';
-        row.style.cursor = 'pointer';
-        row.setAttribute('role', 'button');
-        row.setAttribute('tabindex', '0');
-        row.setAttribute('aria-label', 'Preview ' + file.name);
-        row.setAttribute('data-attachment-preview-index', String(idx));
-        row.addEventListener('click', function (event) {
-            event.stopPropagation();
-            openNormalAttachmentPreviewAt(idx);
-        });
-        row.addEventListener('keydown', function (event) {
-            if (event.key !== 'Enter' && event.key !== ' ') return;
-            event.preventDefault();
-            openNormalAttachmentPreviewAt(idx);
-        });
-
-        var left = document.createElement('button');
-        left.type = 'button';
-        left.style.display = 'flex';
-        left.style.alignItems = 'center';
-        left.style.gap = '10px';
-        left.style.minWidth = '0';
-        left.style.flex = '1 1 auto';
-        left.style.padding = '0';
-        left.style.border = '0';
-        left.style.background = 'transparent';
-        left.style.textAlign = 'left';
-        left.style.cursor = 'pointer';
-        left.addEventListener('click', function (event) {
-            event.stopPropagation();
-            openNormalAttachmentPreviewAt(idx);
-        });
-
-        var icon = document.createElement('div');
-        icon.style.width = '36px';
-        icon.style.height = '36px';
-        icon.style.borderRadius = '10px';
-        icon.style.display = 'flex';
-        icon.style.alignItems = 'center';
-        icon.style.justifyContent = 'center';
-        icon.style.background = 'transparent';
-        icon.style.color = '#16a34a';
-        icon.style.fontWeight = '900';
-
-        if (file.type && file.type.startsWith('image/')) {
-            var img = document.createElement('img');
-            img.src = url;
-            img.alt = '';
-            img.style.width = '28px';
-            img.style.height = '28px';
-            img.style.objectFit = 'cover';
-            img.style.borderRadius = '8px';
-            icon.style.background = '#ffffff';
-            icon.appendChild(img);
-        } else {
-            icon.textContent = 'FILE';
-        }
-
-        var meta = document.createElement('div');
-        meta.style.display = 'flex';
-        meta.style.flexDirection = 'column';
-        meta.style.minWidth = '0';
-
-        var name = document.createElement('div');
-        name.textContent = file.name;
-        name.style.fontWeight = '700';
-        name.style.color = '#0f172a';
-        name.style.fontSize = '13px';
-        name.style.overflow = 'hidden';
-        name.style.textOverflow = 'ellipsis';
-        name.style.whiteSpace = 'nowrap';
-
-        meta.appendChild(name);
-
-        var removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.textContent = 'x';
-        removeBtn.style.border = '1px solid #e2e8f0';
-        removeBtn.style.background = '#ffffff';
-        removeBtn.style.color = '#ef4444';
-        removeBtn.style.fontWeight = '900';
-        removeBtn.style.width = '40px';
-        removeBtn.style.height = '40px';
-        removeBtn.style.padding = '0';
-        removeBtn.style.borderRadius = '10px';
-        removeBtn.style.cursor = 'pointer';
-        removeBtn.style.fontSize = '18px';
-        removeBtn.style.lineHeight = '1';
-        removeBtn.addEventListener('click', function (event) {
-            event.stopPropagation();
-            try { URL.revokeObjectURL(url); } catch (e) {}
-            attachmentFiles = attachmentFiles.filter(function(_, fileIndex) {
-                return fileIndex !== idx;
-            });
-            if (attachmentInput) attachmentInput.value = '';
-            syncFiles();
-        });
-
-        left.appendChild(icon);
-        left.appendChild(meta);
-
-        row.appendChild(left);
-        row.appendChild(removeBtn);
-        preview.appendChild(row);
-    });
-}
-
-function showToast(msg) {
-    if (!toastEl) return;
-    if (!msg) {
-        toastEl.style.display = 'none';
-        toastEl.textContent = '';
-        if (toastTimer) window.clearTimeout(toastTimer);
-        toastTimer = null;
-        return;
-    }
-    toastEl.textContent = msg;
-    toastEl.style.display = 'block';
-    if (toastTimer) window.clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(function () {
-        if (!toastEl) return;
-        toastEl.style.display = 'none';
-        toastEl.textContent = '';
-        toastTimer = null;
-    }, 4000);
-}
-
-function showError(msg) {
-    if (!errorEl) return;
-    if (!msg) {
-        errorEl.style.display = 'none';
-        errorEl.textContent = '';
-        showToast('');
-        return;
-    }
-    errorEl.textContent = msg;
-    errorEl.style.display = 'block';
-    showToast(msg);
-}
-
 function getExt(name) {
     var parts = String(name || '').toLowerCase().split('.');
     return parts.length > 1 ? parts.pop() : '';
 }
 
-function addAttachmentFiles(selectedFiles) {
-    var blockedMax = false;
-    var hasUnsupportedType = false;
-    var validFiles = [];
-
-    Array.from(selectedFiles || []).forEach(function (file) {
-        var ext = getExt(file && file.name);
-        if (ALLOWED_EXT.indexOf(ext) === -1) {
-            hasUnsupportedType = true;
-            return;
-        }
-        validFiles.push(file);
-    });
-
-    if (hasUnsupportedType) {
-        if (attachmentInput) attachmentInput.value = '';
-        showError('Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.');
-        return;
-    }
-
-    validFiles.forEach(function (file) {
-        if (attachmentFiles.length >= MAX_FILES) {
-            blockedMax = true;
-            return;
-        }
-        var nextTotal = (file && file.size || 0);
-        attachmentFiles.forEach(function (f) { nextTotal += (f && f.size) ? f.size : 0; });
-        if (nextTotal > MAX_BYTES) {
-            showError('Attachment too large. Max 5MB total.');
-            return;
-        }
-        var exists = attachmentFiles.some(function (f) {
-            return f.name === file.name && f.size === file.size && f.lastModified === file.lastModified;
-        });
-        if (!exists) attachmentFiles.push(file);
-    });
-
-    if (attachmentInput && dt) attachmentInput.value = '';
-    if (blockedMax) {
-        showError('Maximum 5 attachments allowed. Extra files were not added.');
-    } else {
-        showError('');
-    }
-    syncFiles();
+function getMainAttachmentFiles() {
+    var input = document.getElementById('attachments');
+    return Array.from((input && input.files) || []);
 }
 
-if (attachmentInput) {
-    attachmentInput.addEventListener('change', function (e) {
-        addAttachmentFiles(e.target.files || []);
-    });
-}
-
-if (preview) {
-    preview.addEventListener('click', function(event) {
-        var target = event.target;
-        if (!(target instanceof Element)) return;
-        var trigger = target.closest('[data-attachment-preview-index]');
-        if (!trigger || !preview.contains(trigger)) return;
-        var index = parseInt(trigger.getAttribute('data-attachment-preview-index') || '-1', 10);
-        if (index < 0 || typeof window.TMSalesOpenAttachmentPreviewAt !== 'function') return;
-        event.preventDefault();
-        window.TMSalesOpenAttachmentPreviewAt(index);
-    });
-    preview.addEventListener('keydown', function(event) {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        var target = event.target;
-        if (!(target instanceof Element)) return;
-        var trigger = target.closest('[data-attachment-preview-index]');
-        if (!trigger || !preview.contains(trigger)) return;
-        var index = parseInt(trigger.getAttribute('data-attachment-preview-index') || '-1', 10);
-        if (index < 0 || typeof window.TMSalesOpenAttachmentPreviewAt !== 'function') return;
-        event.preventDefault();
-        window.TMSalesOpenAttachmentPreviewAt(index);
-    });
+function showMainAttachmentError(message) {
+    var errorBox = document.getElementById('attachment-error');
+    if (!errorBox) return;
+    errorBox.textContent = message || '';
+    errorBox.style.display = message ? 'block' : 'none';
 }
 
 function validateSssUploads() {
@@ -7431,11 +6826,13 @@ function validateSssUploads() {
 }
 
 window.TMSalesResetAttachments = function() {
-    attachmentFiles = [];
-    dt = createAttachmentTransfer();
-    if (attachmentInput) attachmentInput.value = '';
-    syncFiles();
-    showError('');
+    var input = document.getElementById('attachments');
+    var fileName = document.getElementById('file-name');
+    var previewBox = document.getElementById('attachment-preview');
+    if (input) input.value = '';
+    if (fileName) fileName.textContent = 'No file chosen';
+    if (previewBox) previewBox.innerHTML = '';
+    showMainAttachmentError('');
 };
 window.TMSalesResetSssUploads = function() {
     resetSssUploads();
@@ -7448,7 +6845,6 @@ window.TMSalesRefreshHrUi = function() {
 };
 
 toggleHrExtraFields();
-syncFiles();
 
 var formEl = attachmentInput ? attachmentInput.closest('form') : null;
 if (formEl) {
@@ -7460,12 +6856,13 @@ if (formEl) {
         var isKamiAttachmentRequired = isLapcHrSelected && selectedCategory === 'Attendance & Timekeeping';
         var isHrSssSelected = isLapcHrSelected && selectedCategory === 'SSS Sickness and Benefit Concern';
         var isHrMedicalCashAdvanceSelected = isLapcHrSelected && selectedCategory === 'Medical Cash Advance';
-        var badType = attachmentFiles.find(function (file) {
+        var mainAttachmentFiles = getMainAttachmentFiles();
+        var badType = mainAttachmentFiles.find(function (file) {
             var ext = getExt(file && file.name);
             return ALLOWED_EXT.indexOf(ext) === -1;
         });
         var total = 0;
-        attachmentFiles.forEach(function (f) { total += (f && f.size) ? f.size : 0; });
+        mainAttachmentFiles.forEach(function (f) { total += (f && f.size) ? f.size : 0; });
 
         setInlineFormError('');
 
@@ -7718,23 +7115,22 @@ if (formEl) {
                 return;
             }
         }
-        if (isKamiAttachmentRequired && attachmentFiles.length === 0) {
+        if (isKamiAttachmentRequired && mainAttachmentFiles.length === 0) {
             e.preventDefault();
-            showError('Attachment is required for Attendance & Timekeeping.');
+            showMainAttachmentError('Attachment is required for Attendance & Timekeeping.');
             return;
         }
-        if (isHrMedicalCashAdvanceSelected && attachmentFiles.length === 0) {
+        if (isHrMedicalCashAdvanceSelected && mainAttachmentFiles.length === 0) {
             e.preventDefault();
-            showError('Supporting Information is required for Medical Cash Advance.');
+            showMainAttachmentError('Supporting Information is required for Medical Cash Advance.');
             return;
         }
-        if (!isHrSssSelected && (attachmentFiles.length > MAX_FILES || badType || total > MAX_BYTES)) {
+        if (!isHrSssSelected && (mainAttachmentFiles.length > MAX_FILES || badType || total > MAX_BYTES)) {
             e.preventDefault();
-            showError(attachmentFiles.length > MAX_FILES ? 'Maximum 5 attachments allowed.' : (badType ? 'Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.' : 'Attachment too large. Max 5MB total.'));
+            showMainAttachmentError(mainAttachmentFiles.length > MAX_FILES ? 'Maximum 5 attachments allowed.' : (badType ? 'Unsupported attachment type. Allowed: JPG, PNG, PDF, DOC, DOCX.' : 'Attachment too large. Max 5MB total.'));
             return;
         }
-        syncAttachmentInputFiles();
-        showError('');
+        showMainAttachmentError('');
     });
 }
 </script>
@@ -8274,6 +7670,304 @@ function closeModal(){
         pageError.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
 })();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('attachments');
+    const fileName = document.getElementById('file-name');
+    const preview = document.getElementById('attachment-preview');
+    const errorBox = document.getElementById('attachment-error');
+    const chooseBtn = document.getElementById('choose-file-btn');
+    const attachmentShell = document.querySelector('#attachmentContainer .attachment-upload-shell');
+
+    console.log('[MAIN ATTACHMENT] controller loaded');
+    console.log('[MAIN ATTACHMENT] input found:', input);
+
+    if (!input || !fileName) {
+        console.error('[MAIN ATTACHMENT] Missing #attachments or #file-name');
+        return;
+    }
+
+    const allowedExt = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
+    const maxFiles = 5;
+    const maxTotalSize = 5 * 1024 * 1024;
+    let selectedFiles = [];
+    let objectUrls = [];
+
+    function createTransfer() {
+        try {
+            return new DataTransfer();
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function showError(message) {
+        if (errorBox) {
+            errorBox.textContent = message || '';
+            errorBox.style.display = message ? 'block' : 'none';
+        }
+    }
+
+    function clearPreview() {
+        objectUrls.forEach(function (url) {
+            try { URL.revokeObjectURL(url); } catch (error) {}
+        });
+        objectUrls = [];
+        if (preview) preview.innerHTML = '';
+    }
+
+    function resetFiles(message = '') {
+        selectedFiles = [];
+        input.value = '';
+        fileName.textContent = 'No file chosen';
+        clearPreview();
+        showError(message);
+    }
+
+    function syncInputFiles() {
+        const transfer = createTransfer();
+        if (!transfer) return;
+        selectedFiles.forEach(function (file) {
+            transfer.items.add(file);
+        });
+        input.files = transfer.files;
+    }
+
+    function updateSummary() {
+        if (!selectedFiles.length) {
+            fileName.textContent = 'No file chosen';
+        } else if (selectedFiles.length === 1) {
+            fileName.textContent = '1 file selected';
+        } else {
+            fileName.textContent = selectedFiles.length + ' files selected';
+        }
+    }
+
+    function getFileKind(file) {
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        if ((file.type || '').startsWith('image/') || ['jpg', 'jpeg', 'png'].includes(ext)) return 'image';
+        if (ext === 'pdf') return 'PDF';
+        if (['doc', 'docx'].includes(ext)) return 'DOC';
+        return 'FILE';
+    }
+
+    function openSelectedFilePreview(index) {
+        if (typeof openInlineAttachmentPreview !== 'function') return;
+        const galleryItems = selectedFiles.map(function (file) {
+            let url = '';
+            try {
+                url = URL.createObjectURL(file);
+            } catch (error) {}
+            return { file: file, url: url };
+        }).filter(function (item) {
+            return !!item.url;
+        });
+        if (!galleryItems[index]) return;
+        openInlineAttachmentPreview(galleryItems[index].file, galleryItems[index].url, true, galleryItems, index);
+    }
+
+    function removeFileAt(index) {
+        selectedFiles = selectedFiles.filter(function (_, fileIndex) {
+            return fileIndex !== index;
+        });
+        syncInputFiles();
+        renderFiles(selectedFiles);
+    }
+
+    function renderFiles(files) {
+        showError('');
+        selectedFiles = Array.from(files || []);
+        syncInputFiles();
+        updateSummary();
+        clearPreview();
+
+        if (!selectedFiles.length) {
+            return;
+        }
+
+        if (preview) {
+            selectedFiles.forEach(function (file, index) {
+                const url = URL.createObjectURL(file);
+                objectUrls.push(url);
+
+                const row = document.createElement('div');
+                row.className = 'attachment-preview-item';
+                row.style.display = 'flex';
+                row.style.alignItems = 'center';
+                row.style.justifyContent = 'space-between';
+                row.style.gap = '12px';
+                row.style.padding = '10px 12px';
+                row.style.border = '1px solid #e5e7eb';
+                row.style.borderRadius = '10px';
+                row.style.background = '#f8fafc';
+                row.style.marginBottom = '10px';
+
+                const left = document.createElement('button');
+                left.type = 'button';
+                left.style.display = 'flex';
+                left.style.alignItems = 'center';
+                left.style.gap = '10px';
+                left.style.minWidth = '0';
+                left.style.flex = '1 1 auto';
+                left.style.padding = '0';
+                left.style.border = '0';
+                left.style.background = 'transparent';
+                left.style.textAlign = 'left';
+                left.style.cursor = 'pointer';
+                left.addEventListener('click', function () {
+                    openSelectedFilePreview(index);
+                });
+
+                const icon = document.createElement('div');
+                icon.style.width = '36px';
+                icon.style.height = '36px';
+                icon.style.borderRadius = '10px';
+                icon.style.display = 'flex';
+                icon.style.alignItems = 'center';
+                icon.style.justifyContent = 'center';
+                icon.style.background = 'transparent';
+                icon.style.color = '#16a34a';
+                icon.style.fontWeight = '900';
+                icon.style.fontSize = '11px';
+                icon.style.flex = '0 0 36px';
+
+                if (getFileKind(file) === 'image') {
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.alt = '';
+                    img.style.width = '28px';
+                    img.style.height = '28px';
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '8px';
+                    icon.style.background = '#ffffff';
+                    icon.appendChild(img);
+                } else {
+                    icon.textContent = getFileKind(file);
+                }
+
+                const meta = document.createElement('div');
+                meta.style.display = 'flex';
+                meta.style.flexDirection = 'column';
+                meta.style.minWidth = '0';
+
+                const name = document.createElement('div');
+                name.textContent = file.name;
+                name.style.fontWeight = '700';
+                name.style.color = '#0f172a';
+                name.style.fontSize = '13px';
+                name.style.overflow = 'hidden';
+                name.style.textOverflow = 'ellipsis';
+                name.style.whiteSpace = 'nowrap';
+
+                meta.appendChild(name);
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.textContent = 'x';
+                removeBtn.setAttribute('aria-label', 'Remove ' + file.name);
+                removeBtn.style.border = '1px solid #e2e8f0';
+                removeBtn.style.background = '#ffffff';
+                removeBtn.style.color = '#ef4444';
+                removeBtn.style.fontWeight = '900';
+                removeBtn.style.width = '40px';
+                removeBtn.style.height = '40px';
+                removeBtn.style.padding = '0';
+                removeBtn.style.borderRadius = '10px';
+                removeBtn.style.cursor = 'pointer';
+                removeBtn.style.fontSize = '18px';
+                removeBtn.style.lineHeight = '1';
+                removeBtn.style.flex = '0 0 40px';
+                removeBtn.addEventListener('click', function () {
+                    removeFileAt(index);
+                });
+
+                left.appendChild(icon);
+                left.appendChild(meta);
+                row.appendChild(left);
+                row.appendChild(removeBtn);
+                preview.appendChild(row);
+            });
+        }
+    }
+
+    function validateFiles(files) {
+        if (!files.length) return '';
+        if (files.length > maxFiles) {
+            return 'You can upload a maximum of 5 files only.';
+        }
+        const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+        if (totalSize > maxTotalSize) {
+            return 'Attachment too large. Maximum total size is 5 MB.';
+        }
+        for (const file of files) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (!allowedExt.includes(ext)) {
+                return 'Please insert supported files only.';
+            }
+        }
+        return '';
+    }
+
+    function replaceSelectedFiles(filesLike) {
+        const files = Array.from(filesLike || []);
+        const error = validateFiles(files);
+        if (error) {
+            resetFiles(error);
+            return;
+        }
+        renderFiles(files);
+    }
+
+    window.TMSalesResetAttachments = function () {
+        resetFiles();
+    };
+
+    input.addEventListener('change', function () {
+        console.log('[MAIN ATTACHMENT] change fired');
+
+        const files = Array.from(input.files || []);
+        console.log('[MAIN ATTACHMENT] selected files:', files.map(file => file.name));
+
+        if (!files.length) {
+            resetFiles();
+            return;
+        }
+
+        replaceSelectedFiles(files);
+    });
+
+    if (chooseBtn) {
+        chooseBtn.addEventListener('click', function (event) {
+            event.preventDefault();
+            input.click();
+        });
+    }
+
+    if (attachmentShell) {
+        ['dragenter', 'dragover'].forEach(function (eventName) {
+            attachmentShell.addEventListener(eventName, function (event) {
+                if (input.disabled) return;
+                event.preventDefault();
+                attachmentShell.classList.add('is-dragover');
+            });
+        });
+        ['dragleave', 'dragend', 'drop'].forEach(function (eventName) {
+            attachmentShell.addEventListener(eventName, function (event) {
+                if (input.disabled) return;
+                event.preventDefault();
+                attachmentShell.classList.remove('is-dragover');
+            });
+        });
+        attachmentShell.addEventListener('drop', function (event) {
+            if (input.disabled) return;
+            const droppedFiles = event.dataTransfer ? event.dataTransfer.files : null;
+            if (!droppedFiles || !droppedFiles.length) return;
+            replaceSelectedFiles(droppedFiles);
+        });
+    }
+});
 </script>
 
 </body>
