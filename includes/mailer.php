@@ -19,22 +19,54 @@ function normalizeSmtpConfigValue(string $value): string
     return trim($value);
 }
 
-function readSmtpConfigValue(string $key): string
+function readSmtpDotenvValue(string $key): string
 {
-    $value = getenv($key);
-    if ($value === false || $value === '') {
-        if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
-            $value = (string) $_SERVER[$key];
-        } elseif (isset($_ENV[$key]) && $_ENV[$key] !== '') {
-            $value = (string) $_ENV[$key];
-        } elseif (defined($key) && (string) constant($key) !== '') {
-            $value = (string) constant($key);
-        } else {
-            $value = '';
+    static $values = null;
+    if ($values === null) {
+        $values = [];
+        $envPath = realpath(__DIR__ . '/../.env');
+        if ($envPath !== false && is_readable($envPath)) {
+            $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach ($lines ?: [] as $line) {
+                $line = trim((string) $line);
+                if ($line === '' || $line[0] === '#' || strpos($line, '=') === false) {
+                    continue;
+                }
+                [$name, $value] = explode('=', $line, 2);
+                $name = trim($name);
+                if ($name === '') {
+                    continue;
+                }
+                $values[$name] = normalizeSmtpConfigValue($value);
+            }
         }
     }
 
-    return normalizeSmtpConfigValue((string) $value);
+    return (string) ($values[$key] ?? '');
+}
+
+function readSmtpConfigValue(string $key): string
+{
+    $value = readSmtpDotenvValue($key);
+    if ($value !== '') {
+        return $value;
+    }
+
+    $value = getenv($key);
+    if ($value !== false && $value !== '') {
+        return normalizeSmtpConfigValue((string) $value);
+    }
+    if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') {
+        return normalizeSmtpConfigValue((string) $_SERVER[$key]);
+    }
+    if (isset($_ENV[$key]) && $_ENV[$key] !== '') {
+        return normalizeSmtpConfigValue((string) $_ENV[$key]);
+    }
+    if (defined($key) && (string) constant($key) !== '') {
+        return normalizeSmtpConfigValue((string) constant($key));
+    }
+
+    return '';
 }
 
 function smtp_candidate_configs(string $host, string $portRaw, string $secureRaw): array
@@ -67,7 +99,10 @@ function buildSmtpMailer(array $candidate = []): PHPMailer
     $fromName = readSmtpConfigValue('SMTP_FROM_NAME');
     $host = readSmtpConfigValue('SMTP_HOST');
     $portRaw = readSmtpConfigValue('SMTP_PORT');
-    $secureRaw = strtolower(readSmtpConfigValue('SMTP_SECURE'));
+    $secureRaw = strtolower(readSmtpConfigValue('SMTP_ENCRYPTION'));
+    if ($secureRaw === '') {
+        $secureRaw = strtolower(readSmtpConfigValue('SMTP_SECURE'));
+    }
 
     if ($username === '') {
         $username = readSmtpConfigValue('GMAIL_USERNAME');
@@ -75,6 +110,7 @@ function buildSmtpMailer(array $candidate = []): PHPMailer
     if ($password === '') {
         $password = readSmtpConfigValue('GMAIL_APP_PASSWORD');
     }
+    $password = preg_replace('/\s+/', '', $password) ?? $password;
     if ($fromEmail === '') {
         $fromEmail = readSmtpConfigValue('GMAIL_FROM_EMAIL');
     }
@@ -265,14 +301,26 @@ function smtp_record_ticket_thread_message(int $ticketId, string $messageId): vo
     }
 }
 
+function smtp_last_error(?string $error = null): string
+{
+    static $lastError = '';
+    if ($error !== null) {
+        $lastError = trim($error);
+    }
+    return $lastError;
+}
+
 function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, string $textBody = '', array $attachments = [], array $options = []): bool
 {
+    smtp_last_error('');
     $toEmails = array_values(array_unique(array_filter(array_map('trim', $toEmails), static function ($v) {
         return $v !== '';
     })));
 
     if (count($toEmails) === 0) {
-        error_log('Email skipped: no recipients | subject=' . $subject . ' | uri=' . (string) ($_SERVER['REQUEST_URI'] ?? ''));
+        $message = 'Email skipped: no recipients';
+        smtp_last_error($message);
+        error_log($message . ' | subject=' . $subject . ' | uri=' . (string) ($_SERVER['REQUEST_URI'] ?? ''));
         return false;
     }
 
@@ -347,6 +395,7 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
 
         throw new Exception(implode(' | ', $errors));
     } catch (\Throwable $e) {
+        smtp_last_error($e->getMessage());
         error_log('Email send failed: ' . $e->getMessage() . ' | subject=' . $subject . ' | toCount=' . count($toEmails) . ' | uri=' . (string) ($_SERVER['REQUEST_URI'] ?? ''));
         return false;
     }
