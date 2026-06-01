@@ -289,6 +289,26 @@ function ticket_request_company_options(): array
     ];
 }
 
+function ticket_company_department_option_map(): array
+{
+    return [
+        '@leadsagri.com' => array_values(array_map(static function ($department): array {
+            $value = (string) $department;
+            return [
+                'value' => $value,
+                'label' => $value,
+            ];
+        }, ticket_lapc_departments())),
+        '@malvedaholdings.com' => array_values(array_map(static function ($department): array {
+            $value = (string) $department;
+            return [
+                'value' => $value,
+                'label' => $value,
+            ];
+        }, ticket_mhc_departments())),
+    ];
+}
+
 function ticket_receiving_availability_ensure_table(mysqli $conn): void
 {
     static $ensured = false;
@@ -1192,6 +1212,12 @@ function ticket_company_matches_user(string $ticketCompany, string $userCompany,
 
     if ($ticketCompany === '') return false;
 
+    $normalizedTicketCompany = ticket_normalize_company($ticketCompany);
+    $normalizedUserCompany = ticket_normalize_company($userCompany);
+    if ($normalizedTicketCompany !== '' && $normalizedUserCompany !== '' && $normalizedTicketCompany === $normalizedUserCompany) {
+        return true;
+    }
+
     if (strpos($ticketCompany, '@') === 0) {
         $domain = strtolower(ltrim($ticketCompany, '@'));
         return $domain !== '' && $userEmail !== '' && ticket_string_ends_with($userEmail, '@' . $domain);
@@ -1218,6 +1244,7 @@ function ticket_user_is_handler_candidate(array $ticket, int $userId, array $use
     $ticketGroup = ticket_department_key_from_value((string) ($ticket['assigned_group'] ?? ($ticket['assigned_department'] ?? '')));
     $userGroup = ticket_department_key_from_value((string) ($userContext['department'] ?? ''));
     $ticketCompany = (string) ($ticket['assigned_company'] ?? ($ticket['company'] ?? ''));
+    $normalizedTicketCompany = ticket_normalize_company($ticketCompany);
     $userCompany = (string) ($userContext['company'] ?? '');
     $userEmail = (string) ($userContext['email'] ?? '');
 
@@ -1225,6 +1252,9 @@ function ticket_user_is_handler_candidate(array $ticket, int $userId, array $use
     if ($assignedUserId > 0 && $assignedUserId === $userId) return true;
     if ($handlerId > 0 && $handlerId === $userId) return true;
     if ($userId === $requesterId) return false;
+    if ($normalizedTicketCompany !== '' && !ticket_company_requires_department($normalizedTicketCompany)) {
+        return false;
+    }
     if ($userGroup === '' && strpos($ticketCompany, '@') === 0) {
         return ticket_company_matches_user($ticketCompany, $userCompany, $userEmail);
     }
@@ -1239,11 +1269,15 @@ function ticket_user_is_claim_candidate(array $ticket, int $userId, array $userC
     $ticketGroup = ticket_department_key_from_value((string) ($ticket['assigned_group'] ?? ($ticket['assigned_department'] ?? '')));
     $userGroup = ticket_department_key_from_value((string) ($userContext['department'] ?? ''));
     $ticketCompany = (string) ($ticket['assigned_company'] ?? ($ticket['company'] ?? ''));
+    $normalizedTicketCompany = ticket_normalize_company($ticketCompany);
     $userCompany = (string) ($userContext['company'] ?? '');
     $userEmail = (string) ($userContext['email'] ?? '');
 
     if ($userId <= 0) return false;
     if ($userId === $requesterId) return false;
+    if ($normalizedTicketCompany !== '' && !ticket_company_requires_department($normalizedTicketCompany)) {
+        return ticket_company_matches_user($ticketCompany, $userCompany, $userEmail);
+    }
     if ($ticketGroup !== '') {
         if ($userGroup === '' || $ticketGroup !== $userGroup) {
             return false;

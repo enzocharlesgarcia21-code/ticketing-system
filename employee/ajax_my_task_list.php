@@ -62,11 +62,12 @@ $user_id = (int) ($_SESSION['user_id'] ?? 0);
 $user_department = (string) ($_SESSION['department'] ?? '');
 $user_company = (string) ($_SESSION['company'] ?? '');
 $user_email = (string) ($_SESSION['email'] ?? '');
+$user_created_at = (string) ($_SESSION['user_created_at'] ?? '');
 
 ticket_ensure_assignment_columns($conn);
 
-if ($user_department === '' || $user_company === '') {
-    $user_dept_stmt = $conn->prepare("SELECT department, company FROM users WHERE id = ?");
+if ($user_department === '' || $user_company === '' || $user_created_at === '') {
+    $user_dept_stmt = $conn->prepare("SELECT department, company, created_at FROM users WHERE id = ?");
     if ($user_dept_stmt) {
         $user_dept_stmt->bind_param("i", $user_id);
         $user_dept_stmt->execute();
@@ -74,9 +75,13 @@ if ($user_department === '' || $user_company === '') {
         if ($row = $user_dept_result->fetch_assoc()) {
             $user_department = $user_department !== '' ? $user_department : (string) ($row['department'] ?? '');
             $user_company = $user_company !== '' ? $user_company : (string) ($row['company'] ?? '');
+            $user_created_at = $user_created_at !== '' ? $user_created_at : (string) ($row['created_at'] ?? '');
         }
         $user_dept_stmt->close();
     }
+    if ($user_department !== '') $_SESSION['department'] = $user_department;
+    if ($user_company !== '') $_SESSION['company'] = $user_company;
+    if ($user_created_at !== '') $_SESSION['user_created_at'] = $user_created_at;
 }
 if ($user_email === '') {
     $ue = $conn->prepare("SELECT email FROM users WHERE id = ?");
@@ -130,6 +135,8 @@ if (!array_key_exists($company_email, $allowed_departments_by_company) || !in_ar
 if (!array_key_exists($company_email, $company_filter_options)) $company_email = '';
 if (!in_array($status, $allowed_statuses, true)) $status = '';
 if (!in_array($sla, $allowed_slas, true) && !in_array($sla, ['Low', 'Medium', 'High'], true)) $sla = '';
+
+$userCompanyNorm = ticket_normalize_company((string) $user_company);
 
 function task_source_label(array $row): string
 {
@@ -267,8 +274,16 @@ $groupCond = count($userDepartmentAliases) > 0
     : "0=1";
 $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
 $requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
+$lapcSharedCreatedCond = "1=1";
 
-$where[] = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND (((t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')) OR ((NOT $requiresGroupCond) OR $groupCond))))";
+if ($userCompanyNorm === '@leadsagri.com') {
+    $userCreatedAtValue = trim((string) $user_created_at);
+    if ($userCreatedAtValue !== '') {
+        $lapcSharedCreatedCond = "(t.created_at >= ?)";
+    }
+}
+
+$where[] = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND $lapcSharedCreatedCond AND (((t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')) OR ((NOT $requiresGroupCond) OR $groupCond))))";
 $params[] = $user_id;
 $types .= "i";
 $params[] = $user_id;
@@ -286,6 +301,13 @@ $types .= "s";
 foreach ($companyAliases as $co) {
     $params[] = $co;
     $types .= "s";
+}
+if ($userCompanyNorm === '@leadsagri.com') {
+    $userCreatedAtValue = trim((string) $user_created_at);
+    if ($userCreatedAtValue !== '') {
+        $params[] = $userCreatedAtValue;
+        $types .= "s";
+    }
 }
 foreach ($userDepartmentAliases as $departmentAlias) {
     $params[] = $departmentAlias;
