@@ -503,6 +503,7 @@
     return requestType ? formatEmailRequestType(requestType) : '';
   }
   function renderTimeline(ticket) {
+    var maxVisibleTimelineItems = 5;
     var createdAt = ticket.created_at ? new Date(ticket.created_at) : null;
     var updatedAt = ticket.updated_at ? new Date(ticket.updated_at) : null;
     var fallbackWhen = updatedAt || createdAt;
@@ -576,9 +577,37 @@
       return aTime - bTime;
     });
 
-    return '<div class="tm-timeline">' + events.map(function (e) {
-      return '<div class="tm-timeline-item"><div class="tm-timeline-content"><div class="tm-timeline-title">' + escapeHtml(e.title) + '</div><div class="tm-timeline-time">' + formatTimelineTime(e.when) + '</div></div></div>';
-    }).join('') + '</div>';
+    var timelineItemsHtml = events.map(function (e, index) {
+      var hiddenClass = index >= maxVisibleTimelineItems ? ' tm-timeline-item-hidden' : '';
+      var hiddenStyle = index >= maxVisibleTimelineItems ? ' style="display:none;"' : '';
+      return '<div class="tm-timeline-item' + hiddenClass + '"' + hiddenStyle + '><div class="tm-timeline-content"><div class="tm-timeline-title">' + escapeHtml(e.title) + '</div><div class="tm-timeline-time">' + formatTimelineTime(e.when) + '</div></div></div>';
+    }).join('');
+    var toggleHtml = events.length > maxVisibleTimelineItems
+      ? '<div class="tm-timeline-actions" style="display:flex;justify-content:center;padding-top:14px;margin-top:4px;">' +
+          '<button type="button" class="tm-timeline-toggle-btn" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:6px 10px;border:none;background:transparent;color:#15803d;font-size:14px;font-weight:700;line-height:1;cursor:pointer;" data-expanded="false" onclick="TMTicketModal.toggleTimeline(this)"><span class="tm-timeline-toggle-label">Show more activities</span><span class="tm-timeline-toggle-icon" aria-hidden="true">&#9662;</span></button>' +
+        '</div>'
+      : '';
+    return '<div class="tm-timeline">' + timelineItemsHtml + toggleHtml + '</div>';
+  }
+  function toggleTimeline(button) {
+    if (!button || !button.closest) return;
+    var actions = button.closest('.tm-timeline-actions');
+    var body = button.closest('.tm-card-body');
+    var timeline = body ? body.querySelector('.tm-timeline') : null;
+    if (!timeline) return;
+    var hiddenItems = timeline.querySelectorAll('.tm-timeline-item-hidden');
+    var expanded = String(button.getAttribute('data-expanded') || 'false') === 'true';
+    hiddenItems.forEach(function (item) {
+      item.style.display = expanded ? 'none' : '';
+    });
+    button.setAttribute('data-expanded', expanded ? 'false' : 'true');
+    var label = button.querySelector('.tm-timeline-toggle-label');
+    var icon = button.querySelector('.tm-timeline-toggle-icon');
+    if (label) label.textContent = expanded ? 'Show more activities' : 'Show fewer activities';
+    if (icon) icon.innerHTML = expanded ? '&#9662;' : '&#9652;';
+    if (expanded && actions && typeof actions.scrollIntoView === 'function') {
+      actions.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   }
   function formatTimelineCompanyLabel(value) {
     var raw = value == null ? '' : String(value).trim();
@@ -598,6 +627,9 @@
   function formatTimelineActivityTitle(raw) {
     var text = raw == null ? '' : String(raw).trim();
     if (!text) return '';
+    if (/^closed by requestor$/i.test(text) || /^closed by requester$/i.test(text)) {
+      return 'Closed by Creator';
+    }
     text = text.replace(/\bat\s+(@[^\s.]+(?:\.[^\s.]+)+)\b/gi, function (_, company) {
       return 'at ' + formatTimelineCompanyLabel(company);
     });
@@ -1108,8 +1140,23 @@
     var counter = root.querySelector('[data-sap-counter]');
     if (counter) counter.textContent = String(nextIndex + 1) + ' of ' + String(total);
   }
+  function safeAttachmentPathSegment(value) {
+    var normalized = attachmentStoredName(value);
+    return encodeURIComponent(String(normalized || ''));
+  }
+  function chatAttachmentIsImage(attachment) {
+    if (!attachment) return false;
+    if (attachment.is_image === true) return true;
+    var storedName = String(attachment.stored_name || '');
+    var originalName = String(attachment.original_name || '');
+    var probe = storedName || originalName;
+    if (!probe) return false;
+    probe = attachmentStoredName(probe).toLowerCase();
+    return /\.(jpe?g|png|gif|webp|bmp)$/i.test(probe);
+  }
   function getChatAttachmentUrl(storedName) {
-    return '../uploads/' + encodeURIComponent(String(storedName || ''));
+    var safeName = safeAttachmentPathSegment(storedName);
+    return safeName ? ('../uploads/' + safeName) : '';
   }
   function formatAttachmentSize(bytes) {
     var size = Number(bytes || 0);
@@ -1317,7 +1364,8 @@
     var wrap = document.createElement('div');
     wrap.className = 'tm-chat-attachment';
     var attachmentUrl = getChatAttachmentUrl(attachment.stored_name);
-    if (attachment.is_image) {
+    if (!attachmentUrl) return null;
+    if (chatAttachmentIsImage(attachment)) {
       var link = document.createElement('button');
       link.type = 'button';
       link.className = 'tm-chat-attachment-link tm-chat-attachment-button';
@@ -2315,6 +2363,10 @@
     if (isSalesTicket && !hasActualAssignee) hideUpdateTab = false;
     if (isClosedTicket) hideUpdateTab = true;
     var hideConversationTab = hideAdminChat || isSalesTicket;
+    var isReassignedViewOnly = !!(data && data.reassigned_view_only === true);
+    if (isReassignedViewOnly) {
+      hideConversationTab = true;
+    }
     var showClaimButton = !!(data && data.can_claim_ticket === true);
     var hideAdminConversationButton = hideRequesterAdminChatButton || isSalesTicket;
     var hideQuickTags = typeof window !== 'undefined' && window.TM_HIDE_QUICK_TAGS === true;
@@ -2426,6 +2478,18 @@
     var claimButtonHtml = showClaimButton
       ? ('  <div class="tm-tabs-actions"><button type="button" class="tm-claim-ticket-btn" onclick="TMTicketModal.claimTicket(' + String(data.id) + ', this)"><i class="fas fa-user-check"></i><span>Claim Ticket</span></button></div>')
       : '';
+    var reassignedBannerHtml = isReassignedViewOnly
+      ? (
+        '    <div style="margin:8px 14px 18px;border:1px solid #f3d273;background:linear-gradient(180deg,#fffaf0 0%,#fffdf7 100%);border-radius:18px;padding:14px 18px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 10px 24px rgba(15,23,42,.05);">' +
+        '      <div style="width:42px;height:42px;border-radius:999px;background:#fff3cd;color:#7c5a00;display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:20px;"><i class="fas fa-lock"></i></div>' +
+        '      <div style="min-width:0;font-family:Georgia, \"Times New Roman\", serif;">' +
+        '        <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px;">Ticket Reassigned</div>' +
+        '        <div style="font-size:14px;line-height:1.55;color:#334155;font-weight:400;">' + escapeHtml(String(data.reassigned_title || 'This ticket has been reassigned.')) + '</div>' +
+        '        <div style="font-size:14px;line-height:1.55;color:#334155;font-weight:400;">' + escapeHtml(String(data.reassigned_message || 'You can still view the ticket details, but you can no longer respond or access the chat.')) + '</div>' +
+        '      </div>' +
+        '    </div>'
+      )
+      : '';
     return '' +
       '<div class="tm-header' + sapHeaderClass + '">' +
       '  <div class="tm-header-left">' +
@@ -2445,6 +2509,7 @@
       claimButtonHtml +
       '</div>' +
       '<div class="tm-body">' +
+      (isReassignedViewOnly ? reassignedBannerHtml : '') +
       '  <div id="tab-info" class="tm-tab-content active">' +
       '    <div class="tm-info-col">' +
       '      <div class="tm-card tm-card-ticket-info"><div class="tm-card-header"><span class="tm-card-title">Ticket Information</span></div><div class="tm-card-body"><div class="tm-info-grid">' +
@@ -4821,6 +4886,7 @@
     openFilePreview: openFilePreview,
     openFilePreviewFromCard: openFilePreviewFromCard,
     closeFilePreview: closeFilePreview,
+    toggleTimeline: toggleTimeline,
     getCurrentTicketId: getCurrentTicketId
   };
 })(); 

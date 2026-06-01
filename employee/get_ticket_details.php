@@ -396,6 +396,7 @@ if ($checkResult->num_rows > 0) {
         ($deptKey !== '' && $ticketGroupKey !== '' && $ticketGroupKey === $deptKey)
         || in_array(strtoupper(trim($ticketGroup)), $deptAliases, true)
     );
+    $reassignedViewOnlyAccess = !$isRequester && ($assigneeOk || $companyOk);
 }
 
 $sql = "
@@ -477,23 +478,57 @@ if ($row = $result->fetch_assoc()) {
         $canUpdateTab = false;
     }
     $row['can_update_tab'] = $canUpdateTab;
+    $hasFeedbackAccess = false;
+    if ($currentUserId > 0) {
+        $feedbackAccessStmt = $conn->prepare("
+            SELECT 1
+            FROM ticket_feedback tf
+            JOIN employee_tickets et ON et.id = tf.ticket_id
+            WHERE tf.ticket_id = ?
+              AND (
+                    tf.assignee_id = ?
+                    OR (
+                        COALESCE(tf.assignee_id, 0) = 0
+                        AND (et.assigned_to = ? OR et.assigned_user_id = ?)
+                    )
+              )
+            LIMIT 1
+        ");
+        if ($feedbackAccessStmt) {
+            $feedbackAccessStmt->bind_param("iiii", $id, $currentUserId, $currentUserId, $currentUserId);
+            $feedbackAccessStmt->execute();
+            $feedbackAccessRes = $feedbackAccessStmt->get_result();
+            $hasFeedbackAccess = (bool) ($feedbackAccessRes && $feedbackAccessRes->fetch_row());
+            $feedbackAccessStmt->close();
+        }
+    }
     $hasAccess = ticket_user_matches_requester($row, $currentUserId, $userContext)
         || ticket_user_is_handler_candidate($row, $currentUserId, $userContext)
+        || $hasFeedbackAccess
         || !empty($row['can_claim_ticket']);
     if (!$hasAccess) {
-        $ticketData = $row;
-        http_response_code(403);
-        $targetLabel = unavailable_reassignment_target_label($ticketData);
-        echo json_encode([
-            'error' => 'Ticket access removed',
-            'error_code' => 'ticket_reassigned',
-            'unavailable_title' => 'This ticket has been reassigned to ' . $targetLabel . '.',
-            'unavailable_message' => 'You can no longer view or respond to this ticket.'
-        ]);
-        exit;
+        if (!empty($reassignedViewOnlyAccess)) {
+            $targetLabel = unavailable_reassignment_target_label($row);
+            $row['reassigned_view_only'] = true;
+            $row['reassigned_title'] = 'This ticket has been reassigned to ' . $targetLabel . '.';
+            $row['reassigned_message'] = 'You can still view the ticket details, but you can no longer respond or access the chat.';
+            $row['can_update_tab'] = false;
+            $row['can_claim_ticket'] = false;
+        } else {
+            $ticketData = $row;
+            http_response_code(403);
+            $targetLabel = unavailable_reassignment_target_label($ticketData);
+            echo json_encode([
+                'error' => 'Ticket access removed',
+                'error_code' => 'ticket_reassigned',
+                'unavailable_title' => 'This ticket has been reassigned to ' . $targetLabel . '.',
+                'unavailable_message' => 'You can no longer view or respond to this ticket.'
+            ]);
+            exit;
+        }
     }
     $chatClosedMessage = ticket_chat_closed_status_message($row);
-    $row['can_chat'] = $chatClosedMessage === '' && ticket_user_can_chat($row, $currentUserId, $userContext);
+    $row['can_chat'] = empty($row['reassigned_view_only']) && $chatClosedMessage === '' && ticket_user_can_chat($row, $currentUserId, $userContext);
     $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
     $row['assigned_to_name'] = isset($row['assigned_to_name']) ? (string) $row['assigned_to_name'] : '';
     $row['assigned_to_email'] = isset($row['assigned_to_email']) ? (string) $row['assigned_to_email'] : '';
@@ -504,6 +539,8 @@ if ($row = $result->fetch_assoc()) {
         $row['chat_locked_message'] = 'Claim this ticket first before joining the conversation.';
     } elseif ($chatClosedMessage !== '') {
         $row['chat_locked_message'] = $chatClosedMessage;
+    } elseif (!empty($row['reassigned_view_only']) && !empty($row['reassigned_message'])) {
+        $row['chat_locked_message'] = (string) $row['reassigned_message'];
     } elseif ($row['assigned_to_name'] !== '') {
         $row['chat_locked_message'] = 'This ticket is already assigned to ' . $row['assigned_to_name'] . '.';
     } else {
