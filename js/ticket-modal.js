@@ -428,13 +428,9 @@ var TMTicketModal = (function () {
   }
   function assignedCompanyUsesDepartment(companyValue) {
     var normalized = normalizeCompanyValue(companyValue);
-    if (typeof window !== 'undefined' && window.TM_COMPANY_DEPARTMENT_OPTIONS) {
-      var configuredOptions = window.TM_COMPANY_DEPARTMENT_OPTIONS[normalized];
-      if (Array.isArray(configuredOptions) && configuredOptions.length > 0) {
-        return true;
-      }
-    }
-    return normalized === '@leadsagri.com' || normalized === '@malvedaholdings.com';
+    var sharedOptions = getSharedCompanyDepartmentOptions();
+    var configuredOptions = sharedOptions[normalized];
+    return Array.isArray(configuredOptions) && configuredOptions.length > 0;
   }
   function companyDisplayName(companyValue) {
     var value = companyValue == null ? '' : String(companyValue).trim();
@@ -1856,6 +1852,12 @@ var TMTicketModal = (function () {
   var mhcDeptOptions = [
     { value: 'Marketing Creatives', label: 'Marketing Creatives' }
   ];
+  function getSharedCompanyDepartmentOptions() {
+    return {
+      '@leadsagri.com': lapcDeptOptions,
+      '@malvedaholdings.com': mhcDeptOptions
+    };
+  }
   function normalizeCompanyValue(value) {
     var normalized = value == null ? '' : String(value).trim().toLowerCase();
     if (normalized === '') return '';
@@ -1948,32 +1950,16 @@ var TMTicketModal = (function () {
   }
   function getDeptOptionsForCompany(companyValue) {
     var normalizedCompany = normalizeCompanyValue(companyValue);
-    if (typeof window !== 'undefined' && window.TM_COMPANY_DEPARTMENT_OPTIONS) {
-      var configuredOptions = window.TM_COMPANY_DEPARTMENT_OPTIONS[normalizedCompany];
-      if (Array.isArray(configuredOptions) && configuredOptions.length > 0) {
-        return configuredOptions;
-      }
+    var sharedOptions = getSharedCompanyDepartmentOptions();
+    var configuredOptions = sharedOptions[normalizedCompany];
+    if (Array.isArray(configuredOptions) && configuredOptions.length > 0) {
+      return configuredOptions;
     }
     if (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true) return lapcDeptOptions;
-    var rawCompany = companyValue == null ? '' : String(companyValue).trim().toLowerCase();
-    if (
-      normalizedCompany === '@leadsagri.com' ||
-      rawCompany === 'lapc' ||
-      rawCompany === 'lapc (@leadsagri.com)' ||
-      rawCompany === 'leads agricultural products corporation - lapc' ||
-      rawCompany === 'leadsagri.com'
-    ) {
+    if (normalizedCompany === '@leadsagri.com') {
       return lapcDeptOptions;
     }
-    if (
-      normalizedCompany === '@malvedaholdings.com' ||
-      rawCompany === 'mhc' ||
-      rawCompany === 'mhc (@malvedaholdings.com)' ||
-      rawCompany === 'malveda holdings corporation - mhc' ||
-      rawCompany === 'malveda holdings - mhc' ||
-      rawCompany === 'malveda holdings corporation' ||
-      rawCompany === 'malveda holdings'
-    ) {
+    if (normalizedCompany === '@malvedaholdings.com') {
       return mhcDeptOptions;
     }
     return [];
@@ -1981,24 +1967,14 @@ var TMTicketModal = (function () {
   function preferredDeptValueForCompany(selectedValue, companyValue) {
     var raw = selectedValue == null ? '' : String(selectedValue).trim();
     var normalizedCompany = normalizeCompanyValue(companyValue);
-    var rawCompany = companyValue == null ? '' : String(companyValue).trim().toLowerCase();
-    var isLapcCompany = normalizedCompany === '@leadsagri.com'
-      || rawCompany === 'lapc'
-      || rawCompany === 'lapc (@leadsagri.com)'
-      || rawCompany === 'leads agricultural products corporation - lapc'
-      || rawCompany === 'leadsagri.com'
-      || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
-    var isMhcCompany = normalizedCompany === '@malvedaholdings.com'
-      || rawCompany === 'mhc'
-      || rawCompany === 'mhc (@malvedaholdings.com)'
-      || rawCompany === 'malveda holdings corporation - mhc'
-      || rawCompany === 'malvedaholdings.com';
-    var hasDepartmentOptions = isLapcCompany || isMhcCompany;
+    var options = getDeptOptionsForCompany(companyValue);
+    var hasDepartmentOptions = options.length > 0;
+    var isLapcCompany = normalizedCompany === '@leadsagri.com' || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
+    var isMhcCompany = normalizedCompany === '@malvedaholdings.com';
     if (raw.toLowerCase() === 'no departments available') {
       raw = '';
     }
     if (!raw) return hasDepartmentOptions ? '' : '';
-    var options = getDeptOptionsForCompany(companyValue);
     for (var i = 0; i < options.length; i++) {
       if (String(options[i].value).toLowerCase() === raw.toLowerCase()) return String(options[i].value);
     }
@@ -2030,24 +2006,24 @@ var TMTicketModal = (function () {
     }
     return hasDepartmentOptions ? raw : '';
   }
+  function getCanonicalCompanySelectValue(selectEl) {
+    if (!selectEl) return '';
+    var rawValue = String(selectEl.value || '');
+    var normalizedValue = normalizeCompanyValue(rawValue);
+    if (!normalizedValue) return rawValue;
+    var hasNormalizedOption = Array.prototype.slice.call(selectEl.options || []).some(function (option) {
+      return String(option.value || '') === normalizedValue;
+    });
+    if (hasNormalizedOption && String(selectEl.value || '') !== normalizedValue) {
+      selectEl.value = normalizedValue;
+    }
+    return hasNormalizedOption ? normalizedValue : (normalizedValue || rawValue);
+  }
   function buildDeptOptionsHtml(companyValue, selectedValue) {
-    var normalizedCompany = normalizeCompanyValue(companyValue);
-    var rawCompany = companyValue == null ? '' : String(companyValue).trim().toLowerCase();
-    var isLapcCompany = normalizedCompany === '@leadsagri.com'
-      || rawCompany === 'lapc'
-      || rawCompany === 'lapc (@leadsagri.com)'
-      || rawCompany === 'leads agricultural products corporation - lapc'
-      || rawCompany === 'leadsagri.com'
-      || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
-    var isMhcCompany = normalizedCompany === '@malvedaholdings.com'
-      || rawCompany === 'mhc'
-      || rawCompany === 'mhc (@malvedaholdings.com)'
-      || rawCompany === 'malveda holdings corporation - mhc'
-      || rawCompany === 'malvedaholdings.com';
-    if (!isLapcCompany && !isMhcCompany) {
+    var options = getDeptOptionsForCompany(companyValue);
+    if (options.length === 0) {
       return '                  <option value="" selected>No departments available</option>';
     }
-    var options = getDeptOptionsForCompany(companyValue);
     var forcePlaceholder = typeof window !== 'undefined' && window.TM_FORCE_DEPARTMENT_PLACEHOLDER === true;
     var matchedValue = forcePlaceholder ? '' : preferredDeptValueForCompany(selectedValue, companyValue);
     var hasSelection = matchedValue !== '';
@@ -2115,11 +2091,17 @@ var TMTicketModal = (function () {
         userEl.innerHTML = '                  <option value="">All</option>';
         userEl.value = '';
       }
+      if (typeof userEl._tmRenderCustomDropdown === 'function') {
+        userEl._tmRenderCustomDropdown();
+      }
     }
 
     function setLoadingState(message) {
       userEl.innerHTML = '                  <option value="">' + escapeHtml(message || 'Loading department users...') + '</option>';
       userEl.disabled = true;
+      if (typeof userEl._tmRenderCustomDropdown === 'function') {
+        userEl._tmRenderCustomDropdown();
+      }
     }
 
     function syncUsers(preferredUserId) {
@@ -2133,6 +2115,9 @@ var TMTicketModal = (function () {
       if (!companyValue || !deptValue) {
         userEl.innerHTML = '                  <option value="">All</option>';
         userEl.disabled = true;
+        if (typeof userEl._tmRenderCustomDropdown === 'function') {
+          userEl._tmRenderCustomDropdown();
+        }
         return;
       }
 
@@ -2149,10 +2134,16 @@ var TMTicketModal = (function () {
           if (users.length === 0) {
             userEl.innerHTML = '                  <option value="">All</option>';
           }
+          if (typeof userEl._tmRenderCustomDropdown === 'function') {
+            userEl._tmRenderCustomDropdown();
+          }
         })
         .catch(function () {
           userEl.innerHTML = '                  <option value="">Unable to load department users</option>';
           userEl.disabled = true;
+          if (typeof userEl._tmRenderCustomDropdown === 'function') {
+            userEl._tmRenderCustomDropdown();
+          }
         });
     }
 
@@ -2164,106 +2155,120 @@ var TMTicketModal = (function () {
       syncUsers('');
     });
   }
-  function bindCustomDepartmentDropdown(container) {
+  function bindCustomSelectDropdowns(container) {
     if (!container) return;
     var form = container.querySelector('#ticketUpdateForm');
-    if (!form || form.dataset.customDeptBound === '1') return;
-    form.dataset.customDeptBound = '1';
-    var wrapper = form.querySelector('[data-custom-select="assigned_department"]');
-    var selectEl = form.querySelector('select[name="assigned_department"]');
-    var trigger = wrapper ? wrapper.querySelector('[data-custom-select-trigger]') : null;
-    var triggerText = wrapper ? wrapper.querySelector('[data-custom-select-text]') : null;
-    var menu = wrapper ? wrapper.querySelector('[data-custom-select-menu]') : null;
-    if (!wrapper || !selectEl || !trigger || !triggerText || !menu) return;
+    if (!form || form.dataset.customSelectsBound === '1') return;
+    form.dataset.customSelectsBound = '1';
+    var wrappers = Array.prototype.slice.call(form.querySelectorAll('[data-custom-select]'));
+    if (wrappers.length === 0) return;
 
-    function closeMenu() {
-      menu.classList.remove('show');
-      menu.classList.remove('is-above');
-      menu.style.maxHeight = '';
-      trigger.setAttribute('aria-expanded', 'false');
-    }
+    wrappers.forEach(function (wrapper) {
+      var selectName = String(wrapper.getAttribute('data-custom-select') || '').trim();
+      var selectEl = selectName ? form.querySelector('select[name="' + selectName + '"]') : null;
+      var trigger = wrapper ? wrapper.querySelector('[data-custom-select-trigger]') : null;
+      var triggerText = wrapper ? wrapper.querySelector('[data-custom-select-text]') : null;
+      var menu = wrapper ? wrapper.querySelector('[data-custom-select-menu]') : null;
+      var placeholder = String(wrapper.getAttribute('data-custom-select-placeholder') || 'Select option');
+      if (!wrapper || !selectEl || !trigger || !triggerText || !menu) return;
 
-    function positionMenu() {
-      var gap = 8;
-      var viewportPadding = 16;
-      var rect = trigger.getBoundingClientRect();
-      var clipTop = viewportPadding;
-      var clipBottom = window.innerHeight - viewportPadding;
-      var modalScrollArea = wrapper.closest('.tm-body') || wrapper.closest('.modal-content');
-      if (modalScrollArea) {
-        var modalRect = modalScrollArea.getBoundingClientRect();
-        clipTop = Math.max(clipTop, modalRect.top + gap);
-        clipBottom = Math.min(clipBottom, modalRect.bottom - gap);
+      function closeMenu() {
+        menu.classList.remove('show');
+        menu.classList.remove('is-above');
+        menu.style.maxHeight = '';
+        trigger.setAttribute('aria-expanded', 'false');
       }
-      var spaceBelow = clipBottom - rect.bottom - gap;
-      var spaceAbove = rect.top - clipTop - gap;
-      var shouldOpenAbove = spaceBelow < 240 && spaceAbove > spaceBelow;
-      var availableSpace = shouldOpenAbove ? spaceAbove : spaceBelow;
-      var maxHeight = Math.max(140, Math.min(320, Math.floor(availableSpace)));
-      menu.classList.toggle('is-above', shouldOpenAbove);
-      menu.style.maxHeight = maxHeight + 'px';
-    }
 
-    function renderOptions() {
-      var currentValue = String(selectEl.value || '');
-      var options = Array.prototype.slice.call(selectEl.options || []).filter(function (option) {
-        return !(option.disabled && option.hidden);
-      });
-      var selectedOption = selectEl.options[selectEl.selectedIndex] || null;
-      triggerText.textContent = selectedOption && selectedOption.text ? String(selectedOption.text) : 'Choose department';
-      trigger.disabled = !!selectEl.disabled;
-      menu.innerHTML = options.map(function (option) {
-        var value = String(option.value || '');
-        var label = String(option.text || '');
-        var selectedClass = value === currentValue ? ' is-selected' : '';
-        return '' +
-          '<button type="button" class="tm-select-menu-option' + selectedClass + '" data-custom-option-value="' + escapeHtml(value) + '">' +
-          escapeHtml(label) +
-          '</button>';
-      }).join('');
-
-      Array.prototype.forEach.call(menu.querySelectorAll('[data-custom-option-value]'), function (btn) {
-        btn.addEventListener('click', function () {
-          var nextValue = btn.getAttribute('data-custom-option-value') || '';
-          selectEl.value = nextValue;
-          closeMenu();
-          renderOptions();
-          var changeEvent;
-          try {
-            changeEvent = new Event('change', { bubbles: true });
-          } catch (e) {
-            changeEvent = document.createEvent('Event');
-            changeEvent.initEvent('change', true, true);
-          }
-          selectEl.dispatchEvent(changeEvent);
-        });
-      });
-    }
-
-    trigger.addEventListener('click', function () {
-      if (trigger.disabled) return;
-      var willOpen = !menu.classList.contains('show');
-      closeMenu();
-      if (willOpen) {
-        renderOptions();
-        positionMenu();
-        menu.classList.add('show');
-        trigger.setAttribute('aria-expanded', 'true');
-        var selected = menu.querySelector('.tm-select-menu-option.is-selected');
-        if (selected && typeof selected.scrollIntoView === 'function') {
-          selected.scrollIntoView({ block: 'nearest' });
+      function positionMenu() {
+        var gap = 8;
+        var viewportPadding = 16;
+        var rect = trigger.getBoundingClientRect();
+        var clipTop = viewportPadding;
+        var clipBottom = window.innerHeight - viewportPadding;
+        var modalScrollArea = wrapper.closest('.tm-body') || wrapper.closest('.modal-content');
+        if (modalScrollArea) {
+          var modalRect = modalScrollArea.getBoundingClientRect();
+          clipTop = Math.max(clipTop, modalRect.top + gap);
+          clipBottom = Math.min(clipBottom, modalRect.bottom - gap);
         }
+        var spaceBelow = clipBottom - rect.bottom - gap;
+        var spaceAbove = rect.top - clipTop - gap;
+        var shouldOpenAbove = spaceBelow < 240 && spaceAbove > spaceBelow;
+        var availableSpace = shouldOpenAbove ? spaceAbove : spaceBelow;
+        var maxHeight = Math.max(140, Math.min(320, Math.floor(availableSpace)));
+        menu.classList.toggle('is-above', shouldOpenAbove);
+        menu.style.maxHeight = maxHeight + 'px';
       }
-    });
 
-    document.addEventListener('click', function (event) {
-      if (wrapper.contains(event.target)) return;
-      closeMenu();
-    });
+      function renderOptions() {
+        var currentValue = String(selectEl.value || '');
+        var options = Array.prototype.slice.call(selectEl.options || []).filter(function (option) {
+          return !(option.disabled && option.hidden);
+        });
+        var selectedOption = selectEl.options[selectEl.selectedIndex] || null;
+        triggerText.textContent = selectedOption && selectedOption.text ? String(selectedOption.text) : placeholder;
+        trigger.disabled = !!selectEl.disabled;
+        menu.innerHTML = options.map(function (option) {
+          var value = String(option.value || '');
+          var label = String(option.text || '');
+          var selectedClass = value === currentValue ? ' is-selected' : '';
+          return '' +
+            '<button type="button" class="tm-select-menu-option' + selectedClass + '" data-custom-option-value="' + escapeHtml(value) + '">' +
+            escapeHtml(label) +
+            '</button>';
+        }).join('');
 
-    selectEl.addEventListener('change', renderOptions);
-    selectEl._tmRenderCustomDropdown = renderOptions;
-    renderOptions();
+        Array.prototype.forEach.call(menu.querySelectorAll('[data-custom-option-value]'), function (btn) {
+          btn.addEventListener('click', function () {
+            var nextValue = btn.getAttribute('data-custom-option-value') || '';
+            selectEl.value = nextValue;
+            closeMenu();
+            renderOptions();
+            var changeEvent;
+            try {
+              changeEvent = new Event('change', { bubbles: true });
+            } catch (e) {
+              changeEvent = document.createEvent('Event');
+              changeEvent.initEvent('change', true, true);
+            }
+            selectEl.dispatchEvent(changeEvent);
+          });
+        });
+      }
+
+      trigger.addEventListener('click', function () {
+        if (trigger.disabled) return;
+        var willOpen = !menu.classList.contains('show');
+        wrappers.forEach(function (otherWrapper) {
+          var otherMenu = otherWrapper.querySelector('[data-custom-select-menu]');
+          var otherTrigger = otherWrapper.querySelector('[data-custom-select-trigger]');
+          if (!otherMenu || !otherTrigger) return;
+          otherMenu.classList.remove('show');
+          otherMenu.classList.remove('is-above');
+          otherMenu.style.maxHeight = '';
+          otherTrigger.setAttribute('aria-expanded', 'false');
+        });
+        if (willOpen) {
+          renderOptions();
+          positionMenu();
+          menu.classList.add('show');
+          trigger.setAttribute('aria-expanded', 'true');
+          var selected = menu.querySelector('.tm-select-menu-option.is-selected');
+          if (selected && typeof selected.scrollIntoView === 'function') {
+            selected.scrollIntoView({ block: 'nearest' });
+          }
+        }
+      });
+
+      document.addEventListener('click', function (event) {
+        if (wrapper.contains(event.target)) return;
+        closeMenu();
+      });
+
+      selectEl.addEventListener('change', renderOptions);
+      selectEl._tmRenderCustomDropdown = renderOptions;
+      renderOptions();
+    });
   }
   function bindCustomStatusDropdown(container) {
     if (!container) return;
@@ -2316,28 +2321,18 @@ var TMTicketModal = (function () {
     var companyEl = form.querySelector('select[name="assigned_company"]');
     if (!deptEl || !companyEl) return;
     function syncDeptOptions(preferredValue) {
-      deptEl.innerHTML = buildDeptOptionsHtml(companyEl.value, preferredValue);
+      var companyValue = getCanonicalCompanySelectValue(companyEl);
+      deptEl.innerHTML = buildDeptOptionsHtml(companyValue, preferredValue);
       if (typeof deptEl._tmRenderCustomDropdown === 'function') {
         deptEl._tmRenderCustomDropdown();
       }
     }
     function syncDeptAvailability(preferredValue) {
-      var normalizedCompany = normalizeCompanyValue(companyEl.value);
-      var rawCompany = companyEl.value == null ? '' : String(companyEl.value).trim().toLowerCase();
-      var isLapcCompany = normalizedCompany === '@leadsagri.com'
-        || rawCompany === 'lapc'
-        || rawCompany === 'lapc (@leadsagri.com)'
-        || rawCompany === 'leads agricultural products corporation - lapc'
-        || rawCompany === 'leadsagri.com'
-        || (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true);
-      var isMhcCompany = normalizedCompany === '@malvedaholdings.com'
-        || rawCompany === 'mhc'
-        || rawCompany === 'mhc (@malvedaholdings.com)'
-        || rawCompany === 'malveda holdings corporation - mhc'
-        || rawCompany === 'malvedaholdings.com';
-      var hasDepartmentOptions = isLapcCompany || isMhcCompany;
+      var companyValue = getCanonicalCompanySelectValue(companyEl);
+      var deptOptions = getDeptOptionsForCompany(companyValue);
+      var hasDepartmentOptions = deptOptions.length > 0;
       var hiddenMirror = form.querySelector('input[type="hidden"][data-dept-mirror="1"]');
-      var selectedValue = preferredDeptValueForCompany(preferredValue, companyEl.value);
+      var selectedValue = preferredDeptValueForCompany(preferredValue, companyValue);
       var hiddenValue = hasDepartmentOptions ? selectedValue : '';
 
       deptEl.value = selectedValue;
@@ -2363,7 +2358,7 @@ var TMTicketModal = (function () {
     syncDeptOptions(initialPreferredDept);
     syncDeptAvailability(initialPreferredDept);
     companyEl.addEventListener('change', function () {
-      var normalizedCompany = normalizeCompanyValue(companyEl.value);
+      var normalizedCompany = getCanonicalCompanySelectValue(companyEl);
         var nextPreferred = (normalizedCompany === '@leadsagri.com' || normalizedCompany === '@malvedaholdings.com') ? '' : '';
         syncDeptOptions(nextPreferred);
         syncDeptAvailability(nextPreferred);
@@ -2390,6 +2385,7 @@ var TMTicketModal = (function () {
     var hideConversationTab = hideAdminChat || isSalesTicket;
     var isReassignedViewOnly = !!(data && data.reassigned_view_only === true);
     if (isReassignedViewOnly) {
+      hideUpdateTab = true;
       hideConversationTab = true;
     }
     var showClaimButton = !!(data && data.can_claim_ticket === true);
@@ -2595,8 +2591,8 @@ var TMTicketModal = (function () {
       '      <div class="tm-actions-fields" data-update-action-section="reassign" style="display:none;">' +
       '        <div class="tm-field">' +
       '          <label class="tm-control-label">Subsidiaries</label>' +
-      '          <div class="tm-select-wrapper">' +
-      '            <select class="tm-select tm-dept-select" name="assigned_company">' +
+      '          <div class="tm-select-wrapper tm-custom-select" data-custom-select="assigned_company" data-custom-select-placeholder="Select subsidiary">' +
+      '            <select class="tm-select tm-dept-select tm-native-select" name="assigned_company">' +
       ( !assignedCompanyValue ? '                  <option value="" disabled selected hidden>Select Recipient</option>' : '' ) +
       ( assignedCompanyValue && ['@gpsci.net','@farmasee.ph','@leads-farmex.com','@leadsagri.com','@leadsav.com','@malvedaholdings.com','@malvedaproperties.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'].indexOf(String(assignedCompanyValue).toLowerCase()) === -1
           ? ('                  <option value="' + escapeHtml(assignedCompanyValue) + '" selected>' + escapeHtml(assignedCompanyValue) + '</option>')
@@ -2611,11 +2607,16 @@ var TMTicketModal = (function () {
       '                  <option value="@lingapleads.org" ' + (String(assignedCompanyValue || '').toLowerCase() === '@lingapleads.org' ? 'selected' : '') + '>LINGAP</option>' +
       '                  <option value="@primestocks.ph" ' + (String(assignedCompanyValue || '').toLowerCase() === '@primestocks.ph' ? 'selected' : '') + '>PCC</option>' +
       '            </select>' +
+      '            <button type="button" class="tm-select tm-select-trigger" data-custom-select-trigger aria-haspopup="listbox" aria-expanded="false">' +
+      '              <span class="tm-select-trigger-text" data-custom-select-text>Select subsidiary</span>' +
+      '              <span class="tm-select-trigger-icon"><i class="fas fa-chevron-down"></i></span>' +
+      '            </button>' +
+      '            <div class="tm-select-menu" data-custom-select-menu role="listbox"></div>' +
       '          </div>' +
       '        </div>' +
       '        <div class="tm-field">' +
       '          <label class="tm-control-label">' + deptLabelHtml + '</label>' +
-      '          <div class="tm-select-wrapper tm-custom-select" data-custom-select="assigned_department">' +
+      '          <div class="tm-select-wrapper tm-custom-select" data-custom-select="assigned_department" data-custom-select-placeholder="Choose department">' +
       '            <select class="tm-select tm-dept-select tm-native-select" name="assigned_department">' +
       deptOptionsHtml +
       '            </select>' +
@@ -2629,10 +2630,15 @@ var TMTicketModal = (function () {
       (showDepartmentUserSelect ? (
       '        <div class="tm-field tm-dept-user-field" ' + (canShowDepartmentUserSelect ? '' : 'style="display:none;"') + '>' +
       '          <label class="tm-control-label">Department User</label>' +
-      '          <div class="tm-select-wrapper">' +
-      '            <select class="tm-select tm-dept-user-select" name="assigned_user_id" ' + (canShowDepartmentUserSelect ? '' : 'disabled') + '>' +
+      '          <div class="tm-select-wrapper tm-custom-select" data-custom-select="assigned_user_id" data-custom-select-placeholder="All">' +
+      '            <select class="tm-select tm-dept-user-select tm-native-select" name="assigned_user_id" ' + (canShowDepartmentUserSelect ? '' : 'disabled') + '>' +
       '              <option value="">All</option>' +
       '            </select>' +
+      '            <button type="button" class="tm-select tm-select-trigger" data-custom-select-trigger aria-haspopup="listbox" aria-expanded="false">' +
+      '              <span class="tm-select-trigger-text" data-custom-select-text>All</span>' +
+      '              <span class="tm-select-trigger-icon"><i class="fas fa-chevron-down"></i></span>' +
+      '            </button>' +
+      '            <div class="tm-select-menu" data-custom-select-menu role="listbox"></div>' +
       '          </div>' +
       '        </div>'
       ) : '') +
@@ -4754,7 +4760,7 @@ var TMTicketModal = (function () {
           console.error('Ticket modal status dropdown binding failed:', customStatusBindError, data);
         }
         try {
-          bindCustomDepartmentDropdown(modalContent);
+          bindCustomSelectDropdowns(modalContent);
         } catch (customDeptBindError) {
           console.error('Ticket modal custom department dropdown binding failed:', customDeptBindError, data);
         }

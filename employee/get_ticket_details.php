@@ -114,6 +114,17 @@ function unavailable_reassignment_target_label(array $ticketData): string
     return 'another team';
 }
 
+function ticket_has_reassignment_activity(array $activities): bool
+{
+    foreach ($activities as $activity) {
+        $type = strtolower(trim((string) ($activity['activity_type'] ?? '')));
+        if ($type === 'department_change' || $type === 'company_change') {
+            return true;
+        }
+    }
+    return false;
+}
+
 function ticket_attachment_is_image(string $filename): bool
 {
     $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
@@ -382,14 +393,7 @@ if ($checkResult->num_rows > 0) {
     $isRequester = isset($ticketData['user_id']) && (int) $ticketData['user_id'] === $currentUserId;
     $assigneeOk = isset($ticketData['assigned_user_id']) && (int) $ticketData['assigned_user_id'] === (int) $_SESSION['user_id'];
     $ticketAssignedCompany = (string) ($ticketData['assigned_company'] ?? '');
-    $ticketCompanyCode = company_code($ticketAssignedCompany);
-    $userCompanyCode = company_code((string) $company);
-    if (strpos($ticketAssignedCompany, '@') === 0) {
-        $ticketDomain = strtolower(ltrim($ticketAssignedCompany, '@'));
-        $companyOk = ($ticketDomain !== '' && $userEmail !== '' && str_ends_with(strtolower($userEmail), '@' . $ticketDomain));
-    } else {
-        $companyOk = ($ticketCompanyCode !== '' && $userCompanyCode !== '' && $ticketCompanyCode === $userCompanyCode) || ($ticketAssignedCompany === (string) $company);
-    }
+    $companyOk = ticket_company_matches_user($ticketAssignedCompany, (string) $company, (string) $userEmail);
     $ticketGroup = (string) ($ticketData['assigned_group'] ?? ($ticketData['assigned_department'] ?? ''));
     $ticketGroupKey = ticket_department_key_from_value($ticketGroup);
     $groupOk = $ticketGroup !== '' && (
@@ -638,6 +642,14 @@ if ($row = $result->fetch_assoc()) {
             $row['ticket_activity'][] = $notificationActivity;
             $existingActivityTypes[$notificationActivityType] = true;
         }
+    }
+    if (!empty($row['reassigned_view_only']) && !ticket_has_reassignment_activity($row['ticket_activity'])) {
+        $targetLabel = unavailable_reassignment_target_label($row);
+        $row['ticket_activity'][] = [
+            'activity_type' => 'department_change',
+            'description' => 'Reassigned to ' . $targetLabel,
+            'created_at' => (string) ($row['updated_at'] ?? $row['created_at'] ?? ''),
+        ];
     }
 
     echo json_encode($row);

@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/ticket_assignment.php';
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
     header("Location: employee_login.php");
@@ -808,10 +809,10 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
     window.TM_DEPARTMENT_REQUIRED = true;
     window.TM_SHOW_DEPARTMENT_USER_SELECT = true;
     window.TM_DEPARTMENT_USERS_ENDPOINT = 'ajax_department_users.php';
-    window.TM_COMPANY_DEPARTMENT_OPTIONS = <?php echo json_encode([
-        '@leadsagri.com' => array_map(static fn($department) => ['value' => (string) $department, 'label' => (string) $department], ticket_lapc_departments()),
-        '@malvedaholdings.com' => array_map(static fn($department) => ['value' => (string) $department, 'label' => (string) $department], ticket_mhc_departments()),
-    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    window.TM_COMPANY_DEPARTMENT_OPTIONS = <?php echo json_encode(
+        ticket_company_department_option_map(),
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    ); ?>;
     </script>
     <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
     <script>

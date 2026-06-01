@@ -18,6 +18,7 @@ $user_id = $_SESSION['user_id'];
 $user_department = $_SESSION['department'] ?? '';
 $user_company = $_SESSION['company'] ?? '';
 $user_email = $_SESSION['email'] ?? '';
+$user_created_at = $_SESSION['user_created_at'] ?? '';
 
 ticket_ensure_assignment_columns($conn);
 ticket_apply_sla_priority($conn);
@@ -61,19 +62,21 @@ function company_aliases(string $value): array
     return array_values(array_unique(array_filter(array_map('trim', $aliases), static function ($x) { return $x !== ''; })));
 }
 
-if ($user_department === '' || $user_company === '') {
-    $user_dept_stmt = $conn->prepare("SELECT department, company FROM users WHERE id = ?");
+if ($user_department === '' || $user_company === '' || $user_created_at === '') {
+    $user_dept_stmt = $conn->prepare("SELECT department, company, created_at FROM users WHERE id = ?");
     $user_dept_stmt->bind_param("i", $user_id);
     $user_dept_stmt->execute();
     $user_dept_result = $user_dept_stmt->get_result();
     if ($row = $user_dept_result->fetch_assoc()) {
         $user_department = $user_department !== '' ? $user_department : ($row['department'] ?? '');
         $user_company = $user_company !== '' ? $user_company : ($row['company'] ?? '');
+        $user_created_at = $user_created_at !== '' ? $user_created_at : ($row['created_at'] ?? '');
     }
     $user_dept_stmt->close();
 
     if ($user_department !== '') $_SESSION['department'] = $user_department;
     if ($user_company !== '') $_SESSION['company'] = $user_company;
+    if ($user_created_at !== '') $_SESSION['user_created_at'] = $user_created_at;
 }
 if ($user_email === '') {
     $ue = $conn->prepare("SELECT email FROM users WHERE id = ?");
@@ -310,8 +313,16 @@ $groupCond = count($userDepartmentAliases) > 0
     : "0=1";
 $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
 $requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
+$lapcSharedCreatedCond = "1=1";
 
-$where[] = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND (((t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')) OR ((NOT $requiresGroupCond) OR $groupCond))))";
+if ($userCompanyNorm === '@leadsagri.com') {
+    $userCreatedAtValue = trim((string) $user_created_at);
+    if ($userCreatedAtValue !== '') {
+        $lapcSharedCreatedCond = "(t.created_at >= ?)";
+    }
+}
+
+$where[] = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND $lapcSharedCreatedCond AND (((t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')) OR ((NOT $requiresGroupCond) OR $groupCond))))";
 $params[] = (int) $user_id;
 $types .= "i";
 $params[] = (int) $user_id;
@@ -329,6 +340,13 @@ $types .= "s";
 foreach ($companyAliases as $co) {
     $params[] = $co;
     $types .= "s";
+}
+if ($userCompanyNorm === '@leadsagri.com') {
+    $userCreatedAtValue = trim((string) $user_created_at);
+    if ($userCreatedAtValue !== '') {
+        $params[] = $userCreatedAtValue;
+        $types .= "s";
+    }
 }
 foreach ($userDepartmentAliases as $departmentAlias) {
     $params[] = $departmentAlias;
@@ -1282,10 +1300,10 @@ $showing_to = min($offset + $limit, (int) $total_records);
         window.TM_DEPARTMENT_REQUIRED = true;
         window.TM_SHOW_DEPARTMENT_USER_SELECT = true;
         window.TM_DEPARTMENT_USERS_ENDPOINT = 'ajax_department_users.php';
-        window.TM_COMPANY_DEPARTMENT_OPTIONS = <?php echo json_encode([
-            '@leadsagri.com' => array_map(static fn($department) => ['value' => (string) $department, 'label' => (string) $department], ticket_lapc_departments()),
-            '@malvedaholdings.com' => array_map(static fn($department) => ['value' => (string) $department, 'label' => (string) $department], ticket_mhc_departments()),
-        ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        window.TM_COMPANY_DEPARTMENT_OPTIONS = <?php echo json_encode(
+            ticket_company_department_option_map(),
+            JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+        ); ?>;
     </script>
     <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
     <script>
