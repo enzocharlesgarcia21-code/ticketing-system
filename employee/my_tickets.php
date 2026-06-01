@@ -1065,6 +1065,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
                     $updateStmt->bind_param("iis", $ticketId, $user_id, $user_email);
                     $updateStmt->execute();
                     if ($updateStmt->affected_rows > 0) {
+                        ticket_record_activity($conn, $ticketId, 'status_change', 'Closed by Creator');
                         $flashType = 'success';
                         $flashMessage = 'Ticket closed successfully.';
                     }
@@ -2244,32 +2245,9 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-modal-header {
             padding: 26px 44px 22px;
-            background: linear-gradient(135deg, #0f6a47 0%, #11853f 100%);
-            color: #ffffff;
-            position: relative;
-        }
-        body.employee-my-tickets-page .feedback-close-btn {
-            position: absolute;
-            top: 18px;
-            right: 18px;
-            width: 34px;
-            height: 34px;
-            border: 1px solid #e2e8f0;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.92);
-            color: #64748b;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 15px;
-            cursor: pointer;
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
-            transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
-        }
-        body.employee-my-tickets-page .feedback-close-btn:hover {
             background: #ffffff;
-            color: #334155;
-            transform: translateY(-1px);
+            color: #0f172a;
+            position: relative;
         }
         body.employee-my-tickets-page .feedback-modal-title {
             margin: 0;
@@ -2278,10 +2256,16 @@ $successMessage = '';
             line-height: 1.15;
             font-weight: 900;
             letter-spacing: 0;
-            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.16);
+            color: #0f2d63;
+            text-shadow: none;
         }
         body.employee-my-tickets-page .feedback-modal-subtitle {
-            display: none;
+            display: block;
+            margin: 12px 0 0;
+            font-size: 16px;
+            line-height: 1.45;
+            font-weight: 500;
+            color: #6677a4;
         }
         body.employee-my-tickets-page .feedback-modal-body {
             padding: 22px 40px 26px;
@@ -2299,48 +2283,67 @@ $successMessage = '';
             display: flex;
             align-items: center;
             gap: 14px;
-            min-height: 64px;
-            padding: 14px 16px;
+            min-height: 72px;
+            padding: 16px 18px;
             border-radius: 14px;
-            background: #fcfcfd;
-            border: 1px solid #dbe3ee;
+            background: #ffffff;
+            border: 1px solid #e6ebf2;
             box-shadow: none;
         }
         body.employee-my-tickets-page .feedback-summary-icon {
             width: 38px;
             height: 38px;
             border-radius: 999px;
-            background: #ecfdf5;
-            color: #047857;
+            background: #ffffff;
+            color: #12b24b;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
+            font-size: 28px;
             flex: 0 0 auto;
         }
         body.employee-my-tickets-page .feedback-summary-copy {
             min-width: 0;
+            display: grid;
+            gap: 4px;
         }
         body.employee-my-tickets-page .feedback-summary-line {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             flex-wrap: wrap;
         }
-        body.employee-my-tickets-page .feedback-summary-ticket {
+        body.employee-my-tickets-page .feedback-summary-label {
             font-size: 14px;
-            font-weight: 900;
-            color: #047857;
-        }
-        body.employee-my-tickets-page .feedback-summary-subject,
-        body.employee-my-tickets-page .feedback-summary-meta {
-            font-size: 14px;
-            color: #64748b;
+            font-weight: 500;
+            color: #7c8db5;
             line-height: 1.35;
         }
-        body.employee-my-tickets-page .feedback-summary-meta strong {
-            color: #334155;
-            font-weight: 800;
+        body.employee-my-tickets-page .feedback-summary-ticket {
+            font-size: 16px;
+            font-weight: 900;
+            color: #12b24b;
+        }
+        body.employee-my-tickets-page .feedback-summary-subject,
+        body.employee-my-tickets-page .feedback-summary-context {
+            font-size: 15px;
+            color: #6677a4;
+            line-height: 1.35;
+        }
+        body.employee-my-tickets-page .feedback-summary-name {
+            font-size: 16px;
+            color: #0f2d63;
+            font-weight: 900;
+            line-height: 1.35;
+        }
+        body.employee-my-tickets-page .feedback-summary-separator {
+            color: #12b24b;
+            font-size: 14px;
+            line-height: 1;
+            transform: translateY(-1px);
+        }
+        body.employee-my-tickets-page .feedback-summary-user-icon {
+            font-size: 30px;
         }
         body.employee-my-tickets-page .feedback-flash {
             margin-bottom: 16px;
@@ -2566,11 +2569,6 @@ $successMessage = '';
             }
             body.employee-my-tickets-page .feedback-modal-subtitle {
                 font-size: 14px;
-            }
-            body.employee-my-tickets-page .feedback-close-btn {
-                width: 40px;
-                height: 40px;
-                font-size: 18px;
             }
             body.employee-my-tickets-page .feedback-stars {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2933,11 +2931,8 @@ $successMessage = '';
         <div class="feedback-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
             <?php $feedbackAssigneeDisplay = $feedbackModalTicket ? feedback_assignee_display($feedbackModalTicket) : ['name' => 'Support Team', 'context' => '', 'display' => 'Support Team']; ?>
             <div class="feedback-modal-header">
-                <button type="button" class="feedback-close-btn" id="feedbackModalCloseBtn" aria-label="Close feedback modal">
-                    <i class="fas fa-times"></i>
-                </button>
                 <h2 id="feedbackModalTitle" class="feedback-modal-title">Rate Your Support Experience</h2>
-                <p class="feedback-modal-subtitle" aria-hidden="true"></p>
+                <p class="feedback-modal-subtitle">Your feedback helps us improve and serve you better.</p>
             </div>
             <div class="feedback-modal-body">
                 <?php if ($feedbackFlash && !empty($feedbackFlash['message'])): ?>
@@ -2949,18 +2944,24 @@ $successMessage = '';
                 <?php if ($feedbackModalTicket): ?>
                     <div class="feedback-summary-grid">
                         <div class="feedback-summary-card">
-                            <span class="feedback-summary-icon" aria-hidden="true"><i class="fas fa-ticket-alt"></i></span>
+                            <span class="feedback-summary-icon" aria-hidden="true"><i class="fas fa-hourglass-half"></i></span>
                             <div class="feedback-summary-copy">
                                 <div class="feedback-summary-line">
+                                    <span class="feedback-summary-label">Ticket ID</span>
                                     <span class="feedback-summary-ticket">#<?= (int) $feedbackModalTicket['id']; ?></span>
-                                    <span class="feedback-summary-subject"><?= htmlspecialchars((string) ($feedbackModalTicket['subject'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
                                 </div>
+                                <div class="feedback-summary-subject"><?= htmlspecialchars((string) ($feedbackModalTicket['subject'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></div>
                             </div>
                         </div>
                         <div class="feedback-summary-card">
-                            <span class="feedback-summary-icon" aria-hidden="true"><i class="far fa-user"></i></span>
+                            <span class="feedback-summary-icon feedback-summary-user-icon" aria-hidden="true"><i class="far fa-user"></i></span>
                             <div class="feedback-summary-copy">
-                                <div class="feedback-summary-meta">Resolved by: <strong id="feedbackResolvedByName"><?= htmlspecialchars((string) ($feedbackAssigneeDisplay['display'] ?? 'Support Team'), ENT_QUOTES, 'UTF-8'); ?></strong></div>
+                                <div class="feedback-summary-label">Resolved by:</div>
+                                <div class="feedback-summary-line">
+                                    <strong class="feedback-summary-name" id="feedbackResolvedByName"><?= htmlspecialchars((string) ($feedbackAssigneeDisplay['name'] ?? 'Support Team'), ENT_QUOTES, 'UTF-8'); ?></strong>
+                                    <span class="feedback-summary-separator" id="feedbackResolvedBySeparator"<?= (($feedbackAssigneeDisplay['context'] ?? '') !== '' ? '' : ' style="display:none;"'); ?>>&#8226;</span>
+                                    <span class="feedback-summary-context" id="feedbackResolvedByContext"><?= htmlspecialchars((string) ($feedbackAssigneeDisplay['context'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -3654,7 +3655,8 @@ $successMessage = '';
         var summaryTicket = feedbackModal.querySelector('.feedback-summary-ticket');
         var summarySubject = feedbackModal.querySelector('.feedback-summary-subject');
         var resolvedByName = document.getElementById('feedbackResolvedByName');
-        var resolvedBySubtitle = document.getElementById('feedbackResolvedBySubtitle');
+        var resolvedByContext = document.getElementById('feedbackResolvedByContext');
+        var resolvedBySeparator = document.getElementById('feedbackResolvedBySeparator');
         var subtitleEl = feedbackModal.querySelector('.feedback-modal-subtitle');
         var redirectInput = feedbackFormEl.querySelector('input[name="redirect_to"]');
         if (summaryTicket) {
@@ -3663,20 +3665,25 @@ $successMessage = '';
         if (summarySubject) {
             summarySubject.textContent = String(ticket.subject || '');
         }
-        var assigneeDisplay = ticket.assignee_display && typeof ticket.assignee_display === 'object'
-            ? String(ticket.assignee_display.display || ticket.assignee_display.name || '')
-            : String(ticket.assignee_name || '');
-        if (!assigneeDisplay) {
-            assigneeDisplay = 'Support Team';
+        var assigneeName = 'Support Team';
+        var assigneeContext = '';
+        if (ticket.assignee_display && typeof ticket.assignee_display === 'object') {
+            assigneeName = String(ticket.assignee_display.name || ticket.assignee_display.display || 'Support Team');
+            assigneeContext = String(ticket.assignee_display.context || '');
+        } else if (ticket.assignee_name) {
+            assigneeName = String(ticket.assignee_name || 'Support Team');
         }
         if (resolvedByName) {
-            resolvedByName.textContent = assigneeDisplay;
+            resolvedByName.textContent = assigneeName;
         }
-        if (resolvedBySubtitle) {
-            resolvedBySubtitle.textContent = assigneeDisplay;
+        if (resolvedByContext) {
+            resolvedByContext.textContent = assigneeContext;
+        }
+        if (resolvedBySeparator) {
+            resolvedBySeparator.style.display = assigneeContext ? '' : 'none';
         }
         if (subtitleEl) {
-            subtitleEl.textContent = 'This ticket was resolved by ' + assigneeDisplay + '. Please rate the support you received and share optional feedback.';
+            subtitleEl.textContent = 'Your feedback helps us improve and serve you better.';
         }
         feedbackTicketIdInput.value = ticketKey;
         if (redirectInput) {

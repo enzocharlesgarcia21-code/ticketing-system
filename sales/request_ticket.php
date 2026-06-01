@@ -33,6 +33,13 @@ $lapcDepartmentCategories = [
         'FleetCard Request',
         'Supplies',
     ],
+    'Diagnostics / Lingap' => [
+        'Medical consultations',
+        'Laboratory Request',
+        'Medicine Request',
+        'Back to work Clearance',
+        'Medical Reimbursement',
+    ],
     'Institutional Sales (Bidding)' => [
         'Documentation',
         'Email',

@@ -393,6 +393,10 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             cursor: pointer;
         }
 
+        body.employee-feedback-page .feedback-ticket-row td {
+            cursor: pointer;
+        }
+
         body.employee-feedback-page .feedback-ticket-row:hover td,
         body.employee-feedback-page .feedback-ticket-row:focus-within td {
             background: #f8fbf9;
@@ -403,6 +407,12 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             color: #1B5E20;
             white-space: nowrap;
             font-size: 16px;
+        }
+
+        body.employee-feedback-page .feedback-ticket-link {
+            color: inherit;
+            text-decoration: none;
+            display: inline-block;
         }
 
         body.employee-feedback-page .feedback-ticket-link {
@@ -702,10 +712,11 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                                         <th>Submitted</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody id="feedbackTableBody">
                                     <?php foreach ($feedbackRows as $row): ?>
                                         <?php
                                             $ticketId = (int) ($row['ticket_id'] ?? 0);
+                                            $displayTicketId = '#' . str_pad((string) $ticketId, 6, '0', STR_PAD_LEFT);
                                             $ratingValue = max(1, min(5, (int) ($row['rating'] ?? 0)));
                                             $requesterName = feedback_requester_name($row);
                                             $category = trim((string) ($row['category'] ?? ''));
@@ -714,26 +725,26 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                                             if ($department === '') $department = 'Department';
                                             $comment = trim((string) ($row['comment'] ?? ''));
                                         ?>
-                                        <tr class="feedback-ticket-row" data-ticket-id="<?= $ticketId; ?>" tabindex="0" role="link" aria-label="Open ticket #<?= $ticketId; ?>">
-                                            <td class="feedback-ticket-id">
-                                                <a class="feedback-ticket-link" href="#ticket-<?= $ticketId; ?>" data-feedback-ticket-link data-ticket-id="<?= $ticketId; ?>">
-                                                    #<?= $ticketId; ?>
-                                                </a>
+                                        <tr class="feedback-ticket-row" data-ticket-id="<?= $ticketId; ?>" tabindex="0" role="button" aria-label="Open ticket <?= htmlspecialchars($displayTicketId, ENT_QUOTES, 'UTF-8'); ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;">
+                                            <td class="feedback-ticket-id" data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;">
+                                                <span class="feedback-ticket-link" data-ticket-id="<?= $ticketId; ?>" role="button" tabindex="-1" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;">
+                                                    <?= htmlspecialchars($displayTicketId, ENT_QUOTES, 'UTF-8'); ?>
+                                                </span>
                                             </td>
-                                            <td>
+                                            <td data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;">
                                                 <span class="feedback-category-pill">
                                                     <i class="fas fa-tag" aria-hidden="true"></i>
                                                     <?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8'); ?>
                                                 </span>
                                             </td>
-                                            <td>
+                                            <td data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;">
                                                 <span class="feedback-person">
                                                     <span class="feedback-avatar"><?= htmlspecialchars(feedback_initials($requesterName), ENT_QUOTES, 'UTF-8'); ?></span>
                                                     <?= htmlspecialchars($requesterName, ENT_QUOTES, 'UTF-8'); ?>
                                                 </span>
                                             </td>
-                                            <td class="feedback-department"><?= htmlspecialchars($department, ENT_QUOTES, 'UTF-8'); ?></td>
-                                            <td class="feedback-rating">
+                                            <td class="feedback-department" data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;"><?= htmlspecialchars($department, ENT_QUOTES, 'UTF-8'); ?></td>
+                                            <td class="feedback-rating" data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;">
                                                 <span class="feedback-stars" aria-label="<?= $ratingValue; ?> out of 5 stars">
                                                     <?php for ($star = 1; $star <= 5; $star++): ?>
                                                         <i class="fas fa-star <?= $star <= $ratingValue ? '' : 'is-muted'; ?>"></i>
@@ -741,8 +752,8 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                                                 </span>
                                                 <span class="feedback-rating-value"><?= $ratingValue; ?>/5</span>
                                             </td>
-                                            <td class="feedback-comment <?= $comment === '' ? 'is-empty' : ''; ?>"><?= htmlspecialchars($comment !== '' ? $comment : 'No comment provided.', ENT_QUOTES, 'UTF-8'); ?></td>
-                                            <td class="feedback-date"><?= htmlspecialchars(date('M d, Y g:i A', strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
+                                            <td class="feedback-comment <?= $comment === '' ? 'is-empty' : ''; ?>" data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;"><?= htmlspecialchars($comment !== '' ? $comment : 'No comment provided.', ENT_QUOTES, 'UTF-8'); ?></td>
+                                            <td class="feedback-date" data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;"><?= htmlspecialchars(date('M d, Y g:i A', strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -790,6 +801,8 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         'company' => $_SESSION['company'] ?? null,
         'role' => $_SESSION['role'] ?? null
     ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    window.TM_HIDE_UPDATE_TAB = true;
+    window.TM_HIDE_ADMIN_CHAT = true;
     window.TM_HIDE_QUICK_TAGS = true;
     window.TM_DEPARTMENT_LABEL_TEXT = 'Assigned Department';
     window.TM_DEPARTMENT_REQUIRED = true;
@@ -802,27 +815,48 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
     </script>
     <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
     <script>
-    function openFeedbackTicket(ticketId) {
-        if (!ticketId || !window.TMTicketModal || typeof window.TMTicketModal.open !== 'function') {
+    function openFeedbackTicketModal(ticketId) {
+        var parsedTicketId = parseInt(ticketId || 0, 10);
+        if (!parsedTicketId) {
             return;
         }
-        window.TMTicketModal.open(ticketId);
+        if (window.TMTicketModal && typeof window.TMTicketModal.open === 'function') {
+            window.TMTicketModal.open(parsedTicketId);
+        }
+    }
+
+    var feedbackTableBody = document.getElementById('feedbackTableBody');
+    if (feedbackTableBody) {
+        feedbackTableBody.addEventListener('click', function(event) {
+            var target = event.target && event.target.closest ? event.target.closest('[data-ticket-id]') : null;
+            if (!target) {
+                return;
+            }
+            var row = target.closest('.feedback-ticket-row[data-ticket-id]');
+            if (!row) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            openFeedbackTicketModal(target.getAttribute('data-ticket-id') || row.getAttribute('data-ticket-id'));
+        }, true);
     }
 
     document.querySelectorAll('.feedback-ticket-row[data-ticket-id]').forEach(function(row) {
         row.addEventListener('click', function(event) {
-            var link = event.target && event.target.closest ? event.target.closest('[data-feedback-ticket-link]') : null;
-            if (link) {
-                event.preventDefault();
-            }
-            openFeedbackTicket(row.getAttribute('data-ticket-id'));
+            event.preventDefault();
+            event.stopPropagation();
+            openFeedbackTicketModal(row.getAttribute('data-ticket-id'));
         });
+    });
+
+    document.querySelectorAll('.feedback-ticket-row[data-ticket-id]').forEach(function(row) {
         row.addEventListener('keydown', function(event) {
             if (event.key !== 'Enter' && event.key !== ' ') {
                 return;
             }
             event.preventDefault();
-            openFeedbackTicket(row.getAttribute('data-ticket-id'));
+            openFeedbackTicketModal(row.getAttribute('data-ticket-id'));
         });
     });
     </script>

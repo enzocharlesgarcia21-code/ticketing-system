@@ -433,8 +433,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $user_id    = $_SESSION['user_id'];
     $default_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'];
     $mpdc_categories = ['Engineerings', 'Client Based'];
+    $lingap_categories = ['Lakbay Kalusugan Request (Medical Mission)'];
     $lapc_department_categories = [
         'Admin & Legal' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
+        'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement'],
         'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
         'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
         'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
@@ -525,6 +527,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $allowed_categories = $default_categories;
     if ($assigned_company === '@malvedaproperties.com') {
         $allowed_categories = $mpdc_categories;
+    } elseif ($assigned_company === '@lingapleads.org') {
+        $allowed_categories = $lingap_categories;
     } elseif ($assigned_company === '@malvedaholdings.com' && isset($mhc_department_categories[$assigned_group])) {
         $allowed_categories = $mhc_department_categories[$assigned_group];
     } elseif ($assigned_company === '@leadsagri.com' && isset($lapc_department_categories[$assigned_group])) {
@@ -4556,8 +4560,10 @@ if (count($sapFormEntries) === 0) {
         const mhcDepartments = <?= json_encode(array_values($mhcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const defaultCategories = <?= json_encode(['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mpdcCategories = <?= json_encode(['Engineerings', 'Client Based'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const lingapCategories = <?= json_encode(['Lakbay Kalusugan Request (Medical Mission)'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lapcDepartmentCategories = <?= json_encode([
             'Admin & Legal' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
+            'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement'],
             'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
             'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
             'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
@@ -4978,6 +4984,9 @@ if (count($sapFormEntries) === 0) {
             const departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
             if (recipientValue === '@malvedaproperties.com') {
                 return mpdcCategories;
+            }
+            if (recipientValue === '@lingapleads.org') {
+                return lingapCategories;
             }
             if (recipientValue === '@malvedaholdings.com' && Object.prototype.hasOwnProperty.call(mhcDepartmentCategories, departmentValue)) {
                 return mhcDepartmentCategories[departmentValue];
