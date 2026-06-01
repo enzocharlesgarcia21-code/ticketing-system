@@ -655,11 +655,7 @@ function follow_up_cooldown_window_from_values(string $createdAt, string $lastSe
 {
     $createdAt = trim($createdAt);
     $lastSentAt = trim($lastSentAt);
-    $priority = trim($priority);
-    $cooldownUrgency = my_tickets_effective_sla_level($createdAt, 'Open', $priority);
-    if ($cooldownUrgency === '') {
-        $cooldownUrgency = $priority;
-    }
+    $cooldownUrgency = trim($priority);
     $sendCount = max(0, $sendCount);
     $cooldownBaseTimestamp = $sendCount > 0 ? ($lastSentAt !== '' ? $lastSentAt : $createdAt) : $createdAt;
     $availableAt = follow_up_available_at_from_state($cooldownBaseTimestamp, $sendCount, $cooldownUrgency);
@@ -1311,26 +1307,26 @@ $stmt = $conn->prepare("
         t.follow_up_last_sent_at AS last_follow_up_sent_at,
         t.follow_up_send_count AS follow_up_stage,
         CASE
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) >= 7 THEN DATE_ADD(COALESCE(NULLIF(t.follow_up_last_sent_at, ''), t.created_at), INTERVAL 4 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
-            ELSE DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) IN ('high', 'critical') THEN DATE_ADD(CASE WHEN t.follow_up_send_count > 0 THEN COALESCE(t.follow_up_last_sent_at, t.created_at) ELSE t.created_at END, INTERVAL 4 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+            ELSE DATE_ADD(CASE WHEN t.follow_up_send_count > 0 THEN COALESCE(t.follow_up_last_sent_at, t.created_at) ELSE t.created_at END, INTERVAL 24 HOUR)
         END AS follow_up_available_at,
         CASE
             WHEN (
                 CASE
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) >= 7 THEN DATE_ADD(COALESCE(NULLIF(t.follow_up_last_sent_at, ''), t.created_at), INTERVAL 4 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
-                    ELSE DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) IN ('high', 'critical') THEN DATE_ADD(CASE WHEN t.follow_up_send_count > 0 THEN COALESCE(t.follow_up_last_sent_at, t.created_at) ELSE t.created_at END, INTERVAL 4 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+                    ELSE DATE_ADD(CASE WHEN t.follow_up_send_count > 0 THEN COALESCE(t.follow_up_last_sent_at, t.created_at) ELSE t.created_at END, INTERVAL 24 HOUR)
                 END
             ) > NOW()
             THEN 1
@@ -1904,12 +1900,34 @@ $successMessage = '';
             color: #1d4ed8;
             box-shadow: none;
         }
+        body.employee-my-tickets-page #followUpConfirmBtn.close-ticket-confirm-submit {
+            border-color: #1B5E20;
+            background: #1B5E20;
+            color: #ffffff;
+            box-shadow: 0 10px 22px rgba(27, 94, 32, 0.18);
+        }
+        body.employee-my-tickets-page #closeTicketConfirmBtn.close-ticket-confirm-submit {
+            border-color: #1B5E20;
+            background: #1B5E20;
+            color: #ffffff;
+            box-shadow: 0 10px 22px rgba(27, 94, 32, 0.18);
+        }
         body.employee-my-tickets-page .close-ticket-confirm-cancel:hover,
         body.employee-my-tickets-page .close-ticket-confirm-submit:hover {
             transform: translateY(-1px);
         }
         body.employee-my-tickets-page .close-ticket-confirm-submit:hover {
             box-shadow: 0 8px 18px rgba(29, 78, 216, 0.12);
+        }
+        body.employee-my-tickets-page #followUpConfirmBtn.close-ticket-confirm-submit:hover {
+            background: #144a1a;
+            border-color: #144a1a;
+            box-shadow: 0 12px 24px rgba(27, 94, 32, 0.24);
+        }
+        body.employee-my-tickets-page #closeTicketConfirmBtn.close-ticket-confirm-submit:hover {
+            background: #144a1a;
+            border-color: #144a1a;
+            box-shadow: 0 12px 24px rgba(27, 94, 32, 0.24);
         }
         body.employee-my-tickets-page .follow-up-btn:disabled {
             opacity: 0.7;

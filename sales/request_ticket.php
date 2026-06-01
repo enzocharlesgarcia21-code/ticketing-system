@@ -39,6 +39,7 @@ $lapcDepartmentCategories = [
         'Medicine Request',
         'Back to work Clearance',
         'Medical Reimbursement',
+        'Sick Leave Appliccation/Request',
     ],
     'Institutional Sales (Bidding)' => [
         'Documentation',
@@ -88,6 +89,7 @@ $requestTicketCompanyOptions = [
     '@gpsci.net' => 'GPSCI',
     '@leadsagri.com' => 'LAPC',
     '@leads-farmex.com' => 'FARMEX / LAV',
+    '@lingapleads.org' => 'LINGAP',
     '@malvedaholdings.com' => 'MHC',
     '@malvedaproperties.com' => 'MPDC',
 ];
@@ -631,20 +633,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 : "No assignee available for the selected recipient.";
         }
     }
-    if ($error_msg === '' && $isLapcHrRecipient) {
+    if ($error_msg === '') {
         if ($priority_selected === '') {
             $error_msg = "Please choose the level of urgency.";
         } elseif (!in_array($priority_selected, ['Low', 'Medium', 'High'], true)) {
             $error_msg = "Invalid level of urgency selected.";
-        } else {
-            $priority = $priority_selected;
-        }
-    }
-    if ($error_msg === '' && $isMhcMarketingRecipient) {
-        if ($priority_selected === '') {
-            $error_msg = "Please choose the urgency level.";
-        } elseif (!in_array($priority_selected, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], true)) {
-            $error_msg = "Invalid urgency level selected.";
         } else {
             $priority = $priority_selected;
         }
@@ -1519,10 +1512,29 @@ $normalized_company_id = $selectedRecipientCompany;
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         body {
-            background: #f3f4f6 url('../assets/img/leadss.jpg') no-repeat center center fixed;
+            background: #f3f4f6 url('../assets/img/kbkb.jpg') no-repeat -360px center fixed;
             background-size: cover;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
             margin: 0;
+        }
+        body.sales-request-ticket-page .sales-employee-navbar {
+            background: linear-gradient(90deg, #1B5E20, #144a1e);
+            border-bottom: 4px solid #F4C430;
+        }
+        body.sales-request-ticket-page .sales-employee-navbar .navbar-collapse {
+            min-width: 0;
+        }
+        body.sales-request-ticket-page .sales-employee-navbar .nav-center {
+            flex: 1 1 auto;
+            justify-content: center;
+            min-width: 0;
+        }
+        body.sales-request-ticket-page .sales-employee-navbar .nav-link {
+            white-space: nowrap;
+        }
+        body.sales-request-ticket-page .sales-employee-navbar .nav-right {
+            flex: 0 0 auto;
+            justify-content: flex-end;
         }
         .sales-topbar {
             position: sticky;
@@ -1638,7 +1650,15 @@ $normalized_company_id = $selectedRecipientCompany;
             line-height: 1.08;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
+        @media (max-width: 1280px) {
+            body.sales-request-ticket-page .sales-employee-navbar .nav-right {
+                justify-content: center;
+            }
+        }
         @media (max-width: 768px) {
+            body.sales-request-ticket-page .sales-employee-navbar .brand-name {
+                font-size: 16px;
+            }
             .sales-topbar-inner {
                 padding: 8px 12px;
                 flex-direction: column;
@@ -4111,19 +4131,19 @@ $normalized_company_id = $selectedRecipientCompany;
 </head>
 <body class="sales-request-ticket-page">
 
-<header class="sales-topbar">
-    <div class="sales-topbar-inner">
-        <div class="sales-brand-block">
-            <div class="sales-logo">
-                <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo">
-            </div>
-            <div class="sales-brand-divider" aria-hidden="true"></div>
-            <div class="sales-brand">
-                <div class="sales-brand-title">Leads Helpdesk</div>
-                <div class="sales-brand-subtitle">Sales Ticket Request</div>
-            </div>
-        </div>
-        <div class="sales-nav-right">
+<nav class="navbar sales-employee-navbar" aria-label="Sales navigation">
+    <div class="nav-left">
+        <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo" class="logo-icon">
+        <div class="brand-name">Leads Helpdesk</div>
+        <button class="navbar-toggler" id="navbarToggler" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="navbarCollapse">
+            <i class="fas fa-bars"></i>
+        </button>
+    </div>
+
+    <div class="navbar-collapse" id="navbarCollapse">
+        <div class="nav-center" aria-hidden="true"></div>
+
+        <div class="nav-right sales-nav-right">
             <a class="sales-nav-link" href="../index.php">
                 <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-arrow-left"></i></span>
                 <span>Back</span>
@@ -4134,7 +4154,18 @@ $normalized_company_id = $selectedRecipientCompany;
             </a>
         </div>
     </div>
-</header>
+</nav>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var toggler = document.getElementById('navbarToggler');
+    var collapse = document.getElementById('navbarCollapse');
+    if (!toggler || !collapse) return;
+    toggler.addEventListener('click', function () {
+        var isOpen = collapse.classList.toggle('show');
+        toggler.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+});
+</script>
 
 <div class="sales-container">
     <div class="sales-page-header">
@@ -4198,7 +4229,7 @@ $normalized_company_id = $selectedRecipientCompany;
                 </div>
             </div>
 
-            <div class="request-grid-row is-single" id="salesCategoryRow">
+            <div class="request-grid-row" id="salesCategoryRow">
                 <div class="form-group" id="categoryContainer">
                     <label>Category <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper category-dropdown" id="categoryDropdown">
@@ -4214,17 +4245,21 @@ $normalized_company_id = $selectedRecipientCompany;
                     </div>
                 </div>
 
-                <div class="form-group hidden" id="priorityGroup">
+                <div class="form-group" id="priorityGroup">
                     <label>Level of Urgency <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper priority-dropdown" id="priorityDropdown">
-                        <select name="priority" id="sales_priority" class="form-control category-select priority-native-select" disabled data-selected="<?= htmlspecialchars((string) ($priority_selected ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                        <select name="priority" id="sales_priority" class="form-control category-select priority-native-select" required data-selected="<?= htmlspecialchars((string) ($priority_selected ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                             <option value="" disabled hidden <?= ($priority_selected ?? '') === '' ? 'selected' : '' ?>>Choose level of urgency</option>
-                            <option value="Low" <?= ($priority_selected ?? '') === 'Low' ? 'selected' : '' ?>>Low - General Inquiry</option>
-                            <option value="Medium" <?= ($priority_selected ?? '') === 'Medium' ? 'selected' : '' ?>>Medium - Needs action within a few days</option>
-                            <option value="High" <?= ($priority_selected ?? '') === 'High' ? 'selected' : '' ?>>High - Time-sensitive or urgent</option>
+                            <option value="Low" <?= ($priority_selected ?? '') === 'Low' ? 'selected' : '' ?>>Low (7 to 9 days)</option>
+                            <option value="Medium" <?= ($priority_selected ?? '') === 'Medium' ? 'selected' : '' ?>>Medium (4 to 6 days)</option>
+                            <option value="High" <?= ($priority_selected ?? '') === 'High' ? 'selected' : '' ?>>High (1 to 3 days)</option>
                         </select>
-                        <button type="button" id="priorityDropdownTrigger" class="priority-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false" disabled>Choose level of urgency</button>
-                        <div id="priorityDropdownMenu" class="priority-dropdown-menu" role="listbox" aria-labelledby="priorityDropdownTrigger"></div>
+                        <button type="button" id="priorityDropdownTrigger" class="priority-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Choose level of urgency</button>
+                        <div id="priorityDropdownMenu" class="priority-dropdown-menu" role="listbox" aria-labelledby="priorityDropdownTrigger">
+                            <button type="button" class="priority-dropdown-option<?= ($priority_selected ?? '') === 'Low' ? ' is-selected' : '' ?>" data-value="Low" role="option" aria-selected="<?= ($priority_selected ?? '') === 'Low' ? 'true' : 'false' ?>">LOW (7 to 9 days)</button>
+                            <button type="button" class="priority-dropdown-option<?= ($priority_selected ?? '') === 'Medium' ? ' is-selected' : '' ?>" data-value="Medium" role="option" aria-selected="<?= ($priority_selected ?? '') === 'Medium' ? 'true' : 'false' ?>">Medium (4 to 6 days)</button>
+                            <button type="button" class="priority-dropdown-option<?= ($priority_selected ?? '') === 'High' ? ' is-selected' : '' ?>" data-value="High" role="option" aria-selected="<?= ($priority_selected ?? '') === 'High' ? 'true' : 'false' ?>">High (1 to 3 days)</button>
+                        </div>
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
                 </div>
@@ -5543,9 +5578,6 @@ function renderPriorityDropdownOptions() {
         optionButton.setAttribute('role', 'option');
         optionButton.setAttribute('aria-selected', isSelected ? 'true' : 'false');
         optionButton.textContent = option.textContent;
-        optionButton.addEventListener('click', function() {
-            choosePriority(optionValue, true);
-        });
         priorityMenu.appendChild(optionButton);
     });
     if (priorityTrigger) {
@@ -5694,29 +5726,11 @@ function toggleCategoryField() {
 
 function togglePriorityField() {
     if (!priorityGroup || !prioritySelect || !recipient) return;
-    var recipientValue = String(recipient.value || '');
-    var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
-    var isMarketing = isMhcRecipientValue(recipientValue) && departmentValue === 'Marketing Creatives';
-    var shouldShow = isLapcRecipientValue(recipientValue) && departmentValue === 'HR';
-    if (isMarketing) {
-        shouldShow = true;
-    }
-
-    if (shouldShow) {
-        setPriorityOptions(isMarketing ? 'marketing' : 'hr');
-        priorityGroup.classList.remove('hidden');
-        prioritySelect.disabled = false;
-        prioritySelect.setAttribute('required', 'true');
-        if (priorityTrigger) priorityTrigger.disabled = false;
-    } else {
-        priorityGroup.classList.add('hidden');
-        prioritySelect.value = '';
-        prioritySelect.setAttribute('data-selected', '');
-        prioritySelect.disabled = true;
-        prioritySelect.removeAttribute('required');
-        if (priorityTrigger) priorityTrigger.disabled = true;
-        closePriorityDropdown();
-    }
+    setPriorityOptions('hr');
+    priorityGroup.classList.remove('hidden');
+    prioritySelect.disabled = false;
+    prioritySelect.setAttribute('required', 'true');
+    if (priorityTrigger) priorityTrigger.disabled = false;
     renderPriorityDropdownOptions();
     syncRequestGridRows();
 }
@@ -5758,9 +5772,9 @@ function setPriorityOptions(mode) {
         ]
         : [
             { value: '', text: 'Choose level of urgency' },
-            { value: 'Low', text: 'Low - General Inquiry' },
-            { value: 'Medium', text: 'Medium - Needs action within a few days' },
-            { value: 'High', text: 'High - Time-sensitive or urgent' }
+            { value: 'Low', text: 'LOW (7 to 9 days)' },
+            { value: 'Medium', text: 'Medium (4 to 6 days)' },
+            { value: 'High', text: 'High (1 to 3 days)' }
         ];
     var currentSignature = Array.from(prioritySelect.options).map(function(option) {
         return String(option.value || '') + ':' + String(option.textContent || '');
@@ -5789,9 +5803,7 @@ function setPriorityOptions(mode) {
     }
     prioritySelect.setAttribute('data-selected', '');
     if (priorityLabel) {
-        priorityLabel.innerHTML = modeKey === 'marketing'
-            ? 'Urgency Level <span class="required-asterisk">*</span>'
-            : 'Level of Urgency <span class="required-asterisk">*</span>';
+        priorityLabel.innerHTML = 'Level of Urgency <span class="required-asterisk">*</span>';
     }
     renderPriorityDropdownOptions();
 }
@@ -6415,6 +6427,7 @@ if (categoryTrigger) {
 if (priorityTrigger) {
     priorityTrigger.addEventListener('click', function() {
         if (priorityTrigger.disabled || !priorityMenu) return;
+        renderPriorityDropdownOptions();
         var nextState = !priorityMenu.classList.contains('is-open');
         if (!nextState) {
             closePriorityDropdown();
@@ -6425,6 +6438,13 @@ if (priorityTrigger) {
         closeCategoryDropdown();
         priorityMenu.classList.add('is-open');
         priorityTrigger.setAttribute('aria-expanded', 'true');
+    });
+}
+if (priorityMenu) {
+    priorityMenu.addEventListener('click', function(event) {
+        var optionButton = event.target.closest('.priority-dropdown-option');
+        if (!optionButton || !priorityMenu.contains(optionButton)) return;
+        choosePriority(String(optionButton.getAttribute('data-value') || ''), true);
     });
 }
 document.addEventListener('click', function(event) {
@@ -6981,7 +7001,7 @@ if (formEl) {
 
         setInlineFormError('');
 
-        if (isLapcHrSelected && prioritySelect && !String(prioritySelect.value || '').trim()) {
+        if (prioritySelect && !String(prioritySelect.value || '').trim()) {
             e.preventDefault();
             setInlineFormError('Please choose the level of urgency.');
             return;
@@ -7064,11 +7084,6 @@ if (formEl) {
             if (descriptionFieldEl && !String(descriptionFieldEl.value || '').trim()) {
                 e.preventDefault();
                 setInlineFormError('Please enter the Brief Description of Request.');
-                return;
-            }
-            if (prioritySelect && !String(prioritySelect.value || '').trim()) {
-                e.preventDefault();
-                setInlineFormError('Please choose the Urgency Level.');
                 return;
             }
         }

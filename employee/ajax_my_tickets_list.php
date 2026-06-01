@@ -488,26 +488,26 @@ $stmt = $conn->prepare("
         t.follow_up_last_sent_at AS last_follow_up_sent_at,
         t.follow_up_send_count AS follow_up_stage,
         CASE
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) >= 7 THEN DATE_ADD(COALESCE(NULLIF(t.follow_up_last_sent_at, ''), t.created_at), INTERVAL 4 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
-            WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
-            ELSE DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) IN ('high', 'critical') THEN DATE_ADD(CASE WHEN t.follow_up_send_count > 0 THEN COALESCE(t.follow_up_last_sent_at, t.created_at) ELSE t.created_at END, INTERVAL 4 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
+            WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+            ELSE DATE_ADD(CASE WHEN t.follow_up_send_count > 0 THEN COALESCE(t.follow_up_last_sent_at, t.created_at) ELSE t.created_at END, INTERVAL 24 HOUR)
         END AS follow_up_available_at,
         CASE
             WHEN (
                 CASE
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) >= 7 THEN DATE_ADD(COALESCE(NULLIF(t.follow_up_last_sent_at, ''), t.created_at), INTERVAL 4 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) BETWEEN 4 AND 6 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
-                    WHEN DATEDIFF(CURDATE(), DATE(t.created_at)) < 4 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
-                    ELSE DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) IN ('high', 'critical') THEN DATE_ADD(CASE WHEN t.follow_up_send_count > 0 THEN COALESCE(t.follow_up_last_sent_at, t.created_at) ELSE t.created_at END, INTERVAL 4 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 24 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'medium' THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 6 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' AND t.follow_up_send_count <= 0 THEN DATE_ADD(t.created_at, INTERVAL 48 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' AND t.follow_up_send_count = 1 THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 24 HOUR)
+                    WHEN LOWER(TRIM(COALESCE(t.priority, ''))) = 'low' THEN DATE_ADD(COALESCE(t.follow_up_last_sent_at, t.created_at), INTERVAL 12 HOUR)
+                    ELSE DATE_ADD(CASE WHEN t.follow_up_send_count > 0 THEN COALESCE(t.follow_up_last_sent_at, t.created_at) ELSE t.created_at END, INTERVAL 24 HOUR)
                 END
             ) > NOW()
             THEN 1
