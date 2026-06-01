@@ -541,7 +541,7 @@ var TMTicketModal = (function () {
       var type = String((item && item.activity_type) || '').trim().toLowerCase();
       var raw = String((item && item.description) || '').trim();
       var when = item && item.created_at ? new Date(item.created_at) : fallbackWhen;
-      var title = raw;
+      var title = formatTimelineActivityTitle(raw);
 
       if (type === 'department_change') {
         var deptMatch = raw.match(/to\s+([^|]+?)(?:\s*\|\s*Handled by:\s*(.+))?$/i);
@@ -549,7 +549,7 @@ var TMTicketModal = (function () {
         title = departmentLabel ? ('Reassigned to ' + departmentLabel) : 'Ticket reassigned';
         hasAssignmentEvent = true;
       } else if (type === 'company_change') {
-        title = raw !== '' ? raw : 'Company changed';
+        title = raw !== '' ? formatTimelineCompanyChange(raw) : 'Company changed';
       } else if (type === 'status_change') {
         title = raw !== '' ? raw : 'Status updated';
       } else if (type === 'note_added') {
@@ -560,7 +560,7 @@ var TMTicketModal = (function () {
         title = raw !== '' ? raw : 'Ticket claimed';
         hasClaimEvent = true;
       } else if (raw !== '') {
-        title = raw;
+        title = formatTimelineActivityTitle(raw);
       }
 
       if (title !== '') {
@@ -582,7 +582,10 @@ var TMTicketModal = (function () {
     }
 
     if (activityItems.length === 0 && assignedInfo.primary) {
-      var assignmentTitle = 'Assigned to ' + assignedInfo.primary;
+      var assignmentPrimary = (!assignedInfo.showDepartment && assignedInfo.company && assignedInfo.primary === assignedInfo.company)
+        ? companyDisplayName(assignedInfo.primary)
+        : assignedInfo.primary;
+      var assignmentTitle = 'Assigned to ' + assignmentPrimary;
       if (assignedInfo.handledBy) {
         assignmentTitle += ' | Handled by: ' + assignedInfo.handledBy;
       }
@@ -601,6 +604,32 @@ var TMTicketModal = (function () {
     return '<div class="tm-timeline">' + events.map(function (e) {
       return '<div class="tm-timeline-item"><div class="tm-timeline-content"><div class="tm-timeline-title">' + escapeHtml(e.title) + '</div><div class="tm-timeline-time">' + formatTimelineTime(e.when) + '</div></div></div>';
     }).join('') + '</div>';
+  }
+  function formatTimelineCompanyLabel(value) {
+    var raw = value == null ? '' : String(value).trim();
+    if (!raw) return '';
+    if (raw.toLowerCase() === 'unassigned') return 'Unassigned';
+    return companyDisplayName(raw);
+  }
+  function formatTimelineCompanyChange(raw) {
+    var text = raw == null ? '' : String(raw).trim();
+    if (!text) return '';
+    var match = text.match(/^Reassigned from company\s+(.+?)\s+to\s+(.+)$/i);
+    if (!match) return formatTimelineActivityTitle(text);
+    var fromCompany = formatTimelineCompanyLabel(match[1]);
+    var toCompany = formatTimelineCompanyLabel(match[2]);
+    return 'Reassigned from ' + fromCompany + ' to ' + toCompany;
+  }
+  function formatTimelineActivityTitle(raw) {
+    var text = raw == null ? '' : String(raw).trim();
+    if (!text) return '';
+    text = text.replace(/\bat\s+(@[^\s.]+(?:\.[^\s.]+)+)\b/gi, function (_, company) {
+      return 'at ' + formatTimelineCompanyLabel(company);
+    });
+    text = text.replace(/\b(from company|to)\s+(@[^\s.]+(?:\.[^\s.]+)+)\b/gi, function (_, prefix, company) {
+      return prefix + ' ' + formatTimelineCompanyLabel(company);
+    });
+    return text;
   }
   function viewButtonIfImage(filename) {
     var ext = filename.split('.').pop().toLowerCase();
@@ -1777,14 +1806,6 @@ var TMTicketModal = (function () {
     { value: 'Technical', label: 'Technical' }
   ];
   var mhcDeptOptions = [
-    { value: 'Admin & Legal', label: 'Admin & Legal' },
-    { value: 'E-Commerce', label: 'E-Commerce' },
-    { value: 'Executive', label: 'Executive' },
-    { value: 'Finance and Accounting', label: 'Finance and Accounting' },
-    { value: 'IT', label: 'IT' },
-    { value: 'Institutional Sales', label: 'Institutional Sales' },
-    { value: 'Management', label: 'Management' },
-    { value: 'Marketing', label: 'Marketing' },
     { value: 'Marketing Creatives', label: 'Marketing Creatives' }
   ];
   function normalizeCompanyValue(value) {
