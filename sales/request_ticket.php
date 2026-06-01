@@ -489,6 +489,27 @@ function finish_ticket_submit_response(bool $isAjax, array $payload = []): void
     @flush();
 }
 
+function sales_email_debug_log(array $context): void
+{
+    $logPath = __DIR__ . '/../uploads/email_debug.log';
+    $entry = [
+        'timestamp' => date('Y-m-d H:i:s'),
+    ] + $context;
+    @file_put_contents($logPath, json_encode($entry, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL, FILE_APPEND | LOCK_EX);
+}
+
+function sales_clean_email_list(array $emails): array
+{
+    $clean = [];
+    foreach ($emails as $email) {
+        $email = strtolower(trim((string) $email));
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $clean[$email] = $email;
+        }
+    }
+    return array_values($clean);
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
     ticket_ensure_assignment_columns($conn);
@@ -1281,11 +1302,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     'ok' => true,
                     'message' => $success_msg,
                     'ticket_id' => (int) $ticket_id,
-                    'ticket_number' => (string) $ticket_number
+                    'ticket_number' => (string) $ticket_number,
+                    'email_delivery_pending' => true,
                 ]);
+
+                $creatorEmail = '';
+                $creatorName = '';
+                $creatorStmt = $conn->prepare("SELECT name, email FROM users WHERE id = ? LIMIT 1");
+                if ($creatorStmt) {
+                    $creatorStmt->bind_param("i", $user_id);
+                    $creatorStmt->execute();
+                    $creatorRes = $creatorStmt->get_result();
+                    $creatorRow = $creatorRes ? $creatorRes->fetch_assoc() : null;
+                    $creatorStmt->close();
+                    if ($creatorRow) {
+                        $creatorName = trim((string) ($creatorRow['name'] ?? ''));
+                        $creatorEmail = trim((string) ($creatorRow['email'] ?? ''));
+                    }
+                }
 
                 $usesSpecificEmailRoute = ticket_uses_specific_email_route($assigned_company, (string) $assigned_group);
                 $adminEmails = [];
+                $emailFailureGroups = [];
                 if (!$usesSpecificEmailRoute && count($adminEmails) === 0) {
                     $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
                     if ($admins) {
@@ -1310,7 +1348,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     "Title: $subject",
                     "Category: $category",
                     "Current Status: $ticketStatus",
-                    "Requester: $email",
+                    "Full Name: $name",
+                    "Requester Email: $email",
                     "Assigned Recipient: $assignedRecipientLabel"
                 ], 'Open Ticket', notif_ticket_link_admin($ticket_id));
                 if ($requiresDepartment) {
@@ -1319,50 +1358,119 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         "Title: $subject",
                         "Category: $category",
                         "Current Status: $ticketStatus",
-                        "Requester: $email",
+                        "Full Name: $name",
+                        "Requester Email: $email",
                         "Assigned Department: $assigned_department",
                         "Assigned Recipient: $assignedRecipientLabel"
                     ], 'Open Ticket', notif_ticket_link_admin($ticket_id));
                 }
                 if (count($adminEmails) > 0) {
-                    notif_email_send($adminEmails, $subjectLine, (string) $adminTpl['html'], (string) $adminTpl['text'], $attachments);
+                    $adminOk = notif_email_send($adminEmails, $subjectLine, (string) $adminTpl['html'], (string) $adminTpl['text'], $attachments);
+                    sales_email_debug_log([
+                        'event' => 'sales_ticket_admin_email',
+                        'ticket_id' => (int) $ticket_id,
+                        'creator_user_id' => (int) $user_id,
+                        'creator_email' => $creatorEmail,
+                        'requester_email' => $email,
+                        'assigned_department' => (string) $assigned_department,
+                        'assigned_company' => (string) $assigned_company,
+                        'recipients' => sales_clean_email_list($adminEmails),
+                        'success' => $adminOk,
+                        'error' => $adminOk ? '' : (function_exists('smtp_last_error') ? smtp_last_error() : ''),
+                    ]);
+                    if (!$adminOk) {
+                        error_log('Sales ticket email failed (admins) | ticketId=' . (string) $ticket_id . ' recipients=' . implode(',', $adminEmails));
+                        $emailFailureGroups[] = 'admins';
+                    }
                 }
 
-                $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, (string) $assigned_group);
+                $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, (string) $assigned_group, (int) $user_id);
                 if (count($assigneeEmails) > 0) {
                     $assigneeLines = [
                         "Ticket ID: #$ticketNumber",
                         "Category: $category",
                         "Current Status: $ticketStatus",
-                        "Requester: $email",
+                        "Full Name: $name",
+                        "Requester Email: $email",
                         "Assigned Recipient: $assignedRecipientLabel",
                         "Description:\n$raw_description"
                     ];
                     if ($requiresDepartment) {
-                        array_splice($assigneeLines, 4, 0, ["Assigned Department: $assigned_department"]);
+                        array_splice($assigneeLines, 5, 0, ["Assigned Department: $assigned_department"]);
                     }
                     if ($attachmentSummary !== '') {
                         $assigneeLines[] = $attachmentSummary;
                     }
                     $assigneeTpl = notif_email_simple('Ticket Submitted', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks($ticket_id));
-                    notif_email_send($assigneeEmails, "Ticket Submitted (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
+                    $assigneeOk = notif_email_send($assigneeEmails, "Ticket Submitted (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
+                    sales_email_debug_log([
+                        'event' => 'sales_ticket_assignee_email',
+                        'ticket_id' => (int) $ticket_id,
+                        'creator_user_id' => (int) $user_id,
+                        'creator_email' => $creatorEmail,
+                        'requester_email' => $email,
+                        'assigned_department' => (string) $assigned_department,
+                        'assigned_company' => (string) $assigned_company,
+                        'recipients' => sales_clean_email_list($assigneeEmails),
+                        'success' => $assigneeOk,
+                        'error' => $assigneeOk ? '' : (function_exists('smtp_last_error') ? smtp_last_error() : ''),
+                    ]);
+                    if (!$assigneeOk) {
+                        error_log('Sales ticket email failed (assignees) | ticketId=' . (string) $ticket_id . ' recipients=' . implode(',', $assigneeEmails));
+                        $emailFailureGroups[] = 'assignees';
+                    }
+                } else {
+                    sales_email_debug_log([
+                        'event' => 'sales_ticket_assignee_email',
+                        'ticket_id' => (int) $ticket_id,
+                        'creator_user_id' => (int) $user_id,
+                        'creator_email' => $creatorEmail,
+                        'requester_email' => $email,
+                        'assigned_department' => (string) $assigned_department,
+                        'assigned_company' => (string) $assigned_company,
+                        'recipients' => [],
+                        'success' => false,
+                        'error' => 'No assignee email recipients found',
+                    ]);
                 }
 
                 $requesterLines = [
                     "Ticket ID: #$ticketNumber",
                     "Category: $category",
                     "Current Status: $ticketStatus",
+                    "Full Name: $name",
+                    "Requester Email: $email",
                     "Assigned Recipient: $assignedRecipientLabel",
                     "Description:\n$raw_description"
                 ];
                 if ($requiresDepartment) {
-                    array_splice($requesterLines, 3, 0, ["Assigned Department: $assigned_department"]);
+                    array_splice($requesterLines, 5, 0, ["Assigned Department: $assigned_department"]);
                 }
                 if ($attachmentSummary !== '') {
                     $requesterLines[] = $attachmentSummary;
                 }
                 $requesterTpl = notif_email_simple('Ticket Submitted', $requesterLines, 'Go To Helpdesk', notif_base_url() . '/ticketing/index.php');
-                notif_email_send([$email], "Ticket Submitted (#$ticketNumber)", (string) $requesterTpl['html'], (string) $requesterTpl['text'], $attachments);
+                $requesterEmails = sales_clean_email_list([$creatorEmail, $email]);
+                $requesterOk = false;
+                if (count($requesterEmails) > 0) {
+                    $requesterOk = notif_email_send($requesterEmails, "Ticket Submitted (#$ticketNumber)", (string) $requesterTpl['html'], (string) $requesterTpl['text'], $attachments);
+                }
+                sales_email_debug_log([
+                    'event' => 'sales_ticket_requester_email',
+                    'ticket_id' => (int) $ticket_id,
+                    'creator_user_id' => (int) $user_id,
+                    'creator_email' => $creatorEmail,
+                    'requester_email' => $email,
+                    'assigned_department' => (string) $assigned_department,
+                    'assigned_company' => (string) $assigned_company,
+                    'recipients' => $requesterEmails,
+                    'success' => $requesterOk,
+                    'error' => $requesterOk ? '' : (function_exists('smtp_last_error') ? smtp_last_error() : 'No requester email recipient'),
+                ]);
+                if (!$requesterOk) {
+                    error_log('Sales ticket email failed (requester) | ticketId=' . (string) $ticket_id . ' recipient=' . implode(',', $requesterEmails));
+                    $emailFailureGroups[] = 'requester';
+                }
 
                 if ($isAjax) {
                     exit;
@@ -4063,12 +4171,12 @@ $normalized_company_id = $selectedRecipientCompany;
                     <label>Subsidiaries <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper recipient-dropdown<?= count($requestTicketCompanyOptions) <= 1 ? ' is-static' : '' ?>" id="recipientDropdown">
                         <select name="company_id" id="ticket_recipient" class="form-control recipient-native-select" required>
-                            <option value="" disabled <?= $selectedRecipientCompany === '' ? 'selected' : '' ?> hidden>Select a company</option>
+                            <option value="" disabled <?= $selectedRecipientCompany === '' ? 'selected' : '' ?> hidden>Select the company you are submitting this ticket to</option>
                             <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
                                 <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $selectedRecipientCompany === $companyValue ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <button type="button" id="recipientDropdownTrigger" class="recipient-dropdown-trigger<?= $selectedRecipientCompany === '' ? ' is-placeholder' : '' ?>" aria-haspopup="listbox" aria-expanded="false"<?= count($requestTicketCompanyOptions) <= 1 ? ' disabled' : '' ?>><?= htmlspecialchars(($selectedRecipientCompany !== '' ? ($requestTicketCompanyOptions[$selectedRecipientCompany] ?? 'Select a company') : 'Select a company'), ENT_QUOTES, 'UTF-8'); ?></button>
+                        <button type="button" id="recipientDropdownTrigger" class="recipient-dropdown-trigger<?= $selectedRecipientCompany === '' ? ' is-placeholder' : '' ?>" aria-haspopup="listbox" aria-expanded="false"<?= count($requestTicketCompanyOptions) <= 1 ? ' disabled' : '' ?>><?= htmlspecialchars(($selectedRecipientCompany !== '' ? ($requestTicketCompanyOptions[$selectedRecipientCompany] ?? 'Select the company you are submitting this ticket to') : 'Select the company you are submitting this ticket to'), ENT_QUOTES, 'UTF-8'); ?></button>
                         <div id="recipientDropdownMenu" class="recipient-dropdown-menu" role="listbox" aria-labelledby="recipientDropdownTrigger"></div>
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
@@ -5287,7 +5395,7 @@ function setStaticDropdownState(wrapper, trigger, menu, isStatic) {
 function syncRecipientTriggerLabel() {
     if (!recipientTrigger || !recipient) return;
     var selectedOption = recipient.options[recipient.selectedIndex];
-    var label = selectedOption && selectedOption.value ? selectedOption.textContent : 'Select a company';
+    var label = selectedOption && selectedOption.value ? selectedOption.textContent : 'Select the company you are submitting this ticket to';
     recipientTrigger.textContent = label;
     recipientTrigger.classList.toggle('is-placeholder', !(selectedOption && selectedOption.value));
 }
@@ -7550,13 +7658,23 @@ function closeModal(){
             setModalState('loading', 'Submitting Ticket', 'Almost there. We are finalizing your request...', 'Finalizing your request', 94);
         }
 
-    function showSuccessState(ticketNumber) {
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char];
+        });
+    }
+
+    function showSuccessState(ticketNumber, emailWarning) {
         if (!modal) return;
         clearLoadingTimers();
         var ticketLine = ticketNumber
             ? ('<br><span class="ticket-modal-ticket-label">Ticket ID:</span> <span class="ticket-modal-ticket-number">#' + ticketNumber + '</span>')
             : '';
-        setModalState('success', 'Ticket Submitted Successfully', 'Your request has been sent.<br>Our team will get back to you soon.' + ticketLine, '', 100);
+        var message = 'Your request has been saved.<br>Our team will get back to you soon.' + ticketLine;
+        if (emailWarning) {
+            message += '<br><br><span class="ticket-modal-ticket-label">' + escapeHtml(emailWarning) + '</span>';
+        }
+        setModalState('success', emailWarning ? 'Ticket Saved, Email Not Sent' : 'Ticket Submitted Successfully', message, '', 100);
     }
 
     function validateDescription() {
@@ -7641,10 +7759,10 @@ function closeModal(){
                 if (waitMs > 0) {
                     successRedirectTimer = window.setTimeout(function () {
                         successRedirectTimer = null;
-                        showSuccessState(data.ticket_number || '');
+                        showSuccessState(data.ticket_number || '', data.email_warning || '');
                     }, waitMs);
                 } else {
-                    showSuccessState(data.ticket_number || '');
+                    showSuccessState(data.ticket_number || '', data.email_warning || '');
                 }
             }
             form.reset();
