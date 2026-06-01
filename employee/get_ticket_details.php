@@ -575,6 +575,7 @@ if ($row = $result->fetch_assoc()) {
     }
     $row['attachments'] = array_map('ticket_enrich_attachment_preview', ticket_sort_attachments($attachments));
     $row['request_meta'] = ticket_request_meta_load($conn, $id);
+    $row['urgency'] = ticket_format_urgency($row['priority'] ?? '');
     $row['hr_display'] = ticket_build_hr_display($row, $row['attachments'], $row['request_meta']);
     $row['subject_display'] = (
         !empty($row['hr_display']['is_hr_special'])
