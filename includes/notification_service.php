@@ -1261,39 +1261,39 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
         if (preg_match('/^([A-Za-z][A-Za-z\s&]+:)(\s*.*)$/s', $safeLine, $matches)) {
             $safeLine = '<strong>' . $matches[1] . '</strong>' . $matches[2];
         }
-        $lineHtml .= '<div style="margin:0 0 20px 0; font-size:26px; line-height:1.55; color:#0f172a;">' . nl2br($safeLine) . '</div>';
+        $lineHtml .= '<div style="margin:0 0 12px 0; font-size:16px; line-height:1.5; color:#0f172a;">' . nl2br($safeLine) . '</div>';
     }
     $ctaLabelSafe = htmlspecialchars($ctaLabel, ENT_QUOTES, 'UTF-8');
     $ctaUrlSafe = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
     $ctaBlock = '';
     if ($ctaLabelSafe !== '' && $ctaUrlSafe !== '') {
         $ctaBlock = '
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:28px 0 0 0">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:22px 0 0 0">
                         <tr>
                             <td align="left" style="padding:0;">
-                                <a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="display:block; width:100%; box-sizing:border-box; text-align:center; background:#05651f; border:1px solid #05651f; border-radius:16px; padding:18px 24px; color:#ffffff; text-decoration:none; font-weight:900; font-size:26px; line-height:1.2;">
+                                <a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="display:block; width:100%; box-sizing:border-box; text-align:center; background:#05651f; border:1px solid #05651f; border-radius:12px; padding:13px 18px; color:#ffffff; text-decoration:none; font-weight:800; font-size:16px; line-height:1.25;">
                                     ' . $ctaLabelSafe . '
                                 </a>
                             </td>
                         </tr>
                     </table>';
         $ctaBlock .= '
-                    <div style="margin-top:16px; font-size:18px; line-height:1.45; color:#475569;">
+                    <div style="margin-top:12px; font-size:13px; line-height:1.45; color:#475569;">
                         If the button does not appear, use this link.
                         <a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="color:#05651f; text-decoration:underline; font-weight:800;">' . $ctaLabelSafe . '</a>
                     </div>';
     }
     $introHtml = $introText !== ''
-        ? '<div style="margin:0 0 28px 0; font-size:24px; line-height:1.45; color:#0f172a;">' . htmlspecialchars($introText, ENT_QUOTES, 'UTF-8') . '</div>'
+        ? '<div style="margin:0 0 20px 0; font-size:17px; line-height:1.5; color:#0f172a;">' . htmlspecialchars($introText, ENT_QUOTES, 'UTF-8') . '</div>'
         : '';
     $bodyHtml = "
-        <div style='font-family:Arial, sans-serif; color:#0f172a; line-height:1.5; padding:18px 0;'>
-            <div style='max-width:850px;margin:0 auto;background:#ffffff;border:2px solid #d7e3f1;border-radius:26px;overflow:hidden;box-shadow:0 12px 40px rgba(15,23,42,0.06)'>
-                <div style='background:linear-gradient(90deg,#055f1f,#03551b);padding:42px 40px 30px;color:#ffffff'>
-                    <div style='font-size:28px;font-weight:900;line-height:1.15'>Leads Agri Helpdesk</div>
-                    <div style='font-size:20px;font-weight:900;color:#ffe44d;margin-top:12px'>$safeTitle</div>
+        <div style='font-family:Arial, sans-serif; color:#0f172a; line-height:1.5; padding:12px 0;'>
+            <div style='max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #d7e3f1;border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,0.06)'>
+                <div style='background:linear-gradient(90deg,#055f1f,#03551b);padding:26px 28px 22px;color:#ffffff'>
+                    <div style='font-size:22px;font-weight:900;line-height:1.15'>Leads Agri Helpdesk</div>
+                    <div style='font-size:16px;font-weight:900;color:#ffe44d;margin-top:8px'>$safeTitle</div>
                 </div>
-                <div style='padding:40px 44px 38px'>
+                <div style='padding:28px 32px 30px'>
                     $introHtml
                     $lineHtml
                     $ctaBlock

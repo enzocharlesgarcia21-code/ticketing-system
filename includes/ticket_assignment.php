@@ -1111,6 +1111,29 @@ function ticket_ensure_assignment_columns(mysqli $conn): void
     }
 }
 
+function ticket_allowed_urgencies(): array
+{
+    return ['Low', 'Medium', 'High'];
+}
+
+function ticket_format_urgency(?string $urgency): string
+{
+    $value = trim((string) $urgency);
+    $ranges = [
+        'Low' => '7 to 9 days',
+        'Medium' => '4 to 6 days',
+        'High' => '1 to 3 days',
+    ];
+
+    if ($value === '') return '-';
+    foreach ($ranges as $label => $range) {
+        if (strcasecmp($value, $label) === 0) {
+            return $label . ' (' . $range . ')';
+        }
+    }
+    return $value;
+}
+
 function ticket_claim_first_handler(mysqli $conn, int $ticketId, int $userId): bool
 {
     if ($ticketId <= 0 || $userId <= 0) return false;

@@ -1,0 +1,130 @@
+[33m9f7935e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmy-fixed-code[m[33m, [m[1;31morigin/my-fixed-code[m[33m)[m HEAD@{0}: commit (merge): Merge co-dev changes with my local updates
+[33m191c9b8[m HEAD@{1}: checkout: moving from my-fixed-code to my-fixed-code
+[33m191c9b8[m HEAD@{2}: checkout: moving from my-fixed-code to my-fixed-code
+[33m191c9b8[m HEAD@{3}: commit: Update my local changes
+[33m55adcb6[m HEAD@{4}: checkout: moving from my-fixed-code to my-fixed-code
+[33m55adcb6[m HEAD@{5}: commit: Update ticketing system changes
+[33m7d1e77a[m HEAD@{6}: checkout: moving from my-fixed-code to my-fixed-code
+[33m7d1e77a[m HEAD@{7}: commit: Update ticketing system changes
+[33m46dacb8[m HEAD@{8}: commit: Update ticketing system changes
+[33me1fb43d[m HEAD@{9}: pull origin my-fixed-code: Fast-forward
+[33m087fe7c[m HEAD@{10}: pull origin my-fixed-code: Fast-forward
+[33m80f1734[m HEAD@{11}: checkout: moving from my-fixed-code to my-fixed-code
+[33m80f1734[m HEAD@{12}: commit: Update ticketing system changes
+[33m54d23f9[m HEAD@{13}: checkout: moving from my-fixed-code to my-fixed-code
+[33m54d23f9[m HEAD@{14}: commit: Update ticketing system changes
+[33md3857dc[m HEAD@{15}: checkout: moving from my-fixed-code to my-fixed-code
+[33md3857dc[m HEAD@{16}: pull origin my-fixed-code: Fast-forward
+[33m2cdc2be[m HEAD@{17}: pull origin my-fixed-code: Fast-forward
+[33m01fcd5c[m HEAD@{18}: pull origin my-fixed-code: Fast-forward
+[33m714fa52[m HEAD@{19}: merge origin/main: Merge made by the 'ort' strategy.
+[33ma94d9c8[m HEAD@{20}: checkout: moving from my-fixed-code to my-fixed-code
+[33ma94d9c8[m HEAD@{21}: cherry-pick: Update employee dashboard and task pages
+[33m684bc72[m HEAD@{22}: cherry-pick: Update my tickets page
+[33meb9d795[m HEAD@{23}: checkout: moving from main to my-fixed-code
+[33mecc6164[m[33m ([m[1;32mmain[m[33m)[m HEAD@{24}: commit: Update employee dashboard and task pages
+[33m21d7ec8[m HEAD@{25}: commit: Update my tickets page
+[33m2b47fce[m HEAD@{26}: commit (merge): Merge my-fixed-code updates into main
+[33mf2ebad8[m HEAD@{27}: checkout: moving from my-fixed-code to main
+[33meb9d795[m HEAD@{28}: commit: Update latest local changes
+[33me1946da[m HEAD@{29}: commit: Update admin dashboard and knowledge base features
+[33mb70d3fc[m HEAD@{30}: checkout: moving from main to my-fixed-code
+[33mf2ebad8[m HEAD@{31}: commit: Update my task changes before deployment
+[33mb70d3fc[m HEAD@{32}: merge my-fixed-code: Fast-forward
+[33m862e7c8[m HEAD@{33}: reset: moving to origin/main
+[33m6377e50[m HEAD@{34}: reset: moving to HEAD
+[33m6377e50[m HEAD@{35}: checkout: moving from my-fixed-code to main
+[33mb70d3fc[m HEAD@{36}: commit: Finalize fixed code changes
+[33m31f4f7b[m HEAD@{37}: pull origin my-fixed-code: Fast-forward
+[33m8cf43fe[m HEAD@{38}: commit: Update ticketing system changes
+[33mf839499[m HEAD@{39}: commit: Update admin ticket receiving and dashboard features
+[33mf878bbc[m HEAD@{40}: pull --rebase origin my-fixed-code (finish): returning to refs/heads/my-fixed-code
+[33mf878bbc[m HEAD@{41}: pull --rebase origin my-fixed-code (pick): Save latest local changes before pulling
+[33m519114d[m HEAD@{42}: pull --rebase origin my-fixed-code (start): checkout 519114d77605cb322dd6201c43e59cc64dd40b62
+[33m3dbf1f6[m HEAD@{43}: commit: Save latest local changes before pulling
+[33mc02f603[m HEAD@{44}: rebase (finish): returning to refs/heads/my-fixed-code
+[33mc02f603[m HEAD@{45}: rebase (continue): Updated partner work
+[33m0401700[m HEAD@{46}: pull --rebase origin my-fixed-code (start): checkout 0401700d2dc6e8ca2902a26487986620ffa42b9b
+[33m4a5e1b9[m HEAD@{47}: commit: Updated partner work
+[33m49fdaee[m HEAD@{48}: checkout: moving from my-fixed-code to my-fixed-code
+[33m49fdaee[m HEAD@{49}: checkout: moving from my-fixed-code to my-fixed-code
+[33m49fdaee[m HEAD@{50}: pull origin my-fixed-code: Fast-forward
+[33m20e9d36[m HEAD@{51}: pull origin my-fixed-code: Fast-forward
+[33m4458ebc[m HEAD@{52}: commit (merge): Updated system
+[33m6fea5dc[m HEAD@{53}: commit: Updated system
+[33m1606c07[m HEAD@{54}: pull origin my-fixed-code: Fast-forward
+[33m3fb366d[m HEAD@{55}: commit: Update latest ticketing system changes
+[33m8f951f5[m HEAD@{56}: pull origin my-fixed-code: Fast-forward
+[33md242754[m HEAD@{57}: commit: Update fixed ticketing features
+[33m6377e50[m HEAD@{58}: checkout: moving from main to my-fixed-code
+[33m6377e50[m HEAD@{59}: rebase (finish): returning to refs/heads/main
+[33m6377e50[m HEAD@{60}: reset: moving to 6377e50
+[33m862e7c8[m HEAD@{61}: pull --rebase origin main (start): checkout 862e7c8a09880196d16a251e2da5f65289bc9b4d
+[33m6377e50[m HEAD@{62}: reset: moving to HEAD
+[33m6377e50[m HEAD@{63}: commit: Updated system
+[33md4f3617[m HEAD@{64}: reset: moving to HEAD@{1}
+[33m862e7c8[m HEAD@{65}: pull origin main: Fast-forward
+[33md4f3617[m HEAD@{66}: reset: moving to HEAD
+[33md4f3617[m HEAD@{67}: commit (merge): Updated system
+[33mf9d2077[m HEAD@{68}: commit: Updated system
+[33m721e1eb[m HEAD@{69}: commit: Updated system
+[33mebb4616[m HEAD@{70}: pull origin main: Fast-forward
+[33m973bd8c[m HEAD@{71}: rebase (finish): returning to refs/heads/main
+[33m973bd8c[m HEAD@{72}: rebase (continue): Updated system
+[33me66e3e0[m HEAD@{73}: pull --rebase origin main (start): checkout e66e3e02c7874845d61478145c206c1e9db84bcb
+[33m329ebec[m HEAD@{74}: commit: Updated system
+[33m96d98ae[m HEAD@{75}: pull origin main: Merge made by the 'ort' strategy.
+[33m97d9230[m HEAD@{76}: pull origin main: Merge made by the 'ort' strategy.
+[33me6a7179[m HEAD@{77}: reset: moving to HEAD
+[33me6a7179[m HEAD@{78}: commit (merge): save local changes before pull
+[33m47c41c3[m HEAD@{79}: commit: save local changes before pull
+[33m6a4944b[m HEAD@{80}: pull origin main: Fast-forward
+[33md87f17a[m HEAD@{81}: commit (merge): Updated system
+[33m498bd9b[m HEAD@{82}: commit: Updated system
+[33m09b3278[m HEAD@{83}: pull origin dexter: Merge made by the 'ort' strategy.
+[33m3b02459[m HEAD@{84}: commit: save local changes before pull
+[33mf7a400b[m HEAD@{85}: pull origin main: Fast-forward
+[33me406343[m HEAD@{86}: commit (merge): Merge remote-tracking branch 'origin/main'
+[33m397ac66[m HEAD@{87}: commit (merge): Save my local changes before pull
+[33m090a759[m HEAD@{88}: commit: Save my local changes before pull
+[33m4113b11[m HEAD@{89}: commit: Updated system
+[33m028a15a[m HEAD@{90}: commit: Updated system
+[33me38fe1b[m HEAD@{91}: commit (merge): my changes before pulling chat update
+[33m2f66e3f[m HEAD@{92}: commit: my changes before pulling chat update
+[33m958330c[m HEAD@{93}: commit: Updated system
+[33m978bdd3[m HEAD@{94}: pull origin main: Fast-forward
+[33m6064553[m HEAD@{95}: commit: Updated system
+[33mbb76d16[m HEAD@{96}: pull origin main: Fast-forward
+[33mcc626d3[m HEAD@{97}: pull origin main: Fast-forward
+[33mc0f0190[m HEAD@{98}: pull origin main: Fast-forward
+[33m730884b[m HEAD@{99}: pull origin main: Fast-forward
+[33md419420[m HEAD@{100}: commit: Updated system
+[33m6595c26[m HEAD@{101}: commit: Updated system
+[33m3bcc94f[m HEAD@{102}: pull origin main: Fast-forward
+[33m72ea4d1[m HEAD@{103}: commit: Updated system
+[33m6d7830f[m HEAD@{104}: commit: Updated system
+[33m989939a[m HEAD@{105}: pull origin main: Fast-forward
+[33m2590a55[m HEAD@{106}: commit: Updated system
+[33m424fe0d[m HEAD@{107}: commit: Updated system
+[33m4e8ccd5[m HEAD@{108}: pull origin main: Fast-forward
+[33me18b852[m HEAD@{109}: commit: Updated system
+[33m3ea7c97[m HEAD@{110}: commit: Updated system
+[33m59fd7bb[m HEAD@{111}: commit: updated 28: email notification system + attachment
+[33m80a4887[m HEAD@{112}: commit: updated 25
+[33m41c3cb6[m HEAD@{113}: commit: updated 23
+[33m11bf4c5[m HEAD@{114}: Branch: renamed refs/heads/main to refs/heads/main
+[33m11bf4c5[m HEAD@{116}: commit: Initial commit
+[33m95203e7[m HEAD@{117}: commit: Updated 17
+[33m287f565[m HEAD@{118}: commit: Updated 14
+[33mc73bd40[m HEAD@{119}: commit: Updated 14
+[33m569a22c[m HEAD@{120}: commit: Updated 13
+[33mb0ef79c[m HEAD@{121}: commit: update ticketing system
+[33m96f788d[m HEAD@{122}: commit (merge): Merge branch 'main' of https://github.com/enzocharlesgarcia21-code/ticketing
+[33mcebf62b[m HEAD@{123}: commit: updated
+[33m225331d[m HEAD@{124}: commit: Update gitignore rules
+[33m7ab807e[m HEAD@{125}: commit: Remove .env from repository for security
+[33md7bc76e[m HEAD@{126}: commit: Removed .env from repository for security
+[33m129196a[m HEAD@{127}: commit: Updated again ticketing system features and admin modules
+[33m324170a[m HEAD@{128}: commit: Updated ticketing system features and admin modules
+[33m8adf7d9[m HEAD@{129}: pull origin main: Fast-forward
+[33m3988186[m HEAD@{130}: commit (initial): first commit

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -566,32 +566,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         header("Location: request_ticket.php");
         exit();
     }
-    if ($isLapcHrTicket) {
-        if (!in_array($priority, ['Low', 'Medium', 'High'], true)) {
-            if ($isAjax) {
-                header('Content-Type: application/json; charset=utf-8');
-                http_response_code(400);
-                echo json_encode(['ok' => false, 'error' => 'Please choose the level of urgency.'], JSON_UNESCAPED_UNICODE);
-                exit();
-            }
-            $_SESSION['error'] = 'Please choose the level of urgency.';
-            header("Location: request_ticket.php");
+    if (!in_array($priority, ['Low', 'Medium', 'High'], true)) {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Please choose the level of urgency.'], JSON_UNESCAPED_UNICODE);
             exit();
         }
-    } elseif ($isMhcMarketingTicket) {
-        if (!in_array($priority, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], true)) {
-            if ($isAjax) {
-                header('Content-Type: application/json; charset=utf-8');
-                http_response_code(400);
-                echo json_encode(['ok' => false, 'error' => 'Please choose the urgency level.'], JSON_UNESCAPED_UNICODE);
-                exit();
-            }
-            $_SESSION['error'] = 'Please choose the urgency level.';
-            header("Location: request_ticket.php");
-            exit();
-        }
-    } elseif ($priority === '') {
-        $priority = 'Low';
+        $_SESSION['error'] = 'Please choose the level of urgency.';
+        header("Location: request_ticket.php");
+        exit();
     }
 
     if ($isLapcItEmailRequest) {
@@ -1706,6 +1690,9 @@ if (count($sapFormEntries) === 0) {
         }
         body.employee-request-ticket-page .hr-extra-group.is-visible {
             display: block;
+        }
+        body.employee-request-ticket-page #urgencyContainer {
+            display: block !important;
         }
         body.employee-request-ticket-page .sss-benefits-group {
             display: none;
@@ -3553,7 +3540,7 @@ if (count($sapFormEntries) === 0) {
 </head>
 <body class="employee-request-ticket-page">
 
-    <!-- 2ï¸âƒ£ TOP NAVIGATION BAR -->
+    <!-- 2️⃣ TOP NAVIGATION BAR -->
     <?php include '../includes/employee_navbar.php'; ?>
 
     <div class="dashboard-container">
@@ -3565,7 +3552,7 @@ if (count($sapFormEntries) === 0) {
                 <?php unset($_SESSION['error']); ?>
             <?php endif; ?>
 
-            <!-- 4ï¸âƒ£ REQUEST TICKET PAGE â€“ REDESIGN -->
+            <!-- 4️⃣ REQUEST TICKET PAGE – REDESIGN -->
             <div class="page-header" style="text-align: center; margin-bottom: 40px;">
                 <h1 class="page-title">Create a Ticket</h1>
                 <p class="page-subtitle">Please fill out the form below.</p>
@@ -3576,7 +3563,7 @@ if (count($sapFormEntries) === 0) {
                     <?php echo csrf_field(); ?>
                     <div class="alert alert-error" id="ajaxError" style="background:#fee2e2;color:#991b1b;padding:15px;border-radius:8px;margin-bottom:20px;border:1px solid #fecaca;font-weight:700; display:none;"></div>
                     
-                    <!-- ðŸ”¹ Request Information -->
+                    <!-- 🔹 Request Information -->
                     <h3 class="form-section-title">Request Information</h3>
 
                     <div class="request-grid-row is-single" id="recipientDepartmentRow">
@@ -3636,7 +3623,7 @@ if (count($sapFormEntries) === 0) {
                             </div>
                         </div>
 
-                        <div class="form-group hr-extra-group" id="urgencyContainer">
+                        <div class="form-group hr-extra-group is-visible" id="urgencyContainer">
                             <label>Level of Urgency <span class="required-asterisk">*</span></label>
                         <input
                             type="hidden"
@@ -3645,11 +3632,11 @@ if (count($sapFormEntries) === 0) {
                             value="<?= htmlspecialchars((string) ($_POST['priority'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                         >
                         <div class="select-wrapper" id="urgencyWrapper">
-                            <select id="urgencySelect" class="form-control custom-select-native">
+                            <select id="urgencySelect" class="form-control custom-select-native" required>
                                 <option value="" disabled selected hidden>Choose level of urgency</option>
-                                <option value="Low">Low - General Inquiry</option>
-                                <option value="Medium">Medium - Needs action within a few days</option>
-                                <option value="High">High - Time-sensitive or urgent</option>
+                                <option value="Low">Low (7 to 9 days)</option>
+                                <option value="Medium">Medium (4 to 6 days)</option>
+                                <option value="High">High (1 to 3 days)</option>
                             </select>
                             <button type="button" class="form-control custom-select-trigger" id="urgencyTrigger" aria-haspopup="listbox" aria-expanded="false">
                                 <span class="custom-select-value" id="urgencyTriggerValue">Choose level of urgency</span>
@@ -5090,9 +5077,9 @@ if (count($sapFormEntries) === 0) {
                 ]
                 : [
                     { value: '', text: 'Choose level of urgency' },
-                    { value: 'Low', text: 'Low - General Inquiry' },
-                    { value: 'Medium', text: 'Medium - Needs action within a few days' },
-                    { value: 'High', text: 'High - Time-sensitive or urgent' }
+                    { value: 'Low', text: 'Low (7 to 9 days)' },
+                    { value: 'Medium', text: 'Medium (4 to 6 days)' },
+                    { value: 'High', text: 'High (1 to 3 days)' }
                 ];
             const currentValues = Array.from(urgencySelect.options).map(function(option) {
                 return String(option.value || '') + ':' + String(option.textContent || '');
@@ -5593,7 +5580,7 @@ if (count($sapFormEntries) === 0) {
             const selectedCategory = categorySelect ? String(categorySelect.value || '') : '';
             const isMhcMarketingDepartment = isMhcMarketingSelection();
             const shouldShowMarketingRequest = isMhcMarketingDepartment && selectedCategory === 'Marketing Request';
-            const shouldShowUrgency = shouldShow || isMhcMarketingDepartment;
+            const shouldShowUrgency = true;
             const shouldShowConcernType = shouldShow && selectedCategory === 'Attendance & Timekeeping';
             const shouldShowConcernTypeOther = shouldShowConcernType && concernTypeSelect && String(concernTypeSelect.value || '') === 'Other';
             const shouldShowLeaveSubject = shouldShow && (selectedCategory === 'Leave Concern' || selectedCategory === 'Others');
@@ -5612,7 +5599,7 @@ if (count($sapFormEntries) === 0) {
             const shouldShowSapRequest = isLapcItSelection() && selectedCategory === 'SAP';
             const shouldRequireKamiAttachment = shouldShowConcernType;
             const shouldRequireMedicalAttachment = shouldShowMedicalCashAdvance;
-            setUrgencyOptions(isMhcMarketingDepartment ? 'marketing' : 'hr');
+            setUrgencyOptions('hr');
             document.body.classList.toggle('kami-section-active', shouldShowConcernType);
             document.body.classList.toggle('other-section-active', shouldShowOtherDetailsStyle);
             document.body.classList.toggle('medical-cash-section-active', shouldShowMedicalCashAdvance);
