@@ -1061,6 +1061,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT = window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT || 0;
     window.TM_EMPLOYEE_NOTIF_ACK_COUNT = window.TM_EMPLOYEE_NOTIF_ACK_COUNT || 0;
+    window.TM_EMPLOYEE_NOTIF_MARKING_ALL = false;
 
     function acknowledgeEmployeeNotificationBadge() {
         const badge = document.getElementById('notifBadge');
@@ -1079,6 +1080,25 @@ document.addEventListener('DOMContentLoaded', function() {
         if (dot) {
             dot.style.display = 'none';
         }
+
+        if (unreadCount <= 0 || window.TM_EMPLOYEE_NOTIF_MARKING_ALL) return;
+        window.TM_EMPLOYEE_NOTIF_MARKING_ALL = true;
+
+        const body = 'mark_all=1' + (window.TM_CSRF_TOKEN ? ('&csrf_token=' + encodeURIComponent(String(window.TM_CSRF_TOKEN))) : '');
+        fetch('mark_notification_read.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body
+        })
+            .then(() => {
+                window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT = 0;
+                window.TM_EMPLOYEE_NOTIF_ACK_COUNT = 0;
+                fetchNotifications();
+            })
+            .catch(() => {})
+            .finally(() => {
+                window.TM_EMPLOYEE_NOTIF_MARKING_ALL = false;
+            });
     }
 
     // Fetch Notifications

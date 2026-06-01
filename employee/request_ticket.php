@@ -436,7 +436,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $lingap_categories = ['Lakbay Kalusugan Request (Medical Mission)'];
     $lapc_department_categories = [
         'Admin & Legal' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
-        'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement'],
+        'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request'],
         'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
         'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
         'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
@@ -4550,7 +4550,7 @@ if (count($sapFormEntries) === 0) {
         const lingapCategories = <?= json_encode(['Lakbay Kalusugan Request (Medical Mission)'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lapcDepartmentCategories = <?= json_encode([
             'Admin & Legal' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
-            'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement'],
+            'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request'],
             'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
             'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
             'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],

@@ -168,6 +168,76 @@ if ($stmt) {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
 
+        .sales-employee-navbar {
+            background: linear-gradient(90deg, #1B5E20, #144a1e);
+            color: #ffffff;
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 4px solid #F4C430;
+            box-sizing: border-box;
+        }
+
+        .sales-employee-navbar .nav-left,
+        .sales-employee-navbar .navbar-collapse,
+        .sales-employee-navbar .nav-right {
+            display: flex;
+            align-items: center;
+        }
+
+        .sales-employee-navbar .nav-left {
+            gap: 12px;
+        }
+
+        .sales-employee-navbar .logo-icon {
+            height: 56px;
+            width: 56px;
+            background-color: #ffffff;
+            border-radius: 50%;
+            object-fit: contain;
+            padding: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+            box-sizing: border-box;
+        }
+
+        .sales-employee-navbar .brand-name {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .sales-employee-navbar .navbar-collapse {
+            justify-content: space-between;
+            flex-grow: 1;
+            margin-left: 40px;
+        }
+
+        .sales-employee-navbar .nav-center {
+            flex: 1 1 auto;
+        }
+
+        .sales-employee-navbar .nav-right {
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .sales-employee-navbar .navbar-toggler {
+            display: none;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            font-size: 18px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: auto;
+        }
+
         .sales-topbar {
             position: sticky;
             top: 0;
@@ -638,30 +708,94 @@ if ($stmt) {
                 grid-template-columns: 1fr;
             }
         }
+
+        @media (max-width: 1280px) {
+            .sales-employee-navbar {
+                flex-wrap: wrap;
+                padding: 15px 24px;
+            }
+
+            .sales-employee-navbar .navbar-toggler {
+                display: block;
+            }
+
+            .sales-employee-navbar .navbar-collapse {
+                display: none;
+                width: 100%;
+                flex-direction: column;
+                margin-left: 0;
+                margin-top: 15px;
+                gap: 15px;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                padding-top: 15px;
+            }
+
+            .sales-employee-navbar .navbar-collapse.show {
+                display: flex;
+            }
+
+            .sales-employee-navbar .nav-right {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sales-employee-navbar {
+                padding: 12px 12px;
+            }
+
+            .sales-employee-navbar .nav-left {
+                width: 100%;
+            }
+
+            .sales-employee-navbar .logo-icon {
+                height: 36px;
+                width: 36px;
+                padding: 4px;
+            }
+
+            .sales-employee-navbar .brand-name {
+                font-size: 16px;
+            }
+        }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header class="sales-topbar">
-        <div class="sales-topbar-inner">
-            <div class="sales-brand-block">
-                <div class="sales-logo">
-                    <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo">
-                </div>
-                <div class="sales-brand-divider" aria-hidden="true"></div>
-                <div class="sales-brand">
-                    <div class="sales-brand-title">Leads Agri Helpdesk</div>
-                    <div class="sales-brand-subtitle">Knowledge Base</div>
-                </div>
-            </div>
-            <div class="sales-nav-right">
+    <nav class="sales-employee-navbar" aria-label="Sales navigation">
+        <div class="nav-left">
+            <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo" class="logo-icon">
+            <div class="brand-name">Leads Helpdesk</div>
+            <button class="navbar-toggler" id="navbarToggler" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="navbarCollapse">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+        <div class="navbar-collapse" id="navbarCollapse">
+            <div class="nav-center" aria-hidden="true"></div>
+            <div class="nav-right sales-nav-right">
+                <a class="sales-nav-link" href="knowledge_base.php">
+                    <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-arrow-left"></i></span>
+                    <span>Back</span>
+                </a>
                 <a class="sales-nav-link" href="request_ticket.php">
                     <span>Submit Ticket</span>
                     <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
                 </a>
             </div>
         </div>
-    </header>
+    </nav>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var toggler = document.getElementById('navbarToggler');
+        var collapse = document.getElementById('navbarCollapse');
+        if (!toggler || !collapse) return;
+        toggler.addEventListener('click', function () {
+            var isOpen = collapse.classList.toggle('show');
+            toggler.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+    });
+    </script>
 
     <div class="kb-container">
         <div class="category-shell">

@@ -1470,6 +1470,7 @@ function toggleNotifications() {
 
 window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT = window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT || 0;
 window.TM_ADMIN_NOTIF_ACK_COUNT = window.TM_ADMIN_NOTIF_ACK_COUNT || 0;
+window.TM_ADMIN_NOTIF_MARKING_ALL = false;
 
 function acknowledgeAdminNotificationBadge() {
     const dot = document.getElementById('notifDot');
@@ -1488,6 +1489,29 @@ function acknowledgeAdminNotificationBadge() {
         badge.style.display = 'none';
         badge.textContent = '';
     }
+
+    if (unreadCount <= 0 || window.TM_ADMIN_NOTIF_MARKING_ALL) return;
+    window.TM_ADMIN_NOTIF_MARKING_ALL = true;
+
+    const formData = new FormData();
+    formData.append('mark_all', '1');
+    if (window.TM_CSRF_TOKEN) {
+        formData.append('csrf_token', String(window.TM_CSRF_TOKEN));
+    }
+
+    fetch(adminNavUrl('mark_notification_read.php'), {
+        method: 'POST',
+        body: formData
+    })
+        .then(() => {
+            window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT = 0;
+            window.TM_ADMIN_NOTIF_ACK_COUNT = 0;
+            fetchAdminNotifications();
+        })
+        .catch(() => {})
+        .finally(() => {
+            window.TM_ADMIN_NOTIF_MARKING_ALL = false;
+        });
 }
 
 function fetchAdminNotifications() {
