@@ -10,3 +10,6 @@ uploads/*
 logs/*
 !logs/.gitkeep
 
+# Ignore uploaded files but keep uploads folder
+uploads/*
+!uploads/.gitkeep
