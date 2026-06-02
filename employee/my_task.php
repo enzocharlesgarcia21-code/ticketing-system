@@ -253,6 +253,16 @@ function task_sla_badge_html(string $createdAt, string $status, string $priority
     return '<span class="badge badge-low">' . htmlspecialchars(task_sla_display_label('Low'), ENT_QUOTES, 'UTF-8') . '</span>';
 }
 
+function task_urgency_badge_html(string $priority): string
+{
+    $priority = trim($priority);
+    if ($priority === '') return '-';
+    $priorityKey = strtolower($priority);
+    $allowedKeys = ['low', 'medium', 'high', 'critical'];
+    $priorityClass = in_array($priorityKey, $allowedKeys, true) ? $priorityKey : 'low';
+    return '<span class="priority-pill priority-' . htmlspecialchars($priorityClass, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars(ucfirst($priorityKey), ENT_QUOTES, 'UTF-8') . '</span>';
+}
+
 function task_sla_filter_condition(string $sla): string
 {
     $sla = task_normalize_sla_filter($sla);
@@ -750,6 +760,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
             }
 
             body.employee-my-task-page .task-ticket-status,
+            body.employee-my-task-page .task-ticket-urgency,
             body.employee-my-task-page .task-ticket-sla,
             body.employee-my-task-page .task-ticket-department {
                 display: none;
@@ -1084,6 +1095,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                             <tr>
                                 <th>ID</th>
                                 <th>Category</th>
+                                <th>Urgency</th>
                                 <th>Requested By</th>
                                 <th>From</th>
                                 <th>Status</th>
@@ -1100,6 +1112,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                     <td class="subject-cell task-ticket-category">
                                         <strong><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                     </td>
+                                    <td class="task-ticket-urgency"><?= task_urgency_badge_html((string) ($row['priority'] ?? '')); ?></td>
                                     <td class="task-ticket-requester">
                                         <div class="user-info">
                                             <?php
@@ -1136,7 +1149,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                 <?php } ?>
                                 <?php else: ?>
                                 <tr>
-                                    <td colspan="8" style="text-align:center; color: #94a3b8; padding: 40px;">
+                                    <td colspan="9" style="text-align:center; color: #94a3b8; padding: 40px;">
                                         <div class="empty-state">
                                             <i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i>
                                             <p>No tickets available for the selected filters.</p>
