@@ -604,15 +604,16 @@ var TMTicketModal = (function () {
       return '<div class="tm-timeline-item' + hiddenClass + '"' + hiddenStyle + '><div class="tm-timeline-content"><div class="tm-timeline-title">' + escapeHtml(e.title) + '</div><div class="tm-timeline-time">' + formatTimelineTime(e.when) + '</div></div></div>';
     }).join('');
     var toggleHtml = events.length > maxVisibleTimelineItems
-      ? '<div class="tm-timeline-actions" style="display:flex;justify-content:center;padding-top:14px;margin-top:4px;">' +
-          '<button type="button" class="tm-timeline-toggle-btn" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:6px 10px;border:none;background:transparent;color:#15803d;font-size:14px;font-weight:700;line-height:1;cursor:pointer;" data-expanded="false" onclick="TMTicketModal.toggleTimeline(this)"><span class="tm-timeline-toggle-label">Show more activities</span><span class="tm-timeline-toggle-icon" aria-hidden="true">&#9662;</span></button>' +
+      ? '<div class="tm-timeline-actions">' +
+          '<div class="tm-timeline-toggle-shell">' +
+            '<button type="button" class="tm-timeline-toggle-btn" data-expanded="false" onclick="TMTicketModal.toggleTimeline(this)"><span class="tm-timeline-toggle-label">Show more activities</span><span class="tm-timeline-toggle-icon" aria-hidden="true">&#9662;</span></button>' +
+          '</div>' +
         '</div>'
       : '';
     return '<div class="tm-timeline">' + timelineItemsHtml + toggleHtml + '</div>';
   }
   function toggleTimeline(button) {
     if (!button || !button.closest) return;
-    var actions = button.closest('.tm-timeline-actions');
     var body = button.closest('.tm-card-body');
     var timeline = body ? body.querySelector('.tm-timeline') : null;
     if (!timeline) return;
@@ -626,9 +627,6 @@ var TMTicketModal = (function () {
     var icon = button.querySelector('.tm-timeline-toggle-icon');
     if (label) label.textContent = expanded ? 'Show more activities' : 'Show fewer activities';
     if (icon) icon.innerHTML = expanded ? '&#9662;' : '&#9652;';
-    if (expanded && actions && typeof actions.scrollIntoView === 'function') {
-      actions.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
   }
   function formatTimelineCompanyLabel(value) {
     var raw = value == null ? '' : String(value).trim();
@@ -1853,10 +1851,43 @@ var TMTicketModal = (function () {
     { value: 'Marketing Creatives', label: 'Marketing Creatives' }
   ];
   function getSharedCompanyDepartmentOptions() {
-    return {
+    var fallbackOptions = {
       '@leadsagri.com': lapcDeptOptions,
       '@malvedaholdings.com': mhcDeptOptions
     };
+    if (typeof window === 'undefined' || !window.TM_COMPANY_DEPARTMENT_OPTIONS || typeof window.TM_COMPANY_DEPARTMENT_OPTIONS !== 'object') {
+      return fallbackOptions;
+    }
+    var configured = window.TM_COMPANY_DEPARTMENT_OPTIONS;
+    var normalizedMap = {};
+    Object.keys(configured).forEach(function (key) {
+      var normalizedKey = normalizeCompanyValue(key);
+      var optionList = Array.isArray(configured[key]) ? configured[key] : [];
+      if (!normalizedKey || optionList.length === 0) return;
+      normalizedMap[normalizedKey] = optionList.map(function (option) {
+        var value = option && option.value != null ? String(option.value) : '';
+        var label = option && option.label != null ? String(option.label) : value;
+        return { value: value, label: label };
+      }).filter(function (option) {
+        return option.value !== '';
+      });
+    });
+    if (!normalizedMap['@leadsagri.com']) {
+      normalizedMap['@leadsagri.com'] = lapcDeptOptions;
+    }
+    if (!normalizedMap['@malvedaholdings.com']) {
+      normalizedMap['@malvedaholdings.com'] = mhcDeptOptions;
+    }
+    return normalizedMap;
+  }
+  function resolveCompanyIdentity(value, label) {
+    var normalizedValue = normalizeCompanyValue(value);
+    if (normalizedValue) return normalizedValue;
+    var normalizedLabel = normalizeCompanyValue(label);
+    if (normalizedLabel) return normalizedLabel;
+    var rawValue = value == null ? '' : String(value).trim();
+    if (rawValue !== '') return rawValue;
+    return label == null ? '' : String(label).trim();
   }
   function normalizeCompanyValue(value) {
     var normalized = value == null ? '' : String(value).trim().toLowerCase();
@@ -1887,6 +1918,10 @@ var TMTicketModal = (function () {
       '@farmasee.ph': '@farmasee.ph',
       'farmex': '@leads-farmex.com',
       'farmex (@leads-farmex.com)': '@leads-farmex.com',
+      'farmex / lav': '@leads-farmex.com',
+      'farmex/lav': '@leads-farmex.com',
+      'farmex / lav (@leads-farmex.com)': '@leads-farmex.com',
+      'farmex / lav (@leadsav.com)': '@leads-farmex.com',
       'farmex corp': '@leads-farmex.com',
       'leads-farmex.com': '@leads-farmex.com',
       '@leads-farmex.com': '@leads-farmex.com',
@@ -1912,6 +1947,7 @@ var TMTicketModal = (function () {
       '@lingapleads.org': '@lingapleads.org',
       'lav': '@leadsav.com',
       'lav (@leadsav.com)': '@leadsav.com',
+      'farmex / lav (@leadsav.com) - lav': '@leadsav.com',
       'leadsav.com': '@leadsav.com',
       '@leadsav.com': '@leadsav.com',
       'pcc': '@primestocks.ph',
@@ -2009,7 +2045,9 @@ var TMTicketModal = (function () {
   function getCanonicalCompanySelectValue(selectEl) {
     if (!selectEl) return '';
     var rawValue = String(selectEl.value || '');
-    var normalizedValue = normalizeCompanyValue(rawValue);
+    var selectedOption = selectEl.options && selectEl.selectedIndex >= 0 ? selectEl.options[selectEl.selectedIndex] : null;
+    var selectedLabel = selectedOption && selectedOption.text ? String(selectedOption.text) : '';
+    var normalizedValue = resolveCompanyIdentity(rawValue, selectedLabel);
     if (!normalizedValue) return rawValue;
     var hasNormalizedOption = Array.prototype.slice.call(selectEl.options || []).some(function (option) {
       return String(option.value || '') === normalizedValue;
@@ -2105,7 +2143,7 @@ var TMTicketModal = (function () {
     }
 
     function syncUsers(preferredUserId) {
-      var companyValue = String(companyEl.value || '').trim();
+      var companyValue = String(getCanonicalCompanySelectValue(companyEl) || '').trim();
       var deptValue = String(deptEl.value || '').trim();
       if (!departmentUserAllowed()) {
         setDepartmentUserVisibility(false);
@@ -2467,7 +2505,7 @@ var TMTicketModal = (function () {
       }
       return u;
     }
-    var assignedCompanyValue = normalizeCompanyValue(data.assigned_company || data.company || '') || String(data.assigned_company || data.company || '');
+    var assignedCompanyValue = resolveCompanyIdentity(data.assigned_company || data.company || '', data.assigned_company_name || data.company_name || '');
     var assignedDeptValue = data.assigned_department || data.assigned_group || data.department || '';
     var emailRequestTypeDisplay = getEmailRequestTypeDisplay(data);
     var emailRequestTypeInfoHtml = emailRequestTypeDisplay

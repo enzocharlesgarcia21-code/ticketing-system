@@ -1459,16 +1459,11 @@ document.addEventListener('DOMContentLoaded', function() {
 function toggleNotifications() {
     const dropdown = document.getElementById('notifDropdown');
     if (!dropdown) return;
-
-    const willOpen = !dropdown.classList.contains('show');
     dropdown.classList.toggle('show');
-
-    if (willOpen) {
-        acknowledgeAdminNotificationBadge();
-    }
 }
 
 window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT = window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT || 0;
+<<<<<<< HEAD
 window.TM_ADMIN_NOTIF_ACK_COUNT = window.TM_ADMIN_NOTIF_ACK_COUNT || 0;
 window.TM_ADMIN_NOTIF_MARKING_ALL = false;
 
@@ -1513,6 +1508,8 @@ function acknowledgeAdminNotificationBadge() {
             window.TM_ADMIN_NOTIF_MARKING_ALL = false;
         });
 }
+=======
+>>>>>>> 6e8b655 (Update my latest changes)
 
 function fetchAdminNotifications() {
     fetch(adminNavUrl('fetch_notifications.php') + '?_=' + Date.now(), { cache: 'no-store' })
@@ -1532,18 +1529,13 @@ function fetchAdminNotifications() {
             const badge = document.getElementById('notifBadge');
             const list = document.getElementById('notifList');
             const unreadCount = Math.max(0, parseInt(String(data.unread_count || 0), 10) || 0);
-            const acknowledgedCount = Math.max(0, parseInt(String(window.TM_ADMIN_NOTIF_ACK_COUNT || 0), 10) || 0);
-            const visibleUnreadCount = Math.max(0, unreadCount - acknowledgedCount);
             window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT = unreadCount;
-            if (unreadCount === 0) {
-                window.TM_ADMIN_NOTIF_ACK_COUNT = 0;
-            }
 
             // Update Badge
-            if (visibleUnreadCount > 0) {
+            if (unreadCount > 0) {
                 dot.style.display = 'block';
                 badge.style.display = 'block';
-                badge.textContent = visibleUnreadCount > 99 ? '99+' : visibleUnreadCount;
+                badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
             } else {
                 dot.style.display = 'none';
                 badge.style.display = 'none';
