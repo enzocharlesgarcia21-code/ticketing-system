@@ -1000,11 +1000,7 @@ document.addEventListener('DOMContentLoaded', function() {
         bell.addEventListener('click', function(e) {
             e.stopPropagation();
             if (userDropdown) userDropdown.classList.remove('show');
-            const willOpen = !dropdown.classList.contains('show');
             dropdown.classList.toggle('show');
-            if (willOpen) {
-                acknowledgeEmployeeNotificationBadge();
-            }
         });
     }
 
@@ -1060,6 +1056,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT = window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT || 0;
+<<<<<<< HEAD
     window.TM_EMPLOYEE_NOTIF_ACK_COUNT = window.TM_EMPLOYEE_NOTIF_ACK_COUNT || 0;
     window.TM_EMPLOYEE_NOTIF_MARKING_ALL = false;
 
@@ -1100,6 +1097,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.TM_EMPLOYEE_NOTIF_MARKING_ALL = false;
             });
     }
+=======
+>>>>>>> 6e8b655 (Update my latest changes)
 
     // Fetch Notifications
     function fetchNotifications() {
@@ -1110,16 +1109,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const dot = document.getElementById('notifDot');
                 const list = document.getElementById('notifList');
                 const unreadCount = Math.max(0, parseInt(String(data.unread_count || 0), 10) || 0);
-                const acknowledgedCount = Math.max(0, parseInt(String(window.TM_EMPLOYEE_NOTIF_ACK_COUNT || 0), 10) || 0);
-                const visibleUnreadCount = Math.max(0, unreadCount - acknowledgedCount);
                 window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT = unreadCount;
-                if (unreadCount === 0) {
-                    window.TM_EMPLOYEE_NOTIF_ACK_COUNT = 0;
-                }
 
                 // Update Badge
-                if (visibleUnreadCount > 0) {
-                    badge.textContent = visibleUnreadCount > 9 ? '9+' : visibleUnreadCount;
+                if (unreadCount > 0) {
+                    badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
                     badge.style.display = 'block';
                     dot.style.display = 'block';
                 } else {

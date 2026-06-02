@@ -338,10 +338,6 @@ function ticket_build_hr_display(array $row, array $attachments, array $meta): a
     ];
 }
 
-/* Mark notifications as read for this ticket */
-$user_id = $currentUserId;
-$conn->query("UPDATE notifications SET is_read = 1 WHERE ticket_id = $id AND user_id = $user_id");
-
 // 🟢 START TIMER LOGIC (For Employees working on the ticket)
 // Only if the ticket is assigned to their department
 $dept = (string) ($_SESSION['department'] ?? '');

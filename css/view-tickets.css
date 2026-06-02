@@ -1330,6 +1330,71 @@
     flex-direction: column;
 }
 
+.tm-timeline-actions {
+    display: flex;
+    justify-content: center;
+    padding-top: 18px;
+    margin-top: 14px;
+}
+
+.tm-timeline-toggle-shell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px;
+    border: 1px solid #d7ecdc;
+    border-radius: 999px;
+    background:
+        radial-gradient(circle at top, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.76)),
+        linear-gradient(180deg, #fbfffc 0%, #eef9f1 100%);
+    box-shadow:
+        0 14px 30px rgba(21, 128, 61, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.tm-timeline-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px 20px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: #16803c;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.tm-timeline-toggle-btn:hover {
+    background: rgba(34, 197, 94, 0.09);
+    color: #166534;
+    transform: translateY(-1px);
+    box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.08);
+}
+
+.tm-timeline-toggle-btn:focus-visible {
+    outline: 2px solid rgba(34, 197, 94, 0.35);
+    outline-offset: 2px;
+}
+
+.tm-timeline-toggle-icon {
+    font-size: 10px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(34, 197, 94, 0.12);
+    color: #16a34a;
+}
+
 .tm-resolution-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

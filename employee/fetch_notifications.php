@@ -161,7 +161,8 @@ if (!$count_result) {
 }
 $unread_count = (int) ($count_result->fetch_assoc()['count'] ?? 0);
 
-// Latest 10 notifications — try with optional columns first, fall back if they don't exist
+// Recent notifications, prioritizing unread notifications so the dropdown
+// surfaces unread items while still keeping recently read items visible after click.
 $query = "SELECT n.id, n.ticket_id, n.title, n.message, n.type, n.is_read, n.created_at,
                  n.action_type,
                  t.priority,
@@ -170,8 +171,8 @@ $query = "SELECT n.id, n.ticket_id, n.title, n.message, n.type, n.is_read, n.cre
           LEFT JOIN employee_tickets t ON n.ticket_id = t.id
           WHERE n.user_id = $user_id
             AND n.type <> 'chat_message'
-          ORDER BY n.created_at DESC
-          LIMIT 10";
+          ORDER BY n.is_read ASC, n.created_at DESC
+          LIMIT 25";
 $result = $conn->query($query);
 if (!$result) {
     // Fallback: title/action_type columns may not exist yet on this server
@@ -183,8 +184,8 @@ if (!$result) {
               LEFT JOIN employee_tickets t ON n.ticket_id = t.id
               WHERE n.user_id = $user_id
                 AND n.type <> 'chat_message'
-              ORDER BY n.created_at DESC
-              LIMIT 10";
+              ORDER BY n.is_read ASC, n.created_at DESC
+              LIMIT 25";
     $result = $conn->query($query);
 }
 if (!$result) {
