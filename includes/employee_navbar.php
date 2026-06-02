@@ -1,4 +1,8 @@
-<?php
+git add includes/admin_navbar.php
+git add includes/employee_navbar.php
+git add uploads/request_ticket_upload_debug.log
+
+git status<?php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }

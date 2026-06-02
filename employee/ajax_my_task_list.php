@@ -222,6 +222,16 @@ function task_sla_badge_html(string $createdAt, string $status, string $priority
     return '<span class="badge badge-low">' . h(task_sla_display_label('Low')) . '</span>';
 }
 
+function task_urgency_badge_html(string $priority): string
+{
+    $priority = trim($priority);
+    if ($priority === '') return '-';
+    $priorityKey = strtolower($priority);
+    $allowedKeys = ['low', 'medium', 'high', 'critical'];
+    $priorityClass = in_array($priorityKey, $allowedKeys, true) ? $priorityKey : 'low';
+    return '<span class="priority-pill priority-' . h($priorityClass) . '">' . h(ucfirst($priorityKey)) . '</span>';
+}
+
 function task_sla_filter_condition(string $sla): string
 {
     $sla = task_normalize_sla_filter($sla);
@@ -447,6 +457,7 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '<tr class="ticket-row" data-id="' . (int) $row['id'] . '" style="cursor:pointer;">';
         $rowsHtml .= '<td class="task-ticket-id">#' . str_pad((string) $row['id'], 6, '0', STR_PAD_LEFT) . '</td>';
         $rowsHtml .= '<td class="subject-cell task-ticket-category"><strong>' . h((string) $row['category']) . '</strong></td>';
+        $rowsHtml .= '<td class="task-ticket-urgency">' . task_urgency_badge_html((string) ($row['priority'] ?? '')) . '</td>';
         $rowsHtml .= '<td class="task-ticket-requester"><div class="user-info"><strong>' . h((string) $dispName) . '</strong><br><small>' . h((string) $dispEmail) . '</small></div></td>';
         $rowsHtml .= '<td class="task-ticket-department">' . h(task_source_label($row)) . '</td>';
         $rowsHtml .= '<td class="task-ticket-status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', (string) $row['status'])) . '">' . h((string) $row['status']) . '</span></td>';
@@ -456,7 +467,7 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '</tr>';
     }
 } else {
-    $rowsHtml = '<tr><td colspan="8" style="text-align:center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tickets available for the selected filters.</p></div></td></tr>';
+    $rowsHtml = '<tr><td colspan="9" style="text-align:center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tickets available for the selected filters.</p></div></td></tr>';
   }
 $stmt->close();
 $showingFrom = $total > 0 ? ($offset + 1) : 0;
