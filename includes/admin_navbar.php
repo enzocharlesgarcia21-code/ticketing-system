@@ -823,14 +823,11 @@ body.admin-sidebar-preload .admin-nav-icon {
 .notif-item:hover {
     background-color: #f8fafc;
 }
-.notif-item.notif-chat-pending.unread::after {
-    background: #1B5E20;
-}
 .notif-item.unread {
     background-color: #ffffff;
+    padding-right: 58px;
 }
-.notif-item.unread::after {
-    content: "";
+.notif-unread-dot {
     position: absolute;
     right: 18px;
     top: 50%;
@@ -840,6 +837,8 @@ body.admin-sidebar-preload .admin-nav-icon {
     background: #5aa364;
     transform: translateY(-50%);
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.96);
+    pointer-events: none;
+    z-index: 1;
 }
 .notif-item.unread.variant-assign,
 .notif-item.unread.variant-close,
@@ -849,14 +848,23 @@ body.admin-sidebar-preload .admin-nav-icon {
 .notif-item.unread.variant-medium {
     background: #fffbeb;
 }
+.notif-item.unread.variant-medium .notif-unread-dot {
+    background: #eab308;
+}
 .notif-item.unread.variant-high {
     background: #fef2f2;
+}
+.notif-item.unread.variant-high .notif-unread-dot {
+    background: #ef4444;
 }
 .notif-item.unread.variant-note {
     background: #fff8ef;
 }
 .notif-item.unread.variant-critical {
     background: #fff4f5;
+}
+.notif-item.unread.variant-critical .notif-unread-dot {
+    background: #E53935;
 }
 .notif-item.unread.variant-update {
     background: #f0fdfa;
@@ -867,8 +875,14 @@ body.admin-sidebar-preload .admin-nav-icon {
 .notif-item.unread.variant-reassign {
     background: #faf5ff;
 }
-.notif-item.unread.variant-reassign::after {
+.notif-item.unread.variant-reassign .notif-unread-dot {
     background: #9333ea;
+}
+.notif-item.notif-chat-pending.unread .notif-unread-dot {
+    background: #1B5E20;
+}
+.notif-item.variant-follow-up.unread .notif-unread-dot {
+    background: #f4c542;
 }
 .notif-item.priority-escalation {
     position: relative;
@@ -1453,23 +1467,9 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(fetchChatUnreadTotal, 3000);
 
     const notifDropdown = document.getElementById('notifDropdown');
-    const notifList = document.getElementById('notifList');
     if (notifDropdown) {
         notifDropdown.addEventListener('click', function(e) {
             e.stopPropagation();
-        });
-    }
-    if (notifList) {
-        notifList.addEventListener('click', function(e) {
-            const item = e.target.closest('.notif-item[data-notif-id]');
-            if (!item) return;
-            e.preventDefault();
-            e.stopPropagation();
-            handleNotificationClick(
-                Number(item.getAttribute('data-notif-id') || 0),
-                Number(item.getAttribute('data-ticket-id') || 0),
-                item.getAttribute('data-notification-type') || ''
-            );
         });
     }
 
@@ -1490,49 +1490,30 @@ function toggleNotifications() {
 }
 
 window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT = window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT || 0;
-window.TM_ADMIN_NOTIF_ACK_COUNT = window.TM_ADMIN_NOTIF_ACK_COUNT || 0;
-window.TM_ADMIN_NOTIF_MARKING_ALL = false;
 
-function acknowledgeAdminNotificationBadge() {
+function setAdminNotificationBadge(unreadCount) {
     const dot = document.getElementById('notifDot');
     const badge = document.getElementById('notifBadge');
-    const unreadCount = Math.max(0, parseInt(String(window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT || 0), 10) || 0);
+    const value = Math.max(0, parseInt(String(unreadCount || 0), 10) || 0);
+    window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT = value;
 
-    window.TM_ADMIN_NOTIF_ACK_COUNT = Math.max(
-        Math.max(0, parseInt(String(window.TM_ADMIN_NOTIF_ACK_COUNT || 0), 10) || 0),
-        unreadCount
-    );
-
-    if (dot) {
+    if (value > 0) {
+        dot.style.display = 'block';
+        badge.style.display = 'block';
+        badge.textContent = value > 99 ? '99+' : value;
+    } else {
         dot.style.display = 'none';
-    }
-    if (badge) {
         badge.style.display = 'none';
         badge.textContent = '';
     }
+}
 
-    if (unreadCount <= 0 || window.TM_ADMIN_NOTIF_MARKING_ALL) return;
-    window.TM_ADMIN_NOTIF_MARKING_ALL = true;
-
-    const formData = new FormData();
-    formData.append('mark_all', '1');
-    if (window.TM_CSRF_TOKEN) {
-        formData.append('csrf_token', String(window.TM_CSRF_TOKEN));
-    }
-
-    fetch(adminNavUrl('mark_notification_read.php'), {
-        method: 'POST',
-        body: formData
-    })
-        .then(() => {
-            window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT = 0;
-            window.TM_ADMIN_NOTIF_ACK_COUNT = 0;
-            fetchAdminNotifications();
-        })
-        .catch(() => {})
-        .finally(() => {
-            window.TM_ADMIN_NOTIF_MARKING_ALL = false;
-        });
+function consumeAdminNotificationUnread(notifItem) {
+    if (!notifItem || !notifItem.classList.contains('unread')) return;
+    notifItem.classList.remove('unread');
+    const unreadDot = notifItem.querySelector('.notif-unread-dot');
+    if (unreadDot) unreadDot.remove();
+    setAdminNotificationBadge((window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT || 0) - 1);
 }
 
 function fetchAdminNotifications() {
@@ -1548,23 +1529,11 @@ function fetchAdminNotifications() {
         .then(data => {
             if (!data) return;
 
-            const bell = document.getElementById('notifBell');
-            const dot = document.getElementById('notifDot');
-            const badge = document.getElementById('notifBadge');
             const list = document.getElementById('notifList');
             const unreadCount = Math.max(0, parseInt(String(data.unread_count || 0), 10) || 0);
-            window.TM_ADMIN_NOTIF_LAST_UNREAD_COUNT = unreadCount;
 
             // Update Badge
-            if (unreadCount > 0) {
-                dot.style.display = 'block';
-                badge.style.display = 'block';
-                badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
-            } else {
-                dot.style.display = 'none';
-                badge.style.display = 'none';
-                badge.textContent = '';
-            }
+            setAdminNotificationBadge(unreadCount);
 
             if (data.notifications.length === 0) {
                 list.innerHTML = '<div class="notif-empty">No new notifications</div>';
@@ -1648,12 +1617,14 @@ function fetchAdminNotifications() {
                         pillText = 'Reassigned';
                         pillIcon = 'fa-retweet';
                     }
+                    const unreadDotHtml = Number(n.is_read) === 0 ? '<span class="notif-unread-dot" aria-hidden="true"></span>' : '';
                     const pillHtml = `<span class="notif-pill ${variantClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span>${isChatPending ? '' : `<span class="notif-pill-text">${escapeHtml(pillText)}</span>`}</span>`;
                     const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
                     
                     return `
                     ${sectionHtml}
                     <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''} ${isChatPending ? 'notif-chat-pending' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" data-notification-type="${escapeHtml(notificationType)}" role="button" tabindex="0" onclick="handleNotificationClick(${n.id}, ${n.ticket_id}, ${JSON.stringify(notificationType)})" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleNotificationClick(${n.id}, ${n.ticket_id}, ${JSON.stringify(notificationType)}); }">
+                        ${unreadDotHtml}
                         <div class="notif-content">
                             ${messageHtml}
                             <time class="notif-time" data-timestamp="${n.created_at}">${n.time_ago || ''}</time>
@@ -1699,6 +1670,11 @@ function getNotifSectionLabel(ts) {
 }
 
 function handleNotificationClick(notifId, ticketId, type) {
+    const notifItem = document.querySelector('.notif-item[data-notif-id="' + String(notifId) + '"]');
+    if (notifItem && notifItem.getAttribute('data-marking-read') === '1') return;
+    if (notifItem) notifItem.setAttribute('data-marking-read', '1');
+    consumeAdminNotificationUnread(notifItem);
+
     // Mark as read
     const formData = new FormData();
     formData.append('id', notifId);

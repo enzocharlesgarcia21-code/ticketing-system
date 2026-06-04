@@ -286,24 +286,11 @@ window.TM_MESSENGER_STYLE = 'employee';
     background: #1B5E20 !important;
     border-radius: 0;
 }
-.notif-item.notif-chat-pending.unread::after {
-    content: "";
-    position: absolute;
-    right: 18px;
-    top: 50%;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #1B5E20;
-    transform: translateY(-50%);
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.96);
-}
-
 .notif-item.unread {
     background-color: #ffffff;
+    padding-right: 58px;
 }
-.notif-item.unread::after {
-    content: "";
+.notif-unread-dot {
     position: absolute;
     right: 18px;
     top: 50%;
@@ -313,6 +300,8 @@ window.TM_MESSENGER_STYLE = 'employee';
     background: #5aa364;
     transform: translateY(-50%);
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.96);
+    pointer-events: none;
+    z-index: 1;
 }
 .notif-item.unread.variant-assign,
 .notif-item.unread.variant-close,
@@ -322,8 +311,14 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-item.unread.variant-medium {
     background: #fffbeb;
 }
+.notif-item.unread.variant-medium .notif-unread-dot {
+    background: #eab308;
+}
 .notif-item.unread.variant-high {
     background: #fef2f2;
+}
+.notif-item.unread.variant-high .notif-unread-dot {
+    background: #ef4444;
 }
 .notif-item.unread.variant-note {
     background: #fff8ef;
@@ -331,13 +326,16 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-item.unread.variant-critical {
     background: #fff4f5;
 }
+.notif-item.unread.variant-critical .notif-unread-dot {
+    background: #E53935;
+}
 .notif-item.unread.variant-update {
     background: #f0fdfa;
 }
 .notif-item.unread.variant-reassign {
     background: #faf5ff;
 }
-.notif-item.unread.variant-reassign::after {
+.notif-item.unread.variant-reassign .notif-unread-dot {
     background: #9333ea;
 }
 .notif-item.priority-escalation {
@@ -519,8 +517,11 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-item.variant-follow-up::before {
     background: #f4c542;
 }
-.notif-item.variant-follow-up.unread::after {
+.notif-item.variant-follow-up.unread .notif-unread-dot {
     background: #f4c542;
+}
+.notif-item.notif-chat-pending.unread .notif-unread-dot {
+    background: #1B5E20;
 }
 .notif-item.variant-follow-up .notif-title-text {
     color: #111827;
@@ -1028,7 +1029,6 @@ document.addEventListener('DOMContentLoaded', function() {
             e.stopPropagation();
             if (userDropdown) userDropdown.classList.remove('show');
             dropdown.classList.toggle('show');
-            acknowledgeEmployeeNotificationBadge();
         });
     }
 
@@ -1084,45 +1084,30 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT = window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT || 0;
-    window.TM_EMPLOYEE_NOTIF_ACK_COUNT = window.TM_EMPLOYEE_NOTIF_ACK_COUNT || 0;
-    window.TM_EMPLOYEE_NOTIF_MARKING_ALL = false;
 
-    function acknowledgeEmployeeNotificationBadge() {
+    function setEmployeeNotificationBadge(unreadCount) {
         const badge = document.getElementById('notifBadge');
         const dot = document.getElementById('notifDot');
-        const unreadCount = Math.max(0, parseInt(String(window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT || 0), 10) || 0);
+        const value = Math.max(0, parseInt(String(unreadCount || 0), 10) || 0);
+        window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT = value;
 
-        window.TM_EMPLOYEE_NOTIF_ACK_COUNT = Math.max(
-            Math.max(0, parseInt(String(window.TM_EMPLOYEE_NOTIF_ACK_COUNT || 0), 10) || 0),
-            unreadCount
-        );
-
-        if (badge) {
+        if (value > 0) {
+            badge.textContent = value > 9 ? '9+' : value;
+            badge.style.display = 'block';
+            dot.style.display = 'block';
+        } else {
             badge.textContent = '';
             badge.style.display = 'none';
-        }
-        if (dot) {
             dot.style.display = 'none';
         }
+    }
 
-        if (unreadCount <= 0 || window.TM_EMPLOYEE_NOTIF_MARKING_ALL) return;
-        window.TM_EMPLOYEE_NOTIF_MARKING_ALL = true;
-
-        const body = 'mark_all=1' + (window.TM_CSRF_TOKEN ? ('&csrf_token=' + encodeURIComponent(String(window.TM_CSRF_TOKEN))) : '');
-        fetch('mark_notification_read.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body
-        })
-            .then(() => {
-                window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT = 0;
-                window.TM_EMPLOYEE_NOTIF_ACK_COUNT = 0;
-                fetchNotifications();
-            })
-            .catch(() => {})
-            .finally(() => {
-                window.TM_EMPLOYEE_NOTIF_MARKING_ALL = false;
-            });
+    function consumeEmployeeNotificationUnread(notifItem) {
+        if (!notifItem || !notifItem.classList.contains('unread')) return;
+        notifItem.classList.remove('unread');
+        const unreadDot = notifItem.querySelector('.notif-unread-dot');
+        if (unreadDot) unreadDot.remove();
+        setEmployeeNotificationBadge((window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT || 0) - 1);
     }
 
     // Fetch Notifications
@@ -1130,27 +1115,11 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('fetch_notifications.php?_=' + Date.now(), { cache: 'no-store' })
             .then(response => response.json())
             .then(data => {
-                const badge = document.getElementById('notifBadge');
-                const dot = document.getElementById('notifDot');
                 const list = document.getElementById('notifList');
                 const unreadCount = Math.max(0, parseInt(String(data.unread_count || 0), 10) || 0);
-                const acknowledgedCount = Math.max(0, parseInt(String(window.TM_EMPLOYEE_NOTIF_ACK_COUNT || 0), 10) || 0);
-                const visibleUnreadCount = Math.max(0, unreadCount - acknowledgedCount);
-                window.TM_EMPLOYEE_NOTIF_LAST_UNREAD_COUNT = unreadCount;
-                if (unreadCount <= 0) {
-                    window.TM_EMPLOYEE_NOTIF_ACK_COUNT = 0;
-                }
 
                 // Update Badge
-                if (visibleUnreadCount > 0) {
-                    badge.textContent = visibleUnreadCount > 9 ? '9+' : visibleUnreadCount;
-                    badge.style.display = 'block';
-                    dot.style.display = 'block';
-                } else {
-                    badge.textContent = '';
-                    badge.style.display = 'none';
-                    dot.style.display = 'none';
-                }
+                setEmployeeNotificationBadge(unreadCount);
 
                 // Update List
                 if (data.notifications && data.notifications.length > 0) {
@@ -1234,11 +1203,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             persistChatReminderToastIds();
                             showChatReminderToast(n);
                         }
+                        const unreadDotHtml = Number(n.is_read) === 0 ? '<span class="notif-unread-dot" aria-hidden="true"></span>' : '';
                         const pillHtml = `<span class="notif-pill ${variantClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span>${isChatPending ? '' : `<span class="notif-pill-text">${escapeHtml(pillText)}</span>`}</span>`;
                         const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
                         return `
                             ${sectionHtml}
                             <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''} ${isChatPending ? 'notif-chat-pending' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${n.type || ''}')">
+                                ${unreadDotHtml}
                                 <div class="notif-content">
                                     ${messageHtml}
                                     <time class="notif-time" data-timestamp="${n.created_at}">${n.time_ago || ''}</time>
@@ -1311,6 +1282,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
     window.TM_CSRF_TOKEN = CSRF_TOKEN;
     window.markAsRead = function(id, ticketId, type) {
+        const notifItem = document.querySelector('.notif-item[data-notif-id="' + String(id) + '"]');
+        if (notifItem && notifItem.getAttribute('data-marking-read') === '1') return;
+        if (notifItem) notifItem.setAttribute('data-marking-read', '1');
+        consumeEmployeeNotificationUnread(notifItem);
+
         // Send request to mark as read
         const body = 'id=' + encodeURIComponent(String(id)) + (CSRF_TOKEN ? ('&csrf_token=' + encodeURIComponent(String(CSRF_TOKEN))) : '');
         fetch('mark_notification_read.php', {
