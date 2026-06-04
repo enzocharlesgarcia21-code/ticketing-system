@@ -441,6 +441,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
         'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
         'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
+        'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations'],
     ];
     $mhc_department_categories = [
         'Marketing Creatives' => ['Marketing Request'],
@@ -3253,7 +3254,25 @@ if (count($sapFormEntries) === 0) {
             margin-top: 0;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status {
-            margin-top: 2px;
+            margin-top: 18px;
+            padding-top: 26px;
+            width: 100%;
+            border-top: 1px solid #e6e8ef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+        body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status::before {
+            content: "";
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #16a34a;
+            box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
         }
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
             order: 1;
@@ -3266,7 +3285,18 @@ if (count($sapFormEntries) === 0) {
         }
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-spinner {
             order: 1;
-            margin: 0 auto 24px;
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 22px;
+            background: conic-gradient(from 45deg, #16a34a 0 72%, rgba(22, 163, 74, 0.12) 72% 100%);
+            box-shadow:
+                0 0 0 10px rgba(34, 197, 94, 0.08),
+                0 18px 42px rgba(22, 101, 52, 0.14);
+        }
+        body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-spinner::before {
+            width: 48px;
+            height: 48px;
+            box-shadow: none;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-actions {
             margin-top: 0;
@@ -3278,6 +3308,19 @@ if (count($sapFormEntries) === 0) {
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
             order: 2;
             margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 26px;
+        }
+        body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content {
+            height: auto;
+            min-height: 330px;
+            padding: 34px 36px 30px;
+            justify-content: center;
+        }
+        body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content p {
+            font-size: 15px;
+            max-width: 420px;
+            margin-bottom: 0;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-icon.success,
         body.employee-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-icon.error {
@@ -3287,6 +3330,9 @@ if (count($sapFormEntries) === 0) {
         body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-content h3,
         body.employee-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-content h3 {
             order: 2;
+        }
+        body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-content h3 {
+            font-weight: 600;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-content p,
         body.employee-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-content p {
@@ -3346,8 +3392,8 @@ if (count($sapFormEntries) === 0) {
         }
         body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-actions {
             margin-top: 14px;
-            padding-top: 0;
-            border-top: none;
+            padding-top: 18px;
+            border-top: 1px solid #e6e8ef;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-status {
             display: none;
@@ -3384,6 +3430,21 @@ if (count($sapFormEntries) === 0) {
                 height: auto;
                 min-height: 276px;
                 padding-bottom: 24px;
+            }
+            body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content {
+                min-height: 306px;
+                padding: 30px 22px 24px;
+            }
+            body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
+                font-size: 23px;
+            }
+            body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content p {
+                font-size: 14px;
+            }
+            body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status {
+                font-size: 14px;
+                margin-top: 16px;
+                padding-top: 18px;
             }
             body.employee-request-ticket-page .ticket-modal-content h3 {
                 font-size: 18px;
@@ -4555,6 +4616,7 @@ if (count($sapFormEntries) === 0) {
             'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
             'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
             'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
+            'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations'],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mhcDepartmentCategories = <?= json_encode([
             'Marketing Creatives' => ['Marketing Request'],

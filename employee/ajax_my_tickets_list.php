@@ -46,44 +46,17 @@ function current_employee_email(mysqli $conn, int $userId): string
 
 function my_tickets_sla_display_label(string $slaLevel): string
 {
-    $map = [
-        'Low' => 'On Track',
-        'Medium' => 'At Risk',
-        'High' => 'Breach',
-    ];
-    return $map[$slaLevel] ?? $slaLevel;
+    return ticket_sla_display_label($slaLevel);
 }
 
 function my_tickets_normalize_sla_filter(string $sla): string
 {
-    $sla = trim($sla);
-    $map = [
-        'On Track' => 'Low',
-        'At Risk' => 'Medium',
-        'Breach' => 'High',
-        'Low' => 'Low',
-        'Medium' => 'Medium',
-        'High' => 'High',
-    ];
-    return $map[$sla] ?? '';
+    return ticket_normalize_sla_level($sla);
 }
 
 function my_tickets_sla_filter_condition(string $sla): string
 {
-    $sla = my_tickets_normalize_sla_filter($sla);
-    $activeStatus = "LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')";
-    $ageDays = "DATEDIFF(CURDATE(), DATE(t.created_at))";
-
-    if ($sla === 'High') {
-        return "($activeStatus AND $ageDays >= 7)";
-    }
-    if ($sla === 'Medium') {
-        return "($activeStatus AND $ageDays BETWEEN 4 AND 6)";
-    }
-    if ($sla === 'Low') {
-        return "($activeStatus AND $ageDays < 4)";
-    }
-    return '';
+    return ticket_sla_filter_condition_sql('t', $sla);
 }
 
 function my_tickets_filter_clauses(mysqli $conn, string $search, string $company, string $department, string $status, string $sla, string &$types, array &$params): array
@@ -188,29 +161,7 @@ function submitted_ticket_target_label(array $row): string
 
 function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
 {
-    $statusKey = strtolower(trim($status));
-    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
-    $createdAt = trim($createdAt);
-    if ($createdAt === '') return '-';
-    try {
-        $created = new DateTimeImmutable($createdAt);
-    } catch (Throwable $e) {
-        return '-';
-    }
-    $now = new DateTimeImmutable('now');
-    $createdDay = $created->setTime(0, 0, 0);
-    $nowDay = $now->setTime(0, 0, 0);
-    $diff = $nowDay->diff($createdDay);
-    $days = (int) ($diff->days ?? 0);
-    if ($diff->invert !== 1) $days = 0;
-
-    if ($days >= 7) {
-        return '<span class="badge badge-high">' . h(my_tickets_sla_display_label('High')) . '</span>';
-    }
-    if ($days >= 4) {
-        return '<span class="badge badge-medium">' . h(my_tickets_sla_display_label('Medium')) . '</span>';
-    }
-    return '<span class="badge badge-low">' . h(my_tickets_sla_display_label('Low')) . '</span>';
+    return ticket_sla_badge_html($createdAt, $status, $priority);
 }
 
 function can_follow_up_ticket_status(string $status): bool

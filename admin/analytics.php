@@ -73,6 +73,62 @@ function initials_from_name(string $name): string
     return $letters !== '' ? $letters : 'NA';
 }
 
+function analytics_source_label(array $row): string
+{
+    $sourceEmail = trim((string) (($row['requester_email'] ?? '') !== '' ? $row['requester_email'] : ($row['user_email'] ?? '')));
+    $sourceCompanyRaw = (string) (($row['company'] ?? '') !== '' ? $row['company'] : ($row['user_company'] ?? ''));
+    if ($sourceCompanyRaw === '' && $sourceEmail !== '' && strpos($sourceEmail, '@') !== false) {
+        $sourceCompanyRaw = '@' . strtolower(substr(strrchr($sourceEmail, '@'), 1));
+    }
+    $sourceCompany = ticket_normalize_company($sourceCompanyRaw);
+    $sourceDept = trim((string) (($row['department'] ?? '') !== '' ? $row['department'] : ($row['user_department'] ?? '')));
+
+    if ($sourceCompany === '@leadsagri.com' && $sourceDept !== '') {
+        return ticket_department_display_name($sourceDept);
+    }
+
+    $companyLabel = ticket_company_display_name($sourceCompanyRaw);
+    if ($companyLabel !== '') {
+        return $companyLabel;
+    }
+
+    if ($sourceDept !== '') {
+        return ticket_department_display_name($sourceDept);
+    }
+
+    return '-';
+}
+
+function analytics_requester_display(array $row): array
+{
+    $name = trim((string) (($row['requester_name'] ?? '') !== '' ? $row['requester_name'] : ($row['client_name'] ?? '')));
+    $email = trim((string) (($row['requester_email'] ?? '') !== '' ? $row['requester_email'] : ($row['user_email'] ?? '')));
+
+    if ($name === '' || $email === '') {
+        $description = (string) ($row['description'] ?? '');
+        if ($description !== '') {
+            if ($name === '' && preg_match('/REQUESTER NAME:\s*(.+)$/im', $description, $match)) {
+                $name = trim($match[1]);
+            }
+            if ($email === '' && preg_match('/REQUESTER EMAIL:\s*(.+)$/im', $description, $match)) {
+                $email = trim($match[1]);
+            }
+        }
+    }
+
+    return [$name !== '' ? $name : '-', $email];
+}
+
+function analytics_urgency_badge_html(string $priority): string
+{
+    $priority = trim($priority);
+    if ($priority === '') return '-';
+    $priorityKey = strtolower($priority);
+    $allowedKeys = ['low', 'medium', 'high', 'critical'];
+    $priorityClass = in_array($priorityKey, $allowedKeys, true) ? $priorityKey : 'low';
+    return '<span class="priority-pill priority-' . htmlspecialchars($priorityClass, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars(ucfirst($priorityKey), ENT_QUOTES, 'UTF-8') . '</span>';
+}
+
 function analytics_is_weekday(DateTimeImmutable $date): bool
 {
     return (int) $date->format('N') <= 5;
@@ -89,6 +145,19 @@ function analytics_last_n_weekdays(DateTimeImmutable $endDate, int $count): arra
         $cursor = $cursor->modify('-1 day');
     }
     return array_reverse($days);
+}
+
+function analytics_weekdays_between(DateTimeImmutable $startDate, DateTimeImmutable $endDate): array
+{
+    $days = [];
+    $cursor = $startDate;
+    while ($cursor <= $endDate) {
+        if (analytics_is_weekday($cursor)) {
+            $days[] = $cursor;
+        }
+        $cursor = $cursor->modify('+1 day');
+    }
+    return $days;
 }
 
 function analytics_allowed_categories_for_department(string $company, string $department): array
@@ -198,11 +267,28 @@ $isValidDate = static function (string $date): bool {
 };
 $requestedStartDate = trim((string) ($_GET['start_date'] ?? ''));
 $requestedEndDate = trim((string) ($_GET['end_date'] ?? ''));
-$start_date = $isValidDate($requestedStartDate) ? $requestedStartDate : $defaultStartDate;
-$end_date = $isValidDate($requestedEndDate) ? $requestedEndDate : $defaultEndDate;
-if (strtotime($start_date) > strtotime($end_date)) {
+$analyticsNoDefaultDate = $analyticsIsEmployeeView && defined('TICKETING_ANALYTICS_NO_DEFAULT_DATE') && TICKETING_ANALYTICS_NO_DEFAULT_DATE;
+$analyticsHasRequestedDateRange = $isValidDate($requestedStartDate) && $isValidDate($requestedEndDate);
+$analyticsUseDateFilter = !$analyticsNoDefaultDate || $analyticsHasRequestedDateRange;
+$start_date = $analyticsUseDateFilter
+    ? ($isValidDate($requestedStartDate) ? $requestedStartDate : $defaultStartDate)
+    : ($isValidDate($requestedStartDate) ? $requestedStartDate : '');
+$end_date = $analyticsUseDateFilter
+    ? ($isValidDate($requestedEndDate) ? $requestedEndDate : $defaultEndDate)
+    : ($isValidDate($requestedEndDate) ? $requestedEndDate : '');
+if ($analyticsUseDateFilter && strtotime($start_date) > strtotime($end_date)) {
     [$start_date, $end_date] = [$end_date, $start_date];
 }
+
+$analyticsApplyCreatedDateFilter = static function (array &$where, array &$params, string &$types, string $fieldExpr = 't.created_at') use ($analyticsUseDateFilter, $start_date, $end_date): void {
+    if (!$analyticsUseDateFilter) {
+        return;
+    }
+    $where[] = "DATE($fieldExpr) BETWEEN ? AND ?";
+    $params[] = $start_date;
+    $params[] = $end_date;
+    $types .= "ss";
+};
 
 $category_filter = trim((string) ($_GET['category'] ?? ''));
 $raw_company_filter = trim((string) ($_GET['company'] ?? ''));
@@ -219,6 +305,10 @@ if ($analyticsIsEmployeeView) {
 
 $allowed_statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
 if (!in_array($status_filter, $allowed_statuses, true)) $status_filter = '';
+$trend_period = trim((string) ($_GET['trend_period'] ?? ''));
+if (!$analyticsIsEmployeeView || !in_array($trend_period, ['last_month'], true)) {
+    $trend_period = 'last_5_weekdays';
+}
 
 $company_options = [
     '@farmasee.ph' => 'FARMASEE',
@@ -251,9 +341,10 @@ $categories = [
 ];
 if ($category_filter !== '' && !in_array($category_filter, $categories, true)) $category_filter = '';
 
-$ticket_where = ["DATE(t.created_at) BETWEEN ? AND ?"];
-$ticket_params = [$start_date, $end_date];
-$ticket_types = "ss";
+$ticket_where = [];
+$ticket_params = [];
+$ticket_types = "";
+$analyticsApplyCreatedDateFilter($ticket_where, $ticket_params, $ticket_types);
 if ($category_filter !== '') {
     $ticket_where[] = "t.category = ?";
     $ticket_params[] = $category_filter;
@@ -281,26 +372,51 @@ if ($status_filter !== '') {
 // Received: Created in this range excluding trash.
 // Closed: Created in this range AND status is Closed.
 
+$legacyMetricsWhere = ["COALESCE(NULLIF(status,''),'') <> 'Trash'"];
+$legacyMetricsParams = [];
+$legacyMetricsTypes = "";
+$analyticsApplyCreatedDateFilter($legacyMetricsWhere, $legacyMetricsParams, $legacyMetricsTypes, 'created_at');
 $metricsQuery = $conn->prepare("
     SELECT 
         COUNT(*) as received,
         SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END) as resolved
     FROM employee_tickets 
-    WHERE DATE(created_at) BETWEEN ? AND ?
-      AND COALESCE(NULLIF(status,''),'') <> 'Trash'
+    WHERE " . implode(" AND ", $legacyMetricsWhere) . "
 ");
-$metricsQuery->bind_param("ss", $start_date, $end_date);
-$metricsQuery->execute();
-$metrics = $metricsQuery->get_result()->fetch_assoc();
+if ($metricsQuery && $legacyMetricsTypes !== '') {
+    $bind = [];
+    $bind[] = $legacyMetricsTypes;
+    foreach ($legacyMetricsParams as $k => $p) {
+        $bind[] = &$legacyMetricsParams[$k];
+    }
+    call_user_func_array([$metricsQuery, 'bind_param'], $bind);
+}
+if ($metricsQuery) {
+    $metricsQuery->execute();
+    $metrics = $metricsQuery->get_result()->fetch_assoc();
+}
 
-// 3. Close-time analytics for the last 5 weekdays ending at the selected end date.
+// 3. Close-time analytics for the selected trend period.
 $trendAnchorDate = new DateTimeImmutable($end_date ?: date('Y-m-d'));
-$currentTrendDates = analytics_last_n_weekdays($trendAnchorDate, 5);
-$trendStartDate = $currentTrendDates[0];
-$trendEndDate = $currentTrendDates[count($currentTrendDates) - 1];
-$previousTrendDates = analytics_last_n_weekdays($trendStartDate->modify('-1 day'), 5);
-$previousTrendStartDate = $previousTrendDates[0];
-$previousTrendEndDate = $previousTrendDates[count($previousTrendDates) - 1];
+if ($analyticsIsEmployeeView && $trend_period === 'last_month') {
+    $trendMonthStart = $trendAnchorDate->modify('first day of previous month');
+    $trendMonthEnd = $trendAnchorDate->modify('last day of previous month');
+    $currentTrendDates = analytics_weekdays_between($trendMonthStart, $trendMonthEnd);
+    if (count($currentTrendDates) === 0) {
+        $currentTrendDates = analytics_last_n_weekdays($trendMonthEnd, 5);
+    }
+    $trendStartDate = $trendMonthStart;
+    $trendEndDate = $trendMonthEnd;
+    $previousTrendStartDate = $trendMonthStart->modify('first day of previous month');
+    $previousTrendEndDate = $trendMonthStart->modify('last day of previous month');
+} else {
+    $currentTrendDates = analytics_last_n_weekdays($trendAnchorDate, 5);
+    $trendStartDate = $currentTrendDates[0];
+    $trendEndDate = $currentTrendDates[count($currentTrendDates) - 1];
+    $previousTrendDates = analytics_last_n_weekdays($trendStartDate->modify('-1 day'), 5);
+    $previousTrendStartDate = $previousTrendDates[0];
+    $previousTrendEndDate = $previousTrendDates[count($previousTrendDates) - 1];
+}
 $completionAtExpr = "COALESCE(t.closed_at, t.resolved_at)";
 $resolutionMinutesExpr = "TIMESTAMPDIFF(MINUTE, t.created_at, $completionAtExpr)";
 $resolutionSecondsExpr = "TIMESTAMPDIFF(SECOND, t.started_at, $completionAtExpr)";
@@ -338,12 +454,14 @@ $metricsSql = "
 ";
 $mStmt = $conn->prepare($metricsSql);
 if ($mStmt) {
-    $bind = [];
-    $bind[] = $ticket_types;
-    foreach ($ticket_params as $k => $p) {
-        $bind[] = &$ticket_params[$k];
+    if ($ticket_types !== '') {
+        $bind = [];
+        $bind[] = $ticket_types;
+        foreach ($ticket_params as $k => $p) {
+            $bind[] = &$ticket_params[$k];
+        }
+        call_user_func_array([$mStmt, 'bind_param'], $bind);
     }
-    call_user_func_array([$mStmt, 'bind_param'], $bind);
     $mStmt->execute();
     $mRow = $mStmt->get_result()->fetch_assoc();
     $summary['received'] = (int) ($mRow['received'] ?? 0);
@@ -358,6 +476,9 @@ $currentStart = $trendStartDate->format('Y-m-d');
 $currentEnd = $trendEndDate->format('Y-m-d');
 $previousStart = $previousTrendStartDate->format('Y-m-d');
 $previousEnd = $previousTrendEndDate->format('Y-m-d');
+$trendPeriodLabel = $trend_period === 'last_month' ? 'Last Month' : 'Last 5 weekdays';
+$trendAverageLabel = $trend_period === 'last_month' ? 'Average for last month' : 'Average for last 5 weekdays';
+$trendNoDataLabel = $trend_period === 'last_month' ? 'No data for last month' : 'No data for the last 5 weekdays';
 
 $resolutionRangeWhere = [
     "t.status = 'Closed'",
@@ -567,7 +688,7 @@ $resolutionBucketWhere = [
     "$resolutionSecondsExpr >= 0",
     "DATE($completionAtExpr) BETWEEN ? AND ?",
 ];
-$resolutionBucketParams = [$start_date, $end_date];
+$resolutionBucketParams = [$currentStart, $currentEnd];
 $resolutionBucketTypes = "ss";
 if ($category_filter !== '') {
     $resolutionBucketWhere[] = "t.category = ?";
@@ -635,7 +756,7 @@ $trendSummaryBadgeText = !empty($trendDayStats) || $trendAverageSeconds > 0
 
 $hasCurrentTrendData = $currentResolvedCount > 0 || $trendAverageSeconds > 0 || !empty($trendDayStats);
 $trendComparisonTitle = 'No closed tickets';
-$trendComparisonDetail = 'No data for the last 5 weekdays';
+$trendComparisonDetail = $trendNoDataLabel;
 $trendComparisonMain = 'No data';
 $trendComparisonSub = 'No previous data';
 $trendSummaryBadgeText = 'No data';
@@ -681,13 +802,39 @@ if ($hasCurrentTrendData) {
     }
 }
 
+$trendInsightText = $resolutionBucketTotal > 0
+    ? 'Most closed tickets took ' . $resolutionTopBucketLabel . ' (' . (int) $resolutionTopBucketPercent . '%)'
+    : 'No closed tickets in ' . strtolower($trendPeriodLabel);
+$trendPayload = [
+    'period' => $trend_period,
+    'labels' => $trendWeeks,
+    'points' => $trendAvgHours,
+    'maxHours' => $trendMaxHours,
+    'peakIndex' => $trendPeakDay['index'] ?? null,
+    'fastestIndex' => $trendFastestDay['index'] ?? null,
+    'averageText' => formatHandlingTimeDetailed((int) $trendAverageSeconds),
+    'averageLabel' => $trendAverageLabel,
+    'badgeClass' => $trendSummaryBadgeClass,
+    'badgeIcon' => $trendSummaryBadgeIcon,
+    'badgeText' => $trendSummaryBadgeText,
+    'badgeDetail' => $trendComparisonDetail,
+    'insightText' => $trendInsightText,
+];
+
+if ($analyticsIsEmployeeView && isset($_GET['ajax_trend'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($trendPayload);
+    exit();
+}
+
 $companyExpr = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''), '')";
 $departmentExpr = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''), '')";
 $lapcCompanySql = "LOWER(TRIM($companyExpr)) IN ('@leadsagri.com', 'leadsagri.com', 'lapc', 'lapc (@leadsagri.com)', 'leads agricultural products corporation - lapc')";
 
-$companyChartWhere = ["DATE(t.created_at) BETWEEN ? AND ?"];
-$companyChartParams = [$start_date, $end_date];
-$companyChartTypes = "ss";
+$companyChartWhere = [];
+$companyChartParams = [];
+$companyChartTypes = "";
+$analyticsApplyCreatedDateFilter($companyChartWhere, $companyChartParams, $companyChartTypes);
 if ($category_filter !== '') {
     $companyChartWhere[] = "t.category = ?";
     $companyChartParams[] = $category_filter;
@@ -728,12 +875,14 @@ $lapcDepartmentSql = "
 ";
 $lapcDepartmentStmt = $conn->prepare($lapcDepartmentSql);
 if ($lapcDepartmentStmt) {
-    $bind = [];
-    $bind[] = $lapcTypes;
-    foreach ($companyChartParamsForLapc as $k => $p) {
-        $bind[] = &$companyChartParamsForLapc[$k];
+    if ($lapcTypes !== '') {
+        $bind = [];
+        $bind[] = $lapcTypes;
+        foreach ($companyChartParamsForLapc as $k => $p) {
+            $bind[] = &$companyChartParamsForLapc[$k];
+        }
+        call_user_func_array([$lapcDepartmentStmt, 'bind_param'], $bind);
     }
-    call_user_func_array([$lapcDepartmentStmt, 'bind_param'], $bind);
     $lapcDepartmentStmt->execute();
     $lapcDepartmentRes = $lapcDepartmentStmt->get_result();
     while ($r = $lapcDepartmentRes->fetch_assoc()) {
@@ -757,12 +906,14 @@ $otherCompanySql = "
 ";
 $otherCompanyStmt = $conn->prepare($otherCompanySql);
 if ($otherCompanyStmt) {
-    $bind = [];
-    $bind[] = $companyChartTypes;
-    foreach ($companyChartParams as $k => $p) {
-        $bind[] = &$companyChartParams[$k];
+    if ($companyChartTypes !== '') {
+        $bind = [];
+        $bind[] = $companyChartTypes;
+        foreach ($companyChartParams as $k => $p) {
+            $bind[] = &$companyChartParams[$k];
+        }
+        call_user_func_array([$otherCompanyStmt, 'bind_param'], $bind);
     }
-    call_user_func_array([$otherCompanyStmt, 'bind_param'], $bind);
     $otherCompanyStmt->execute();
     $otherCompanyRes = $otherCompanyStmt->get_result();
     while ($r = $otherCompanyRes->fetch_assoc()) {
@@ -797,35 +948,39 @@ if ($analyticsIsEmployeeView) {
     $employeeTaskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), NULLIF(t.assigned_department, ''), NULLIF(t.department, ''), NULLIF(u.department, ''))";
     $employeeRequiresGroupCond = "(($employeeCompanyCol LIKE '@%' AND LOWER($employeeCompanyCol) = '@leadsagri.com') OR ($employeeCompanyCol NOT LIKE '@%' AND UPPER($employeeCompanyCol) = 'LAPC'))";
 
-    $employeeCategoryWhere = [
-        "DATE(t.created_at) BETWEEN ? AND ?",
+    $employeeCategoryWhere = [];
+    $employeeCategoryParams = [];
+    $employeeCategoryTypes = "";
+    $analyticsApplyCreatedDateFilter($employeeCategoryWhere, $employeeCategoryParams, $employeeCategoryTypes);
+    $employeeCategoryWhere = array_merge($employeeCategoryWhere, [
         "t.user_id <> ?",
         "(
             (t.assigned_user_id = ? AND (? = '' OR $employeeTaskDeptExpr = ?))
             OR ($employeeCompanyCond AND ((NOT $employeeRequiresGroupCond) OR (? = '' OR $employeeTaskDeptExpr = ?)))
         )",
-    ];
-    $employeeCategoryParams = [
-        $start_date,
-        $end_date,
+    ]);
+    $employeeCategoryParams = array_merge($employeeCategoryParams, [
         $employeeUserId,
         $employeeUserId,
         $employeeDepartmentRaw,
         $employeeDepartmentRaw,
         $employeeEmail,
-    ];
+    ]);
     foreach ($employeeCompanyAliases as $employeeCompanyAlias) {
         $employeeCategoryParams[] = $employeeCompanyAlias;
     }
     $employeeCategoryParams[] = $employeeDepartmentRaw;
     $employeeCategoryParams[] = $employeeDepartmentRaw;
-    $employeeCategoryTypes = "ssiiss" . str_repeat("s", 1 + count($employeeCompanyAliases) + 2);
+    $employeeCategoryTypes .= "iiss" . str_repeat("s", 1 + count($employeeCompanyAliases) + 2);
     if ($status_filter !== '') {
         $employeeCategoryWhere[] = "t.status = ?";
         $employeeCategoryParams[] = $status_filter;
         $employeeCategoryTypes .= "s";
     }
     $employeeAllowedCategories = analytics_allowed_categories_for_department($employeeCompanyRaw, $employeeDepartmentRaw);
+    $employeeAllowedCategories = array_values(array_filter($employeeAllowedCategories, static function ($category) {
+        return strcasecmp((string) $category, 'Technical Support') !== 0;
+    }));
     if (count($employeeAllowedCategories) > 0) {
         $employeeCategoryWhere[] = "t.category IN (" . implode(',', array_fill(0, count($employeeAllowedCategories), '?')) . ")";
         foreach ($employeeAllowedCategories as $allowedCategory) {
@@ -879,9 +1034,10 @@ if ($analyticsIsEmployeeView) {
 
 $assigneeLabels = [];
 $assigneeCounts = [];
-$assigneeWhere = ["DATE(t.created_at) BETWEEN ? AND ?"];
-$assigneeParams = [$start_date, $end_date];
-$assigneeTypes = "ss";
+$assigneeWhere = [];
+$assigneeParams = [];
+$assigneeTypes = "";
+$analyticsApplyCreatedDateFilter($assigneeWhere, $assigneeParams, $assigneeTypes);
 $assigneeWhere[] = "t.assigned_user_id IS NOT NULL";
 if ($category_filter !== '') {
     $assigneeWhere[] = "t.category = ?";
@@ -897,6 +1053,11 @@ analytics_apply_company_filter(
 );
 if ($department_filter !== '') {
     $assigneeWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
+    $assigneeParams[] = $department_filter;
+    $assigneeTypes .= "s";
+}
+if ($analyticsIsEmployeeView && $department_filter !== '') {
+    $assigneeWhere[] = "UPPER(TRIM(COALESCE(a.department, ''))) = UPPER(TRIM(?))";
     $assigneeParams[] = $department_filter;
     $assigneeTypes .= "s";
 }
@@ -916,12 +1077,14 @@ $assigneeSql = "
 ";
 $asStmt = $conn->prepare($assigneeSql);
 if ($asStmt) {
-    $bind = [];
-    $bind[] = $assigneeTypes;
-    foreach ($assigneeParams as $k => $p) {
-        $bind[] = &$assigneeParams[$k];
+    if ($assigneeTypes !== '') {
+        $bind = [];
+        $bind[] = $assigneeTypes;
+        foreach ($assigneeParams as $k => $p) {
+            $bind[] = &$assigneeParams[$k];
+        }
+        call_user_func_array([$asStmt, 'bind_param'], $bind);
     }
-    call_user_func_array([$asStmt, 'bind_param'], $bind);
     $asStmt->execute();
     $asRes = $asStmt->get_result();
     while ($r = $asRes->fetch_assoc()) {
@@ -1006,6 +1169,18 @@ $allowed_entries = [5, 10, 25, 50, 100];
 if (!in_array($entries, $allowed_entries, true)) $entries = 5;
 $page = (int) ($_GET['page'] ?? 1);
 if ($page < 1) $page = 1;
+$trendLinkBase = [
+    'start_date' => $start_date,
+    'end_date' => $end_date,
+    'category' => $category_filter,
+    'company' => $company_filter,
+    'department' => $department_filter,
+    'status' => $status_filter,
+    'entries' => $entries,
+    'page' => 1,
+];
+$trendLastFiveHref = '?' . http_build_query(array_merge($trendLinkBase, ['trend_period' => 'last_5_weekdays']));
+$trendLastMonthHref = '?' . http_build_query(array_merge($trendLinkBase, ['trend_period' => 'last_month']));
 $offset = ($page - 1) * $entries;
 
 $tickets_total = 0;
@@ -1029,12 +1204,31 @@ if ($page > $tickets_total_pages) $page = $tickets_total_pages;
 $offset = ($page - 1) * $entries;
 
 $tickets = [];
+$ticketsOrderSql = $analyticsIsEmployeeView
+    ? "CASE LOWER(TRIM(COALESCE(t.status, '')))
+            WHEN 'closed' THEN 2
+            WHEN 'resolved' THEN 1
+            ELSE 0
+        END ASC,
+        t.created_at DESC,
+        t.id DESC"
+    : "t.created_at DESC";
 $ticketsSql = "
     SELECT
         t.id,
         u.name as client_name,
+        u.email as user_email,
+        u.department as user_department,
+        u.company as user_company,
         t.subject,
         t.category,
+        t.priority,
+        t.requester_name,
+        t.requester_email,
+        t.description,
+        t.department,
+        t.company,
+        t.created_at,
         COALESCE(a.name, 'Unassigned') as assignee_name,
         t.started_at,
         COALESCE(t.closed_at, t.resolved_at) as resolved_at,
@@ -1044,7 +1238,7 @@ $ticketsSql = "
     JOIN users u ON t.user_id = u.id
     LEFT JOIN users a ON t.assigned_user_id = a.id
     WHERE " . implode(" AND ", $ticket_where) . "
-    ORDER BY t.created_at DESC
+    ORDER BY $ticketsOrderSql
     LIMIT ? OFFSET ?
 ";
 $ticketsStmt = $conn->prepare($ticketsSql);
@@ -1608,6 +1802,10 @@ if ($ticketsStmt) {
             margin-top: 2px;
             flex: 1 1 260px;
         }
+        .chart-card.trend-card.month-view .chart-container {
+            height: 310px;
+            flex-basis: 310px;
+        }
         .trend-card {
             gap: 14px;
         }
@@ -1619,23 +1817,49 @@ if ($ticketsStmt) {
             margin-bottom: 0;
             min-height: 0;
         }
+        .trend-period-actions {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            padding: 4px;
+            border: 1px solid #dbe3ef;
+            border-radius: 13px;
+            background: #f8fafc;
+            flex: 0 0 auto;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+        }
         .trend-period-pill {
             display: inline-flex;
             align-items: center;
-            gap: 10px;
-            min-height: 42px;
-            padding: 0 14px;
-            border-radius: 14px;
-            border: 1px solid #dce8f6;
-            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-            color: #475569;
+            justify-content: center;
+            min-height: 34px;
+            border: 0;
+            border-radius: 9px;
+            padding: 0 12px;
+            background: transparent;
+            color: #556171;
             font-size: 13px;
-            font-weight: 700;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+            font-weight: 800;
             white-space: nowrap;
+            text-decoration: none;
+            transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .trend-period-pill:hover,
+        .trend-period-pill:focus-visible {
+            color: #1B5E20;
+            outline: none;
+        }
+        .trend-period-pill.active {
+            background: #1B5E20;
+            color: #ffffff;
+            box-shadow: 0 6px 14px rgba(27, 94, 32, 0.2);
+        }
+        .trend-period-pill.active i {
+            color: #ffffff;
         }
         .trend-period-pill i {
-            color: #2f8cff;
+            color: inherit;
         }
         .trend-overview-card {
             display: flex;
@@ -2262,13 +2486,14 @@ if ($ticketsStmt) {
                 <form method="GET" action="<?= htmlspecialchars(basename($_SERVER['PHP_SELF']), ENT_QUOTES, 'UTF-8') ?>" class="analytics-filterbar">
                     <input type="hidden" name="entries" value="<?= (int) $entries ?>">
                     <input type="hidden" name="page" value="1">
+                    <input type="hidden" name="trend_period" value="<?= htmlspecialchars($trend_period, ENT_QUOTES, 'UTF-8') ?>">
                     <div class="analytics-filters">
                         <div class="analytics-filter">
                             <label>Date Range</label>
                             <div class="date-inputs">
-                                <input class="analytics-control" type="date" name="start_date" value="<?= htmlspecialchars($start_date) ?>" required>
+                                <input class="analytics-control" type="date" name="start_date" value="<?= htmlspecialchars($start_date) ?>">
                                 <span class="date-separator">to</span>
-                                <input class="analytics-control" type="date" name="end_date" value="<?= htmlspecialchars($end_date) ?>" required>
+                                <input class="analytics-control" type="date" name="end_date" value="<?= htmlspecialchars($end_date) ?>">
                             </div>
                         </div>
                         <?php if ($analyticsIsEmployeeView): ?>
@@ -2405,15 +2630,19 @@ if ($ticketsStmt) {
                         <div class="category-legend-grid" id="companyChartLegend"></div>
                     <?php endif; ?>
                 </div>
-                <div class="chart-card trend-card">
+                <div class="chart-card trend-card <?= $trend_period === 'last_month' ? 'month-view' : '' ?>">
                     <div class="chart-header">
                         <div class="chart-heading">
                             <div class="chart-title">Average Close Time by Day</div>
                             <p class="chart-subtitle">Lower is better. Each point shows the average time to close tickets that day.</p>
                         </div>
-                        <div class="trend-period-pill">
-                            <i class="fa-regular fa-calendar"></i>
-                            <span>Last 5 weekdays</span>
+                        <div class="trend-period-actions">
+                            <a href="<?= htmlspecialchars($trendLastFiveHref, ENT_QUOTES, 'UTF-8') ?>" class="trend-period-pill <?= $trend_period === 'last_5_weekdays' ? 'active' : '' ?>" data-trend-period="last_5_weekdays">
+                                <span>Week Ago</span>
+                            </a>
+                            <a href="<?= htmlspecialchars($trendLastMonthHref, ENT_QUOTES, 'UTF-8') ?>" class="trend-period-pill <?= $trend_period === 'last_month' ? 'active' : '' ?>" data-trend-period="last_month">
+                                <span>Month Ago</span>
+                            </a>
                         </div>
                     </div>
                     <div class="trend-overview-card">
@@ -2421,7 +2650,7 @@ if ($ticketsStmt) {
                             <div class="trend-overview-icon"><i class="fa-regular fa-clock"></i></div>
                             <div class="trend-overview-copy">
                                 <div class="trend-overview-value"><?= htmlspecialchars(formatHandlingTimeDetailed((int) $trendAverageSeconds), ENT_QUOTES, 'UTF-8') ?></div>
-                                <div class="trend-overview-label">Average for last 5 weekdays</div>
+                                <div class="trend-overview-label"><?= htmlspecialchars($trendAverageLabel, ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                         </div>
                         <div class="trend-delta-badge <?= htmlspecialchars($trendSummaryBadgeClass, ENT_QUOTES, 'UTF-8') ?>">
@@ -2438,13 +2667,7 @@ if ($ticketsStmt) {
                     <div class="insight-pill">
                         <div class="insight-pill-label">
                             <i class="fa-regular fa-lightbulb"></i>
-                            <span>
-                                <?php if ($resolutionBucketTotal > 0): ?>
-                                    Most closed tickets took <?= htmlspecialchars($resolutionTopBucketLabel, ENT_QUOTES, 'UTF-8') ?> (<?= (int) $resolutionTopBucketPercent ?>%)
-                                <?php else: ?>
-                                    No closed tickets in the selected range
-                                <?php endif; ?>
-                            </span>
+                            <span><?= htmlspecialchars($trendInsightText, ENT_QUOTES, 'UTF-8') ?></span>
                         </div>
                     </div>
                 </div>
@@ -2486,10 +2709,21 @@ if ($ticketsStmt) {
                     $endNum = min($tickets_total, $offset + $entries);
                 ?>
 
-                <div style="width:100%; overflow:auto;">
-                    <table class="tickets-table">
+                <div class="<?= $analyticsIsEmployeeView ? 'table-responsive' : '' ?>" style="width:100%; overflow:auto;">
+                    <table class="<?= $analyticsIsEmployeeView ? 'admin-table analytics-task-table' : 'tickets-table' ?>">
                         <thead>
                             <tr>
+                                <?php if ($analyticsIsEmployeeView): ?>
+                                <th>ID</th>
+                                <th>Category</th>
+                                <th>Urgency</th>
+                                <th>Requested By</th>
+                                <th>From</th>
+                                <th>Status</th>
+                                <th>SLA</th>
+                                <th>Date Created</th>
+                                <th></th>
+                                <?php else: ?>
                                 <th>Ticket ID</th>
                                 <th>Client</th>
                                 <th>Reported Concern</th>
@@ -2499,6 +2733,7 @@ if ($ticketsStmt) {
                                 <th>End Time</th>
                                 <th>Duration</th>
                                 <th>Status</th>
+                                <?php endif; ?>
                             </tr>
                         </thead>
                         <tbody>
@@ -2511,8 +2746,25 @@ if ($ticketsStmt) {
                                         $startedAt = (string) ($t['started_at'] ?? '');
                                         $resolvedAt = (string) ($t['resolved_at'] ?? '');
                                         $durationSec = (int) ($t['duration_seconds'] ?? 0);
+                                        [$requesterName, $requesterEmail] = analytics_requester_display($t);
                                     ?>
-                                    <tr>
+                                    <tr class="<?= $analyticsIsEmployeeView ? 'ticket-row' : '' ?>" data-id="<?= htmlspecialchars((string) ($t['id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" <?= $analyticsIsEmployeeView ? 'style="cursor:pointer;"' : '' ?>>
+                                        <?php if ($analyticsIsEmployeeView): ?>
+                                        <td class="task-ticket-id">#<?= str_pad((string) ($t['id'] ?? ''), 6, '0', STR_PAD_LEFT) ?></td>
+                                        <td class="subject-cell task-ticket-category"><strong><?= htmlspecialchars((string) ($t['category'] ?? ''), ENT_QUOTES, 'UTF-8') ?></strong></td>
+                                        <td class="task-ticket-urgency"><?= analytics_urgency_badge_html((string) ($t['priority'] ?? '')) ?></td>
+                                        <td class="task-ticket-requester">
+                                            <div class="user-info">
+                                                <strong><?= htmlspecialchars($requesterName, ENT_QUOTES, 'UTF-8') ?></strong><br>
+                                                <small><?= htmlspecialchars($requesterEmail, ENT_QUOTES, 'UTF-8') ?></small>
+                                            </div>
+                                        </td>
+                                        <td class="task-ticket-department"><?= htmlspecialchars(analytics_source_label($t), ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td class="task-ticket-status"><span class="status-pill status-<?= htmlspecialchars($statusSlug, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($status !== '' ? $status : '-', ENT_QUOTES, 'UTF-8') ?></span></td>
+                                        <td class="task-ticket-sla"><?= ticket_sla_badge_html((string) ($t['created_at'] ?? ''), $status, (string) ($t['priority'] ?? '')) ?></td>
+                                        <td class="task-ticket-date"><?= !empty($t['created_at']) ? htmlspecialchars(date('M d, Y', strtotime((string) $t['created_at'])), ENT_QUOTES, 'UTF-8') : '-' ?></td>
+                                        <td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>
+                                        <?php else: ?>
                                         <td>#<?= str_pad((string) ($t['id'] ?? ''), 6, '0', STR_PAD_LEFT) ?></td>
                                         <td><?= htmlspecialchars((string) ($t['client_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
                                         <td><?= htmlspecialchars((string) ($t['subject'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
@@ -2522,6 +2774,7 @@ if ($ticketsStmt) {
                                         <td class="time-cell"><?= $resolvedAt !== '' ? htmlspecialchars(date('M d, Y g:i A', strtotime($resolvedAt)), ENT_QUOTES, 'UTF-8') : '-' ?></td>
                                         <td class="time-cell"><?= ($startedAt !== '' && $resolvedAt !== '' && $durationSec > 0) ? htmlspecialchars(formatHandlingTime($durationSec), ENT_QUOTES, 'UTF-8') : '-' ?></td>
                                         <td><span class="status-badge status-<?= htmlspecialchars($statusSlug, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($status !== '' ? $status : '-', ENT_QUOTES, 'UTF-8') ?></span></td>
+                                        <?php endif; ?>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -2544,6 +2797,7 @@ if ($ticketsStmt) {
                             <input type="hidden" name="company" value="<?= htmlspecialchars($company_filter, ENT_QUOTES, 'UTF-8') ?>">
                             <input type="hidden" name="department" value="<?= htmlspecialchars($department_filter, ENT_QUOTES, 'UTF-8') ?>">
                             <input type="hidden" name="status" value="<?= htmlspecialchars($status_filter, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="trend_period" value="<?= htmlspecialchars($trend_period, ENT_QUOTES, 'UTF-8') ?>">
                             <input type="hidden" name="page" value="1">
                             <span>Show</span>
                             <select name="entries" class="entries-select" onchange="this.form.submit()">
@@ -2566,6 +2820,7 @@ if ($ticketsStmt) {
                                     'company' => $company_filter,
                                     'department' => $department_filter,
                                     'status' => $status_filter,
+                                    'trend_period' => $trend_period,
                                     'entries' => $entries,
                                 ];
                                 $prevPage = max(1, $page - 1);
@@ -2655,10 +2910,20 @@ if ($ticketsStmt) {
             });
         }
 
-        var controls = filterForm.querySelectorAll('select[name="department"], select[name="status"], input[name="start_date"], input[name="end_date"]');
+        var startDateInput = filterForm.querySelector('input[name="start_date"]');
+        var endDateInput = filterForm.querySelector('input[name="end_date"]');
+        var controls = filterForm.querySelectorAll('select[name="department"], select[name="status"]');
         controls.forEach(function (control) {
             control.addEventListener('change', function () {
                 filterForm.submit();
+            });
+        });
+        [startDateInput, endDateInput].forEach(function (control) {
+            if (!control) return;
+            control.addEventListener('change', function () {
+                if (startDateInput && endDateInput && startDateInput.value !== '' && endDateInput.value !== '') {
+                    filterForm.submit();
+                }
             });
         });
         syncDepartmentAvailability();
@@ -2801,11 +3066,15 @@ if ($ticketsStmt) {
     const trendGradient = trendCtx.createLinearGradient(0, 0, 0, 286);
     trendGradient.addColorStop(0, 'rgba(47, 140, 255, 0.24)');
     trendGradient.addColorStop(1, 'rgba(47, 140, 255, 0.02)');
-    const trendMaxHours = <?= json_encode($trendMaxHours) ?>;
-    const trendDataPoints = <?= json_encode($trendAvgHours) ?>;
-    const trendPeakIndex = <?= json_encode($trendPeakDay['index'] ?? null) ?>;
-    const trendFastestIndex = <?= json_encode($trendFastestDay['index'] ?? null) ?>;
-    new Chart(trendCtx, {
+    let trendMaxHours = <?= json_encode($trendMaxHours) ?>;
+    let trendDataPoints = <?= json_encode($trendAvgHours) ?>;
+    let trendPeakIndex = <?= json_encode($trendPeakDay['index'] ?? null) ?>;
+    let trendFastestIndex = <?= json_encode($trendFastestDay['index'] ?? null) ?>;
+    let activeTrendPeriod = <?= json_encode($trend_period) ?>;
+    function isMonthTrendView() {
+        return activeTrendPeriod === 'last_month';
+    }
+    const trendChart = new Chart(trendCtx, {
         type: 'line',
         data: {
             labels: <?= json_encode($trendWeeks) ?>,
@@ -2846,10 +3115,10 @@ if ($ticketsStmt) {
             maintainAspectRatio: false,
             layout: {
                 padding: {
-                    top: isEmployeeAnalyticsView ? 34 : 18,
+                    top: isMonthTrendView() ? 48 : (isEmployeeAnalyticsView ? 34 : 18),
                     right: 14,
                     left: 14,
-                    bottom: 8
+                    bottom: isMonthTrendView() ? 18 : 8
                 }
             },
             plugins: {
@@ -2863,15 +3132,27 @@ if ($ticketsStmt) {
                     }
                 },
                 datalabels: {
-                    align: 'top',
+                    align: function(context) {
+                        return isMonthTrendView() && context.dataIndex % 2 === 0 ? 'end' : 'top';
+                    },
                     anchor: 'end',
-                    offset: 6,
-                    clamp: true,
+                    offset: function(context) {
+                        return isMonthTrendView() ? (context.dataIndex % 2 === 0 ? 12 : 8) : 6;
+                    },
+                    clamp: false,
                     clip: false,
                     color: '#0f172a',
-                    font: {
-                        weight: analyticsChartTextWeight,
-                        size: 11
+                    display: function(context) {
+                        var value = context.raw;
+                        if (value === null || typeof value === 'undefined') return false;
+                        if (!isMonthTrendView()) return true;
+                        return context.dataIndex === trendPeakIndex || context.dataIndex === trendFastestIndex || context.dataIndex % 3 === 0;
+                    },
+                    font: function() {
+                        return {
+                            weight: analyticsChartTextWeight,
+                            size: isMonthTrendView() ? 10 : 11
+                        };
                     },
                     formatter: function(value) {
                         if (value === null || typeof value === 'undefined') return '';
@@ -2914,9 +3195,13 @@ if ($ticketsStmt) {
                         color: function(context) {
                             return context.index === trendPeakIndex ? '#2f8cff' : textColor;
                         },
-                        padding: 8,
+                        padding: isMonthTrendView() ? 12 : 8,
+                        autoSkip: true,
+                        maxTicksLimit: isMonthTrendView() ? 8 : 5,
+                        maxRotation: isMonthTrendView() ? 45 : 0,
+                        minRotation: isMonthTrendView() ? 45 : 0,
                         font: {
-                            size: 13,
+                            size: isMonthTrendView() ? 12 : 13,
                             weight: analyticsChartAxisWeight
                         }
                     }
@@ -2924,6 +3209,88 @@ if ($ticketsStmt) {
             }
         }
     });
+
+    (function () {
+        const periodButtons = document.querySelectorAll('.trend-period-pill[data-trend-period]');
+        const overviewValue = document.querySelector('.trend-overview-value');
+        const overviewLabel = document.querySelector('.trend-overview-label');
+        const badge = document.querySelector('.trend-delta-badge');
+        const badgeIcon = badge ? badge.querySelector('i') : null;
+        const badgeText = document.querySelector('.trend-delta-value');
+        const badgeDetail = document.querySelector('.trend-delta-label');
+        const insightText = document.querySelector('.trend-card .insight-pill-label span');
+        const trendCard = document.querySelector('.trend-card');
+
+        function setLoading(isLoading) {
+            periodButtons.forEach(function (button) {
+                button.style.pointerEvents = isLoading ? 'none' : '';
+                button.style.opacity = isLoading ? '0.72' : '';
+            });
+        }
+
+        function updateTrendCard(data) {
+            trendDataPoints = data.points || [];
+            trendMaxHours = Number(data.maxHours) || 6;
+            trendPeakIndex = data.peakIndex;
+            trendFastestIndex = data.fastestIndex;
+            activeTrendPeriod = data.period || 'last_5_weekdays';
+
+            trendChart.data.labels = data.labels || [];
+            trendChart.data.datasets[0].data = trendDataPoints;
+            trendChart.options.scales.y.max = trendMaxHours;
+            trendChart.options.layout.padding.top = isMonthTrendView() ? 48 : (isEmployeeAnalyticsView ? 34 : 18);
+            trendChart.options.layout.padding.bottom = isMonthTrendView() ? 18 : 8;
+            trendChart.options.scales.x.ticks.maxTicksLimit = isMonthTrendView() ? 8 : 5;
+            trendChart.options.scales.x.ticks.maxRotation = isMonthTrendView() ? 45 : 0;
+            trendChart.options.scales.x.ticks.minRotation = isMonthTrendView() ? 45 : 0;
+            trendChart.options.scales.x.ticks.font.size = isMonthTrendView() ? 12 : 13;
+            trendChart.update();
+            if (trendCard) trendCard.classList.toggle('month-view', isMonthTrendView());
+
+            if (overviewValue) overviewValue.textContent = data.averageText || '0m';
+            if (overviewLabel) overviewLabel.textContent = data.averageLabel || '';
+            if (badge) {
+                badge.classList.remove('up', 'down', 'flat');
+                badge.classList.add(data.badgeClass || 'flat');
+            }
+            if (badgeIcon) {
+                badgeIcon.className = 'fa-solid ' + (data.badgeIcon || 'fa-circle-info');
+            }
+            if (badgeText) badgeText.textContent = data.badgeText || 'No data';
+            if (badgeDetail) badgeDetail.textContent = data.badgeDetail || '';
+            if (insightText) insightText.textContent = data.insightText || '';
+
+            periodButtons.forEach(function (button) {
+                button.classList.toggle('active', button.getAttribute('data-trend-period') === data.period);
+            });
+        }
+
+        periodButtons.forEach(function (button) {
+            button.addEventListener('click', function (event) {
+                event.preventDefault();
+                const url = new URL(button.href, window.location.href);
+                url.searchParams.set('ajax_trend', '1');
+                setLoading(true);
+
+                fetch(url.toString(), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                    .then(function (response) {
+                        if (!response.ok) throw new Error('Unable to load trend data');
+                        return response.json();
+                    })
+                    .then(function (data) {
+                        updateTrendCard(data);
+                    })
+                    .catch(function () {
+                        window.location.href = button.href;
+                    })
+                    .finally(function () {
+                        setLoading(false);
+                    });
+            });
+        });
+    })();
 </script>
 
 </body>

@@ -453,17 +453,26 @@ if ($row = $result->fetch_assoc()) {
     if ($requester_email !== '') $row['created_by_email'] = $requester_email;
     $row['description'] = $clean_desc;
     $userContext = ticket_build_user_context($conn, $currentUserId, $_SESSION);
-    $row['has_assignee'] = isset($row['assigned_to']) && (int) $row['assigned_to'] > 0;
     $lockedAssignedUserId = isset($row['assigned_user_id']) ? (int) $row['assigned_user_id'] : 0;
     $lockedHandlerId = isset($row['assigned_to']) ? (int) $row['assigned_to'] : 0;
-    $hasActualAssignee = $lockedHandlerId > 0;
+    $lockedStatusKey = strtolower(trim((string) ($row['status'] ?? '')));
+    $specificUserLocked = $lockedAssignedUserId > 0 && ($lockedHandlerId > 0 || $lockedStatusKey !== 'open');
+    if ($specificUserLocked && $lockedHandlerId !== $lockedAssignedUserId) {
+        $row['assigned_to'] = $lockedAssignedUserId;
+        $row['assigned_to_name'] = (string) ($row['assignee_name'] ?? '');
+        $row['assigned_to_email'] = (string) ($row['assignee_email'] ?? '');
+        $row['assigned_to_department'] = (string) ($row['assignee_department'] ?? '');
+        $lockedHandlerId = $lockedAssignedUserId;
+    }
+    $row['has_assignee'] = $specificUserLocked || $lockedHandlerId > 0;
+    $hasActualAssignee = $row['has_assignee'];
     $canUpdateTab = ticket_user_is_handler_candidate($row, $currentUserId, $userContext);
     $isCurrentHandler = $lockedHandlerId > 0 && $lockedHandlerId === $currentUserId;
     $isCurrentAssignedUser = $lockedAssignedUserId > 0 && $lockedAssignedUserId === $currentUserId;
     if ($isCurrentHandler || $isCurrentAssignedUser) {
         $canUpdateTab = true;
     }
-    if (!$isCurrentHandler && !$row['is_sales_ticket'] && $lockedAssignedUserId > 0 && $lockedAssignedUserId !== $currentUserId) {
+    if (!$isCurrentAssignedUser && $specificUserLocked && $lockedAssignedUserId !== $currentUserId) {
         $canUpdateTab = false;
     }
     if (!$isCurrentAssignedUser && $lockedHandlerId > 0 && $lockedHandlerId !== $currentUserId) {
@@ -502,8 +511,13 @@ if ($row = $result->fetch_assoc()) {
             $feedbackAccessStmt->close();
         }
     }
-    $hasAccess = ticket_user_matches_requester($row, $currentUserId, $userContext)
-        || ticket_user_is_handler_candidate($row, $currentUserId, $userContext)
+    $isRequesterForAccess = ticket_user_matches_requester($row, $currentUserId, $userContext);
+    $handlerCandidateAccess = ticket_user_is_handler_candidate($row, $currentUserId, $userContext);
+    if (!$isRequesterForAccess && $specificUserLocked && $lockedAssignedUserId !== $currentUserId) {
+        $handlerCandidateAccess = false;
+    }
+    $hasAccess = $isRequesterForAccess
+        || $handlerCandidateAccess
         || $hasFeedbackAccess
         || !empty($row['can_claim_ticket']);
     if (!$hasAccess) {

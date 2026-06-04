@@ -27,6 +27,7 @@ $lapcDepartments = ticket_receiving_available_departments($conn, '@leadsagri.com
 $mhcDepartments = ticket_receiving_available_departments($conn, '@malvedaholdings.com');
 $defaultCategories = ['Hardware', 'Software', 'Documentation', 'Email', 'Internet Concerns', 'Procurement'];
 $mpdcCategories = ['Engineerings', 'Client Based'];
+$lingapCategories = ['Lakbay Kalusugan Request (Medical Mission)'];
 $lapcDepartmentCategories = [
     'Admin & Legal' => [
         'Phone Plan / Simcard',
@@ -76,6 +77,16 @@ $lapcDepartmentCategories = [
         'Internet Concerns',
         'Procurement',
         'Software',
+    ],
+    'Technical' => [
+        'CPR',
+        'MSDS',
+        'Technical Information/ Brochure',
+        'COA',
+        'Certificate of Distributorship',
+        'Certificate of Authorized Dealer',
+        'Updated Label',
+        'Product Presentations',
     ],
 ];
 $mhcDepartmentCategories = [
@@ -579,11 +590,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $normalized_company_id = normalize_sales_recipient_company($company_id);
     $allowed_categories = ($normalized_company_id === '@malvedaproperties.com')
         ? $mpdcCategories
+        : (($normalized_company_id === '@lingapleads.org')
+            ? $lingapCategories
         : (($normalized_company_id === '@malvedaholdings.com' && isset($mhcDepartmentCategories[$assigned_department_selected]))
             ? $mhcDepartmentCategories[$assigned_department_selected]
         : (($normalized_company_id === '@leadsagri.com' && isset($lapcDepartmentCategories[$assigned_department_selected]))
             ? $lapcDepartmentCategories[$assigned_department_selected]
-            : $defaultCategories));
+            : $defaultCategories)));
     $isLapcRecipient = ($normalized_company_id === '@leadsagri.com');
     $isMhcRecipient = ($normalized_company_id === '@malvedaholdings.com');
     $requiresDepartment = ticket_company_requires_department($normalized_company_id);
@@ -1498,6 +1511,16 @@ if (count($sapFormEntries) === 0) {
     $sapFormEntries = [sales_request_blank_sap_report()];
 }
 $normalized_company_id = $selectedRecipientCompany;
+$initialSalesCategoryOptions = $defaultCategories;
+if ($normalized_company_id === '@malvedaproperties.com') {
+    $initialSalesCategoryOptions = $mpdcCategories;
+} elseif ($normalized_company_id === '@lingapleads.org') {
+    $initialSalesCategoryOptions = $lingapCategories;
+} elseif ($normalized_company_id === '@malvedaholdings.com' && isset($mhcDepartmentCategories[$selectedRecipientDepartment])) {
+    $initialSalesCategoryOptions = $mhcDepartmentCategories[$selectedRecipientDepartment];
+} elseif ($normalized_company_id === '@leadsagri.com' && isset($lapcDepartmentCategories[$selectedRecipientDepartment])) {
+    $initialSalesCategoryOptions = $lapcDepartmentCategories[$selectedRecipientDepartment];
+}
 ?>
 
 <!DOCTYPE html>
@@ -3886,7 +3909,25 @@ $normalized_company_id = $selectedRecipientCompany;
             margin-top: 0;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status {
-            margin-top: 2px;
+            margin-top: 18px;
+            padding-top: 26px;
+            width: 100%;
+            border-top: 1px solid #e6e8ef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+        body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status::before {
+            content: "";
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #16a34a;
+            box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
         }
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
             order: 1;
@@ -3899,7 +3940,18 @@ $normalized_company_id = $selectedRecipientCompany;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-spinner {
             order: 1;
-            margin: 0 auto 24px;
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 22px;
+            background: conic-gradient(from 45deg, #16a34a 0 72%, rgba(22, 163, 74, 0.12) 72% 100%);
+            box-shadow:
+                0 0 0 10px rgba(34, 197, 94, 0.08),
+                0 18px 42px rgba(22, 101, 52, 0.14);
+        }
+        body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-spinner::before {
+            width: 48px;
+            height: 48px;
+            box-shadow: none;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-actions {
             margin-top: 0;
@@ -3911,6 +3963,19 @@ $normalized_company_id = $selectedRecipientCompany;
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
             order: 2;
             margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 26px;
+        }
+        body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content {
+            height: auto;
+            min-height: 330px;
+            padding: 34px 36px 30px;
+            justify-content: center;
+        }
+        body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content p {
+            font-size: 15px;
+            max-width: 420px;
+            margin-bottom: 0;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-icon.success,
         body.sales-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-icon.error {
@@ -3920,6 +3985,9 @@ $normalized_company_id = $selectedRecipientCompany;
         body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-content h3,
         body.sales-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-content h3 {
             order: 2;
+        }
+        body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-content h3 {
+            font-weight: 600;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-content p,
         body.sales-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-content p {
@@ -3977,8 +4045,8 @@ $normalized_company_id = $selectedRecipientCompany;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-actions {
             margin-top: 14px;
-            padding-top: 0;
-            border-top: none;
+            padding-top: 18px;
+            border-top: 1px solid #e6e8ef;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-status {
             display: none;
@@ -4019,6 +4087,21 @@ $normalized_company_id = $selectedRecipientCompany;
                 height: auto;
                 min-height: 276px;
                 padding-bottom: 24px;
+            }
+            body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content {
+                min-height: 306px;
+                padding: 30px 22px 24px;
+            }
+            body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
+                font-size: 23px;
+            }
+            body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content p {
+                font-size: 14px;
+            }
+            body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status {
+                font-size: 14px;
+                margin-top: 16px;
+                padding-top: 18px;
             }
             body.sales-request-ticket-page .ticket-modal-content h3 {
                 font-size: 18px;
@@ -4235,7 +4318,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="select-wrapper category-dropdown" id="categoryDropdown">
                         <select name="category" id="sales_category" class="form-control category-select category-native-select" required data-selected="<?= htmlspecialchars((string) ($category ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                             <option value="" disabled hidden <?= ($category ?? '') === '' ? 'selected' : '' ?>>Choose category</option>
-                            <?php foreach (($normalized_company_id === '@malvedaproperties.com' ? $mpdcCategories : $defaultCategories) as $categoryOption): ?>
+                            <?php foreach ($initialSalesCategoryOptions as $categoryOption): ?>
                                 <option value="<?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?>" <?= ($category ?? '') === $categoryOption ? 'selected' : '' ?>><?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -5051,6 +5134,7 @@ var lapcDepartments = <?= json_encode(array_values($lapcDepartments), JSON_HEX_T
 var mhcDepartments = <?= json_encode(array_values($mhcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var defaultCategories = <?= json_encode($defaultCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var mpdcCategories = <?= json_encode($mpdcCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var lingapCategories = <?= json_encode($lingapCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var lapcDepartmentCategories = <?= json_encode($lapcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var mhcDepartmentCategories = <?= json_encode($mhcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var sssAutoDescription = 'SSS Notification and Benefits Concern submission.';
@@ -5714,8 +5798,11 @@ function toggleCategoryField() {
     var value = String(recipient.value || '');
     var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
     var options = defaultCategories;
-    if (value === '@malvedaproperties.com' || value === 'MPDC (@malvedaproperties.com)') {
+    var normalizedRecipient = normalizeRecipientCompany(value);
+    if (normalizedRecipient === '@malvedaproperties.com') {
         options = mpdcCategories;
+    } else if (normalizedRecipient === '@lingapleads.org') {
+        options = lingapCategories;
     } else if (isMhcRecipientValue(value) && mhcDepartmentCategories[departmentValue]) {
         options = mhcDepartmentCategories[departmentValue];
     } else if (isLapcRecipientValue(value) && lapcDepartmentCategories[departmentValue]) {
@@ -5772,7 +5859,7 @@ function setPriorityOptions(mode) {
         ]
         : [
             { value: '', text: 'Choose level of urgency' },
-            { value: 'Low', text: 'LOW (7 to 9 days)' },
+            { value: 'Low', text: 'Low (7 to 9 days)' },
             { value: 'Medium', text: 'Medium (4 to 6 days)' },
             { value: 'High', text: 'High (1 to 3 days)' }
         ];

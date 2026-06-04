@@ -132,8 +132,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    $assigneeOk = (isset($old_data['assigned_user_id']) && (int) $old_data['assigned_user_id'] === (int) $_SESSION['user_id'])
-        || (isset($old_data['assigned_to']) && (int) $old_data['assigned_to'] === (int) $_SESSION['user_id']);
+    $lockedAssignedUserId = isset($old_data['assigned_user_id']) ? (int) $old_data['assigned_user_id'] : 0;
+    $lockedHandlerId = isset($old_data['assigned_to']) ? (int) $old_data['assigned_to'] : 0;
+    $currentSessionUserId = (int) $_SESSION['user_id'];
+    $lockedStatusKey = strtolower(trim((string) ($old_data['status'] ?? '')));
+    $specificUserLocked = $lockedAssignedUserId > 0 && ($lockedHandlerId > 0 || $lockedStatusKey !== 'open');
+    $assigneeOk = ($specificUserLocked && $lockedAssignedUserId === $currentSessionUserId)
+        || (!$specificUserLocked && $lockedHandlerId > 0 && $lockedHandlerId === $currentSessionUserId);
     $ticketAssignedCompany = (string) (!empty($old_data['assigned_company']) ? $old_data['assigned_company'] : ($old_data['company'] ?? ''));
     $ticketCompanyCode = company_code($ticketAssignedCompany);
     $userCompanyCode = company_code((string) ($_SESSION['company'] ?? ''));
@@ -160,6 +165,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         || in_array(strtoupper(trim($ticketGroup)), $userDepartmentAliases, true)
     );
     $requiresGroupMatch = ((string) ($_SESSION['department'] ?? '')) !== '';
+    if ($specificUserLocked && $lockedAssignedUserId !== $currentSessionUserId) {
+        header("Location: my_task.php?error=unauthorized");
+        exit();
+    }
     if (!$assigneeOk && (!$companyOk || ($requiresGroupMatch && !$groupOk))) {
         header("Location: my_task.php?error=unauthorized");
         exit();
@@ -260,7 +269,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $requesterAssignmentChanged = $assignmentChanged || $explicitUserAssignmentChanged;
     if ($new_status === 'Open') {
         $assigned_to = null;
-    } elseif ($assignmentChanged) {
+    } elseif ($assignmentChanged || $explicitUserAssignmentChanged) {
         $assigned_to = null;
     }
     $shouldSetStartedAt = 0;
@@ -343,24 +352,44 @@ $updateOk = false;
             }
         }
         
+        $newAssigneeName = '';
+        if ((int) $assigned_user_id > 0) {
+            $assigneeStmt = $conn->prepare("SELECT name FROM users WHERE id = ? LIMIT 1");
+            if ($assigneeStmt) {
+                $assigneeStmt->bind_param("i", $assigned_user_id);
+                $assigneeStmt->execute();
+                $assigneeRes = $assigneeStmt->get_result();
+                $assigneeRow = $assigneeRes ? $assigneeRes->fetch_assoc() : null;
+                $assigneeStmt->close();
+                $newAssigneeName = trim((string) ($assigneeRow['name'] ?? ''));
+            }
+        }
+        $newAssigneeContextLabel = $newAssigneeName;
+        if ($newAssigneeName !== '') {
+            $newCompanyDisplay = ticket_company_display_name((string) $new_company);
+            $newDepartmentDisplay = ticket_department_display_name((string) $new_department);
+            $contextParts = array_values(array_filter([$newCompanyDisplay, $newDepartmentDisplay], static function ($value) {
+                return trim((string) $value) !== '';
+            }));
+            if (count($contextParts) > 0) {
+                $newAssigneeContextLabel = implode(' - ', $contextParts) . ' ' . $newAssigneeName;
+            }
+        }
+
         // Department reassignment
         if ($old_data['assigned_department'] !== $new_department) {
             $activity_desc = "Reassigned from " . $old_data['assigned_department'] . " to " . $new_department;
-            if ((int) $assigned_user_id > 0) {
-                $assigneeName = '';
-                $assigneeStmt = $conn->prepare("SELECT name FROM users WHERE id = ? LIMIT 1");
-                if ($assigneeStmt) {
-                    $assigneeStmt->bind_param("i", $assigned_user_id);
-                    $assigneeStmt->execute();
-                    $assigneeRes = $assigneeStmt->get_result();
-                    $assigneeRow = $assigneeRes ? $assigneeRes->fetch_assoc() : null;
-                    $assigneeStmt->close();
-                    $assigneeName = trim((string) ($assigneeRow['name'] ?? ''));
-                }
-                if ($assigneeName !== '') {
-                    $activity_desc .= " | Handled by: " . $assigneeName;
-                }
+            if ($newAssigneeContextLabel !== '') {
+                $activity_desc .= " | Handled by: " . $newAssigneeContextLabel;
             }
+            $act = $conn->prepare("INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at) VALUES (?, 'department_change', ?, NOW())");
+            if ($act) {
+                $act->bind_param("is", $id, $activity_desc);
+                $act->execute();
+                $act->close();
+            }
+        } elseif ($explicitUserAssignmentChanged && $newAssigneeContextLabel !== '') {
+            $activity_desc = "Reassigned to " . $newAssigneeContextLabel;
             $act = $conn->prepare("INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at) VALUES (?, 'department_change', ?, NOW())");
             if ($act) {
                 $act->bind_param("is", $id, $activity_desc);

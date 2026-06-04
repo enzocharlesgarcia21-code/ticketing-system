@@ -1289,12 +1289,18 @@
     top: 6px;
     bottom: 6px;
     width: 2px;
-    background: #e2e8f0;
+    background: transparent;
 }
 
 .tm-timeline-item {
     position: relative;
     padding-left: 0;
+}
+
+.tm-timeline-item-hidden {
+    overflow: visible;
+    transition: max-height 0.14s ease-out, opacity 0.12s ease-out, transform 0.14s ease-out;
+    will-change: max-height, opacity, transform;
 }
 
 .tm-timeline-item::before {
@@ -1308,6 +1314,23 @@
     background: #16a34a;
     border: 2px solid #bbf7d0;
     box-shadow: 0 0 0 1px #ffffff;
+    z-index: 2;
+}
+
+.tm-timeline-item::after {
+    content: "";
+    position: absolute;
+    left: -12px;
+    top: 15px;
+    bottom: -20px;
+    width: 2px;
+    background: #e2e8f0;
+    z-index: 1;
+}
+
+.tm-timeline:not(.is-expanded) .tm-timeline-item-last-visible::after,
+.tm-timeline.is-expanded .tm-timeline-item-last::after {
+    display: none;
 }
 
 /* Legacy element no longer used; safeguard if present */
@@ -1331,50 +1354,52 @@
 }
 
 .tm-timeline-actions {
+    position: relative;
+    z-index: 1;
     display: flex;
     justify-content: center;
-    padding-top: 18px;
-    margin-top: 14px;
+    padding-top: 26px;
+    margin-top: 20px;
+    margin-left: -24px;
+    border-top: 1px solid #e5e7eb;
+    background: #ffffff;
 }
 
 .tm-timeline-toggle-shell {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 7px;
-    border: 1px solid #d7ecdc;
+    padding: 0;
+    border: 0;
     border-radius: 999px;
-    background:
-        radial-gradient(circle at top, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.76)),
-        linear-gradient(180deg, #fbfffc 0%, #eef9f1 100%);
-    box-shadow:
-        0 14px 30px rgba(21, 128, 61, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    background: transparent;
 }
 
 .tm-timeline-toggle-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 11px 20px;
-    border: none;
+    gap: 10px;
+    min-width: 230px;
+    padding: 11px 26px;
+    border: 1px solid #9fd8b4;
     border-radius: 999px;
-    background: transparent;
+    background: #ffffff;
     color: #16803c;
     font-size: 14px;
-    font-weight: 500;
-    letter-spacing: 0.01em;
+    font-weight: 700;
+    letter-spacing: 0;
     line-height: 1;
     cursor: pointer;
-    transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+    box-shadow: 0 10px 22px rgba(21, 128, 61, 0.06);
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .tm-timeline-toggle-btn:hover {
-    background: rgba(34, 197, 94, 0.09);
+    background: #f7fff9;
+    border-color: #62be83;
     color: #166534;
-    transform: translateY(-1px);
-    box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.08);
+    box-shadow: 0 12px 26px rgba(21, 128, 61, 0.10);
 }
 
 .tm-timeline-toggle-btn:focus-visible {
@@ -1383,15 +1408,15 @@
 }
 
 .tm-timeline-toggle-icon {
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: auto;
+    height: auto;
     border-radius: 999px;
-    background: rgba(34, 197, 94, 0.12);
+    background: transparent;
     color: #16a34a;
 }
 
@@ -2278,18 +2303,24 @@
 
 .tm-select-wrapper.tm-custom-select {
     overflow: visible;
+    z-index: 1;
+}
+
+.tm-select-wrapper.tm-custom-select:has(.tm-select-menu.show) {
+    z-index: 1300;
 }
 
 .tm-select {
     width: 100%;
-    height: 42px;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 10px 12px;
-    background-color: #f8fafc;
+    min-height: 50px;
+    border: 2px solid #73a66f;
+    border-radius: 16px;
+    padding: 0 44px 0 16px;
+    background-color: #ffffff;
     color: #0f172a;
     font-size: 14px;
     outline: none;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .tm-select.tm-native-select {
@@ -2346,10 +2377,17 @@
     gap: 12px;
     cursor: pointer;
     text-align: left;
-    background-color: #f8fafc;
+    background-color: #ffffff;
+}
+
+.tm-select-trigger:disabled {
+    cursor: not-allowed;
+    opacity: 0.68;
+    background: #f8fafc;
 }
 
 .tm-select-trigger-text {
+    display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2357,8 +2395,13 @@
 
 .tm-select-trigger-icon {
     flex: 0 0 auto;
-    color: #475569;
+    color: #374151;
     font-size: 14px;
+    transition: transform 0.18s ease;
+}
+
+.tm-select-trigger[aria-expanded="true"] .tm-select-trigger-icon {
+    transform: rotate(180deg);
 }
 
 .tm-select-menu {
@@ -2366,13 +2409,13 @@
     top: calc(100% + 8px);
     left: 0;
     right: 0;
-    z-index: 120;
+    z-index: 1200;
     display: none;
     max-height: 280px;
     overflow-y: auto;
-    padding: 8px;
-    border: 1px solid #d7e0ea;
-    border-radius: 14px;
+    padding: 8px 0;
+    border: 2px solid #73a66f;
+    border-radius: 16px;
     background: #ffffff;
     box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
 }
@@ -2390,29 +2433,33 @@
     width: 100%;
     border: 0;
     background: transparent;
-    border-radius: 10px;
-    padding: 10px 12px;
+    border-radius: 0;
+    padding: 11px 16px;
     color: #0f172a;
-    font-size: 14px;
+    font-size: 15px;
+    line-height: 1.35;
     text-align: left;
     cursor: pointer;
+    transition: background 0.14s ease, color 0.14s ease;
 }
 
 .tm-select-menu-option:hover,
 .tm-select-menu-option:focus {
     outline: none;
-    background: #eef6ff;
+    background: rgba(27, 94, 32, 0.08);
+    color: #1b5e20;
 }
 
 .tm-select-menu-option.is-selected {
-    background: #e2f7e7;
-    color: #166534;
-    font-weight: 700;
+    background: #1B5E20;
+    color: #ffffff;
+    font-weight: 400;
+    border-radius: 12px;
 }
 
 .tm-select:focus {
-    border-color: #16a34a;
-    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+    border-color: #1B5E20;
+    box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
     background-color: #ffffff;
 }
 

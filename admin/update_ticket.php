@@ -77,7 +77,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $effective_company = (string) (($old_data['assigned_company'] ?? '') !== '' ? $old_data['assigned_company'] : ($old_data['company'] ?? ''));
     }
     $effective_company = ticket_normalize_company($effective_company);
-    $effective_company_requires_department = ($effective_company === '@leadsagri.com' || strtoupper($effective_company) === 'LAPC');
+    $effective_company_requires_department = ticket_company_requires_department($effective_company);
 
     $effective_group = $new_department !== '' ? $new_department : ($effective_company_requires_department ? $oldDeptRaw : '');
     $effective_group = $normalizeGroupForCompany($effective_group, $effective_company);

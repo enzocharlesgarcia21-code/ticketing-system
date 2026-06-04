@@ -13,26 +13,12 @@ ticket_apply_sla_priority($conn);
 
 function admin_sla_display_label(string $slaLevel): string
 {
-    $map = [
-        'Low' => 'On Track',
-        'Medium' => 'At Risk',
-        'High' => 'Breach',
-    ];
-    return $map[$slaLevel] ?? $slaLevel;
+    return ticket_sla_display_label($slaLevel);
 }
 
 function admin_normalize_sla_filter(string $sla): string
 {
-    $sla = trim($sla);
-    $map = [
-        'On Track' => 'Low',
-        'At Risk' => 'Medium',
-        'Breach' => 'High',
-        'Low' => 'Low',
-        'Medium' => 'Medium',
-        'High' => 'High',
-    ];
-    return $map[$sla] ?? '';
+    return ticket_normalize_sla_level($sla);
 }
 
 function time_ago_days(string $dateTime): string
@@ -56,54 +42,12 @@ function time_ago_days(string $dateTime): string
 
 function sla_badge_html(string $createdAt, string $status, string $priority = ''): string
 {
-    $statusKey = strtolower(trim($status));
-    if ($statusKey === 'resolved' || $statusKey === 'closed') return '<span class="sla-empty">-</span>';
-    $priorityKey = strtolower(trim($priority));
-    if ($priorityKey === 'critical') {
-        return '<span class="badge badge-high">' . htmlspecialchars(admin_sla_display_label('High'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    if ($priorityKey === 'high') {
-        return '<span class="badge badge-medium">' . htmlspecialchars(admin_sla_display_label('Medium'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    if ($createdAt === '') return '<span class="sla-empty">-</span>';
-    try {
-        $created = new DateTimeImmutable($createdAt);
-    } catch (Throwable $e) {
-        return '<span class="sla-empty">-</span>';
-    }
-    $now = new DateTimeImmutable('now');
-    $createdDay = $created->setTime(0, 0, 0);
-    $nowDay = $now->setTime(0, 0, 0);
-    $diff = $nowDay->diff($createdDay);
-    $days = (int) ($diff->days ?? 0);
-    if ($diff->invert !== 1) $days = 0;
-
-    if ($days >= 7) {
-        return '<span class="badge badge-high">' . htmlspecialchars(admin_sla_display_label('High'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    if ($days >= 4) {
-        return '<span class="badge badge-medium">' . htmlspecialchars(admin_sla_display_label('Medium'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    return '<span class="badge badge-low">' . htmlspecialchars(admin_sla_display_label('Low'), ENT_QUOTES, 'UTF-8') . '</span>';
+    return ticket_sla_badge_html($createdAt, $status, $priority, '<span class="sla-empty">-</span>');
 }
 
 function sla_filter_condition_sql(string $tableAlias, string $sla): string
 {
-    $sla = strtolower(admin_normalize_sla_filter($sla));
-    if (!in_array($sla, ['low', 'medium', 'high'], true)) return '';
-
-    $statusExpr = "LOWER(COALESCE(NULLIF($tableAlias.status,''),''))";
-    $priorityExpr = "LOWER(COALESCE(NULLIF($tableAlias.priority,''),''))";
-    $ageExpr = "DATEDIFF(CURDATE(), DATE($tableAlias.created_at))";
-    $activeExpr = "$tableAlias.created_at IS NOT NULL AND $statusExpr NOT IN ('resolved','closed')";
-
-    if ($sla === 'low') {
-        return "$activeExpr AND $priorityExpr NOT IN ('critical','high') AND $ageExpr < 4";
-    }
-    if ($sla === 'medium') {
-        return "$activeExpr AND ($priorityExpr = 'high' OR ($priorityExpr NOT IN ('critical','high') AND $ageExpr BETWEEN 4 AND 6))";
-    }
-    return "$activeExpr AND ($priorityExpr = 'critical' OR ($priorityExpr NOT IN ('critical','high') AND $ageExpr >= 7))";
+    return ticket_sla_filter_condition_sql($tableAlias, $sla);
 }
 
 function assigned_target_label(array $row): string

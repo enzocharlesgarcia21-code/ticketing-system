@@ -344,9 +344,9 @@ function notif_priority_from_message(string $message): string
             line-height: 1;
         }
         .priority-badge.priority-critical { color:#E53935; background:#fff3f4; }
-        .priority-badge.priority-high { color:#FB8C00; background:#fff7ed; }
-        .priority-badge.priority-medium { color:#d4a017; background:#fff9db; }
-        .priority-badge.priority-low { color:#43A047; background:#f2fbf3; }
+        .priority-badge.priority-high { color:#ef4444; background:#fef2f2; }
+        .priority-badge.priority-medium { color:#eab308; background:#fffbeb; }
+        .priority-badge.priority-low { color:#16a34a; background:#ecfdf5; }
         .priority-badge.priority-neutral { color:#64748b; background:#f8fafc; border-color:#cbd5e1; }
         .priority-transition-badge {
             display: inline-flex;
@@ -363,7 +363,7 @@ function notif_priority_from_message(string $message): string
             font-weight: 900;
             line-height: 1;
         }
-        .priority-transition-badge.priority-medium { color: #d4a017; background: #fff9db; }
+        .priority-transition-badge.priority-medium { color: #eab308; background: #fffbeb; }
         .priority-transition-badge.priority-high,
         .priority-transition-badge.priority-critical { color: #dc2626; background: #fff7f7; }
         .priority-transition-icon {
@@ -378,7 +378,7 @@ function notif_priority_from_message(string $message): string
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.24);
         }
         .priority-transition-badge.priority-medium .priority-transition-icon {
-            background: #d4a017;
+            background: #eab308;
         }
         .priority-transition-icon i {
             color: #ffffff;
@@ -827,12 +827,18 @@ function notif_priority_from_message(string $message): string
                             $dotColor = '#94a3b8';
                             $ticketIdJs = isset($row['ticket_id']) && $row['ticket_id'] !== null ? (int) $row['ticket_id'] : null;
                             $actionType = notif_normalize_action_type((string) ($row['action_type'] ?? ''), $typeJs);
-                            if ($typeJs === 'priority_escalated' && in_array($priorityKey, ['medium', 'high', 'critical'], true)) {
+                            if ($typeJs === 'priority_escalated' && in_array($priorityKey, ['high', 'critical'], true)) {
                                 $iconClass = 'fa-exclamation';
                                 $bgClass = 'linear-gradient(135deg, #ef4444, #dc2626)';
                                 $colorClass = '#ffffff';
                                 $accentColor = '#ef4444';
                                 $dotColor = '#ef4444';
+                            } elseif ($typeJs === 'priority_escalated' && $priorityKey === 'medium') {
+                                $iconClass = 'fa-exclamation';
+                                $bgClass = 'linear-gradient(135deg, #fcd34d, #f59e0b)';
+                                $colorClass = '#ffffff';
+                                $accentColor = '#d4a017';
+                                $dotColor = '#d4a017';
                             } elseif ($priorityKey === 'critical') {
                                 $iconClass = 'fa-exclamation';
                                 $bgClass = 'linear-gradient(135deg, #ef4444, #dc2626)';
@@ -840,17 +846,23 @@ function notif_priority_from_message(string $message): string
                                 $accentColor = '#E53935';
                                 $dotColor = '#E53935';
                             } elseif ($priorityKey === 'high') {
-                                $iconClass = 'fa-plus';
-                                $bgClass = 'linear-gradient(135deg, #fbbf24, #f59e0b)';
+                                $iconClass = 'fa-exclamation';
+                                $bgClass = 'linear-gradient(135deg, #ef4444, #dc2626)';
                                 $colorClass = '#ffffff';
-                                $accentColor = '#FB8C00';
-                                $dotColor = '#FB8C00';
+                                $accentColor = '#ef4444';
+                                $dotColor = '#ef4444';
+                            } elseif ($priorityKey === 'medium') {
+                                $iconClass = 'fa-triangle-exclamation';
+                                $bgClass = 'linear-gradient(135deg, #facc15, #eab308)';
+                                $colorClass = '#ffffff';
+                                $accentColor = '#eab308';
+                                $dotColor = '#eab308';
                             } elseif ($priorityKey === 'low') {
-                                $iconClass = 'fa-check';
-                                $bgClass = 'linear-gradient(135deg, #58b368, #43A047)';
+                                $iconClass = 'fa-arrow-down';
+                                $bgClass = 'linear-gradient(135deg, #4ade80, #22c55e)';
                                 $colorClass = '#ffffff';
-                                $accentColor = '#43A047';
-                                $dotColor = '#43A047';
+                                $accentColor = '#22c55e';
+                                $dotColor = '#22c55e';
                             } else {
                                 switch($actionType) {
                                     case 'update':
@@ -862,10 +874,10 @@ function notif_priority_from_message(string $message): string
                                             $dotColor = '#ca8a04';
                                         } else {
                                             $iconClass = 'fa-rotate';
-                                            $bgClass = 'linear-gradient(135deg, #60a5fa, #2563eb)';
+                                            $bgClass = 'linear-gradient(135deg, #34d399, #0f766e)';
                                             $colorClass = '#ffffff';
-                                            $accentColor = '#2563eb';
-                                            $dotColor = '#2563eb';
+                                            $accentColor = '#0f766e';
+                                            $dotColor = '#0f766e';
                                         }
                                         break;
                                     case 'close':
@@ -911,11 +923,18 @@ function notif_priority_from_message(string $message): string
                                 $accentColor = '#9333ea';
                                 $dotColor = '#9333ea';
                                 $priorityLabel = '';
+                            } elseif ($actionType === 'update' && $typeJs !== 'note_added') {
+                                $iconClass = 'fa-rotate';
+                                $bgClass = 'linear-gradient(135deg, #34d399, #0f766e)';
+                                $colorClass = '#ffffff';
+                                $accentColor = '#0f766e';
+                                $dotColor = '#0f766e';
                             }
                             $displayMessage = notif_display_message($typeJs, (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
                                 $isFollowUp = $typeJs === 'follow_up';
                                 $titleText = 'Ticket Update';
                                 if ($typeJs === 'priority_escalated' && in_array($priorityKey, ['medium', 'high', 'critical'], true)) $titleText = 'Priority Escalation';
+                                elseif ($actionType === 'update' && $typeJs !== 'note_added') $titleText = 'Status Update';
                                 elseif ($priorityKey === 'critical') $titleText = 'Priority Escalation';
                                 elseif ($priorityKey === 'high') $titleText = 'Ticket Warning';
                                 elseif ($typeJs === 'conference_booking_deleted') $titleText = 'Conference Booking Deleted';
@@ -924,7 +943,6 @@ function notif_priority_from_message(string $message): string
                             elseif ($actionType === 'close') $titleText = 'Ticket Closed';
                                 elseif ($typeJs === 'hr_chat_pending') $titleText = 'Pending Chat';
                                 elseif ($actionType === 'update' && $typeJs === 'note_added') $titleText = 'Ticket Note';
-                                elseif ($actionType === 'update') $titleText = 'Status Update';
                                 if ($actionType === 'reassign') {
                                     $titleText = 'Ticket Reassigned';
                                 }

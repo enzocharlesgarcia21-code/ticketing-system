@@ -268,9 +268,9 @@ function notif_priority_from_message(string $message): string
             line-height: 1;
         }
         .priority-badge.priority-critical { color:#E53935; background:#fff3f4; }
-        .priority-badge.priority-high { color:#FB8C00; background:#fff7ed; }
-        .priority-badge.priority-medium { color:#d4a017; background:#fff9db; }
-        .priority-badge.priority-low { color:#43A047; background:#f2fbf3; }
+        .priority-badge.priority-high { color:#ef4444; background:#fef2f2; }
+        .priority-badge.priority-medium { color:#eab308; background:#fffbeb; }
+        .priority-badge.priority-low { color:#16a34a; background:#ecfdf5; }
         .priority-badge.priority-neutral { color:#64748b; background:#f8fafc; border-color:#cbd5e1; }
         .priority-transition-badge {
             display: inline-flex;
@@ -287,7 +287,7 @@ function notif_priority_from_message(string $message): string
             font-weight: 900;
             line-height: 1;
         }
-        .priority-transition-badge.priority-medium { color: #d4a017; background: #fff9db; }
+        .priority-transition-badge.priority-medium { color: #eab308; background: #fffbeb; }
         .priority-transition-badge.priority-high,
         .priority-transition-badge.priority-critical { color: #dc2626; background: #fff7f7; }
         .priority-transition-icon {
@@ -302,14 +302,14 @@ function notif_priority_from_message(string $message): string
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.24);
         }
         .priority-transition-badge.priority-medium .priority-transition-icon {
-            background: #d4a017;
+            background: #eab308;
         }
         .priority-transition-icon i {
             color: #ffffff;
             font-size: 12px;
         }
         .notif-icon.type-assigned { background: linear-gradient(135deg, #60a5fa, #2563eb); }
-        .notif-icon.type-updated { background: linear-gradient(135deg, #60a5fa, #2563eb); }
+        .notif-icon.type-updated { background: linear-gradient(135deg, #34d399, #0f766e); }
         .notif-icon.type-reassigned { background: linear-gradient(135deg, #b77cf5, #9333ea); }
         .notif-icon.type-closed { background: linear-gradient(135deg, #58b368, #43A047); }
         .notif-icon.type-note { background: linear-gradient(135deg, #fcd34d, #f59e0b); }
@@ -317,9 +317,9 @@ function notif_priority_from_message(string $message): string
         .notif-icon.type-follow-up { background: linear-gradient(135deg, #fde68a, #f59e0b); color: #7c4a03; }
         .notif-icon.type-neutral { background: linear-gradient(135deg, #cbd5e1, #94a3b8); }
         .notif-icon.type-critical { background: linear-gradient(135deg, #ef4444, #dc2626); }
-        .notif-icon.type-high { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
-        .notif-icon.type-low { background: linear-gradient(135deg, #58b368, #43A047); }
-        .notif-icon.type-medium { background: linear-gradient(135deg, #fcd34d, #f59e0b); }
+        .notif-icon.type-high { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .notif-icon.type-low { background: linear-gradient(135deg, #4ade80, #22c55e); }
+        .notif-icon.type-medium { background: linear-gradient(135deg, #facc15, #eab308); }
         .notif-item-row.notif-priority-escalation {
             background: linear-gradient(180deg, #fffafa 0%, #fff5f5 100%);
             border-color: #fecaca;
@@ -577,11 +577,17 @@ function notif_priority_from_message(string $message): string
                                 $dotColor = '#94a3b8';
                                 $customTitle = trim((string) ($row['title'] ?? ''));
                                 $titleText = $customTitle !== '' ? $customTitle : 'Ticket Update';
-                                if ($typeKey === 'priority_escalated' && in_array($priorityKey, ['medium', 'high', 'critical'], true)) {
+                                if ($typeKey === 'priority_escalated' && in_array($priorityKey, ['high', 'critical'], true)) {
                                     $iconClass = 'fa-exclamation';
                                     $iconTypeClass = 'type-critical type-card';
                                     $accentColor = '#ef4444';
                                     $dotColor = '#ef4444';
+                                    $titleText = 'Priority Escalation';
+                                } elseif ($typeKey === 'priority_escalated' && $priorityKey === 'medium') {
+                                    $iconClass = 'fa-exclamation';
+                                    $iconTypeClass = 'type-medium type-card';
+                                    $accentColor = '#d4a017';
+                                    $dotColor = '#d4a017';
                                     $titleText = 'Priority Escalation';
                                 } elseif ($priorityKey === 'critical') {
                                     $iconClass = 'fa-exclamation';
@@ -590,16 +596,21 @@ function notif_priority_from_message(string $message): string
                                     $dotColor = '#E53935';
                                     $titleText = 'Priority Escalation';
                                 } elseif ($priorityKey === 'high') {
-                                    $iconClass = 'fa-plus';
+                                    $iconClass = 'fa-exclamation';
                                     $iconTypeClass = 'type-high type-card';
-                                    $accentColor = '#FB8C00';
-                                    $dotColor = '#FB8C00';
+                                    $accentColor = '#ef4444';
+                                    $dotColor = '#ef4444';
                                     $titleText = 'Ticket Warning';
+                                } elseif ($priorityKey === 'medium') {
+                                    $iconClass = 'fa-triangle-exclamation';
+                                    $iconTypeClass = 'type-medium type-card';
+                                    $accentColor = '#eab308';
+                                    $dotColor = '#eab308';
                                 } elseif ($priorityKey === 'low') {
-                                    $iconClass = 'fa-check';
+                                    $iconClass = 'fa-arrow-down';
                                     $iconTypeClass = 'type-low type-card';
-                                    $accentColor = '#43A047';
-                                    $dotColor = '#43A047';
+                                    $accentColor = '#22c55e';
+                                    $dotColor = '#22c55e';
                                 }
                                 $isFollowUp = $typeKey === 'follow_up';
                                 if ($isFollowUp) {
@@ -626,13 +637,11 @@ function notif_priority_from_message(string $message): string
                                         $titleText = 'Ticket Note';
                                     }
                                 } elseif ($actionType === 'update') {
-                                    if ($priorityKey === '') {
-                                        $iconClass = 'fa-rotate';
-                                        $iconTypeClass = 'type-updated type-card';
-                                        $accentColor = '#2563eb';
-                                        $dotColor = '#2563eb';
-                                        $titleText = 'Status Update';
-                                    }
+                                    $iconClass = 'fa-rotate';
+                                    $iconTypeClass = 'type-updated type-card';
+                                    $accentColor = '#0f766e';
+                                    $dotColor = '#0f766e';
+                                    $titleText = 'Status Update';
                                 } elseif ($actionType === 'close') {
                                     if ($priorityKey === '') {
                                         $iconClass = 'fa-check';
