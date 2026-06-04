@@ -330,6 +330,12 @@ if ($row = $result->fetch_assoc()) {
     $userContext = ticket_build_user_context($conn, $currentUserId, $_SESSION);
     $row['can_claim_ticket'] = false;
     $chatClosedMessage = ticket_chat_closed_status_message($row);
+    $canViewClosedChat = $chatClosedMessage !== '' && (
+        ticket_user_matches_requester($row, $currentUserId, $userContext)
+        || ((int) ($row['assigned_to'] ?? 0) === $currentUserId)
+        || ((int) ($row['assigned_user_id'] ?? 0) === $currentUserId)
+    );
+    $row['can_view_chat_history'] = $chatClosedMessage === '' || $canViewClosedChat;
     $row['can_chat'] = $chatClosedMessage === '' && ticket_user_can_chat($row, $currentUserId, $userContext);
     $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
     $row['assigned_to_name'] = isset($row['assigned_to_name']) ? (string) $row['assigned_to_name'] : '';

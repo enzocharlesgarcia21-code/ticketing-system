@@ -125,6 +125,29 @@ function ticket_has_reassignment_activity(array $activities): bool
     return false;
 }
 
+function unavailable_assigned_staff_label(array $ticketData): string
+{
+    $handlerName = trim((string) ($ticketData['assigned_to_name'] ?? ''));
+    if ($handlerName === '') {
+        $handlerName = trim((string) ($ticketData['assignee_name'] ?? ''));
+    }
+    if ($handlerName === '') {
+        $handlerName = 'another IT staff';
+    }
+
+    $handlerDepartment = trim((string) ($ticketData['assigned_to_department'] ?? ''));
+    if ($handlerDepartment === '') {
+        $handlerDepartment = trim((string) ($ticketData['assignee_department'] ?? ''));
+    }
+    $handlerDepartment = ticket_department_display_name($handlerDepartment);
+
+    if ($handlerDepartment !== '') {
+        return $handlerName . ' from ' . $handlerDepartment . ' Department';
+    }
+
+    return $handlerName;
+}
+
 function ticket_attachment_is_image(string $filename): bool
 {
     $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
@@ -522,9 +545,22 @@ if ($row = $result->fetch_assoc()) {
         || !empty($row['can_claim_ticket']);
     if (!$hasAccess) {
         if (!empty($reassignedViewOnlyAccess)) {
-            $targetLabel = unavailable_reassignment_target_label($row);
             $row['reassigned_view_only'] = true;
-            $row['reassigned_title'] = 'This ticket has been reassigned to ' . $targetLabel . '.';
+            $isDepartmentClaimLock = $groupOk
+                && !$isRequesterForAccess
+                && !empty($row['has_assignee'])
+                && !empty($row['assigned_to_name']);
+            if ($isDepartmentClaimLock) {
+                $assignedStaffLabel = unavailable_assigned_staff_label($row);
+                $row['reassigned_banner_tone'] = 'assigned';
+                $row['reassigned_banner_heading'] = 'Ticket Assigned to ' . trim((string) ($row['assigned_to_name'] ?? ''));
+                $row['reassigned_title'] = 'This ticket is currently assigned to ' . $assignedStaffLabel . '.';
+            } else {
+                $targetLabel = unavailable_reassignment_target_label($row);
+                $row['reassigned_banner_tone'] = 'reassigned';
+                $row['reassigned_banner_heading'] = 'Ticket Reassigned';
+                $row['reassigned_title'] = 'This ticket has been reassigned to ' . $targetLabel . '.';
+            }
             $row['reassigned_message'] = 'You can still view the ticket details, but you can no longer respond or access the chat.';
             $row['can_update_tab'] = false;
             $row['can_claim_ticket'] = false;
@@ -542,6 +578,13 @@ if ($row = $result->fetch_assoc()) {
         }
     }
     $chatClosedMessage = ticket_chat_closed_status_message($row);
+    $canViewClosedChat = $chatClosedMessage !== '' && (
+        ticket_user_matches_requester($row, $currentUserId, $userContext)
+        || ticket_user_is_handler_candidate($row, $currentUserId, $userContext)
+        || ((int) ($row['assigned_to'] ?? 0) === $currentUserId)
+        || ((int) ($row['assigned_user_id'] ?? 0) === $currentUserId)
+    );
+    $row['can_view_chat_history'] = empty($row['reassigned_view_only']) && ($chatClosedMessage === '' || $canViewClosedChat);
     $row['can_chat'] = empty($row['reassigned_view_only']) && $chatClosedMessage === '' && ticket_user_can_chat($row, $currentUserId, $userContext);
     $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
     $row['assigned_to_name'] = isset($row['assigned_to_name']) ? (string) $row['assigned_to_name'] : '';
@@ -653,7 +696,11 @@ if ($row = $result->fetch_assoc()) {
             $existingActivityTypes[$notificationActivityType] = true;
         }
     }
-    if (!empty($row['reassigned_view_only']) && !ticket_has_reassignment_activity($row['ticket_activity'])) {
+    if (
+        !empty($row['reassigned_view_only'])
+        && (string) ($row['reassigned_banner_heading'] ?? 'Ticket Reassigned') === 'Ticket Reassigned'
+        && !ticket_has_reassignment_activity($row['ticket_activity'])
+    ) {
         $targetLabel = unavailable_reassignment_target_label($row);
         $row['ticket_activity'][] = [
             'activity_type' => 'department_change',
