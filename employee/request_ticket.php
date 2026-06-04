@@ -441,6 +441,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
         'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
         'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
+        'Marketing' => ['Marketing Operations', 'Channel & Campaigns'],
         'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations'],
     ];
     $mhc_department_categories = [
@@ -473,6 +474,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $project_name = trim((string) ($_POST['project_name'] ?? ''));
     $area_code = trim((string) ($_POST['area_code'] ?? ''));
     $marketing_department = trim((string) ($_POST['marketing_department'] ?? ''));
+    $marketing_subcategory = trim((string) ($_POST['marketing_subcategory'] ?? ''));
     $requested_materials = request_ticket_clean_string_array($_POST['requested_materials'] ?? []);
     $requested_materials_other = trim((string) ($_POST['requested_materials_other'] ?? ''));
     $material_size_unit = trim((string) ($_POST['material_size_unit'] ?? ''));
@@ -558,6 +560,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $isHrCertificateLeaveRequest = ($isLapcHrTicket && $category === 'Certificate of Leave');
     $isLapcItEmailRequest = ($isLapcItTicket && $category === 'Email');
     $isLapcItSapRequest = ($isLapcItTicket && $category === 'SAP');
+    $isLapcMarketingTicket = ($assigned_company === '@leadsagri.com' && $assigned_group === 'Marketing' && ($category === 'Marketing Operations' || $category === 'Channel & Campaigns'));
     $requiresKamiAttachment = $isHrAttendanceCategory;
 
     if ($category === '' || !in_array($category, $allowed_categories, true)) {
@@ -635,11 +638,56 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
+    $lapcMarketingSubcategories = [
+        'Marketing Operations' => [
+            'Promo materials',
+            'Samples',
+            'Product Return Request (RPRR)',
+            'Cash Advance (CA) update',
+            'Cash Advance Liquidation (CAL) update',
+            'Request for Cheque (RFC) payment update',
+            'Claims/ Incentive update - Distributor Programs',
+            'Claims / incentive update - Dealer Program',
+            'Claims/ incentive update - Farmer Program',
+            'Distributor enrollment update',
+            'Dealer enrollment update',
+            'Farmer enrollment update',
+            'Report update - Demand Creation Activities',
+            'Report update - Monthly Sales reports',
+            'Report update - Crop Status',
+            'Report update - Market Inventory Report',
+            'KAMI topics/ walk-thru',
+        ],
+        'Channel & Campaigns' => [
+            'Program update - Distributor',
+            'Program update - Dealer',
+            'Program update - Farmer',
+            'Pricing review/ adjustments',
+            'Special Projects - Jackpot All Stars',
+            'Special Projects - Farmasee Physical Stores',
+            'Regional facilitation concerns',
+        ],
+    ];
+    if ($isLapcMarketingTicket && !in_array($marketing_subcategory, $lapcMarketingSubcategories[$category] ?? [], true)) {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Please select a valid sub-category.'], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
+        $_SESSION['error'] = 'Please select a valid sub-category.';
+        header("Location: request_ticket.php");
+        exit();
+    }
+
     if ($isHrSssCategory && $description === '') {
         $description = 'SSS Notification and Benefits Concern submission.';
     }
 
     $subject = $category . ' Concern';
+    if ($isLapcMarketingTicket && $marketing_subcategory !== '') {
+        $description = "Sub-Category: " . $marketing_subcategory . "\n\n" . $description;
+    }
     if ($isHrLeaveOrOtherCategory) {
         if ($request_subject_title === '') {
             if ($isAjax) {
@@ -1301,6 +1349,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $ticketMeta['email_creation_designation'] = $email_creation_designation;
         }
     }
+    if ($isLapcMarketingTicket) {
+        $ticketMeta['marketing_subcategory'] = $marketing_subcategory;
+    }
     if ($isMhcMarketingTicket) {
         $ticketMeta['project_name'] = $project_name;
         $ticketMeta['area_code'] = $area_code;
@@ -1595,6 +1646,15 @@ if (count($sapFormEntries) === 0) {
             z-index: 90;
         }
         body.employee-request-ticket-page #categoryWrapper .custom-select-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            width: auto;
+            margin-top: 0;
+            z-index: 90;
+        }
+        body.employee-request-ticket-page #marketingSubcategoryWrapper .custom-select-menu {
             position: absolute;
             top: calc(100% + 8px);
             left: 0;
@@ -3712,6 +3772,22 @@ if (count($sapFormEntries) === 0) {
                         </div>
                     </div>
 
+                    <div class="request-grid-row is-single" id="marketingSubcategoryRow" style="display:none;">
+                        <div class="form-group hr-extra-group" id="marketingSubcategoryContainer">
+                            <label>Request Type <span class="required-asterisk">*</span></label>
+                            <div class="select-wrapper" id="marketingSubcategoryWrapper">
+                                <select name="marketing_subcategory" id="marketing_subcategory" class="form-control custom-select-native" disabled data-selected="<?= htmlspecialchars((string) ($_POST['marketing_subcategory'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                    <option value="" disabled selected hidden>Choose sub-category</option>
+                                </select>
+                                <button type="button" class="form-control custom-select-trigger" id="marketingSubcategoryTrigger" aria-haspopup="listbox" aria-expanded="false" disabled>
+                                    <span class="custom-select-value" id="marketingSubcategoryTriggerValue">Choose sub-category</span>
+                                </button>
+                                <div class="custom-select-menu" id="marketingSubcategoryMenu" role="listbox" hidden></div>
+                                <i class="fas fa-chevron-down select-icon"></i>
+                            </div>
+                        </div>
+                    </div>
+
                     <section class="kami-group" id="kamiBannerContainer">
                         <h3 class="kami-banner-head">Attendance and Timekeeping (KAMI)</h3>
                         <div class="kami-list">
@@ -4490,6 +4566,13 @@ if (count($sapFormEntries) === 0) {
         const categoryTrigger = document.getElementById('categoryTrigger');
         const categoryTriggerValue = document.getElementById('categoryTriggerValue');
         const categoryMenu = document.getElementById('categoryMenu');
+        const marketingSubcategoryRow = document.getElementById('marketingSubcategoryRow');
+        const marketingSubcategoryContainer = document.getElementById('marketingSubcategoryContainer');
+        const marketingSubcategorySelect = document.getElementById('marketing_subcategory');
+        const marketingSubcategoryWrapper = document.getElementById('marketingSubcategoryWrapper');
+        const marketingSubcategoryTrigger = document.getElementById('marketingSubcategoryTrigger');
+        const marketingSubcategoryTriggerValue = document.getElementById('marketingSubcategoryTriggerValue');
+        const marketingSubcategoryMenu = document.getElementById('marketingSubcategoryMenu');
         const kamiBannerContainer = document.getElementById('kamiBannerContainer');
         const concernTypeContainer = document.getElementById('concernTypeContainer');
         const concernTypeSelect = document.getElementById('hr_concern_type');
@@ -4616,10 +4699,41 @@ if (count($sapFormEntries) === 0) {
             'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
             'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
             'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
+            'Marketing' => ['Marketing Operations', 'Channel & Campaigns'],
             'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations'],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mhcDepartmentCategories = <?= json_encode([
             'Marketing Creatives' => ['Marketing Request'],
+        ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const lapcMarketingSubcategories = <?= json_encode([
+            'Marketing Operations' => [
+                'Promo materials',
+                'Samples',
+                'Product Return Request (RPRR)',
+                'Cash Advance (CA) update',
+                'Cash Advance Liquidation (CAL) update',
+                'Request for Cheque (RFC) payment update',
+                'Claims/ Incentive update - Distributor Programs',
+                'Claims / incentive update - Dealer Program',
+                'Claims/ incentive update - Farmer Program',
+                'Distributor enrollment update',
+                'Dealer enrollment update',
+                'Farmer enrollment update',
+                'Report update - Demand Creation Activities',
+                'Report update - Monthly Sales reports',
+                'Report update - Crop Status',
+                'Report update - Market Inventory Report',
+                'KAMI topics/ walk-thru',
+            ],
+            'Channel & Campaigns' => [
+                'Program update - Distributor',
+                'Program update - Dealer',
+                'Program update - Farmer',
+                'Pricing review/ adjustments',
+                'Special Projects - Jackpot All Stars',
+                'Special Projects - Farmasee Physical Stores',
+                'Regional facilitation concerns',
+            ],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         function closeAreaCodeDropdown() {
             if (!areaCodeWrapper || !areaCodeTrigger || !areaCodeMenu) return;
@@ -4981,6 +5095,100 @@ if (count($sapFormEntries) === 0) {
             categoryTrigger.disabled = !!categorySelect.disabled;
             if (categorySelect.disabled) {
                 closeCategoryDropdown();
+            }
+        }
+        function closeMarketingSubcategoryDropdown() {
+            if (!marketingSubcategoryWrapper || !marketingSubcategoryTrigger || !marketingSubcategoryMenu) return;
+            marketingSubcategoryWrapper.classList.remove('is-open');
+            marketingSubcategoryTrigger.setAttribute('aria-expanded', 'false');
+            marketingSubcategoryMenu.hidden = true;
+        }
+        function syncMarketingSubcategoryTriggerLabel() {
+            if (!marketingSubcategorySelect || !marketingSubcategoryTriggerValue) return;
+            const selectedOption = marketingSubcategorySelect.options[marketingSubcategorySelect.selectedIndex];
+            const placeholderOption = marketingSubcategorySelect.querySelector('option[value=""]');
+            const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
+                ? String(selectedOption.textContent || '').trim()
+                : String((placeholderOption && placeholderOption.textContent) || 'Choose sub-category').trim();
+            marketingSubcategoryTriggerValue.textContent = nextLabel || 'Choose sub-category';
+        }
+        function renderMarketingSubcategoryDropdownOptions() {
+            if (!marketingSubcategorySelect || !marketingSubcategoryMenu || !marketingSubcategoryTrigger) return;
+            const currentValue = String(marketingSubcategorySelect.value || '');
+            const options = Array.from(marketingSubcategorySelect.options).filter(function(option) {
+                return String(option.value || '') !== '';
+            });
+            marketingSubcategoryMenu.innerHTML = '';
+            options.forEach(function(option) {
+                const optionValue = String(option.value || '');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option' + (currentValue === optionValue ? ' is-selected' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', currentValue === optionValue ? 'true' : 'false');
+                item.textContent = String(option.textContent || optionValue);
+                item.addEventListener('click', function() {
+                    marketingSubcategorySelect.value = optionValue;
+                    marketingSubcategorySelect.setAttribute('data-selected', optionValue);
+                    syncMarketingSubcategoryTriggerLabel();
+                    renderMarketingSubcategoryDropdownOptions();
+                    closeMarketingSubcategoryDropdown();
+                    marketingSubcategorySelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    marketingSubcategoryTrigger.focus();
+                });
+                marketingSubcategoryMenu.appendChild(item);
+            });
+            syncMarketingSubcategoryTriggerLabel();
+            marketingSubcategoryTrigger.disabled = !!marketingSubcategorySelect.disabled;
+            if (marketingSubcategorySelect.disabled) {
+                closeMarketingSubcategoryDropdown();
+            }
+        }
+        function populateMarketingSubcategories(options) {
+            if (!marketingSubcategorySelect) return;
+            const selectedValue = String(marketingSubcategorySelect.getAttribute('data-selected') || marketingSubcategorySelect.value || '');
+            marketingSubcategorySelect.innerHTML = '<option value="" disabled selected hidden>Choose sub-category</option>';
+            options.forEach(function(optionValue) {
+                const option = document.createElement('option');
+                option.value = optionValue;
+                option.textContent = optionValue;
+                if (selectedValue !== '' && selectedValue === optionValue) {
+                    option.selected = true;
+                }
+                marketingSubcategorySelect.appendChild(option);
+            });
+            if (selectedValue !== '' && !options.includes(selectedValue)) {
+                marketingSubcategorySelect.value = '';
+                marketingSubcategorySelect.setAttribute('data-selected', '');
+            }
+            renderMarketingSubcategoryDropdownOptions();
+        }
+        function shouldShowMarketingSubcategory() {
+            if (!recipientDropdown || !departmentSelect || !categorySelect) return false;
+            const recipientValue = String(recipientDropdown.value || '');
+            const departmentValue = String(departmentSelect.value || '');
+            const selectedCategory = String(categorySelect.value || '');
+            return recipientValue === '@leadsagri.com'
+                && departmentValue === 'Marketing'
+                && Object.prototype.hasOwnProperty.call(lapcMarketingSubcategories, selectedCategory);
+        }
+        function toggleMarketingSubcategory() {
+            if (!marketingSubcategoryRow || !marketingSubcategoryContainer || !marketingSubcategorySelect) return;
+            const selectedCategory = categorySelect ? String(categorySelect.value || '') : '';
+            const shouldShow = shouldShowMarketingSubcategory();
+            marketingSubcategoryRow.style.display = shouldShow ? '' : 'none';
+            marketingSubcategoryContainer.classList.toggle('is-visible', shouldShow);
+            if (shouldShow) {
+                marketingSubcategorySelect.disabled = false;
+                marketingSubcategorySelect.setAttribute('required', 'required');
+                populateMarketingSubcategories(lapcMarketingSubcategories[selectedCategory] || []);
+            } else {
+                marketingSubcategorySelect.value = '';
+                marketingSubcategorySelect.setAttribute('data-selected', '');
+                marketingSubcategorySelect.disabled = true;
+                marketingSubcategorySelect.removeAttribute('required');
+                populateMarketingSubcategories([]);
+                closeMarketingSubcategoryDropdown();
             }
         }
         function toggleDepartment() {
@@ -5974,6 +6182,7 @@ if (count($sapFormEntries) === 0) {
                 renderRecipientDropdownOptions();
                 toggleDepartment();
                 toggleCategories();
+                toggleMarketingSubcategory();
                 toggleHrExtraFields();
             });
         }
@@ -6007,6 +6216,7 @@ if (count($sapFormEntries) === 0) {
                 syncDepartmentTriggerLabel();
                 renderDepartmentDropdownOptions();
                 toggleCategories();
+                toggleMarketingSubcategory();
                 toggleHrExtraFields();
             });
         }
@@ -6018,6 +6228,7 @@ if (count($sapFormEntries) === 0) {
                 if (!shouldOpen) return;
                 closeRecipientDropdown();
                 closeCategoryDropdown();
+                closeMarketingSubcategoryDropdown();
                 departmentWrapper.classList.add('is-open');
                 departmentTrigger.setAttribute('aria-expanded', 'true');
                 departmentMenu.hidden = false;
@@ -6152,6 +6363,7 @@ if (count($sapFormEntries) === 0) {
                 categorySelect.setAttribute('data-selected', String(categorySelect.value || ''));
                 syncCategoryTriggerLabel();
                 renderCategoryDropdownOptions();
+                toggleMarketingSubcategory();
                 toggleHrExtraFields();
             });
         }
@@ -6163,6 +6375,7 @@ if (count($sapFormEntries) === 0) {
                 if (!shouldOpen) return;
                 closeRecipientDropdown();
                 closeDepartmentDropdown();
+                closeMarketingSubcategoryDropdown();
                 categoryWrapper.classList.add('is-open');
                 categoryTrigger.setAttribute('aria-expanded', 'true');
                 categoryMenu.hidden = false;
@@ -6179,6 +6392,39 @@ if (count($sapFormEntries) === 0) {
             });
             renderCategoryDropdownOptions();
         }
+        if (marketingSubcategorySelect) {
+            marketingSubcategorySelect.addEventListener('change', function() {
+                marketingSubcategorySelect.setAttribute('data-selected', String(marketingSubcategorySelect.value || ''));
+                syncMarketingSubcategoryTriggerLabel();
+                renderMarketingSubcategoryDropdownOptions();
+            });
+        }
+        if (marketingSubcategoryTrigger && marketingSubcategoryMenu && marketingSubcategoryWrapper) {
+            marketingSubcategoryTrigger.addEventListener('click', function() {
+                if (marketingSubcategoryTrigger.disabled) return;
+                const shouldOpen = marketingSubcategoryMenu.hidden;
+                closeMarketingSubcategoryDropdown();
+                if (!shouldOpen) return;
+                closeRecipientDropdown();
+                closeDepartmentDropdown();
+                closeCategoryDropdown();
+                closeUrgencyDropdown();
+                marketingSubcategoryWrapper.classList.add('is-open');
+                marketingSubcategoryTrigger.setAttribute('aria-expanded', 'true');
+                marketingSubcategoryMenu.hidden = false;
+            });
+            document.addEventListener('click', function(event) {
+                if (!marketingSubcategoryWrapper.contains(event.target)) {
+                    closeMarketingSubcategoryDropdown();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeMarketingSubcategoryDropdown();
+                }
+            });
+            renderMarketingSubcategoryDropdownOptions();
+        }
         if (urgencySelect) {
             urgencySelect.addEventListener('change', function() {
                 if (!priorityHidden) return;
@@ -6193,6 +6439,7 @@ if (count($sapFormEntries) === 0) {
                 const shouldOpen = urgencyMenu.hidden;
                 closeUrgencyDropdown();
                 if (!shouldOpen) return;
+                closeMarketingSubcategoryDropdown();
                 urgencyWrapper.classList.add('is-open');
                 urgencyTrigger.setAttribute('aria-expanded', 'true');
                 urgencyMenu.hidden = false;
@@ -6273,6 +6520,7 @@ if (count($sapFormEntries) === 0) {
 
         toggleDepartment();
         toggleCategories();
+        toggleMarketingSubcategory();
         toggleHrExtraFields();
         syncRequestGridRows();
         var attachmentShell = document.querySelector('#attachmentContainer .attachment-upload-shell');
@@ -6919,6 +7167,7 @@ if (count($sapFormEntries) === 0) {
                 var isKamiAttachmentRequired = false;
                 var isLapcHrSelected = false;
                 var isLapcItSelected = false;
+                var isLapcMarketingSelected = false;
                 var isMhcMarketingSelected = false;
                 var isHrSssSelected = false;
                 var selectedCategory = '';
@@ -6930,6 +7179,9 @@ if (count($sapFormEntries) === 0) {
                     isLapcItSelected =
                         String(recipientDropdown.value || '') === '@leadsagri.com' &&
                         String(departmentSelect.value || '') === 'IT';
+                    isLapcMarketingSelected =
+                        String(recipientDropdown.value || '') === '@leadsagri.com' &&
+                        String(departmentSelect.value || '') === 'Marketing';
                     isMhcMarketingSelected =
                         String(recipientDropdown.value || '') === '@malvedaholdings.com' &&
                         String(departmentSelect.value || '') === 'Marketing Creatives';
@@ -6950,6 +7202,11 @@ if (count($sapFormEntries) === 0) {
                 if (isLapcHrSelected && urgencySelect && !String(urgencySelect.value || '').trim()) {
                     e.preventDefault();
                     setInlineFormError('Please choose the level of urgency.');
+                    return;
+                }
+                if (isLapcMarketingSelected && Object.prototype.hasOwnProperty.call(lapcMarketingSubcategories, selectedCategory) && marketingSubcategorySelect && !String(marketingSubcategorySelect.value || '').trim()) {
+                    e.preventDefault();
+                    setInlineFormError('Please choose the Sub-Category.');
                     return;
                 }
                 if (isMhcMarketingSelected) {
