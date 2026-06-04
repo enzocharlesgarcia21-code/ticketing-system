@@ -2388,13 +2388,12 @@ function ticket_effective_sla_level(string $createdAt, string $status, string $p
     $statusKey = strtolower(trim($status));
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '';
 
-    $priorityKey = strtolower(trim($priority));
     $days = ticket_sla_age_days($createdAt);
 
-    if ($priorityKey === 'critical' || $days >= 6) {
+    if ($days >= 6) {
         return 'High';
     }
-    if ($priorityKey === 'high' || $days >= 3) {
+    if ($days >= 3) {
         return 'Medium';
     }
     return 'Low';
@@ -2416,19 +2415,18 @@ function ticket_sla_filter_condition_sql(string $tableAlias, string $sla): strin
     $prefix = trim($tableAlias);
     if ($prefix !== '') $prefix .= '.';
     $statusExpr = "LOWER(TRIM(COALESCE({$prefix}status, '')))";
-    $priorityExpr = "LOWER(TRIM(COALESCE({$prefix}priority, '')))";
     $ageBreach = "DATEDIFF(CURDATE(), DATE({$prefix}created_at)) >= 6";
     $ageRisk = "DATEDIFF(CURDATE(), DATE({$prefix}created_at)) >= 3";
     $activeExpr = "{$prefix}created_at IS NOT NULL AND $statusExpr NOT IN ('resolved', 'closed')";
-    $breachExpr = "($priorityExpr = 'critical' OR $ageBreach)";
+    $breachExpr = "($ageBreach)";
 
     if ($sla === 'High') {
         return "($activeExpr AND $breachExpr)";
     }
     if ($sla === 'Medium') {
-        return "($activeExpr AND NOT $breachExpr AND ($priorityExpr = 'high' OR $ageRisk))";
+        return "($activeExpr AND NOT $breachExpr AND $ageRisk)";
     }
-    return "($activeExpr AND $priorityExpr NOT IN ('critical', 'high') AND NOT ($ageRisk))";
+    return "($activeExpr AND NOT ($ageRisk))";
 }
 
 function ticket_escalation_reference_sql(string $tableAlias = ''): string
