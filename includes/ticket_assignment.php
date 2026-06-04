@@ -2532,6 +2532,7 @@ function ticket_priority_escalation_notification_time(mysqli $conn, int $ticketI
 {
     $actionType = 'update';
     $type = 'priority_escalated';
+    $displayTarget = $targetPriority === 'Critical' ? 'Breach' : $targetPriority;
 
     $stmt = $conn->prepare("
         SELECT MIN(created_at) AS created_at
@@ -2539,7 +2540,7 @@ function ticket_priority_escalation_notification_time(mysqli $conn, int $ticketI
         WHERE ticket_id = ?
           AND type = ?
           AND message LIKE ?
-          AND message LIKE ?
+          AND (message LIKE ? OR message LIKE ?)
           AND COALESCE(action_type, '') = ?
     ");
     if (!$stmt) {
@@ -2547,7 +2548,8 @@ function ticket_priority_escalation_notification_time(mysqli $conn, int $ticketI
     }
     $ticketNeedle = '%Ticket #' . notif_ticket_number($ticketId) . '%';
     $priorityNeedle = '%to ' . $targetPriority . '%';
-    $stmt->bind_param("issss", $ticketId, $type, $ticketNeedle, $priorityNeedle, $actionType);
+    $displayPriorityNeedle = '%to ' . $displayTarget . '%';
+    $stmt->bind_param("isssss", $ticketId, $type, $ticketNeedle, $priorityNeedle, $displayPriorityNeedle, $actionType);
     $stmt->execute();
     $res = $stmt->get_result();
     $row = $res ? $res->fetch_assoc() : null;
@@ -2766,6 +2768,19 @@ function ticket_process_priority_escalation_stage(mysqli $conn, int $ticketId, s
     $shouldSendEmails = empty($stageTicket[$emailedAtColumn]);
     if (!$shouldSendNotifications && !$shouldSendEmails && !$escalated) {
         return null;
+    }
+
+    if ($targetPriority === 'High') {
+        ticket_mark_priority_escalation_delivery($conn, $ticketId, $targetPriority, true, true, $dueAt);
+        return [
+            'ticket_id' => $ticketId,
+            'old_priority' => $displayOldPriority,
+            'new_priority' => $targetPriority,
+            'escalated' => $escalated,
+            'notifications_inserted' => 0,
+            'emails_sent' => 0,
+            'due_at' => $dueAt,
+        ];
     }
 
     $freshTicket = notif_ticket_data($conn, $ticketId);
