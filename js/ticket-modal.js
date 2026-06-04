@@ -2483,6 +2483,7 @@ var TMTicketModal = (function () {
     if (isSalesTicket && !hasActualAssignee) hideUpdateTab = false;
     if (isClosedTicket) hideUpdateTab = true;
     var hideConversationTab = hideAdminChat || isSalesTicket;
+    var canViewChatHistory = !!(data && data.can_view_chat_history === true);
     var isReassignedViewOnly = !!(data && data.reassigned_view_only === true);
     if (isReassignedViewOnly) {
       hideUpdateTab = true;
@@ -2518,6 +2519,27 @@ var TMTicketModal = (function () {
       isRequesterPOV = String(current.id) === String(data.user_id);
     } else if (current && current.email && data && data.created_by_email) {
       isRequesterPOV = String(current.email).toLowerCase() === String(data.created_by_email).toLowerCase();
+    }
+    var isAssigneeOrHandlerPOV = false;
+    if (current && current.id != null && data) {
+      var currentUserId = String(current.id);
+      isAssigneeOrHandlerPOV =
+        (data.assigned_to != null && String(data.assigned_to) === currentUserId)
+        || (data.assigned_user_id != null && String(data.assigned_user_id) === currentUserId);
+    }
+    if (!isAssigneeOrHandlerPOV && current && data) {
+      var currentEmail = current.email != null ? String(current.email).toLowerCase() : '';
+      var currentName = current.name != null ? String(current.name).trim().toLowerCase() : '';
+      var assignedToEmail = data.assigned_to_email != null ? String(data.assigned_to_email).toLowerCase() : '';
+      var assigneeEmail = data.assignee_email != null ? String(data.assignee_email).toLowerCase() : '';
+      var assignedToName = data.assigned_to_name != null ? String(data.assigned_to_name).trim().toLowerCase() : '';
+      var assigneeName = data.assignee_name != null ? String(data.assignee_name).trim().toLowerCase() : '';
+      isAssigneeOrHandlerPOV =
+        (currentEmail !== '' && (currentEmail === assignedToEmail || currentEmail === assigneeEmail))
+        || (currentName !== '' && (currentName === assignedToName || currentName === assigneeName));
+    }
+    if (!isReassignedViewOnly && !hideAdminChat && !isSalesTicket) {
+      hideConversationTab = false;
     }
     var statusControlHtml = '';
     if (isRequesterPOV) {
@@ -2598,12 +2620,20 @@ var TMTicketModal = (function () {
     var claimButtonHtml = showClaimButton
       ? ('  <div class="tm-tabs-actions"><button type="button" class="tm-claim-ticket-btn" onclick="TMTicketModal.claimTicket(' + String(data.id) + ', this)"><i class="fas fa-user-check"></i><span>Claim Ticket</span></button></div>')
       : '';
+    var reassignedBannerTone = String((data && data.reassigned_banner_tone) || 'reassigned').toLowerCase();
+    var reassignedBannerIsAssigned = reassignedBannerTone === 'assigned';
+    var reassignedBannerBorder = reassignedBannerIsAssigned ? '#b7dfc2' : '#f3d273';
+    var reassignedBannerBackground = reassignedBannerIsAssigned
+      ? 'linear-gradient(180deg,#f4fcf6 0%,#fbfefb 100%)'
+      : 'linear-gradient(180deg,#fffaf0 0%,#fffdf7 100%)';
+    var reassignedBannerIconBackground = reassignedBannerIsAssigned ? '#e8f7ec' : '#fff3cd';
+    var reassignedBannerIconColor = reassignedBannerIsAssigned ? '#1f7a3d' : '#7c5a00';
     var reassignedBannerHtml = isReassignedViewOnly
       ? (
-        '    <div style="margin:8px 14px 18px;border:1px solid #f3d273;background:linear-gradient(180deg,#fffaf0 0%,#fffdf7 100%);border-radius:18px;padding:14px 18px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 10px 24px rgba(15,23,42,.05);">' +
-        '      <div style="width:42px;height:42px;border-radius:999px;background:#fff3cd;color:#7c5a00;display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:20px;"><i class="fas fa-lock"></i></div>' +
+        '    <div style="margin:8px 14px 18px;border:1px solid ' + reassignedBannerBorder + ';background:' + reassignedBannerBackground + ';border-radius:18px;padding:14px 18px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 10px 24px rgba(15,23,42,.05);">' +
+        '      <div style="width:42px;height:42px;border-radius:999px;background:' + reassignedBannerIconBackground + ';color:' + reassignedBannerIconColor + ';display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:20px;"><i class="fas fa-lock"></i></div>' +
         '      <div style="min-width:0;font-family:Georgia, \"Times New Roman\", serif;">' +
-        '        <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px;">Ticket Reassigned</div>' +
+        '        <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px;">' + escapeHtml(String(data.reassigned_banner_heading || 'Ticket Reassigned')) + '</div>' +
         '        <div style="font-size:14px;line-height:1.55;color:#334155;font-weight:400;">' + escapeHtml(String(data.reassigned_title || 'This ticket has been reassigned.')) + '</div>' +
         '        <div style="font-size:14px;line-height:1.55;color:#334155;font-weight:400;">' + escapeHtml(String(data.reassigned_message || 'You can still view the ticket details, but you can no longer respond or access the chat.')) + '</div>' +
         '      </div>' +
