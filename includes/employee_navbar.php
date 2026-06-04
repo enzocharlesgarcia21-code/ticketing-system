@@ -1237,7 +1237,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getPriorityNotificationTitle(priorityKey) {
         if (priorityKey === 'critical') return 'Priority Escalation';
-        if (priorityKey === 'high') return 'Ticket Warning';
+        if (priorityKey === 'high') return 'Priority Escalation';
         if (priorityKey === 'low') return 'Ticket Assigned';
         return 'Ticket Update';
     }
@@ -1256,8 +1256,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function escalationPriorityFromMessage(message) {
-        const match = String(message || '').match(/escalated to\s+(critical|high|medium|low)\b/i);
-        return match ? String(match[1] || '').toLowerCase() : '';
+        const match = String(message || '').match(/escalated(?:\s+from\s+(?:on track|at risk|breach|critical|high|medium|low))?\s+to\s+(breach|at risk|on track|critical|high|medium|low)\b/i);
+        if (!match) return '';
+        const value = String(match[1] || '').toLowerCase();
+        if (value === 'breach') return 'high';
+        if (value === 'at risk') return 'medium';
+        if (value === 'on track') return 'low';
+        return value;
     }
 
     function highlightNotificationMessage(text) {
