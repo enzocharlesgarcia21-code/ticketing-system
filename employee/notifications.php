@@ -107,7 +107,11 @@ function notif_section_label($datetime) {
 function notif_priority_from_message(string $message): string
 {
     $transition = notif_priority_transition_from_message($message);
-    return strtolower((string) ($transition['to'] ?? ''));
+    $to = strtolower((string) ($transition['to'] ?? ''));
+    if ($to === 'breach') return 'high';
+    if ($to === 'at risk') return 'medium';
+    if ($to === 'on track') return 'low';
+    return $to;
 }
 ?>
 

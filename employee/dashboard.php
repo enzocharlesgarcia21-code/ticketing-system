@@ -18,13 +18,127 @@ if ($feedbackFlash !== null) {
 }
 $showFeedbackSuccessModal = $feedbackFlash && (($feedbackFlash['type'] ?? '') === 'success') && !empty($feedbackFlash['message']);
 
+function dashboard_company_code(string $value): string
+{
+    $s = strtoupper(trim($value));
+    if ($s === '') return '';
+    if ($s === 'FARMASEE') return 'PCC';
+    if (strpos($s, 'MHC') !== false) return 'MHC';
+    if (strpos($s, 'GPCI') !== false || strpos($s, 'GPSCI') !== false) return 'GPCI';
+    if (strpos($s, 'LAPC') !== false || strpos($s, 'LAH') !== false) return 'LAPC';
+    if (strpos($s, 'PCC') !== false) return 'PCC';
+    if (strpos($s, 'MPDC') !== false) return 'MPDC';
+    if (strpos($s, 'LINGAP') !== false) return 'LINGAP';
+    if (strpos($s, 'LTC') !== false) return 'LTC';
+    if (strpos($s, 'FARMEX') !== false) return 'FARMEX';
+    if (strpos($s, 'FARMEX CORP') !== false) return 'FARMEX';
+    return '';
+}
+
+function dashboard_company_aliases(string $value): array
+{
+    $v = trim($value);
+    $code = dashboard_company_code($v);
+    $map = [
+        'MHC' => ['MHC', 'Malveda Holdings Corporation - MHC'],
+        'GPCI' => ['GPCI', 'GPSCI', 'Golden Primestocks Chemical Inc - GPSCI', 'Golden Primestocks Chemical Inc - GPCI'],
+        'LAPC' => ['LAPC', 'Leads Animal Health - LAH', 'LEADS Animal Health - LAH'],
+        'PCC' => ['PCC', 'Primestocks Chemical Corporation - PCC', 'FARMASEE'],
+        'MPDC' => ['MPDC', 'Malveda Properties & Development Corporation - MPDC'],
+        'LINGAP' => ['LINGAP', 'LINGAP LEADS FOUNDATION - Lingap'],
+        'LTC' => ['LTC', 'Leads Tech Corporation - LTC'],
+        'FARMEX' => ['FARMEX', 'Farmex Corp'],
+    ];
+    $aliases = [];
+    if ($v !== '') $aliases[] = $v;
+    if ($code !== '' && isset($map[$code])) {
+        $aliases = array_merge($aliases, $map[$code]);
+    }
+    return array_values(array_unique(array_filter(array_map('trim', $aliases), static function ($x) { return $x !== ''; })));
+}
+
+function dashboard_assigned_query_parts(int $user_id, string $user_email, string $user_company, string $user_department, string $user_created_at): array
+{
+    $companyAliases = dashboard_company_aliases($user_company);
+    if (count($companyAliases) === 0) {
+        $companyAliases = [$user_company];
+    }
+    $companyAliases = array_values(array_filter(array_map('trim', $companyAliases), static function ($v) { return $v !== ''; }));
+
+    $departmentKey = ticket_department_key_from_value($user_department);
+    $departmentAliases = [];
+    foreach (array_merge([$user_department, $departmentKey], ticket_department_aliases_for_key($departmentKey)) as $departmentAlias) {
+        $departmentAlias = strtoupper(trim((string) $departmentAlias));
+        if ($departmentAlias !== '') {
+            $departmentAliases[$departmentAlias] = $departmentAlias;
+        }
+    }
+    $departmentAliases = array_values($departmentAliases);
+
+    $companyCol = "COALESCE(NULLIF(t.assigned_company, ''), t.company)";
+    $companyAliasCond = count($companyAliases) > 0
+        ? ("(" . implode(" OR ", array_fill(0, count($companyAliases), "$companyCol = ?")) . ")")
+        : "(1=0)";
+    $companyCond = "(($companyCol LIKE '@%' AND LOWER(?) LIKE CONCAT('%', LOWER($companyCol))) OR ($companyCol NOT LIKE '@%' AND $companyAliasCond))";
+    $taskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), NULLIF(t.assigned_department, ''), NULLIF(t.department, ''), NULLIF(u.department, ''))";
+    $sourceEmailExpr = "COALESCE(NULLIF(t.requester_email, ''), NULLIF(u.email, ''))";
+    $groupCond = count($departmentAliases) > 0
+        ? ("UPPER($taskDeptExpr) IN (" . implode(', ', array_fill(0, count($departmentAliases), '?')) . ")")
+        : "0=1";
+    $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
+    $requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
+    $lapcSharedCreatedCond = "1=1";
+    $userCompanyNorm = strtolower(trim($user_company));
+    $userCreatedAtValue = trim($user_created_at);
+
+    if ($userCompanyNorm === '@leadsagri.com' && $userCreatedAtValue !== '') {
+        $lapcSharedCreatedCond = "(t.created_at >= ?)";
+    }
+
+    $condition = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND $lapcSharedCreatedCond AND COALESCE(t.assigned_user_id, 0) = 0 AND (t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed') AND ((NOT $requiresGroupCond) OR $groupCond)))";
+    $params = [
+        $user_id,
+        $user_id,
+        $user_id,
+        strtolower($user_email),
+        $user_id,
+        strtolower($user_email),
+        strtolower($user_email),
+    ];
+    $types = "iiisiss";
+
+    foreach ($companyAliases as $companyAlias) {
+        $params[] = $companyAlias;
+        $types .= "s";
+    }
+    if ($userCompanyNorm === '@leadsagri.com' && $userCreatedAtValue !== '') {
+        $params[] = $userCreatedAtValue;
+        $types .= "s";
+    }
+    foreach ($departmentAliases as $departmentAlias) {
+        $params[] = $departmentAlias;
+        $types .= "s";
+    }
+
+    return [
+        'condition' => $condition,
+        'params' => $params,
+        'types' => $types,
+        'task_department_expr' => $taskDeptExpr,
+    ];
+}
+
 /* Fetch profile context */
-$company = '';
+$company = (string) ($_SESSION['company'] ?? '');
 $user_department = (string) ($_SESSION['department'] ?? '');
 $user_email = (string) ($_SESSION['email'] ?? '');
-$userQuery = $conn->query("SELECT company, department, email FROM users WHERE id = $user_id");
+$user_created_at = (string) ($_SESSION['user_created_at'] ?? '');
+$userQuery = $conn->query("SELECT company, department, email, created_at FROM users WHERE id = $user_id");
 if ($userQuery && $row = $userQuery->fetch_assoc()) {
     $company = (string) ($row['company'] ?? '');
+    if ($company !== '') {
+        $_SESSION['company'] = $company;
+    }
     if ($user_department === '') {
         $user_department = (string) ($row['department'] ?? '');
         if ($user_department !== '') $_SESSION['department'] = $user_department;
@@ -32,6 +146,10 @@ if ($userQuery && $row = $userQuery->fetch_assoc()) {
     if ($user_email === '') {
         $user_email = (string) ($row['email'] ?? '');
         if ($user_email !== '') $_SESSION['email'] = $user_email;
+    }
+    if ($user_created_at === '') {
+        $user_created_at = (string) ($row['created_at'] ?? '');
+        if ($user_created_at !== '') $_SESSION['user_created_at'] = $user_created_at;
     }
 }
 
@@ -136,6 +254,40 @@ while ($recent && ($row = $recent->fetch_assoc())) {
 }
 $recentStmt->close();
 
+$assignedStatusCounts = [
+    'Open' => 0,
+    'In Progress' => 0,
+    'Resolved' => 0,
+    'Closed' => 0,
+];
+
+$assignedQueryParts = dashboard_assigned_query_parts($user_id, $user_email, $company, $user_department, $user_created_at);
+$assignedCond = (string) $assignedQueryParts['condition'];
+$assignedParams = $assignedQueryParts['params'];
+$assignedTypes = (string) $assignedQueryParts['types'];
+$taskDeptExpr = (string) $assignedQueryParts['task_department_expr'];
+
+$assignedCountStmt = $conn->prepare("
+    SELECT
+        SUM(CASE WHEN t.status = 'Open' THEN 1 ELSE 0 END) AS open_count,
+        SUM(CASE WHEN t.status = 'In Progress' THEN 1 ELSE 0 END) AS progress_count,
+        SUM(CASE WHEN t.status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_count,
+        SUM(CASE WHEN t.status = 'Closed' THEN 1 ELSE 0 END) AS closed_count
+    FROM employee_tickets t
+    JOIN users u ON t.user_id = u.id
+    WHERE $assignedCond
+");
+if ($assignedCountStmt) {
+    $assignedCountStmt->bind_param($assignedTypes, ...$assignedParams);
+    $assignedCountStmt->execute();
+    $assignedCountRow = $assignedCountStmt->get_result()->fetch_assoc() ?: [];
+    $assignedStatusCounts['Open'] = (int) ($assignedCountRow['open_count'] ?? 0);
+    $assignedStatusCounts['In Progress'] = (int) ($assignedCountRow['progress_count'] ?? 0);
+    $assignedStatusCounts['Resolved'] = (int) ($assignedCountRow['resolved_count'] ?? 0);
+    $assignedStatusCounts['Closed'] = (int) ($assignedCountRow['closed_count'] ?? 0);
+    $assignedCountStmt->close();
+}
+
 $receivedTickets = [];
 $receivedStmt = $conn->prepare("
     SELECT
@@ -143,57 +295,28 @@ $receivedStmt = $conn->prepare("
         u.name AS requester_name,
         u.email AS user_email,
         u.department AS user_department,
-        u.company AS user_company
+        u.company AS user_company,
+        $taskDeptExpr AS task_department
     FROM employee_tickets t
-    LEFT JOIN users u ON u.id = t.user_id
-    WHERE t.user_id <> ?
-      AND COALESCE(NULLIF(t.status,''),'') <> 'Trash'
-    ORDER BY t.created_at DESC
-    LIMIT 80
+    JOIN users u ON u.id = t.user_id
+    WHERE $assignedCond
+    ORDER BY
+        CASE LOWER(TRIM(COALESCE(t.status, '')))
+            WHEN 'resolved' THEN 1
+            WHEN 'closed' THEN 2
+            ELSE 0
+        END ASC,
+        t.created_at DESC
+    LIMIT 5
 ");
 if ($receivedStmt) {
-    $receivedStmt->bind_param("i", $user_id);
+    $receivedStmt->bind_param($assignedTypes, ...$assignedParams);
     $receivedStmt->execute();
     $receivedResult = $receivedStmt->get_result();
-    $userContext = [
-        'department' => $user_department,
-        'company' => $company,
-        'email' => $user_email,
-    ];
     while ($receivedResult && ($ticketRow = $receivedResult->fetch_assoc())) {
-        if (ticket_user_is_handler_candidate($ticketRow, $user_id, $userContext)) {
-            $receivedTickets[] = $ticketRow;
-        }
+        $receivedTickets[] = $ticketRow;
     }
     $receivedStmt->close();
-}
-
-usort($receivedTickets, static function (array $a, array $b): int {
-    $rankA = dashboard_sla_rank((string) ($a['created_at'] ?? ''), (string) ($a['status'] ?? ''), (string) ($a['priority'] ?? ''));
-    $rankB = dashboard_sla_rank((string) ($b['created_at'] ?? ''), (string) ($b['status'] ?? ''), (string) ($b['priority'] ?? ''));
-    if ($rankA !== $rankB) {
-        return $rankA <=> $rankB;
-    }
-
-    $dateA = strtotime((string) ($a['created_at'] ?? '')) ?: 0;
-    $dateB = strtotime((string) ($b['created_at'] ?? '')) ?: 0;
-    if ($rankA < 3) {
-        return $dateA <=> $dateB;
-    }
-    return $dateB <=> $dateA;
-});
-
-$assignedStatusCounts = [
-    'Open' => 0,
-    'In Progress' => 0,
-    'Resolved' => 0,
-    'Closed' => 0,
-];
-foreach ($receivedTickets as $ticketRow) {
-    $ticketStatus = (string) ($ticketRow['status'] ?? '');
-    if (isset($assignedStatusCounts[$ticketStatus])) {
-        $assignedStatusCounts[$ticketStatus]++;
-    }
 }
 $assignedTotal = array_sum($assignedStatusCounts);
 $assignedDashboardStats = [
@@ -242,7 +365,6 @@ $dashboardStatSets = [
     'submitted' => $submittedDashboardStats,
     'assigned' => $assignedDashboardStats,
 ];
-$receivedTickets = array_slice($receivedTickets, 0, 5);
 
 function dashboard_status_class(string $status): string
 {

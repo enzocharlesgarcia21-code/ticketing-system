@@ -520,6 +520,8 @@ function notif_has_priority_escalation_record(mysqli $conn, int $userId, int $ti
     $actionType = 'update';
     $ticketNeedle = '%Ticket #' . notif_ticket_number($ticketId) . '%';
     $priorityNeedle = '%to ' . $targetPriority . '%';
+    $displayTarget = $targetPriority === 'Critical' ? 'Breach' : $targetPriority;
+    $displayPriorityNeedle = '%to ' . $displayTarget . '%';
     $stmt = $conn->prepare("
         SELECT id
         FROM notifications
@@ -527,14 +529,14 @@ function notif_has_priority_escalation_record(mysqli $conn, int $userId, int $ti
           AND ticket_id = ?
           AND type = ?
           AND message LIKE ?
-          AND message LIKE ?
+          AND (message LIKE ? OR message LIKE ?)
           AND COALESCE(action_type, '') = ?
         LIMIT 1
     ");
     if (!$stmt) {
         return false;
     }
-    $stmt->bind_param("iissss", $userId, $ticketId, $type, $ticketNeedle, $priorityNeedle, $actionType);
+    $stmt->bind_param("iisssss", $userId, $ticketId, $type, $ticketNeedle, $priorityNeedle, $displayPriorityNeedle, $actionType);
     $stmt->execute();
     $res = $stmt->get_result();
     $exists = $res && $res->fetch_assoc();
@@ -809,7 +811,6 @@ function notif_backfill_priority_escalation_notifications(mysqli $conn): int
             }
         }
         $stages = [
-            ['target' => 'High', 'at' => $highAt],
             ['target' => 'Critical', 'at' => $criticalAt],
         ];
         $recipientIds = notif_priority_escalation_recipient_ids($conn, $ticket);
@@ -819,8 +820,11 @@ function notif_backfill_priority_escalation_notifications(mysqli $conn): int
             if ($createdAt === '') {
                 continue;
             }
-            $oldPriority = notif_priority_escalation_old_priority($conn, $ticketId, $targetPriority);
-            $message = 'Ticket #' . notif_ticket_number($ticketId) . ' was escalated from ' . $oldPriority . ' to ' . $targetPriority . ' due to SLA delay. Please review and take action.';
+            $oldPriority = $targetPriority === 'Critical'
+                ? 'At Risk'
+                : notif_priority_escalation_old_priority($conn, $ticketId, $targetPriority);
+            $newPriority = $targetPriority === 'Critical' ? 'Breach' : $targetPriority;
+            $message = 'Ticket #' . notif_ticket_number($ticketId) . ' was escalated from ' . $oldPriority . ' to ' . $newPriority . ' due to SLA delay. Please review and take action.';
             foreach ($recipientIds as $userId) {
                 if (notif_has_priority_escalation_record($conn, (int) $userId, $ticketId, $targetPriority)) {
                     continue;
@@ -999,8 +1003,12 @@ function sendPriorityEscalationNotification(mysqli $conn, array $ticket, array $
     }
 
     $title = 'Priority Escalation';
+    $displayNewPriority = $newPriority === 'Critical' ? 'Breach' : $newPriority;
     $oldPriorityLabel = trim($oldPriority) !== '' ? trim($oldPriority) : 'Low';
-    $message = 'Ticket #' . notif_ticket_number($ticketId) . ' was escalated from ' . $oldPriorityLabel . ' to ' . $newPriority . ' due to SLA delay. Please review and take action.';
+    if ($newPriority === 'Critical') {
+        $oldPriorityLabel = 'At Risk';
+    }
+    $message = 'Ticket #' . notif_ticket_number($ticketId) . ' was escalated from ' . $oldPriorityLabel . ' to ' . $displayNewPriority . ' due to SLA delay. Please review and take action.';
     $type = 'priority_escalated';
     $actionType = 'update';
     $inserted = 0;
@@ -1039,11 +1047,11 @@ function sendPriorityEscalationNotification(mysqli $conn, array $ticket, array $
     $emailed = 0;
     if (count($emails) > 0) {
         $lines = [
-            'Ticket #' . notif_ticket_number($ticketId) . ' priority has been escalated to ' . $newPriority . '.',
+            'Ticket #' . notif_ticket_number($ticketId) . ' SLA status has been escalated to ' . $displayNewPriority . '.',
             'Immediate attention is required.',
         ];
         if ($oldPriority !== '') {
-            $lines[] = 'Previous priority: ' . $oldPriority;
+            $lines[] = 'Previous SLA status: ' . $oldPriorityLabel;
         }
         if (!empty($ticket['subject'])) {
             $lines[] = 'Subject: ' . (string) $ticket['subject'];
@@ -1321,6 +1329,20 @@ function notif_priority_transition_from_message(string $message): array
     $message = trim($message);
     if ($message === '') {
         return ['from' => '', 'to' => ''];
+    }
+
+    if (preg_match('/\bescalated\s+from\s+(on track|at risk|breach)\s+to\s+(on track|at risk|breach)\b/i', $message, $matches)) {
+        $formatSla = static function (string $value): string {
+            $value = strtolower(trim($value));
+            if ($value === 'on track') return 'On Track';
+            if ($value === 'at risk') return 'At Risk';
+            if ($value === 'breach') return 'Breach';
+            return ucfirst($value);
+        };
+        return [
+            'from' => $formatSla((string) ($matches[1] ?? '')),
+            'to' => $formatSla((string) ($matches[2] ?? '')),
+        ];
     }
 
     if (preg_match('/\bescalated\s+from\s+(critical|high|medium|low)\s+to\s+(critical|high|medium|low)\b/i', $message, $matches)) {
