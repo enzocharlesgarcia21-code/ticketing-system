@@ -409,16 +409,20 @@ var TMTicketModal = (function () {
   function getEffectiveSlaVariant(createdAt, status, priority) {
     var statusKey = status == null ? '' : String(status).trim().toLowerCase();
     if (statusKey === 'resolved' || statusKey === 'closed') return '';
-    if (!createdAt) return 'low';
-    var created = createdAt instanceof Date ? createdAt : new Date(createdAt);
-    if (isNaN(created.getTime())) return 'low';
-    var now = new Date();
-    var createdDay = new Date(created.getFullYear(), created.getMonth(), created.getDate());
-    var nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    var diffMs = nowDay.getTime() - createdDay.getTime();
-    var days = diffMs > 0 ? Math.floor(diffMs / 86400000) : 0;
-    if (days >= 7) return 'high';
-    if (days >= 4) return 'medium';
+    var priorityKey = priority == null ? '' : String(priority).trim().toLowerCase();
+    var days = 0;
+    if (createdAt) {
+      var created = createdAt instanceof Date ? createdAt : new Date(createdAt);
+      if (!isNaN(created.getTime())) {
+        var now = new Date();
+        var createdDay = new Date(created.getFullYear(), created.getMonth(), created.getDate());
+        var nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        var diffMs = nowDay.getTime() - createdDay.getTime();
+        days = diffMs > 0 ? Math.floor(diffMs / 86400000) : 0;
+      }
+    }
+    if (priorityKey === 'critical' || days >= 6) return 'high';
+    if (priorityKey === 'high' || days >= 3) return 'medium';
     return 'low';
   }
   function getEffectiveSlaLabel(createdAt, status, priority) {
@@ -430,6 +434,7 @@ var TMTicketModal = (function () {
   }
   function assignedCompanyUsesDepartment(companyValue) {
     var normalized = normalizeCompanyValue(companyValue);
+    if (normalized === '@leadsagri.com' || normalized === '@malvedaholdings.com') return true;
     var sharedOptions = getSharedCompanyDepartmentOptions();
     var configuredOptions = sharedOptions[normalized];
     return Array.isArray(configuredOptions) && configuredOptions.length > 0;
@@ -545,7 +550,15 @@ var TMTicketModal = (function () {
       if (type === 'department_change') {
         var deptMatch = raw.match(/to\s+([^|]+?)(?:\s*\|\s*Handled by:\s*(.+))?$/i);
         var departmentLabel = deptMatch && deptMatch[1] ? String(deptMatch[1]).trim() : '';
-        title = departmentLabel ? ('Reassigned to ' + departmentLabel) : 'Ticket reassigned';
+        var handledByLabel = deptMatch && deptMatch[2] ? String(deptMatch[2]).trim() : '';
+        if (!handledByLabel && /^Reassigned\s+to\s+[^|]+$/i.test(raw) && ticket && String(ticket.assigned_to_name || '').trim() !== '') {
+          var assignedCompanyLabel = companyDisplayName(ticket.assigned_company || ticket.company || '');
+          var assignedDepartmentLabel = String(ticket.assigned_group || ticket.assigned_department || '').trim();
+          var assignedHandlerLabel = String(ticket.assigned_to_name || '').trim();
+          handledByLabel = [assignedCompanyLabel, assignedDepartmentLabel].filter(function (part) { return part !== ''; }).join(' - ');
+          handledByLabel = handledByLabel ? (handledByLabel + ' ' + assignedHandlerLabel) : assignedHandlerLabel;
+        }
+        title = handledByLabel ? ('Reassigned to ' + handledByLabel) : (departmentLabel ? ('Reassigned to ' + departmentLabel) : 'Ticket reassigned');
         hasAssignmentEvent = true;
       } else if (type === 'company_change') {
         title = raw !== '' ? formatTimelineCompanyChange(raw) : 'Company changed';
@@ -602,8 +615,10 @@ var TMTicketModal = (function () {
 
     var timelineItemsHtml = events.map(function (e, index) {
       var hiddenClass = index >= maxVisibleTimelineItems ? ' tm-timeline-item-hidden' : '';
+      var lastClass = index === events.length - 1 ? ' tm-timeline-item-last' : '';
+      var lastVisibleClass = index === Math.min(events.length, maxVisibleTimelineItems) - 1 ? ' tm-timeline-item-last-visible' : '';
       var hiddenStyle = index >= maxVisibleTimelineItems ? ' style="display:none;"' : '';
-      return '<div class="tm-timeline-item' + hiddenClass + '"' + hiddenStyle + '><div class="tm-timeline-content"><div class="tm-timeline-title">' + escapeHtml(e.title) + '</div><div class="tm-timeline-time">' + formatTimelineTime(e.when) + '</div></div></div>';
+      return '<div class="tm-timeline-item' + hiddenClass + lastClass + lastVisibleClass + '"' + hiddenStyle + '><div class="tm-timeline-content"><div class="tm-timeline-title">' + escapeHtml(e.title) + '</div><div class="tm-timeline-time">' + formatTimelineTime(e.when) + '</div></div></div>';
     }).join('');
     var toggleHtml = events.length > maxVisibleTimelineItems
       ? '<div class="tm-timeline-actions">' +
@@ -621,8 +636,37 @@ var TMTicketModal = (function () {
     if (!timeline) return;
     var hiddenItems = timeline.querySelectorAll('.tm-timeline-item-hidden');
     var expanded = String(button.getAttribute('data-expanded') || 'false') === 'true';
+    timeline.classList.toggle('is-expanded', !expanded);
     hiddenItems.forEach(function (item) {
-      item.style.display = expanded ? 'none' : '';
+      if (expanded) {
+        item.style.maxHeight = item.scrollHeight + 'px';
+        item.style.opacity = '1';
+        item.style.transform = 'translateY(0)';
+        window.requestAnimationFrame(function () {
+          item.style.maxHeight = '0px';
+          item.style.opacity = '0';
+          item.style.transform = 'translateY(-6px)';
+        });
+        window.setTimeout(function () {
+          item.style.display = 'none';
+          item.style.maxHeight = '';
+          item.style.opacity = '';
+          item.style.transform = '';
+        }, 150);
+      } else {
+        item.style.display = '';
+        item.style.maxHeight = '0px';
+        item.style.opacity = '0';
+        item.style.transform = 'translateY(-6px)';
+        window.requestAnimationFrame(function () {
+          item.style.maxHeight = item.scrollHeight + 'px';
+          item.style.opacity = '1';
+          item.style.transform = 'translateY(0)';
+        });
+        window.setTimeout(function () {
+          item.style.maxHeight = '';
+        }, 150);
+      }
     });
     button.setAttribute('data-expanded', expanded ? 'false' : 'true');
     var label = button.querySelector('.tm-timeline-toggle-label');
@@ -1988,18 +2032,18 @@ var TMTicketModal = (function () {
   }
   function getDeptOptionsForCompany(companyValue) {
     var normalizedCompany = normalizeCompanyValue(companyValue);
-    var sharedOptions = getSharedCompanyDepartmentOptions();
-    var configuredOptions = sharedOptions[normalizedCompany];
-    if (Array.isArray(configuredOptions) && configuredOptions.length > 0) {
-      return configuredOptions;
-    }
-    if (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true) return lapcDeptOptions;
     if (normalizedCompany === '@leadsagri.com') {
       return lapcDeptOptions;
     }
     if (normalizedCompany === '@malvedaholdings.com') {
       return mhcDeptOptions;
     }
+    var sharedOptions = getSharedCompanyDepartmentOptions();
+    var configuredOptions = sharedOptions[normalizedCompany];
+    if (Array.isArray(configuredOptions) && configuredOptions.length > 0) {
+      return configuredOptions;
+    }
+    if (typeof window !== 'undefined' && window.TM_FORCE_LAPC_DEPARTMENTS === true) return lapcDeptOptions;
     return [];
   }
   function preferredDeptValueForCompany(selectedValue, companyValue) {
@@ -2116,10 +2160,8 @@ var TMTicketModal = (function () {
       : 'ajax_department_users.php';
 
     function departmentUserAllowed() {
-      var current = (typeof window !== 'undefined' && window.TM_CURRENT_USER) ? window.TM_CURRENT_USER : null;
-      var currentDeptKey = normalizeDepartmentKey(current && current.department ? current.department : '');
       var selectedDeptKey = normalizeDepartmentKey(deptEl.value || '');
-      return currentDeptKey !== '' && selectedDeptKey !== '' && currentDeptKey === selectedDeptKey;
+      return assignedCompanyUsesDepartment(companyEl.value || '') && selectedDeptKey !== '';
     }
 
     function setDepartmentUserVisibility(visible) {
@@ -2262,6 +2304,24 @@ var TMTicketModal = (function () {
           btn.addEventListener('click', function () {
             var nextValue = btn.getAttribute('data-custom-option-value') || '';
             selectEl.value = nextValue;
+            if (selectName === 'assigned_company') {
+              var departmentSelect = form.querySelector('select[name="assigned_department"]');
+              if (departmentSelect) {
+                var normalizedCompany = normalizeCompanyValue(nextValue);
+                var companyHasDepartments = normalizedCompany === '@leadsagri.com' || normalizedCompany === '@malvedaholdings.com';
+                if (companyHasDepartments) {
+                  departmentSelect.innerHTML = buildDeptOptionsHtml(normalizedCompany, '');
+                  departmentSelect.disabled = false;
+                  var mirrorEl = form.querySelector('input[type="hidden"][data-dept-mirror="1"]');
+                  if (mirrorEl && mirrorEl.parentNode) {
+                    mirrorEl.parentNode.removeChild(mirrorEl);
+                  }
+                  if (typeof departmentSelect._tmRenderCustomDropdown === 'function') {
+                    departmentSelect._tmRenderCustomDropdown();
+                  }
+                }
+              }
+            }
             closeMenu();
             renderOptions();
             var changeEvent;
@@ -2515,9 +2575,8 @@ var TMTicketModal = (function () {
       : '';
     var deptOptionsHtml = buildDeptOptionsHtml(assignedCompanyValue, assignedDeptValue);
     var assignedUserIdValue = '';
-    var currentUserDeptKey = normalizeDepartmentKey(current && current.department ? current.department : '');
     var selectedDeptKey = normalizeDepartmentKey(assignedDeptValue);
-    var canShowDepartmentUserSelect = showDepartmentUserSelect && currentUserDeptKey !== '' && selectedDeptKey !== '' && currentUserDeptKey === selectedDeptKey;
+    var canShowDepartmentUserSelect = showDepartmentUserSelect && assignedCompanyUsesDepartment(assignedCompanyValue) && selectedDeptKey !== '';
     var noteValue = data && data.admin_note != null ? String(data.admin_note) : '';
     var trimmedNoteValue = noteValue.trim();
     var requesterAdminNoteHtml = (isRequesterPOV && trimmedNoteValue !== '')

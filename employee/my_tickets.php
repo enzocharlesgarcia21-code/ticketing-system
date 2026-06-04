@@ -46,44 +46,17 @@ function current_employee_email(mysqli $conn, int $userId): string
 
 function my_tickets_sla_display_label(string $slaLevel): string
 {
-    $map = [
-        'Low' => 'On Track',
-        'Medium' => 'At Risk',
-        'High' => 'Breach',
-    ];
-    return $map[$slaLevel] ?? $slaLevel;
+    return ticket_sla_display_label($slaLevel);
 }
 
 function my_tickets_normalize_sla_filter(string $sla): string
 {
-    $sla = trim($sla);
-    $map = [
-        'On Track' => 'Low',
-        'At Risk' => 'Medium',
-        'Breach' => 'High',
-        'Low' => 'Low',
-        'Medium' => 'Medium',
-        'High' => 'High',
-    ];
-    return $map[$sla] ?? '';
+    return ticket_normalize_sla_level($sla);
 }
 
 function my_tickets_sla_filter_condition(string $sla): string
 {
-    $sla = my_tickets_normalize_sla_filter($sla);
-    $activeStatus = "LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')";
-    $ageDays = "DATEDIFF(CURDATE(), DATE(t.created_at))";
-
-    if ($sla === 'High') {
-        return "($activeStatus AND $ageDays >= 7)";
-    }
-    if ($sla === 'Medium') {
-        return "($activeStatus AND $ageDays BETWEEN 4 AND 6)";
-    }
-    if ($sla === 'Low') {
-        return "($activeStatus AND $ageDays < 4)";
-    }
-    return '';
+    return ticket_sla_filter_condition_sql('t', $sla);
 }
 
 function my_tickets_filter_clauses(mysqli $conn, string $search, string $company, string $department, string $status, string $sla, string &$types, array &$params): array
@@ -221,29 +194,7 @@ function feedback_assignee_display(array $ticket): array
 
 function my_tickets_effective_sla_level(string $createdAt, string $status, string $priority = ''): string
 {
-    $statusKey = strtolower(trim($status));
-    if ($statusKey === 'resolved' || $statusKey === 'closed') return '';
-    $createdAt = trim($createdAt);
-    if ($createdAt === '') return 'Low';
-    try {
-        $created = new DateTimeImmutable($createdAt);
-    } catch (Throwable $e) {
-        return 'Low';
-    }
-    $now = new DateTimeImmutable('now');
-    $createdDay = $created->setTime(0, 0, 0);
-    $nowDay = $now->setTime(0, 0, 0);
-    $diff = $nowDay->diff($createdDay);
-    $days = (int) ($diff->days ?? 0);
-    if ($diff->invert !== 1) $days = 0;
-
-    if ($days >= 7) {
-        return 'High';
-    }
-    if ($days >= 4) {
-        return 'Medium';
-    }
-    return 'Low';
+    return ticket_effective_sla_level($createdAt, $status, $priority);
 }
 
 function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
@@ -1855,6 +1806,36 @@ $successMessage = '';
             box-shadow: 0 28px 80px rgba(15, 23, 42, 0.24);
             overflow: hidden;
         }
+        body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-dialog,
+        body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-dialog {
+            width: min(500px, calc(100vw - 48px));
+            max-width: calc(100vw - 40px);
+            min-height: 284px;
+        }
+        body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-body,
+        body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-body {
+            min-height: 284px;
+            box-sizing: border-box;
+        }
+        body.employee-my-tickets-page .follow-up-confirm-icon,
+        body.employee-my-tickets-page .close-ticket-confirm-icon {
+            width: 78px;
+            height: 78px;
+            margin: 0 auto 18px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(180deg, #f7fff8 0%, #ecfdf3 100%);
+            color: #1B5E20;
+            border: 2px solid #c9eec9;
+            box-shadow:
+                0 0 0 10px rgba(88, 198, 117, 0.08),
+                0 14px 34px rgba(40, 137, 69, 0.16);
+            font-size: 40px;
+            font-weight: 700;
+            line-height: 1;
+        }
         body.employee-my-tickets-page .close-ticket-confirm-body {
             padding: 30px 30px 26px;
             text-align: center;
@@ -1865,6 +1846,10 @@ $successMessage = '';
             font-size: 24px;
             font-weight: 800;
             letter-spacing: -0.02em;
+        }
+        body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-title,
+        body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-title {
+            font-weight: 600;
         }
         body.employee-my-tickets-page .close-ticket-confirm-text {
             margin: 0;
@@ -1878,6 +1863,10 @@ $successMessage = '';
             gap: 10px;
             padding-top: 24px;
             flex-wrap: wrap;
+        }
+        body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-actions,
+        body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-actions {
+            border-top: 1px solid #e6e8ef;
         }
         body.employee-my-tickets-page .close-ticket-confirm-cancel,
         body.employee-my-tickets-page .close-ticket-confirm-submit {
@@ -2055,7 +2044,9 @@ $successMessage = '';
             display: flex;
         }
         body.employee-my-tickets-page .follow-up-feedback-dialog {
-            width: min(100%, 460px);
+            width: min(500px, calc(100vw - 48px));
+            max-width: calc(100vw - 40px);
+            min-height: 284px;
             background:
                 radial-gradient(circle at top center, rgba(141, 231, 160, 0.18), transparent 32%),
                 linear-gradient(180deg, #ffffff 0%, #fbfffc 100%);
@@ -2065,22 +2056,11 @@ $successMessage = '';
             position: relative;
             overflow: hidden;
         }
-        body.employee-my-tickets-page .follow-up-feedback-dialog::before {
-            content: "";
-            position: absolute;
-            inset: 0 0 auto 0;
-            height: 7px;
-            background: linear-gradient(90deg, #1f6d34 0%, #3a8350 55%, #1f6d34 100%);
-        }
-        body.employee-my-tickets-page .follow-up-feedback-dialog.is-error::before {
-            background: linear-gradient(90deg, #b91c1c 0%, #ef4444 55%, #b91c1c 100%);
-        }
-        body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending::before {
-            background: linear-gradient(90deg, #166534 0%, #22c55e 55%, #166534 100%);
-        }
         body.employee-my-tickets-page .follow-up-feedback-body {
-            padding: 34px 34px 30px;
+            min-height: 284px;
+            padding: 30px 40px 28px;
             text-align: center;
+            box-sizing: border-box;
         }
         body.employee-my-tickets-page .follow-up-feedback-close {
             position: absolute;
@@ -2109,20 +2089,6 @@ $successMessage = '';
         body.employee-my-tickets-page .follow-up-feedback-btn:focus-visible {
             outline: 3px solid rgba(59, 130, 246, 0.28);
             outline-offset: 2px;
-        }
-        body.employee-my-tickets-page .follow-up-feedback-label {
-            margin: 0 0 18px;
-            color: #2f7b3d;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-        }
-        body.employee-my-tickets-page .follow-up-feedback-dialog.is-error .follow-up-feedback-label {
-            color: #dc2626;
-        }
-        body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending .follow-up-feedback-label {
-            color: #166534;
         }
         body.employee-my-tickets-page .follow-up-feedback-icon {
             width: 78px;
@@ -2169,7 +2135,7 @@ $successMessage = '';
             margin: 0 0 10px;
             color: #0f172a;
             font-size: 28px;
-            font-weight: 800;
+            font-weight: 600;
             letter-spacing: -0.03em;
         }
         body.employee-my-tickets-page .follow-up-feedback-text {
@@ -2182,6 +2148,7 @@ $successMessage = '';
             padding-top: 24px;
             display: flex;
             justify-content: center;
+            border-top: 1px solid #e6e8ef;
         }
         body.employee-my-tickets-page .follow-up-feedback-btn {
             min-width: 132px;
@@ -2222,10 +2189,24 @@ $successMessage = '';
                 padding: 18px;
             }
             body.employee-my-tickets-page .follow-up-feedback-dialog {
+                width: 100%;
+                max-width: 380px;
+                min-height: 276px;
                 border-radius: 24px;
             }
+            body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-dialog,
+            body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-dialog {
+                width: 100%;
+                max-width: 380px;
+                min-height: 276px;
+            }
+            body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-body,
+            body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-body {
+                min-height: 276px;
+            }
             body.employee-my-tickets-page .follow-up-feedback-body {
-                padding: 30px 22px 24px;
+                min-height: 276px;
+                padding: 28px 24px 24px;
             }
             body.employee-my-tickets-page .follow-up-feedback-close {
                 top: 12px;
@@ -2889,12 +2870,11 @@ $successMessage = '';
     <div id="followUpFeedbackOverlay" class="follow-up-feedback-overlay" aria-hidden="true">
         <div id="followUpFeedbackDialog" class="follow-up-feedback-dialog" role="dialog" aria-modal="true" aria-labelledby="followUpFeedbackTitle">
             <div class="follow-up-feedback-body">
-                <p id="followUpFeedbackLabel" class="follow-up-feedback-label">Ticket Update</p>
                 <div id="followUpFeedbackIcon" class="follow-up-feedback-icon" aria-hidden="true">&#10003;</div>
                 <h2 id="followUpFeedbackTitle" class="follow-up-feedback-title">Follow Up Sent</h2>
                 <p id="followUpFeedbackText" class="follow-up-feedback-text">Follow up sent successfully.</p>
                 <div class="follow-up-feedback-actions">
-                    <button type="button" id="followUpFeedbackBtn" class="follow-up-feedback-btn">OK</button>
+                    <button type="button" id="followUpFeedbackBtn" class="follow-up-feedback-btn">Done</button>
                 </div>
             </div>
         </div>
@@ -2902,6 +2882,7 @@ $successMessage = '';
     <div id="followUpConfirmOverlay" class="close-ticket-confirm-overlay" aria-hidden="true">
         <div class="close-ticket-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="followUpConfirmTitle">
             <div class="close-ticket-confirm-body">
+                <div class="follow-up-confirm-icon" aria-hidden="true">?</div>
                 <h2 id="followUpConfirmTitle" class="close-ticket-confirm-title">Follow Up Ticket?</h2>
                 <p class="close-ticket-confirm-text">
                     Do you want to send a follow up for this ticket?
@@ -2930,13 +2911,14 @@ $successMessage = '';
     <div id="closeTicketConfirmOverlay" class="close-ticket-confirm-overlay" aria-hidden="true">
         <div class="close-ticket-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="closeTicketConfirmTitle">
             <div class="close-ticket-confirm-body">
+                <div class="close-ticket-confirm-icon" aria-hidden="true">?</div>
                 <h2 id="closeTicketConfirmTitle" class="close-ticket-confirm-title">Close Ticket?</h2>
                 <p class="close-ticket-confirm-text">
-                    Do you want to close this ticket? This means your issue is already resolved.
+                    Are you sure you want to close this ticket?<br>This will mark the issue as resolved.
                 </p>
                 <div class="close-ticket-confirm-actions">
-                    <button type="button" id="closeTicketConfirmBtn" class="close-ticket-confirm-submit">Yes</button>
-                    <button type="button" id="closeTicketCancelBtn" class="close-ticket-confirm-cancel">No</button>
+                    <button type="button" id="closeTicketConfirmBtn" class="close-ticket-confirm-submit">Close Ticket</button>
+                    <button type="button" id="closeTicketCancelBtn" class="close-ticket-confirm-cancel">Cancel</button>
                 </div>
             </div>
         </div>
@@ -3094,7 +3076,6 @@ $successMessage = '';
     var followUpConfirmBtn = document.getElementById('followUpConfirmBtn');
     var followUpCancelBtn = document.getElementById('followUpCancelBtn');
     var followUpFeedbackDialog = document.getElementById('followUpFeedbackDialog');
-    var followUpFeedbackLabel = document.getElementById('followUpFeedbackLabel');
     var followUpFeedbackTitle = document.getElementById('followUpFeedbackTitle');
     var followUpFeedbackText = document.getElementById('followUpFeedbackText');
     var followUpFeedbackIcon = document.getElementById('followUpFeedbackIcon');
@@ -3831,9 +3812,6 @@ $successMessage = '';
         followUpFeedbackState = kind;
         followUpFeedbackDialog.classList.toggle('is-error', isError);
         followUpFeedbackDialog.classList.toggle('is-pending', isPending);
-        if (followUpFeedbackLabel) {
-            followUpFeedbackLabel.textContent = isPending ? 'Sending Follow Up' : (isError ? 'Follow Up Error' : 'Ticket Update');
-        }
         followUpFeedbackTitle.textContent = title || (isPending ? 'Sending Follow Up' : (isError ? 'Follow Up Failed' : 'Follow Up Sent'));
         followUpFeedbackText.textContent = message || (isPending ? 'Please wait while we notify the assigned team.' : (isError ? 'Unable to send follow up right now.' : 'Follow up sent successfully.'));
         followUpFeedbackIcon.innerHTML = isPending ? '<span class="follow-up-feedback-icon-spinner"></span>' : (isError ? '!' : '&#10003;');
@@ -3843,7 +3821,7 @@ $successMessage = '';
         if (followUpFeedbackBtn) {
             followUpFeedbackBtn.hidden = isPending;
             followUpFeedbackBtn.disabled = isPending;
-            followUpFeedbackBtn.textContent = isPending ? 'Sending...' : 'OK';
+            followUpFeedbackBtn.textContent = isPending ? 'Sending...' : 'Done';
         }
         followUpFeedbackOverlay.classList.add('is-visible');
         followUpFeedbackOverlay.setAttribute('aria-hidden', 'false');

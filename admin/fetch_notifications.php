@@ -50,8 +50,8 @@ if (!$count_result) {
 }
 $unread_count = (int) ($count_result->fetch_assoc()['count'] ?? 0);
 
-// Get recent notifications, prioritizing unread items so the dropdown
-// reflects the unread bell count while still keeping recently read items visible.
+// Get recent notifications in time order so a clicked item does not jump away
+// after it is marked read.
 $query = "SELECT n.*, t.priority, TIMESTAMPDIFF(SECOND, n.created_at, NOW()) as seconds_ago 
           FROM notifications n
           LEFT JOIN employee_tickets t ON n.ticket_id = t.id
@@ -59,7 +59,7 @@ $query = "SELECT n.*, t.priority, TIMESTAMPDIFF(SECOND, n.created_at, NOW()) as 
             AND n.type <> 'chat_message'
             AND n.type <> 'hr_chat_pending'
             AND (n.type <> 'note_added' OR t.user_id = n.user_id)
-          ORDER BY n.is_read ASC, n.created_at DESC LIMIT 25";
+          ORDER BY n.created_at DESC LIMIT 25";
 $result = $conn->query($query);
 
 $notifications = [];

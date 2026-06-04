@@ -306,47 +306,16 @@ function dashboard_requester_info(array $row): array
 
 function dashboard_sla_rank(string $createdAt, string $status, string $priority = ''): int
 {
-    $statusKey = strtolower(trim($status));
-    if ($statusKey === 'resolved' || $statusKey === 'closed') return 3;
-
-    $priorityKey = strtolower(trim($priority));
-    if ($priorityKey === 'critical') return 0;
-    if ($priorityKey === 'high') return 1;
-
-    $createdAt = trim($createdAt);
-    if ($createdAt === '') return 3;
-
-    try {
-        $created = new DateTimeImmutable($createdAt);
-    } catch (Throwable $e) {
-        return 3;
-    }
-
-    $now = new DateTimeImmutable('now');
-    $createdDay = $created->setTime(0, 0, 0);
-    $nowDay = $now->setTime(0, 0, 0);
-    $diff = $nowDay->diff($createdDay);
-    $days = (int) ($diff->days ?? 0);
-    if ($diff->invert !== 1) $days = 0;
-
-    if ($days >= 7) return 0;
-    if ($days >= 4) return 1;
-    return 2;
+    $slaLevel = ticket_effective_sla_level($createdAt, $status, $priority);
+    if ($slaLevel === 'High') return 0;
+    if ($slaLevel === 'Medium') return 1;
+    if ($slaLevel === 'Low') return 2;
+    return 3;
 }
 
 function dashboard_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
 {
-    $rank = dashboard_sla_rank($createdAt, $status, $priority);
-    if ($rank === 0) {
-        return '<span class="badge badge-high">Breach</span>';
-    }
-    if ($rank === 1) {
-        return '<span class="badge badge-medium">At Risk</span>';
-    }
-    if ($rank === 2) {
-        return '<span class="badge badge-low">On Track</span>';
-    }
-    return '-';
+    return ticket_sla_badge_html($createdAt, $status, $priority);
 }
 ?>
 

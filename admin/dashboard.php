@@ -11,12 +11,7 @@ ticket_apply_sla_priority($conn);
 
 function admin_sla_display_label(string $slaLevel): string
 {
-    $map = [
-        'Low' => 'On Track',
-        'Medium' => 'At Risk',
-        'High' => 'Breach',
-    ];
-    return $map[$slaLevel] ?? $slaLevel;
+    return ticket_sla_display_label($slaLevel);
 }
 
 function time_ago_days(string $dateTime): string
@@ -40,35 +35,7 @@ function time_ago_days(string $dateTime): string
 
 function sla_badge_html(string $createdAt, string $status, string $priority = ''): string
 {
-    $statusKey = strtolower(trim($status));
-    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
-    $priorityKey = strtolower(trim($priority));
-    if ($priorityKey === 'critical') {
-        return '<span class="badge badge-high">' . htmlspecialchars(admin_sla_display_label('High'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    if ($priorityKey === 'high') {
-        return '<span class="badge badge-medium">' . htmlspecialchars(admin_sla_display_label('Medium'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    if ($createdAt === '') return '-';
-    try {
-        $created = new DateTimeImmutable($createdAt);
-    } catch (Throwable $e) {
-        return '-';
-    }
-    $now = new DateTimeImmutable('now');
-    $createdDay = $created->setTime(0, 0, 0);
-    $nowDay = $now->setTime(0, 0, 0);
-    $diff = $nowDay->diff($createdDay);
-    $days = (int) ($diff->days ?? 0);
-    if ($diff->invert !== 1) $days = 0;
-
-    if ($days >= 7) {
-        return '<span class="badge badge-high">' . htmlspecialchars(admin_sla_display_label('High'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    if ($days >= 4) {
-        return '<span class="badge badge-medium">' . htmlspecialchars(admin_sla_display_label('Medium'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    return '<span class="badge badge-low">' . htmlspecialchars(admin_sla_display_label('Low'), ENT_QUOTES, 'UTF-8') . '</span>';
+    return ticket_sla_badge_html($createdAt, $status, $priority);
 }
 
 function assigned_target_label(array $row): string

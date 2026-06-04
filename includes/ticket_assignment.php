@@ -265,6 +265,10 @@ function ticket_mhc_departments(): array
 {
     return [
         'Marketing Creatives',
+        'IT',
+        'Executive',
+        'Institutional Sales',
+        'Accounting',
     ];
 }
 
@@ -1352,8 +1356,12 @@ function ticket_requires_manual_claim(array $ticket): bool
 {
     $status = trim((string) ($ticket['status'] ?? ''));
     $assignedTo = isset($ticket['assigned_to']) ? (int) $ticket['assigned_to'] : 0;
+    $assignedUserId = isset($ticket['assigned_user_id']) ? (int) $ticket['assigned_user_id'] : 0;
 
     if ($assignedTo > 0) {
+        return false;
+    }
+    if ($assignedUserId > 0 && strcasecmp($status, 'Open') !== 0) {
         return false;
     }
 
@@ -1380,6 +1388,11 @@ function ticket_chat_effective_handler_id(array $ticket): int
     $status = trim((string) ($ticket['status'] ?? ''));
     if (strcasecmp($status, 'Open') === 0) {
         return 0;
+    }
+
+    $assignedUserId = isset($ticket['assigned_user_id']) ? (int) $ticket['assigned_user_id'] : 0;
+    if ($assignedUserId > 0) {
+        return $assignedUserId;
     }
 
     $handlerId = isset($ticket['assigned_to']) ? (int) $ticket['assigned_to'] : 0;
@@ -2321,6 +2334,101 @@ function ticket_ensure_priority_escalation_columns(mysqli $conn): void
             $conn->query("ALTER TABLE employee_tickets ADD COLUMN $col $ddl");
         }
     }
+}
+
+function ticket_sla_display_label(string $slaLevel): string
+{
+    $map = [
+        'Low' => 'On Track',
+        'Medium' => 'At Risk',
+        'High' => 'Breach',
+    ];
+    return $map[$slaLevel] ?? $slaLevel;
+}
+
+function ticket_normalize_sla_level(string $sla): string
+{
+    $sla = trim($sla);
+    $map = [
+        'On Track' => 'Low',
+        'At Risk' => 'Medium',
+        'Breach' => 'High',
+        'Low' => 'Low',
+        'Medium' => 'Medium',
+        'High' => 'High',
+        'on track' => 'Low',
+        'at risk' => 'Medium',
+        'breach' => 'High',
+        'low' => 'Low',
+        'medium' => 'Medium',
+        'high' => 'High',
+    ];
+    return $map[$sla] ?? '';
+}
+
+function ticket_sla_age_days(string $createdAt): int
+{
+    $createdAt = trim($createdAt);
+    if ($createdAt === '') return 0;
+    try {
+        $created = new DateTimeImmutable($createdAt);
+    } catch (Throwable $e) {
+        return 0;
+    }
+    $now = new DateTimeImmutable('now');
+    $createdDay = $created->setTime(0, 0, 0);
+    $nowDay = $now->setTime(0, 0, 0);
+    $diff = $nowDay->diff($createdDay);
+    $days = (int) ($diff->days ?? 0);
+    return $diff->invert === 1 ? $days : 0;
+}
+
+function ticket_effective_sla_level(string $createdAt, string $status, string $priority = ''): string
+{
+    $statusKey = strtolower(trim($status));
+    if ($statusKey === 'resolved' || $statusKey === 'closed') return '';
+
+    $priorityKey = strtolower(trim($priority));
+    $days = ticket_sla_age_days($createdAt);
+
+    if ($priorityKey === 'critical' || $days >= 6) {
+        return 'High';
+    }
+    if ($priorityKey === 'high' || $days >= 3) {
+        return 'Medium';
+    }
+    return 'Low';
+}
+
+function ticket_sla_badge_html(string $createdAt, string $status, string $priority = '', string $emptyHtml = '-'): string
+{
+    $slaLevel = ticket_effective_sla_level($createdAt, $status, $priority);
+    if ($slaLevel === '') return $emptyHtml;
+    $class = strtolower($slaLevel);
+    return '<span class="badge badge-' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars(ticket_sla_display_label($slaLevel), ENT_QUOTES, 'UTF-8') . '</span>';
+}
+
+function ticket_sla_filter_condition_sql(string $tableAlias, string $sla): string
+{
+    $sla = ticket_normalize_sla_level($sla);
+    if (!in_array($sla, ['Low', 'Medium', 'High'], true)) return '';
+
+    $prefix = trim($tableAlias);
+    if ($prefix !== '') $prefix .= '.';
+    $statusExpr = "LOWER(TRIM(COALESCE({$prefix}status, '')))";
+    $priorityExpr = "LOWER(TRIM(COALESCE({$prefix}priority, '')))";
+    $ageBreach = "DATEDIFF(CURDATE(), DATE({$prefix}created_at)) >= 6";
+    $ageRisk = "DATEDIFF(CURDATE(), DATE({$prefix}created_at)) >= 3";
+    $activeExpr = "{$prefix}created_at IS NOT NULL AND $statusExpr NOT IN ('resolved', 'closed')";
+    $breachExpr = "($priorityExpr = 'critical' OR $ageBreach)";
+
+    if ($sla === 'High') {
+        return "($activeExpr AND $breachExpr)";
+    }
+    if ($sla === 'Medium') {
+        return "($activeExpr AND NOT $breachExpr AND ($priorityExpr = 'high' OR $ageRisk))";
+    }
+    return "($activeExpr AND $priorityExpr NOT IN ('critical', 'high') AND NOT ($ageRisk))";
 }
 
 function ticket_escalation_reference_sql(string $tableAlias = ''): string

@@ -65,6 +65,7 @@ $user_email = (string) ($_SESSION['email'] ?? '');
 $user_created_at = (string) ($_SESSION['user_created_at'] ?? '');
 
 ticket_ensure_assignment_columns($conn);
+ticket_ensure_activity_table($conn);
 
 if ($user_department === '' || $user_company === '' || $user_created_at === '') {
     $user_dept_stmt = $conn->prepare("SELECT department, company, created_at FROM users WHERE id = ?");
@@ -101,6 +102,7 @@ $department = trim((string) ($_GET['department'] ?? ''));
 $company_email = trim((string) ($_GET['company_email'] ?? ''));
 $status = trim((string) ($_GET['status'] ?? ''));
 $sla = trim((string) ($_GET['sla'] ?? ''));
+$assignment_filter = trim((string) ($_GET['assignment_filter'] ?? 'assigned'));
 $page = (int) ($_GET['page'] ?? 1);
 $limit = (int) ($_GET['limit'] ?? 10);
 if ($page < 1) $page = 1;
@@ -135,6 +137,7 @@ if (!array_key_exists($company_email, $allowed_departments_by_company) || !in_ar
 if (!array_key_exists($company_email, $company_filter_options)) $company_email = '';
 if (!in_array($status, $allowed_statuses, true)) $status = '';
 if (!in_array($sla, $allowed_slas, true) && !in_array($sla, ['Low', 'Medium', 'High'], true)) $sla = '';
+if (!in_array($assignment_filter, ['assigned', 'reassigned'], true)) $assignment_filter = 'assigned';
 
 $userCompanyNorm = ticket_normalize_company((string) $user_company);
 
@@ -166,60 +169,17 @@ function task_source_label(array $row): string
 
 function task_sla_display_label(string $slaLevel): string
 {
-    $map = [
-        'Low' => 'On Track',
-        'Medium' => 'At Risk',
-        'High' => 'Breach',
-    ];
-    return $map[$slaLevel] ?? $slaLevel;
+    return ticket_sla_display_label($slaLevel);
 }
 
 function task_normalize_sla_filter(string $sla): string
 {
-    $sla = trim($sla);
-    $map = [
-        'On Track' => 'Low',
-        'At Risk' => 'Medium',
-        'Breach' => 'High',
-        'Low' => 'Low',
-        'Medium' => 'Medium',
-        'High' => 'High',
-    ];
-    return $map[$sla] ?? '';
+    return ticket_normalize_sla_level($sla);
 }
 
 function task_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
 {
-    $statusKey = strtolower(trim($status));
-    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
-    $priorityKey = strtolower(trim($priority));
-    if ($priorityKey === 'critical') {
-        return '<span class="badge badge-high">' . h(task_sla_display_label('High')) . '</span>';
-    }
-    if ($priorityKey === 'high') {
-        return '<span class="badge badge-medium">' . h(task_sla_display_label('Medium')) . '</span>';
-    }
-    $createdAt = trim($createdAt);
-    if ($createdAt === '') return '-';
-    try {
-        $created = new DateTimeImmutable($createdAt);
-    } catch (Throwable $e) {
-        return '-';
-    }
-    $now = new DateTimeImmutable('now');
-    $createdDay = $created->setTime(0, 0, 0);
-    $nowDay = $now->setTime(0, 0, 0);
-    $diff = $nowDay->diff($createdDay);
-    $days = (int) ($diff->days ?? 0);
-    if ($diff->invert !== 1) $days = 0;
-
-    if ($days >= 7) {
-        return '<span class="badge badge-high">' . h(task_sla_display_label('High')) . '</span>';
-    }
-    if ($days >= 4) {
-        return '<span class="badge badge-medium">' . h(task_sla_display_label('Medium')) . '</span>';
-    }
-    return '<span class="badge badge-low">' . h(task_sla_display_label('Low')) . '</span>';
+    return ticket_sla_badge_html($createdAt, $status, $priority);
 }
 
 function task_urgency_badge_html(string $priority): string
@@ -234,22 +194,7 @@ function task_urgency_badge_html(string $priority): string
 
 function task_sla_filter_condition(string $sla): string
 {
-    $sla = task_normalize_sla_filter($sla);
-    $activeStatus = "LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')";
-    $priority = "LOWER(TRIM(COALESCE(t.priority, '')))";
-    $ageHigh = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-    $ageMedium = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 4 DAY)";
-
-    if ($sla === 'High') {
-        return "($activeStatus AND ($priority = 'critical' OR ($priority NOT IN ('critical', 'high') AND $ageHigh)))";
-    }
-    if ($sla === 'Medium') {
-        return "($activeStatus AND ($priority = 'high' OR ($priority NOT IN ('critical', 'high') AND $ageMedium AND NOT ($ageHigh))))";
-    }
-    if ($sla === 'Low') {
-        return "($activeStatus AND $priority NOT IN ('critical', 'high') AND NOT ($ageMedium))";
-    }
-    return '';
+    return ticket_sla_filter_condition_sql('t', $sla);
 }
 
 $where = [];
@@ -293,35 +238,80 @@ if ($userCompanyNorm === '@leadsagri.com') {
     }
 }
 
-$where[] = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND $lapcSharedCreatedCond AND (((t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')) OR ((NOT $requiresGroupCond) OR $groupCond))))";
-$params[] = $user_id;
-$types .= "i";
-$params[] = $user_id;
-$types .= "i";
-$params[] = $user_id;
-$types .= "i";
-$params[] = strtolower((string) $user_email);
-$types .= "s";
-$params[] = $user_id;
-$types .= "i";
-$params[] = strtolower((string) $user_email);
-$types .= "s";
-$params[] = strtolower((string) $user_email);
-$types .= "s";
-foreach ($companyAliases as $co) {
-    $params[] = $co;
+$assignedTaskCond = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND $lapcSharedCreatedCond AND COALESCE(t.assigned_user_id, 0) = 0 AND (t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed') AND ((NOT $requiresGroupCond) OR $groupCond)))";
+$reassignedActivityCond = count($userDepartmentAliases) > 0
+    ? "EXISTS (SELECT 1 FROM ticket_activity ta WHERE ta.ticket_id = t.id AND ta.activity_type = 'department_change' AND (" . implode(' OR ', array_fill(0, count($userDepartmentAliases), "UPPER(ta.description) LIKE ?")) . "))"
+    : "0=1";
+$currentAssignmentCond = "((t.assigned_user_id = ? OR t.assigned_to = ?) OR (($requiresGroupCond) AND $groupCond))";
+$reassignedTaskCond = "(NOT $requesterIsCurrentCond AND $companyCond AND $reassignedActivityCond AND NOT $currentAssignmentCond)";
+
+$addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userCompanyNorm, $user_created_at, $userDepartmentAliases): void {
+    $params[] = $user_id;
+    $types .= "i";
+    $params[] = $user_id;
+    $types .= "i";
+    $params[] = $user_id;
+    $types .= "i";
+    $params[] = strtolower((string) $user_email);
     $types .= "s";
-}
-if ($userCompanyNorm === '@leadsagri.com') {
-    $userCreatedAtValue = trim((string) $user_created_at);
-    if ($userCreatedAtValue !== '') {
-        $params[] = $userCreatedAtValue;
+    $params[] = $user_id;
+    $types .= "i";
+    $params[] = strtolower((string) $user_email);
+    $types .= "s";
+    $params[] = strtolower((string) $user_email);
+    $types .= "s";
+    foreach ($companyAliases as $co) {
+        $params[] = $co;
         $types .= "s";
     }
-}
-foreach ($userDepartmentAliases as $departmentAlias) {
-    $params[] = $departmentAlias;
+    if ($userCompanyNorm === '@leadsagri.com') {
+        $userCreatedAtValue = trim((string) $user_created_at);
+        if ($userCreatedAtValue !== '') {
+            $params[] = $userCreatedAtValue;
+            $types .= "s";
+        }
+    }
+    foreach ($userDepartmentAliases as $departmentAlias) {
+        $params[] = $departmentAlias;
+        $types .= "s";
+    }
+};
+
+$addReassignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases): void {
+    $params[] = $user_id;
+    $types .= "i";
+    $params[] = strtolower((string) $user_email);
     $types .= "s";
+    $params[] = strtolower((string) $user_email);
+    $types .= "s";
+    foreach ($companyAliases as $co) {
+        $params[] = $co;
+        $types .= "s";
+    }
+    foreach ($userDepartmentAliases as $departmentAlias) {
+        $params[] = '%FROM%' . strtoupper($departmentAlias) . '%TO%';
+        $types .= "s";
+    }
+    $params[] = $user_id;
+    $types .= "i";
+    $params[] = $user_id;
+    $types .= "i";
+    foreach ($userDepartmentAliases as $departmentAlias) {
+        $params[] = $departmentAlias;
+        $types .= "s";
+    }
+};
+
+if ($assignment_filter === 'assigned') {
+    $where[] = $assignedTaskCond;
+    $addAssignedTaskParams();
+} elseif ($assignment_filter === 'reassigned') {
+    $where[] = $reassignedTaskCond;
+    $addReassignedTaskParams();
+} else {
+    $where[] = "($assignedTaskCond OR $reassignedTaskCond)";
+    $addAssignedTaskParams();
+    $addReassignedTaskParams();
 }
 
 if ($search !== '') {
@@ -416,7 +406,7 @@ if ($totalPages < 1) $totalPages = 1;
 if ($page > $totalPages) $page = $totalPages;
 $offset = ($page - 1) * $limit;
 
-$sql .= " ORDER BY t.created_at DESC LIMIT ?, ?";
+$sql .= " ORDER BY CASE LOWER(TRIM(COALESCE(t.status, ''))) WHEN 'resolved' THEN 1 WHEN 'closed' THEN 2 ELSE 0 END ASC, t.created_at DESC LIMIT ?, ?";
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
     http_response_code(500);

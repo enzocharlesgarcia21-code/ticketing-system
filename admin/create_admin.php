@@ -1233,9 +1233,163 @@ user_permissions_ensure_table($conn);
             font-size: 12px;
             font-weight: 700;
         }
+        .access-modal-card {
+            max-width: 880px;
+            border-radius: 20px;
+            border: 1px solid rgba(220, 252, 231, 0.72);
+            box-shadow: 0 28px 70px rgba(15, 23, 42, 0.30);
+            overflow: hidden;
+        }
+        .access-modal-card .mgmt-card-body {
+            padding: 20px 24px 0;
+            background:
+                radial-gradient(circle at 80% 18%, rgba(34, 197, 94, 0.08), transparent 32%),
+                #ffffff;
+        }
+        .access-modal-shell-header {
+            padding: 24px 30px;
+            min-height: 108px;
+            align-items: center;
+            background: #16521f;
+        }
+        .access-modal-shell-title {
+            align-items: center;
+            gap: 18px;
+        }
+        .access-modal-shell-icon {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            font-size: 24px;
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.16);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
+        }
+        .access-modal-shell-heading {
+            font-size: 22px;
+            letter-spacing: -0.02em;
+        }
+        .access-modal-shell-copy {
+            max-width: 520px;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+        .access-modal-close {
+            width: 38px;
+            height: 38px;
+            border-radius: 14px;
+        }
+        .access-user-chip {
+            padding: 16px 18px;
+            border-radius: 18px;
+            border-color: #d6f4df;
+            margin-bottom: 20px;
+            background:
+                radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.10), transparent 32%),
+                linear-gradient(135deg, #f8fffb 0%, #ffffff 100%);
+        }
+        .access-user-avatar {
+            width: 52px;
+            height: 52px;
+            font-size: 19px;
+            background: linear-gradient(135deg, #15803d, #166534);
+            box-shadow: 0 12px 24px rgba(22, 101, 52, 0.18);
+        }
+        .access-user-name {
+            font-size: 16px;
+        }
+        .access-user-email,
+        .access-user-role {
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        .access-sections {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            align-items: start;
+        }
+        .access-column {
+            display: grid;
+            gap: 16px;
+            align-content: start;
+            min-width: 0;
+        }
+        .access-section {
+            border-color: #dbe5ee;
+            border-radius: 14px;
+            box-shadow: 0 14px 34px rgba(15, 23, 42, 0.05);
+        }
+        .access-section-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            min-height: 58px;
+            background: linear-gradient(180deg, #fbfefd 0%, #f8fafc 100%);
+        }
+        .access-section-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: #dcfce7;
+            color: #15803d;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex: 0 0 auto;
+        }
+        .access-section-title {
+            display: block;
+            color: #166534;
+            font-size: 12px;
+            font-weight: 900;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            line-height: 1.15;
+        }
+        .access-section-subtitle {
+            display: block;
+            margin-top: 4px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0;
+            text-transform: none;
+            line-height: 1.25;
+        }
+        .access-toggle-row {
+            min-height: 58px;
+            padding: 12px 16px;
+        }
+        .access-toggle-title {
+            font-size: 14px;
+        }
+        .access-toggle-meta {
+            font-size: 11px;
+        }
+        .access-modal-actions {
+            margin: 22px -24px 0;
+            padding: 20px 24px;
+            border-top: 1px solid #e5e7eb;
+            background: #ffffff;
+        }
+        #saveUserAccess {
+            background: #123f1b;
+            box-shadow: 0 12px 24px rgba(18, 63, 27, 0.18);
+        }
+        #saveUserAccess:hover {
+            background: #0f3517;
+        }
         @media (max-width: 980px) {
             .admin-mgmt-grid { grid-template-columns: 1fr; }
             .form-grid { grid-template-columns: 1fr; }
+            .access-modal-card {
+                max-width: min(880px, calc(100vw - 28px));
+            }
+            .access-sections {
+                grid-template-columns: 1fr;
+            }
             .access-toggle-row {
                 align-items: flex-start;
             }
@@ -2497,6 +2651,7 @@ user_permissions_ensure_table($conn);
         var accessUserAvatar = document.getElementById('accessUserAvatar');
         var saveUserAccessBtn = document.getElementById('saveUserAccess');
         var selectedAccessRow = null;
+        var accessPermissionsBaseline = '';
         function openModal() {
             if (!modal) return;
             modal.classList.add('show');
@@ -2517,6 +2672,7 @@ user_permissions_ensure_table($conn);
             }
         }
         function resetAccessModalCard() {
+            accessPermissionsBaseline = '';
             if (accessUserId) accessUserId.value = '';
             if (accessUserName) accessUserName.textContent = 'Select a user';
             if (accessUserEmail) accessUserEmail.textContent = 'Choose a registered user to update module access.';
@@ -2561,10 +2717,37 @@ user_permissions_ensure_table($conn);
                 }
             });
         }
+        function getAccessSectionUi(section) {
+            var normalized = String(section || '').toLowerCase();
+            if (normalized.indexOf('ticket') > -1) {
+                return { icon: 'fa-ticket-alt', subtitle: 'All ticket related modules.' };
+            }
+            if (normalized.indexOf('resource') > -1) {
+                return { icon: 'fa-book', subtitle: 'Knowledge and resource center.' };
+            }
+            if (normalized.indexOf('navbar') > -1 || normalized.indexOf('other') > -1) {
+                return { icon: 'fa-location-arrow', subtitle: 'Additional navigation and quick access items.' };
+            }
+            return { icon: 'fa-border-all', subtitle: 'Core modules for general navigation.' };
+        }
+        function serializeAccessPermissions() {
+            if (!accessSections) return '';
+            var values = {};
+            Array.prototype.slice.call(accessSections.querySelectorAll('input[type="checkbox"][name^="permissions["]')).forEach(function (input) {
+                var match = String(input.name || '').match(/^permissions\[(.+)\]$/);
+                if (!match) return;
+                values[match[1]] = input.checked ? 1 : 0;
+            });
+            return JSON.stringify(Object.keys(values).sort().reduce(function (acc, key) {
+                acc[key] = values[key];
+                return acc;
+            }, {}));
+        }
         function buildAccessSections(definitions, permissions) {
             if (!accessSections) return;
             if (!definitions || !definitions.length) {
                 accessSections.innerHTML = '<div class="access-modal-empty">No module permissions are configured yet.</div>';
+                accessPermissionsBaseline = '';
                 return;
             }
             var grouped = {};
@@ -2574,16 +2757,15 @@ user_permissions_ensure_table($conn);
                 grouped[section].push(definition);
             });
 
-            var html = Object.keys(grouped).map(function (section) {
+            function renderAccessSection(section) {
+                var sectionUi = getAccessSectionUi(section);
                 var rows = grouped[section].map(function (definition) {
                     var key = String(definition.key || '');
                     var checked = Number((permissions && permissions[key]) || 0) === 1;
-                    var pathText = definition.path ? ('Employee page: ' + String(definition.path)) : 'Employee module access';
                     return '' +
                         '<div class="access-toggle-row">' +
                         '  <div class="access-toggle-copy">' +
                         '    <div class="access-toggle-title">' + escapeHtml(String(definition.label || key)) + '</div>' +
-                        '    <div class="access-toggle-meta">' + escapeHtml(pathText) + '</div>' +
                         '  </div>' +
                         '  <label class="switch">' +
                         '    <input type="checkbox" name="permissions[' + escapeHtml(key) + ']" value="1" ' + (checked ? 'checked' : '') + '>' +
@@ -2593,12 +2775,38 @@ user_permissions_ensure_table($conn);
                 }).join('');
                 return '' +
                     '<section class="access-section">' +
-                    '  <div class="access-section-head">' + escapeHtml(section) + '</div>' +
+                    '  <div class="access-section-head">' +
+                    '    <span class="access-section-icon"><i class="fas ' + escapeHtml(sectionUi.icon) + '"></i></span>' +
+                    '    <span>' +
+                    '      <span class="access-section-title">' + escapeHtml(section) + '</span>' +
+                    '      <span class="access-section-subtitle">' + escapeHtml(sectionUi.subtitle) + '</span>' +
+                    '    </span>' +
+                    '  </div>' +
                     '  <div class="access-toggle-list">' + rows + '</div>' +
                     '</section>';
-            }).join('');
+            }
+
+            var leftOrder = ['General', 'Tickets'];
+            var rightOrder = ['Resources'];
+            var knownSections = {};
+            leftOrder.concat(rightOrder).forEach(function (section) {
+                knownSections[section] = true;
+            });
+            var extraSections = Object.keys(grouped).filter(function (section) {
+                return !knownSections[section];
+            }).sort(function (a, b) {
+                return a.localeCompare(b);
+            });
+            var leftHtml = leftOrder.filter(function (section) {
+                return grouped[section];
+            }).map(renderAccessSection).join('');
+            var rightHtml = rightOrder.concat(extraSections).filter(function (section) {
+                return grouped[section];
+            }).map(renderAccessSection).join('');
+            var html = '<div class="access-column">' + leftHtml + '</div><div class="access-column">' + rightHtml + '</div>';
 
             accessSections.innerHTML = html;
+            accessPermissionsBaseline = serializeAccessPermissions();
         }
         function loadUserAccess(row) {
             if (!row || !window.TM_CAN_MANAGE_USER_ACCESS) return;
@@ -2717,6 +2925,10 @@ user_permissions_ensure_table($conn);
                 var userIdValue = accessUserId ? String(accessUserId.value || '').trim() : '';
                 if (!userIdValue) {
                     showAccessAlert('warning', 'No user selected', 'Choose a user first before saving access.');
+                    return;
+                }
+                if (accessPermissionsBaseline !== '' && serializeAccessPermissions() === accessPermissionsBaseline) {
+                    showAccessAlert('info', 'No changes were made', 'No changes were made.');
                     return;
                 }
                 setAccessLoadingState(true);

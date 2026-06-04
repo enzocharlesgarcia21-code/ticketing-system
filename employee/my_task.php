@@ -21,6 +21,7 @@ $user_email = $_SESSION['email'] ?? '';
 $user_created_at = $_SESSION['user_created_at'] ?? '';
 
 ticket_ensure_assignment_columns($conn);
+ticket_ensure_activity_table($conn);
 ticket_apply_sla_priority($conn);
 
 function company_code(string $value): string
@@ -120,6 +121,7 @@ $department = $_GET['department'] ?? '';
 $company_email = $_GET['company_email'] ?? '';
 $status = $_GET['status'] ?? '';
 $sla = $_GET['sla'] ?? '';
+$assignment_filter = $_GET['assignment_filter'] ?? 'assigned';
 $slaLevel = task_normalize_sla_filter((string) $sla);
 if ($slaLevel !== '') {
     $sla = task_sla_display_label($slaLevel);
@@ -168,6 +170,9 @@ if (!in_array($status, $allowed_statuses, true)) {
 if ($slaLevel === '') {
     $sla = '';
 }
+if (!in_array($assignment_filter, ['assigned', 'reassigned'], true)) {
+    $assignment_filter = 'assigned';
+}
 
 function task_source_label(array $row): string
 {
@@ -197,60 +202,17 @@ function task_source_label(array $row): string
 
 function task_sla_display_label(string $slaLevel): string
 {
-    $map = [
-        'Low' => 'On Track',
-        'Medium' => 'At Risk',
-        'High' => 'Breach',
-    ];
-    return $map[$slaLevel] ?? $slaLevel;
+    return ticket_sla_display_label($slaLevel);
 }
 
 function task_normalize_sla_filter(string $sla): string
 {
-    $sla = trim($sla);
-    $map = [
-        'On Track' => 'Low',
-        'At Risk' => 'Medium',
-        'Breach' => 'High',
-        'Low' => 'Low',
-        'Medium' => 'Medium',
-        'High' => 'High',
-    ];
-    return $map[$sla] ?? '';
+    return ticket_normalize_sla_level($sla);
 }
 
 function task_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
 {
-    $statusKey = strtolower(trim($status));
-    if ($statusKey === 'resolved' || $statusKey === 'closed') return '-';
-    $priorityKey = strtolower(trim($priority));
-    if ($priorityKey === 'critical') {
-        return '<span class="badge badge-high">' . htmlspecialchars(task_sla_display_label('High'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    if ($priorityKey === 'high') {
-        return '<span class="badge badge-medium">' . htmlspecialchars(task_sla_display_label('Medium'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    $createdAt = trim($createdAt);
-    if ($createdAt === '') return '-';
-    try {
-        $created = new DateTimeImmutable($createdAt);
-    } catch (Throwable $e) {
-        return '-';
-    }
-    $now = new DateTimeImmutable('now');
-    $createdDay = $created->setTime(0, 0, 0);
-    $nowDay = $now->setTime(0, 0, 0);
-    $diff = $nowDay->diff($createdDay);
-    $days = (int) ($diff->days ?? 0);
-    if ($diff->invert !== 1) $days = 0;
-
-    if ($days >= 7) {
-        return '<span class="badge badge-high">' . htmlspecialchars(task_sla_display_label('High'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    if ($days >= 4) {
-        return '<span class="badge badge-medium">' . htmlspecialchars(task_sla_display_label('Medium'), ENT_QUOTES, 'UTF-8') . '</span>';
-    }
-    return '<span class="badge badge-low">' . htmlspecialchars(task_sla_display_label('Low'), ENT_QUOTES, 'UTF-8') . '</span>';
+    return ticket_sla_badge_html($createdAt, $status, $priority);
 }
 
 function task_urgency_badge_html(string $priority): string
@@ -265,22 +227,7 @@ function task_urgency_badge_html(string $priority): string
 
 function task_sla_filter_condition(string $sla): string
 {
-    $sla = task_normalize_sla_filter($sla);
-    $activeStatus = "LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')";
-    $priority = "LOWER(TRIM(COALESCE(t.priority, '')))";
-    $ageHigh = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)";
-    $ageMedium = "DATE(t.created_at) <= DATE_SUB(CURDATE(), INTERVAL 4 DAY)";
-
-    if ($sla === 'High') {
-        return "($activeStatus AND ($priority = 'critical' OR ($priority NOT IN ('critical', 'high') AND $ageHigh)))";
-    }
-    if ($sla === 'Medium') {
-        return "($activeStatus AND ($priority = 'high' OR ($priority NOT IN ('critical', 'high') AND $ageMedium AND NOT ($ageHigh))))";
-    }
-    if ($sla === 'Low') {
-        return "($activeStatus AND $priority NOT IN ('critical', 'high') AND NOT ($ageMedium))";
-    }
-    return '';
+    return ticket_sla_filter_condition_sql('t', $sla);
 }
 
 // --- PAGINATION LOGIC ---
@@ -332,35 +279,80 @@ if ($userCompanyNorm === '@leadsagri.com') {
     }
 }
 
-$where[] = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND $lapcSharedCreatedCond AND (((t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed')) OR ((NOT $requiresGroupCond) OR $groupCond))))";
-$params[] = (int) $user_id;
-$types .= "i";
-$params[] = (int) $user_id;
-$types .= "i";
-$params[] = (int) $user_id;
-$types .= "i";
-$params[] = strtolower((string) $user_email);
-$types .= "s";
-$params[] = (int) $user_id;
-$types .= "i";
-$params[] = strtolower((string) $user_email);
-$types .= "s";
-$params[] = strtolower((string) $user_email);
-$types .= "s";
-foreach ($companyAliases as $co) {
-    $params[] = $co;
+$assignedTaskCond = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND $lapcSharedCreatedCond AND COALESCE(t.assigned_user_id, 0) = 0 AND (t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed') AND ((NOT $requiresGroupCond) OR $groupCond)))";
+$reassignedActivityCond = count($userDepartmentAliases) > 0
+    ? "EXISTS (SELECT 1 FROM ticket_activity ta WHERE ta.ticket_id = t.id AND ta.activity_type = 'department_change' AND (" . implode(' OR ', array_fill(0, count($userDepartmentAliases), "UPPER(ta.description) LIKE ?")) . "))"
+    : "0=1";
+$currentAssignmentCond = "((t.assigned_user_id = ? OR t.assigned_to = ?) OR (($requiresGroupCond) AND $groupCond))";
+$reassignedTaskCond = "(NOT $requesterIsCurrentCond AND $companyCond AND $reassignedActivityCond AND NOT $currentAssignmentCond)";
+
+$addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userCompanyNorm, $user_created_at, $userDepartmentAliases): void {
+    $params[] = (int) $user_id;
+    $types .= "i";
+    $params[] = (int) $user_id;
+    $types .= "i";
+    $params[] = (int) $user_id;
+    $types .= "i";
+    $params[] = strtolower((string) $user_email);
     $types .= "s";
-}
-if ($userCompanyNorm === '@leadsagri.com') {
-    $userCreatedAtValue = trim((string) $user_created_at);
-    if ($userCreatedAtValue !== '') {
-        $params[] = $userCreatedAtValue;
+    $params[] = (int) $user_id;
+    $types .= "i";
+    $params[] = strtolower((string) $user_email);
+    $types .= "s";
+    $params[] = strtolower((string) $user_email);
+    $types .= "s";
+    foreach ($companyAliases as $co) {
+        $params[] = $co;
         $types .= "s";
     }
-}
-foreach ($userDepartmentAliases as $departmentAlias) {
-    $params[] = $departmentAlias;
+    if ($userCompanyNorm === '@leadsagri.com') {
+        $userCreatedAtValue = trim((string) $user_created_at);
+        if ($userCreatedAtValue !== '') {
+            $params[] = $userCreatedAtValue;
+            $types .= "s";
+        }
+    }
+    foreach ($userDepartmentAliases as $departmentAlias) {
+        $params[] = $departmentAlias;
+        $types .= "s";
+    }
+};
+
+$addReassignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases): void {
+    $params[] = (int) $user_id;
+    $types .= "i";
+    $params[] = strtolower((string) $user_email);
     $types .= "s";
+    $params[] = strtolower((string) $user_email);
+    $types .= "s";
+    foreach ($companyAliases as $co) {
+        $params[] = $co;
+        $types .= "s";
+    }
+    foreach ($userDepartmentAliases as $departmentAlias) {
+        $params[] = '%FROM%' . strtoupper($departmentAlias) . '%TO%';
+        $types .= "s";
+    }
+    $params[] = (int) $user_id;
+    $types .= "i";
+    $params[] = (int) $user_id;
+    $types .= "i";
+    foreach ($userDepartmentAliases as $departmentAlias) {
+        $params[] = $departmentAlias;
+        $types .= "s";
+    }
+};
+
+if ($assignment_filter === 'assigned') {
+    $where[] = $assignedTaskCond;
+    $addAssignedTaskParams();
+} elseif ($assignment_filter === 'reassigned') {
+    $where[] = $reassignedTaskCond;
+    $addReassignedTaskParams();
+} else {
+    $where[] = "($assignedTaskCond OR $reassignedTaskCond)";
+    $addAssignedTaskParams();
+    $addReassignedTaskParams();
 }
 
 // 1. Search
@@ -450,7 +442,7 @@ if (!empty($where)) {
     $countSql .= " WHERE " . implode(" AND ", $where);
 }
 
-$sql .= " ORDER BY t.created_at DESC LIMIT ?, ?";
+$sql .= " ORDER BY CASE LOWER(TRIM(COALESCE(t.status, ''))) WHEN 'resolved' THEN 1 WHEN 'closed' THEN 2 ELSE 0 END ASC, t.created_at DESC LIMIT ?, ?";
 
 // --- GET TOTAL COUNT ---
 if (!empty($where)) {
@@ -1082,6 +1074,13 @@ $showing_to = min($offset + $limit, (int) $total_records);
                             </select>
                         </div>
 
+                        <div class="select-wrapper small">
+                            <select name="assignment_filter" class="filter-select" id="filterAssignment">
+                                <option value="assigned" <?= $assignment_filter === 'assigned' ? 'selected' : '' ?>>Assigned Tickets</option>
+                                <option value="reassigned" <?= $assignment_filter === 'reassigned' ? 'selected' : '' ?>>Reassigned Tickets</option>
+                            </select>
+                        </div>
+
                         <a href="my_task.php" class="clear-btn">Clear Filters</a>
                     </div>
                 </form>
@@ -1167,7 +1166,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 <div class="pagination-glass">
                     <div class="pagination-summary">Showing <?= number_format($showing_from) ?> - <?= number_format($showing_to) ?> of <?= number_format((int) $total_records) ?> tickets</div>
                     <?php if ($total_pages > 1): ?>
-                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>" 
+                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>&assignment_filter=<?= urlencode($assignment_filter); ?>" 
                        data-page="<?= max(1, $page - 1) ?>"
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
                         &lsaquo; Previous
@@ -1209,7 +1208,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                             <?php if ($pagination_item === 'ellipsis'): ?>
                                 <span class="pagination-ellipsis">...</span>
                             <?php else: ?>
-                                <a href="?page=<?= $pagination_item; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>"
+                                <a href="?page=<?= $pagination_item; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>&assignment_filter=<?= urlencode($assignment_filter); ?>"
                                    data-page="<?= $pagination_item ?>"
                                    class="page-btn <?= ($pagination_item == $page) ? 'active' : ''; ?>">
                                     <?= $pagination_item; ?>
@@ -1218,7 +1217,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                         <?php endforeach; ?>
                     </div>
 
-                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>" 
+                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>&assignment_filter=<?= urlencode($assignment_filter); ?>" 
                        data-page="<?= min($total_pages, $page + 1) ?>"
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
                         Next &rsaquo;
@@ -1408,6 +1407,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
         var filterDepartmentEl = document.getElementById('filterDepartment');
         var filterStatusEl = document.getElementById('filterStatus');
         var filterSlaEl = document.getElementById('filterSla');
+        var filterAssignmentEl = document.getElementById('filterAssignment');
 
         if (filterCompanyEl) {
             filterCompanyEl.addEventListener('change', function() {
@@ -1430,6 +1430,12 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
         if (filterSlaEl) {
             filterSlaEl.addEventListener('change', function() {
+                refreshTasks(1);
+            });
+        }
+
+        if (filterAssignmentEl) {
+            filterAssignmentEl.addEventListener('change', function() {
                 refreshTasks(1);
             });
         }
