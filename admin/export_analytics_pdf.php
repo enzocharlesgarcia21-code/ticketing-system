@@ -1,12 +1,13 @@
 <?php
-require_once '../config/database.php';
-require_once '../includes/user_permissions.php';
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/user_permissions.php';
+require_once __DIR__ . '/../includes/ticket_assignment.php';
 
 $analyticsExportViewMode = defined('TICKETING_ANALYTICS_EXPORT_VIEW_MODE') ? (string) TICKETING_ANALYTICS_EXPORT_VIEW_MODE : 'admin';
 $analyticsExportIsEmployeeView = $analyticsExportViewMode === 'employee';
 
 define('FPDF_FONTPATH', dirname(__DIR__) . '/vendor/fpdf/font/');
-require_once '../vendor/fpdf/fpdf.php';
+require_once __DIR__ . '/../vendor/fpdf/fpdf.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     die('Access Denied');

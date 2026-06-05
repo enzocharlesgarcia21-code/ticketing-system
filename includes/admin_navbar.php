@@ -888,11 +888,11 @@ body.admin-sidebar-preload .admin-nav-icon {
     position: relative;
     gap: 0;
     margin: 0;
-    padding: 16px 40px 16px 26px;
-    border: 0;
-    border-bottom: 1px solid #f1f5f9;
+    padding: 12px 40px 12px 24px;
+    border: 1px solid #fecaca;
+    border-width: 0 0 1px 0;
     border-radius: 0;
-    background: #ffffff;
+    background: linear-gradient(135deg, #fff7f7 0%, #fffafa 70%, #ffffff 100%);
     box-shadow: none;
     overflow: hidden;
 }
@@ -902,15 +902,19 @@ body.admin-sidebar-preload .admin-nav-icon {
     left: 0;
     top: 0;
     bottom: 0;
-    width: 5px;
+    width: 4px;
     border-radius: 0;
-    background: var(--notif-accent, #94a3b8);
+    background: #ff1f2d;
 }
 .notif-item.priority-escalation.priority-low::before { --notif-accent: #22c55e; }
 .notif-item.priority-escalation.priority-medium::before { --notif-accent: #eab308; }
 .notif-item.priority-escalation.priority-high::before { --notif-accent: #ef4444; }
 .notif-item.priority-escalation.priority-critical::before { --notif-accent: #E53935; }
 .notif-item.priority-escalation.variant-update::before { --notif-accent: #d4a017; }
+.notif-item.priority-escalation.unread .notif-unread-dot {
+    right: 20px;
+    background: #ff1f2d;
+}
 
 .notif-pill {
     display: inline-flex;
@@ -960,6 +964,27 @@ body.admin-sidebar-preload .admin-nav-icon {
 .notif-pill.variant-high {
     color: #ef4444;
     background: #fef2f2;
+}
+.notif-pill.notif-priority-breach-pill {
+    min-height: 24px;
+    border: 1px solid #ff3b45;
+    border-radius: 7px;
+    color: #ff2634;
+    background: #fff7f7;
+}
+.notif-pill.notif-priority-breach-pill .notif-pill-icon {
+    width: 28px;
+    height: 22px;
+    color: #ffffff;
+    background: #ff3b45;
+    border-right: 1px solid #ff3b45;
+    font-size: 13px;
+}
+.notif-pill.notif-priority-breach-pill .notif-pill-text {
+    padding: 0 8px;
+    font-size: 10px;
+    font-weight: 900;
+    white-space: nowrap;
 }
 .notif-pill.variant-note {
     color: #f59e0b;
@@ -1046,6 +1071,13 @@ body.admin-sidebar-preload .admin-nav-icon {
     gap: 6px;
     margin-bottom: 5px;
     flex-wrap: wrap;
+}
+.notif-item.priority-escalation .notif-title {
+    flex-wrap: wrap;
+}
+.notif-item.priority-escalation .notif-title-text {
+    font-size: 0.9rem;
+    font-weight: 800;
 }
 .notif-title-text {
     font-size: 0.92rem;
@@ -1617,8 +1649,13 @@ function fetchAdminNotifications() {
                         pillText = 'Reassigned';
                         pillIcon = 'fa-retweet';
                     }
+                    if (isPriorityEscalation && priorityKey === 'high') {
+                        pillText = escalationTransitionLabel(n.message) || 'At Risk -> Breach';
+                        pillIcon = 'fa-stopwatch';
+                    }
                     const unreadDotHtml = Number(n.is_read) === 0 ? '<span class="notif-unread-dot" aria-hidden="true"></span>' : '';
-                    const pillHtml = `<span class="notif-pill ${variantClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span>${isChatPending ? '' : `<span class="notif-pill-text">${escapeHtml(pillText)}</span>`}</span>`;
+                    const breachPillClass = isPriorityEscalation && priorityKey === 'high' ? 'notif-priority-breach-pill' : '';
+                    const pillHtml = `<span class="notif-pill ${variantClass} ${breachPillClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span>${isChatPending ? '' : `<span class="notif-pill-text">${escapeHtml(pillText)}</span>`}</span>`;
                     const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
                     
                     return `
@@ -1730,6 +1767,19 @@ function escalationPriorityFromMessage(message) {
     if (value === 'at risk') return 'medium';
     if (value === 'on track') return 'low';
     return value;
+}
+
+function escalationTransitionLabel(message) {
+    const match = String(message || '').match(/\bescalated\s+from\s+(on track|at risk|breach|critical|high|medium|low)\s+to\s+(on track|at risk|breach|critical|high|medium|low)\b/i);
+    if (!match) return '';
+    const label = (value) => {
+        const key = String(value || '').toLowerCase();
+        if (key === 'at risk') return 'At Risk';
+        if (key === 'breach') return 'Breach';
+        if (key === 'on track') return 'On Track';
+        return key.charAt(0).toUpperCase() + key.slice(1);
+    };
+    return `${label(match[1])} -> ${label(match[2])}`;
 }
 
 function highlightNotificationMessage(text) {

@@ -167,9 +167,22 @@ function analytics_allowed_categories_for_department(string $company, string $de
 
     $lapcDepartmentCategories = [
         'Admin & Legal' => [
+            'Fleetcard',
+            'Office Supplies',
+            'Temporary Vehicle',
+            'Office Supplies(HO,Warehouse Bulacan,Norza)',
+            'Repair Concern(HO)',
             'Phone Plan / Simcard',
             'FleetCard Request',
             'Supplies',
+        ],
+        'Diagnostics / Lingap' => [
+            'Medical consultations',
+            'Laboratory Request',
+            'Medicine Request',
+            'Back to work Clearance',
+            'Medical Reimbursement',
+            'Sick Leave Application/Request',
         ],
         'Institutional Sales (Bidding)' => [
             'Documentation',
@@ -200,6 +213,10 @@ function analytics_allowed_categories_for_department(string $company, string $de
             'SAP',
             'Software',
             'Technical Support',
+        ],
+        'Marketing' => [
+            'Marketing Operations',
+            'Channel & Campaigns',
         ],
         'Machineries' => [
             'Documentation',
@@ -926,6 +943,8 @@ if ($otherCompanyStmt) {
     $otherCompanyStmt->close();
 }
 
+$employeeMarketingChartDatasets = [];
+$employeeIsLapcMarketing = false;
 if ($analyticsIsEmployeeView) {
     $employeeCategoryLabels = [];
     $employeeCategoryCounts = [];
@@ -977,6 +996,9 @@ if ($analyticsIsEmployeeView) {
         $employeeCategoryParams[] = $status_filter;
         $employeeCategoryTypes .= "s";
     }
+    $employeeCategoryBaseWhere = $employeeCategoryWhere;
+    $employeeCategoryBaseParams = $employeeCategoryParams;
+    $employeeCategoryBaseTypes = $employeeCategoryTypes;
     $employeeAllowedCategories = analytics_allowed_categories_for_department($employeeCompanyRaw, $employeeDepartmentRaw);
     $employeeAllowedCategories = array_values(array_filter($employeeAllowedCategories, static function ($category) {
         return strcasecmp((string) $category, 'Technical Support') !== 0;
@@ -1024,6 +1046,90 @@ if ($analyticsIsEmployeeView) {
         $employeeCategoryCounts = array_map(static function ($category) use ($employeeCategoryCountMap) {
             return (int) ($employeeCategoryCountMap[(string) $category] ?? 0);
         }, $employeeCategoryLabels);
+    }
+
+    $employeeIsLapcMarketing = ticket_normalize_company($employeeCompanyRaw) === '@leadsagri.com'
+        && strcasecmp($employeeDepartmentRaw, 'Marketing') === 0;
+    if ($employeeIsLapcMarketing) {
+        $lapcMarketingSubcategoriesForAnalytics = [
+            'Marketing Operations' => [
+                'Promo materials',
+                'Samples',
+                'Product Return Request (RPRR)',
+                'Cash Advance (CA) update',
+                'Cash Advance Liquidation (CAL) update',
+                'Request for Cheque (RFC) payment update',
+                'Claims/ Incentive update - Distributor Programs',
+                'Claims / incentive update - Dealer Program',
+                'Claims/ incentive update - Farmer Program',
+                'Distributor enrollment update',
+                'Dealer enrollment update',
+                'Farmer enrollment update',
+                'Report update - Demand Creation Activities',
+                'Report update - Monthly Sales reports',
+                'Report update - Crop Status',
+                'Report update - Market Inventory Report',
+                'KAMI topics/ walk-thru',
+            ],
+            'Channel & Campaigns' => [
+                'Program update - Distributor',
+                'Program update - Dealer',
+                'Program update - Farmer',
+                'Pricing review/ adjustments',
+                'Special Projects - Jackpot All Stars',
+                'Special Projects - Farmasee Physical Stores',
+                'Regional facilitation concerns',
+            ],
+        ];
+        $metaTableExists = false;
+        $metaTableRes = $conn->query("SHOW TABLES LIKE 'ticket_request_meta'");
+        if ($metaTableRes instanceof mysqli_result) {
+            $metaTableExists = $metaTableRes->num_rows > 0;
+            $metaTableRes->free();
+        }
+        foreach ($lapcMarketingSubcategoriesForAnalytics as $marketingCategory => $requestTypes) {
+            $requestTypeCounts = [];
+            if ($metaTableExists) {
+                $marketingWhere = $employeeCategoryBaseWhere;
+                $marketingParams = $employeeCategoryBaseParams;
+                $marketingTypes = $employeeCategoryBaseTypes;
+                $marketingWhere[] = "t.category = ?";
+                $marketingParams[] = $marketingCategory;
+                $marketingTypes .= "s";
+                $marketingSql = "
+                    SELECT COALESCE(NULLIF(TRIM(m.meta_value), ''), 'Unspecified') AS request_type, COUNT(*) AS total
+                    FROM employee_tickets t
+                    JOIN users u ON t.user_id = u.id
+                    LEFT JOIN ticket_request_meta m ON m.ticket_id = t.id AND m.meta_key = 'marketing_subcategory'
+                    WHERE " . implode(" AND ", $marketingWhere) . "
+                    GROUP BY request_type
+                ";
+                $marketingStmt = $conn->prepare($marketingSql);
+                if ($marketingStmt) {
+                    $bind = [];
+                    $bind[] = $marketingTypes;
+                    foreach ($marketingParams as $k => $p) {
+                        $bind[] = &$marketingParams[$k];
+                    }
+                    call_user_func_array([$marketingStmt, 'bind_param'], $bind);
+                    $marketingStmt->execute();
+                    $marketingRes = $marketingStmt->get_result();
+                    while ($r = $marketingRes->fetch_assoc()) {
+                        $requestType = trim((string) ($r['request_type'] ?? ''));
+                        if ($requestType !== '') {
+                            $requestTypeCounts[$requestType] = (int) ($r['total'] ?? 0);
+                        }
+                    }
+                    $marketingStmt->close();
+                }
+            }
+            $employeeMarketingChartDatasets[$marketingCategory] = [
+                'labels' => array_values($requestTypes),
+                'counts' => array_map(static function ($requestType) use ($requestTypeCounts) {
+                    return (int) ($requestTypeCounts[(string) $requestType] ?? 0);
+                }, $requestTypes),
+            ];
+        }
     }
 
     $lapcDepartmentLabels = $employeeCategoryLabels;
@@ -1108,6 +1214,14 @@ $buildCompanyChartItems = static function (array $labels, array $counts) use ($c
 };
 $lapcDepartmentItems = $buildCompanyChartItems($lapcDepartmentLabels, $lapcDepartmentCounts);
 $otherCompanyItems = $buildCompanyChartItems($otherCompanyLabels, $otherCompanyCounts);
+$marketingOperationsItems = $buildCompanyChartItems(
+    (array) ($employeeMarketingChartDatasets['Marketing Operations']['labels'] ?? []),
+    (array) ($employeeMarketingChartDatasets['Marketing Operations']['counts'] ?? [])
+);
+$channelCampaignItems = $buildCompanyChartItems(
+    (array) ($employeeMarketingChartDatasets['Channel & Campaigns']['labels'] ?? []),
+    (array) ($employeeMarketingChartDatasets['Channel & Campaigns']['counts'] ?? [])
+);
 
 $buildCompanyChartDataset = static function (array $items, string $title, string $subtitle): array {
     return [
@@ -1132,7 +1246,24 @@ $companyChartDatasets = [
         $analyticsIsEmployeeView ? 'Scoped to your assigned department' : 'Non-LAPC company distribution'
     ),
 ];
+$marketingOperationsDataset = $buildCompanyChartDataset(
+    $marketingOperationsItems,
+    'Marketing Request Type Distribution',
+    'LAPC • Marketing Operations'
+);
+$channelCampaignDataset = $buildCompanyChartDataset(
+    $channelCampaignItems,
+    'Marketing Request Type Distribution',
+    'LAPC • Channel & Campaigns'
+);
+if ($employeeIsLapcMarketing) {
+    $companyChartDatasets['marketing_operations'] = $marketingOperationsDataset;
+    $companyChartDatasets['channel_campaigns'] = $channelCampaignDataset;
+}
 $companyLegendItems = $lapcDepartmentItems;
+if ($employeeIsLapcMarketing) {
+    $companyLegendItems = $marketingOperationsItems;
+}
 $companyChartTotal = array_sum(array_column($companyLegendItems, 'count'));
 foreach ($companyLegendItems as $idx => $item) {
     $companyLegendItems[$idx]['percent'] = $companyChartTotal > 0 ? round(((int) $item['count'] / $companyChartTotal) * 100) : 0;
@@ -1390,6 +1521,9 @@ if ($ticketsStmt) {
             gap: 12px;
             align-items: end;
         }
+        body.employee-analytics-page .analytics-filters {
+            grid-template-columns: 1.45fr 1.2fr 1fr minmax(300px, 420px);
+        }
         .analytics-filter {
             display: flex;
             flex-direction: column;
@@ -1410,6 +1544,30 @@ if ($ticketsStmt) {
             color: #64748b;
             font-weight: 700;
             line-height: 1.35;
+        }
+        .analytics-export-filter {
+            align-self: end;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+            margin-left: auto;
+            justify-self: end;
+            width: min(100%, 420px);
+        }
+        .analytics-export-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .analytics-export-note {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.35;
+            text-align: right;
         }
         body.employee-analytics-page .analytics-toolbar,
         body.employee-analytics-page .analytics-card,
@@ -2301,6 +2459,9 @@ if ($ticketsStmt) {
             .analytics-filters {
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
+            body.employee-analytics-page .analytics-filters {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
             .analytics-charts {
                 grid-template-columns: 1fr;
             }
@@ -2321,6 +2482,12 @@ if ($ticketsStmt) {
             }
             .analytics-filters {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .analytics-export-actions {
+                justify-content: flex-start;
+            }
+            .analytics-export-note {
+                text-align: left;
             }
             .trend-card .chart-header,
             .trend-overview-card {
@@ -2351,6 +2518,9 @@ if ($ticketsStmt) {
             .analytics-header-actions {
                 width: 100%;
                 justify-content: flex-start;
+            }
+            .analytics-export-filter {
+                align-self: stretch;
             }
             .analytics-metrics {
                 grid-template-columns: 1fr;
@@ -2453,33 +2623,35 @@ if ($ticketsStmt) {
 
     <div class="admin-container">
         <div class="admin-content">
+            <?php
+                $analyticsPdfHref = ($analyticsIsEmployeeView ? 'export_analytics_pdf.php' : 'export_analytics_pdf.php')
+                    . '?start_date=' . urlencode($start_date)
+                    . '&end_date=' . urlencode($end_date)
+                    . '&category=' . urlencode($category_filter)
+                    . '&company=' . urlencode($company_filter)
+                    . '&department=' . urlencode($department_filter)
+                    . '&status=' . urlencode($status_filter);
+                $analyticsExcelHref = ($analyticsIsEmployeeView ? 'export_analytics_excel.php' : 'export_analytics_excel.php')
+                    . '?start_date=' . urlencode($start_date)
+                    . '&end_date=' . urlencode($end_date)
+                    . '&category=' . urlencode($category_filter)
+                    . '&company=' . urlencode($company_filter)
+                    . '&department=' . urlencode($department_filter)
+                    . '&status=' . urlencode($status_filter);
+            ?>
             
             <div class="admin-page-header">
                 <h1 class="admin-page-title analytics-title"><i class="fa-solid fa-chart-line"></i> Analytics</h1>
-                <div class="analytics-header-actions">
-                    <?php
-                        $analyticsPdfHref = ($analyticsIsEmployeeView ? 'export_analytics_pdf.php' : 'export_analytics_pdf.php')
-                            . '?start_date=' . urlencode($start_date)
-                            . '&end_date=' . urlencode($end_date)
-                            . '&category=' . urlencode($category_filter)
-                            . '&company=' . urlencode($company_filter)
-                            . '&department=' . urlencode($department_filter)
-                            . '&status=' . urlencode($status_filter);
-                        $analyticsExcelHref = ($analyticsIsEmployeeView ? 'export_analytics_excel.php' : 'export_analytics_excel.php')
-                            . '?start_date=' . urlencode($start_date)
-                            . '&end_date=' . urlencode($end_date)
-                            . '&category=' . urlencode($category_filter)
-                            . '&company=' . urlencode($company_filter)
-                            . '&department=' . urlencode($department_filter)
-                            . '&status=' . urlencode($status_filter);
-                    ?>
-                    <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">
-                        <i class="fa-regular fa-file-pdf"></i> PDF
-                    </a>
-                    <a href="<?= htmlspecialchars($analyticsExcelHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-excel" target="_blank">
-                        <i class="fa-regular fa-file-excel"></i> Excel
-                    </a>
-                </div>
+                <?php if (!$analyticsIsEmployeeView): ?>
+                    <div class="analytics-header-actions">
+                        <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">
+                            <i class="fa-regular fa-file-pdf"></i> PDF
+                        </a>
+                        <a href="<?= htmlspecialchars($analyticsExcelHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-excel" target="_blank">
+                            <i class="fa-regular fa-file-excel"></i> Excel
+                        </a>
+                    </div>
+                <?php endif; ?>
             </div>
 
             <div class="analytics-toolbar">
@@ -2539,6 +2711,19 @@ if ($ticketsStmt) {
                                 <a href="<?= htmlspecialchars(basename($_SERVER['PHP_SELF']), ENT_QUOTES, 'UTF-8') ?>" class="analytics-inline-clear">Clear</a>
                             </div>
                         </div>
+                        <?php if ($analyticsIsEmployeeView): ?>
+                            <div class="analytics-export-filter">
+                                <div class="analytics-export-actions">
+                                    <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">
+                                        <i class="fa-regular fa-file-pdf"></i> PDF
+                                    </a>
+                                    <a href="<?= htmlspecialchars($analyticsExcelHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-excel" target="_blank">
+                                        <i class="fa-regular fa-file-excel"></i> Excel
+                                    </a>
+                                </div>
+                                <div class="analytics-export-note">Select a date range first before generating PDF or Excel files.</div>
+                            </div>
+                        <?php endif; ?>
                     </div>
 
                 </form>
@@ -2601,10 +2786,15 @@ if ($ticketsStmt) {
                 <div class="chart-card category-card">
                     <div class="chart-header">
                         <div class="chart-heading">
-                            <div class="chart-title" id="companyChartTitle"><?= $analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company' ?></div>
-                            <p class="chart-subtitle" id="companyChartSubtitle"><?= htmlspecialchars($analyticsIsEmployeeView ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department', ENT_QUOTES, 'UTF-8') ?></p>
+                            <div class="chart-title" id="companyChartTitle"><?= $employeeIsLapcMarketing ? 'Marketing Request Type Distribution' : ($analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company') ?></div>
+                            <p class="chart-subtitle" id="companyChartSubtitle"><?= htmlspecialchars($employeeIsLapcMarketing ? 'LAPC • Marketing Operations' : ($analyticsIsEmployeeView ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department'), ENT_QUOTES, 'UTF-8') ?></p>
                         </div>
-                        <?php if (!$analyticsIsEmployeeView): ?>
+                        <?php if ($employeeIsLapcMarketing): ?>
+                        <div class="company-chart-toggle" aria-label="Marketing request type view">
+                            <button type="button" class="company-chart-toggle-btn active" data-company-view="marketing_operations" aria-pressed="true">Marketing Operations</button>
+                            <button type="button" class="company-chart-toggle-btn" data-company-view="channel_campaigns" aria-pressed="false">Channel &amp; Campaigns</button>
+                        </div>
+                        <?php elseif (!$analyticsIsEmployeeView): ?>
                         <div class="company-chart-toggle" aria-label="Tickets per company view">
                             <button type="button" class="company-chart-toggle-btn active" data-company-view="lapc" aria-pressed="true">LAPC</button>
                             <button type="button" class="company-chart-toggle-btn" data-company-view="other" aria-pressed="false">Other Companies</button>
@@ -2932,7 +3122,8 @@ if ($ticketsStmt) {
     const textColor = '#7b8798';
     const gridColor = '#e7edf5';
     const companyChartDatasets = <?= json_encode($companyChartDatasets) ?>;
-    let activeCompanyChartData = companyChartDatasets.lapc || { title: <?= json_encode($analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company') ?>, subtitle: <?= json_encode($analyticsIsEmployeeView ? 'Categories in your assigned department' : 'LAPC tickets by department') ?>, labels: [], counts: [], colors: [] };
+    const initialCompanyChartView = <?= json_encode($employeeIsLapcMarketing ? 'marketing_operations' : 'lapc') ?>;
+    let activeCompanyChartData = companyChartDatasets[initialCompanyChartView] || companyChartDatasets.lapc || { title: <?= json_encode($analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company') ?>, subtitle: <?= json_encode($analyticsIsEmployeeView ? 'Categories in your assigned department' : 'LAPC tickets by department') ?>, labels: [], counts: [], colors: [] };
 
     function companyChartTotal(data) {
         return (data.counts || []).reduce(function(sum, value) { return sum + (Number(value) || 0); }, 0);
@@ -3059,7 +3250,7 @@ if ($ticketsStmt) {
                 setCompanyChartView(button.getAttribute('data-company-view'));
             });
         });
-        setCompanyChartView('lapc');
+        setCompanyChartView(initialCompanyChartView);
     })();
 
     const trendCtx = document.getElementById('trendChart').getContext('2d');
