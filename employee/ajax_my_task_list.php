@@ -102,7 +102,6 @@ $department = trim((string) ($_GET['department'] ?? ''));
 $company_email = trim((string) ($_GET['company_email'] ?? ''));
 $status = trim((string) ($_GET['status'] ?? ''));
 $sla = trim((string) ($_GET['sla'] ?? ''));
-$assignment_filter = trim((string) ($_GET['assignment_filter'] ?? 'assigned'));
 $page = (int) ($_GET['page'] ?? 1);
 $limit = (int) ($_GET['limit'] ?? 10);
 if ($page < 1) $page = 1;
@@ -137,7 +136,6 @@ if (!array_key_exists($company_email, $allowed_departments_by_company) || !in_ar
 if (!array_key_exists($company_email, $company_filter_options)) $company_email = '';
 if (!in_array($status, $allowed_statuses, true)) $status = '';
 if (!in_array($sla, $allowed_slas, true) && !in_array($sla, ['Low', 'Medium', 'High'], true)) $sla = '';
-if (!in_array($assignment_filter, ['assigned', 'reassigned'], true)) $assignment_filter = 'assigned';
 
 $userCompanyNorm = ticket_normalize_company((string) $user_company);
 
@@ -205,6 +203,15 @@ $companyAliases = company_aliases_ajax((string) $user_company);
 if (count($companyAliases) === 0) {
     $companyAliases = [(string) $user_company];
 }
+$reassignedHistoryAliases = $companyAliases;
+$userCompanyDisplay = ticket_company_display_name((string) $user_company);
+if ($userCompanyDisplay !== '') {
+    $reassignedHistoryAliases[] = $userCompanyDisplay;
+}
+$userCompanyCode = company_code_ajax((string) $userCompanyDisplay);
+if ($userCompanyCode !== '') {
+    $reassignedHistoryAliases[] = $userCompanyCode;
+}
 $userDepartmentKey = ticket_department_key_from_value((string) $user_department);
 $userDepartmentAliases = [];
 foreach (array_merge([(string) $user_department, $userDepartmentKey], ticket_department_aliases_for_key($userDepartmentKey)) as $departmentAlias) {
@@ -214,6 +221,11 @@ foreach (array_merge([(string) $user_department, $userDepartmentKey], ticket_dep
     }
 }
 $userDepartmentAliases = array_values($userDepartmentAliases);
+$reassignedHistoryAliases = array_values(array_unique(array_filter(array_map(static function ($value) {
+    return strtoupper(trim((string) $value));
+}, array_merge($reassignedHistoryAliases, $userDepartmentAliases)), static function ($value) {
+    return $value !== '';
+})));
 $companyCol = "COALESCE(NULLIF(t.assigned_company, ''), t.company)";
 $companyAliases = array_values(array_filter(array_map('trim', $companyAliases), static function ($v) { return $v !== ''; }));
 $companyAliasCond = count($companyAliases) > 0
@@ -239,8 +251,8 @@ if ($userCompanyNorm === '@leadsagri.com') {
 }
 
 $assignedTaskCond = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND $lapcSharedCreatedCond AND COALESCE(t.assigned_user_id, 0) = 0 AND (t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed') AND ((NOT $requiresGroupCond) OR $groupCond)))";
-$reassignedActivityCond = count($userDepartmentAliases) > 0
-    ? "EXISTS (SELECT 1 FROM ticket_activity ta WHERE ta.ticket_id = t.id AND ta.activity_type = 'department_change' AND (" . implode(' OR ', array_fill(0, count($userDepartmentAliases), "UPPER(ta.description) LIKE ?")) . "))"
+$reassignedActivityCond = count($reassignedHistoryAliases) > 0
+    ? "EXISTS (SELECT 1 FROM ticket_activity ta WHERE ta.ticket_id = t.id AND ta.activity_type IN ('department_change', 'company_change') AND (" . implode(' OR ', array_fill(0, count($reassignedHistoryAliases), "UPPER(ta.description) LIKE ?")) . "))"
     : "0=1";
 $reassignedNotificationCond = "EXISTS (
     SELECT 1
@@ -250,8 +262,7 @@ $reassignedNotificationCond = "EXISTS (
       AND n.type = 'dept_assigned'
       AND COALESCE(NULLIF(LOWER(TRIM(n.action_type)), ''), 'assign') IN ('assign', 'reassign')
 )";
-$currentAssignmentCond = "((t.assigned_user_id = ? OR t.assigned_to = ?) OR (($requiresGroupCond) AND $groupCond))";
-$reassignedTaskCond = "(NOT $requesterIsCurrentCond AND (($reassignedActivityCond) OR $reassignedNotificationCond) AND NOT $currentAssignmentCond)";
+$reassignedTaskCond = "(NOT $requesterIsCurrentCond AND (($reassignedActivityCond) OR $reassignedNotificationCond))";
 
 $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userCompanyNorm, $user_created_at, $userDepartmentAliases): void {
     $params[] = $user_id;
@@ -285,38 +296,22 @@ $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $u
     }
 };
 
-$addReassignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $userDepartmentAliases): void {
+$addReassignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $reassignedHistoryAliases, $userDepartmentAliases): void {
     $params[] = $user_id;
     $types .= "i";
     $params[] = strtolower((string) $user_email);
     $types .= "s";
-    foreach ($userDepartmentAliases as $departmentAlias) {
-        $params[] = '%FROM%' . strtoupper($departmentAlias) . '%TO%';
+    foreach ($reassignedHistoryAliases as $historyAlias) {
+        $params[] = '%' . strtoupper($historyAlias) . '%';
         $types .= "s";
     }
     $params[] = $user_id;
     $types .= "i";
-    $params[] = $user_id;
-    $types .= "i";
-    $params[] = $user_id;
-    $types .= "i";
-    foreach ($userDepartmentAliases as $departmentAlias) {
-        $params[] = $departmentAlias;
-        $types .= "s";
-    }
 };
 
-if ($assignment_filter === 'assigned') {
-    $where[] = $assignedTaskCond;
-    $addAssignedTaskParams();
-} elseif ($assignment_filter === 'reassigned') {
-    $where[] = $reassignedTaskCond;
-    $addReassignedTaskParams();
-} else {
-    $where[] = "($assignedTaskCond OR $reassignedTaskCond)";
-    $addAssignedTaskParams();
-    $addReassignedTaskParams();
-}
+$where[] = "($assignedTaskCond OR $reassignedTaskCond)";
+$addAssignedTaskParams();
+$addReassignedTaskParams();
 
 if ($search !== '') {
     $term = "%$search%";
