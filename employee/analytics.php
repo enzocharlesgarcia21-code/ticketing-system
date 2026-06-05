@@ -51,6 +51,150 @@ body.employee-analytics-page .trend-delta-badge {
     justify-content: normal;
 }
 
+body.employee-analytics-page .category-card .chart-header {
+    gap: 10px;
+}
+
+body.employee-analytics-page .category-card .chart-heading {
+    flex: 1 1 auto;
+    min-width: 110px;
+}
+
+body.employee-analytics-page .category-card .company-chart-toggle {
+    gap: 3px;
+    padding: 3px;
+    border-radius: 10px;
+}
+
+body.employee-analytics-page .category-card .company-chart-toggle-btn {
+    min-height: 28px;
+    padding: 0 8px;
+    border-radius: 7px;
+    font-size: 11px;
+    line-height: 1.1;
+    max-width: 102px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.employee-analytics-page .category-card .company-chart-toggle.is-dropdown-mode {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    max-width: 178px;
+    position: relative;
+}
+
+body.employee-analytics-page .category-card .company-chart-toggle.is-dropdown-mode .company-chart-toggle-btn {
+    display: none;
+}
+
+body.employee-analytics-page .employee-marketing-chart-select {
+    width: 178px;
+    min-height: 36px;
+    padding: 0 34px 0 12px;
+    border: 1px solid #dbe3ef;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #1f2937;
+    font-size: 12px;
+    font-weight: 800;
+    outline: none;
+}
+
+body.employee-analytics-page .employee-marketing-chart-select:focus {
+    border-color: #1B5E20;
+    box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.12);
+}
+
+body.employee-analytics-page .employee-marketing-chart-dropdown {
+    position: relative;
+    width: 178px;
+}
+
+body.employee-analytics-page .employee-marketing-chart-trigger {
+    width: 100%;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 10px 0 12px;
+    border: 1px solid #73a66f;
+    border-radius: 9px;
+    background: #ffffff;
+    color: #243043;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.15;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+body.employee-analytics-page .employee-marketing-chart-trigger:hover,
+body.employee-analytics-page .employee-marketing-chart-trigger:focus-visible,
+body.employee-analytics-page .employee-marketing-chart-dropdown.is-open .employee-marketing-chart-trigger {
+    outline: none;
+    border-color: #1B5E20;
+    box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.12);
+}
+
+body.employee-analytics-page .employee-marketing-chart-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.employee-analytics-page .employee-marketing-chart-caret {
+    flex: 0 0 auto;
+    color: #334155;
+    font-size: 10px;
+}
+
+body.employee-analytics-page .employee-marketing-chart-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 90;
+    display: none;
+    padding: 5px;
+    border: 1px solid #d6e2d4;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.14);
+}
+
+body.employee-analytics-page .employee-marketing-chart-dropdown.is-open .employee-marketing-chart-menu {
+    display: block;
+}
+
+body.employee-analytics-page .employee-marketing-chart-option {
+    width: 100%;
+    min-height: 30px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #243043;
+    padding: 0 9px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+body.employee-analytics-page .employee-marketing-chart-option:hover,
+body.employee-analytics-page .employee-marketing-chart-option:focus-visible {
+    outline: none;
+    background: #eef7ef;
+}
+
+body.employee-analytics-page .employee-marketing-chart-option.is-selected {
+    background: #e8f5e9;
+    color: #14532d;
+}
+
 body.employee-analytics-page .table-card {
     padding: 18px 24px 20px;
     overflow: hidden;
@@ -202,6 +346,21 @@ body.employee-analytics-page .task-ticket-arrow {
         padding: 20px;
     }
 
+    body.employee-analytics-page .category-card .company-chart-toggle {
+        max-width: none;
+        width: 100%;
+    }
+
+    body.employee-analytics-page .employee-marketing-chart-select,
+    body.employee-analytics-page .employee-marketing-chart-dropdown {
+        width: 100%;
+    }
+
+    body.employee-analytics-page .category-card .company-chart-toggle-btn {
+        max-width: none;
+        font-size: 11px;
+    }
+
     body.employee-analytics-page .table-card {
         padding: 14px;
     }
@@ -213,6 +372,108 @@ body.employee-analytics-page .task-ticket-arrow {
     }
 }
 </style>
+HTML;
+
+$employeeMarketingChartDropdown = <<<'HTML'
+<script id="employeeMarketingChartDropdown">
+document.addEventListener('DOMContentLoaded', function () {
+    var marketingButton = document.querySelector('.company-chart-toggle-btn[data-company-view="marketing_operations"]');
+    var channelButton = document.querySelector('.company-chart-toggle-btn[data-company-view="channel_campaigns"]');
+    if (!marketingButton || !channelButton) return;
+
+    var toggle = marketingButton.closest('.company-chart-toggle');
+    if (!toggle || toggle.querySelector('.employee-marketing-chart-dropdown')) return;
+
+    toggle.classList.add('is-dropdown-mode');
+
+    var options = [
+        { value: 'marketing_operations', label: 'Marketing Operations' },
+        { value: 'channel_campaigns', label: 'Channel & Campaigns' }
+    });
+
+    var dropdown = document.createElement('div');
+    dropdown.className = 'employee-marketing-chart-dropdown';
+
+    var trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'employee-marketing-chart-trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+
+    var label = document.createElement('span');
+    label.className = 'employee-marketing-chart-label';
+
+    var caret = document.createElement('span');
+    caret.className = 'employee-marketing-chart-caret';
+    caret.setAttribute('aria-hidden', 'true');
+    caret.textContent = '▾';
+
+    trigger.appendChild(label);
+    trigger.appendChild(caret);
+
+    var menu = document.createElement('div');
+    menu.className = 'employee-marketing-chart-menu';
+    menu.setAttribute('role', 'listbox');
+
+    function getActiveValue() {
+        return channelButton.classList.contains('active') ? 'channel_campaigns' : 'marketing_operations';
+    }
+
+    function setOpen(isOpen) {
+        dropdown.classList.toggle('is-open', isOpen);
+        trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+
+    function syncSelected() {
+        var activeValue = getActiveValue();
+        var activeOption = options.find(function(optionConfig) {
+            return optionConfig.value === activeValue;
+        }) || options[0];
+        label.textContent = activeOption.label;
+        Array.from(menu.querySelectorAll('.employee-marketing-chart-option')).forEach(function(optionButton) {
+            var isSelected = optionButton.getAttribute('data-value') === activeValue;
+            optionButton.classList.toggle('is-selected', isSelected);
+            optionButton.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        });
+    }
+
+    options.forEach(function(optionConfig) {
+        var optionButton = document.createElement('button');
+        optionButton.type = 'button';
+        optionButton.className = 'employee-marketing-chart-option';
+        optionButton.setAttribute('data-value', optionConfig.value);
+        optionButton.setAttribute('role', 'option');
+        optionButton.textContent = optionConfig.label;
+        optionButton.addEventListener('click', function() {
+            var target = optionConfig.value === 'channel_campaigns' ? channelButton : marketingButton;
+            target.click();
+            setOpen(false);
+            syncSelected();
+        });
+        menu.appendChild(optionButton);
+    });
+
+    trigger.addEventListener('click', function () {
+        setOpen(!dropdown.classList.contains('is-open'));
+    });
+
+    document.addEventListener('click', function(event) {
+        if (dropdown.contains(event.target)) return;
+        setOpen(false);
+    });
+
+    dropdown.appendChild(trigger);
+    dropdown.appendChild(menu);
+    toggle.appendChild(dropdown);
+    syncSelected();
+
+    [marketingButton, channelButton].forEach(function(button) {
+        button.addEventListener('click', function() {
+            window.setTimeout(syncSelected, 0);
+        });
+    });
+});
+</script>
 HTML;
 
 $analyticsHtml = str_replace(
@@ -241,6 +502,12 @@ if (stripos($analyticsHtml, '</head>') !== false) {
     $analyticsHtml = preg_replace('/<\/head>/i', $employeeAnalyticsAdminParity . "\n</head>", $analyticsHtml, 1);
 } else {
     $analyticsHtml = $employeeAnalyticsAdminParity . "\n" . $analyticsHtml;
+}
+
+if (stripos($analyticsHtml, '</body>') !== false) {
+    $analyticsHtml = preg_replace('/<\/body>/i', $employeeMarketingChartDropdown . "\n</body>", $analyticsHtml, 1);
+} else {
+    $analyticsHtml .= "\n" . $employeeMarketingChartDropdown;
 }
 
 echo $analyticsHtml;
