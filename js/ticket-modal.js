@@ -2487,7 +2487,7 @@ var TMTicketModal = (function () {
     var isReassignedViewOnly = !!(data && data.reassigned_view_only === true);
     if (isReassignedViewOnly) {
       hideUpdateTab = true;
-      hideConversationTab = true;
+      hideConversationTab = !canViewChatHistory;
     }
     var showClaimButton = !!(data && data.can_claim_ticket === true);
     var hideAdminConversationButton = hideRequesterAdminChatButton || isSalesTicket;
@@ -2539,7 +2539,7 @@ var TMTicketModal = (function () {
         || (currentName !== '' && (currentName === assignedToName || currentName === assigneeName));
     }
     if (isReassignedViewOnly) {
-      hideConversationTab = true;
+      hideConversationTab = !canViewChatHistory;
     }
     var statusControlHtml = '';
     if (isRequesterPOV) {
@@ -4866,7 +4866,7 @@ var TMTicketModal = (function () {
           modalContent.innerHTML = buildFallbackHtml(data);
         }
         try {
-          if (data && data.id != null && data.reassigned_view_only !== true) {
+          if (data && data.id != null && (data.reassigned_view_only !== true || data.can_view_chat_history === true)) {
             var tabsEl = modalContent.querySelector('.tm-tabs');
             var existingConversationTab = tabsEl ? tabsEl.querySelector('.tm-tab[data-tab="conversation"]') : null;
             if (tabsEl && !existingConversationTab) {

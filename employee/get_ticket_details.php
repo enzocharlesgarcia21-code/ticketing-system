@@ -148,6 +148,71 @@ function unavailable_assigned_staff_label(array $ticketData): string
     return $handlerName;
 }
 
+function ticket_user_has_reassignment_history(mysqli $conn, int $ticketId, int $userId, array $departmentAliases): bool
+{
+    if ($ticketId <= 0 || $userId <= 0) {
+        return false;
+    }
+
+    $notifStmt = $conn->prepare("
+        SELECT 1
+        FROM notifications
+        WHERE ticket_id = ?
+          AND user_id = ?
+          AND type = 'dept_assigned'
+          AND COALESCE(NULLIF(LOWER(TRIM(action_type)), ''), 'assign') IN ('assign', 'reassign')
+        LIMIT 1
+    ");
+    if ($notifStmt) {
+        $notifStmt->bind_param("ii", $ticketId, $userId);
+        $notifStmt->execute();
+        $notifRes = $notifStmt->get_result();
+        $hasNotification = (bool) ($notifRes && $notifRes->fetch_row());
+        $notifStmt->close();
+        if ($hasNotification) {
+            return true;
+        }
+    }
+
+    $aliases = array_values(array_filter(array_unique(array_map('trim', $departmentAliases)), static function ($value) {
+        return $value !== '';
+    }));
+    if (count($aliases) === 0) {
+        return false;
+    }
+
+    $whereParts = implode(' OR ', array_fill(0, count($aliases), "UPPER(description) LIKE ?"));
+    $activityStmt = $conn->prepare("
+        SELECT 1
+        FROM ticket_activity
+        WHERE ticket_id = ?
+          AND activity_type IN ('department_change', 'company_change')
+          AND ($whereParts)
+        LIMIT 1
+    ");
+    if (!$activityStmt) {
+        return false;
+    }
+
+    $params = [$ticketId];
+    $types = 'i';
+    foreach ($aliases as $alias) {
+        $params[] = '%' . strtoupper($alias) . '%';
+        $types .= 's';
+    }
+    $bind = [$types];
+    foreach ($params as $idx => $param) {
+        $bind[] = &$params[$idx];
+    }
+    call_user_func_array([$activityStmt, 'bind_param'], $bind);
+    $activityStmt->execute();
+    $activityRes = $activityStmt->get_result();
+    $hasActivity = (bool) ($activityRes && $activityRes->fetch_row());
+    $activityStmt->close();
+
+    return $hasActivity;
+}
+
 function ticket_attachment_is_image(string $filename): bool
 {
     $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
@@ -411,7 +476,7 @@ if ($checkResult->num_rows > 0) {
     $ticketData = $checkResult->fetch_assoc();
     $isRequester = isset($ticketData['user_id']) && (int) $ticketData['user_id'] === $currentUserId;
     $assigneeOk = isset($ticketData['assigned_user_id']) && (int) $ticketData['assigned_user_id'] === (int) $_SESSION['user_id'];
-    $ticketAssignedCompany = (string) ($ticketData['assigned_company'] ?? '');
+    $ticketAssignedCompany = (string) (($ticketData['assigned_company'] ?? '') !== '' ? $ticketData['assigned_company'] : ($ticketData['company'] ?? ''));
     $companyOk = ticket_company_matches_user($ticketAssignedCompany, (string) $company, (string) $userEmail);
     $ticketGroup = (string) ($ticketData['assigned_group'] ?? ($ticketData['assigned_department'] ?? ''));
     $ticketGroupKey = ticket_department_key_from_value($ticketGroup);
@@ -419,7 +484,15 @@ if ($checkResult->num_rows > 0) {
         ($deptKey !== '' && $ticketGroupKey !== '' && $ticketGroupKey === $deptKey)
         || in_array(strtoupper(trim($ticketGroup)), $deptAliases, true)
     );
-    $reassignedViewOnlyAccess = !$isRequester && ($assigneeOk || $companyOk);
+    $historyAliases = $deptAliases;
+    foreach (company_aliases((string) $company) as $companyAlias) {
+        $companyAlias = strtoupper(trim((string) $companyAlias));
+        if ($companyAlias !== '') {
+            $historyAliases[] = $companyAlias;
+        }
+    }
+    $reassignedHistoryAccess = ticket_user_has_reassignment_history($conn, $id, $currentUserId, $historyAliases);
+    $reassignedViewOnlyAccess = !$isRequester && ($assigneeOk || $companyOk || $reassignedHistoryAccess);
 }
 
 $sql = "
@@ -561,7 +634,7 @@ if ($row = $result->fetch_assoc()) {
                 $row['reassigned_banner_heading'] = 'Ticket Reassigned';
                 $row['reassigned_title'] = 'This ticket has been reassigned to ' . $targetLabel . '.';
             }
-            $row['reassigned_message'] = 'You can still view the ticket details, but you can no longer respond or access the chat.';
+            $row['reassigned_message'] = 'You can still view the ticket details and chat history, but you can no longer respond.';
             $row['can_update_tab'] = false;
             $row['can_claim_ticket'] = false;
         } else {
@@ -584,7 +657,7 @@ if ($row = $result->fetch_assoc()) {
         || ((int) ($row['assigned_to'] ?? 0) === $currentUserId)
         || ((int) ($row['assigned_user_id'] ?? 0) === $currentUserId)
     );
-    $row['can_view_chat_history'] = empty($row['reassigned_view_only']) && ($chatClosedMessage === '' || $canViewClosedChat);
+    $row['can_view_chat_history'] = !empty($row['reassigned_view_only']) || ($chatClosedMessage === '' || $canViewClosedChat);
     $row['can_chat'] = empty($row['reassigned_view_only']) && $chatClosedMessage === '' && ticket_user_can_chat($row, $currentUserId, $userContext);
     $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
     $row['assigned_to_name'] = isset($row['assigned_to_name']) ? (string) $row['assigned_to_name'] : '';

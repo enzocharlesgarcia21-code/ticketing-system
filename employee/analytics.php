@@ -51,6 +51,17 @@ body.employee-analytics-page .trend-delta-badge {
     justify-content: normal;
 }
 
+body.employee-analytics-page .assignee-card .assignee-list {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+body.employee-analytics-page .assignee-card .assignee-total-pill {
+    margin-top: 0;
+}
+
 body.employee-analytics-page .category-card .chart-header {
     gap: 10px;
 }
