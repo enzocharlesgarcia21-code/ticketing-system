@@ -23,6 +23,7 @@ $request_subject_title = '';
 $hr_concern_type = '';
 $priority_selected = '';
 $assigned_department_selected = '';
+$admin_legal_request_for = '';
 $lapcDepartments = ticket_receiving_available_departments($conn, '@leadsagri.com');
 $mhcDepartments = ticket_receiving_available_departments($conn, '@malvedaholdings.com');
 $defaultCategories = ['Hardware', 'Software', 'Documentation', 'Email', 'Internet Concerns', 'Procurement'];
@@ -30,6 +31,11 @@ $mpdcCategories = ['Engineerings', 'Client Based'];
 $lingapCategories = ['Lakbay Kalusugan Request (Medical Mission)'];
 $lapcDepartmentCategories = [
     'Admin & Legal' => [
+        'Fleetcard',
+        'Office Supplies',
+        'Termporary Vehicle',
+        'Office Supplies(HO,Warehouse Bulacan,Norza)',
+        'Repair Concern(HO)',
         'Phone Plan / Simcard',
         'FleetCard Request',
         'Supplies',
@@ -91,6 +97,22 @@ $lapcDepartmentCategories = [
         'Certificate of Authorized Dealer',
         'Updated Label',
         'Product Presentations',
+    ],
+];
+$lapcAdminLegalRequestCategories = [
+    'Aimi Bing Santos (Bing)' => [
+        'Fleetcard',
+        'Office Supplies',
+        'Termporary Vehicle',
+    ],
+    'Ace Loui Rosal (Ace)' => [
+        'Office Supplies(HO,Warehouse Bulacan,Norza)',
+        'Repair Concern(HO)',
+    ],
+    'Cherry Jane Cabote (CJ)' => [
+        'Phone Plan / Simcard',
+        'FleetCard Request',
+        'Supplies',
     ],
 ];
 $mhcDepartmentCategories = [
@@ -535,6 +557,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email      = trim((string)($_POST['email'] ?? ''));
     $company_id = trim((string)($_POST['company_id'] ?? ''));
     $assigned_department_selected = trim((string)($_POST['assigned_department'] ?? ''));
+    $admin_legal_request_for = trim((string)($_POST['admin_legal_request_for'] ?? ''));
     $allowed_categories = $defaultCategories;
     $category   = trim((string)($_POST['category'] ?? ''));
     $description = trim((string)($_POST['description'] ?? ''));
@@ -622,6 +645,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $isLapcItEmailRequest = ($isLapcItRecipient && $category === 'Email');
     $isLapcItSapRequest = ($isLapcItRecipient && $category === 'SAP');
     $isLapcMarketingTicket = ($isLapcRecipient && $assigned_department_selected === 'Marketing' && ($category === 'Marketing Operations' || $category === 'Channel & Campaigns'));
+    $isLapcAdminLegalRecipient = ($isLapcRecipient && $assigned_department_selected === 'Admin & Legal');
+    if ($isLapcAdminLegalRecipient && isset($lapcAdminLegalRequestCategories[$admin_legal_request_for])) {
+        $allowed_categories = $lapcAdminLegalRequestCategories[$admin_legal_request_for];
+    }
     $requiresKamiAttachment = $isHrAttendanceCategory;
     if ($requiresDepartment) {
         $assigned_user_ids = ticket_find_assignee_ids($conn, $assigned_company, $assigned_group);
@@ -650,6 +677,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $error_msg = $requiresDepartment
                 ? "No assignee available for the selected recipient and department."
                 : "No assignee available for the selected recipient.";
+        }
+    }
+    if ($error_msg === '' && $isLapcAdminLegalRecipient) {
+        if ($admin_legal_request_for === '') {
+            $error_msg = "Please choose who the request is for.";
+        } elseif (!isset($lapcAdminLegalRequestCategories[$admin_legal_request_for])) {
+            $error_msg = "Invalid request for selected.";
+        }
+    }
+    if ($error_msg === '') {
+        if ($category === '') {
+            $error_msg = "Please choose a category.";
+        } elseif (!in_array($category, $allowed_categories, true)) {
+            $error_msg = "Invalid category selected.";
         }
     }
     if ($error_msg === '') {
@@ -1138,6 +1179,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
  
     
+    if ($error_msg === '' && $isLapcAdminLegalRecipient && $admin_legal_request_for !== '') {
+        $description = "Request For: " . $admin_legal_request_for . "\n" . $description;
+    }
+
     $raw_description = $description;
     $full_description = "REQUESTER NAME: $name\nREQUESTER EMAIL: $email\n\nDESCRIPTION:\n$description";
 
@@ -1224,6 +1269,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 sales_request_meta_ensure_table($conn);
                 $ticketMeta = [];
+                if ($isLapcAdminLegalRecipient && $admin_legal_request_for !== '') {
+                    $ticketMeta['admin_legal_request_for'] = $admin_legal_request_for;
+                }
                 if ($isLapcHrRecipient && $hr_concern_type !== '') {
                     $ticketMeta['hr_concern_type'] = $hr_concern_type;
                 }
@@ -1565,6 +1613,12 @@ if ($normalized_company_id === '@malvedaproperties.com') {
     $initialSalesCategoryOptions = $lingapCategories;
 } elseif ($normalized_company_id === '@malvedaholdings.com' && isset($mhcDepartmentCategories[$selectedRecipientDepartment])) {
     $initialSalesCategoryOptions = $mhcDepartmentCategories[$selectedRecipientDepartment];
+} elseif (
+    $normalized_company_id === '@leadsagri.com'
+    && $selectedRecipientDepartment === 'Admin & Legal'
+    && isset($lapcAdminLegalRequestCategories[$admin_legal_request_for])
+) {
+    $initialSalesCategoryOptions = $lapcAdminLegalRequestCategories[$admin_legal_request_for];
 } elseif ($normalized_company_id === '@leadsagri.com' && isset($lapcDepartmentCategories[$selectedRecipientDepartment])) {
     $initialSalesCategoryOptions = $lapcDepartmentCategories[$selectedRecipientDepartment];
 }
@@ -1921,11 +1975,22 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         body.sales-request-ticket-page .request-grid-row > .full-width {
             grid-column: 1 / -1;
         }
+        body.sales-request-ticket-page #salesCategoryRow.is-admin-legal-layout #adminLegalRequestForContainer {
+            order: 1;
+        }
+        body.sales-request-ticket-page #salesCategoryRow.is-admin-legal-layout #priorityGroup {
+            order: 2;
+        }
+        body.sales-request-ticket-page #salesCategoryRow.is-admin-legal-layout #categoryContainer {
+            order: 3;
+            grid-column: 1 / -1;
+        }
         body.sales-request-ticket-page .select-wrapper {
             position: relative;
         }
         body.sales-request-ticket-page .select-wrapper.recipient-dropdown,
         body.sales-request-ticket-page .select-wrapper.department-dropdown,
+        body.sales-request-ticket-page .select-wrapper.admin-legal-request-for-dropdown,
         body.sales-request-ticket-page .select-wrapper.category-dropdown,
         body.sales-request-ticket-page .select-wrapper.marketing-subcategory-dropdown,
         body.sales-request-ticket-page .select-wrapper.priority-dropdown {
@@ -1967,6 +2032,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         }
         body.sales-request-ticket-page .recipient-native-select,
         body.sales-request-ticket-page .department-native-select,
+        body.sales-request-ticket-page .admin-legal-request-for-native-select,
         body.sales-request-ticket-page .category-native-select,
         body.sales-request-ticket-page .marketing-subcategory-native-select,
         body.sales-request-ticket-page .priority-native-select {
@@ -2028,6 +2094,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         body.sales-request-ticket-page .select-wrapper.is-static .select-icon {
             display: none;
         }
+        body.sales-request-ticket-page .admin-legal-request-for-dropdown-trigger,
         body.sales-request-ticket-page .category-dropdown-trigger,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-trigger {
             width: 100%;
@@ -2044,20 +2111,24 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             text-align: left;
             cursor: pointer;
         }
+        body.sales-request-ticket-page .admin-legal-request-for-dropdown-trigger:not(.is-placeholder),
         body.sales-request-ticket-page .category-dropdown-trigger:not(.is-placeholder),
         body.sales-request-ticket-page .marketing-subcategory-dropdown-trigger:not(.is-placeholder) {
             font-weight: 400;
         }
+        body.sales-request-ticket-page .admin-legal-request-for-dropdown-trigger:focus,
         body.sales-request-ticket-page .category-dropdown-trigger:focus,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-trigger:focus {
             outline: none;
             border-color: #1B5E20;
             box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
         }
+        body.sales-request-ticket-page .admin-legal-request-for-dropdown-trigger.is-placeholder,
         body.sales-request-ticket-page .category-dropdown-trigger.is-placeholder,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-trigger.is-placeholder {
             color: #334155;
         }
+        body.sales-request-ticket-page .admin-legal-request-for-dropdown-trigger:disabled,
         body.sales-request-ticket-page .category-dropdown-trigger:disabled,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-trigger:disabled {
             background: #f8fafc;
@@ -2086,6 +2157,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         body.sales-request-ticket-page .priority-dropdown-menu.is-open {
             display: block;
         }
+        body.sales-request-ticket-page .admin-legal-request-for-dropdown-menu,
         body.sales-request-ticket-page .category-dropdown-menu,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-menu {
             position: absolute;
@@ -2102,12 +2174,14 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             background: #ffffff;
             box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
         }
+        body.sales-request-ticket-page .admin-legal-request-for-dropdown-menu.is-open,
         body.sales-request-ticket-page .category-dropdown-menu.is-open,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-menu.is-open {
             display: block;
         }
         body.sales-request-ticket-page .recipient-dropdown-option,
         body.sales-request-ticket-page .department-dropdown-option,
+        body.sales-request-ticket-page .admin-legal-request-for-dropdown-option,
         body.sales-request-ticket-page .category-dropdown-option,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-option,
         body.sales-request-ticket-page .priority-dropdown-option {
@@ -2126,6 +2200,8 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         body.sales-request-ticket-page .recipient-dropdown-option:focus,
         body.sales-request-ticket-page .department-dropdown-option:hover,
         body.sales-request-ticket-page .department-dropdown-option:focus,
+        body.sales-request-ticket-page .admin-legal-request-for-dropdown-option:hover,
+        body.sales-request-ticket-page .admin-legal-request-for-dropdown-option:focus,
         body.sales-request-ticket-page .category-dropdown-option:hover,
         body.sales-request-ticket-page .category-dropdown-option:focus,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-option:hover,
@@ -2138,6 +2214,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
 
         body.sales-request-ticket-page .recipient-dropdown-option.is-selected,
         body.sales-request-ticket-page .department-dropdown-option.is-selected,
+        body.sales-request-ticket-page .admin-legal-request-for-dropdown-option.is-selected,
         body.sales-request-ticket-page .category-dropdown-option.is-selected,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-option.is-selected,
         body.sales-request-ticket-page .priority-dropdown-option.is-selected {
@@ -4373,6 +4450,21 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
 
             <div class="request-grid-row" id="salesCategoryRow">
+                <div class="form-group hidden" id="adminLegalRequestForContainer">
+                    <label>Request For <span class="required-asterisk">*</span></label>
+                    <div class="select-wrapper admin-legal-request-for-dropdown" id="adminLegalRequestForDropdown">
+                        <select name="admin_legal_request_for" id="admin_legal_request_for" class="form-control category-select admin-legal-request-for-native-select" data-selected="<?= htmlspecialchars((string) ($admin_legal_request_for ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <option value="" disabled hidden <?= ($admin_legal_request_for ?? '') === '' ? 'selected' : '' ?>>Choose request for</option>
+                            <?php foreach (array_keys($lapcAdminLegalRequestCategories) as $requestForOption): ?>
+                                <option value="<?= htmlspecialchars($requestForOption, ENT_QUOTES, 'UTF-8'); ?>" <?= ($admin_legal_request_for ?? '') === $requestForOption ? 'selected' : '' ?>><?= htmlspecialchars($requestForOption, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="button" id="adminLegalRequestForDropdownTrigger" class="admin-legal-request-for-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Choose request for</button>
+                        <div id="adminLegalRequestForDropdownMenu" class="admin-legal-request-for-dropdown-menu" role="listbox" aria-labelledby="adminLegalRequestForDropdownTrigger"></div>
+                        <i class="fas fa-chevron-down select-icon"></i>
+                    </div>
+                </div>
+
                 <div class="form-group" id="categoryContainer">
                     <label>Category <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper category-dropdown" id="categoryDropdown">
@@ -5116,6 +5208,11 @@ var categoryDropdown = document.getElementById('categoryDropdown');
 var categoryTrigger = document.getElementById('categoryDropdownTrigger');
 var categoryMenu = document.getElementById('categoryDropdownMenu');
 var categoryContainer = document.getElementById('categoryContainer');
+var adminLegalRequestForContainer = document.getElementById('adminLegalRequestForContainer');
+var adminLegalRequestForSelect = document.getElementById('admin_legal_request_for');
+var adminLegalRequestForDropdown = document.getElementById('adminLegalRequestForDropdown');
+var adminLegalRequestForTrigger = document.getElementById('adminLegalRequestForDropdownTrigger');
+var adminLegalRequestForMenu = document.getElementById('adminLegalRequestForDropdownMenu');
 var priorityGroup = document.getElementById('priorityGroup');
 var prioritySelect = document.getElementById('sales_priority');
 var priorityDropdown = document.getElementById('priorityDropdown');
@@ -5216,6 +5313,7 @@ var defaultCategories = <?= json_encode($defaultCategories, JSON_HEX_TAG | JSON_
 var mpdcCategories = <?= json_encode($mpdcCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var lingapCategories = <?= json_encode($lingapCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var lapcDepartmentCategories = <?= json_encode($lapcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var lapcAdminLegalRequestCategories = <?= json_encode($lapcAdminLegalRequestCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var mhcDepartmentCategories = <?= json_encode($mhcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var lapcMarketingSubcategories = <?= json_encode([
     'Marketing Operations' => [
@@ -5597,6 +5695,12 @@ function closeCategoryDropdown() {
     categoryTrigger.setAttribute('aria-expanded', 'false');
 }
 
+function closeAdminLegalRequestForDropdown() {
+    if (!adminLegalRequestForMenu || !adminLegalRequestForTrigger) return;
+    adminLegalRequestForMenu.classList.remove('is-open');
+    adminLegalRequestForTrigger.setAttribute('aria-expanded', 'false');
+}
+
 function closeMarketingSubcategoryDropdown() {
     if (!marketingSubcategoryMenu || !marketingSubcategoryTrigger) return;
     marketingSubcategoryMenu.classList.remove('is-open');
@@ -5731,6 +5835,58 @@ function chooseCategory(optionValue, shouldDispatchChange) {
     if (shouldDispatchChange) {
         categorySelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
+}
+
+function syncAdminLegalRequestForTriggerLabel() {
+    if (!adminLegalRequestForTrigger || !adminLegalRequestForSelect) return;
+    var selectedOption = adminLegalRequestForSelect.options[adminLegalRequestForSelect.selectedIndex];
+    var label = selectedOption && selectedOption.value ? selectedOption.textContent : 'Choose request for';
+    adminLegalRequestForTrigger.textContent = label;
+    adminLegalRequestForTrigger.classList.toggle('is-placeholder', !(selectedOption && selectedOption.value));
+}
+
+function chooseAdminLegalRequestFor(optionValue, shouldDispatchChange) {
+    if (!adminLegalRequestForSelect) return;
+    adminLegalRequestForSelect.value = optionValue;
+    adminLegalRequestForSelect.setAttribute('data-selected', optionValue);
+    syncAdminLegalRequestForTriggerLabel();
+    if (adminLegalRequestForMenu) {
+        Array.from(adminLegalRequestForMenu.querySelectorAll('.admin-legal-request-for-dropdown-option')).forEach(function(button) {
+            var isSelected = String(button.getAttribute('data-value') || '') === optionValue;
+            button.classList.toggle('is-selected', isSelected);
+            button.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        });
+    }
+    closeAdminLegalRequestForDropdown();
+    if (shouldDispatchChange) {
+        adminLegalRequestForSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
+function renderAdminLegalRequestForDropdownOptions() {
+    if (!adminLegalRequestForSelect) return;
+    var selectedValue = String(adminLegalRequestForSelect.getAttribute('data-selected') || adminLegalRequestForSelect.value || '');
+    if (adminLegalRequestForMenu) {
+        adminLegalRequestForMenu.innerHTML = '';
+    }
+    Array.from(adminLegalRequestForSelect.options).forEach(function(option) {
+        var optionValue = String(option.value || '');
+        if (optionValue === '') return;
+        if (adminLegalRequestForMenu) {
+            var optionButton = document.createElement('button');
+            optionButton.type = 'button';
+            optionButton.className = 'admin-legal-request-for-dropdown-option' + (selectedValue === optionValue ? ' is-selected' : '');
+            optionButton.setAttribute('data-value', optionValue);
+            optionButton.setAttribute('role', 'option');
+            optionButton.setAttribute('aria-selected', selectedValue === optionValue ? 'true' : 'false');
+            optionButton.textContent = option.textContent || optionValue;
+            optionButton.addEventListener('click', function() {
+                chooseAdminLegalRequestFor(optionValue, true);
+            });
+            adminLegalRequestForMenu.appendChild(optionButton);
+        }
+    });
+    syncAdminLegalRequestForTriggerLabel();
 }
 
 function syncMarketingSubcategoryTriggerLabel() {
@@ -5896,7 +6052,7 @@ function toggleDepartmentField() {
 function populateSalesCategories(options) {
     if (!categorySelect) return;
     var selectedValue = String(categorySelect.getAttribute('data-selected') || categorySelect.value || '');
-    var normalizedOptions = Array.isArray(options) && options.length > 0
+    var normalizedOptions = Array.isArray(options)
         ? options
         : Array.from(categorySelect.options)
             .map(function(option) { return String(option.value || ''); })
@@ -6009,17 +6165,59 @@ function toggleCategoryField() {
     var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
     var options = defaultCategories;
     var normalizedRecipient = normalizeRecipientCompany(value);
+    var isAdminLegalSelection = isLapcRecipientValue(value) && departmentValue === 'Admin & Legal';
+    var requestForValue = adminLegalRequestForSelect ? String(adminLegalRequestForSelect.value || '') : '';
+    if (salesCategoryRow) {
+        salesCategoryRow.classList.toggle('is-admin-legal-layout', isAdminLegalSelection);
+    }
+    if (adminLegalRequestForContainer && adminLegalRequestForSelect) {
+        adminLegalRequestForContainer.style.display = isAdminLegalSelection ? '' : 'none';
+        adminLegalRequestForContainer.classList.toggle('hidden', !isAdminLegalSelection);
+        adminLegalRequestForSelect.disabled = !isAdminLegalSelection;
+        if (isAdminLegalSelection) {
+            adminLegalRequestForSelect.setAttribute('required', 'required');
+            if (adminLegalRequestForTrigger) adminLegalRequestForTrigger.disabled = false;
+            renderAdminLegalRequestForDropdownOptions();
+        } else {
+            adminLegalRequestForSelect.value = '';
+            adminLegalRequestForSelect.setAttribute('data-selected', '');
+            adminLegalRequestForSelect.removeAttribute('required');
+            if (adminLegalRequestForTrigger) adminLegalRequestForTrigger.disabled = true;
+            closeAdminLegalRequestForDropdown();
+            syncAdminLegalRequestForTriggerLabel();
+        }
+    }
     if (normalizedRecipient === '@malvedaproperties.com') {
         options = mpdcCategories;
     } else if (normalizedRecipient === '@lingapleads.org') {
         options = lingapCategories;
     } else if (isMhcRecipientValue(value) && mhcDepartmentCategories[departmentValue]) {
         options = mhcDepartmentCategories[departmentValue];
+    } else if (isAdminLegalSelection) {
+        options = requestForValue && lapcAdminLegalRequestCategories[requestForValue]
+            ? lapcAdminLegalRequestCategories[requestForValue]
+            : [];
     } else if (isLapcRecipientValue(value) && lapcDepartmentCategories[departmentValue]) {
         options = lapcDepartmentCategories[departmentValue];
     }
+    if (isAdminLegalSelection && requestForValue === '') {
+        categorySelect.value = '';
+        categorySelect.setAttribute('data-selected', '');
+        categorySelect.disabled = true;
+        categorySelect.removeAttribute('required');
+        if (categoryTrigger) {
+            categoryTrigger.disabled = true;
+        }
+    } else {
+        categorySelect.disabled = false;
+        categorySelect.setAttribute('required', 'required');
+        if (categoryTrigger) {
+            categoryTrigger.disabled = false;
+        }
+    }
     populateSalesCategories(options);
     toggleMarketingSubcategory();
+    syncRequestGridRows();
 }
 
 function togglePriorityField() {
@@ -6692,6 +6890,7 @@ if (recipientTrigger) {
             return;
         }
         closeDepartmentDropdown();
+        closeAdminLegalRequestForDropdown();
         closeCategoryDropdown();
         closeMarketingSubcategoryDropdown();
         closePriorityDropdown();
@@ -6709,10 +6908,29 @@ if (departmentTrigger) {
         }
         closeRecipientDropdown();
         closeCategoryDropdown();
+        closeAdminLegalRequestForDropdown();
         closeMarketingSubcategoryDropdown();
         closePriorityDropdown();
         departmentMenu.classList.add('is-open');
         departmentTrigger.setAttribute('aria-expanded', 'true');
+    });
+}
+if (adminLegalRequestForTrigger) {
+    adminLegalRequestForTrigger.addEventListener('click', function() {
+        if (adminLegalRequestForTrigger.disabled || !adminLegalRequestForMenu) return;
+        renderAdminLegalRequestForDropdownOptions();
+        var nextState = !adminLegalRequestForMenu.classList.contains('is-open');
+        if (!nextState) {
+            closeAdminLegalRequestForDropdown();
+            return;
+        }
+        closeRecipientDropdown();
+        closeDepartmentDropdown();
+        closeCategoryDropdown();
+        closeMarketingSubcategoryDropdown();
+        closePriorityDropdown();
+        adminLegalRequestForMenu.classList.add('is-open');
+        adminLegalRequestForTrigger.setAttribute('aria-expanded', 'true');
     });
 }
 if (categoryTrigger) {
@@ -6726,6 +6944,7 @@ if (categoryTrigger) {
         }
         closeRecipientDropdown();
         closeDepartmentDropdown();
+        closeAdminLegalRequestForDropdown();
         closeMarketingSubcategoryDropdown();
         closePriorityDropdown();
         categoryMenu.classList.add('is-open');
@@ -6743,6 +6962,7 @@ if (marketingSubcategoryTrigger) {
         closeRecipientDropdown();
         closeDepartmentDropdown();
         closeCategoryDropdown();
+        closeAdminLegalRequestForDropdown();
         closePriorityDropdown();
         marketingSubcategoryMenu.classList.add('is-open');
         marketingSubcategoryTrigger.setAttribute('aria-expanded', 'true');
@@ -6760,6 +6980,7 @@ if (priorityTrigger) {
         closeRecipientDropdown();
         closeDepartmentDropdown();
         closeCategoryDropdown();
+        closeAdminLegalRequestForDropdown();
         closeMarketingSubcategoryDropdown();
         priorityMenu.classList.add('is-open');
         priorityTrigger.setAttribute('aria-expanded', 'true');
@@ -6773,16 +6994,18 @@ if (priorityMenu) {
     });
 }
 document.addEventListener('click', function(event) {
-    if (!recipientDropdown && !departmentDropdown && !categoryDropdown && !marketingSubcategoryDropdown && !priorityDropdown) return;
+    if (!recipientDropdown && !departmentDropdown && !adminLegalRequestForDropdown && !categoryDropdown && !marketingSubcategoryDropdown && !priorityDropdown) return;
     if (
         (recipientDropdown && recipientDropdown.contains(event.target))
         || (departmentDropdown && departmentDropdown.contains(event.target))
+        || (adminLegalRequestForDropdown && adminLegalRequestForDropdown.contains(event.target))
         || (categoryDropdown && categoryDropdown.contains(event.target))
         || (marketingSubcategoryDropdown && marketingSubcategoryDropdown.contains(event.target))
         || (priorityDropdown && priorityDropdown.contains(event.target))
     ) return;
     closeRecipientDropdown();
     closeDepartmentDropdown();
+    closeAdminLegalRequestForDropdown();
     closeCategoryDropdown();
     closeMarketingSubcategoryDropdown();
     closePriorityDropdown();
@@ -6796,6 +7019,14 @@ if (departmentSelect) departmentSelect.addEventListener('change', function() {
 if (categorySelect) categorySelect.addEventListener('change', function() {
     syncCategoryTriggerLabel();
     toggleMarketingSubcategory();
+    toggleHrExtraFields();
+});
+if (adminLegalRequestForSelect) adminLegalRequestForSelect.addEventListener('change', function() {
+    adminLegalRequestForSelect.setAttribute('data-selected', String(adminLegalRequestForSelect.value || ''));
+    categorySelect.value = '';
+    categorySelect.setAttribute('data-selected', '');
+    toggleCategoryField();
+    syncAdminLegalRequestForTriggerLabel();
     toggleHrExtraFields();
 });
 if (marketingSubcategorySelect) marketingSubcategorySelect.addEventListener('change', function() {
@@ -7319,6 +7550,9 @@ if (formEl) {
         var selectedCategory = categorySelect ? String(categorySelect.value || '') : '';
         var isLapcHrSelected = isLapcHrSelection();
         var isLapcItSelected = isLapcItSelection();
+        var isLapcAdminLegalSelected = recipient && departmentSelect
+            && isLapcRecipientValue(String(recipient.value || ''))
+            && String(departmentSelect.value || '') === 'Admin & Legal';
         var isLapcMarketingRequestTypeSelected = isLapcMarketingRequestTypeSelection();
         var isLapcMarketingSelected = isLapcMarketingSelection();
         var isKamiAttachmentRequired = isLapcHrSelected && selectedCategory === 'Attendance & Timekeeping';
@@ -7337,6 +7571,16 @@ if (formEl) {
         if (prioritySelect && !String(prioritySelect.value || '').trim()) {
             e.preventDefault();
             setInlineFormError('Please choose the level of urgency.');
+            return;
+        }
+        if (isLapcAdminLegalSelected && adminLegalRequestForSelect && !String(adminLegalRequestForSelect.value || '').trim()) {
+            e.preventDefault();
+            setInlineFormError('Please choose who the request is for.');
+            return;
+        }
+        if (isLapcAdminLegalSelected && categorySelect && !String(categorySelect.value || '').trim()) {
+            e.preventDefault();
+            setInlineFormError('Please choose a category.');
             return;
         }
         if (isLapcItSelected && selectedCategory === 'Email' && emailRequestTypeSelect && !String(emailRequestTypeSelect.value || '').trim()) {
