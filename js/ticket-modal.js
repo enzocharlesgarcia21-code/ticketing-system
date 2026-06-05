@@ -2482,7 +2482,7 @@ var TMTicketModal = (function () {
     }
     if (isSalesTicket && !hasActualAssignee) hideUpdateTab = false;
     if (isClosedTicket) hideUpdateTab = true;
-    var hideConversationTab = hideAdminChat || isSalesTicket;
+    var hideConversationTab = false;
     var canViewChatHistory = !!(data && data.can_view_chat_history === true);
     var isReassignedViewOnly = !!(data && data.reassigned_view_only === true);
     if (isReassignedViewOnly) {
@@ -2538,8 +2538,8 @@ var TMTicketModal = (function () {
         (currentEmail !== '' && (currentEmail === assignedToEmail || currentEmail === assigneeEmail))
         || (currentName !== '' && (currentName === assignedToName || currentName === assigneeName));
     }
-    if (!isReassignedViewOnly && !hideAdminChat && !isSalesTicket) {
-      hideConversationTab = false;
+    if (isReassignedViewOnly) {
+      hideConversationTab = true;
     }
     var statusControlHtml = '';
     if (isRequesterPOV) {
@@ -4864,6 +4864,24 @@ var TMTicketModal = (function () {
         } catch (renderError) {
           console.error('Ticket modal render failed:', renderError, data);
           modalContent.innerHTML = buildFallbackHtml(data);
+        }
+        try {
+          if (data && data.id != null && data.reassigned_view_only !== true) {
+            var tabsEl = modalContent.querySelector('.tm-tabs');
+            var existingConversationTab = tabsEl ? tabsEl.querySelector('.tm-tab[data-tab="conversation"]') : null;
+            if (tabsEl && !existingConversationTab) {
+              var conversationTab = document.createElement('div');
+              conversationTab.className = 'tm-tab';
+              conversationTab.setAttribute('data-tab', 'conversation');
+              conversationTab.textContent = 'Go to Chat';
+              conversationTab.addEventListener('click', function () {
+                openConversation(String(data.id));
+              });
+              tabsEl.appendChild(conversationTab);
+            }
+          }
+        } catch (conversationTabInjectError) {
+          console.error('Ticket modal conversation-tab injection failed:', conversationTabInjectError, data);
         }
         try {
           bindNoChangeGuard(modalContent, data);

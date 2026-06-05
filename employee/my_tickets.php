@@ -297,10 +297,10 @@ function follow_up_recipients(mysqli $conn, array $ticket, int $creatorUserId): 
         $recipientIds[] = $assignedUserId;
     }
 
-    $recipientIds = array_merge($recipientIds, follow_up_company_user_ids($conn, $assignedCompany, $creatorUserId));
-    if ($assignedDepartment !== '') {
-        $recipientIds = array_merge($recipientIds, notif_department_user_ids($conn, $assignedDepartment));
-    }
+    $recipientIds = array_merge(
+        $recipientIds,
+        ticket_find_assignee_ids($conn, $assignedCompany, $assignedDepartment)
+    );
 
     $recipientIds = array_values(array_filter(notif_unique_user_ids($recipientIds), static function ($userId) use ($creatorUserId) {
         return (int) $userId > 0 && (int) $userId !== $creatorUserId;
