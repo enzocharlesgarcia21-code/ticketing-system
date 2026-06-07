@@ -48,8 +48,12 @@ if (!function_exists('app_load_env_file')) {
 }
 
 $autoloadPath = $rootDir . '/vendor/autoload.php';
-if (file_exists($autoloadPath)) {
-    require_once $autoloadPath;
+if (file_exists($autoloadPath) && PHP_VERSION_ID >= 70205) {
+    try {
+        require_once $autoloadPath;
+    } catch (Throwable $e) {
+        // Fall back to the lightweight .env loader below when Composer cannot boot.
+    }
 }
 
 if (class_exists(\Dotenv\Dotenv::class)) {
