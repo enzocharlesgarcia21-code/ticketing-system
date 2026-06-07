@@ -165,34 +165,54 @@ if ($userQuery && $row = $userQuery->fetch_assoc()) {
 $dept = (string) ($_SESSION['department'] ?? '');
 
 $countStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND COALESCE(NULLIF(status,''),'') <> 'Trash'");
-$countStmt->bind_param("i", $user_id);
-$countStmt->execute();
-$total = (int) (($countStmt->get_result()->fetch_assoc()['count'] ?? 0));
-$countStmt->close();
+$total = 0;
+if ($countStmt) {
+    $countStmt->bind_param("i", $user_id);
+    $countStmt->execute();
+    $countResult = $countStmt->get_result();
+    $total = (int) (($countResult ? $countResult->fetch_assoc()['count'] ?? 0 : 0));
+    $countStmt->close();
+}
 
 $openStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status = 'Open'");
-$openStmt->bind_param("i", $user_id);
-$openStmt->execute();
-$open = (int) (($openStmt->get_result()->fetch_assoc()['count'] ?? 0));
-$openStmt->close();
+$open = 0;
+if ($openStmt) {
+    $openStmt->bind_param("i", $user_id);
+    $openStmt->execute();
+    $openResult = $openStmt->get_result();
+    $open = (int) (($openResult ? $openResult->fetch_assoc()['count'] ?? 0 : 0));
+    $openStmt->close();
+}
 
 $progressStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status = 'In Progress'");
-$progressStmt->bind_param("i", $user_id);
-$progressStmt->execute();
-$progress = (int) (($progressStmt->get_result()->fetch_assoc()['count'] ?? 0));
-$progressStmt->close();
+$progress = 0;
+if ($progressStmt) {
+    $progressStmt->bind_param("i", $user_id);
+    $progressStmt->execute();
+    $progressResult = $progressStmt->get_result();
+    $progress = (int) (($progressResult ? $progressResult->fetch_assoc()['count'] ?? 0 : 0));
+    $progressStmt->close();
+}
 
 $resolvedStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status = 'Resolved'");
-$resolvedStmt->bind_param("i", $user_id);
-$resolvedStmt->execute();
-$resolved = (int) (($resolvedStmt->get_result()->fetch_assoc()['count'] ?? 0));
-$resolvedStmt->close();
+$resolved = 0;
+if ($resolvedStmt) {
+    $resolvedStmt->bind_param("i", $user_id);
+    $resolvedStmt->execute();
+    $resolvedResult = $resolvedStmt->get_result();
+    $resolved = (int) (($resolvedResult ? $resolvedResult->fetch_assoc()['count'] ?? 0 : 0));
+    $resolvedStmt->close();
+}
 
 $closedStmt = $conn->prepare("SELECT COUNT(*) AS count FROM employee_tickets WHERE user_id = ? AND status = 'Closed'");
-$closedStmt->bind_param("i", $user_id);
-$closedStmt->execute();
-$closed = (int) (($closedStmt->get_result()->fetch_assoc()['count'] ?? 0));
-$closedStmt->close();
+$closed = 0;
+if ($closedStmt) {
+    $closedStmt->bind_param("i", $user_id);
+    $closedStmt->execute();
+    $closedResult = $closedStmt->get_result();
+    $closed = (int) (($closedResult ? $closedResult->fetch_assoc()['count'] ?? 0 : 0));
+    $closedStmt->close();
+}
 
 $submittedDashboardStats = [
     [
@@ -253,14 +273,16 @@ $recentStmt = $conn->prepare("
     ORDER BY t.created_at DESC
     LIMIT 5
 ");
-$recentStmt->bind_param("i", $user_id);
-$recentStmt->execute();
-$recent = $recentStmt->get_result();
 $raisedTickets = [];
-while ($recent && ($row = $recent->fetch_assoc())) {
-    $raisedTickets[] = $row;
+if ($recentStmt) {
+    $recentStmt->bind_param("i", $user_id);
+    $recentStmt->execute();
+    $recent = $recentStmt->get_result();
+    while ($recent && ($row = $recent->fetch_assoc())) {
+        $raisedTickets[] = $row;
+    }
+    $recentStmt->close();
 }
-$recentStmt->close();
 
 $assignedStatusCounts = [
     'Open' => 0,

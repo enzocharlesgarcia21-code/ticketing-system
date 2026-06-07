@@ -3,13 +3,13 @@
 require_once __DIR__ . '/env.php';
 
 $host = getenv('DB_HOST') ?: '127.0.0.1';
-$db   = getenv('DB_NAME') ?: 'ticketing_system';
+$db   = getenv('DB_NAME') ?: 'eticket';
 $user = getenv('DB_USER') ?: 'root';
 $pass = getenv('DB_PASS') ?: '';
 
 $port = getenv('DB_PORT');
 if ($port === false || $port === '' || !ctype_digit((string) $port)) {
-    $port = 3307;
+    $port = 3306;
 } else {
     $port = (int) $port;
 }
