@@ -230,8 +230,7 @@ function conference_booking_migrate_default_room_names(mysqli $conn): void
         }
         $oldStmt->bind_param("s", $oldName);
         $oldStmt->execute();
-        $oldRes = $oldStmt->get_result();
-        $oldRow = $oldRes ? $oldRes->fetch_assoc() : null;
+        $oldRow = db_stmt_fetch_one_assoc($oldStmt);
         $oldStmt->close();
 
         if (!$oldRow || (int) ($oldRow['id'] ?? 0) <= 0) {
@@ -249,8 +248,7 @@ function conference_booking_migrate_default_room_names(mysqli $conn): void
         }
         $newStmt->bind_param("s", $newName);
         $newStmt->execute();
-        $newRes = $newStmt->get_result();
-        $newRow = $newRes ? $newRes->fetch_assoc() : null;
+        $newRow = db_stmt_fetch_one_assoc($newStmt);
         $newStmt->close();
 
         if ($newRow && (int) ($newRow['id'] ?? 0) > 0) {
@@ -374,8 +372,7 @@ function conference_booking_find_room(mysqli $conn, int $roomId): ?array
 
     $stmt->bind_param("i", $roomId);
     $stmt->execute();
-    $res = $stmt->get_result();
-    $room = $res ? $res->fetch_assoc() : null;
+    $room = db_stmt_fetch_one_assoc($stmt);
     $stmt->close();
 
     return $room ?: null;
@@ -1490,11 +1487,7 @@ function conference_booking_user_bookings(mysqli $conn, int $userId, int $limit 
 
     $stmt->bind_param("ii", $userId, $limit);
     $stmt->execute();
-    $res = $stmt->get_result();
-    $rows = [];
-    while ($res && ($row = $res->fetch_assoc())) {
-        $rows[] = $row;
-    }
+    $rows = db_stmt_fetch_all_assoc($stmt);
     $stmt->close();
 
     return $rows;
@@ -1540,11 +1533,7 @@ function conference_booking_schedule_for_date(mysqli $conn, string $bookingDate,
 
     $stmt->bind_param("si", $bookingDate, $limit);
     $stmt->execute();
-    $res = $stmt->get_result();
-    $rows = [];
-    while ($res && ($row = $res->fetch_assoc())) {
-        $rows[] = $row;
-    }
+    $rows = db_stmt_fetch_all_assoc($stmt);
     $stmt->close();
 
     return $rows;
@@ -1610,11 +1599,7 @@ function conference_booking_schedule_between(mysqli $conn, string $startDate, st
     }
     call_user_func_array([$stmt, 'bind_param'], $bind);
     $stmt->execute();
-    $res = $stmt->get_result();
-    $rows = [];
-    while ($res && ($row = $res->fetch_assoc())) {
-        $rows[] = $row;
-    }
+    $rows = db_stmt_fetch_all_assoc($stmt);
     $stmt->close();
 
     return $rows;
@@ -1660,11 +1645,7 @@ function conference_booking_recent_visible(mysqli $conn, int $limit = 20): array
 
     $stmt->bind_param("i", $limit);
     $stmt->execute();
-    $res = $stmt->get_result();
-    $rows = [];
-    while ($res && ($row = $res->fetch_assoc())) {
-        $rows[] = $row;
-    }
+    $rows = db_stmt_fetch_all_assoc($stmt);
     $stmt->close();
 
     return $rows;

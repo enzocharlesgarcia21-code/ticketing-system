@@ -137,12 +137,13 @@ $userQueryStmt = $conn->prepare("SELECT company, department, email, created_at F
 if ($userQueryStmt) {
     $userQueryStmt->bind_param("i", $user_id);
     $userQueryStmt->execute();
-    $userQuery = $userQueryStmt->get_result();
+    $userQueryRows = db_stmt_fetch_all_assoc($userQueryStmt);
     $userQueryStmt->close();
 } else {
-    $userQuery = false;
+    $userQueryRows = [];
 }
-if ($userQuery && $row = $userQuery->fetch_assoc()) {
+if ($userQueryRows) {
+    $row = $userQueryRows[0];
     $company = (string) ($row['company'] ?? '');
     if ($company !== '') {
         $_SESSION['company'] = $company;
@@ -169,8 +170,8 @@ $total = 0;
 if ($countStmt) {
     $countStmt->bind_param("i", $user_id);
     $countStmt->execute();
-    $countResult = $countStmt->get_result();
-    $total = (int) (($countResult ? $countResult->fetch_assoc()['count'] ?? 0 : 0));
+    $countRow = db_stmt_fetch_one_assoc($countStmt);
+    $total = (int) ($countRow['count'] ?? 0);
     $countStmt->close();
 }
 
@@ -179,8 +180,8 @@ $open = 0;
 if ($openStmt) {
     $openStmt->bind_param("i", $user_id);
     $openStmt->execute();
-    $openResult = $openStmt->get_result();
-    $open = (int) (($openResult ? $openResult->fetch_assoc()['count'] ?? 0 : 0));
+    $openRow = db_stmt_fetch_one_assoc($openStmt);
+    $open = (int) ($openRow['count'] ?? 0);
     $openStmt->close();
 }
 
@@ -189,8 +190,8 @@ $progress = 0;
 if ($progressStmt) {
     $progressStmt->bind_param("i", $user_id);
     $progressStmt->execute();
-    $progressResult = $progressStmt->get_result();
-    $progress = (int) (($progressResult ? $progressResult->fetch_assoc()['count'] ?? 0 : 0));
+    $progressRow = db_stmt_fetch_one_assoc($progressStmt);
+    $progress = (int) ($progressRow['count'] ?? 0);
     $progressStmt->close();
 }
 
@@ -199,8 +200,8 @@ $resolved = 0;
 if ($resolvedStmt) {
     $resolvedStmt->bind_param("i", $user_id);
     $resolvedStmt->execute();
-    $resolvedResult = $resolvedStmt->get_result();
-    $resolved = (int) (($resolvedResult ? $resolvedResult->fetch_assoc()['count'] ?? 0 : 0));
+    $resolvedRow = db_stmt_fetch_one_assoc($resolvedStmt);
+    $resolved = (int) ($resolvedRow['count'] ?? 0);
     $resolvedStmt->close();
 }
 
@@ -209,8 +210,8 @@ $closed = 0;
 if ($closedStmt) {
     $closedStmt->bind_param("i", $user_id);
     $closedStmt->execute();
-    $closedResult = $closedStmt->get_result();
-    $closed = (int) (($closedResult ? $closedResult->fetch_assoc()['count'] ?? 0 : 0));
+    $closedRow = db_stmt_fetch_one_assoc($closedStmt);
+    $closed = (int) ($closedRow['count'] ?? 0);
     $closedStmt->close();
 }
 
@@ -277,8 +278,8 @@ $raisedTickets = [];
 if ($recentStmt) {
     $recentStmt->bind_param("i", $user_id);
     $recentStmt->execute();
-    $recent = $recentStmt->get_result();
-    while ($recent && ($row = $recent->fetch_assoc())) {
+    $recentRows = db_stmt_fetch_all_assoc($recentStmt);
+    foreach ($recentRows as $row) {
         $raisedTickets[] = $row;
     }
     $recentStmt->close();
@@ -310,7 +311,7 @@ $assignedCountStmt = $conn->prepare("
 if ($assignedCountStmt) {
     $assignedCountStmt->bind_param($assignedTypes, ...$assignedParams);
     $assignedCountStmt->execute();
-    $assignedCountRow = $assignedCountStmt->get_result()->fetch_assoc() ?: [];
+    $assignedCountRow = db_stmt_fetch_one_assoc($assignedCountStmt) ?: [];
     $assignedStatusCounts['Open'] = (int) ($assignedCountRow['open_count'] ?? 0);
     $assignedStatusCounts['In Progress'] = (int) ($assignedCountRow['progress_count'] ?? 0);
     $assignedStatusCounts['Resolved'] = (int) ($assignedCountRow['resolved_count'] ?? 0);
@@ -342,8 +343,8 @@ $receivedStmt = $conn->prepare("
 if ($receivedStmt) {
     $receivedStmt->bind_param($assignedTypes, ...$assignedParams);
     $receivedStmt->execute();
-    $receivedResult = $receivedStmt->get_result();
-    while ($receivedResult && ($ticketRow = $receivedResult->fetch_assoc())) {
+    $receivedRows = db_stmt_fetch_all_assoc($receivedStmt);
+    foreach ($receivedRows as $ticketRow) {
         $receivedTickets[] = $ticketRow;
     }
     $receivedStmt->close();

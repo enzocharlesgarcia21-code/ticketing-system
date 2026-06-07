@@ -39,6 +39,64 @@ if (!$conn) {
 mysqli_set_charset($conn, 'utf8mb4');
 mysqli_query($conn, "SET time_zone = '+08:00'");
 
+if (!function_exists('db_stmt_fetch_all_assoc')) {
+    function db_stmt_fetch_all_assoc(mysqli_stmt $stmt): array
+    {
+        if (method_exists($stmt, 'get_result')) {
+            $result = @$stmt->get_result();
+            if ($result instanceof mysqli_result) {
+                $rows = [];
+                while ($row = $result->fetch_assoc()) {
+                    $rows[] = $row;
+                }
+                $result->free();
+                return $rows;
+            }
+        }
+
+        $meta = $stmt->result_metadata();
+        if (!$meta) {
+            return [];
+        }
+
+        $row = [];
+        $bind = [];
+        while ($field = $meta->fetch_field()) {
+            $row[$field->name] = null;
+            $bind[] = &$row[$field->name];
+        }
+        $meta->free();
+
+        if (count($bind) === 0) {
+            return [];
+        }
+
+        call_user_func_array([$stmt, 'bind_result'], $bind);
+        $rows = [];
+        while ($stmt->fetch()) {
+            $current = [];
+            foreach ($row as $key => $value) {
+                $current[$key] = $value;
+            }
+            $rows[] = $current;
+        }
+
+        if (method_exists($stmt, 'free_result')) {
+            @$stmt->free_result();
+        }
+
+        return $rows;
+    }
+}
+
+if (!function_exists('db_stmt_fetch_one_assoc')) {
+    function db_stmt_fetch_one_assoc(mysqli_stmt $stmt): ?array
+    {
+        $rows = db_stmt_fetch_all_assoc($stmt);
+        return $rows[0] ?? null;
+    }
+}
+
 if (PHP_SAPI !== 'cli' && isset($_SESSION['user_id']) && (($_SESSION['role'] ?? '') === 'employee')) {
     $userId = (int) ($_SESSION['user_id'] ?? 0);
     $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
@@ -50,8 +108,7 @@ if (PHP_SAPI !== 'cli' && isset($_SESSION['user_id']) && (($_SESSION['role'] ?? 
         if ($stmt) {
             mysqli_stmt_bind_param($stmt, "i", $userId);
             mysqli_stmt_execute($stmt);
-            $result = mysqli_stmt_get_result($stmt);
-            $row = $result ? mysqli_fetch_assoc($result) : null;
+            $row = db_stmt_fetch_one_assoc($stmt);
             mysqli_stmt_close($stmt);
 
             $_SESSION['force_password_change'] = (int) ($row['force_password_change'] ?? 0);

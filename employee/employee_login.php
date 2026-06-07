@@ -97,9 +97,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } else {
             $stmt->bind_param("s", $email);
             $stmt->execute();
-            $result = $stmt->get_result();
+            $user = db_stmt_fetch_one_assoc($stmt);
 
-            if ($user = $result->fetch_assoc()) {
+            if ($user) {
                 $role = (string) ($user['role'] ?? '');
 
                 if ($role !== 'employee' && $role !== 'admin') {

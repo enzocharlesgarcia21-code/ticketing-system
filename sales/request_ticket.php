@@ -190,9 +190,8 @@ function find_sales_domain_recipient_ids(mysqli $conn, string $domain): array
     $emailLike = '%' . $domain;
     $stmt->bind_param("s", $emailLike);
     $stmt->execute();
-    $res = $stmt->get_result();
     $ids = [];
-    while ($res && ($row = $res->fetch_assoc())) {
+    foreach (db_stmt_fetch_all_assoc($stmt) as $row) {
         $id = (int) ($row['id'] ?? 0);
         if ($id > 0) $ids[] = $id;
     }
@@ -1390,8 +1389,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($statusStmt) {
                     $statusStmt->bind_param("i", $ticket_id);
                     $statusStmt->execute();
-                    $statusRes = $statusStmt->get_result();
-                    $statusRow = $statusRes ? $statusRes->fetch_assoc() : null;
+                    $statusRow = db_stmt_fetch_one_assoc($statusStmt);
                     $statusStmt->close();
                     if ($statusRow && isset($statusRow['status']) && trim((string) $statusRow['status']) !== '') {
                         $ticketStatus = (string) $statusRow['status'];
@@ -1423,8 +1421,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($creatorStmt) {
                     $creatorStmt->bind_param("i", $user_id);
                     $creatorStmt->execute();
-                    $creatorRes = $creatorStmt->get_result();
-                    $creatorRow = $creatorRes ? $creatorRes->fetch_assoc() : null;
+                    $creatorRow = db_stmt_fetch_one_assoc($creatorStmt);
                     $creatorStmt->close();
                     if ($creatorRow) {
                         $creatorName = trim((string) ($creatorRow['name'] ?? ''));
