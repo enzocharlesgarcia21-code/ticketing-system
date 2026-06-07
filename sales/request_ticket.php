@@ -1,6 +1,6 @@
 ﻿<?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+error_reporting(0);
+ini_set('display_errors', 0);
 
 require_once '../config/database.php';
 
@@ -8,6 +8,7 @@ require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/notification_service.php';
+require_once '../includes/rate_limit.php';
 
 ticket_receiving_availability_ensure_table($conn);
 
@@ -551,6 +552,15 @@ function sales_clean_email_list(array $emails): array
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
+
+    // Rate limit: max 5 ticket submissions per 10 minutes per IP
+    $salesIp = rate_limit_client_ip();
+    $salesLimit = rate_limit_check($conn, $salesIp, 'ticket_submit', 5, 600);
+    if (!$salesLimit['allowed']) {
+        $retryMin = ceil($salesLimit['retry_after_sec'] / 60);
+        $error_msg = "Too many requests. Please wait {$retryMin} minute(s) before submitting again.";
+    }
+
     ticket_ensure_assignment_columns($conn);
 
     $full_name  = trim((string)($_POST['full_name'] ?? ''));
@@ -1028,8 +1038,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 'jpeg' => ['image/jpeg'],
                 'png' => ['image/png'],
                 'pdf' => ['application/pdf'],
-                'doc' => ['application/msword', 'application/vnd.ms-word', 'application/octet-stream'],
-                'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
+                'doc' => ['application/msword', 'application/vnd.ms-word'],
+                'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
             ],
             5 * 1024 * 1024,
             'Please insert supported files only.',
@@ -1059,8 +1069,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             'jpeg' => ['image/jpeg'],
             'png' => ['image/png'],
             'pdf' => ['application/pdf'],
-            'doc' => ['application/msword', 'application/octet-stream'],
-            'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
+            'doc' => ['application/msword'],
+            'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
         ];
         $sssUploadConfigs = [
             ['field' => 'sss_sickness_form', 'label' => 'Accomplished SSS Sickness Form', 'required' => true, 'max_files' => 1],

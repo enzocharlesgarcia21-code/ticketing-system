@@ -13,7 +13,10 @@ $tmUserPermissions = user_permissions_defaults();
 if ($user_id > 0 && isset($conn)) {
     user_permissions_ensure_table($conn);
     $tmUserPermissions = user_permissions_get_for_user($conn, $user_id);
-    $user_query = $conn->query("SELECT email FROM users WHERE id = $user_id");
+    $user_query_stmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
+    $user_query_stmt->bind_param("i", $user_id);
+    $user_query_stmt->execute();
+    $user_query = $user_query_stmt->get_result();
     if ($user_query && $user_query->num_rows > 0) {
         $user_email = $user_query->fetch_assoc()['email'];
     }
@@ -1245,7 +1248,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
                         return `
                             ${sectionHtml}
-                            <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''} ${isChatPending ? 'notif-chat-pending' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${n.type || ''}')">
+                            <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''} ${isChatPending ? 'notif-chat-pending' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${escapeHtml(n.type || '')}')">
                                 ${unreadDotHtml}
                                 <div class="notif-content">
                                     ${messageHtml}

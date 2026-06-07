@@ -49,6 +49,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             unset($_SESSION['reset_email']);
             unset($_SESSION['otp_verified']);
             unset($_SESSION['reset_role']);
+
+            // Regenerate session ID after password reset
+            session_regenerate_id(true);
+
             // Redirect to login with success message
             if ($role === 'admin') {
                 header("Location: ../admin/admin_login.php?password_reset=1");

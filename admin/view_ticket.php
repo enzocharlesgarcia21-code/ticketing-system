@@ -15,7 +15,10 @@ if (!isset($_GET['id'])) {
 
 $id = (int) $_GET['id'];
 
-$conn->query("UPDATE employee_tickets SET is_read = 1 WHERE id = $id");
+$markReadStmt = $conn->prepare("UPDATE employee_tickets SET is_read = 1 WHERE id = ?");
+$markReadStmt->bind_param("i", $id);
+$markReadStmt->execute();
+$markReadStmt->close();
 
 /* Get full ticket + employee info */
 $stmt = $conn->prepare("

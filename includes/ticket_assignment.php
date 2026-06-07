@@ -1660,8 +1660,8 @@ function ticket_chat_store_attachment(array $file): array
         'jpeg' => ['image/jpeg'],
         'png' => ['image/png'],
         'pdf' => ['application/pdf'],
-        'doc' => ['application/msword', 'application/octet-stream'],
-        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
+        'doc' => ['application/msword'],
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
     ];
 
     if ($originalName === '' || $tmpPath === '' || !in_array($ext, $allowedExtensions, true)) {

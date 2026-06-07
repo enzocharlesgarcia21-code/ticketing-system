@@ -124,13 +124,16 @@ function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
     }
     $stmt->close();
 
-    $reminderRes = $conn->query("
+    $reminderStmt = $conn->prepare("
         SELECT id, ticket_id
         FROM notifications
-        WHERE user_id = " . $userId . "
+        WHERE user_id = ?
           AND type = 'hr_chat_pending'
           AND is_read = 0
     ");
+    $reminderStmt->bind_param("i", $userId);
+    $reminderStmt->execute();
+    $reminderRes = $reminderStmt->get_result();
     while ($reminderRes && ($reminderRow = $reminderRes->fetch_assoc())) {
         $ticketId = (int) ($reminderRow['ticket_id'] ?? 0);
         if ($ticketId > 0 && isset($dueTicketIds[$ticketId])) {
@@ -140,20 +143,26 @@ function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
         if ($notifId <= 0) {
             continue;
         }
-        $conn->query("UPDATE notifications SET is_read = 1 WHERE id = " . $notifId);
+        $markReadStmt = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");
+        $markReadStmt->bind_param("i", $notifId);
+        $markReadStmt->execute();
+        $markReadStmt->close();
     }
 }
 
 employee_send_due_hr_chat_reminders($conn, $user_id);
 
 // Unread count — simple query without optional columns
-$count_result = $conn->query("
+$countStmt = $conn->prepare("
     SELECT COUNT(*) as count
     FROM notifications n
-    WHERE n.user_id = $user_id
+    WHERE n.user_id = ?
       AND n.is_read = 0
       AND n.type <> 'chat_message'
 ");
+$countStmt->bind_param("i", $user_id);
+$countStmt->execute();
+$count_result = $countStmt->get_result();
 if (!$count_result) {
     http_response_code(500);
     echo json_encode(['unread_count' => 0, 'notifications' => [], 'error' => 'SQL Error']);

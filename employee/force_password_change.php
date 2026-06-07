@@ -72,6 +72,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if ($update->execute()) {
                 $update->close();
                 unset($_SESSION['force_password_change']);
+
+                // Regenerate session ID after password change
+                session_regenerate_id(true);
+
                 if ($postLoginRedirect !== '') {
                     unset($_SESSION['post_login_redirect']);
                     header("Location: $postLoginRedirect");

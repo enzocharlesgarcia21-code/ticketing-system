@@ -1,6 +1,6 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+error_reporting(0);
+ini_set('display_errors', 0);
 
 require_once '../config/database.php';
 
@@ -1190,8 +1190,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 'jpeg' => ['image/jpeg'],
                 'png' => ['image/png'],
                 'pdf' => ['application/pdf'],
-                'doc' => ['application/msword', 'application/octet-stream'],
-                'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
+                'doc' => ['application/msword'],
+                'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
             ],
             5 * 1024 * 1024,
             $unsupportedAttachmentMessage,
@@ -1234,8 +1234,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             'jpeg' => ['image/jpeg'],
             'png' => ['image/png'],
             'pdf' => ['application/pdf'],
-            'doc' => ['application/msword', 'application/octet-stream'],
-            'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
+            'doc' => ['application/msword'],
+            'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
         ];
         $sssUploadConfigs = [
             ['field' => 'sss_sickness_form', 'label' => 'Accomplished SSS Sickness Form', 'required' => true, 'max_files' => 1],

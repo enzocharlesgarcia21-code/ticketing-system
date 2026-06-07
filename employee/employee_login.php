@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/rate_limit.php';
 
 function employee_login_safe_redirect($value): string
 {
@@ -60,12 +61,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $posted_email = trim($_POST['email'] ?? '');
     $posted_domain = (string) ($_POST['email_domain'] ?? $email_domain);
-    $email_domain = $posted_domain !== '' ? $posted_domain : $email_domain;
-    $email = $posted_email;
-    if ($email !== '' && strpos($email, '@') === false) {
-        $email = $email . $email_domain;
-    }
-    $password = trim($_POST['password']);
+
+    // Rate limit: max 5 failed login attempts per 15 minutes per email+IP
+    $loginIdentifier = strtolower($posted_email) . '|' . rate_limit_client_ip();
+    $loginLimit = rate_limit_check($conn, $loginIdentifier, 'login', 5, 900);
+    if (!$loginLimit['allowed']) {
+        $retryMin = ceil($loginLimit['retry_after_sec'] / 60);
+        $error = "Too many login attempts. Please wait {$retryMin} minute(s) before trying again.";
+        $email_domain = $posted_domain !== '' ? $posted_domain : $email_domain;
+        $email_value = $posted_email;
+    } else {
+        $email_domain = $posted_domain !== '' ? $posted_domain : $email_domain;
+        $email = $posted_email;
+        if ($email !== '' && strpos($email, '@') === false) {
+            $email = $email . $email_domain;
+        }
+        $password = trim($_POST['password']);
 
     if ($email !== '') {
         $at_pos = strpos($email, '@');
@@ -104,6 +115,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $_SESSION['role'] = $role;
                     $_SESSION['force_password_change'] = (int) ($user['force_password_change'] ?? 0);
 
+                    // Regenerate session ID to prevent session fixation
+                    session_regenerate_id(true);
+
+                    // Clear rate limit on successful login
+                    rate_limit_clear($conn, $loginIdentifier, 'login');
+
                     if ($role === 'admin') {
                         unset($_SESSION['post_login_redirect']);
                         if ($requestedRedirect === 'book_conference.php') {
@@ -135,6 +152,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         $error = "Please fill in all fields.";
     }
+    } // end rate-limit else
 }
 ?>
 
