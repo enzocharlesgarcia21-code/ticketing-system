@@ -131,22 +131,27 @@ function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
           AND type = 'hr_chat_pending'
           AND is_read = 0
     ");
-    $reminderStmt->bind_param("i", $userId);
-    $reminderStmt->execute();
-    $reminderRes = $reminderStmt->get_result();
-    while ($reminderRes && ($reminderRow = $reminderRes->fetch_assoc())) {
-        $ticketId = (int) ($reminderRow['ticket_id'] ?? 0);
-        if ($ticketId > 0 && isset($dueTicketIds[$ticketId])) {
-            continue;
+    if ($reminderStmt) {
+        $reminderStmt->bind_param("i", $userId);
+        $reminderStmt->execute();
+        $reminderRes = $reminderStmt->get_result();
+        while ($reminderRes && ($reminderRow = $reminderRes->fetch_assoc())) {
+            $ticketId = (int) ($reminderRow['ticket_id'] ?? 0);
+            if ($ticketId > 0 && isset($dueTicketIds[$ticketId])) {
+                continue;
+            }
+            $notifId = (int) ($reminderRow['id'] ?? 0);
+            if ($notifId <= 0) {
+                continue;
+            }
+            $markReadStmt = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");
+            if ($markReadStmt) {
+                $markReadStmt->bind_param("i", $notifId);
+                $markReadStmt->execute();
+                $markReadStmt->close();
+            }
         }
-        $notifId = (int) ($reminderRow['id'] ?? 0);
-        if ($notifId <= 0) {
-            continue;
-        }
-        $markReadStmt = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE id = ?");
-        $markReadStmt->bind_param("i", $notifId);
-        $markReadStmt->execute();
-        $markReadStmt->close();
+        $reminderStmt->close();
     }
 }
 
@@ -160,9 +165,13 @@ $countStmt = $conn->prepare("
       AND n.is_read = 0
       AND n.type <> 'chat_message'
 ");
-$countStmt->bind_param("i", $user_id);
-$countStmt->execute();
-$count_result = $countStmt->get_result();
+if ($countStmt) {
+    $countStmt->bind_param("i", $user_id);
+    $countStmt->execute();
+    $count_result = $countStmt->get_result();
+} else {
+    $count_result = false;
+}
 if (!$count_result) {
     http_response_code(500);
     echo json_encode(['unread_count' => 0, 'notifications' => [], 'error' => 'SQL Error']);

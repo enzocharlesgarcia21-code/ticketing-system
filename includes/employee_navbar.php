@@ -14,11 +14,14 @@ if ($user_id > 0 && isset($conn)) {
     user_permissions_ensure_table($conn);
     $tmUserPermissions = user_permissions_get_for_user($conn, $user_id);
     $user_query_stmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
-    $user_query_stmt->bind_param("i", $user_id);
-    $user_query_stmt->execute();
-    $user_query = $user_query_stmt->get_result();
-    if ($user_query && $user_query->num_rows > 0) {
-        $user_email = $user_query->fetch_assoc()['email'];
+    if ($user_query_stmt) {
+        $user_query_stmt->bind_param("i", $user_id);
+        $user_query_stmt->execute();
+        $user_query = $user_query_stmt->get_result();
+        if ($user_query && $user_query->num_rows > 0) {
+            $user_email = $user_query->fetch_assoc()['email'];
+        }
+        $user_query_stmt->close();
     }
 }
 

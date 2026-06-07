@@ -31,9 +31,11 @@ if ($clearAdminPendingChat) {
 if (isset($_POST['mark_all_read'])) {
     csrf_validate();
     $markAllStmt = $conn->prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?");
-    $markAllStmt->bind_param("i", $user_id);
-    $markAllStmt->execute();
-    $markAllStmt->close();
+    if ($markAllStmt) {
+        $markAllStmt->bind_param("i", $user_id);
+        $markAllStmt->execute();
+        $markAllStmt->close();
+    }
     $_SESSION['success'] = "All notifications marked as read.";
     header("Location: notifications.php");
     exit();

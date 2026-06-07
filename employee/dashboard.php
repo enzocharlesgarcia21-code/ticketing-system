@@ -134,9 +134,14 @@ $user_department = (string) ($_SESSION['department'] ?? '');
 $user_email = (string) ($_SESSION['email'] ?? '');
 $user_created_at = (string) ($_SESSION['user_created_at'] ?? '');
 $userQueryStmt = $conn->prepare("SELECT company, department, email, created_at FROM users WHERE id = ?");
-$userQueryStmt->bind_param("i", $user_id);
-$userQueryStmt->execute();
-$userQuery = $userQueryStmt->get_result();
+if ($userQueryStmt) {
+    $userQueryStmt->bind_param("i", $user_id);
+    $userQueryStmt->execute();
+    $userQuery = $userQueryStmt->get_result();
+    $userQueryStmt->close();
+} else {
+    $userQuery = false;
+}
 if ($userQuery && $row = $userQuery->fetch_assoc()) {
     $company = (string) ($row['company'] ?? '');
     if ($company !== '') {
