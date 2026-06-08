@@ -1780,6 +1780,55 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             }
         }
         @media (max-width: 768px) {
+            body.sales-request-ticket-page .sales-employee-navbar {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 10px;
+                padding: 12px 10px 10px;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .nav-left {
+                width: 100%;
+                min-width: 0;
+                display: flex;
+                align-items: center;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .navbar-toggler {
+                display: none;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .navbar-collapse {
+                display: flex;
+                width: 100%;
+                flex: 0 0 100%;
+                margin: 0;
+                padding: 0;
+                border-top: 1px solid rgba(255, 255, 255, 0.12);
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .nav-center {
+                display: none;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .sales-nav-right {
+                display: flex;
+                width: 100%;
+                gap: 8px;
+                margin-top: 0;
+                justify-content: stretch;
+                padding-top: 10px;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .sales-nav-link {
+                flex: 1 1 0;
+                min-width: 0;
+                width: auto;
+                min-height: 38px;
+                padding: 0 10px;
+                gap: 7px;
+                font-size: 12px;
+                line-height: 1;
+                white-space: nowrap;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .sales-nav-link-icon {
+                font-size: 13px;
+            }
             body.sales-request-ticket-page .sales-employee-navbar .brand-name {
                 font-size: 16px;
             }
@@ -4240,7 +4289,16 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         @media (max-width: 768px) {
             body.sales-request-ticket-page .request-grid-row {
                 grid-template-columns: 1fr;
-                gap: 0;
+                gap: 14px;
+            }
+            body.sales-request-ticket-page #recipientRow:has(#departmentGroup:not(.hidden)),
+            body.sales-request-ticket-page #salesCategoryRow {
+                grid-template-columns: 1fr;
+                gap: 14px;
+            }
+            body.sales-request-ticket-page #recipientRow:has(#departmentGroup:not(.hidden)) > .form-group,
+            body.sales-request-ticket-page #salesCategoryRow > .form-group {
+                grid-column: 1 / -1;
             }
             body.sales-request-ticket-page .ticket-modal-content {
                 width: 100%;
@@ -4348,13 +4406,44 @@ if ($normalized_company_id === '@malvedaproperties.com') {
                 margin-bottom: 0;
             }
 
+            .form-grid {
+                gap: 14px;
+            }
+
             label {
                 margin-bottom: 6px;
-                font-size: 13px;
+                font-size: 12px;
             }
 
             input, select, textarea {
-                padding: 10px 12px;
+                padding: 9px 12px;
+                font-size: 14px;
+                border-radius: 14px;
+            }
+
+            body.sales-request-ticket-page input.form-control,
+            body.sales-request-ticket-page select.form-control {
+                height: 46px;
+                padding: 0 14px;
+                font-size: 14px;
+            }
+
+            body.sales-request-ticket-page input.form-control::placeholder,
+            body.sales-request-ticket-page textarea.form-control::placeholder {
+                font-size: 14px;
+            }
+
+            body.sales-request-ticket-page .recipient-dropdown-trigger,
+            body.sales-request-ticket-page .department-dropdown-trigger,
+            body.sales-request-ticket-page .admin-legal-request-for-dropdown-trigger,
+            body.sales-request-ticket-page .category-dropdown-trigger,
+            body.sales-request-ticket-page .marketing-subcategory-dropdown-trigger,
+            body.sales-request-ticket-page .priority-dropdown-trigger {
+                min-height: 46px;
+                padding: 0 40px 0 14px;
+                border-radius: 14px;
+                font-size: 14px;
+                line-height: 1.25;
             }
 
             form {
@@ -4362,7 +4451,10 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             }
 
             textarea[name="description"] {
-                height: 120px;
+                height: 106px;
+                min-height: 106px;
+                padding: 12px 14px;
+                font-size: 14px;
                 resize: none;
             }
 

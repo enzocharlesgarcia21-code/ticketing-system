@@ -1322,12 +1322,84 @@ if ($showCategoryView) {
             .results-section {
                 margin-top: -8px;
             }
+            .department-list,
+            .most-visited-card {
+                border-radius: 12px;
+                margin-bottom: 12px;
+            }
+            .department-article,
             .most-visited-item {
-                flex-direction: column;
+                gap: 8px;
+                padding: 9px 11px;
+            }
+            .department-article-main,
+            .most-visited-main {
+                gap: 8px;
+            }
+            .department-article-icon,
+            .most-visited-icon {
+                width: 22px;
+                height: 22px;
+                border-radius: 7px;
+                font-size: 10px;
+                margin-top: 1px;
+            }
+            .department-article-title,
+            .most-visited-heading {
+                margin-bottom: 4px;
+                font-size: 11px;
+                line-height: 1.18;
+            }
+            .department-article-date,
+            .most-visited-date {
+                font-size: 10px;
+            }
+            .department-article .kb-category-badge,
+            .most-visited-tag {
+                padding: 3px 7px;
+                font-size: 9px;
+                margin-bottom: 0;
             }
             .most-visited-date {
                 padding-top: 0;
-                padding-left: 44px;
+                padding-left: 30px;
+            }
+            .kb-grid {
+                grid-template-columns: 1fr;
+                gap: 14px;
+            }
+            .kb-card {
+                border-radius: 12px;
+            }
+            .kb-card-body {
+                padding: 11px;
+            }
+            .kb-card-title {
+                font-size: 12px;
+                line-height: 1.2;
+                margin-bottom: 6px;
+            }
+            .kb-card-preview {
+                font-size: 10px;
+                line-height: 1.35;
+                margin-bottom: 9px;
+                -webkit-line-clamp: 2;
+            }
+            .kb-card .kb-category-badge {
+                padding: 3px 7px;
+                font-size: 9px;
+                margin-bottom: 7px;
+            }
+            .kb-card-footer {
+                padding: 8px 11px;
+            }
+            .kb-views {
+                font-size: 10px;
+            }
+            .read-more-btn {
+                width: 24px;
+                height: 24px;
+                font-size: 10px;
             }
             .categories-section {
                 margin-top: 0;
@@ -1408,11 +1480,18 @@ if ($showCategoryView) {
 
         @media (max-width: 768px) {
             .sales-employee-navbar {
-                padding: 12px 12px;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 10px;
+                padding: 12px 10px 10px;
             }
 
             .sales-employee-navbar .nav-left {
                 width: 100%;
+                min-width: 0;
+                display: flex;
+                align-items: center;
             }
 
             .sales-employee-navbar .logo-icon {
@@ -1423,6 +1502,155 @@ if ($showCategoryView) {
 
             .sales-employee-navbar .brand-name {
                 font-size: 16px;
+            }
+
+            .sales-employee-navbar .navbar-toggler {
+                display: none;
+            }
+
+            .sales-employee-navbar .navbar-collapse {
+                display: flex;
+                width: 100%;
+                flex: 0 0 100%;
+                margin: 0;
+                padding: 0;
+                border-top: 1px solid rgba(255, 255, 255, 0.12);
+            }
+
+            .sales-employee-navbar .nav-center {
+                display: none;
+            }
+
+            .sales-employee-navbar .sales-nav-right {
+                display: flex;
+                width: 100%;
+                gap: 8px;
+                margin-top: 0;
+                justify-content: stretch;
+                padding-top: 10px;
+            }
+
+            .sales-employee-navbar .sales-nav-link {
+                flex: 1 1 0;
+                min-width: 0;
+                width: auto;
+                min-height: 38px;
+                padding: 0 10px;
+                gap: 7px;
+                font-size: 12px;
+                line-height: 1;
+                white-space: nowrap;
+            }
+
+            .sales-employee-navbar .sales-nav-link-icon {
+                font-size: 13px;
+            }
+
+            .home-departments .category-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px;
+            }
+
+            .home-departments .category-card {
+                min-height: 112px;
+                gap: 10px;
+                padding: 12px 10px;
+                align-items: center;
+                overflow: hidden;
+            }
+
+            .home-departments .category-icon {
+                width: 44px;
+                height: 44px;
+                flex-basis: 44px;
+                font-size: 18px;
+            }
+
+            .home-departments .category-info {
+                min-width: 0;
+                flex: 1 1 auto;
+            }
+
+            .home-departments .category-info h4 {
+                font-size: 13px;
+                line-height: 1.15;
+                overflow-wrap: anywhere;
+                word-break: normal;
+            }
+
+            .home-departments .category-info p {
+                font-size: 12px;
+                line-height: 1.2;
+                overflow-wrap: anywhere;
+            }
+
+            #kbResultsSection {
+                margin-top: -12px;
+            }
+
+            #kbResultsSection .results-meta {
+                gap: 8px;
+                margin-bottom: 10px;
+            }
+
+            #kbResultsSection .results-title {
+                font-size: 17px;
+                line-height: 1.1;
+            }
+
+            #kbResultsSection .results-count {
+                font-size: 12px;
+            }
+
+            #kbResultsSection .kb-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            #kbResultsSection .kb-card {
+                min-height: 0;
+                border-radius: 10px;
+            }
+
+            #kbResultsSection .kb-card-body {
+                padding: 10px 12px 9px;
+            }
+
+            #kbResultsSection .kb-category-badge {
+                padding: 3px 7px;
+                font-size: 9px;
+                line-height: 1;
+                margin-bottom: 7px;
+                letter-spacing: 0.02em;
+            }
+
+            #kbResultsSection .kb-card-title {
+                font-size: 13px;
+                line-height: 1.18;
+                margin: 0;
+            }
+
+            #kbResultsSection .kb-card-preview {
+                display: none;
+            }
+
+            #kbResultsSection .kb-card-footer {
+                padding: 8px 12px;
+                min-height: 0;
+            }
+
+            #kbResultsSection .kb-views {
+                font-size: 10px;
+                gap: 5px;
+            }
+
+            #kbResultsSection .read-more-btn {
+                width: auto;
+                height: auto;
+                gap: 4px;
+                font-size: 10px;
+                line-height: 1.1;
+                text-align: right;
             }
         }
     </style>
@@ -1559,7 +1787,6 @@ if ($showCategoryView) {
         <?php if ($showCategoryView): ?>
             <div class="categories-section">
                 <?php if ($activeCategory === 'Others' && $selectedSubCategory === ''): ?>
-                    <a href="knowledge_base.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
                     <h2 class="categories-title">Other Categories</h2>
                     <?php if (empty($othersSubcategories)): ?>
                         <div class="no-results">
@@ -1587,13 +1814,6 @@ if ($showCategoryView) {
                     <?php endif; ?>
                 <?php else: ?>
                     <div class="department-view">
-                        <div class="department-back-row">
-                            <a href="knowledge_base.php" class="department-back-btn">
-                                <i class="fas fa-arrow-left" aria-hidden="true"></i>
-                                <span>Back</span>
-                            </a>
-                        </div>
-
                         <?php if (empty($departmentRecentArticles)): ?>
                             <div class="no-results">
                                 <div class="no-results-icon"><i class="fas fa-book-open"></i></div>
@@ -1652,7 +1872,6 @@ if ($showCategoryView) {
             </div>
         <?php elseif ($showOtherDepartments): ?>
             <div class="categories-section home-departments">
-                <a href="knowledge_base.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
                 <h2 class="categories-title">Others</h2>
                 <div class="category-grid">
                     <?php foreach ($otherDepartmentCards as $categoryCard): ?>

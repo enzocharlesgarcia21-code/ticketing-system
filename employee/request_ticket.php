@@ -3707,6 +3707,10 @@ if (count($sapFormEntries) === 0) {
             }
 
             body.employee-request-ticket-page .btn-submit {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
                 width: 100%;
                 padding: 14px;
                 font-size: 16px;
@@ -3736,12 +3740,246 @@ if (count($sapFormEntries) === 0) {
                 font-size: 16px;
             }
         }
+
+        body.employee-request-ticket-page .mobile-sidebar,
+        body.employee-request-ticket-page .mobile-sidebar-overlay {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            body.employee-request-ticket-page #navbarCollapse,
+            body.employee-request-ticket-page.sidebar-open #navbarCollapse {
+                display: none !important;
+            }
+
+            body.employee-request-ticket-page.sidebar-open .tm-global-chat-fab {
+                opacity: 0;
+                pointer-events: none;
+                transform: translateY(8px);
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar {
+                position: fixed;
+                top: 0;
+                right: -260px;
+                width: 260px;
+                height: 100vh;
+                background: #1B5E20;
+                padding: 20px;
+                transition: right 0.3s ease;
+                z-index: 2000;
+                display: flex;
+                flex-direction: column;
+                gap: 18px;
+                box-shadow: 12px 0 28px rgba(15, 23, 42, 0.25);
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar.active {
+                right: 0;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-header {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 8px;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-header img {
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                background: #ffffff;
+                padding: 4px;
+                object-fit: contain;
+                flex: 0 0 36px;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-header span {
+                color: #ffffff;
+                font-size: 15px;
+                font-weight: 700;
+                line-height: 1.2;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar a {
+                color: #ffffff;
+                text-decoration: none;
+                font-size: 16px;
+                font-weight: 500;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                padding: 10px 12px;
+                border-radius: 10px;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar a.active,
+            body.employee-request-ticket-page .mobile-sidebar a:hover {
+                background: rgba(255, 255, 255, 0.12);
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-footer {
+                margin-top: auto;
+                padding-top: 14px;
+                border-top: 1px solid rgba(255, 255, 255, 0.18);
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-icon-link,
+            body.employee-request-ticket-page .mobile-sidebar-user-btn {
+                min-height: 44px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.12);
+                border: 1px solid rgba(255, 255, 255, 0.28);
+                color: #ffffff;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                text-decoration: none;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-icon-link {
+                width: 44px;
+                min-width: 44px;
+                position: relative;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-icon-link i,
+            body.employee-request-ticket-page .mobile-sidebar-user-btn i {
+                font-size: 16px;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-badge {
+                position: absolute;
+                top: -6px;
+                right: -4px;
+                min-width: 20px;
+                height: 20px;
+                padding: 0 6px;
+                border-radius: 999px;
+                background: #ff4d4f;
+                color: #ffffff;
+                font-size: 11px;
+                font-weight: 800;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                line-height: 1;
+                border: 2px solid #1B5E20;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-user {
+                position: relative;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-user-btn {
+                gap: 10px;
+                padding: 0 16px;
+                cursor: pointer;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-user-menu {
+                position: absolute;
+                right: 0;
+                bottom: calc(100% + 10px);
+                min-width: 170px;
+                background: #ffffff;
+                border-radius: 12px;
+                box-shadow: 0 16px 30px rgba(15, 23, 42, 0.18);
+                padding: 8px;
+                display: none;
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-user-menu.show {
+                display: flex;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-user-menu a {
+                min-height: 40px;
+                color: #0f172a;
+                font-size: 14px;
+                font-weight: 600;
+                padding: 10px 12px;
+                border-radius: 10px;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-user-menu a:hover {
+                background: #f1f5f9;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.4);
+                opacity: 0;
+                visibility: hidden;
+                transition: 0.3s;
+                z-index: 1500;
+                display: block;
+            }
+
+            body.employee-request-ticket-page .mobile-sidebar-overlay.active {
+                opacity: 1;
+                visibility: visible;
+            }
+
+            body.employee-request-ticket-page .nav-left,
+            body.employee-request-ticket-page .navbar-toggler {
+                position: relative;
+                z-index: 2105;
+            }
+        }
     </style>
 </head>
 <body class="employee-request-ticket-page">
 
     <!-- 2️⃣ TOP NAVIGATION BAR -->
     <?php include '../includes/employee_navbar.php'; ?>
+
+    <div id="mobileSidebar" class="mobile-sidebar" aria-hidden="true">
+        <div class="mobile-sidebar-header">
+            <img src="../assets/img/UPDATEDlogo.png" alt="Logo">
+            <span>Leads Agri</span>
+        </div>
+        <?php foreach ($employeeNavItems as $navItem): ?>
+            <?php
+                $permissionKey = (string) ($navItem['key'] ?? '');
+                $isVisible = !array_key_exists($permissionKey, $tmUserPermissions) || (int) $tmUserPermissions[$permissionKey] === 1;
+                if (!$isVisible) {
+                    continue;
+                }
+            ?>
+            <a href="<?= htmlspecialchars((string) $navItem['page'], ENT_QUOTES, 'UTF-8'); ?>" class="<?= isActive((string) $navItem['page']); ?>">
+                <?= htmlspecialchars((string) $navItem['label'], ENT_QUOTES, 'UTF-8'); ?>
+            </a>
+        <?php endforeach; ?>
+        <div class="mobile-sidebar-footer">
+            <a href="notifications.php" class="mobile-sidebar-icon-link" aria-label="Notifications">
+                <i class="fas fa-bell"></i>
+                <span id="mobileSidebarNotifBadge" class="mobile-sidebar-badge"></span>
+            </a>
+            <div class="mobile-sidebar-user">
+                <button type="button" id="mobileSidebarUserBtn" class="mobile-sidebar-user-btn" aria-label="Account menu">
+                    <i class="fas fa-user"></i>
+                    <i class="fas fa-chevron-down" style="font-size: 11px;"></i>
+                </button>
+                <div id="mobileSidebarUserMenu" class="mobile-sidebar-user-menu">
+                    <a href="my_profile.php">My Profile</a>
+                    <a href="logout.php">Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mobileSidebarOverlay" class="mobile-sidebar-overlay" aria-hidden="true"></div>
 
     <div class="dashboard-container">
         <div class="content-wrapper">
@@ -4637,6 +4875,95 @@ if (count($sapFormEntries) === 0) {
     </div>
 
     <script src="../js/employee-dashboard.js"></script>
+
+    <script>
+    (function () {
+        const menuBtn = document.getElementById('navbarToggler');
+        const sidebar = document.getElementById('mobileSidebar');
+        const overlay = document.getElementById('mobileSidebarOverlay');
+        const mobileUserBtn = document.getElementById('mobileSidebarUserBtn');
+        const mobileUserMenu = document.getElementById('mobileSidebarUserMenu');
+        const desktopNotifBadge = document.getElementById('notifBadge');
+        const mobileNotifBadge = document.getElementById('mobileSidebarNotifBadge');
+        const navbarCollapse = document.getElementById('navbarCollapse');
+
+        function closeSidebar() {
+            if (!sidebar || !overlay) return;
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+            document.body.classList.remove('sidebar-open');
+            if (mobileUserMenu) mobileUserMenu.classList.remove('show');
+            sidebar.setAttribute('aria-hidden', 'true');
+            overlay.setAttribute('aria-hidden', 'true');
+            if (navbarCollapse) navbarCollapse.classList.remove('show');
+        }
+
+        function syncMobileNotifBadge() {
+            if (!desktopNotifBadge || !mobileNotifBadge) return;
+            const desktopText = (desktopNotifBadge.textContent || '').trim();
+            const desktopVisible = desktopNotifBadge.style.display !== 'none' && desktopText !== '';
+            mobileNotifBadge.textContent = desktopText;
+            mobileNotifBadge.style.display = desktopVisible ? 'inline-flex' : 'none';
+        }
+
+        if (menuBtn && sidebar && overlay) {
+            menuBtn.addEventListener('click', function (event) {
+                if (window.innerWidth > 768) return;
+                event.preventDefault();
+                event.stopPropagation();
+                if (typeof event.stopImmediatePropagation === 'function') {
+                    event.stopImmediatePropagation();
+                }
+                if (navbarCollapse) navbarCollapse.classList.remove('show');
+                const shouldOpen = !sidebar.classList.contains('active');
+                sidebar.classList.toggle('active', shouldOpen);
+                overlay.classList.toggle('active', shouldOpen);
+                document.body.classList.toggle('sidebar-open', shouldOpen);
+                sidebar.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+                overlay.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+            }, true);
+
+            overlay.addEventListener('click', function () {
+                if (window.innerWidth > 768) return;
+                closeSidebar();
+            });
+
+            sidebar.querySelectorAll('a').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    if (window.innerWidth > 768) return;
+                    closeSidebar();
+                });
+            });
+
+            if (mobileUserBtn && mobileUserMenu) {
+                mobileUserBtn.addEventListener('click', function (event) {
+                    if (window.innerWidth > 768) return;
+                    event.stopPropagation();
+                    mobileUserMenu.classList.toggle('show');
+                });
+
+                document.addEventListener('click', function (event) {
+                    if (window.innerWidth > 768) return;
+                    if (!mobileUserMenu.contains(event.target) && !mobileUserBtn.contains(event.target)) {
+                        mobileUserMenu.classList.remove('show');
+                    }
+                });
+            }
+
+            window.addEventListener('resize', function () {
+                if (window.innerWidth > 768) {
+                    closeSidebar();
+                }
+            });
+
+            syncMobileNotifBadge();
+            if (desktopNotifBadge && typeof MutationObserver !== 'undefined') {
+                const observer = new MutationObserver(syncMobileNotifBadge);
+                observer.observe(desktopNotifBadge, { attributes: true, childList: true, subtree: true });
+            }
+        }
+    })();
+    </script>
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {

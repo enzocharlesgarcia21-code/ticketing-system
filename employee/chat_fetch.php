@@ -34,6 +34,25 @@ if (count($companyAliases) === 0) {
         $companyAliases = [$rawCompany];
     }
 }
+$reassignedHistoryAliases = $companyAliases;
+$companyDisplay = ticket_company_display_name((string) ($userContext['company'] ?? ''));
+if ($companyDisplay !== '') {
+    $reassignedHistoryAliases[] = $companyDisplay;
+}
+if ($current_user_department !== '') {
+    $reassignedHistoryAliases[] = $current_user_department;
+}
+foreach (ticket_department_aliases_for_key($current_user_department) as $departmentAlias) {
+    $departmentAlias = trim((string) $departmentAlias);
+    if ($departmentAlias !== '') {
+        $reassignedHistoryAliases[] = $departmentAlias;
+    }
+}
+$reassignedHistoryAliases = array_values(array_unique(array_filter(array_map(static function ($value) {
+    return strtoupper(trim((string) $value));
+}, $reassignedHistoryAliases), static function ($value) {
+    return $value !== '';
+})));
 
 function normalize_domain(string $value): string
 {
@@ -67,6 +86,74 @@ function has_unread_hr_chat_reminder(mysqli $conn, int $userId, int $ticketId): 
     $exists = $res && $res->fetch_assoc();
     $stmt->close();
     return (bool) $exists;
+}
+
+function chat_user_has_reassignment_history(mysqli $conn, int $ticketId, int $userId, array $historyAliases): bool
+{
+    if ($ticketId <= 0 || $userId <= 0) {
+        return false;
+    }
+
+    $notifStmt = $conn->prepare("
+        SELECT 1
+        FROM notifications
+        WHERE ticket_id = ?
+          AND user_id = ?
+          AND type = 'dept_assigned'
+          AND COALESCE(NULLIF(LOWER(TRIM(action_type)), ''), 'assign') IN ('assign', 'reassign')
+        LIMIT 1
+    ");
+    if ($notifStmt) {
+        $notifStmt->bind_param("ii", $ticketId, $userId);
+        $notifStmt->execute();
+        $notifRes = $notifStmt->get_result();
+        $hasNotification = (bool) ($notifRes && $notifRes->fetch_row());
+        $notifStmt->close();
+        if ($hasNotification) {
+            return true;
+        }
+    }
+
+    $aliases = array_values(array_unique(array_filter(array_map(static function ($value) {
+        return strtoupper(trim((string) $value));
+    }, $historyAliases), static function ($value) {
+        return $value !== '';
+    })));
+    if (count($aliases) === 0) {
+        return false;
+    }
+
+    $whereParts = implode(' OR ', array_fill(0, count($aliases), "UPPER(description) LIKE ?"));
+    $activityStmt = $conn->prepare("
+        SELECT 1
+        FROM ticket_activity
+        WHERE ticket_id = ?
+          AND activity_type IN ('department_change', 'company_change')
+          AND ($whereParts)
+        LIMIT 1
+    ");
+    if (!$activityStmt) {
+        return false;
+    }
+
+    $params = [$ticketId];
+    $types = 'i';
+    foreach ($aliases as $alias) {
+        $params[] = '%' . $alias . '%';
+        $types .= 's';
+    }
+
+    $bind = [$types];
+    foreach ($params as $idx => $param) {
+        $bind[] = &$params[$idx];
+    }
+    call_user_func_array([$activityStmt, 'bind_param'], $bind);
+    $activityStmt->execute();
+    $activityRes = $activityStmt->get_result();
+    $hasActivity = (bool) ($activityRes && $activityRes->fetch_row());
+    $activityStmt->close();
+
+    return $hasActivity;
 }
 
 function maybe_send_hr_chat_reminder(mysqli $conn, int $ticketId, int $viewerUserId): void
@@ -338,7 +425,8 @@ $canViewClosedChat = $chatClosedMessage !== '' && (
     || $handlerId === $current_user_id
     || (int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id
 );
-if (!$canChatForTicket && !$canViewClosedChat) {
+$canViewReassignedChatHistory = chat_user_has_reassignment_history($conn, $ticket_id, $current_user_id, $reassignedHistoryAliases);
+if (!$canChatForTicket && !$canViewClosedChat && !$canViewReassignedChatHistory) {
     http_response_code(403);
     echo json_encode([
         'error' => (ticket_user_can_manual_claim($ticket, $current_user_id, $userContext)
