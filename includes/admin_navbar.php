@@ -62,7 +62,7 @@ foreach ($adminNavSections as $items) {
     <a href="<?= htmlspecialchars(admin_nav_url('dashboard.php'), ENT_QUOTES, 'UTF-8'); ?>" class="admin-sidebar-brand">
         <img src="../assets/img/UPDATEDlogo.png" alt="Logo" class="admin-logo-img">
         <div class="admin-brand-copy">
-            <div class="admin-logo-text-main">Leads Helpdesk</div>
+            <div class="admin-logo-text-main">Leads DeskMetamorph</div>
             <div class="admin-logo-text-sub">Admin</div>
         </div>
     </a>
@@ -238,8 +238,9 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
 
 .admin-sidebar .admin-logo-text-main {
     color: #ffffff;
-    font-size: 16px;
-    font-weight: 800;
+    font-size: 14px;
+    font-family: inherit;
+    font-weight: 700;
     line-height: 1.2;
 }
 

@@ -279,12 +279,12 @@ if ($send_credentials === 1) {
         ? ($scheme . '://' . $host . ($rootPath !== '' ? $rootPath : '') . '/employee/employee_login.php')
         : '../employee/employee_login.php';
 
-    $subject = 'Your Leads Agri Helpdesk Account';
+    $subject = 'Your Leads DeskMetamorph Account';
     $htmlBody = "
         <div style='font-family:Arial, sans-serif; color:#334155; line-height:1.6'>
             <h2 style='margin:0 0 12px 0; color:#0f172a;'>Your account has been created</h2>
             <p style='margin:0 0 14px 0;'>Hello <strong>" . htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8') . "</strong>,</p>
-            <p style='margin:0 0 14px 0;'>Your Leads Agri Helpdesk account is ready. Please use the credentials below to sign in:</p>
+            <p style='margin:0 0 14px 0;'>Your Leads DeskMetamorph account is ready. Please use the credentials below to sign in:</p>
             <div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin:0 0 14px 0;'>
                 <div><strong>Email:</strong> " . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . "</div>
                 <div><strong>Temporary Password:</strong> " . htmlspecialchars($password, ENT_QUOTES, 'UTF-8') . "</div>

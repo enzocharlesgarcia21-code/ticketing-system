@@ -446,7 +446,7 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employee Dashboard | Leads Agri Helpdesk</title>
+    <title>Employee Dashboard | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <!-- Optional: Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">

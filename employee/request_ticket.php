@@ -1560,7 +1560,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($attachmentSummary !== '') {
             $employeeLines[] = $attachmentSummary;
         }
-        $employeeTpl = notif_email_simple('Ticket Submitted', $employeeLines, 'Go To Helpdesk', notif_ticket_link_employee_tickets((int) $ticket_id));
+        $employeeTpl = notif_email_simple('Ticket Submitted', $employeeLines, 'Go To Leads DeskMetamorph', notif_ticket_link_employee_tickets((int) $ticket_id));
 
         $employeeOk = notif_email_send([$employeeEmail], $employeeSubject, (string) $employeeTpl['html'], (string) $employeeTpl['text'], $attachments);
         if (!$employeeOk) {
@@ -1585,7 +1585,7 @@ if (count($sapFormEntries) === 0) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Request Ticket | Leads Agri Helpdesk</title>
+    <title>Request Ticket | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -3360,25 +3360,19 @@ if (count($sapFormEntries) === 0) {
             margin-top: 0;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status {
-            margin-top: 18px;
-            padding-top: 26px;
+            margin-top: 30px;
+            padding-top: 20px;
             width: 100%;
-            border-top: 1px solid #e6e8ef;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            font-size: 17px;
-            font-weight: 700;
-            letter-spacing: 0;
+            min-height: 1px;
+            border-top: 1px solid #e5e7eb;
+            display: block;
+            font-size: 0;
+            line-height: 0;
+            color: transparent;
+            overflow: hidden;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status::before {
-            content: "";
-            width: 10px;
-            height: 10px;
-            border-radius: 999px;
-            background: #16a34a;
-            box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
+            display: none;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
             order: 1;
@@ -3393,16 +3387,44 @@ if (count($sapFormEntries) === 0) {
             order: 1;
             width: 64px;
             height: 64px;
-            margin: 0 auto 22px;
-            background: conic-gradient(from 45deg, #16a34a 0 72%, rgba(22, 163, 74, 0.12) 72% 100%);
+            margin: 0 auto 18px;
+            border-radius: 999px;
+            background: transparent;
+            border: 7px solid rgba(34, 197, 94, 0.18);
+            border-top-color: #22c55e;
+            border-right-color: #16a34a;
+            border-bottom-color: rgba(34, 197, 94, 0.26);
+            border-left-color: rgba(34, 197, 94, 0.08);
             box-shadow:
-                0 0 0 10px rgba(34, 197, 94, 0.08),
-                0 18px 42px rgba(22, 101, 52, 0.14);
+                0 0 0 14px rgba(34, 197, 94, 0.08),
+                0 0 38px rgba(74, 222, 128, 0.28),
+                0 18px 42px rgba(22, 101, 52, 0.12);
+            isolation: isolate;
+            position: relative;
+            animation: follow-up-feedback-spin 1s linear infinite;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-spinner::before {
-            width: 48px;
-            height: 48px;
-            box-shadow: none;
+            content: "";
+            position: absolute;
+            inset: 9px;
+            border-radius: 999px;
+            background: #ffffff;
+            box-shadow:
+                0 0 0 10px rgba(255, 255, 255, 0.98),
+                inset 0 0 0 1px rgba(15, 23, 42, 0.03);
+            z-index: 1;
+        }
+        body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-spinner::after {
+            content: "";
+            position: absolute;
+            inset: -7px;
+            border-radius: 999px;
+            background: conic-gradient(from 0deg, rgba(255, 255, 255, 0) 0deg 220deg, rgba(255, 255, 255, 0.95) 255deg 290deg, rgba(134, 239, 172, 0.35) 315deg 345deg, rgba(255, 255, 255, 0) 360deg);
+            -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+            animation: follow-up-feedback-spin 0.9s linear infinite;
+            pointer-events: none;
+            z-index: 0;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-actions {
             margin-top: 0;
@@ -3414,18 +3436,26 @@ if (count($sapFormEntries) === 0) {
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
             order: 2;
             margin-top: 0;
-            margin-bottom: 12px;
-            font-size: 26px;
+            margin-bottom: 14px;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.035em;
+            color: #0f172a;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content {
             height: auto;
             min-height: 330px;
-            padding: 34px 36px 30px;
+            padding: 40px 36px 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             justify-content: center;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content p {
-            font-size: 15px;
-            max-width: 420px;
+            font-size: 16px;
+            line-height: 1.55;
+            color: #6b7280;
+            max-width: 520px;
             margin-bottom: 0;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-icon.success,
@@ -3519,7 +3549,7 @@ if (count($sapFormEntries) === 0) {
             color: #14532d;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-progress span { background: linear-gradient(90deg, #ef4444, #f97316); }
-        @keyframes ticket-loading-spin {
+        @keyframes follow-up-feedback-spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
@@ -3539,17 +3569,16 @@ if (count($sapFormEntries) === 0) {
             }
             body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content {
                 min-height: 306px;
-                padding: 30px 22px 24px;
+                padding: 34px 22px 24px;
             }
             body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
-                font-size: 23px;
+                font-size: 24px;
             }
             body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content p {
-                font-size: 14px;
+                font-size: 15px;
             }
             body.employee-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status {
-                font-size: 14px;
-                margin-top: 16px;
+                margin-top: 24px;
                 padding-top: 18px;
             }
             body.employee-request-ticket-page .ticket-modal-content h3 {

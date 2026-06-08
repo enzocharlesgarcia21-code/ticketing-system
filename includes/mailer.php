@@ -119,7 +119,7 @@ function buildSmtpMailer(array $candidate = []): PHPMailer
         $fromEmail = $username;
     }
     if ($fromName === '') {
-        $fromName = 'Leads Agri Helpdesk';
+        $fromName = 'Leads DeskMetamorph';
     }
 
     if ($username === '' || $password === '' || $fromEmail === '') {

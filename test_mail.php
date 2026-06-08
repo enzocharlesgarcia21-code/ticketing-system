@@ -45,14 +45,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sent = false;
         $error = 'Please enter a valid recipient email address.';
     } else {
-        $subject = 'Helpdesk SMTP Test - ' . date('Y-m-d H:i:s');
+        $subject = 'Leads DeskMetamorph SMTP Test - ' . date('Y-m-d H:i:s');
         $mail = notif_email_simple('SMTP Test', [
             'This is a test email from the ticketing system.',
             'Sender: ' . readSmtpConfigValue('SMTP_USERNAME'),
             'Host: ' . readSmtpConfigValue('SMTP_HOST'),
             'Port: ' . readSmtpConfigValue('SMTP_PORT'),
             'Encryption: ' . (readSmtpConfigValue('SMTP_ENCRYPTION') ?: readSmtpConfigValue('SMTP_SECURE')),
-        ], 'Open Helpdesk', notif_base_url() . '/ticketing/index.php');
+        ], 'Open Leads DeskMetamorph', notif_base_url() . '/ticketing/index.php');
 
         $sent = notif_email_send([$to], $subject, (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''));
         $error = $sent ? '' : (function_exists('smtp_last_error') ? smtp_last_error() : 'Email send failed.');

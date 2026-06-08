@@ -163,7 +163,7 @@ function renderArticleContent($text) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($article['title']) ?> | Leads Agri Helpdesk</title>
+    <title><?= htmlspecialchars($article['title']) ?> | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
@@ -890,7 +890,7 @@ function renderArticleContent($text) {
     <nav class="sales-employee-navbar" aria-label="Sales navigation">
         <div class="nav-left">
             <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo" class="logo-icon">
-            <div class="brand-name">Leads Helpdesk</div>
+            <div class="brand-name">Leads DeskMetamorph</div>
             <button class="navbar-toggler" id="navbarToggler" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="navbarCollapse">
                 <i class="fas fa-bars"></i>
             </button>

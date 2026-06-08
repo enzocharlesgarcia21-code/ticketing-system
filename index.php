@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LEADS HELPDESK</title>
+    <title>Leads DeskMetamorph</title>
     <link rel="stylesheet" href="css/auth-select.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -140,7 +140,7 @@
             font-size: 20px;
             font-weight: 800;
             letter-spacing: 0.08em;
-            text-transform: uppercase;
+            text-transform: none;
         }
 
         .auth-card .welcome-logo {
@@ -156,7 +156,7 @@
             font-size: 30px;
             font-weight: 800;
             letter-spacing: 0.01em;
-            text-transform: uppercase;
+            text-transform: none;
         }
 
         .auth-card .subtitle {
@@ -349,15 +349,15 @@
 <body class="portal-home-page">
 
 <div class="auth-wrapper auth-container">
-    <section class="auth-split-left" aria-label="LEADS AGRI HELPDESK branding">
+    <section class="auth-split-left" aria-label="Leads DeskMetamorph branding">
     </section>
 
     <section class="auth-split-right" aria-label="Role selection">
         <div class="auth-card">
-            <img src="assets/img/leads-logo.png" alt="LEADS AGRI HELPDESK Logo" class="welcome-logo">
+            <img src="assets/img/leads-logo.png" alt="Leads DeskMetamorph Logo" class="welcome-logo">
                         <h1 class="card-title">
-                <span class="card-title-top">WELCOME TO</span>
-                <span class="card-title-main">LEADS HELPDESK</span>
+                <span class="card-title-top">Welcome to</span>
+                <span class="card-title-main">Leads DeskMetamorph</span>
             </h1>
             <p class="subtitle">Choose a portal to continue </p>
 

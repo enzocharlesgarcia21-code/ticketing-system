@@ -1303,7 +1303,7 @@ $successMessage = '';
     <meta charset="UTF-8">
     <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Tickets | Leads Agri Helpdesk</title>
+    <title>My Tickets | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -2116,20 +2116,49 @@ $successMessage = '';
                 0 14px 34px rgba(185, 28, 28, 0.14);
         }
         body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending .follow-up-feedback-icon {
-            background: linear-gradient(180deg, #f7fff8 0%, #dcfce7 100%);
+            background: transparent;
             color: #166534;
-            border-color: #86efac;
+            border-color: transparent;
             box-shadow:
-                0 0 0 10px rgba(34, 197, 94, 0.1),
-                0 14px 34px rgba(22, 101, 52, 0.16);
+                0 0 0 14px rgba(34, 197, 94, 0.08),
+                0 0 38px rgba(74, 222, 128, 0.28),
+                0 18px 42px rgba(22, 101, 52, 0.12);
         }
         body.employee-my-tickets-page .follow-up-feedback-icon-spinner {
-            width: 34px;
-            height: 34px;
+            width: 64px;
+            height: 64px;
             border-radius: 999px;
-            border: 4px solid rgba(34, 197, 94, 0.18);
-            border-top-color: #166534;
-            animation: follow-up-feedback-spin 0.8s linear infinite;
+            background: transparent;
+            border: 7px solid rgba(34, 197, 94, 0.18);
+            border-top-color: #22c55e;
+            border-right-color: #16a34a;
+            border-bottom-color: rgba(34, 197, 94, 0.26);
+            border-left-color: rgba(34, 197, 94, 0.08);
+            position: relative;
+            animation: follow-up-feedback-spin 1s linear infinite;
+            isolation: isolate;
+        }
+        body.employee-my-tickets-page .follow-up-feedback-icon-spinner::before {
+            content: "";
+            position: absolute;
+            inset: 9px;
+            border-radius: 999px;
+            background: #ffffff;
+            box-shadow:
+                0 0 0 10px rgba(255, 255, 255, 0.98),
+                inset 0 0 0 1px rgba(15, 23, 42, 0.03);
+        }
+        body.employee-my-tickets-page .follow-up-feedback-icon-spinner::after {
+            content: "";
+            position: absolute;
+            inset: -7px;
+            border-radius: 999px;
+            background: conic-gradient(from 0deg, rgba(255, 255, 255, 0) 0deg 220deg, rgba(255, 255, 255, 0.95) 255deg 290deg, rgba(134, 239, 172, 0.35) 315deg 345deg, rgba(255, 255, 255, 0) 360deg);
+            -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+            animation: follow-up-feedback-spin 0.9s linear infinite;
+            pointer-events: none;
+            z-index: 0;
         }
         body.employee-my-tickets-page .follow-up-feedback-title {
             margin: 0 0 10px;
@@ -2144,11 +2173,37 @@ $successMessage = '';
             font-size: 16px;
             line-height: 1.65;
         }
+        body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending .follow-up-feedback-body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding-top: 40px;
+        }
+        body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending .follow-up-feedback-title {
+            margin: 0 0 14px;
+            color: #0f172a;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.035em;
+        }
+        body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending .follow-up-feedback-text {
+            max-width: 520px;
+            color: #6b7280;
+            line-height: 1.55;
+        }
         body.employee-my-tickets-page .follow-up-feedback-actions {
             padding-top: 24px;
             display: flex;
             justify-content: center;
             border-top: 1px solid #e6e8ef;
+        }
+        body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending .follow-up-feedback-actions {
+            width: 100%;
+            min-height: 1px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
         }
         body.employee-my-tickets-page .follow-up-feedback-btn {
             min-width: 132px;
@@ -2217,6 +2272,13 @@ $successMessage = '';
             }
             body.employee-my-tickets-page .follow-up-feedback-text {
                 font-size: 15px;
+            }
+            body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending .follow-up-feedback-body {
+                padding-top: 34px;
+            }
+            body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending .follow-up-feedback-actions {
+                margin-top: 24px;
+                padding-top: 18px;
             }
         }
         body.employee-my-tickets-page .feedback-modal-overlay {

@@ -1550,7 +1550,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($attachmentSummary !== '') {
                     $requesterLines[] = $attachmentSummary;
                 }
-                $requesterTpl = notif_email_simple('Ticket Submitted', $requesterLines, 'Go To Helpdesk', notif_base_url() . '/ticketing/index.php');
+                $requesterTpl = notif_email_simple('Ticket Submitted', $requesterLines, 'Go To Leads DeskMetamorph', notif_base_url() . '/ticketing/index.php');
                 $requesterEmails = sales_clean_email_list([$creatorEmail, $email]);
                 $requesterOk = false;
                 if (count($requesterEmails) > 0) {
@@ -1629,7 +1629,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sales Ticket Request | Leads Helpdesk</title>
+    <title>Sales Ticket Request | Leads DeskMetamorph</title>
     <!-- Reuse existing CSS or inline minimal styles -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../css/employee-dashboard.css">
@@ -4046,25 +4046,19 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             margin-top: 0;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status {
-            margin-top: 18px;
-            padding-top: 26px;
+            margin-top: 30px;
+            padding-top: 20px;
             width: 100%;
-            border-top: 1px solid #e6e8ef;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            font-size: 17px;
-            font-weight: 700;
-            letter-spacing: 0;
+            min-height: 1px;
+            border-top: 1px solid #e5e7eb;
+            display: block;
+            font-size: 0;
+            line-height: 0;
+            color: transparent;
+            overflow: hidden;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status::before {
-            content: "";
-            width: 10px;
-            height: 10px;
-            border-radius: 999px;
-            background: #16a34a;
-            box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
+            display: none;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
             order: 1;
@@ -4079,16 +4073,44 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             order: 1;
             width: 64px;
             height: 64px;
-            margin: 0 auto 22px;
-            background: conic-gradient(from 45deg, #16a34a 0 72%, rgba(22, 163, 74, 0.12) 72% 100%);
+            margin: 0 auto 18px;
+            border-radius: 999px;
+            background: transparent;
+            border: 7px solid rgba(34, 197, 94, 0.18);
+            border-top-color: #22c55e;
+            border-right-color: #16a34a;
+            border-bottom-color: rgba(34, 197, 94, 0.26);
+            border-left-color: rgba(34, 197, 94, 0.08);
             box-shadow:
-                0 0 0 10px rgba(34, 197, 94, 0.08),
-                0 18px 42px rgba(22, 101, 52, 0.14);
+                0 0 0 14px rgba(34, 197, 94, 0.08),
+                0 0 38px rgba(74, 222, 128, 0.28),
+                0 18px 42px rgba(22, 101, 52, 0.12);
+            isolation: isolate;
+            position: relative;
+            animation: follow-up-feedback-spin 1s linear infinite;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-spinner::before {
-            width: 48px;
-            height: 48px;
-            box-shadow: none;
+            content: "";
+            position: absolute;
+            inset: 9px;
+            border-radius: 999px;
+            background: #ffffff;
+            box-shadow:
+                0 0 0 10px rgba(255, 255, 255, 0.98),
+                inset 0 0 0 1px rgba(15, 23, 42, 0.03);
+            z-index: 1;
+        }
+        body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-spinner::after {
+            content: "";
+            position: absolute;
+            inset: -7px;
+            border-radius: 999px;
+            background: conic-gradient(from 0deg, rgba(255, 255, 255, 0) 0deg 220deg, rgba(255, 255, 255, 0.95) 255deg 290deg, rgba(134, 239, 172, 0.35) 315deg 345deg, rgba(255, 255, 255, 0) 360deg);
+            -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+            animation: follow-up-feedback-spin 0.9s linear infinite;
+            pointer-events: none;
+            z-index: 0;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-actions {
             margin-top: 0;
@@ -4100,18 +4122,26 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
             order: 2;
             margin-top: 0;
-            margin-bottom: 12px;
-            font-size: 26px;
+            margin-bottom: 14px;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.035em;
+            color: #0f172a;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content {
             height: auto;
             min-height: 330px;
-            padding: 34px 36px 30px;
+            padding: 40px 36px 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             justify-content: center;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content p {
-            font-size: 15px;
-            max-width: 420px;
+            font-size: 16px;
+            line-height: 1.55;
+            color: #6b7280;
+            max-width: 520px;
             margin-bottom: 0;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-icon.success,
@@ -4203,7 +4233,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             color: #14532d;
         }
         body.sales-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-progress span { background: linear-gradient(90deg, #ef4444, #f97316); }
-        @keyframes ticket-loading-spin {
+        @keyframes follow-up-feedback-spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
@@ -4227,17 +4257,16 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             }
             body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content {
                 min-height: 306px;
-                padding: 30px 22px 24px;
+                padding: 34px 22px 24px;
             }
             body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content h3 {
-                font-size: 23px;
+                font-size: 24px;
             }
             body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-content p {
-                font-size: 14px;
+                font-size: 15px;
             }
             body.sales-request-ticket-page .ticket-modal[data-state="loading"] .ticket-modal-status {
-                font-size: 14px;
-                margin-top: 16px;
+                margin-top: 24px;
                 padding-top: 18px;
             }
             body.sales-request-ticket-page .ticket-modal-content h3 {
@@ -4354,7 +4383,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
 <nav class="navbar sales-employee-navbar" aria-label="Sales navigation">
     <div class="nav-left">
         <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo" class="logo-icon">
-        <div class="brand-name">Leads Helpdesk</div>
+        <div class="brand-name">Leads DeskMetamorph</div>
         <button class="navbar-toggler" id="navbarToggler" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="navbarCollapse">
             <i class="fas fa-bars"></i>
         </button>
@@ -4422,12 +4451,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     <label>Subsidiaries <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper recipient-dropdown<?= count($requestTicketCompanyOptions) <= 1 ? ' is-static' : '' ?>" id="recipientDropdown">
                         <select name="company_id" id="ticket_recipient" class="form-control recipient-native-select" required>
-                            <option value="" disabled <?= $selectedRecipientCompany === '' ? 'selected' : '' ?> hidden>Select the company you are submitting this ticket to</option>
+                            <option value="" disabled <?= $selectedRecipientCompany === '' ? 'selected' : '' ?> hidden>Select a company</option>
                             <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
                                 <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $selectedRecipientCompany === $companyValue ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <button type="button" id="recipientDropdownTrigger" class="recipient-dropdown-trigger<?= $selectedRecipientCompany === '' ? ' is-placeholder' : '' ?>" aria-haspopup="listbox" aria-expanded="false"<?= count($requestTicketCompanyOptions) <= 1 ? ' disabled' : '' ?>><?= htmlspecialchars(($selectedRecipientCompany !== '' ? ($requestTicketCompanyOptions[$selectedRecipientCompany] ?? 'Select the company you are submitting this ticket to') : 'Select the company you are submitting this ticket to'), ENT_QUOTES, 'UTF-8'); ?></button>
+                        <button type="button" id="recipientDropdownTrigger" class="recipient-dropdown-trigger<?= $selectedRecipientCompany === '' ? ' is-placeholder' : '' ?>" aria-haspopup="listbox" aria-expanded="false"<?= count($requestTicketCompanyOptions) <= 1 ? ' disabled' : '' ?>><?= htmlspecialchars(($selectedRecipientCompany !== '' ? ($requestTicketCompanyOptions[$selectedRecipientCompany] ?? 'Select a company') : 'Select a company'), ENT_QUOTES, 'UTF-8'); ?></button>
                         <div id="recipientDropdownMenu" class="recipient-dropdown-menu" role="listbox" aria-labelledby="recipientDropdownTrigger"></div>
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
@@ -5734,7 +5763,7 @@ function setStaticDropdownState(wrapper, trigger, menu, isStatic) {
 function syncRecipientTriggerLabel() {
     if (!recipientTrigger || !recipient) return;
     var selectedOption = recipient.options[recipient.selectedIndex];
-    var label = selectedOption && selectedOption.value ? selectedOption.textContent : 'Select the company you are submitting this ticket to';
+    var label = selectedOption && selectedOption.value ? selectedOption.textContent : 'Select a Company';
     recipientTrigger.textContent = label;
     recipientTrigger.classList.toggle('is-placeholder', !(selectedOption && selectedOption.value));
 }

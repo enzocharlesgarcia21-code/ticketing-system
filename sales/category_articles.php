@@ -766,7 +766,7 @@ if ($stmt) {
     <nav class="sales-employee-navbar" aria-label="Sales navigation">
         <div class="nav-left">
             <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo" class="logo-icon">
-            <div class="brand-name">Leads Helpdesk</div>
+            <div class="brand-name">Leads DeskMetamorph</div>
             <button class="navbar-toggler" id="navbarToggler" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="navbarCollapse">
                 <i class="fas fa-bars"></i>
             </button>

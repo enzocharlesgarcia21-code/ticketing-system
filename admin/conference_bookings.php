@@ -440,7 +440,7 @@ function conference_admin_booking_status_text(string $status): string
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conference Bookings | Leads Agri Helpdesk</title>
+    <title>Conference Bookings | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
