@@ -3416,6 +3416,575 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 flex-wrap: wrap;
             }
         }
+
+        @media (max-width: 640px) {
+            body.conference-booking-public-page .dashboard-container {
+                padding: 12px 10px 22px;
+            }
+
+            body.conference-booking-public-page .content-wrapper {
+                width: 100%;
+            }
+
+            body.conference-booking-public-page .public-shell {
+                border-radius: 20px;
+                overflow: hidden;
+            }
+
+            body.conference-booking-public-page .page-topbar,
+            body.conference-booking-public-page .page-header,
+            body.conference-booking-public-page .booking-layout {
+                padding-left: 12px;
+                padding-right: 12px;
+            }
+
+            body.conference-booking-public-page .page-topbar {
+                display: grid;
+                grid-template-columns: 1fr;
+                justify-items: start;
+                gap: 8px;
+                padding-top: 14px;
+                margin-bottom: 0;
+            }
+
+            body.conference-booking-public-page .topbar-side.left {
+                width: auto;
+                justify-content: flex-start;
+                justify-self: start;
+            }
+
+            body.conference-booking-public-page .topbar-side.right {
+                width: 100%;
+                justify-content: center;
+            }
+
+            body.conference-booking-public-page .back-link {
+                min-height: 34px;
+                padding: 0 13px;
+                justify-content: center;
+                border-radius: 999px;
+                font-size: 12px;
+                gap: 6px;
+            }
+
+            body.conference-booking-public-page .brand-chip {
+                justify-content: center;
+                gap: 10px;
+                font-size: 15px;
+            }
+
+            body.conference-booking-public-page .brand-chip img {
+                width: 36px;
+                height: 36px;
+            }
+
+            body.conference-booking-public-page .page-header {
+                padding-top: 12px;
+                padding-bottom: 14px;
+            }
+
+            body.conference-booking-public-page .page-title {
+                font-size: 25px;
+                line-height: 1.12;
+                letter-spacing: -0.02em;
+            }
+
+            body.conference-booking-public-page .page-subtitle {
+                max-width: 320px;
+                margin: 8px auto 0;
+                font-size: 13px;
+                line-height: 1.45;
+            }
+
+            body.conference-booking-public-page .booking-layout {
+                padding-bottom: 14px;
+            }
+
+            body.conference-booking-public-page .panel-header.scheduler-header {
+                display: block;
+                padding: 14px 0 12px;
+                border-bottom: 1px solid #e5e7eb;
+            }
+
+            body.conference-booking-public-page .scheduler-header .panel-header-actions {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 10px;
+                width: 100%;
+            }
+
+            body.conference-booking-public-page .availability-legend,
+            body.conference-booking-public-page .scheduler-header-legend,
+            body.conference-booking-public-page .legend-card {
+                width: 100%;
+            }
+
+            body.conference-booking-public-page .legend-card {
+                border-radius: 14px;
+                padding: 10px 12px;
+            }
+
+            body.conference-booking-public-page .legend-row {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 8px;
+                align-items: start;
+            }
+
+            body.conference-booking-public-page .legend-title {
+                font-size: 12px;
+                letter-spacing: 0.18em;
+            }
+
+            body.conference-booking-public-page .legend-items {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+            }
+
+            body.conference-booking-public-page .legend-item {
+                gap: 6px;
+                font-size: 12px;
+                font-weight: 700;
+                min-width: 0;
+            }
+
+            body.conference-booking-public-page .legend-dot {
+                width: 16px;
+                height: 16px;
+                border-radius: 5px;
+            }
+
+            body.conference-booking-public-page .scheduler-header-right,
+            body.conference-booking-public-page .scheduler-header-controls {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 10px;
+                width: 100%;
+            }
+
+            body.conference-booking-public-page .week-nav {
+                width: 100%;
+                min-height: 44px;
+                padding: 4px;
+                display: grid;
+                grid-template-columns: 40px 36px minmax(0, 1fr) 36px;
+                align-items: center;
+                gap: 4px;
+                border-radius: 14px;
+            }
+
+            body.conference-booking-public-page .week-nav-calendar-wrap {
+                width: 40px;
+                height: 36px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            body.conference-booking-public-page .week-nav-calendar,
+            body.conference-booking-public-page .week-nav-link {
+                width: 34px;
+                height: 34px;
+                border-radius: 10px;
+            }
+
+            body.conference-booking-public-page .week-nav-calendar-input {
+                pointer-events: none;
+            }
+
+            body.conference-booking-public-page .week-label {
+                min-width: 0;
+                padding: 0 4px;
+                text-align: center;
+                font-size: 13px;
+                font-weight: 700;
+                white-space: normal;
+            }
+
+            body.conference-booking-public-page .availability-filter {
+                width: 100%;
+                flex: none;
+            }
+
+            body.conference-booking-public-page .availability-filter .form-control {
+                height: 44px;
+                min-height: 44px;
+                border-radius: 14px;
+                font-size: 14px;
+                padding-left: 14px;
+            }
+
+            body.conference-booking-public-page .panel-header .btn-submit {
+                width: 100%;
+                min-height: 46px;
+                height: 46px;
+                border-radius: 14px;
+                font-size: 14px;
+                font-weight: 800;
+            }
+
+            body.conference-booking-public-page .panel-body {
+                padding-top: 12px;
+            }
+
+            body.conference-booking-public-page .scheduler-toolbar {
+                display: none;
+            }
+
+            body.conference-booking-public-page .scheduler-board-wrap {
+                margin-top: 0;
+                border-radius: 14px;
+                max-height: none;
+            }
+
+            body.conference-booking-public-page .scheduler-board {
+                --scheduler-slot-height: 32px;
+            }
+
+            body.conference-booking-public-page .booking-modal-overlay {
+                align-items: flex-start;
+                justify-content: center;
+                padding: 14px 10px calc(92px + env(safe-area-inset-bottom, 0px));
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            body.conference-booking-public-page .booking-modal {
+                width: 100%;
+                max-height: none;
+                overflow: visible;
+                border-radius: 18px;
+                box-shadow: 0 18px 44px rgba(15, 23, 42, 0.22);
+            }
+
+            body.conference-booking-public-page .booking-modal-header {
+                display: grid;
+                grid-template-columns: 40px minmax(0, 1fr) 42px;
+                align-items: center;
+                gap: 10px;
+                padding: 14px 14px 12px;
+            }
+
+            body.conference-booking-public-page .booking-modal-header .panel-header-icon {
+                width: 40px;
+                height: 40px;
+                border-radius: 12px;
+                font-size: 18px;
+            }
+
+            body.conference-booking-public-page .booking-modal-title {
+                font-size: 19px;
+                line-height: 1.15;
+            }
+
+            body.conference-booking-public-page .booking-modal-subtitle {
+                margin-top: 2px;
+                font-size: 12px;
+                line-height: 1.35;
+            }
+
+            body.conference-booking-public-page .booking-modal-close {
+                width: 42px;
+                height: 42px;
+                border-radius: 13px;
+                font-size: 17px;
+            }
+
+            body.conference-booking-public-page .booking-modal-body {
+                max-height: none;
+                overflow: visible;
+                padding: 14px;
+            }
+
+            body.conference-booking-public-page .booking-modal-body form {
+                display: grid;
+                gap: 14px;
+            }
+
+            body.conference-booking-public-page .booking-grid,
+            body.conference-booking-public-page .booking-grid.single,
+            body.conference-booking-public-page .booking-grid.date-time-row {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 14px;
+                margin-top: 0;
+            }
+
+            body.conference-booking-public-page .form-group label {
+                margin-bottom: 6px;
+                font-size: 11px;
+                letter-spacing: 0.04em;
+            }
+
+            body.conference-booking-public-page .form-control,
+            body.conference-booking-public-page textarea {
+                min-height: 44px;
+                border-radius: 13px;
+                font-size: 14px;
+            }
+
+            body.conference-booking-public-page .icon-field .form-control,
+            body.conference-booking-public-page .icon-field textarea {
+                padding-left: 40px;
+            }
+
+            body.conference-booking-public-page .icon-field .field-icon {
+                left: 13px;
+                font-size: 17px;
+            }
+
+            body.conference-booking-public-page .booking-grid.date-time-row {
+                grid-template-columns: minmax(0, 1fr) 42px;
+                align-items: end;
+            }
+
+            body.conference-booking-public-page .booking-grid.date-time-row > .form-group {
+                grid-column: 1 / -1;
+                width: 100%;
+                min-width: 0;
+            }
+
+            body.conference-booking-public-page .booking-grid.date-time-row > .form-group:first-child {
+                grid-column: 1;
+            }
+
+            body.conference-booking-public-page .booking-rule-tooltip {
+                grid-column: 2;
+                grid-row: 1;
+                align-self: end;
+                width: 42px;
+                height: 44px;
+            }
+
+            body.conference-booking-public-page .booking-rule-trigger {
+                width: 42px;
+                height: 44px;
+                border-radius: 13px;
+                font-size: 17px;
+            }
+
+            body.conference-booking-public-page .booking-rule-popup {
+                position: fixed;
+                left: 18px;
+                right: 18px;
+                top: 42%;
+                bottom: auto;
+                width: auto;
+                max-width: 360px;
+                margin: 0 auto;
+                padding: 14px 16px;
+                border: 1px solid #bbf7d0;
+                border-radius: 14px;
+                background: #0f172a;
+                color: #ffffff;
+                font-size: 13px;
+                font-weight: 600;
+                line-height: 1.6;
+                text-align: left;
+                box-shadow: 0 20px 44px rgba(15, 23, 42, 0.34);
+                z-index: 2500;
+                transform: translateY(-50%);
+            }
+
+            body.conference-booking-public-page .booking-rule-popup::before {
+                display: none;
+            }
+
+            body.conference-booking-public-page .booking-grid.date-time-row > .form-group:nth-child(3),
+            body.conference-booking-public-page .booking-grid.date-time-row > .form-group:nth-child(4) {
+                grid-column: 1 / -1;
+                width: 100%;
+                min-width: 0;
+            }
+
+            body.conference-booking-public-page .date-field-clickable .form-control {
+                min-height: 44px;
+                padding-left: 14px;
+                padding-right: 34px;
+                border-color: #bbf7d0;
+                background: #f0fdf4;
+                color: #14532d;
+                font-size: 12px;
+                font-weight: 800;
+                box-shadow: 0 8px 18px rgba(22, 101, 52, 0.08);
+                -webkit-appearance: none;
+                appearance: none;
+            }
+
+            body.conference-booking-public-page .date-field-clickable {
+                width: min(172px, 100%);
+            }
+
+            body.conference-booking-public-page .date-field-clickable .field-icon {
+                display: none;
+            }
+
+            body.conference-booking-public-page .date-field-clickable input[type="date"]::-webkit-calendar-picker-indicator {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                opacity: 0;
+                cursor: pointer;
+            }
+
+            body.conference-booking-public-page .date-field-clickable::after {
+                content: "";
+                position: absolute;
+                right: 14px;
+                top: 50%;
+                width: 7px;
+                height: 7px;
+                border-right: 2px solid #166534;
+                border-bottom: 2px solid #166534;
+                pointer-events: none;
+                transform: translateY(-65%) rotate(45deg);
+            }
+
+            body.conference-booking-public-page .time-group {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                width: 100%;
+                min-width: 0;
+                align-items: stretch;
+            }
+
+            body.conference-booking-public-page .time-group .select-wrapper {
+                display: block;
+                width: 100%;
+                min-width: 0;
+            }
+
+            body.conference-booking-public-page .time-group .form-control {
+                width: 100%;
+                min-width: 0;
+                min-height: 44px;
+                padding: 0 28px 0 12px;
+                text-align: center;
+                font-size: 14px;
+            }
+
+            body.conference-booking-public-page .time-group .select-icon {
+                right: 10px;
+                font-size: 12px;
+            }
+
+            body.conference-booking-public-page .purpose-row {
+                margin-top: 0;
+            }
+
+            body.conference-booking-public-page .purpose-field textarea.form-control,
+            body.conference-booking-public-page textarea {
+                min-height: 132px;
+                padding: 13px 14px 13px 40px;
+                text-align: left;
+                padding-bottom: 13px;
+                line-height: 1.4;
+            }
+
+            body.conference-booking-public-page .purpose-field textarea.form-control::placeholder {
+                text-align: left;
+            }
+
+            body.conference-booking-public-page .form-actions {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 10px;
+                margin-top: 0;
+            }
+
+            body.conference-booking-public-page .form-actions .btn-submit,
+            body.conference-booking-public-page .form-actions .btn-lite {
+                width: 100%;
+                min-height: 46px;
+                border-radius: 13px;
+                font-size: 14px;
+            }
+
+            body.conference-booking-public-page .mobile-week-picker {
+                position: absolute;
+                top: calc(100% + 8px);
+                left: 0;
+                right: 0;
+                z-index: 20;
+                display: none;
+                padding: 12px;
+                border: 1px solid #dbe7de;
+                border-radius: 14px;
+                background: #ffffff;
+                box-shadow: 0 18px 36px rgba(15, 23, 42, 0.18);
+            }
+
+            body.conference-booking-public-page .mobile-week-picker.is-open {
+                display: block;
+            }
+
+            body.conference-booking-public-page .mobile-week-picker-head {
+                display: grid;
+                grid-template-columns: 32px 1fr 32px;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 8px;
+            }
+
+            body.conference-booking-public-page .mobile-week-picker-title {
+                color: #166534;
+                font-size: 14px;
+                font-weight: 800;
+                text-align: center;
+            }
+
+            body.conference-booking-public-page .mobile-week-picker-nav {
+                width: 32px;
+                height: 32px;
+                border: 0;
+                border-radius: 10px;
+                background: #eef8f0;
+                color: #166534;
+                font-size: 13px;
+            }
+
+            body.conference-booking-public-page .mobile-week-picker-weekdays,
+            body.conference-booking-public-page .mobile-week-picker-grid {
+                display: grid;
+                grid-template-columns: repeat(7, 1fr);
+                gap: 4px;
+            }
+
+            body.conference-booking-public-page .mobile-week-picker-weekdays span {
+                color: #64748b;
+                font-size: 10px;
+                font-weight: 800;
+                text-align: center;
+                text-transform: uppercase;
+            }
+
+            body.conference-booking-public-page .mobile-week-picker-day {
+                min-width: 0;
+                height: 30px;
+                border: 0;
+                border-radius: 9px;
+                background: transparent;
+                color: #1f2937;
+                font-size: 13px;
+                font-weight: 700;
+            }
+
+            body.conference-booking-public-page .mobile-week-picker-day.is-muted {
+                color: #b6c0ca;
+            }
+
+            body.conference-booking-public-page .mobile-week-picker-day.is-selected {
+                background: #166534;
+                color: #ffffff;
+            }
+
+            body.conference-booking-public-page .mobile-week-picker-day:active {
+                transform: scale(0.96);
+            }
+        }
     </style>
 </head>
 <body class="conference-booking-public-page">
@@ -3500,6 +4069,27 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                             <a class="week-nav-link" href="?<?= htmlspecialchars(http_build_query(['week_of' => $nextWeekDate, 'room_filter' => $selectedRoomFilter]), ENT_QUOTES, 'UTF-8'); ?>" aria-label="Next week">
                                                 <i class="fas fa-chevron-right"></i>
                                             </a>
+                                            <div class="mobile-week-picker" id="mobileWeekPicker" hidden>
+                                                <div class="mobile-week-picker-head">
+                                                    <button type="button" class="mobile-week-picker-nav" id="mobileWeekPickerPrev" aria-label="Previous month">
+                                                        <i class="fas fa-chevron-left"></i>
+                                                    </button>
+                                                    <div class="mobile-week-picker-title" id="mobileWeekPickerTitle"></div>
+                                                    <button type="button" class="mobile-week-picker-nav" id="mobileWeekPickerNext" aria-label="Next month">
+                                                        <i class="fas fa-chevron-right"></i>
+                                                    </button>
+                                                </div>
+                                                <div class="mobile-week-picker-weekdays" aria-hidden="true">
+                                                    <span>Sun</span>
+                                                    <span>Mon</span>
+                                                    <span>Tue</span>
+                                                    <span>Wed</span>
+                                                    <span>Thu</span>
+                                                    <span>Fri</span>
+                                                    <span>Sat</span>
+                                                </div>
+                                                <div class="mobile-week-picker-grid" id="mobileWeekPickerGrid"></div>
+                                            </div>
                                         </div>
                                         <div class="select-wrapper availability-filter">
                                             <select id="availabilityRoomFilter" class="form-control">
@@ -3904,6 +4494,11 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             const availabilityRoomFilter = document.getElementById('availabilityRoomFilter');
             const openWeekPickerBtn = document.getElementById('openWeekPickerBtn');
             const weekNavDatePicker = document.getElementById('weekNavDatePicker');
+            const mobileWeekPicker = document.getElementById('mobileWeekPicker');
+            const mobileWeekPickerTitle = document.getElementById('mobileWeekPickerTitle');
+            const mobileWeekPickerGrid = document.getElementById('mobileWeekPickerGrid');
+            const mobileWeekPickerPrev = document.getElementById('mobileWeekPickerPrev');
+            const mobileWeekPickerNext = document.getElementById('mobileWeekPickerNext');
             const bookingModalOverlay = document.getElementById('bookingModalOverlay');
             const openBookingModalBtn = document.getElementById('openBookingModalBtn');
             const closeBookingModalBtn = document.getElementById('closeBookingModalBtn');
@@ -4030,14 +4625,141 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 });
             }
 
+            const mobileWeekMedia = window.matchMedia ? window.matchMedia('(max-width: 640px)') : null;
+            let mobileWeekPickerMonth = parseDateValue(currentWeekOf) || new Date();
+
+            function isMobileWeekPickerMode() {
+                return Boolean(mobileWeekPicker && mobileWeekMedia && mobileWeekMedia.matches);
+            }
+
+            function parseDateValue(dateValue) {
+                const parts = String(dateValue || '').split('-').map(Number);
+                if (parts.length !== 3 || parts.some(Number.isNaN)) {
+                    return null;
+                }
+
+                return new Date(parts[0], parts[1] - 1, parts[2]);
+            }
+
+            function formatDateValue(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return year + '-' + month + '-' + day;
+            }
+
+            function goToWeekDate(dateValue) {
+                const nextParams = new URLSearchParams(window.location.search);
+                nextParams.set('week_of', dateValue);
+                nextParams.set('room_filter', availabilityRoomFilter ? (availabilityRoomFilter.value || '0') : String(params.get('room_filter') || '0'));
+                window.location.href = 'conference_booking.php?' + nextParams.toString();
+            }
+
+            function closeMobileWeekPicker() {
+                if (!mobileWeekPicker) {
+                    return;
+                }
+
+                mobileWeekPicker.hidden = true;
+                mobileWeekPicker.classList.remove('is-open');
+            }
+
+            function renderMobileWeekPicker() {
+                if (!mobileWeekPickerTitle || !mobileWeekPickerGrid) {
+                    return;
+                }
+
+                const selectedValue = String(weekNavDatePicker ? weekNavDatePicker.value : currentWeekOf || '');
+                const displayMonth = new Date(mobileWeekPickerMonth.getFullYear(), mobileWeekPickerMonth.getMonth(), 1);
+                const monthLabel = displayMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                const firstGridDate = new Date(displayMonth);
+                firstGridDate.setDate(displayMonth.getDate() - displayMonth.getDay());
+
+                mobileWeekPickerTitle.textContent = monthLabel;
+                mobileWeekPickerGrid.innerHTML = '';
+
+                for (let index = 0; index < 42; index += 1) {
+                    const day = new Date(firstGridDate);
+                    day.setDate(firstGridDate.getDate() + index);
+
+                    const button = document.createElement('button');
+                    const dateValue = formatDateValue(day);
+                    button.type = 'button';
+                    button.className = 'mobile-week-picker-day';
+                    button.textContent = String(day.getDate());
+                    button.dataset.date = dateValue;
+                    button.setAttribute('aria-label', day.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }));
+
+                    if (day.getMonth() !== displayMonth.getMonth()) {
+                        button.classList.add('is-muted');
+                    }
+
+                    if (dateValue === selectedValue) {
+                        button.classList.add('is-selected');
+                    }
+
+                    mobileWeekPickerGrid.appendChild(button);
+                }
+            }
+
+            function openMobileWeekPicker() {
+                if (!mobileWeekPicker) {
+                    return;
+                }
+
+                mobileWeekPickerMonth = parseDateValue(weekNavDatePicker ? weekNavDatePicker.value : currentWeekOf) || new Date();
+                renderMobileWeekPicker();
+                mobileWeekPicker.hidden = false;
+                mobileWeekPicker.classList.add('is-open');
+            }
+
+            if (mobileWeekPickerPrev) {
+                mobileWeekPickerPrev.addEventListener('click', function () {
+                    mobileWeekPickerMonth = new Date(mobileWeekPickerMonth.getFullYear(), mobileWeekPickerMonth.getMonth() - 1, 1);
+                    renderMobileWeekPicker();
+                });
+            }
+
+            if (mobileWeekPickerNext) {
+                mobileWeekPickerNext.addEventListener('click', function () {
+                    mobileWeekPickerMonth = new Date(mobileWeekPickerMonth.getFullYear(), mobileWeekPickerMonth.getMonth() + 1, 1);
+                    renderMobileWeekPicker();
+                });
+            }
+
+            if (mobileWeekPickerGrid) {
+                mobileWeekPickerGrid.addEventListener('click', function (event) {
+                    const dayButton = event.target.closest('.mobile-week-picker-day');
+                    if (!dayButton || !dayButton.dataset.date) {
+                        return;
+                    }
+
+                    goToWeekDate(dayButton.dataset.date);
+                });
+            }
+
             if (openWeekPickerBtn && weekNavDatePicker) {
                 openWeekPickerBtn.addEventListener('click', function () {
-                    if (typeof weekNavDatePicker.showPicker === 'function') {
-                        weekNavDatePicker.showPicker();
+                    if (isMobileWeekPickerMode()) {
+                        if (mobileWeekPicker && !mobileWeekPicker.hidden) {
+                            closeMobileWeekPicker();
+                        } else {
+                            openMobileWeekPicker();
+                        }
                         return;
                     }
 
                     weekNavDatePicker.focus();
+
+                    if (typeof weekNavDatePicker.showPicker === 'function') {
+                        try {
+                            weekNavDatePicker.showPicker();
+                            return;
+                        } catch (error) {
+                            // Fall back to a normal click below when the browser rejects showPicker().
+                        }
+                    }
+
                     weekNavDatePicker.click();
                 });
 
@@ -4047,12 +4769,21 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                         return;
                     }
 
-                    const nextParams = new URLSearchParams(window.location.search);
-                    nextParams.set('week_of', selectedDate);
-                    nextParams.set('room_filter', availabilityRoomFilter ? (availabilityRoomFilter.value || '0') : String(params.get('room_filter') || '0'));
-                    window.location.href = 'conference_booking.php?' + nextParams.toString();
+                    goToWeekDate(selectedDate);
                 });
             }
+
+            document.addEventListener('click', function (event) {
+                if (!mobileWeekPicker || mobileWeekPicker.hidden) {
+                    return;
+                }
+
+                if (mobileWeekPicker.contains(event.target) || (openWeekPickerBtn && openWeekPickerBtn.contains(event.target))) {
+                    return;
+                }
+
+                closeMobileWeekPicker();
+            });
 
             function isSaturdayDateValue(dateValue) {
                 if (!dateValue) {
