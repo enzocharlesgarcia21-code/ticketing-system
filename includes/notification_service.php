@@ -1298,7 +1298,7 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
         <div style='font-family:Arial, sans-serif; color:#0f172a; line-height:1.5; padding:12px 0;'>
             <div style='max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #d7e3f1;border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,0.06)'>
                 <div style='background:linear-gradient(90deg,#055f1f,#03551b);padding:26px 28px 22px;color:#ffffff'>
-                    <div style='font-size:22px;font-weight:900;line-height:1.15'>Leads Agri Helpdesk</div>
+                    <div style='font-size:22px;font-weight:900;line-height:1.15'>Leads DeskMetamorph</div>
                     <div style='font-size:16px;font-weight:900;color:#ffe44d;margin-top:8px'>$safeTitle</div>
                 </div>
                 <div style='padding:28px 32px 30px'>
@@ -1309,7 +1309,7 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
             </div>
         </div>
     ";
-    $bodyText = "Leads Agri Helpdesk\n$title\n\n" . ($introText !== '' ? ($introText . "\n\n") : '') . $lineText . "\n$ctaLabel: $ctaUrl\n";
+    $bodyText = "Leads DeskMetamorph\n$title\n\n" . ($introText !== '' ? ($introText . "\n\n") : '') . $lineText . "\n$ctaLabel: $ctaUrl\n";
     return ['html' => $bodyHtml, 'text' => $bodyText];
 }
 

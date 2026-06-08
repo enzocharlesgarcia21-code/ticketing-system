@@ -403,7 +403,7 @@ echo '<?mso-application progid="Excel.Sheet"?>';
    <Column ss:AutoFitWidth="0" ss:Width="78"/>
    <Column ss:AutoFitWidth="0" ss:Width="78"/>
    <Row>
-    <Cell ss:MergeAcross="10" ss:StyleID="Title"><Data ss:Type="String">Leads Agri Helpdesk Ticket Analytics Report</Data></Cell>
+    <Cell ss:MergeAcross="10" ss:StyleID="Title"><Data ss:Type="String">Leads DeskMetamorph Ticket Analytics Report</Data></Cell>
    </Row>
    <Row>
     <Cell ss:MergeAcross="10"><Data ss:Type="String"><?= analytics_excel_escape('Date Range: ' . $filters['start_date'] . ' to ' . $filters['end_date']) ?></Data></Cell>

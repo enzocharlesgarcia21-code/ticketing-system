@@ -587,7 +587,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Book Conference | Leads Helpdesk</title>
+    <title>Book Conference | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="css/employee-dashboard.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -3432,7 +3432,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                     <div class="topbar-side right">
                         <div class="brand-chip">
                             <img src="assets/img/leads-logo.png" alt="Leads Agri Logo">
-                            <span>Leads Helpdesk</span>
+                            <span>Leads DeskMetamorph</span>
                         </div>
                     </div>
                 </div>

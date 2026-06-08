@@ -35,7 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $nameSafe = htmlspecialchars((string) $user['name']);
                 $otpSafe = htmlspecialchars((string) $otp);
 
-                $subjectLine = "Password Reset OTP - Leads Agri Helpdesk";
+                $subjectLine = "Password Reset OTP - Leads DeskMetamorph";
                 $bodyHtml = "
                     <div style='font-family:Segoe UI, Arial, sans-serif; padding:20px; color:#111827; line-height:1.5'>
                         <p style='margin:0 0 12px 0'>Hello <strong>{$nameSafe}</strong>,</p>

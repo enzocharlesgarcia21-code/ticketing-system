@@ -1402,7 +1402,7 @@ if ($ticketsStmt) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Analytics - Leads Agri Helpdesk</title>
+    <title>Analytics - Leads DeskMetamorph</title>
     <?php if ($analyticsIsEmployeeView): ?>
     <link rel="stylesheet" href="../css/employee-dashboard.css?v=<?php echo time(); ?>">
     <?php endif; ?>

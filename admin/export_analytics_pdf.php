@@ -319,7 +319,7 @@ $pdf->SetAutoPageBreak(true, 8);
 $pdf->AddPage();
 
 $pdf->SetFont('Helvetica', 'B', 14);
-$pdf->Cell(0, 8, 'Leads Agri Helpdesk Ticket Analytics Report', 0, 1, 'C');
+$pdf->Cell(0, 8, 'Leads DeskMetamorph Ticket Analytics Report', 0, 1, 'C');
 $pdf->SetFont('Helvetica', '', 9);
 $pdf->Cell(0, 6, 'Date Range: ' . $filters['start_date'] . ' to ' . $filters['end_date'], 0, 1, 'C');
 $pdf->Ln(3);
