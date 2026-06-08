@@ -121,7 +121,6 @@ $department = $_GET['department'] ?? '';
 $company_email = $_GET['company_email'] ?? '';
 $status = $_GET['status'] ?? '';
 $sla = $_GET['sla'] ?? '';
-$assignment_filter = $_GET['assignment_filter'] ?? 'assigned';
 $slaLevel = task_normalize_sla_filter((string) $sla);
 if ($slaLevel !== '') {
     $sla = task_sla_display_label($slaLevel);
@@ -169,9 +168,6 @@ if (!in_array($status, $allowed_statuses, true)) {
 }
 if ($slaLevel === '') {
     $sla = '';
-}
-if (!in_array($assignment_filter, ['assigned', 'reassigned'], true)) {
-    $assignment_filter = 'assigned';
 }
 
 function task_source_label(array $row): string
@@ -246,6 +242,15 @@ $companyAliases = company_aliases((string) $user_company);
 if (count($companyAliases) === 0) {
     $companyAliases = [(string) $user_company];
 }
+$reassignedHistoryAliases = $companyAliases;
+$userCompanyDisplay = ticket_company_display_name((string) $user_company);
+if ($userCompanyDisplay !== '') {
+    $reassignedHistoryAliases[] = $userCompanyDisplay;
+}
+$userCompanyCode = company_code((string) $userCompanyDisplay);
+if ($userCompanyCode !== '') {
+    $reassignedHistoryAliases[] = $userCompanyCode;
+}
 $userDepartmentKey = ticket_department_key_from_value((string) $user_department);
 $userDepartmentAliases = [];
 foreach (array_merge([(string) $user_department, $userDepartmentKey], ticket_department_aliases_for_key($userDepartmentKey)) as $departmentAlias) {
@@ -255,6 +260,11 @@ foreach (array_merge([(string) $user_department, $userDepartmentKey], ticket_dep
     }
 }
 $userDepartmentAliases = array_values($userDepartmentAliases);
+$reassignedHistoryAliases = array_values(array_unique(array_filter(array_map(static function ($value) {
+    return strtoupper(trim((string) $value));
+}, array_merge($reassignedHistoryAliases, $userDepartmentAliases)), static function ($value) {
+    return $value !== '';
+})));
 $companyCol = "COALESCE(NULLIF(t.assigned_company, ''), t.company)";
 $companyAliases = array_values(array_filter(array_map('trim', $companyAliases), static function ($v) { return $v !== ''; }));
 $companyAliasCond = count($companyAliases) > 0
@@ -280,8 +290,8 @@ if ($userCompanyNorm === '@leadsagri.com') {
 }
 
 $assignedTaskCond = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND $lapcSharedCreatedCond AND COALESCE(t.assigned_user_id, 0) = 0 AND (t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed') AND ((NOT $requiresGroupCond) OR $groupCond)))";
-$reassignedActivityCond = count($userDepartmentAliases) > 0
-    ? "EXISTS (SELECT 1 FROM ticket_activity ta WHERE ta.ticket_id = t.id AND ta.activity_type = 'department_change' AND (" . implode(' OR ', array_fill(0, count($userDepartmentAliases), "UPPER(ta.description) LIKE ?")) . "))"
+$reassignedActivityCond = count($reassignedHistoryAliases) > 0
+    ? "EXISTS (SELECT 1 FROM ticket_activity ta WHERE ta.ticket_id = t.id AND ta.activity_type IN ('department_change', 'company_change') AND (" . implode(' OR ', array_fill(0, count($reassignedHistoryAliases), "UPPER(ta.description) LIKE ?")) . "))"
     : "0=1";
 $reassignedNotificationCond = "EXISTS (
     SELECT 1
@@ -291,8 +301,7 @@ $reassignedNotificationCond = "EXISTS (
       AND n.type = 'dept_assigned'
       AND COALESCE(NULLIF(LOWER(TRIM(n.action_type)), ''), 'assign') IN ('assign', 'reassign')
 )";
-$currentAssignmentCond = "((t.assigned_user_id = ? OR t.assigned_to = ?) OR (($requiresGroupCond) AND $groupCond))";
-$reassignedTaskCond = "(NOT $requesterIsCurrentCond AND (($reassignedActivityCond) OR $reassignedNotificationCond) AND NOT $currentAssignmentCond)";
+$reassignedTaskCond = "(NOT $requesterIsCurrentCond AND (($reassignedActivityCond) OR $reassignedNotificationCond))";
 
 $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userCompanyNorm, $user_created_at, $userDepartmentAliases): void {
     $params[] = (int) $user_id;
@@ -326,38 +335,22 @@ $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $u
     }
 };
 
-$addReassignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $userDepartmentAliases): void {
+$addReassignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $reassignedHistoryAliases, $userDepartmentAliases): void {
     $params[] = (int) $user_id;
     $types .= "i";
     $params[] = strtolower((string) $user_email);
     $types .= "s";
-    foreach ($userDepartmentAliases as $departmentAlias) {
-        $params[] = '%FROM%' . strtoupper($departmentAlias) . '%TO%';
+    foreach ($reassignedHistoryAliases as $historyAlias) {
+        $params[] = '%' . strtoupper($historyAlias) . '%';
         $types .= "s";
     }
     $params[] = (int) $user_id;
     $types .= "i";
-    $params[] = (int) $user_id;
-    $types .= "i";
-    $params[] = (int) $user_id;
-    $types .= "i";
-    foreach ($userDepartmentAliases as $departmentAlias) {
-        $params[] = $departmentAlias;
-        $types .= "s";
-    }
 };
 
-if ($assignment_filter === 'assigned') {
-    $where[] = $assignedTaskCond;
-    $addAssignedTaskParams();
-} elseif ($assignment_filter === 'reassigned') {
-    $where[] = $reassignedTaskCond;
-    $addReassignedTaskParams();
-} else {
-    $where[] = "($assignedTaskCond OR $reassignedTaskCond)";
-    $addAssignedTaskParams();
-    $addReassignedTaskParams();
-}
+$where[] = "($assignedTaskCond OR $reassignedTaskCond)";
+$addAssignedTaskParams();
+$addReassignedTaskParams();
 
 // 1. Search
 if (!empty($search)) {
@@ -1078,13 +1071,6 @@ $showing_to = min($offset + $limit, (int) $total_records);
                             </select>
                         </div>
 
-                        <div class="select-wrapper small">
-                            <select name="assignment_filter" class="filter-select" id="filterAssignment">
-                                <option value="assigned" <?= $assignment_filter === 'assigned' ? 'selected' : '' ?>>Assigned Tickets</option>
-                                <option value="reassigned" <?= $assignment_filter === 'reassigned' ? 'selected' : '' ?>>Reassigned Tickets</option>
-                            </select>
-                        </div>
-
                         <a href="my_task.php" class="clear-btn">Clear Filters</a>
                     </div>
                 </form>
@@ -1170,7 +1156,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 <div class="pagination-glass">
                     <div class="pagination-summary">Showing <?= number_format($showing_from) ?> - <?= number_format($showing_to) ?> of <?= number_format((int) $total_records) ?> tickets</div>
                     <?php if ($total_pages > 1): ?>
-                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>&assignment_filter=<?= urlencode($assignment_filter); ?>" 
+                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>" 
                        data-page="<?= max(1, $page - 1) ?>"
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
                         &lsaquo; Previous
@@ -1212,7 +1198,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                             <?php if ($pagination_item === 'ellipsis'): ?>
                                 <span class="pagination-ellipsis">...</span>
                             <?php else: ?>
-                                <a href="?page=<?= $pagination_item; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>&assignment_filter=<?= urlencode($assignment_filter); ?>"
+                                <a href="?page=<?= $pagination_item; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>"
                                    data-page="<?= $pagination_item ?>"
                                    class="page-btn <?= ($pagination_item == $page) ? 'active' : ''; ?>">
                                     <?= $pagination_item; ?>
@@ -1221,7 +1207,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                         <?php endforeach; ?>
                     </div>
 
-                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>&assignment_filter=<?= urlencode($assignment_filter); ?>" 
+                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>" 
                        data-page="<?= min($total_pages, $page + 1) ?>"
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
                         Next &rsaquo;
@@ -1411,7 +1397,6 @@ $showing_to = min($offset + $limit, (int) $total_records);
         var filterDepartmentEl = document.getElementById('filterDepartment');
         var filterStatusEl = document.getElementById('filterStatus');
         var filterSlaEl = document.getElementById('filterSla');
-        var filterAssignmentEl = document.getElementById('filterAssignment');
 
         if (filterCompanyEl) {
             filterCompanyEl.addEventListener('change', function() {
@@ -1434,12 +1419,6 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
         if (filterSlaEl) {
             filterSlaEl.addEventListener('change', function() {
-                refreshTasks(1);
-            });
-        }
-
-        if (filterAssignmentEl) {
-            filterAssignmentEl.addEventListener('change', function() {
                 refreshTasks(1);
             });
         }
@@ -1471,15 +1450,13 @@ $showing_to = min($offset + $limit, (int) $total_records);
             if (!isClosed) return;
 
             var updateTab = modal.querySelector('.tm-tab[data-tab="actions"]');
-            var chatTab = modal.querySelector('.tm-tab[data-tab="conversation"]');
             var updateContent = modal.querySelector('#tab-actions');
 
             if (updateTab) updateTab.style.display = 'none';
-            if (chatTab) chatTab.style.display = 'none';
             if (updateContent) updateContent.style.display = 'none';
 
             var activeTab = modal.querySelector('.tm-tab.active');
-            if (activeTab && (activeTab.getAttribute('data-tab') === 'actions' || activeTab.getAttribute('data-tab') === 'conversation')) {
+            if (activeTab && activeTab.getAttribute('data-tab') === 'actions') {
                 TMTicketModal.switchTab('info');
             }
         }

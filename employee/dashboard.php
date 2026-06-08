@@ -1802,6 +1802,293 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                 cursor: default;
             }
         }
+
+        @media (max-width: 768px) {
+            body.employee-dashboard-page {
+                background: #f5f8fb;
+            }
+
+            body.employee-dashboard-page .dashboard-container {
+                padding: 18px 12px 84px;
+            }
+
+            body.employee-dashboard-page .content-wrapper {
+                gap: 16px;
+            }
+
+            body.employee-dashboard-page .hero-section {
+                gap: 14px;
+                padding: 2px 0 0;
+            }
+
+            body.employee-dashboard-page .hero-title {
+                margin-bottom: 8px;
+                font-size: 22px;
+                line-height: 1.18;
+            }
+
+            body.employee-dashboard-page .hero-dept {
+                margin-bottom: 10px;
+                padding: 5px 10px;
+                border-radius: 8px;
+                font-size: 11px;
+                letter-spacing: 0.08em;
+                max-width: 100%;
+                flex-wrap: wrap;
+            }
+
+            body.employee-dashboard-page .hero-subtitle {
+                font-size: 14px;
+                line-height: 1.45;
+            }
+
+            body.employee-dashboard-page .hero-action {
+                min-height: 46px;
+                border-radius: 14px;
+                font-size: 15px;
+            }
+
+            body.employee-dashboard-page .cards-panel {
+                padding: 12px;
+                border-radius: 14px;
+                box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+            }
+
+            body.employee-dashboard-page .card-filter-row {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 8px;
+                margin-bottom: 10px;
+            }
+
+            body.employee-dashboard-page .card-filter-label {
+                font-size: 13px;
+            }
+
+            body.employee-dashboard-page .card-filter-trigger {
+                width: 100%;
+                min-height: 42px;
+                justify-content: space-between;
+                padding: 0 12px;
+                border-radius: 12px;
+                font-size: 13px;
+            }
+
+            body.employee-dashboard-page .stats-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+                margin-top: 0;
+            }
+
+            body.employee-dashboard-page .stat-card {
+                min-height: 136px;
+                padding: 12px 12px 11px 15px;
+                border-radius: 14px;
+                background:
+                    linear-gradient(90deg, var(--stat-accent, #4ade80) 0 5px, #ffffff 5px 100%);
+            }
+
+            body.employee-dashboard-page .stat-main {
+                align-items: center;
+                gap: 10px;
+            }
+
+            body.employee-dashboard-page .stat-icon {
+                width: 38px;
+                height: 38px;
+                border-radius: 12px;
+                font-size: 17px;
+                flex: 0 0 38px;
+            }
+
+            body.employee-dashboard-page .stat-label {
+                margin: 0 0 3px;
+                font-size: 12px;
+                line-height: 1.15;
+            }
+
+            body.employee-dashboard-page .stat-value {
+                font-size: 30px;
+            }
+
+            body.employee-dashboard-page .stat-subtext {
+                margin-top: 8px;
+                font-size: 11px;
+                line-height: 1.25;
+            }
+
+            body.employee-dashboard-page .stat-action {
+                margin-top: 8px;
+                padding: 6px 9px;
+                font-size: 11px;
+                gap: 6px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-grid {
+                gap: 14px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-panel {
+                padding: 14px;
+                border-radius: 14px;
+                overflow: visible;
+                box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-title {
+                margin-bottom: 12px;
+                font-size: 19px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table,
+            body.employee-dashboard-page .dashboard-ticket-table tbody,
+            body.employee-dashboard-page .dashboard-ticket-table tr,
+            body.employee-dashboard-page .dashboard-ticket-table td {
+                display: block;
+                width: 100%;
+                min-width: 0;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table {
+                min-width: 0;
+                border-collapse: separate;
+                border-spacing: 0;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table thead {
+                display: none;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tbody {
+                display: grid;
+                gap: 10px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-row {
+                position: relative;
+                display: grid;
+                grid-template-columns: 1fr auto;
+                grid-template-areas:
+                    "id status"
+                    "category category"
+                    "requester requester"
+                    "department date"
+                    "sla arrow";
+                gap: 6px 10px;
+                padding: 12px;
+                border: 1px solid #e1e9f2;
+                border-radius: 13px;
+                background: #ffffff;
+                box-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-row:hover td {
+                background: transparent;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table td {
+                padding: 0;
+                border: 0;
+                font-size: 12px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-id {
+                grid-area: id;
+                width: auto;
+                color: #166534;
+                font-size: 12px;
+                font-weight: 800;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-category {
+                grid-area: category;
+                max-width: none;
+                color: #0f172a;
+                font-size: 15px;
+                line-height: 1.25;
+                white-space: normal;
+                overflow: visible;
+                text-overflow: clip;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester {
+                grid-area: requester;
+                min-width: 0;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester strong {
+                color: #172b4d;
+                font-size: 13px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester small {
+                max-width: 100%;
+                color: #64748b;
+                font-size: 11px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-department {
+                grid-area: department;
+                min-width: 0;
+                color: #64748b;
+                font-size: 11px;
+                white-space: normal;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(5) {
+                grid-area: status;
+                justify-self: end;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table .status-pill {
+                padding: 4px 8px;
+                font-size: 10px;
+                font-weight: 800;
+                white-space: nowrap;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-sla {
+                grid-area: sla;
+                width: auto;
+                white-space: normal;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-sla .badge {
+                min-height: 22px;
+                padding: 3px 8px;
+                font-size: 10px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-date {
+                grid-area: date;
+                width: auto;
+                justify-self: end;
+                color: #64748b;
+                font-size: 11px;
+                white-space: nowrap;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-arrow {
+                grid-area: arrow;
+                width: auto;
+                justify-self: end;
+                align-self: center;
+                color: #166534;
+                font-size: 20px;
+                line-height: 1;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-empty {
+                padding: 18px 12px;
+                border: 1px dashed #cbd5e1;
+                border-radius: 12px;
+                font-size: 13px;
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body class="employee-dashboard-page">
