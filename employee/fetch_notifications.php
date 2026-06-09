@@ -50,7 +50,7 @@ function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
                 ELSE NULL
             END) AS last_unread_message_at
         FROM employee_tickets t
-        LEFT JOIN ticket_messages tm ON tm.ticket_id = t.id
+        LEFT JOIN ticket_messages tm ON tm.ticket_id = t.id AND tm.chat_thread_id = COALESCE(t.current_chat_thread_id, 1)
         WHERE t.status IN ('Open', 'In Progress')
           AND (t.user_id = ? OR t.assigned_user_id = ? OR t.assigned_to = ?)
         GROUP BY t.id, t.subject

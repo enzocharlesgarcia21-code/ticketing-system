@@ -13,7 +13,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
 
-    ticket_ensure_assignment_columns($conn);
+ticket_ensure_assignment_columns($conn);
+ticket_ensure_chat_tables($conn);
     ticket_ensure_activity_table($conn);
     notif_ensure_action_type_column($conn);
     notif_ensure_requester_identity_columns($conn);
@@ -160,6 +161,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $update->bind_param("ssssiissssi", $new_status, $newDeptNorm, $newCompanyNorm, $effective_group, $assigned_user_id, $assigned_to, $admin_note, $new_status, $new_status, $new_status, $id);
     
     if ($update->execute()) {
+        if ($requesterAssignmentChanged) {
+            ticket_chat_rotate_thread($conn, (int) $id);
+        }
         $_SESSION['success'] = "Ticket #$id successfully updated.";
 
         // --- TICKET ACTIVITY LOG: Status change ---

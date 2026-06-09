@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 csrf_validate();
 ticket_ensure_assignment_columns($conn);
 ticket_ensure_activity_table($conn);
+ticket_ensure_chat_tables($conn);
 
 $ticketId = (int) ($_POST['ticket_id'] ?? 0);
 $currentUserId = (int) ($_SESSION['user_id'] ?? 0);

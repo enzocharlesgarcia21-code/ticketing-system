@@ -1512,6 +1512,7 @@ function ticket_ensure_chat_tables(mysqli $conn): void
             CREATE TABLE IF NOT EXISTS ticket_messages (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 ticket_id INT NOT NULL,
+                chat_thread_id INT NOT NULL DEFAULT 1,
                 sender_id INT NOT NULL,
                 message TEXT NOT NULL,
                 message_group_id VARCHAR(64) NULL,
@@ -1521,6 +1522,7 @@ function ticket_ensure_chat_tables(mysqli $conn): void
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 edited_at DATETIME NULL,
                 KEY idx_ticket_id (ticket_id),
+                KEY idx_ticket_thread (ticket_id, chat_thread_id),
                 KEY idx_sender_id (sender_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ");
@@ -1528,6 +1530,7 @@ function ticket_ensure_chat_tables(mysqli $conn): void
 
     $cols = [
         'ticket_id' => "INT NOT NULL",
+        'chat_thread_id' => "INT NOT NULL DEFAULT 1",
         'sender_id' => "INT NOT NULL",
         'message' => "TEXT NOT NULL",
         'message_group_id' => "VARCHAR(64) NULL",
@@ -1550,6 +1553,24 @@ function ticket_ensure_chat_tables(mysqli $conn): void
             $conn->query("ALTER TABLE ticket_messages ADD COLUMN $col $ddl");
         }
     }
+    if (isset($existing['chat_thread_id']) || array_key_exists('chat_thread_id', $cols)) {
+        $conn->query("UPDATE ticket_messages SET chat_thread_id = 1 WHERE chat_thread_id IS NULL OR chat_thread_id < 1");
+    }
+
+    $ticketCols = [];
+    $ticketRes = $conn->query("SHOW COLUMNS FROM employee_tickets");
+    if ($ticketRes) {
+        while ($row = $ticketRes->fetch_assoc()) {
+            if (isset($row['Field'])) {
+                $ticketCols[(string) $row['Field']] = true;
+            }
+        }
+        $ticketRes->free();
+    }
+    if (!isset($ticketCols['current_chat_thread_id'])) {
+        $conn->query("ALTER TABLE employee_tickets ADD COLUMN current_chat_thread_id INT NOT NULL DEFAULT 1");
+    }
+    $conn->query("UPDATE employee_tickets SET current_chat_thread_id = 1 WHERE current_chat_thread_id IS NULL OR current_chat_thread_id < 1");
 
     $conn->query("
         CREATE TABLE IF NOT EXISTS ticket_message_edits (
@@ -1563,6 +1584,51 @@ function ticket_ensure_chat_tables(mysqli $conn): void
             KEY idx_ticket_id (ticket_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+}
+
+function ticket_chat_current_thread_id(mysqli $conn, int $ticketId): int
+{
+    ticket_ensure_chat_tables($conn);
+    if ($ticketId <= 0) {
+        return 1;
+    }
+
+    $stmt = $conn->prepare("SELECT current_chat_thread_id FROM employee_tickets WHERE id = ? LIMIT 1");
+    if (!$stmt) {
+        return 1;
+    }
+    $stmt->bind_param("i", $ticketId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    $threadId = (int) ($row['current_chat_thread_id'] ?? 1);
+    return $threadId > 0 ? $threadId : 1;
+}
+
+function ticket_chat_rotate_thread(mysqli $conn, int $ticketId): int
+{
+    ticket_ensure_chat_tables($conn);
+    if ($ticketId <= 0) {
+        return 1;
+    }
+
+    $stmt = $conn->prepare("
+        UPDATE employee_tickets
+        SET current_chat_thread_id = CASE
+            WHEN current_chat_thread_id IS NULL OR current_chat_thread_id < 1 THEN 2
+            ELSE current_chat_thread_id + 1
+        END
+        WHERE id = ?
+    ");
+    if ($stmt) {
+        $stmt->bind_param("i", $ticketId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    return ticket_chat_current_thread_id($conn, $ticketId);
 }
 
 function ticket_chat_record_message_edit(mysqli $conn, int $messageId, int $ticketId, int $editedBy, string $previousMessage): void

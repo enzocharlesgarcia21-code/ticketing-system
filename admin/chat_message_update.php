@@ -26,6 +26,7 @@ $message_id = isset($_POST['message_id']) ? (int) $_POST['message_id'] : 0;
 $new_message = trim((string) ($_POST['message'] ?? ''));
 $current_user_id = (int) ($_SESSION['user_id'] ?? 0);
 $is_admin = (($_SESSION['role'] ?? '') === 'admin');
+$chatThreadId = ticket_chat_current_thread_id($conn, $ticket_id);
 
 if ($ticket_id <= 0 || $message_id <= 0) {
     http_response_code(400);
@@ -36,7 +37,7 @@ if ($ticket_id <= 0 || $message_id <= 0) {
 $msgStmt = $conn->prepare("
     SELECT id, sender_id, message, attachment_stored_name, edited_at
     FROM ticket_messages
-    WHERE id = ? AND ticket_id = ?
+    WHERE id = ? AND ticket_id = ? AND chat_thread_id = ?
     LIMIT 1
 ");
 if (!$msgStmt) {
@@ -44,7 +45,7 @@ if (!$msgStmt) {
     echo json_encode(['error' => 'Failed to prepare message lookup']);
     exit;
 }
-$msgStmt->bind_param("ii", $message_id, $ticket_id);
+$msgStmt->bind_param("iii", $message_id, $ticket_id, $chatThreadId);
 $msgStmt->execute();
 $msgRes = $msgStmt->get_result();
 $messageRow = $msgRes ? $msgRes->fetch_assoc() : null;
@@ -87,13 +88,13 @@ if ($new_message === $old_message) {
     exit;
 }
 
-$upd = $conn->prepare("UPDATE ticket_messages SET message = ?, edited_at = NOW() WHERE id = ? AND ticket_id = ? LIMIT 1");
+$upd = $conn->prepare("UPDATE ticket_messages SET message = ?, edited_at = NOW() WHERE id = ? AND ticket_id = ? AND chat_thread_id = ? LIMIT 1");
 if (!$upd) {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to prepare update']);
     exit;
 }
-$upd->bind_param("sii", $new_message, $message_id, $ticket_id);
+$upd->bind_param("siii", $new_message, $message_id, $ticket_id, $chatThreadId);
 if (!$upd->execute()) {
     $upd->close();
     http_response_code(500);

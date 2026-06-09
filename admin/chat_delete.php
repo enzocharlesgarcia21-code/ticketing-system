@@ -76,11 +76,12 @@ $isRequester = ticket_user_matches_requester($ticket, $current_user_id, $userCon
 $isCurrentAssignee = ((int) ($ticket['assigned_to'] ?? 0) === $current_user_id)
     || ((int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id);
 $canChat = ticket_user_can_chat($ticket, $current_user_id, $userContext);
+$chatThreadId = ticket_chat_current_thread_id($conn, $ticket_id);
 
 $hasSentInConversation = false;
-$msgStmt = $conn->prepare("SELECT id FROM ticket_messages WHERE ticket_id = ? AND sender_id = ? LIMIT 1");
+$msgStmt = $conn->prepare("SELECT id FROM ticket_messages WHERE ticket_id = ? AND chat_thread_id = ? AND sender_id = ? LIMIT 1");
 if ($msgStmt) {
-    $msgStmt->bind_param("ii", $ticket_id, $current_user_id);
+    $msgStmt->bind_param("iii", $ticket_id, $chatThreadId, $current_user_id);
     $msgStmt->execute();
     $msgRes = $msgStmt->get_result();
     $hasSentInConversation = (bool) ($msgRes && $msgRes->fetch_assoc());
@@ -96,14 +97,14 @@ if (!$is_admin && !$isRequester && !$isCurrentAssignee && !$hasSentInConversatio
     exit;
 }
 
-$delete = $conn->prepare("DELETE FROM ticket_messages WHERE ticket_id = ?");
+$delete = $conn->prepare("DELETE FROM ticket_messages WHERE ticket_id = ? AND chat_thread_id = ?");
 if (!$delete) {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to prepare delete']);
     exit;
 }
 
-$delete->bind_param("i", $ticket_id);
+$delete->bind_param("ii", $ticket_id, $chatThreadId);
 if (!$delete->execute()) {
     $delete->close();
     http_response_code(500);

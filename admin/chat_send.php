@@ -150,8 +150,9 @@ if ($sender_id !== $requesterId && $sender_id !== $handlerId) {
     exit;
 }
 
+$chatThreadId = ticket_chat_current_thread_id($conn, $ticket_id);
 $messageGroupId = function_exists('random_bytes') ? bin2hex(random_bytes(8)) : uniqid('chat_', true);
-$stmt = $conn->prepare("INSERT INTO ticket_messages (ticket_id, sender_id, message, message_group_id, attachment_stored_name, attachment_original_name, is_read) VALUES (?, ?, ?, ?, ?, ?, 0)");
+$stmt = $conn->prepare("INSERT INTO ticket_messages (ticket_id, chat_thread_id, sender_id, message, message_group_id, attachment_stored_name, attachment_original_name, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, 0)");
 if (!$stmt) {
     http_response_code(500);
     echo json_encode(['error' => 'Database Error']);
@@ -163,7 +164,7 @@ foreach ($insertRows as $index => $upload) {
     $rowMessage = ((int) $index === 0) ? $message : '';
     $storedAttachment = is_array($upload) ? (string) ($upload['stored_name'] ?? '') : null;
     $originalAttachment = is_array($upload) ? (string) ($upload['original_name'] ?? '') : null;
-    $stmt->bind_param("iissss", $ticket_id, $sender_id, $rowMessage, $messageGroupId, $storedAttachment, $originalAttachment);
+    $stmt->bind_param("iiissss", $ticket_id, $chatThreadId, $sender_id, $rowMessage, $messageGroupId, $storedAttachment, $originalAttachment);
     if (!$stmt->execute()) {
         $insertedAll = false;
         break;
