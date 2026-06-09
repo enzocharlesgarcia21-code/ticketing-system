@@ -93,6 +93,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $responseFlushed = false;
 
     ticket_ensure_assignment_columns($conn);
+    ticket_ensure_chat_tables($conn);
     ticket_ensure_activity_table($conn);
     notif_ensure_action_type_column($conn);
     notif_ensure_requester_identity_columns($conn);
@@ -328,6 +329,9 @@ $updateOk = false;
     }
 
     if ($updateOk) {
+        if ($requesterAssignmentChanged) {
+            ticket_chat_rotate_thread($conn, (int) $id);
+        }
         $_SESSION['task_success'] = "Ticket #$id successfully updated.";
         if ($oldStatus !== $new_status && in_array($new_status, ['Open', 'In Progress', 'Resolved'], true)) {
             $_SESSION['task_success_status'] = $new_status;

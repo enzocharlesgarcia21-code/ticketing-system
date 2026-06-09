@@ -81,7 +81,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             SUBSTRING_INDEX(GROUP_CONCAT(u.name ORDER BY tm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_sender_name,
             MAX(t.created_at) AS ticket_created_at
         FROM employee_tickets t
-        LEFT JOIN ticket_messages tm ON t.id = tm.ticket_id
+        LEFT JOIN ticket_messages tm ON t.id = tm.ticket_id AND tm.chat_thread_id = COALESCE(t.current_chat_thread_id, 1)
         LEFT JOIN users u ON tm.sender_id = u.id
         LEFT JOIN users requester ON t.user_id = requester.id
         LEFT JOIN users assignee ON assignee.id = t.assigned_user_id
@@ -91,7 +91,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $types = 'i';
 
     if ($is_admin) {
-        $sql .= " WHERE EXISTS (SELECT 1 FROM ticket_messages tm2 WHERE tm2.ticket_id = t.id) ";
+        $sql .= " WHERE EXISTS (SELECT 1 FROM ticket_messages tm2 WHERE tm2.ticket_id = t.id AND tm2.chat_thread_id = COALESCE(t.current_chat_thread_id, 1)) ";
     } else {
         $sql .= " WHERE (t.user_id = ? OR t.assigned_to = ? ";
         $params[] = $current_user_id;
@@ -232,10 +232,11 @@ $canManageChat = $canChatForTicket;
 $isRequester = ticket_user_matches_requester($ticket, $current_user_id, $userContext);
 $isCurrentAssignee = ((int) ($ticket['assigned_to'] ?? 0) === $current_user_id)
     || ((int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id);
+$chatThreadId = ticket_chat_current_thread_id($conn, $ticket_id);
 $hasSentInConversation = false;
-$msgPermStmt = $conn->prepare("SELECT id FROM ticket_messages WHERE ticket_id = ? AND sender_id = ? LIMIT 1");
+$msgPermStmt = $conn->prepare("SELECT id FROM ticket_messages WHERE ticket_id = ? AND chat_thread_id = ? AND sender_id = ? LIMIT 1");
 if ($msgPermStmt) {
-    $msgPermStmt->bind_param("ii", $ticket_id, $current_user_id);
+    $msgPermStmt->bind_param("iii", $ticket_id, $chatThreadId, $current_user_id);
     $msgPermStmt->execute();
     $msgPermRes = $msgPermStmt->get_result();
     $hasSentInConversation = (bool) ($msgPermRes && $msgPermRes->fetch_assoc());
@@ -243,9 +244,9 @@ if ($msgPermStmt) {
 }
 $canDeleteAnyMessage = $is_admin || $canManageChat || $isRequester || $isCurrentAssignee || $hasSentInConversation;
 
-$mark = $conn->prepare("UPDATE ticket_messages SET is_read = 1 WHERE ticket_id = ? AND sender_id <> ? AND is_read = 0");
+$mark = $conn->prepare("UPDATE ticket_messages SET is_read = 1 WHERE ticket_id = ? AND chat_thread_id = ? AND sender_id <> ? AND is_read = 0");
 if ($mark) {
-    $mark->bind_param("ii", $ticket_id, $current_user_id);
+    $mark->bind_param("iii", $ticket_id, $chatThreadId, $current_user_id);
     $mark->execute();
     $mark->close();
 }
@@ -256,11 +257,11 @@ $stmt = $conn->prepare("
     SELECT tm.id, tm.ticket_id, tm.sender_id, tm.message, tm.message_group_id, tm.attachment_stored_name, tm.attachment_original_name, tm.is_read, tm.created_at, tm.edited_at, u.name as sender_name, u.role as sender_role
     FROM ticket_messages tm
     JOIN users u ON tm.sender_id = u.id
-    WHERE tm.ticket_id = ?
+    WHERE tm.ticket_id = ? AND tm.chat_thread_id = ?
     ORDER BY tm.created_at ASC
 ");
 
-$stmt->bind_param("i", $ticket_id);
+$stmt->bind_param("ii", $ticket_id, $chatThreadId);
 $stmt->execute();
 $result = $stmt->get_result();
 

@@ -25,6 +25,7 @@ $ticket_id = isset($_POST['ticket_id']) ? (int) $_POST['ticket_id'] : 0;
 $message_id = isset($_POST['message_id']) ? (int) $_POST['message_id'] : 0;
 $current_user_id = (int) ($_SESSION['user_id'] ?? 0);
 $is_admin = (($_SESSION['role'] ?? '') === 'admin');
+$chatThreadId = ticket_chat_current_thread_id($conn, $ticket_id);
 
 if ($ticket_id <= 0 || $message_id <= 0) {
     http_response_code(400);
@@ -65,9 +66,9 @@ $isCurrentAssignee = ((int) ($ticket['assigned_to'] ?? 0) === $current_user_id)
     || ((int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id);
 
 $hasSentInConversation = false;
-$msgStmt = $conn->prepare("SELECT id FROM ticket_messages WHERE ticket_id = ? AND sender_id = ? LIMIT 1");
+$msgStmt = $conn->prepare("SELECT id FROM ticket_messages WHERE ticket_id = ? AND chat_thread_id = ? AND sender_id = ? LIMIT 1");
 if ($msgStmt) {
-    $msgStmt->bind_param("ii", $ticket_id, $current_user_id);
+    $msgStmt->bind_param("iii", $ticket_id, $chatThreadId, $current_user_id);
     $msgStmt->execute();
     $msgRes = $msgStmt->get_result();
     $hasSentInConversation = (bool) ($msgRes && $msgRes->fetch_assoc());
@@ -83,7 +84,7 @@ if (!$is_admin && !$canManageChat && !$isRequester && !$isCurrentAssignee && !$h
 $getMsg = $conn->prepare("
     SELECT id, attachment_stored_name
     FROM ticket_messages
-    WHERE id = ? AND ticket_id = ?
+    WHERE id = ? AND ticket_id = ? AND chat_thread_id = ?
     LIMIT 1
 ");
 if (!$getMsg) {
@@ -91,7 +92,7 @@ if (!$getMsg) {
     echo json_encode(['error' => 'Failed to prepare message lookup']);
     exit;
 }
-$getMsg->bind_param("ii", $message_id, $ticket_id);
+$getMsg->bind_param("iii", $message_id, $ticket_id, $chatThreadId);
 $getMsg->execute();
 $getMsgRes = $getMsg->get_result();
 $messageRow = $getMsgRes ? $getMsgRes->fetch_assoc() : null;
@@ -103,13 +104,13 @@ if (!$messageRow) {
     exit;
 }
 
-$delete = $conn->prepare("DELETE FROM ticket_messages WHERE id = ? AND ticket_id = ? LIMIT 1");
+$delete = $conn->prepare("DELETE FROM ticket_messages WHERE id = ? AND ticket_id = ? AND chat_thread_id = ? LIMIT 1");
 if (!$delete) {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to prepare delete']);
     exit;
 }
-$delete->bind_param("ii", $message_id, $ticket_id);
+$delete->bind_param("iii", $message_id, $ticket_id, $chatThreadId);
 if (!$delete->execute()) {
     $delete->close();
     http_response_code(500);
