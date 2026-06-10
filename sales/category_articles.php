@@ -153,7 +153,7 @@ if ($stmt) {
     }
     $stmt->close();
 }
-<!DOCTYPE html>
+?><!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">

@@ -1622,7 +1622,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
 } elseif ($normalized_company_id === '@leadsagri.com' && isset($lapcDepartmentCategories[$selectedRecipientDepartment])) {
     $initialSalesCategoryOptions = $lapcDepartmentCategories[$selectedRecipientDepartment];
 }
-<!DOCTYPE html>
+?><!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">

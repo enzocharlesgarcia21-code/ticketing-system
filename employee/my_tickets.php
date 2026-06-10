@@ -1295,7 +1295,7 @@ $stmt->execute();
 $result = $stmt->get_result();
 unset($_SESSION['success']);
 $successMessage = '';
-<!DOCTYPE html>
+?><!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">

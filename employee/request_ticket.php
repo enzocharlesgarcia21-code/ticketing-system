@@ -1578,7 +1578,7 @@ if (count($sapFormEntries) === 0) {
     $sapFormEntries = [request_ticket_blank_sap_report()];
 }
 
-<!DOCTYPE html>
+?><!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">

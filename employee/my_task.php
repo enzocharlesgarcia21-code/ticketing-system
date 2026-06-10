@@ -473,7 +473,7 @@ $result = $stmt->get_result();
 $showing_from = $total_records > 0 ? ($offset + 1) : 0;
 $showing_to = min($offset + $limit, (int) $total_records);
 
-<!DOCTYPE html>
+?><!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
