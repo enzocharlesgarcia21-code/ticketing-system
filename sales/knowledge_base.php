@@ -419,8 +419,6 @@ if ($showCategoryView) {
     }
 }
 
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>

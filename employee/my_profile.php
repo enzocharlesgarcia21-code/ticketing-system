@@ -22,8 +22,6 @@ if (!$user) {
     header("Location: logout.php");
     exit();
 }
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>

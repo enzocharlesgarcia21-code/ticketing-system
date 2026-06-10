@@ -90,7 +90,6 @@ function conference_booking_status_badge_class(string $status): string
     }
     return 'status-booked';
 }
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>

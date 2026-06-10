@@ -1295,8 +1295,6 @@ $stmt->execute();
 $result = $stmt->get_result();
 unset($_SESSION['success']);
 $successMessage = '';
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>

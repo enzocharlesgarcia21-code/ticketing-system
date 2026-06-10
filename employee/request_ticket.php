@@ -1578,8 +1578,6 @@ if (count($sapFormEntries) === 0) {
     $sapFormEntries = [request_ticket_blank_sap_report()];
 }
 
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>

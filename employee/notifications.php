@@ -113,8 +113,6 @@ function notif_priority_from_message(string $message): string
     if ($to === 'on track') return 'low';
     return $to;
 }
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>

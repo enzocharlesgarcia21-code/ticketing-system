@@ -95,8 +95,6 @@ foreach ([5, 4, 3, 2, 1] as $rating) {
     $donutStart = $donutEnd;
 }
 $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e5e7eb 0% 100%';
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>

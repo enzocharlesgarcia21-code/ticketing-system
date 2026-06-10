@@ -71,8 +71,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error = "Please enter your email.";
     }
 }
-?>
-
 <!DOCTYPE html>
 <html>
 <head>

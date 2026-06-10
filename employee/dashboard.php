@@ -449,8 +449,6 @@ function dashboard_priority_badge_html(array $row): string
     $class = dashboard_status_class($priority);
     return '<span class="dashboard-priority-badge dashboard-priority-' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($priority, ENT_QUOTES, 'UTF-8') . '</span>';
 }
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>

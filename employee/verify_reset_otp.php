@@ -45,8 +45,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error = "User not found.";
     }
 }
-?>
-
 <!DOCTYPE html>
 <html>
 <head>

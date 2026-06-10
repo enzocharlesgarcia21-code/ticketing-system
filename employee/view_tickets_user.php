@@ -120,8 +120,6 @@ $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $result = $stmt->get_result();
 
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>

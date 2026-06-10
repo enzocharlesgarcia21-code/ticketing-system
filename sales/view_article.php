@@ -156,8 +156,6 @@ function renderArticleContent($text) {
     
     return $output;
 }
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>

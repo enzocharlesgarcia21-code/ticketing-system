@@ -1622,8 +1622,6 @@ if ($normalized_company_id === '@malvedaproperties.com') {
 } elseif ($normalized_company_id === '@leadsagri.com' && isset($lapcDepartmentCategories[$selectedRecipientDepartment])) {
     $initialSalesCategoryOptions = $lapcDepartmentCategories[$selectedRecipientDepartment];
 }
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>

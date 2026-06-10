@@ -156,7 +156,6 @@ if ($stmt) {
     }
     $stmt->close();
 }
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
