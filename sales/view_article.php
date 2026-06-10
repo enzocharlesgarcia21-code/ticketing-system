@@ -967,12 +967,6 @@ function renderArticleContent($text) {
     </script>
 
     <div class="article-container">
-        
-        <a href="<?= htmlspecialchars($back_url) ?>" class="back-link" aria-label="Back to Category Articles">
-            <i class="fas fa-arrow-left"></i>
-            <span>Back</span>
-        </a>
-
         <article class="article-card">
             <div class="article-header">
                 <div class="article-meta">
