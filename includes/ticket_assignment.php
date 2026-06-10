@@ -1607,6 +1607,34 @@ function ticket_chat_current_thread_id(mysqli $conn, int $ticketId): int
     return $threadId > 0 ? $threadId : 1;
 }
 
+function ticket_chat_latest_participated_thread_id(mysqli $conn, int $ticketId, int $userId): int
+{
+    ticket_ensure_chat_tables($conn);
+    if ($ticketId <= 0 || $userId <= 0) {
+        return 0;
+    }
+
+    $stmt = $conn->prepare("
+        SELECT MAX(chat_thread_id) AS chat_thread_id
+        FROM ticket_messages
+        WHERE ticket_id = ?
+          AND sender_id = ?
+          AND chat_thread_id > 0
+        LIMIT 1
+    ");
+    if (!$stmt) {
+        return 0;
+    }
+
+    $stmt->bind_param("ii", $ticketId, $userId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    return max(0, (int) ($row['chat_thread_id'] ?? 0));
+}
+
 function ticket_chat_rotate_thread(mysqli $conn, int $ticketId): int
 {
     ticket_ensure_chat_tables($conn);

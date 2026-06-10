@@ -2018,6 +2018,289 @@ $successMessage = '';
             min-width: 224px;
             justify-content: center;
         }
+        @media (max-width: 768px) {
+            body.employee-my-tickets-page .table-card.my-tickets-card {
+                min-height: 0;
+                padding: 14px;
+                display: block;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-shell {
+                min-height: 0;
+                display: block;
+            }
+
+            body.employee-my-tickets-page .table-responsive.my-tickets-table-responsive {
+                overflow: visible;
+                min-height: 0;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive table,
+            body.employee-my-tickets-page .my-tickets-table-responsive colgroup,
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody {
+                display: block;
+                width: 100%;
+                min-width: 0;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive colgroup,
+            body.employee-my-tickets-page .my-tickets-table-responsive thead {
+                display: none;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                gap: 14px;
+            }
+
+            body.employee-my-tickets-page #myTicketsTbody tr {
+                height: auto;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                grid-template-areas:
+                    "id status"
+                    "category category"
+                    "passed passed"
+                    "date date"
+                    "badges badges"
+                    "action action";
+                column-gap: 12px;
+                row-gap: 9px;
+                width: 100%;
+                min-width: 0;
+                padding: 16px 18px;
+                border: 1px solid #dbe4ee;
+                border-radius: 16px;
+                background: #ffffff;
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+                box-sizing: border-box;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td {
+                display: block;
+                width: auto !important;
+                min-width: 0;
+                padding: 0;
+                border: 0;
+                text-align: left;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td::before {
+                content: none !important;
+                display: none !important;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(1) {
+                grid-area: id;
+                color: #0f172a;
+                font-size: 15px;
+                font-weight: 900;
+                line-height: 1.2;
+                font-variant-numeric: tabular-nums;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(2) {
+                grid-area: category;
+                color: #334155;
+                font-size: 15px;
+                line-height: 1.3;
+                font-weight: 800;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(2) strong {
+                display: block;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(3) {
+                grid-area: status;
+                justify-self: end;
+                align-self: start;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(4) {
+                grid-area: passed;
+                color: #334155;
+                font-size: 14px;
+                line-height: 1.35;
+                font-weight: 800;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(4)::after {
+                content: "Passed To";
+                display: block;
+                margin-top: 2px;
+                color: #94a3b8;
+                font-size: 11px;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(5) {
+                grid-area: date;
+                color: #94a3b8;
+                font-size: 12px;
+                line-height: 1.2;
+                font-weight: 700;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(6) {
+                grid-area: badges;
+                justify-self: start;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(7) {
+                grid-area: action;
+                padding-top: 4px;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr:not(.ticket-row) {
+                display: block;
+                width: 100%;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr:not(.ticket-row) td {
+                display: block;
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            body.employee-my-tickets-page .status-pill,
+            body.employee-my-tickets-page .my-tickets-sla-cell .badge {
+                min-height: 32px;
+                padding: 6px 14px;
+                border-radius: 999px;
+                font-size: 13px;
+                line-height: 1;
+                white-space: nowrap;
+            }
+
+            body.employee-my-tickets-page .ticket-action-buttons {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 8px;
+                width: 100%;
+            }
+
+            body.employee-my-tickets-page .follow-up-cell {
+                text-align: left;
+            }
+
+            body.employee-my-tickets-page .follow-up-btn,
+            body.employee-my-tickets-page .close-ticket-btn {
+                width: 100%;
+                min-width: 0;
+                height: 42px;
+                min-height: 42px;
+                font-size: 14px;
+            }
+
+            body.employee-my-tickets-page .follow-up-cooldown-note {
+                text-align: left;
+                font-size: 12px;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination {
+                margin-top: 16px;
+                padding-top: 0;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .pagination-glass {
+                display: grid;
+                grid-template-columns: auto minmax(0, 1fr) auto;
+                align-items: center;
+                gap: 10px;
+                min-height: 0;
+                margin: 0;
+                padding: 14px 0 4px;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .pagination-summary {
+                grid-column: 1 / -1;
+                width: 100%;
+                font-size: 14px;
+                line-height: 1.35;
+                text-align: left;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .page-numbers {
+                min-width: 0;
+                justify-content: flex-start;
+                overflow-x: auto;
+                padding: 2px 2px 6px;
+                scrollbar-width: none;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .page-numbers::-webkit-scrollbar {
+                display: none;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .page-btn {
+                flex: 0 0 auto;
+                min-width: 44px;
+                height: 44px;
+                padding: 0 14px;
+                border-radius: 999px;
+                font-size: 14px;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.prev,
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.next {
+                min-width: 44px;
+                width: 44px;
+                padding: 0;
+                overflow: hidden;
+                white-space: nowrap;
+                color: transparent;
+                position: relative;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.prev::before,
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.next::before {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #334155;
+                font-size: 20px;
+                font-weight: 900;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.prev::before {
+                content: "\2039";
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.next::before {
+                content: "\203A";
+            }
+
+            body.employee-my-tickets-page .tm-global-chat-fab {
+                right: 12px;
+                bottom: 12px;
+                width: 46px !important;
+                min-width: 46px !important;
+                max-width: 46px !important;
+                height: 46px;
+                min-height: 46px;
+                padding: 0 !important;
+                border-radius: 999px;
+                justify-content: center;
+                gap: 0;
+            }
+
+            body.employee-my-tickets-page .tm-global-chat-fab .tm-global-chat-label {
+                display: none;
+            }
+        }
         #ticketSuccessOverlay {
             display: none !important;
         }

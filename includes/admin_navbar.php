@@ -800,6 +800,8 @@ body.admin-sidebar-preload .admin-nav-icon {
     cursor: pointer;
     transition: all 0.2s ease;
     gap: 0;
+    color: inherit;
+    text-decoration: none;
 }
 .notif-item::before {
     content: "";
@@ -1505,6 +1507,20 @@ document.addEventListener('DOMContentLoaded', function() {
             e.stopPropagation();
         });
     }
+    const notifList = document.getElementById('notifList');
+    if (notifList) {
+        notifList.addEventListener('click', function(e) {
+            const item = e.target.closest('.notif-item[data-notif-id]');
+            if (!item) return;
+            e.preventDefault();
+            handleNotificationClick(
+                item.getAttribute('data-notif-id') || '0',
+                item.getAttribute('data-ticket-id') || '0',
+                item.getAttribute('data-notification-type') || '',
+                item.getAttribute('href') || item.getAttribute('data-href') || ''
+            );
+        });
+    }
 
     // Close dropdown when clicking outside
     document.addEventListener('click', function(e) {
@@ -1659,15 +1675,19 @@ function fetchAdminNotifications() {
                     const pillHtml = `<span class="notif-pill ${variantClass} ${breachPillClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span>${isChatPending ? '' : `<span class="notif-pill-text">${escapeHtml(pillText)}</span>`}</span>`;
                     const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
                     
+                    const notifIdValue = parseInt(String(n.id || 0), 10) || 0;
+                    const ticketIdValue = parseInt(String(n.ticket_id || 0), 10) || 0;
+                    const targetHref = notificationTargetHref(ticketIdValue, notificationType);
+
                     return `
                     ${sectionHtml}
-                    <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''} ${isChatPending ? 'notif-chat-pending' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" data-notification-type="${escapeHtml(notificationType)}" role="button" tabindex="0" onclick="handleNotificationClick(${n.id}, ${n.ticket_id}, ${JSON.stringify(notificationType)})" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleNotificationClick(${n.id}, ${n.ticket_id}, ${JSON.stringify(notificationType)}); }">
+                    <a href="${escapeHtml(targetHref)}" class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''} ${isChatPending ? 'notif-chat-pending' : ''}" data-notif-id="${notifIdValue}" data-ticket-id="${ticketIdValue}" data-notification-type="${escapeHtml(notificationType)}" data-href="${escapeHtml(targetHref)}">
                         ${unreadDotHtml}
                         <div class="notif-content">
                             ${messageHtml}
                             <time class="notif-time" data-timestamp="${n.created_at}">${n.time_ago || ''}</time>
                         </div>
-                    </div>
+                    </a>
                 `}).join('');
                 // Update relative times immediately after rendering
                 document.querySelectorAll('.notif-time[data-timestamp]').forEach(el => {
@@ -1707,27 +1727,35 @@ function getNotifSectionLabel(ts) {
     return 'Older';
 }
 
-function handleNotificationClick(notifId, ticketId, type) {
+function notificationTargetHref(ticketId, type) {
+    if ((type || '').toString() === 'conference_booking') {
+        return adminNavUrl('conference_bookings.php');
+    }
+    const id = parseInt(String(ticketId || 0), 10) || 0;
+    return id > 0 ? adminNavUrl(`all_tickets.php?ticket_id=${id}`) : adminNavUrl('notifications.php');
+}
+
+function handleNotificationClick(notifId, ticketId, type, targetHref) {
+    const destination = targetHref || notificationTargetHref(ticketId, type);
     const notifItem = document.querySelector('.notif-item[data-notif-id="' + String(notifId) + '"]');
-    if (notifItem && notifItem.getAttribute('data-marking-read') === '1') return;
+    if (notifItem && notifItem.getAttribute('data-marking-read') === '1') {
+        window.location.href = destination;
+        return;
+    }
     if (notifItem) notifItem.setAttribute('data-marking-read', '1');
     consumeAdminNotificationUnread(notifItem);
 
-    // Mark as read
     const formData = new FormData();
     formData.append('id', notifId);
     formData.append('csrf_token', <?php echo json_encode(csrf_token()); ?>);
     
     fetch(adminNavUrl('mark_notification_read.php'), {
         method: 'POST',
-        body: formData
-    }).then(() => {
-        if ((type || '').toString() === 'conference_booking') {
-            window.location.href = adminNavUrl('conference_bookings.php');
-            return;
-        }
-        window.location.href = adminNavUrl(`all_tickets.php?ticket_id=${ticketId}`);
-    });
+        body: formData,
+        keepalive: true
+    }).catch(function () {});
+
+    window.location.href = destination;
 }
 
 function escapeHtml(text) {

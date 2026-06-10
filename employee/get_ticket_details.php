@@ -491,7 +491,8 @@ if ($checkResult->num_rows > 0) {
             $historyAliases[] = $companyAlias;
         }
     }
-    $reassignedHistoryAccess = ticket_user_has_reassignment_history($conn, $id, $currentUserId, $historyAliases);
+    $reassignedHistoryAccess = ticket_user_has_reassignment_history($conn, $id, $currentUserId, $historyAliases)
+        || ticket_chat_latest_participated_thread_id($conn, $id, $currentUserId) > 0;
     $reassignedViewOnlyAccess = !$isRequester && ($assigneeOk || $companyOk || $reassignedHistoryAccess);
 }
 
@@ -625,9 +626,26 @@ if ($row = $result->fetch_assoc()) {
                 && !empty($row['assigned_to_name']);
             if ($isDepartmentClaimLock) {
                 $assignedStaffLabel = unavailable_assigned_staff_label($row);
+                $isSameDepartmentReassignment = false;
+                $reassignCheckStmt = $conn->prepare("
+                    SELECT 1
+                    FROM notifications
+                    WHERE ticket_id = ?
+                      AND COALESCE(NULLIF(LOWER(TRIM(action_type)), ''), 'assign') = 'reassign'
+                    LIMIT 1
+                ");
+                if ($reassignCheckStmt) {
+                    $reassignCheckStmt->bind_param("i", $id);
+                    $reassignCheckStmt->execute();
+                    $reassignCheckRes = $reassignCheckStmt->get_result();
+                    $isSameDepartmentReassignment = (bool) ($reassignCheckRes && $reassignCheckRes->fetch_row());
+                    $reassignCheckStmt->close();
+                }
                 $row['reassigned_banner_tone'] = 'assigned';
-                $row['reassigned_banner_heading'] = 'Ticket Assigned to ' . trim((string) ($row['assigned_to_name'] ?? ''));
-                $row['reassigned_title'] = 'This ticket is currently assigned to ' . $assignedStaffLabel . '.';
+                $row['reassigned_banner_heading'] = ($isSameDepartmentReassignment ? 'Ticket Reassigned to ' : 'Ticket Assigned to ') . trim((string) ($row['assigned_to_name'] ?? ''));
+                $row['reassigned_title'] = $isSameDepartmentReassignment
+                    ? 'This ticket has been reassigned to ' . $assignedStaffLabel . '.'
+                    : 'This ticket is currently assigned to ' . $assignedStaffLabel . '.';
             } else {
                 $targetLabel = unavailable_reassignment_target_label($row);
                 $row['reassigned_banner_tone'] = 'reassigned';

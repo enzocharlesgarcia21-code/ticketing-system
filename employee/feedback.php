@@ -591,48 +591,331 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         }
 
         @media (max-width: 768px) {
+            body.employee-feedback-page {
+                overflow-x: hidden;
+            }
+
+            body.employee-feedback-page .dashboard-container {
+                overflow-x: hidden;
+            }
+
             body.employee-feedback-page .content-wrapper {
-                padding-top: 6px;
+                width: 100%;
+                max-width: 100%;
+                padding: 16px 14px 92px;
+                overflow-x: hidden;
+                box-sizing: border-box;
+            }
+
+            body.employee-feedback-page .feedback-page-shell {
+                gap: 14px;
             }
 
             body.employee-feedback-page .feedback-hero {
-                align-items: flex-start;
-                flex-direction: column;
-                gap: 16px;
-                padding: 24px 20px;
-                border-radius: 12px;
+                padding: 0 2px 4px;
+                border-radius: 0;
             }
 
             body.employee-feedback-page .feedback-hero h1 {
-                font-size: 28px;
+                margin-bottom: 8px;
+                font-size: 24px;
+                line-height: 1.16;
             }
 
-            body.employee-feedback-page .feedback-summary-grid,
-            body.employee-feedback-page .feedback-breakdown-card,
+            body.employee-feedback-page .feedback-hero p {
+                max-width: 100%;
+                margin-top: 4px;
+                font-size: 14px;
+                line-height: 1.45;
+            }
+
+            body.employee-feedback-page .feedback-summary-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            body.employee-feedback-page .feedback-card {
+                border-radius: 16px;
+                padding: 16px;
+                box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+            }
+
             body.employee-feedback-page .feedback-average-card {
                 grid-template-columns: 1fr;
+                min-height: 0;
+                justify-items: start;
+                text-align: left;
+            }
+
+            body.employee-feedback-page .feedback-card-title {
+                margin-bottom: 10px;
+                font-size: 18px;
+                font-weight: 700;
+            }
+
+            body.employee-feedback-page .feedback-score-line {
+                justify-content: flex-start;
+            }
+
+            body.employee-feedback-page .feedback-score-line strong {
+                font-size: 42px;
+            }
+
+            body.employee-feedback-page .feedback-score-line span {
+                font-size: 18px;
             }
 
             body.employee-feedback-page .feedback-breakdown-card {
+                grid-template-columns: 1fr;
+                gap: 14px;
+                min-height: 0;
                 justify-items: stretch;
             }
 
+            body.employee-feedback-page .feedback-breakdown-list {
+                gap: 9px;
+            }
+
+            body.employee-feedback-page .feedback-breakdown-row {
+                grid-template-columns: 44px minmax(0, 1fr) 42px;
+                gap: 9px;
+                font-size: 13px;
+            }
+
+            body.employee-feedback-page .feedback-breakdown-track {
+                height: 9px;
+            }
+
             body.employee-feedback-page .feedback-donut {
+                width: 118px;
+                height: 118px;
                 justify-self: center;
             }
 
+            body.employee-feedback-page .feedback-donut::before {
+                inset: 15px;
+            }
+
+            body.employee-feedback-page .feedback-donut-center strong {
+                font-size: 24px;
+            }
+
             body.employee-feedback-page .feedback-section {
-                padding: 18px;
-                border-radius: 12px;
+                width: 100%;
+                padding: 14px;
+                border-radius: 16px;
+                overflow: hidden;
+                box-sizing: border-box;
             }
 
             body.employee-feedback-page .feedback-section-header {
                 align-items: flex-start;
+                margin-bottom: 12px;
+                gap: 10px;
+            }
+
+            body.employee-feedback-page .feedback-section-icon {
+                width: 38px;
+                height: 38px;
+                border-radius: 12px;
+                font-size: 16px;
+            }
+
+            body.employee-feedback-page .feedback-section-title {
+                font-size: 18px;
+                line-height: 1.2;
+            }
+
+            body.employee-feedback-page .feedback-section-subtitle {
+                font-size: 13px;
+                line-height: 1.4;
+            }
+
+            body.employee-feedback-page .feedback-table-wrap {
+                overflow: visible;
+            }
+
+            body.employee-feedback-page .feedback-table,
+            body.employee-feedback-page .feedback-table tbody,
+            body.employee-feedback-page .feedback-table tr,
+            body.employee-feedback-page .feedback-table td {
+                display: block;
+                width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
+            }
+
+            body.employee-feedback-page .feedback-table {
+                border-collapse: separate;
+                border-spacing: 0;
+            }
+
+            body.employee-feedback-page .feedback-table thead {
+                display: none;
+            }
+
+            body.employee-feedback-page .feedback-table tbody {
+                display: grid;
+                gap: 12px;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row {
+                position: relative;
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                grid-template-areas:
+                    "id rating"
+                    "category category"
+                    "person person"
+                    "department date"
+                    "comment comment";
+                gap: 10px 12px;
+                padding: 16px;
+                border: 1px solid #dfe7ef;
+                border-radius: 16px;
+                background: #ffffff;
+                box-shadow: 0 8px 18px rgba(15, 23, 42, 0.045);
+            }
+
+            body.employee-feedback-page .feedback-ticket-row:hover td,
+            body.employee-feedback-page .feedback-ticket-row:focus-within td {
+                background: transparent;
+            }
+
+            body.employee-feedback-page .feedback-table td {
+                padding: 0;
+                border: 0;
+                font-size: 13px;
+            }
+
+            body.employee-feedback-page .feedback-ticket-id {
+                grid-area: id;
+                color: #0f172a;
+                font-size: 16px;
+                font-weight: 900;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row td:nth-child(2) {
+                grid-area: category;
+            }
+
+            body.employee-feedback-page .feedback-category-pill {
+                max-width: 100%;
+                width: 100%;
+                min-height: 38px;
+                justify-content: flex-start;
+                padding: 7px 12px 7px 8px;
+                border-radius: 13px;
+                font-size: 14px;
+                font-weight: 700;
+                overflow: hidden;
+            }
+
+            body.employee-feedback-page .feedback-category-pill span,
+            body.employee-feedback-page .feedback-category-pill {
+                min-width: 0;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row td:nth-child(3) {
+                grid-area: person;
+            }
+
+            body.employee-feedback-page .feedback-person {
+                width: 100%;
+                min-width: 0;
+                gap: 10px;
+                color: #0f172a;
+                font-size: 15px;
+                font-weight: 800;
+            }
+
+            body.employee-feedback-page .feedback-avatar {
+                width: 36px;
+                height: 36px;
+                font-size: 12px;
+                font-weight: 800;
+            }
+
+            body.employee-feedback-page .feedback-department {
+                grid-area: department;
+                min-width: 0;
+                color: #475569;
+                font-size: 13px;
+                font-weight: 700;
+                line-height: 1.35;
+                white-space: normal;
+            }
+
+            body.employee-feedback-page .feedback-rating {
+                grid-area: rating;
+                min-width: 0;
+                justify-self: end;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 6px 9px;
+                border-radius: 999px;
+                background: #fff7ed;
+                color: #b45309;
+            }
+
+            body.employee-feedback-page .feedback-rating .feedback-stars {
+                gap: 2px;
+                font-size: 11px;
+            }
+
+            body.employee-feedback-page .feedback-rating-value {
+                margin-left: 2px;
+                color: #92400e;
+                font-size: 12px;
+                font-weight: 900;
+                white-space: nowrap;
+            }
+
+            body.employee-feedback-page .feedback-comment {
+                grid-area: comment;
+                min-width: 0;
+                margin-top: 2px;
+                padding: 12px;
+                border-radius: 12px;
+                background: #f8fafc;
+                color: #334155;
+                font-size: 13px;
+                line-height: 1.45;
+                white-space: normal;
+                overflow-wrap: anywhere;
+            }
+
+            body.employee-feedback-page .feedback-date {
+                grid-area: date;
+                justify-self: end;
+                color: #64748b;
+                font-size: 12px;
+                font-weight: 700;
+                line-height: 1.35;
+                white-space: normal;
+                text-align: right;
             }
 
             body.employee-feedback-page .feedback-table-footer {
-                align-items: flex-start;
-                flex-direction: column;
+                align-items: center;
+                flex-direction: row;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 14px 2px 0;
+                font-size: 12px;
+            }
+
+            body.employee-feedback-page .feedback-pagination {
+                gap: 6px;
+            }
+
+            body.employee-feedback-page .feedback-page-button,
+            body.employee-feedback-page .feedback-page-current {
+                width: 30px;
+                height: 30px;
             }
 
         }

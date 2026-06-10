@@ -272,14 +272,26 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             SUBSTRING_INDEX(GROUP_CONCAT(u.name ORDER BY tm.created_at DESC SEPARATOR '\n'), '\n', 1) AS last_sender_name,
             MAX(t.created_at) AS ticket_created_at
         FROM employee_tickets t
-        LEFT JOIN ticket_messages tm ON t.id = tm.ticket_id AND tm.chat_thread_id = COALESCE(t.current_chat_thread_id, 1)
+        LEFT JOIN ticket_messages tm ON t.id = tm.ticket_id AND (
+            tm.chat_thread_id = COALESCE(t.current_chat_thread_id, 1)
+            OR t.user_id = ?
+            OR t.assigned_to = ?
+            OR t.assigned_user_id = ?
+            OR tm.chat_thread_id = (
+                SELECT MAX(tm_hist.chat_thread_id)
+                FROM ticket_messages tm_hist
+                WHERE tm_hist.ticket_id = t.id
+                  AND tm_hist.sender_id = ?
+                  AND tm_hist.chat_thread_id > 0
+            )
+        )
         LEFT JOIN users u ON tm.sender_id = u.id
         LEFT JOIN users requester ON t.user_id = requester.id
         LEFT JOIN users assignee ON assignee.id = t.assigned_user_id
         LEFT JOIN users handler ON handler.id = t.assigned_to
     ";
-    $params = [$current_user_id];
-    $types = 'i';
+    $params = [$current_user_id, $current_user_id, $current_user_id, $current_user_id, $current_user_id];
+    $types = 'iiiii';
 
     $sql .= " WHERE (t.user_id = ? OR t.assigned_to = ? OR t.assigned_user_id = ?";
     $params[] = $current_user_id;
@@ -311,6 +323,14 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $types .= 's';
     $params[] = $current_user_department;
     $types .= 's';
+    $sql .= " OR EXISTS (
+        SELECT 1
+        FROM ticket_messages tm_access
+        WHERE tm_access.ticket_id = t.id
+          AND tm_access.sender_id = ?
+    )";
+    $params[] = $current_user_id;
+    $types .= 'i';
     $sql .= ") AND t.status IN ('Open', 'In Progress', 'Resolved', 'Closed') ";
 
     $sql .= "
@@ -342,6 +362,44 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
         $ticketRow = ticket_chat_apply_effective_handler($r);
         $chatClosedMessage = ticket_chat_closed_status_message($ticketRow);
         $canChat = ticket_user_can_chat($ticketRow, $current_user_id, $userContext);
+        $historyThreadId = ticket_chat_latest_participated_thread_id($conn, (int) ($r['id'] ?? 0), $current_user_id);
+        $canViewLockedHistory = !$canChat && $historyThreadId > 0;
+        $isRequesterForRow = ticket_user_matches_requester($ticketRow, $current_user_id, $userContext);
+        $canViewVisibleMessages = $canChat || $isRequesterForRow || $canViewLockedHistory;
+        $lastMessageTime = (string) $r['last_message_time'];
+        $lastMessage = (string) $r['last_message'];
+        $lastSenderName = (string) $r['last_sender_name'];
+        if ($canViewLockedHistory && !$isRequesterForRow) {
+            $previewStmt = $conn->prepare("
+                SELECT
+                    tm.created_at,
+                    CASE
+                        WHEN TRIM(COALESCE(tm.message, '')) <> '' THEN tm.message
+                        WHEN TRIM(COALESCE(tm.attachment_original_name, '')) <> '' THEN CONCAT('[Attachment] ', tm.attachment_original_name)
+                        ELSE ''
+                    END AS last_message,
+                    u.name AS last_sender_name
+                FROM ticket_messages tm
+                LEFT JOIN users u ON u.id = tm.sender_id
+                WHERE tm.ticket_id = ?
+                  AND tm.chat_thread_id = ?
+                ORDER BY tm.created_at DESC, tm.id DESC
+                LIMIT 1
+            ");
+            if ($previewStmt) {
+                $previewTicketId = (int) ($r['id'] ?? 0);
+                $previewStmt->bind_param("ii", $previewTicketId, $historyThreadId);
+                $previewStmt->execute();
+                $previewRes = $previewStmt->get_result();
+                $previewRow = $previewRes ? $previewRes->fetch_assoc() : null;
+                $previewStmt->close();
+                if ($previewRow) {
+                    $lastMessageTime = (string) ($previewRow['created_at'] ?? $lastMessageTime);
+                    $lastMessage = (string) ($previewRow['last_message'] ?? '');
+                    $lastSenderName = (string) ($previewRow['last_sender_name'] ?? '');
+                }
+            }
+        }
         $category = trim((string) ($r['category'] ?? ''));
         $assignedCompany = strtolower(trim((string) ($r['assigned_company'] ?? '')));
         $assignedGroup = trim((string) ($r['assigned_group'] ?? ($r['assigned_department'] ?? '')));
@@ -356,16 +414,16 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             'subject_display' => $subjectDisplay,
             'status' => (string) $r['status'],
             'requester_email' => (string) $r['requester_email'],
-            'last_message_time' => (string) $r['last_message_time'],
+            'last_message_time' => $lastMessageTime,
             'ticket_created_at' => (string) $r['ticket_created_at'],
-            'unread_count_raw' => (int) $r['unread_count'],
+            'unread_count_raw' => $canViewLockedHistory ? 0 : (int) $r['unread_count'],
             'unread_count' => $canChat ? (int) $r['unread_count'] : 0,
-            'last_message' => $canChat ? (string) $r['last_message'] : '',
-            'last_sender_name' => $canChat ? (string) $r['last_sender_name'] : '',
+            'last_message' => $canViewVisibleMessages ? $lastMessage : '',
+            'last_sender_name' => $canViewVisibleMessages ? $lastSenderName : '',
             'can_chat' => $canChat,
             'chat_locked_message' => $canChat ? '' : (ticket_user_can_manual_claim($ticketRow, $current_user_id, $userContext)
                 ? 'Claim this ticket first before joining the conversation.'
-                : ($chatClosedMessage !== '' ? $chatClosedMessage : "You can't message. This ticket is already assigned."))
+                : ($canViewLockedHistory ? 'This ticket has been reassigned. You can view your previous chat history, but you can no longer respond.' : ($chatClosedMessage !== '' ? $chatClosedMessage : "You can't message. This ticket is already assigned.")))
         ];
     }
     echo json_encode($rows, JSON_UNESCAPED_UNICODE);
@@ -420,12 +478,16 @@ $handlerId = ticket_chat_effective_handler_id($ticket);
 $handlerName = trim((string) ($ticket['assigned_to_name'] ?? ''));
 $chatClosedMessage = ticket_chat_closed_status_message($ticket);
 $canChatForTicket = ticket_user_can_chat($ticket, $current_user_id, $userContext);
+$chatThreadId = ticket_chat_current_thread_id($conn, $ticket_id);
+$historyThreadId = ticket_chat_latest_participated_thread_id($conn, $ticket_id, $current_user_id);
+$isRequester = ticket_user_matches_requester($ticket, $current_user_id, $userContext);
+$isHistoryOnlyView = !$canChatForTicket && $historyThreadId > 0;
 $canViewClosedChat = $chatClosedMessage !== '' && (
-    ticket_user_matches_requester($ticket, $current_user_id, $userContext)
+    $isRequester
     || $handlerId === $current_user_id
     || (int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id
 );
-if (!$canChatForTicket && !$canViewClosedChat) {
+if (!$canChatForTicket && !$canViewClosedChat && !$isHistoryOnlyView) {
     http_response_code(403);
     echo json_encode([
         'error' => (ticket_user_can_manual_claim($ticket, $current_user_id, $userContext)
@@ -438,25 +500,41 @@ if (!$canChatForTicket && !$canViewClosedChat) {
 }
 
 $canManageChat = $canChatForTicket;
-$isRequester = ticket_user_matches_requester($ticket, $current_user_id, $userContext);
 $isCurrentAssignee = ((int) ($ticket['assigned_to'] ?? 0) === $current_user_id)
     || ((int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id);
-$chatThreadId = ticket_chat_current_thread_id($conn, $ticket_id);
+$fetchAllTicketThreads = $isRequester || $canChatForTicket;
+if ($isHistoryOnlyView && !$fetchAllTicketThreads) {
+    $chatThreadId = $historyThreadId;
+}
 $hasSentInConversation = false;
-$msgPermStmt = $conn->prepare("SELECT id FROM ticket_messages WHERE ticket_id = ? AND chat_thread_id = ? AND sender_id = ? LIMIT 1");
+$msgPermSql = $fetchAllTicketThreads
+    ? "SELECT id FROM ticket_messages WHERE ticket_id = ? AND sender_id = ? LIMIT 1"
+    : "SELECT id FROM ticket_messages WHERE ticket_id = ? AND chat_thread_id = ? AND sender_id = ? LIMIT 1";
+$msgPermStmt = $conn->prepare($msgPermSql);
 if ($msgPermStmt) {
-    $msgPermStmt->bind_param("iii", $ticket_id, $chatThreadId, $current_user_id);
+    if ($fetchAllTicketThreads) {
+        $msgPermStmt->bind_param("ii", $ticket_id, $current_user_id);
+    } else {
+        $msgPermStmt->bind_param("iii", $ticket_id, $chatThreadId, $current_user_id);
+    }
     $msgPermStmt->execute();
     $msgPermRes = $msgPermStmt->get_result();
     $hasSentInConversation = (bool) ($msgPermRes && $msgPermRes->fetch_assoc());
     $msgPermStmt->close();
 }
-$canDeleteAnyMessage = $canManageChat || $isRequester || $isCurrentAssignee || $hasSentInConversation;
+$canDeleteAnyMessage = !$isHistoryOnlyView && ($canManageChat || $isRequester || $isCurrentAssignee || $hasSentInConversation);
 
-$mark = $conn->prepare("UPDATE ticket_messages SET is_read = 1 WHERE ticket_id = ? AND chat_thread_id = ? AND sender_id <> ? AND is_read = 0");
+$markSql = $fetchAllTicketThreads
+    ? "UPDATE ticket_messages SET is_read = 1 WHERE ticket_id = ? AND sender_id <> ? AND is_read = 0"
+    : "UPDATE ticket_messages SET is_read = 1 WHERE ticket_id = ? AND chat_thread_id = ? AND sender_id <> ? AND is_read = 0";
+$mark = $conn->prepare($markSql);
 if ($mark) {
     maybe_send_hr_chat_reminder($conn, $ticket_id, $current_user_id);
-    $mark->bind_param("iii", $ticket_id, $chatThreadId, $current_user_id);
+    if ($fetchAllTicketThreads) {
+        $mark->bind_param("ii", $ticket_id, $current_user_id);
+    } else {
+        $mark->bind_param("iii", $ticket_id, $chatThreadId, $current_user_id);
+    }
     $mark->execute();
     $mark->close();
 }
@@ -468,15 +546,20 @@ if ($clearReminder) {
 }
 
 // Fetch messages
-$stmt = $conn->prepare("
+$messageSql = "
     SELECT tm.id, tm.ticket_id, tm.sender_id, tm.message, tm.message_group_id, tm.attachment_stored_name, tm.attachment_original_name, tm.is_read, tm.created_at, tm.edited_at, u.name as sender_name, u.role as sender_role
     FROM ticket_messages tm
     JOIN users u ON tm.sender_id = u.id
-    WHERE tm.ticket_id = ? AND tm.chat_thread_id = ?
+    WHERE tm.ticket_id = ?" . ($fetchAllTicketThreads ? "" : " AND tm.chat_thread_id = ?") . "
     ORDER BY tm.created_at ASC
-");
+";
+$stmt = $conn->prepare($messageSql);
 
-$stmt->bind_param("ii", $ticket_id, $chatThreadId);
+if ($fetchAllTicketThreads) {
+    $stmt->bind_param("i", $ticket_id);
+} else {
+    $stmt->bind_param("ii", $ticket_id, $chatThreadId);
+}
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -514,8 +597,8 @@ while ($row = $result->fetch_assoc()) {
         'edit_history' => $messageHistory,
         'is_me' => $isMine,
         'role' => $row['sender_role'],
-        'can_edit' => $isMine && empty($row['edited_at']),
-        'can_delete' => $isMine
+        'can_edit' => !$isHistoryOnlyView && $isMine && empty($row['edited_at']),
+        'can_delete' => !$isHistoryOnlyView && $isMine
     ];
 }
 

@@ -1,6 +1,18 @@
 <?php
 define('TICKETING_ANALYTICS_VIEW_MODE', 'employee');
-define('TICKETING_ANALYTICS_NO_DEFAULT_DATE', true);
+
+$isAnalyticsDate = static function (string $date): bool {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return false;
+    [$year, $month, $day] = array_map('intval', explode('-', $date));
+    return checkdate($month, $day, $year);
+};
+
+if (!$isAnalyticsDate((string) ($_GET['start_date'] ?? ''))) {
+    $_GET['start_date'] = date('Y-m-01');
+}
+if (!$isAnalyticsDate((string) ($_GET['end_date'] ?? ''))) {
+    $_GET['end_date'] = date('Y-m-d');
+}
 
 ob_start();
 require_once '../admin/analytics.php';
@@ -8,9 +20,31 @@ $analyticsHtml = ob_get_clean();
 
 $employeeAnalyticsAdminParity = <<<'HTML'
 <style id="employeeAnalyticsAdminParity">
-body.employee-analytics-page,
-body.employee-analytics-page *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
+body.employee-analytics-page .admin-page,
+body.employee-analytics-page .admin-page *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+body.employee-analytics-page .navbar,
+body.employee-analytics-page .navbar *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
+    font-family: 'Segoe UI', sans-serif !important;
+}
+
+body.employee-analytics-page .navbar {
+    padding: 15px 40px;
+}
+
+body.employee-analytics-page .nav-center {
+    gap: 10px;
+}
+
+body.employee-analytics-page .nav-link {
+    padding: 8px 20px;
+    white-space: nowrap;
+}
+
+body.employee-analytics-page .brand-name {
+    white-space: normal;
 }
 
 body.employee-analytics-page .admin-container {

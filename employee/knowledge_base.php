@@ -503,22 +503,22 @@ if ($showCategoryView) {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            min-height: 48px;
-            padding: 0 26px;
+            gap: 8px;
+            min-height: 38px;
+            padding: 0 18px;
             border-radius: 999px;
             background: #2f8b49;
             color: #ffffff;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 700;
             text-decoration: none;
-            box-shadow: 0 10px 22px rgba(47, 139, 73, 0.18);
+            box-shadow: 0 8px 18px rgba(47, 139, 73, 0.16);
             transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
         }
 
         .department-back-btn i {
             color: #f4c430;
-            font-size: 15px;
+            font-size: 13px;
         }
 
         .department-back-btn:hover {

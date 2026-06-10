@@ -439,6 +439,16 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
 {
     return ticket_sla_badge_html($createdAt, $status, $priority);
 }
+
+function dashboard_priority_badge_html(array $row): string
+{
+    $priority = trim((string) ($row['priority'] ?? ''));
+    if ($priority === '') {
+        $priority = 'Low';
+    }
+    $class = dashboard_status_class($priority);
+    return '<span class="dashboard-priority-badge dashboard-priority-' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($priority, ENT_QUOTES, 'UTF-8') . '</span>';
+}
 ?>
 
 <!DOCTYPE html>
@@ -1213,6 +1223,11 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
             white-space: nowrap;
         }
 
+        body.employee-dashboard-page .dashboard-ticket-priority,
+        body.employee-dashboard-page .dashboard-ticket-priority-header {
+            display: none;
+        }
+
         body.employee-dashboard-page .dashboard-ticket-sla .badge {
             display: inline-flex;
             align-items: center;
@@ -1929,15 +1944,19 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
             }
 
             body.employee-dashboard-page .dashboard-ticket-panel {
-                padding: 14px;
-                border-radius: 14px;
+                padding: 18px 14px 20px;
+                border: 0;
+                border-radius: 18px;
                 overflow: visible;
-                box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+                background: #ffffff;
+                box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
             }
 
             body.employee-dashboard-page .dashboard-ticket-title {
-                margin-bottom: 12px;
-                font-size: 19px;
+                margin-bottom: 14px;
+                color: #0f172a;
+                font-size: 20px;
+                font-weight: 900;
             }
 
             body.employee-dashboard-page .dashboard-ticket-table,
@@ -1961,25 +1980,28 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
 
             body.employee-dashboard-page .dashboard-ticket-table tbody {
                 display: grid;
-                gap: 10px;
+                gap: 16px;
             }
 
             body.employee-dashboard-page .dashboard-ticket-table tr.ticket-row {
                 position: relative;
                 display: grid;
-                grid-template-columns: 1fr auto;
+                grid-template-columns: repeat(3, minmax(0, 1fr)) 28px;
                 grid-template-areas:
-                    "id status"
-                    "category category"
-                    "requester requester"
-                    "department date"
-                    "sla arrow";
-                gap: 6px 10px;
-                padding: 12px;
-                border: 1px solid #e1e9f2;
-                border-radius: 13px;
+                    "id id id arrow"
+                    "category category category arrow"
+                    "requester requester requester arrow"
+                    "date date date arrow"
+                    "department department department arrow"
+                    "priority status sla arrow";
+                gap: 8px 10px;
+                min-height: 204px;
+                padding: 22px 18px 18px;
+                border: 1px solid #d9e2ec;
+                border-radius: 22px;
                 background: #ffffff;
-                box-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
+                box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+                overflow: hidden;
             }
 
             body.employee-dashboard-page .dashboard-ticket-table tr.ticket-row:hover td {
@@ -1989,23 +2011,28 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
             body.employee-dashboard-page .dashboard-ticket-table td {
                 padding: 0;
                 border: 0;
-                font-size: 12px;
+                min-width: 0;
+                font-size: 14px;
+                line-height: 1.25;
             }
 
             body.employee-dashboard-page .dashboard-ticket-id {
                 grid-area: id;
                 width: auto;
-                color: #166534;
-                font-size: 12px;
-                font-weight: 800;
+                color: #0f172a;
+                font-size: 17px;
+                font-weight: 950;
+                letter-spacing: 0;
             }
 
             body.employee-dashboard-page .dashboard-ticket-category {
                 grid-area: category;
                 max-width: none;
-                color: #0f172a;
-                font-size: 15px;
-                line-height: 1.25;
+                margin-top: 4px;
+                color: #687386;
+                font-size: 17px;
+                font-weight: 900;
+                line-height: 1.18;
                 white-space: normal;
                 overflow: visible;
                 text-overflow: clip;
@@ -2014,17 +2041,24 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
             body.employee-dashboard-page .dashboard-ticket-requester {
                 grid-area: requester;
                 min-width: 0;
+                margin-top: 2px;
             }
 
             body.employee-dashboard-page .dashboard-ticket-requester strong {
-                color: #172b4d;
-                font-size: 13px;
+                color: #111827;
+                font-size: 18px;
+                font-weight: 950;
+                line-height: 1.2;
             }
 
             body.employee-dashboard-page .dashboard-ticket-requester small {
+                display: block;
+                margin-top: 22px;
                 max-width: 100%;
-                color: #64748b;
-                font-size: 11px;
+                color: #566276;
+                font-size: 14px;
+                font-weight: 500;
+                line-height: 1.3;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
@@ -2033,51 +2067,111 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
             body.employee-dashboard-page .dashboard-ticket-department {
                 grid-area: department;
                 min-width: 0;
-                color: #64748b;
-                font-size: 11px;
+                margin-top: 2px;
+                color: #334155;
+                font-size: 15px;
+                font-weight: 900;
+                line-height: 1.25;
                 white-space: normal;
             }
 
-            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(5) {
+            body.employee-dashboard-page .dashboard-ticket-priority {
+                grid-area: priority;
+                display: block;
+                align-self: end;
+                white-space: nowrap;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-badge {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 100%;
+                min-height: 46px;
+                padding: 10px 14px;
+                border-radius: 999px;
+                font-size: 13px;
+                font-weight: 900;
+                line-height: 1.1;
+                white-space: nowrap;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-low {
+                background: #ecfdf3;
+                color: #166534;
+                border: 1px solid #bbf7d0;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-medium {
+                background: #fff7d1;
+                color: #854d0e;
+                border: 1px solid #fde68a;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-high,
+            body.employee-dashboard-page .dashboard-priority-critical {
+                background: #fff1f2;
+                color: #b91c1c;
+                border: 1px solid #ffe4e6;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(6) {
                 grid-area: status;
-                justify-self: end;
+                justify-self: stretch;
+                align-self: end;
             }
 
             body.employee-dashboard-page .dashboard-ticket-table .status-pill {
-                padding: 4px 8px;
-                font-size: 10px;
-                font-weight: 800;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 100%;
+                min-height: 46px;
+                padding: 10px 14px;
+                border-radius: 999px;
+                font-size: 13px;
+                font-weight: 900;
+                line-height: 1.1;
                 white-space: nowrap;
             }
 
             body.employee-dashboard-page .dashboard-ticket-sla {
                 grid-area: sla;
                 width: auto;
-                white-space: normal;
+                align-self: end;
+                white-space: nowrap;
             }
 
             body.employee-dashboard-page .dashboard-ticket-sla .badge {
-                min-height: 22px;
-                padding: 3px 8px;
-                font-size: 10px;
+                width: 100%;
+                min-height: 46px;
+                padding: 10px 14px;
+                border-radius: 999px;
+                font-size: 13px;
+                font-weight: 900;
+                line-height: 1.1;
             }
 
             body.employee-dashboard-page .dashboard-ticket-date {
                 grid-area: date;
                 width: auto;
-                justify-self: end;
-                color: #64748b;
-                font-size: 11px;
+                justify-self: start;
+                color: #9aa3b2;
+                font-size: 14px;
+                font-weight: 900;
+                line-height: 1.25;
                 white-space: nowrap;
             }
 
             body.employee-dashboard-page .dashboard-ticket-arrow {
                 grid-area: arrow;
-                width: auto;
-                justify-self: end;
-                align-self: center;
-                color: #166534;
-                font-size: 20px;
+                width: 28px;
+                justify-self: center;
+                align-self: start;
+                padding-top: 58px;
+                color: #64748b;
+                font-size: 38px;
+                font-weight: 950;
                 line-height: 1;
             }
 
@@ -2239,6 +2333,7 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                                 <th>Category</th>
                                 <th>Requested By</th>
                                 <th>From</th>
+                                <th class="dashboard-ticket-priority-header">Priority</th>
                                 <th>Status</th>
                                 <th>SLA</th>
                                 <th>Date Created</th>
@@ -2260,6 +2355,7 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                                             <?php endif; ?>
                                         </td>
                                         <td class="dashboard-ticket-department"><?= htmlspecialchars(dashboard_source_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="dashboard-ticket-priority"><?= dashboard_priority_badge_html($row); ?></td>
                                         <td>
                                             <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($status), ENT_QUOTES, 'UTF-8'); ?>">
                                                 <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
@@ -2272,7 +2368,7 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="8" class="dashboard-ticket-empty">No received tickets found.</td>
+                                    <td colspan="9" class="dashboard-ticket-empty">No received tickets found.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
@@ -2288,6 +2384,7 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                                 <th>Category</th>
                                 <th>Requested By</th>
                                 <th>From</th>
+                                <th class="dashboard-ticket-priority-header">Priority</th>
                                 <th>Status</th>
                                 <th>SLA</th>
                                 <th>Date Created</th>
@@ -2309,6 +2406,7 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                                             <?php endif; ?>
                                         </td>
                                         <td class="dashboard-ticket-department"><?= htmlspecialchars(dashboard_source_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="dashboard-ticket-priority"><?= dashboard_priority_badge_html($row); ?></td>
                                         <td>
                                             <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($status), ENT_QUOTES, 'UTF-8'); ?>">
                                                 <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
@@ -2321,7 +2419,7 @@ function dashboard_sla_badge_html(string $createdAt, string $status, string $pri
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="8" class="dashboard-ticket-empty">No raised tickets found.</td>
+                                    <td colspan="9" class="dashboard-ticket-empty">No raised tickets found.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>

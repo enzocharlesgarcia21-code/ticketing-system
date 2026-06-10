@@ -227,6 +227,16 @@ function analytics_allowed_categories_for_department(string $company, string $de
             'Software',
             'Technical Support',
         ],
+        'Technical' => [
+            'CPR',
+            'MSDS',
+            'Technical Information/ Brochure',
+            'COA',
+            'Certificate of Distributorship',
+            'Certificate of Authorized Dealer',
+            'Updated Label',
+            'Product Presentations',
+        ],
     ];
 
     if (isset($lapcDepartmentCategories[$department])) {
@@ -235,6 +245,10 @@ function analytics_allowed_categories_for_department(string $company, string $de
 
     if ($company === '@malvedaholdings.com' || strtoupper($company) === 'MHC') {
         return strcasecmp($department, 'Marketing Creatives') === 0 ? ['Marketing Request'] : [];
+    }
+
+    if ($company === '@malvedaproperties.com' || strtoupper($company) === 'MPDC') {
+        return ['Engineerings', 'Client Based'];
     }
 
     return ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
@@ -316,14 +330,22 @@ $department_filter = trim((string) ($_GET['department'] ?? ''));
 $status_filter = trim((string) ($_GET['status'] ?? ''));
 
 if ($analyticsIsEmployeeView) {
-    $company_filter = ticket_normalize_company(trim((string) ($_SESSION['company'] ?? '')));
+    $employeeSessionCompany = ticket_normalize_company(trim((string) ($_SESSION['company'] ?? '')));
+    if ($employeeSessionCompany === '') {
+        $employeeSessionEmail = strtolower(trim((string) ($_SESSION['email'] ?? '')));
+        $atPos = strpos($employeeSessionEmail, '@');
+        if ($atPos !== false) {
+            $employeeSessionCompany = ticket_normalize_company(substr($employeeSessionEmail, $atPos));
+        }
+    }
+    $company_filter = $employeeSessionCompany;
     $department_filter = trim((string) ($_SESSION['department'] ?? ''));
 }
 
 $allowed_statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
 if (!in_array($status_filter, $allowed_statuses, true)) $status_filter = '';
 $trend_period = trim((string) ($_GET['trend_period'] ?? ''));
-if (!$analyticsIsEmployeeView || !in_array($trend_period, ['last_month'], true)) {
+if (!in_array($trend_period, ['last_5_weekdays', 'last_month'], true)) {
     $trend_period = 'last_5_weekdays';
 }
 
@@ -415,7 +437,7 @@ if ($metricsQuery) {
 
 // 3. Close-time analytics for the selected trend period.
 $trendAnchorDate = new DateTimeImmutable($end_date ?: date('Y-m-d'));
-if ($analyticsIsEmployeeView && $trend_period === 'last_month') {
+if ($trend_period === 'last_month') {
     $trendMonthStart = $trendAnchorDate->modify('first day of previous month');
     $trendMonthEnd = $trendAnchorDate->modify('last day of previous month');
     $currentTrendDates = analytics_weekdays_between($trendMonthStart, $trendMonthEnd);
@@ -458,6 +480,8 @@ $summary = [
     'in_progress' => 0,
     'avg_seconds' => 0,
 ];
+$metricsWhere = $ticket_where;
+$metricsWhere[] = "COALESCE(NULLIF(t.status,''),'') <> 'Trash'";
 $metricsSql = "
     SELECT
         COUNT(*) as received,
@@ -466,8 +490,7 @@ $metricsSql = "
         SUM(CASE WHEN t.status = 'Open' THEN 1 ELSE 0 END) as open_tickets,
         SUM(CASE WHEN t.status = 'In Progress' THEN 1 ELSE 0 END) as in_progress_tickets
     FROM employee_tickets t
-    WHERE " . implode(" AND ", $ticket_where) . "
-      AND COALESCE(NULLIF(t.status,''),'') <> 'Trash'
+    WHERE " . implode(" AND ", $metricsWhere) . "
 ";
 $mStmt = $conn->prepare($metricsSql);
 if ($mStmt) {
@@ -838,7 +861,7 @@ $trendPayload = [
     'insightText' => $trendInsightText,
 ];
 
-if ($analyticsIsEmployeeView && isset($_GET['ajax_trend'])) {
+if (isset($_GET['ajax_trend'])) {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($trendPayload);
     exit();
@@ -951,6 +974,12 @@ if ($analyticsIsEmployeeView) {
     $employeeUserId = (int) ($_SESSION['user_id'] ?? 0);
     $employeeEmail = strtolower(trim((string) ($_SESSION['email'] ?? '')));
     $employeeCompanyRaw = trim((string) ($_SESSION['company'] ?? ''));
+    if (ticket_normalize_company($employeeCompanyRaw) === '' && $employeeEmail !== '') {
+        $atPos = strpos($employeeEmail, '@');
+        if ($atPos !== false) {
+            $employeeCompanyRaw = substr($employeeEmail, $atPos);
+        }
+    }
     $employeeDepartmentRaw = trim((string) ($_SESSION['department'] ?? ''));
     $employeeCompanyAliases = ticket_company_aliases($employeeCompanyRaw);
     if (count($employeeCompanyAliases) === 0 && $employeeCompanyRaw !== '') {
@@ -2198,8 +2227,9 @@ if ($ticketsStmt) {
             flex: 1 1 auto;
         }
         .assignee-card .assignee-list {
-            justify-content: space-between;
-            gap: 0;
+            justify-content: flex-start;
+            gap: 16px;
+            flex: 0 0 auto;
             min-height: 0;
         }
         .assignee-item {
