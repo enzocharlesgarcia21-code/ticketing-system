@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once '../config/database.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/csrf.php';
@@ -454,6 +454,8 @@ function dashboard_priority_badge_html(array $row): string
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
+    <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Dashboard | Leads DeskMetamorph</title>

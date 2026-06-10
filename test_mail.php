@@ -74,6 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/png" href="assets/img/leads-favicon.png?v=3">
+    <link rel="shortcut icon" type="image/png" href="assets/img/leads-favicon.png?v=3">
     <meta charset="utf-8">
     <title>SMTP Test</title>
     <style>

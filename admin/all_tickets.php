@@ -229,6 +229,8 @@ $result = $stmt->get_result();
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
+    <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All Tickets</title>

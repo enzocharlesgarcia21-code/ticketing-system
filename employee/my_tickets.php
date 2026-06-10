@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
@@ -1300,6 +1300,8 @@ $successMessage = '';
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
+    <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <meta charset="UTF-8">
     <meta name="csrf-token" content="<?php echo htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1867,14 +1869,6 @@ $successMessage = '';
         body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-actions,
         body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-actions {
             border-top: 1px solid #e6e8ef;
-        }
-        body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-actions {
-            margin-top: 28px;
-            padding-top: 20px;
-        }
-        body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-actions {
-            margin-top: 28px;
-            padding-top: 20px;
         }
         body.employee-my-tickets-page .close-ticket-confirm-cancel,
         body.employee-my-tickets-page .close-ticket-confirm-submit {
@@ -2488,10 +2482,6 @@ $successMessage = '';
             display: flex;
             justify-content: center;
             border-top: 1px solid #e6e8ef;
-        }
-        body.employee-my-tickets-page .follow-up-feedback-dialog:not(.is-pending) .follow-up-feedback-actions {
-            margin-top: 28px;
-            padding-top: 20px;
         }
         body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending .follow-up-feedback-actions {
             width: 100%;

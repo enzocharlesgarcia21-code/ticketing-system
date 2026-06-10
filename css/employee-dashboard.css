@@ -1234,3 +1234,8 @@ select {
     text-transform: none;
 }
 
+@media (max-width: 768px) {
+    body {
+        zoom: 0.78;
+    }
+}
