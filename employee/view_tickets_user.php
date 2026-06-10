@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once '../config/database.php';
 
 /* Protect page */
@@ -125,6 +125,8 @@ $result = $stmt->get_result();
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
+    <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>View Tickets | Leads DeskMetamorph</title>

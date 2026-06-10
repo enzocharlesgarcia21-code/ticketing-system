@@ -184,6 +184,12 @@ window.TM_MESSENGER_STYLE = 'employee';
 </button>
 
 <style>
+@media (max-width: 768px) {
+    body {
+        zoom: 0.78;
+    }
+}
+
 .navbar {
     border-bottom: 4px solid #F4C430;
 }

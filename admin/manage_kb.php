@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -468,6 +468,8 @@ unset($recent_articles_query['recent_page']);
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
+    <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <title>Manage Knowledge Base | Admin</title>
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
     <!-- Using Font Awesome -->

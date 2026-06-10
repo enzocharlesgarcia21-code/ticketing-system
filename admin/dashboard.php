@@ -234,6 +234,8 @@ if ($recentRes) {
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
+    <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <title>Admin Dashboard</title>
     <link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">

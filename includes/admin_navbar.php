@@ -141,6 +141,12 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
 </button>
 
 <style>
+@media (max-width: 768px) {
+    body {
+        zoom: 0.78;
+    }
+}
+
 /* Admin sidebar shell */
 :root {
     --admin-sidebar-width: 282px;

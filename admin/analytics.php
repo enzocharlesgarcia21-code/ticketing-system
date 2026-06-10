@@ -1431,6 +1431,8 @@ if ($ticketsStmt) {
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
+    <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <title>Analytics - Leads DeskMetamorph</title>
     <?php if ($analyticsIsEmployeeView): ?>
     <link rel="stylesheet" href="../css/employee-dashboard.css?v=<?php echo time(); ?>">
