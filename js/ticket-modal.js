@@ -2132,7 +2132,12 @@ var TMTicketModal = (function () {
   }
   function buildDepartmentUserOptionsHtml(users, selectedUserId) {
     var normalizedSelected = selectedUserId == null ? '' : String(selectedUserId);
-    var list = Array.isArray(users) ? users : [];
+    var currentUser = (typeof window !== 'undefined' && window.TM_CURRENT_USER) ? window.TM_CURRENT_USER : null;
+    var currentUserId = currentUser && currentUser.id != null ? String(currentUser.id) : '';
+    var list = (Array.isArray(users) ? users : []).filter(function (user) {
+      var userId = user && user.id != null ? String(user.id) : '';
+      return currentUserId === '' || userId === '' || userId !== currentUserId;
+    });
     if (list.length === 0) {
       return '                  <option value="">All</option>';
     }
@@ -2258,6 +2263,7 @@ var TMTicketModal = (function () {
         menu.classList.remove('show');
         menu.classList.remove('is-above');
         menu.style.maxHeight = '';
+        wrapper.classList.remove('is-open');
         trigger.setAttribute('aria-expanded', 'false');
       }
 
@@ -2275,8 +2281,8 @@ var TMTicketModal = (function () {
         }
         var spaceBelow = clipBottom - rect.bottom - gap;
         var spaceAbove = rect.top - clipTop - gap;
-        var shouldOpenAbove = spaceBelow < 240 && spaceAbove > spaceBelow;
-        var availableSpace = shouldOpenAbove ? spaceAbove : spaceBelow;
+        var shouldOpenAbove = false;
+        var availableSpace = spaceBelow;
         var maxHeight = Math.max(140, Math.min(320, Math.floor(availableSpace)));
         menu.classList.toggle('is-above', shouldOpenAbove);
         menu.style.maxHeight = maxHeight + 'px';
@@ -2346,12 +2352,14 @@ var TMTicketModal = (function () {
           otherMenu.classList.remove('show');
           otherMenu.classList.remove('is-above');
           otherMenu.style.maxHeight = '';
+          otherWrapper.classList.remove('is-open');
           otherTrigger.setAttribute('aria-expanded', 'false');
         });
         if (willOpen) {
           renderOptions();
           positionMenu();
           menu.classList.add('show');
+          wrapper.classList.add('is-open');
           trigger.setAttribute('aria-expanded', 'true');
           var selected = menu.querySelector('.tm-select-menu-option.is-selected');
           if (selected && typeof selected.scrollIntoView === 'function') {

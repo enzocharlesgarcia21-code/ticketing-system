@@ -783,6 +783,25 @@ function ticket_users_has_super_admin_column(mysqli $conn): bool
     return $hasColumn;
 }
 
+function ticket_users_has_admin_registration_columns(mysqli $conn): bool
+{
+    static $hasColumns = null;
+    if ($hasColumns !== null) {
+        return $hasColumns;
+    }
+
+    $usernameRes = $conn->query("SHOW COLUMNS FROM users LIKE 'username'");
+    $fullNameRes = $conn->query("SHOW COLUMNS FROM users LIKE 'full_name'");
+    $hasColumns = ($usernameRes && $usernameRes->num_rows > 0) && ($fullNameRes && $fullNameRes->num_rows > 0);
+    if ($usernameRes instanceof mysqli_result) {
+        $usernameRes->free();
+    }
+    if ($fullNameRes instanceof mysqli_result) {
+        $fullNameRes->free();
+    }
+    return $hasColumns;
+}
+
 function ticket_department_user_aliases(string $company, string $group): array
 {
     $company = ticket_normalize_company($company);
@@ -833,6 +852,11 @@ function ticket_find_department_user_options(mysqli $conn, string $company, stri
 
     if (ticket_users_has_super_admin_column($conn)) {
         $where[] = "COALESCE(u.is_super_admin, 0) = 0";
+    }
+
+    if (ticket_users_has_admin_registration_columns($conn)) {
+        $where[] = "TRIM(COALESCE(u.username, '')) <> ''";
+        $where[] = "TRIM(COALESCE(u.full_name, '')) <> ''";
     }
 
     $deptPlaceholders = implode(',', array_fill(0, count($deptAliases), '?'));
