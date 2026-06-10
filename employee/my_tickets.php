@@ -1868,6 +1868,14 @@ $successMessage = '';
         body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-actions {
             border-top: 1px solid #e6e8ef;
         }
+        body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-actions {
+            margin-top: 28px;
+            padding-top: 20px;
+        }
+        body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-actions {
+            margin-top: 28px;
+            padding-top: 20px;
+        }
         body.employee-my-tickets-page .close-ticket-confirm-cancel,
         body.employee-my-tickets-page .close-ticket-confirm-submit {
             min-width: 130px;
@@ -2480,6 +2488,10 @@ $successMessage = '';
             display: flex;
             justify-content: center;
             border-top: 1px solid #e6e8ef;
+        }
+        body.employee-my-tickets-page .follow-up-feedback-dialog:not(.is-pending) .follow-up-feedback-actions {
+            margin-top: 28px;
+            padding-top: 20px;
         }
         body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending .follow-up-feedback-actions {
             width: 100%;
