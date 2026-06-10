@@ -382,13 +382,12 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
                 FROM ticket_messages tm
                 LEFT JOIN users u ON u.id = tm.sender_id
                 WHERE tm.ticket_id = ?
-                  AND tm.chat_thread_id = ?
                 ORDER BY tm.created_at DESC, tm.id DESC
                 LIMIT 1
             ");
             if ($previewStmt) {
                 $previewTicketId = (int) ($r['id'] ?? 0);
-                $previewStmt->bind_param("ii", $previewTicketId, $historyThreadId);
+                $previewStmt->bind_param("i", $previewTicketId);
                 $previewStmt->execute();
                 $previewRes = $previewStmt->get_result();
                 $previewRow = $previewRes ? $previewRes->fetch_assoc() : null;
@@ -503,16 +502,17 @@ $canManageChat = $canChatForTicket;
 $isCurrentAssignee = ((int) ($ticket['assigned_to'] ?? 0) === $current_user_id)
     || ((int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id);
 $fetchAllTicketThreads = $isRequester || $canChatForTicket;
+$fetchAllVisibleThreads = $fetchAllTicketThreads || $isHistoryOnlyView;
 if ($isHistoryOnlyView && !$fetchAllTicketThreads) {
     $chatThreadId = $historyThreadId;
 }
 $hasSentInConversation = false;
-$msgPermSql = $fetchAllTicketThreads
+$msgPermSql = $fetchAllVisibleThreads
     ? "SELECT id FROM ticket_messages WHERE ticket_id = ? AND sender_id = ? LIMIT 1"
     : "SELECT id FROM ticket_messages WHERE ticket_id = ? AND chat_thread_id = ? AND sender_id = ? LIMIT 1";
 $msgPermStmt = $conn->prepare($msgPermSql);
 if ($msgPermStmt) {
-    if ($fetchAllTicketThreads) {
+    if ($fetchAllVisibleThreads) {
         $msgPermStmt->bind_param("ii", $ticket_id, $current_user_id);
     } else {
         $msgPermStmt->bind_param("iii", $ticket_id, $chatThreadId, $current_user_id);
@@ -550,12 +550,12 @@ $messageSql = "
     SELECT tm.id, tm.ticket_id, tm.sender_id, tm.message, tm.message_group_id, tm.attachment_stored_name, tm.attachment_original_name, tm.is_read, tm.created_at, tm.edited_at, u.name as sender_name, u.role as sender_role
     FROM ticket_messages tm
     JOIN users u ON tm.sender_id = u.id
-    WHERE tm.ticket_id = ?" . ($fetchAllTicketThreads ? "" : " AND tm.chat_thread_id = ?") . "
+    WHERE tm.ticket_id = ?" . ($fetchAllVisibleThreads ? "" : " AND tm.chat_thread_id = ?") . "
     ORDER BY tm.created_at ASC
 ";
 $stmt = $conn->prepare($messageSql);
 
-if ($fetchAllTicketThreads) {
+if ($fetchAllVisibleThreads) {
     $stmt->bind_param("i", $ticket_id);
 } else {
     $stmt->bind_param("ii", $ticket_id, $chatThreadId);
