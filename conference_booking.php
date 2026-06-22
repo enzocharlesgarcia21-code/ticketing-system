@@ -215,7 +215,7 @@ function conference_booking_page_scheduler_event(array $booking, string $dayStar
     ];
 }
 
-function conference_booking_page_room_visuals(string $roomName): array
+function conference_booking_page_room_visuals(string $roomName, string $roomColor = ''): array
 {
     $normalizedRoomName = strtolower(trim($roomName));
     $slug = preg_replace('/[^a-z0-9]+/', '-', $normalizedRoomName);
@@ -224,19 +224,66 @@ function conference_booking_page_room_visuals(string $roomName): array
         $slug = 'room';
     }
 
+    $roomColor = trim($roomColor);
+    if ($roomColor !== '') {
+        $colorKey = conference_room_normalize_color($roomColor);
+        $palette = conference_room_color_palette();
+
+        if (conference_room_is_custom_color($colorKey)) {
+            return [
+                'slug' => $slug,
+                'color_key' => $colorKey,
+                'label_color' => $colorKey,
+                'booking_color' => $colorKey,
+                'soft_color' => $colorKey,
+                'text_color' => conference_room_text_color_for_hex($colorKey),
+                'has_saved_color' => true,
+            ];
+        }
+
+        $colors = (array) ($palette[$colorKey] ?? $palette['green']);
+
+        return [
+            'slug' => $slug,
+            'color_key' => $colorKey,
+            'label_color' => (string) ($colors['color'] ?? '#b7edc3'),
+            'booking_color' => (string) ($colors['color'] ?? '#b7edc3'),
+            'soft_color' => (string) ($colors['soft'] ?? '#ecfdf3'),
+            'text_color' => (string) ($colors['text'] ?? '#166534'),
+            'has_saved_color' => true,
+        ];
+    }
+
     if ($slug === 'caltex') {
         return [
             'slug' => 'caltex',
             'label_color' => '#166534',
             'booking_color' => '#166534',
+            'soft_color' => '#ecfdf3',
+            'text_color' => '#166534',
+            'has_saved_color' => false,
         ];
     }
 
     if ($slug === 'mpdc') {
         return [
             'slug' => 'mpdc',
-            'label_color' => '#baccdc',
-            'booking_color' => '#baccdc',
+            'label_color' => '#9ecbf3',
+            'booking_color' => '#9ecbf3',
+            'soft_color' => '#ebf6ff',
+            'text_color' => '#173f66',
+            'has_saved_color' => false,
+        ];
+    }
+
+    if (strpos($normalizedRoomName, 'gpsci') !== false) {
+        return [
+            'slug' => 'gpsci',
+            'label_color' => '#fff7a8',
+            'booking_color' => '#fff7a8',
+            'soft_color' => '#fffde7',
+            'text_color' => '#5f4b00',
+            'has_saved_color' => false,
         ];
     }
 
@@ -255,6 +302,9 @@ function conference_booking_page_room_visuals(string $roomName): array
         'slug' => $slug,
         'label_color' => (string) $palette['label_color'],
         'booking_color' => (string) $palette['booking_color'],
+        'soft_color' => '#f8fafc',
+        'text_color' => (string) $palette['label_color'],
+        'has_saved_color' => false,
     ];
 }
 
@@ -3036,8 +3086,13 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .legend-dot.mpdc {
-            background: linear-gradient(180deg, #6da4e0 0%, #4d84c8 100%);
-            border: 1px solid #4d84c8;
+            background: linear-gradient(180deg, #b9dcfb 0%, #9ecbf3 100%);
+            border: 1px solid #7fb4e5;
+        }
+
+        body.conference-booking-public-page .legend-dot.gpsci {
+            background: linear-gradient(180deg, #fffde7 0%, #fff7a8 100%);
+            border: 1px solid #f5e663;
         }
 
         body.conference-booking-public-page .legend-dot.is-room {
@@ -3122,6 +3177,10 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             color: #2d5f8f !important;
         }
 
+        body.conference-booking-public-page .scheduler-room-head-name.room-gpsci {
+            color: #5f4b00 !important;
+        }
+
         body.conference-booking-public-page .scheduler-room-head.room-caltex {
             background: linear-gradient(135deg, rgba(240, 253, 244, 0.98) 0%, rgba(220, 252, 231, 0.9) 100%);
             border-left-color: rgba(22, 101, 52, 0.1);
@@ -3136,13 +3195,33 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .scheduler-room-head.room-mpdc {
-            background: linear-gradient(180deg, #6da4e0 0%, #4d84c8 100%);
-            border-left-color: rgba(77, 132, 200, 0.28);
+            background: linear-gradient(180deg, #b9dcfb 0%, #9ecbf3 100%);
+            border-left-color: rgba(127, 180, 229, 0.42);
         }
 
         body.conference-booking-public-page .scheduler-room-head.room-mpdc .scheduler-room-head-name,
         body.conference-booking-public-page .scheduler-room-head.room-mpdc .scheduler-room-head-state {
-            color: #eff6ff !important;
+            color: #173f66 !important;
+        }
+
+        body.conference-booking-public-page .scheduler-room-head.room-gpsci {
+            background: linear-gradient(180deg, #fffde7 0%, #fff7a8 100%);
+            border-left-color: rgba(245, 230, 99, 0.55);
+        }
+
+        body.conference-booking-public-page .scheduler-room-head.room-gpsci .scheduler-room-head-name,
+        body.conference-booking-public-page .scheduler-room-head.room-gpsci .scheduler-room-head-state {
+            color: #5f4b00 !important;
+        }
+
+        body.conference-booking-public-page .scheduler-room-head.has-saved-color {
+            background: var(--room-color, #b7edc3);
+            border-left-color: var(--room-color, #b7edc3);
+        }
+
+        body.conference-booking-public-page .scheduler-room-head.has-saved-color .scheduler-room-head-name,
+        body.conference-booking-public-page .scheduler-room-head.has-saved-color .scheduler-room-head-state {
+            color: var(--room-text-color, #166534) !important;
         }
 
         body.conference-booking-public-page .scheduler-room-head-state {
@@ -3202,14 +3281,36 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .scheduler-room-lane.room-mpdc {
-            --scheduler-booking-color: #6da4e0;
+            --scheduler-booking-color: #9ecbf3;
             background:
                 repeating-linear-gradient(
                     to bottom,
                     transparent 0 calc(var(--scheduler-slot-height) - 1px),
-                    rgba(209, 225, 247, 0.92) calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
+                    rgba(219, 237, 252, 0.92) calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
                 ),
-                linear-gradient(180deg, rgba(228, 238, 252, 0.88) 0%, rgba(255, 255, 255, 0.98) 24%);
+                linear-gradient(180deg, rgba(235, 246, 255, 0.9) 0%, rgba(255, 255, 255, 0.98) 24%);
+        }
+
+        body.conference-booking-public-page .scheduler-room-lane.room-gpsci {
+            --scheduler-booking-color: #fff7a8;
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    transparent 0 calc(var(--scheduler-slot-height) - 1px),
+                    rgba(255, 253, 231, 0.88) calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
+                ),
+                linear-gradient(180deg, rgba(255, 253, 231, 0.72) 0%, rgba(255, 255, 255, 0.98) 24%);
+        }
+
+        body.conference-booking-public-page .scheduler-room-lane.has-saved-color {
+            --scheduler-booking-color: var(--room-color, #b7edc3);
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    transparent 0 calc(var(--scheduler-slot-height) - 1px),
+                    color-mix(in srgb, var(--room-color, #b7edc3) 32%, white) calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
+                ),
+                linear-gradient(180deg, var(--room-color, #b7edc3) 0%, var(--room-soft-color, #ecfdf3) 20%, rgba(255, 255, 255, 0.98) 42%);
         }
 
         body.conference-booking-public-page .scheduler-event {
@@ -3235,10 +3336,17 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .scheduler-room-lane.room-mpdc .scheduler-event.status-booked {
-            background: linear-gradient(180deg, #6da4e0 0%, #4d84c8 100%);
-            border-color: rgba(77, 132, 200, 0.28);
-            color: #ffffff;
-            box-shadow: inset 3px 0 0 #2f65b0;
+            background: linear-gradient(180deg, #b9dcfb 0%, #9ecbf3 100%);
+            border-color: rgba(127, 180, 229, 0.42);
+            color: #173f66;
+            box-shadow: inset 3px 0 0 #5f9fd8;
+        }
+
+        body.conference-booking-public-page .scheduler-room-lane.room-gpsci .scheduler-event.status-booked {
+            background: linear-gradient(180deg, #fffde7 0%, #fff7a8 100%);
+            border-color: rgba(245, 230, 99, 0.55);
+            color: #5f4b00;
+            box-shadow: inset 3px 0 0 #ead94f;
         }
 
         body.conference-booking-public-page .scheduler-event.room-caltex.status-booked {
@@ -3249,10 +3357,17 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .scheduler-event.room-mpdc.status-booked {
-            background: linear-gradient(180deg, #6da4e0 0%, #4d84c8 100%);
-            border-color: rgba(77, 132, 200, 0.28);
-            color: #ffffff;
-            box-shadow: inset 3px 0 0 #2f65b0;
+            background: linear-gradient(180deg, #b9dcfb 0%, #9ecbf3 100%);
+            border-color: rgba(127, 180, 229, 0.42);
+            color: #173f66;
+            box-shadow: inset 3px 0 0 #5f9fd8;
+        }
+
+        body.conference-booking-public-page .scheduler-event.room-gpsci.status-booked {
+            background: linear-gradient(180deg, #fffde7 0%, #fff7a8 100%);
+            border-color: rgba(245, 230, 99, 0.55);
+            color: #5f4b00;
+            box-shadow: inset 3px 0 0 #ead94f;
         }
 
         body.conference-booking-public-page .scheduler-event.room-mpdc .scheduler-event-title,
@@ -3283,6 +3398,38 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         body.conference-booking-public-page .scheduler-event.room-caltex .scheduler-event-buffer {
             background: rgba(84, 148, 102, 0.12);
             border-top-color: rgba(84, 148, 102, 0.28);
+        }
+
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-title,
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-meta,
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-buffer,
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-time {
+            color: #5f4b00 !important;
+            opacity: 1;
+        }
+
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-time {
+            background: rgba(95, 75, 0, 0.08);
+        }
+
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-buffer {
+            background: rgba(95, 75, 0, 0.06);
+            border-top-color: rgba(95, 75, 0, 0.16);
+        }
+
+        body.conference-booking-public-page .scheduler-event.has-saved-color.status-booked {
+            background: var(--room-color, #b7edc3);
+            border-color: var(--room-color, #b7edc3);
+            color: var(--room-text-color, #166534);
+            box-shadow: inset 3px 0 0 color-mix(in srgb, var(--room-color, #b7edc3) 70%, #0f172a);
+        }
+
+        body.conference-booking-public-page .scheduler-event.has-saved-color .scheduler-event-title,
+        body.conference-booking-public-page .scheduler-event.has-saved-color .scheduler-event-meta,
+        body.conference-booking-public-page .scheduler-event.has-saved-color .scheduler-event-buffer,
+        body.conference-booking-public-page .scheduler-event.has-saved-color .scheduler-event-time {
+            color: var(--room-text-color, #166534) !important;
+            opacity: 1;
         }
 
         body.conference-booking-public-page .scheduler-event.status-pending {
@@ -4030,8 +4177,25 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                             <div class="legend-title">Legend</div>
                                             <div class="legend-items">
                                                 <span class="legend-item"><span class="legend-dot available"></span>Open</span>
-                                                <span class="legend-item"><span class="legend-dot caltex"></span>Caltex</span>
-                                                <span class="legend-item"><span class="legend-dot mpdc"></span>MPDC</span>
+                                                        <?php foreach ($schedulerRooms as $legendRoom): ?>
+                                                    <?php
+                                                        $legendRoomName = trim((string) ($legendRoom['room_name'] ?? 'Room'));
+                                                        $legendRoomVisuals = conference_booking_page_room_visuals($legendRoomName, (string) ($legendRoom['room_color'] ?? ''));
+                                                        $legendRoomSlug = (string) ($legendRoomVisuals['slug'] ?? 'room');
+                                                        $legendRoomColor = (string) ($legendRoomVisuals['label_color'] ?? '#16a34a');
+                                                        $legendHasSavedColor = !empty($legendRoomVisuals['has_saved_color']);
+                                                        $legendDotClass = !$legendHasSavedColor && in_array($legendRoomSlug, ['caltex', 'gpsci', 'mpdc'], true)
+                                                            ? 'legend-dot ' . $legendRoomSlug
+                                                            : 'legend-dot is-room';
+                                                    ?>
+                                                    <span class="legend-item">
+                                                        <span
+                                                            class="<?= htmlspecialchars($legendDotClass, ENT_QUOTES, 'UTF-8'); ?>"
+                                                            style="--legend-room-color: <?= htmlspecialchars($legendRoomColor, ENT_QUOTES, 'UTF-8'); ?>;"
+                                                        ></span>
+                                                        <?= htmlspecialchars($legendRoomName !== '' ? $legendRoomName : 'Room', ENT_QUOTES, 'UTF-8'); ?>
+                                                    </span>
+                                                <?php endforeach; ?>
                                             </div>
                                             <div class="legend-tooltip">
                                                 <span class="legend-tooltip-trigger" tabindex="0" aria-label="View timezone note">
@@ -4178,10 +4342,14 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                                             <?php
                                                                 $roomSupportsDate = conference_booking_room_supports_booking_date($room, $dayDate);
                                                                 $roomHeadState = $roomSupportsDate ? 'Open for booking' : 'Saturday disabled';
-                                                                $roomVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'));
+                                                                $roomVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'), (string) ($room['room_color'] ?? ''));
                                                                 $roomSlug = (string) ($roomVisuals['slug'] ?? 'room');
+                                                                $roomHasSavedColor = !empty($roomVisuals['has_saved_color']);
+                                                                $roomInlineStyle = $roomHasSavedColor
+                                                                    ? '--room-color:' . (string) ($roomVisuals['label_color'] ?? '#b7edc3') . '; --room-soft-color:' . (string) ($roomVisuals['soft_color'] ?? '#ecfdf3') . '; --room-text-color:' . (string) ($roomVisuals['text_color'] ?? '#166534') . ';'
+                                                                    : '';
                                                             ?>
-                                                            <div class="scheduler-room-head room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomSupportsDate ? '' : 'is-disabled'; ?>">
+                                                            <div class="scheduler-room-head room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomHasSavedColor ? 'has-saved-color' : ''; ?> <?= $roomSupportsDate ? '' : 'is-disabled'; ?>" style="<?= htmlspecialchars($roomInlineStyle, ENT_QUOTES, 'UTF-8'); ?>">
                                                                 <span class="scheduler-room-head-name room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($room['room_name'] ?? 'Room'), ENT_QUOTES, 'UTF-8'); ?></span>
                                                                 <span class="scheduler-room-head-state"><?= htmlspecialchars($roomHeadState, ENT_QUOTES, 'UTF-8'); ?></span>
                                                             </div>
@@ -4212,11 +4380,15 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                                                 $roomId = (int) ($room['id'] ?? 0);
                                                                 $roomSupportsDate = conference_booking_room_supports_booking_date($room, $dayDate);
                                                                 $roomEvents = (array) ($schedulerEventsByDateRoom[$dayDate][$roomId] ?? []);
-                                                                $roomVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'));
+                                                                $roomVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'), (string) ($room['room_color'] ?? ''));
                                                                 $roomSlug = (string) ($roomVisuals['slug'] ?? 'room');
                                                                 $roomBookingColor = (string) ($roomVisuals['booking_color'] ?? '#16a34a');
+                                                                $roomHasSavedColor = !empty($roomVisuals['has_saved_color']);
+                                                                $roomInlineStyle = $roomHasSavedColor
+                                                                    ? '--room-color:' . (string) ($roomVisuals['label_color'] ?? '#b7edc3') . '; --room-soft-color:' . (string) ($roomVisuals['soft_color'] ?? '#ecfdf3') . '; --room-text-color:' . (string) ($roomVisuals['text_color'] ?? '#166534') . ';'
+                                                                    : '';
                                                             ?>
-                                                            <div class="scheduler-room-lane room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomSupportsDate ? '' : 'is-disabled'; ?>">
+                                                            <div class="scheduler-room-lane room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomHasSavedColor ? 'has-saved-color' : ''; ?> <?= $roomSupportsDate ? '' : 'is-disabled'; ?>" style="<?= htmlspecialchars($roomInlineStyle, ENT_QUOTES, 'UTF-8'); ?>">
                                                                 <?php if (!$roomSupportsDate): ?>
                                                                     <div class="scheduler-disabled-block">
                                                                         <span class="scheduler-disabled-title">Unavailable</span>
@@ -4229,13 +4401,13 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                                                         $eventStatus = (string) ($event['status'] ?? 'booked');
                                                                         $eventInlineStyle = '';
                                                                         if ($eventStatus === 'booked') {
-                                                                            $eventInlineStyle = '--scheduler-booking-color:' . $roomBookingColor . ';';
+                                                                            $eventInlineStyle = '--scheduler-booking-color:' . $roomBookingColor . ';' . $roomInlineStyle;
                                                                         }
                                                                         $eventInlineStyle .= 'top: calc((var(--scheduler-minute-height) * ' . (int) ($event['top_minutes'] ?? 0) . ') + (var(--scheduler-event-gap) / 2));';
                                                                         $eventInlineStyle .= ' height: calc((var(--scheduler-minute-height) * ' . (int) ($event['display_minutes'] ?? 30) . ') - var(--scheduler-event-gap));';
                                                                     ?>
                                                                     <article
-                                                                        class="scheduler-event room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> status-<?= htmlspecialchars($eventStatus, ENT_QUOTES, 'UTF-8'); ?> <?= htmlspecialchars((string) ($event['size_class'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                                                                        class="scheduler-event room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomHasSavedColor ? 'has-saved-color' : ''; ?> status-<?= htmlspecialchars($eventStatus, ENT_QUOTES, 'UTF-8'); ?> <?= htmlspecialchars((string) ($event['size_class'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                                                                         style="<?= htmlspecialchars($eventInlineStyle, ENT_QUOTES, 'UTF-8'); ?>"
                                                                         title="<?= htmlspecialchars((string) ($event['tooltip'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                                                                     >
