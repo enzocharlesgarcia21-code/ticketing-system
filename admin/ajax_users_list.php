@@ -33,6 +33,90 @@ if ($fullNameRes && $fullNameRes->num_rows > 0) {
     $hasFullNameCol = true;
 }
 
+$hasLastSeenCol = false;
+$lastSeenRes = $conn->query("SHOW COLUMNS FROM users LIKE 'last_seen_at'");
+if ($lastSeenRes && $lastSeenRes->num_rows > 0) {
+    $hasLastSeenCol = true;
+}
+
+$hasLastLogoutCol = false;
+$lastLogoutRes = $conn->query("SHOW COLUMNS FROM users LIKE 'last_logout_at'");
+if ($lastLogoutRes && $lastLogoutRes->num_rows > 0) {
+    $hasLastLogoutCol = true;
+}
+
+$hasOnlineCol = false;
+$onlineRes = $conn->query("SHOW COLUMNS FROM users LIKE 'is_online'");
+if ($onlineRes && $onlineRes->num_rows > 0) {
+    $hasOnlineCol = true;
+}
+
+function user_status_payload(?string $lastSeenAt, ?string $lastLogoutAt, int $isOnline): array
+{
+    $lastSeenAt = trim((string) $lastSeenAt);
+    if ($lastSeenAt === '') {
+        return [
+            'label' => 'Never opened',
+            'state' => 'never',
+            'last_seen_at' => ''
+        ];
+    }
+
+    $lastSeenTs = strtotime($lastSeenAt);
+    if ($lastSeenTs === false) {
+        return [
+            'label' => 'Unknown',
+            'state' => 'never',
+            'last_seen_at' => $lastSeenAt
+        ];
+    }
+
+    $seconds = max(0, time() - $lastSeenTs);
+    $lastLogoutAt = trim((string) $lastLogoutAt);
+    $lastLogoutTs = $lastLogoutAt !== '' ? strtotime($lastLogoutAt) : false;
+    $isLoggedOut = ($lastLogoutTs !== false && $lastLogoutTs >= $lastSeenTs);
+
+    if ($isOnline === 1 && !$isLoggedOut && $seconds <= 120) {
+        return [
+            'label' => 'Online',
+            'state' => 'online',
+            'last_seen_at' => $lastSeenAt
+        ];
+    }
+
+    $minutes = (int) floor($seconds / 60);
+    if ($minutes < 1) {
+        return [
+            'label' => 'Just now',
+            'state' => 'recent',
+            'last_seen_at' => $lastSeenAt
+        ];
+    }
+    if ($minutes < 60) {
+        return [
+            'label' => $minutes . ' min' . ($minutes === 1 ? '' : 's') . ' ago',
+            'state' => 'recent',
+            'last_seen_at' => $lastSeenAt
+        ];
+    }
+
+    $hours = (int) floor($minutes / 60);
+    if ($hours < 24) {
+        return [
+            'label' => $hours . ' hour' . ($hours === 1 ? '' : 's') . ' ago',
+            'state' => 'away',
+            'last_seen_at' => $lastSeenAt
+        ];
+    }
+
+    $days = (int) floor($hours / 24);
+    return [
+        'label' => $days . ' day' . ($days === 1 ? '' : 's') . ' ago',
+        'state' => 'offline',
+        'last_seen_at' => $lastSeenAt
+    ];
+}
+
 $where = [];
 $params = [];
 $types = '';
@@ -99,9 +183,24 @@ $displayNameExpr = $hasFullNameCol
     ? "COALESCE(NULLIF(full_name,''), NULLIF(name,''), '')"
     : "COALESCE(NULLIF(name,''), '')";
 
-$sql = "SELECT id, $displayNameExpr AS display_name, email, department, role";
+$sql = "SELECT id, $displayNameExpr AS display_name, email, company, department, role";
 if ($hasSuperAdminCol) {
     $sql .= ", COALESCE(is_super_admin, 0) AS is_super_admin";
+}
+if ($hasLastSeenCol) {
+    $sql .= ", last_seen_at";
+} else {
+    $sql .= ", NULL AS last_seen_at";
+}
+if ($hasLastLogoutCol) {
+    $sql .= ", last_logout_at";
+} else {
+    $sql .= ", NULL AS last_logout_at";
+}
+if ($hasOnlineCol) {
+    $sql .= ", COALESCE(is_online, 0) AS is_online";
+} else {
+    $sql .= ", 0 AS is_online";
 }
 $sql .= " FROM users";
 if (count($where) > 0) {
@@ -160,13 +259,18 @@ while ($row = $res->fetch_assoc()) {
         $roleVal = strtolower(trim((string) ($row['role'] ?? '')));
         $isSuper = $roleVal === 'admin';
     }
+    $status = user_status_payload($row['last_seen_at'] ?? '', $row['last_logout_at'] ?? '', (int) ($row['is_online'] ?? 0));
     $users[] = [
         'id' => (int) ($row['id'] ?? 0),
         'name' => (string) ($row['display_name'] ?? ''),
         'email' => (string) ($row['email'] ?? ''),
+        'company' => (string) ($row['company'] ?? ''),
         'department' => (string) ($row['department'] ?? ''),
         'role' => (string) ($row['role'] ?? ''),
         'is_super_admin' => $isSuper ? 1 : 0,
+        'last_seen_at' => $status['last_seen_at'],
+        'status_label' => $status['label'],
+        'status_state' => $status['state'],
     ];
 }
 $stmt->close();

@@ -3,6 +3,7 @@ require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/user_permissions.php';
+require_once '../includes/activity_logger.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: dashboard.php");
@@ -86,8 +87,11 @@ function company_domain_option_label(string $domain, string $label): string
 
 $lapc_department_options = ticket_company_allowed_groups('@leadsagri.com');
 $mhc_department_options = ticket_company_allowed_groups('@malvedaholdings.com');
+$edit_user_company_options = ticket_request_company_options();
+$edit_user_department_options = ticket_company_group_map();
 $canManageUserAccess = user_permissions_can_manage($conn);
 user_permissions_ensure_table($conn);
+activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 'Opened Admin Management', 'Admin Management');
 
 ?>
 
@@ -694,6 +698,7 @@ user_permissions_ensure_table($conn);
             overflow: auto;
             border: 1px solid #eef2f7;
             border-radius: 12px;
+            padding-bottom: 150px;
         }
         #usersListCard .users-table-container {
             min-height: 320px;
@@ -711,10 +716,17 @@ user_permissions_ensure_table($conn);
         .users-table { border-top: none; }
         .users-table { table-layout: fixed; }
         .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 28%; text-align: center; }
-        .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 34%; text-align: center; }
-        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 28%; text-align: center; }
-        .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 10%; text-align: right; }
-        .users-table td { vertical-align: middle; }
+        .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 25%; text-align: center; }
+        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 23%; text-align: center; }
+        .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 14%; text-align: center; }
+        .users-table th:nth-child(5), .users-table td:nth-child(5) { width: 10%; text-align: right; }
+        .users-table td {
+            vertical-align: middle;
+            overflow: hidden;
+        }
+        .users-table td:nth-child(5) {
+            overflow: visible;
+        }
         .users-cell {
             display: inline-block;
             max-width: 100%;
@@ -724,17 +736,24 @@ user_permissions_ensure_table($conn);
             vertical-align: middle;
         }
         .users-name-wrap {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 9px;
             max-width: 100%;
+            min-width: 0;
+            overflow: hidden;
+            flex-wrap: nowrap;
+            white-space: nowrap;
         }
         .users-name-wrap .users-cell { min-width: 0; }
+        .users-name-wrap .users-badge-current {
+            max-width: 100%;
+        }
         .users-badge-current {
             flex: 0 0 auto;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 900;
-            padding: 4px 10px;
+            padding: 4px 8px;
             border-radius: 999px;
             background: #dcfce7;
             color: #166534;
@@ -743,10 +762,104 @@ user_permissions_ensure_table($conn);
             white-space: nowrap;
         }
         .users-actions {
+            position: relative;
             display: inline-flex;
             justify-content: flex-end;
+            align-items: center;
             width: 100%;
         }
+        .btn-icon-menu,
+        .btn-icon-activity {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            border: 1px solid #bbf7d0;
+            background: #f0fdf4;
+            color: #15803d;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-icon-menu:hover,
+        .btn-icon-activity:hover {
+            background: #dcfce7;
+            border-color: #86efac;
+        }
+        .users-action-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            z-index: 20;
+            display: none;
+            min-width: 178px;
+            padding: 6px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 18px 38px rgba(15, 23, 42, 0.16);
+        }
+        .users-actions.is-open .users-action-menu {
+            display: grid;
+            gap: 4px;
+        }
+        .users-action-item {
+            width: 100%;
+            border: 0;
+            border-radius: 9px;
+            background: transparent;
+            color: #334155;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 9px 10px;
+            font-size: 12px;
+            font-weight: 800;
+            text-align: left;
+        }
+        .users-action-item:hover {
+            background: #f0fdf4;
+            color: #166534;
+        }
+        .users-action-item.is-danger {
+            color: #ef4444;
+        }
+        .users-action-item.is-danger:hover {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+        .users-status {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            max-width: 100%;
+            color: #334155;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+        .users-status-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 999px;
+            flex: 0 0 auto;
+            background: #111827;
+            box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
+        }
+        .users-status.is-online { color: #166534; }
+        .users-status.is-online .users-status-dot {
+            background: #22c55e;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16);
+        }
+        .users-status.is-recent,
+        .users-status.is-away { color: #92400e; }
+        .users-status.is-recent .users-status-dot,
+        .users-status.is-away .users-status-dot {
+            background: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
+        }
+        .users-status.is-never { color: #64748b; }
         .btn-icon-danger {
             width: 34px;
             height: 34px;
@@ -986,18 +1099,171 @@ user_permissions_ensure_table($conn);
         .users-access-row.is-clickable.is-active td {
             background: #ecfdf5;
         }
-        .users-access-meta {
+        .activity-drawer-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 3000;
+            display: none;
+            justify-content: flex-end;
+            background: rgba(15, 23, 42, 0.32);
+            backdrop-filter: blur(2px);
+        }
+        .activity-drawer-overlay.show { display: flex; }
+        .activity-drawer {
+            width: min(500px, 100vw);
+            height: 100vh;
+            background: #ffffff;
+            box-shadow: -24px 0 60px rgba(15, 23, 42, 0.18);
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.22s ease;
+        }
+        .activity-drawer-overlay.show .activity-drawer { transform: translateX(0); }
+        .activity-drawer-head {
+            padding: 20px 22px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+        }
+        .activity-drawer-title {
+            margin: 0;
+            color: #0f172a;
+            font-size: 20px;
+            font-weight: 900;
+        }
+        .activity-drawer-close {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            border: 1px solid #dbe3ee;
+            background: #ffffff;
+            color: #334155;
+            cursor: pointer;
+        }
+        .activity-drawer-body {
+            padding: 18px 22px 22px;
+            overflow: auto;
+            flex: 1 1 auto;
+            background: #f8fafc;
+        }
+        .activity-user-card,
+        .activity-summary-card,
+        .activity-timeline-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+        }
+        .activity-user-card {
+            padding: 16px;
+            display: flex;
+            gap: 13px;
+            align-items: flex-start;
+        }
+        .activity-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 999px;
+            background: #ecfdf5;
+            border: 1px solid #bbf7d0;
+            color: #166534;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            color: #16a34a;
-            font-size: 11px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-left: auto;
+            justify-content: center;
+            font-weight: 900;
+            flex: 0 0 auto;
+        }
+        .activity-user-main { min-width: 0; flex: 1 1 auto; }
+        .activity-user-name {
+            font-size: 15px;
+            font-weight: 900;
+            color: #0f172a;
+            overflow: hidden;
+            text-overflow: ellipsis;
             white-space: nowrap;
         }
+        .activity-user-email {
+            margin-top: 3px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .activity-user-meta {
+            margin-top: 12px;
+            display: grid;
+            gap: 7px;
+            color: #334155;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .activity-status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            margin-right: 6px;
+            background: #0f172a;
+        }
+        .activity-status-dot.is-online { background: #22c55e; }
+        .activity-status-dot.is-recent,
+        .activity-status-dot.is-away { background: #f59e0b; }
+        .activity-summary-card {
+            margin-top: 14px;
+            padding: 14px 16px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        .activity-summary-label {
+            display: block;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+        .activity-summary-value {
+            display: block;
+            margin-top: 4px;
+            color: #0f172a;
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 1.35;
+        }
+        .activity-timeline-card { margin-top: 14px; padding: 16px; }
+        .activity-recent-title {
+            margin: 0 0 12px;
+            color: #0f172a;
+            font-size: 15px;
+            font-weight: 900;
+        }
+        .activity-timeline { display: grid; gap: 8px; }
+        .activity-item {
+            position: relative;
+            padding-left: 18px;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.4;
+        }
+        .activity-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 8px;
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: #15803d;
+        }
+        .activity-item.is-warning::before { background: #f59e0b; }
+        .activity-item.is-danger::before { background: #dc2626; }
+        .activity-empty { padding: 22px 12px; text-align: center; color: #64748b; font-weight: 800; }
         .access-modal-card {
             max-width: 520px;
             margin-top: 0;
@@ -1503,10 +1769,11 @@ user_permissions_ensure_table($conn);
             height: 100%;
             justify-content: center;
         }
-        .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 34%; text-align: left; }
-        .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 36%; text-align: left; }
-        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 22%; text-align: left; }
-        .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 8%; text-align: right; }
+        .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 28%; text-align: left; }
+        .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 25%; text-align: left; }
+        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 23%; text-align: left; }
+        .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 14%; text-align: left; }
+        .users-table th:nth-child(5), .users-table td:nth-child(5) { width: 10%; text-align: right; }
         .users-table tbody tr:hover td { background: #f8fafc; }
         .users-avatar {
             width: 36px;
@@ -1524,7 +1791,9 @@ user_permissions_ensure_table($conn);
         .users-name-block {
             display: inline-flex;
             flex-direction: column;
+            flex: 1 1 90px;
             min-width: 0;
+            max-width: 100%;
         }
         .users-name {
             font-weight: 800;
@@ -1541,17 +1810,31 @@ user_permissions_ensure_table($conn);
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 6px 10px;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            padding: 5px 8px;
             border-radius: 999px;
-            font-size: 12px;
-            font-weight: 900;
+            font-size: 10px;
+            font-weight: 800;
+            line-height: 1;
             border: 1px solid #e5e7eb;
             background: #f1f5f9;
             color: #334155;
             text-transform: uppercase;
-            letter-spacing: 0.02em;
+            letter-spacing: 0;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
+        .dept-badge.dept-long,
+        .dept-badge.dept-very-long,
+        .dept-badge.dept-ultra-long {
+            width: 100%;
+        }
+        .dept-badge.dept-long { font-size: 8px; padding-left: 5px; padding-right: 5px; }
+        .dept-badge.dept-very-long { font-size: 7px; padding-left: 4px; padding-right: 4px; }
+        .dept-badge.dept-ultra-long { font-size: 6px; padding-left: 3px; padding-right: 3px; }
         .dept-it { background: #dbeafe; border-color: #bfdbfe; color: #1d4ed8; }
         .dept-hr { background: #fef9c3; border-color: #fde68a; color: #854d0e; }
         .dept-admin { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
@@ -1947,11 +2230,12 @@ user_permissions_ensure_table($conn);
                                         <th>Name</th>
                                         <th>Email</th>
                                         <th>Department</th>
+                                        <th>Status</th>
                                         <th style="text-align:right;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="usersListBody">
-                                    <tr><td class="users-empty" colspan="4">Loading...</td></tr>
+                                    <tr><td class="users-empty" colspan="5">Loading...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -1962,6 +2246,44 @@ user_permissions_ensure_table($conn);
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="activity-drawer-overlay" id="activityDrawerOverlay" aria-hidden="true">
+            <aside class="activity-drawer" role="dialog" aria-modal="true" aria-labelledby="activityDrawerTitle">
+                <div class="activity-drawer-head">
+                    <h2 class="activity-drawer-title" id="activityDrawerTitle">User Activity Timeline</h2>
+                    <button type="button" class="activity-drawer-close" id="closeActivityDrawer" aria-label="Close activity logs">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="activity-drawer-body">
+                    <section class="activity-user-card">
+                        <div class="activity-avatar" id="activityUserAvatar">?</div>
+                        <div class="activity-user-main">
+                            <div class="activity-user-name" id="activityUserName">Select a user</div>
+                            <div class="activity-user-email" id="activityUserEmail">No user selected</div>
+                            <div class="activity-user-meta">
+                                <div>Department: <span id="activityUserDepartment">-</span></div>
+                                <div>Role: <span id="activityUserRole">-</span></div>
+                                <div>Status: <span class="activity-status-dot" id="activityStatusDot"></span><span id="activityUserStatus">-</span></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="activity-summary-card">
+                        <div><span class="activity-summary-label">Account Created</span><span class="activity-summary-value" id="activityAccountCreated">-</span></div>
+                        <div><span class="activity-summary-label">First Login</span><span class="activity-summary-value" id="activityFirstLogin">-</span></div>
+                        <div><span class="activity-summary-label">Last Login</span><span class="activity-summary-value" id="activityLastLogin">-</span></div>
+                    </section>
+
+                    <section class="activity-timeline-card">
+                        <h3 class="activity-recent-title">Recent Activities</h3>
+                        <div class="activity-timeline" id="activityTimeline">
+                            <div class="activity-empty">Select a user to load recent activities.</div>
+                        </div>
+                    </section>
+                </div>
+            </aside>
         </div>
 
         <div class="modal-overlay-lite" id="addUserModal" aria-hidden="true">
@@ -2047,6 +2369,60 @@ user_permissions_ensure_table($conn);
                         <div class="form-actions">
                             <button type="button" class="btn btn-secondary" id="cancelAddUser">Cancel</button>
                             <button type="submit" class="btn btn-primary" id="createUserBtn">Create User</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay-lite" id="editUserModal" aria-hidden="true">
+            <div class="modal-card add-user-modal-card">
+                <div class="add-user-modal-header">
+                    <div class="add-user-modal-title">
+                        <span class="add-user-modal-icon"><i class="fas fa-user-pen"></i></span>
+                        <div>
+                            <h2>Edit User</h2>
+                            <p>Update the selected user's name, email address, and department.</p>
+                        </div>
+                    </div>
+                    <button type="button" class="add-user-modal-close" id="closeEditUserModal" aria-label="Close edit user modal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="mgmt-card-body">
+                    <form id="editUserForm" autocomplete="off" novalidate>
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="id" id="editUserId" value="">
+                        <div class="form-grid">
+                            <div class="form-label">Name <span class="form-required">*</span></div>
+                            <div class="form-field-stack">
+                                <input type="text" class="form-control" name="name" id="editUserName" placeholder="Juan Dela Cruz" required>
+                            </div>
+
+                            <div class="form-label">Email <span class="form-required">*</span></div>
+                            <div class="form-field-stack">
+                                <input type="email" class="form-control" name="email" id="editUserEmail" placeholder="user@leadsagri.com" required>
+                            </div>
+
+                            <div class="form-label">Subsidiary <span class="form-required">*</span></div>
+                            <div class="form-field-stack">
+                                <select class="domain-select" name="company" id="editUserCompany" aria-label="Subsidiary" required>
+                                    <?php foreach ($edit_user_company_options as $companyKey => $companyLabel): ?>
+                                        <option value="<?= htmlspecialchars((string) $companyKey, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="form-label">Department</div>
+                            <div class="form-field-stack">
+                                <select class="domain-select" name="department" id="editUserDepartment" aria-label="Department">
+                                    <option value="">No Department</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="access-modal-actions">
+                            <button type="button" class="btn btn-secondary" id="cancelEditUser">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="saveEditUser">Save Changes</button>
                         </div>
                     </form>
                 </div>
@@ -2226,6 +2602,7 @@ user_permissions_ensure_table($conn);
         "@lingapleads.org": [],
         "@leadsav.com": []
     };
+    var editCompanyDepartments = <?php echo json_encode($edit_user_department_options, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     var tmUsersState = { page: 1, limit: window.TM_USERS_PAGE_SIZE, total: 0, totalPages: 1 };
     var tmItState = { page: 1, limit: window.TM_IT_PAGE_SIZE, total: 0, totalPages: 1 };
     var tmItAdminsState = { page: 1, limit: window.TM_IT_ADMINS_PAGE_SIZE, total: 0, totalPages: 1 };
@@ -2318,7 +2695,7 @@ user_permissions_ensure_table($conn);
         var body = document.getElementById('usersListBody');
         if (!body) return;
         if (!users || users.length === 0) {
-            body.innerHTML = '<tr><td class="users-empty" colspan="4">No users found.</td></tr>';
+            body.innerHTML = '<tr><td class="users-empty" colspan="5">No users found.</td></tr>';
             return;
         }
         function deptClass(dept) {
@@ -2338,6 +2715,7 @@ user_permissions_ensure_table($conn);
         body.innerHTML = users.map(function (u) {
             var dept = u.department ? String(u.department) : '-';
             var email = u.email ? String(u.email) : '-';
+            var company = u.company ? String(u.company) : '';
             var id = u.id != null ? String(u.id) : '';
             var name = String(u.name || '');
             var role = String(u.role || '');
@@ -2349,18 +2727,29 @@ user_permissions_ensure_table($conn);
             if (isCurrent) badges.push('<span class="users-badge-current">Current</span>');
             if (isSuper) badges.push('<span class="users-badge-current">Super Admin</span>');
             var badge = badges.join('');
-            var action = (!isCurrent && !isAdmin)
-                ? '<span class="users-actions"><button type="button" class="btn-icon-danger users-del" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '" aria-label="Delete user"><i class="fas fa-trash"></i></button></span>'
-                : '<span class="users-actions"></span>';
+            var menuItems = [];
+            menuItems.push('<button type="button" class="users-action-item users-activity" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '"><i class="fas fa-chart-line"></i><span>Activity Logs</span></button>');
+            if (canManageAccess) {
+                menuItems.push('<button type="button" class="users-action-item users-edit" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '" data-email="' + escapeHtml(email) + '" data-company="' + escapeHtml(company) + '" data-department="' + escapeHtml(dept === '-' ? '' : dept) + '"><i class="fas fa-user-pen"></i><span>Edit</span></button>');
+            }
+            if (!isCurrent && !isAdmin) {
+                menuItems.push('<button type="button" class="users-action-item users-del is-danger" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '"><i class="fas fa-trash"></i><span>Delete</span></button>');
+            }
+            var action = menuItems.length
+                ? '<span class="users-actions"><button type="button" class="btn-icon-menu users-action-toggle" aria-label="Open user actions"><i class="fas fa-ellipsis-h"></i></button><span class="users-action-menu">' + menuItems.join('') + '</span></span>'
+                : '';
             var initial = name ? name.trim().charAt(0).toUpperCase() : '?';
             var deptCls = deptClass(dept);
-            var deptBadge = '<span class="dept-badge ' + deptCls + '" title="' + escapeHtml(dept) + '">' + escapeHtml(dept) + '</span>';
-            var accessMeta = canManageAccess
-                ? '<span class="users-access-meta"><i class="fas fa-sliders-h"></i> Access</span>'
-                : '';
+            var deptLen = dept.length;
+            var deptSizeCls = deptLen >= 36 ? 'dept-ultra-long' : (deptLen >= 28 ? 'dept-very-long' : (deptLen >= 20 ? 'dept-long' : ''));
+            var deptBadge = '<span class="dept-badge ' + deptCls + ' ' + deptSizeCls + '" title="' + escapeHtml(dept) + '">' + escapeHtml(dept) + '</span>';
+            var statusLabel = String(u.status_label || 'Never opened');
+            var statusState = String(u.status_state || 'never').toLowerCase();
+            var statusTitle = u.last_seen_at ? ('Last seen: ' + String(u.last_seen_at)) : statusLabel;
+            var status = '<span class="users-status is-' + escapeHtml(statusState) + '" title="' + escapeHtml(statusTitle) + '"><span class="users-status-dot"></span><span class="users-cell">' + escapeHtml(statusLabel) + '</span></span>';
             var rowClasses = 'users-access-row' + (canManageAccess ? ' is-clickable' : '');
             return '' +
-                '<tr class="' + rowClasses + '" data-user-id="' + escapeHtml(id) + '" data-user-name="' + escapeHtml(name) + '" data-user-email="' + escapeHtml(email) + '" data-user-role="' + escapeHtml(role) + '" data-user-department="' + escapeHtml(dept) + '">' +
+                '<tr class="' + rowClasses + '" data-user-id="' + escapeHtml(id) + '" data-user-name="' + escapeHtml(name) + '" data-user-email="' + escapeHtml(email) + '" data-user-company="' + escapeHtml(company) + '" data-user-role="' + escapeHtml(role) + '" data-user-department="' + escapeHtml(dept) + '">' +
                 '  <td>' +
                 '    <span class="users-name-wrap">' +
                 '      <span class="users-avatar">' + escapeHtml(initial) + '</span>' +
@@ -2368,11 +2757,11 @@ user_permissions_ensure_table($conn);
                 '        <span class="users-name users-cell" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</span>' +
                 '      </span>' +
                 '      ' + badge +
-                '      ' + accessMeta +
                 '    </span>' +
                 '  </td>' +
                 '  <td><span class="users-cell" title="' + escapeHtml(email) + '">' + escapeHtml(email) + '</span></td>' +
                 '  <td>' + deptBadge + '</td>' +
+                '  <td>' + status + '</td>' +
                 '  <td>' + action + '</td>' +
                 '</tr>';
         }).join('');
@@ -2643,6 +3032,16 @@ user_permissions_ensure_table($conn);
     document.addEventListener('DOMContentLoaded', function () {
         var modal = document.getElementById('addUserModal');
         var openBtn = document.getElementById('openAddUser');
+        var editUserModal = document.getElementById('editUserModal');
+        var editUserForm = document.getElementById('editUserForm');
+        var closeEditUserModalBtn = document.getElementById('closeEditUserModal');
+        var cancelEditUserBtn = document.getElementById('cancelEditUser');
+        var editUserId = document.getElementById('editUserId');
+        var editUserName = document.getElementById('editUserName');
+        var editUserEmail = document.getElementById('editUserEmail');
+        var editUserCompany = document.getElementById('editUserCompany');
+        var editUserDepartment = document.getElementById('editUserDepartment');
+        var saveEditUserBtn = document.getElementById('saveEditUser');
         var accessModal = document.getElementById('userAccessModal');
         var accessForm = document.getElementById('userAccessForm');
         var accessSections = document.getElementById('accessSections');
@@ -2654,6 +3053,10 @@ user_permissions_ensure_table($conn);
         var saveUserAccessBtn = document.getElementById('saveUserAccess');
         var selectedAccessRow = null;
         var accessPermissionsBaseline = '';
+        var activityDrawer = document.getElementById('activityDrawerOverlay');
+        var closeActivityDrawerBtn = document.getElementById('closeActivityDrawer');
+        var activityTimeline = document.getElementById('activityTimeline');
+        var activityState = { userId: '' };
         function openModal() {
             if (!modal) return;
             modal.classList.add('show');
@@ -2666,6 +3069,126 @@ user_permissions_ensure_table($conn);
             if (!modal) return;
             modal.classList.remove('show');
             modal.setAttribute('aria-hidden', 'true');
+        }
+        function normalizeEditCompany(value) {
+            var raw = String(value || '').trim();
+            if (Object.prototype.hasOwnProperty.call(editCompanyDepartments, raw)) return raw;
+            var lower = raw.toLowerCase();
+            var aliases = {
+                'lapc': '@leadsagri.com',
+                'lapc (@leadsagri.com)': '@leadsagri.com',
+                'leadsagri.com': '@leadsagri.com',
+                'leads agricultural products corporation - lapc': '@leadsagri.com',
+                '@leadsagri.com': '@leadsagri.com',
+                'mhc': '@malvedaholdings.com',
+                'mhc (@malvedaholdings.com)': '@malvedaholdings.com',
+                'malveda holdings corporation - mhc': '@malvedaholdings.com',
+                '@malvedaholdings.com': '@malvedaholdings.com',
+                'mpdc': '@malvedaproperties.com',
+                'mpdc (@malvedaproperties.com)': '@malvedaproperties.com',
+                'malveda properties & development corporation - mpdc': '@malvedaproperties.com',
+                '@malvedaproperties.com': '@malvedaproperties.com',
+                'gpsci': '@gpsci.net',
+                'gpci': '@gpsci.net',
+                'gpsci (@gpsci.net)': '@gpsci.net',
+                'golden primestocks chemical inc - gpsci': '@gpsci.net',
+                'golden primestocks chemical inc - gpci': '@gpsci.net',
+                '@gpsci.net': '@gpsci.net',
+                'pcc': '@primestocks.ph',
+                'pcc (@primestocks.ph)': '@primestocks.ph',
+                'primestocks chemical corporation - pcc': '@primestocks.ph',
+                '@primestocks.ph': '@primestocks.ph',
+                'farmasee': '@farmasee.ph',
+                'farmasee (@farmasee.ph)': '@farmasee.ph',
+                '@farmasee.ph': '@farmasee.ph',
+                'farmex / lav': '@leads-farmex.com',
+                'farmex': '@leads-farmex.com',
+                'lav': '@leads-farmex.com',
+                'lav (@leadsav.com)': '@leads-farmex.com',
+                'farmex corp': '@leads-farmex.com',
+                '@leads-farmex.com': '@leads-farmex.com',
+                'ltc': '@leadstech-corp.com',
+                'ltc (@leadstech-corp.com)': '@leadstech-corp.com',
+                'leads tech corporation - ltc': '@leadstech-corp.com',
+                '@leadstech-corp.com': '@leadstech-corp.com',
+                'lingap': '@lingapleads.org',
+                'lingap (@lingapleads.org)': '@lingapleads.org',
+                'lingap leads foundation - lingap': '@lingapleads.org',
+                '@lingapleads.org': '@lingapleads.org'
+            };
+            return aliases[lower] || raw;
+        }
+        function editCompanyFromEmail(email) {
+            var value = String(email || '').trim().toLowerCase();
+            var at = value.lastIndexOf('@');
+            if (at < 0) return '';
+            var domain = value.slice(at);
+            var domainMap = {
+                '@leadsagri.com': '@leadsagri.com',
+                '@malvedaholdings.com': '@malvedaholdings.com',
+                '@malvedaproperties.com': '@malvedaproperties.com',
+                '@gpsci.net': '@gpsci.net',
+                '@primestocks.ph': '@primestocks.ph',
+                '@farmasee.ph': '@farmasee.ph',
+                '@leads-farmex.com': '@leads-farmex.com',
+                '@leadsav.com': '@leads-farmex.com',
+                '@leadstech-corp.com': '@leadstech-corp.com',
+                '@lingapleads.org': '@lingapleads.org'
+            };
+            return domainMap[domain] || '';
+        }
+        function editCompanyOptionExists(value) {
+            if (!editUserCompany) return false;
+            return Array.prototype.slice.call(editUserCompany.options).some(function (option) {
+                return String(option.value || '') === String(value || '');
+            });
+        }
+        function syncEditDepartmentOptions(selectedDepartment) {
+            if (!editUserDepartment || !editUserCompany) return;
+            var company = normalizeEditCompany(editUserCompany.value);
+            var departments = editCompanyDepartments[company] || [];
+            if (!departments.length) {
+                editUserDepartment.innerHTML = '<option value="">No Department</option>';
+                editUserDepartment.value = '';
+                editUserDepartment.disabled = false;
+                return;
+            }
+            editUserDepartment.disabled = false;
+            editUserDepartment.innerHTML = departments.map(function (department) {
+                return '<option value="' + escapeHtml(String(department)) + '">' + escapeHtml(String(department)) + '</option>';
+            }).join('');
+            if (selectedDepartment && departments.indexOf(selectedDepartment) !== -1) {
+                editUserDepartment.value = selectedDepartment;
+            } else {
+                editUserDepartment.selectedIndex = 0;
+            }
+        }
+        function openEditUserModal(data) {
+            if (!editUserModal || !window.TM_CAN_MANAGE_USER_ACCESS) return;
+            data = data || {};
+            if (editUserId) editUserId.value = String(data.id || '');
+            if (editUserName) editUserName.value = String(data.name || '');
+            if (editUserEmail) editUserEmail.value = String(data.email || '');
+            if (editUserCompany) {
+                var normalizedCompany = normalizeEditCompany(data.company || '');
+                if (!editCompanyOptionExists(normalizedCompany)) {
+                    normalizedCompany = editCompanyFromEmail(data.email || '');
+                }
+                if (!editCompanyOptionExists(normalizedCompany)) {
+                    normalizedCompany = editUserCompany.options.length ? String(editUserCompany.options[0].value || '') : '';
+                }
+                editUserCompany.value = normalizedCompany;
+            }
+            syncEditDepartmentOptions(String(data.department || ''));
+            editUserModal.classList.add('show');
+            editUserModal.setAttribute('aria-hidden', 'false');
+            if (editUserName) editUserName.focus();
+        }
+        function closeEditUserModal() {
+            if (!editUserModal) return;
+            editUserModal.classList.remove('show');
+            editUserModal.setAttribute('aria-hidden', 'true');
+            if (editUserForm) editUserForm.reset();
         }
         function setAccessLoadingState(isLoading) {
             if (saveUserAccessBtn) {
@@ -2699,6 +3222,88 @@ user_permissions_ensure_table($conn);
             }
             resetAccessModalCard();
             setAccessLoadingState(false);
+        }
+        function activityIconMeta(type) {
+            var t = String(type || '').toUpperCase();
+            if (t.indexOf('FAILED') > -1 || t.indexOf('DELETED') > -1) return { icon: 'fa-exclamation', tone: 'is-danger' };
+            if (t.indexOf('PASSWORD') > -1 || t.indexOf('UPDATED') > -1 || t.indexOf('CHANGED') > -1) return { icon: 'fa-pen', tone: 'is-warning' };
+            if (t.indexOf('LOGIN') > -1) return { icon: 'fa-right-to-bracket', tone: '' };
+            if (t.indexOf('LOGOUT') > -1) return { icon: 'fa-right-from-bracket', tone: '' };
+            if (t.indexOf('TICKET') > -1) return { icon: 'fa-ticket-alt', tone: '' };
+            return { icon: 'fa-circle', tone: '' };
+        }
+        function openActivityDrawer(userId) {
+            if (!activityDrawer || !userId) return;
+            activityState.userId = String(userId);
+            activityState.page = 1;
+            activityDrawer.classList.add('show');
+            activityDrawer.setAttribute('aria-hidden', 'false');
+            loadActivityLogs();
+        }
+        function closeActivityDrawer() {
+            if (!activityDrawer) return;
+            activityDrawer.classList.remove('show');
+            activityDrawer.setAttribute('aria-hidden', 'true');
+            activityState.userId = '';
+        }
+        function setActivityText(id, value) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = value || '-';
+        }
+        function renderActivityHeader(data) {
+            var user = data.user || {};
+            var summary = data.summary || {};
+            var name = String(user.name || 'Selected user');
+            setActivityText('activityUserName', name);
+            setActivityText('activityUserEmail', String(user.email || ''));
+            setActivityText('activityUserDepartment', String(user.department || '-'));
+            setActivityText('activityUserRole', String(user.role || '-'));
+            setActivityText('activityUserStatus', String(user.status_label || '-'));
+            setActivityText('activityAccountCreated', String(summary.account_created || '-'));
+            setActivityText('activityFirstLogin', String(summary.first_login || '-'));
+            setActivityText('activityLastLogin', String(summary.last_login || '-'));
+            var avatar = document.getElementById('activityUserAvatar');
+            if (avatar) avatar.textContent = name ? name.trim().charAt(0).toUpperCase() : '?';
+            var dot = document.getElementById('activityStatusDot');
+            if (dot) {
+                dot.className = 'activity-status-dot is-' + escapeHtml(String(user.status_state || 'never'));
+            }
+        }
+        function renderActivityTimeline(logs) {
+            if (!activityTimeline) return;
+            if (!logs || !logs.length) {
+                activityTimeline.innerHTML = '<div class="activity-empty">No recent activities found.</div>';
+                return;
+            }
+            activityTimeline.innerHTML = logs.map(function (log) {
+                var meta = activityIconMeta(log.activity_type);
+                return '' +
+                    '<div class="activity-item ' + escapeHtml(meta.tone) + '">' +
+                    escapeHtml(log.activity_description || '') +
+                    '</div>';
+            }).join('');
+        }
+        function loadActivityLogs() {
+            if (!activityState.userId || !activityTimeline) return;
+            activityTimeline.innerHTML = '<div class="activity-empty">Loading recent activities...</div>';
+            var params = new URLSearchParams({
+                user_id: activityState.userId,
+                page: '1',
+                limit: '10'
+            });
+            fetch('ajax_user_activity_logs.php?' + params.toString(), {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data || !data.ok) throw new Error((data && data.error) ? data.error : 'Unable to load activity logs.');
+                    renderActivityHeader(data);
+                    renderActivityTimeline(data.logs || []);
+                })
+                .catch(function (error) {
+                    activityTimeline.innerHTML = '<div class="activity-empty">' + escapeHtml(error && error.message ? error.message : 'Unable to load activity logs.') + '</div>';
+                });
         }
         function showAccessAlert(icon, title, text) {
             Swal.fire({
@@ -2863,9 +3468,73 @@ user_permissions_ensure_table($conn);
                 if (e.target === modal) closeModal();
             });
         }
+        if (closeEditUserModalBtn) closeEditUserModalBtn.addEventListener('click', closeEditUserModal);
+        if (cancelEditUserBtn) cancelEditUserBtn.addEventListener('click', closeEditUserModal);
+        if (editUserModal) {
+            editUserModal.addEventListener('click', function (e) {
+                if (e.target === editUserModal) closeEditUserModal();
+            });
+        }
+        if (editUserCompany) {
+            editUserCompany.addEventListener('change', function () {
+                syncEditDepartmentOptions('');
+            });
+        }
+        if (editUserForm) {
+            editUserForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                if (!window.TM_CAN_MANAGE_USER_ACCESS) {
+                    showAccessAlert('warning', 'Access denied', 'Only the super admin can edit users.');
+                    return;
+                }
+                if (saveEditUserBtn) saveEditUserBtn.disabled = true;
+                fetch('ajax_update_user.php', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: new FormData(editUserForm)
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || !data.ok) {
+                            throw new Error((data && data.error) ? data.error : 'Failed to update user.');
+                        }
+                        closeEditUserModal();
+                        loadUsersList(tmUsersState.page || 1);
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'User updated',
+                            html: escapeHtml(data.message || 'User updated successfully.'),
+                            width: '420px',
+                            confirmButtonText: 'OK',
+                            buttonsStyling: false,
+                            customClass: {
+                                popup: 'swal-admin-alert-popup',
+                                icon: 'swal-admin-alert-icon',
+                                title: 'swal-admin-alert-title',
+                                htmlContainer: 'swal-admin-alert-html',
+                                actions: 'swal-admin-alert-actions',
+                                confirmButton: 'swal-admin-alert-confirm'
+                            }
+                        });
+                    })
+                    .catch(function (error) {
+                        showAccessAlert('error', 'Update failed', error && error.message ? error.message : 'Failed to update user.');
+                    })
+                    .finally(function () {
+                        if (saveEditUserBtn) saveEditUserBtn.disabled = false;
+                    });
+            });
+        }
         if (accessModal) {
             accessModal.addEventListener('click', function (e) {
                 if (e.target === accessModal) closeAccessModal();
+            });
+        }
+        if (closeActivityDrawerBtn) closeActivityDrawerBtn.addEventListener('click', closeActivityDrawer);
+        if (activityDrawer) {
+            activityDrawer.addEventListener('click', function (e) {
+                if (e.target === activityDrawer) closeActivityDrawer();
             });
         }
         var domainSelect = document.getElementById('domain');
@@ -3243,8 +3912,58 @@ user_permissions_ensure_table($conn);
         var usersBody = document.getElementById('usersListBody');
         if (usersBody) {
             usersBody.addEventListener('click', function (e) {
+                var menuToggle = e.target && e.target.closest ? e.target.closest('.users-action-toggle') : null;
+                if (menuToggle) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var actionWrap = menuToggle.closest('.users-actions');
+                    Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
+                        if (wrap !== actionWrap) {
+                            wrap.classList.remove('is-open');
+                        }
+                    });
+                    if (actionWrap) {
+                        actionWrap.classList.toggle('is-open');
+                    }
+                    return;
+                }
+
+                var editBtn = e.target && e.target.closest ? e.target.closest('.users-edit') : null;
+                if (editBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
+                        wrap.classList.remove('is-open');
+                    });
+                    openEditUserModal({
+                        id: editBtn.getAttribute('data-id') || '',
+                        name: editBtn.getAttribute('data-name') || '',
+                        email: editBtn.getAttribute('data-email') || '',
+                        company: editBtn.getAttribute('data-company') || '',
+                        department: editBtn.getAttribute('data-department') || ''
+                    });
+                    return;
+                }
+
+                var activityBtn = e.target && e.target.closest ? e.target.closest('.users-activity') : null;
+                if (activityBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
+                        wrap.classList.remove('is-open');
+                    });
+                    var activityUserId = activityBtn.getAttribute('data-id') || '';
+                    openActivityDrawer(activityUserId);
+                    return;
+                }
+
                 var btn = e.target && e.target.closest ? e.target.closest('.users-del') : null;
                 if (btn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
+                        wrap.classList.remove('is-open');
+                    });
                     var id = btn.getAttribute('data-id');
                     var name = btn.getAttribute('data-name') || 'this user';
                     if (!id) return;
@@ -3343,10 +4062,17 @@ user_permissions_ensure_table($conn);
                 }
 
                 var row = e.target && e.target.closest ? e.target.closest('.users-access-row[data-user-id]') : null;
+                if (e.target && e.target.closest && e.target.closest('.users-actions')) return;
                 if (!row || !window.TM_CAN_MANAGE_USER_ACCESS) return;
                 loadUserAccess(row);
             });
         }
+        document.addEventListener('click', function (e) {
+            if (e.target && e.target.closest && e.target.closest('.users-actions')) return;
+            Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
+                wrap.classList.remove('is-open');
+            });
+        });
 
         var debounceT = null;
         var usersSearch = document.getElementById('usersSearch');

@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/activity_logger.php';
 
 function employee_login_safe_redirect($value): string
 {
@@ -103,6 +104,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $_SESSION['department'] = $user['department'];
                     $_SESSION['role'] = $role;
                     $_SESSION['force_password_change'] = (int) ($user['force_password_change'] ?? 0);
+                    activity_log($conn, (int) $user['id'], 'LOGIN', 'User logged into the system', 'Authentication');
 
                     if ($role === 'admin') {
                         unset($_SESSION['post_login_redirect']);
@@ -124,6 +126,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     header("Location: $destination");
                     exit();
                 } else {
+                    activity_log($conn, (int) ($user['id'] ?? 0), 'FAILED_LOGIN', 'Failed login attempt', 'Authentication');
                     $error = "Incorrect password.";
                 }
             } else {
