@@ -39,6 +39,43 @@ if (!$conn) {
 mysqli_set_charset($conn, 'utf8mb4');
 mysqli_query($conn, "SET time_zone = '+08:00'");
 
+(function (mysqli $conn): void {
+    static $ran = false;
+    if ($ran) return;
+    $ran = true;
+
+    $r = $conn->query("SHOW COLUMNS FROM users LIKE 'last_seen_at'");
+    if ($r && $r->num_rows === 0) {
+        $conn->query("ALTER TABLE users ADD COLUMN last_seen_at DATETIME NULL DEFAULT NULL AFTER created_at");
+    }
+    if ($r instanceof mysqli_result) { $r->free(); }
+
+    $rLogout = $conn->query("SHOW COLUMNS FROM users LIKE 'last_logout_at'");
+    if ($rLogout && $rLogout->num_rows === 0) {
+        $conn->query("ALTER TABLE users ADD COLUMN last_logout_at DATETIME NULL DEFAULT NULL AFTER last_seen_at");
+    }
+    if ($rLogout instanceof mysqli_result) { $rLogout->free(); }
+
+    $rOnline = $conn->query("SHOW COLUMNS FROM users LIKE 'is_online'");
+    if ($rOnline && $rOnline->num_rows === 0) {
+        $conn->query("ALTER TABLE users ADD COLUMN is_online TINYINT(1) NOT NULL DEFAULT 0 AFTER last_logout_at");
+        $conn->query("UPDATE users SET is_online = 0");
+    }
+    if ($rOnline instanceof mysqli_result) { $rOnline->free(); }
+
+    if (PHP_SAPI !== 'cli' && isset($_SESSION['user_id'])) {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        if ($userId > 0) {
+            $stmt = mysqli_prepare($conn, "UPDATE users SET last_seen_at = NOW(), is_online = 1 WHERE id = ?");
+            if ($stmt) {
+                mysqli_stmt_bind_param($stmt, "i", $userId);
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
+            }
+        }
+    }
+})($conn);
+
 if (PHP_SAPI !== 'cli' && isset($_SESSION['user_id']) && (($_SESSION['role'] ?? '') === 'employee')) {
     $userId = (int) ($_SESSION['user_id'] ?? 0);
     $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));

@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/activity_logger.php';
 
 header('Content-Type: application/json');
 
@@ -29,7 +30,7 @@ if ($currentId > 0 && $id === $currentId) {
     json_error('You cannot delete your own account.');
 }
 
-$check = $conn->prepare("SELECT id, role FROM users WHERE id = ? LIMIT 1");
+$check = $conn->prepare("SELECT id, name, email, role FROM users WHERE id = ? LIMIT 1");
 if (!$check) {
     json_error('System error.', 500);
 }
@@ -56,6 +57,6 @@ if (!$del->execute()) {
     json_error('Failed to delete user.', 500);
 }
 $del->close();
+activity_log($conn, $currentId > 0 ? $currentId : null, 'USER_DELETED', 'Deleted user ' . (string) ($row['email'] ?? $id), 'Admin Management', $id);
 
 echo json_encode(['ok' => true, 'message' => 'User deleted']);
-
