@@ -366,8 +366,9 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
 
 .admin-topbar-kicker {
     color: #78907a;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 400;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     line-height: 1.2;

@@ -505,28 +505,27 @@ if ($showCategoryView) {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            min-height: 38px;
-            padding: 0 18px;
-            border-radius: 999px;
-            background: #2f8b49;
+            gap: 12px;
+            padding: 15px 28px;
+            border-radius: 14px;
+            background: #166534;
             color: #ffffff;
-            font-size: 14px;
-            font-weight: 700;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 600;
             text-decoration: none;
-            box-shadow: 0 8px 18px rgba(47, 139, 73, 0.16);
-            transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.28);
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
         }
 
         .department-back-btn i {
-            color: #f4c430;
-            font-size: 13px;
+            color: inherit;
         }
 
         .department-back-btn:hover {
-            background: #27763e;
-            transform: translateY(-1px);
-            box-shadow: 0 12px 26px rgba(47, 139, 73, 0.24);
+            transform: translateY(-2px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.32);
         }
 
         /* Search & Filter Form */
@@ -944,28 +943,28 @@ if ($showCategoryView) {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 9px;
+            gap: 12px;
             margin-bottom: 16px;
-            padding: 7px 19px;
-            min-height: 40px;
-            border-radius: 999px;
-            border: 1px solid rgba(189, 223, 179, 0.62);
-            background: #4a8f58;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            padding: 15px 28px;
+            border-radius: 14px;
+            border: none;
+            background: #166534;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.28);
             color: #ffffff;
-            font-size: 13px;
-            font-weight: 800;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 600;
             text-decoration: none;
-            transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
         }
 
         .back-btn:hover {
-            background: #5a9d67;
-            border-color: rgba(213, 238, 204, 0.7);
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.32);
         }
         .back-btn i {
-            color: #f6cf4a;
+            color: inherit;
         }
 
         /* Grid Layout */

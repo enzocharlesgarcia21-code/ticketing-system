@@ -484,24 +484,25 @@ function conference_admin_booking_status_text(string $status): string
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            min-height: 48px;
-            padding: 12px 22px;
-            border-radius: 18px;
-            background: linear-gradient(135deg, #166534, #15803d);
+            gap: 12px;
+            padding: 15px 28px;
+            border-radius: 14px;
+            background: #166534;
             color: #ffffff;
+            font-family: inherit;
             font-size: 15px;
             font-weight: 600;
             text-decoration: none;
             border: none;
             cursor: pointer;
-            box-shadow: 0 16px 34px rgba(21, 128, 61, 0.2);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.28);
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
         }
         .conference-manage-btn:hover {
             color: #ffffff;
-            transform: translateY(-1px);
-            box-shadow: 0 20px 38px rgba(21, 128, 61, 0.26);
+            transform: translateY(-2px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.32);
         }
         .conference-admin-stats {
             display: grid;

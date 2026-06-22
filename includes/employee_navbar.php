@@ -67,9 +67,44 @@ $sharedMobileSidebarPages = [
 $showSharedMobileSidebar = in_array($currentEmployeePage, $sharedMobileSidebarPages, true);
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style id="employee-navbar-critical-logo-styles">
+.navbar .logo-icon {
+    width: 56px;
+    height: 56px;
+    max-width: 56px;
+    flex: 0 0 56px;
+    object-fit: contain;
+}
+
+.mobile-sidebar-header img {
+    width: 36px;
+    height: 36px;
+    max-width: 36px;
+    object-fit: contain;
+}
+
+.mobile-sidebar,
+.mobile-sidebar-overlay {
+    display: none;
+}
+
+.tm-global-chat-fab,
+.priority-escalation-toast-host {
+    visibility: hidden;
+}
+
+@media (max-width: 768px) {
+    .navbar .logo-icon {
+        width: 36px;
+        height: 36px;
+        max-width: 36px;
+        flex-basis: 36px;
+    }
+}
+</style>
 <nav class="navbar">
     <div class="nav-left">
-        <img src="../assets/img/UPDATEDlogo.png" alt="Leads Agri Logo" class="logo-icon">
+        <img src="../assets/img/UPDATEDlogo.png" alt="Leads Agri Logo" class="logo-icon" width="56" height="56">
         <div class="brand-name">Leads DeskMetamorph</div>
         <button class="navbar-toggler" id="navbarToggler">
             <i class="fas fa-bars"></i>
@@ -134,7 +169,7 @@ document.body && document.body.classList.add('employee-shared-mobile-sidebar-pag
 </script>
 <div id="mobileSidebar" class="mobile-sidebar" aria-hidden="true">
     <div class="mobile-sidebar-header">
-        <img src="../assets/img/UPDATEDlogo.png" alt="Logo">
+        <img src="../assets/img/UPDATEDlogo.png" alt="Logo" width="36" height="36">
         <span>Leads Agri</span>
     </div>
     <?php foreach ($employeeNavItems as $navItem): ?>
@@ -701,6 +736,7 @@ window.TM_MESSENGER_STYLE = 'employee';
     flex-direction: column;
     gap: 10px;
     pointer-events: none;
+    visibility: visible;
 }
 
 .priority-escalation-toast {
@@ -902,6 +938,7 @@ window.TM_MESSENGER_STYLE = 'employee';
     cursor: pointer;
     box-shadow: 0 12px 28px rgba(2, 6, 23, 0.25);
     user-select: none;
+    visibility: visible;
 }
 .tm-global-chat-fab:hover { background: #144a1e; }
 .tm-global-chat-fab:active { transform: translateY(1px); }

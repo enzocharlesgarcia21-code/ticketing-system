@@ -95,9 +95,7 @@ foreach ($availabilityRows as $companyRow) {
         }
 
         .routing-intro {
-            background:
-                radial-gradient(circle at 14% 18%, rgba(14, 108, 47, 0.1), transparent 32%),
-                linear-gradient(180deg, #ffffff 0%, #f9fbfe 100%);
+            background: #ffffff;
             border: 1px solid rgba(222, 230, 240, 0.95);
             border-radius: 28px;
             padding: 24px 28px;

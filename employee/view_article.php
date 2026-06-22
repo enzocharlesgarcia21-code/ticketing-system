@@ -231,28 +231,28 @@ function renderArticleContent($text) {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 9px;
-            min-height: 40px;
-            padding: 7px 19px;
+            gap: 12px;
+            padding: 15px 28px;
             color: #ffffff;
             text-decoration: none;
-            font-weight: 800;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 600;
             margin-bottom: 30px;
-            border: 1px solid rgba(189, 223, 179, 0.62);
-            border-radius: 999px;
-            background: #4a8f58;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-            transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
-            font-size: 13px;
+            border: none;
+            border-radius: 14px;
+            background: #166534;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.28);
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
         }
 
         .back-link:hover {
-            background: #5a9d67;
-            border-color: rgba(213, 238, 204, 0.7);
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.32);
         }
         .back-link i {
-            color: #f6cf4a;
+            color: inherit;
         }
 
         .article-card {
