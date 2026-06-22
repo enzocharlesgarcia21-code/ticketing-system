@@ -1227,12 +1227,11 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             border-color: #86efac;
         }
         .users-action-menu {
-            position: absolute;
-            top: calc(100% + 6px);
-            right: 0;
-            z-index: 20;
+            position: fixed;
+            z-index: 10050;
             display: none;
             min-width: 178px;
+            max-width: calc(100vw - 16px);
             padding: 6px;
             border: 1px solid #e2e8f0;
             border-radius: 12px;
@@ -3239,7 +3238,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 menuItems.push('<button type="button" class="users-action-item users-del is-danger" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '"><i class="fas fa-trash"></i><span>Delete</span></button>');
             }
             var action = menuItems.length
-                ? '<span class="users-actions"><button type="button" class="btn-icon-menu users-action-toggle" aria-label="Open user actions"><i class="fas fa-ellipsis-h"></i></button><span class="users-action-menu">' + menuItems.join('') + '</span></span>'
+                ? '<span class="users-actions"><button type="button" class="btn-icon-menu users-action-toggle" aria-label="Open user actions" aria-expanded="false"><i class="fas fa-ellipsis-h"></i></button><span class="users-action-menu">' + menuItems.join('') + '</span></span>'
                 : '';
             var initial = name ? name.trim().charAt(0).toUpperCase() : '?';
             var deptCls = deptClass(dept);
@@ -4414,6 +4413,44 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             });
         }
 
+        function closeUserActionMenus(exceptWrap) {
+            Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
+                if (wrap === exceptWrap) return;
+                wrap.classList.remove('is-open');
+                var toggle = wrap.querySelector('.users-action-toggle');
+                var menu = wrap.querySelector('.users-action-menu');
+                if (menu) {
+                    menu.style.top = '';
+                    menu.style.left = '';
+                    menu.style.maxHeight = '';
+                    menu.style.overflowY = '';
+                }
+                if (toggle) toggle.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        function positionUserActionMenu(toggle, menu) {
+            var viewportGap = 8;
+            var menuGap = 6;
+            var toggleRect = toggle.getBoundingClientRect();
+            var menuRect = menu.getBoundingClientRect();
+            var roomBelow = window.innerHeight - toggleRect.bottom - viewportGap;
+            var roomAbove = toggleRect.top - viewportGap;
+            var openAbove = roomBelow < menuRect.height + menuGap && roomAbove > roomBelow;
+            var availableHeight = Math.max(80, (openAbove ? roomAbove : roomBelow) - menuGap);
+            var top = openAbove
+                ? toggleRect.top - Math.min(menuRect.height, availableHeight) - menuGap
+                : toggleRect.bottom + menuGap;
+            var left = toggleRect.right - menuRect.width;
+
+            left = Math.max(viewportGap, Math.min(left, window.innerWidth - menuRect.width - viewportGap));
+            top = Math.max(viewportGap, top);
+            menu.style.left = Math.round(left) + 'px';
+            menu.style.top = Math.round(top) + 'px';
+            menu.style.maxHeight = Math.floor(availableHeight) + 'px';
+            menu.style.overflowY = menuRect.height > availableHeight ? 'auto' : '';
+        }
+
         var usersBody = document.getElementById('usersListBody');
         if (usersBody) {
             usersBody.addEventListener('click', function (e) {
@@ -4422,13 +4459,16 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                     e.preventDefault();
                     e.stopPropagation();
                     var actionWrap = menuToggle.closest('.users-actions');
-                    Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
-                        if (wrap !== actionWrap) {
-                            wrap.classList.remove('is-open');
-                        }
-                    });
+                    closeUserActionMenus(actionWrap);
                     if (actionWrap) {
                         actionWrap.classList.toggle('is-open');
+                        var isOpen = actionWrap.classList.contains('is-open');
+                        menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+
+                        if (isOpen) {
+                            var menu = actionWrap.querySelector('.users-action-menu');
+                            if (menu) positionUserActionMenu(menuToggle, menu);
+                        }
                     }
                     return;
                 }
@@ -4437,9 +4477,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 if (editBtn) {
                     e.preventDefault();
                     e.stopPropagation();
-                    Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
-                        wrap.classList.remove('is-open');
-                    });
+                    closeUserActionMenus();
                     openEditUserModal({
                         id: editBtn.getAttribute('data-id') || '',
                         name: editBtn.getAttribute('data-name') || '',
@@ -4454,9 +4492,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 if (activityBtn) {
                     e.preventDefault();
                     e.stopPropagation();
-                    Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
-                        wrap.classList.remove('is-open');
-                    });
+                    closeUserActionMenus();
                     var activityUserId = activityBtn.getAttribute('data-id') || '';
                     openActivityDrawer(activityUserId);
                     return;
@@ -4466,9 +4502,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 if (btn) {
                     e.preventDefault();
                     e.stopPropagation();
-                    Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
-                        wrap.classList.remove('is-open');
-                    });
+                    closeUserActionMenus();
                     var id = btn.getAttribute('data-id');
                     var name = btn.getAttribute('data-name') || 'this user';
                     if (!id) return;
@@ -4574,10 +4608,18 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         }
         document.addEventListener('click', function (e) {
             if (e.target && e.target.closest && e.target.closest('.users-actions')) return;
-            Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
-                wrap.classList.remove('is-open');
-            });
+            closeUserActionMenus();
         });
+
+        var usersTableWrap = document.querySelector('#usersListCard .users-table-wrap');
+        if (usersTableWrap) {
+            usersTableWrap.addEventListener('scroll', function () {
+                closeUserActionMenus();
+            }, { passive: true });
+        }
+        window.addEventListener('resize', function () {
+            closeUserActionMenus();
+        }, { passive: true });
 
         var debounceT = null;
         var usersSearch = document.getElementById('usersSearch');

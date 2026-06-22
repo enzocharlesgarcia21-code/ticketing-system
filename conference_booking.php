@@ -2722,12 +2722,46 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         body.conference-booking-public-page .back-link {
             min-height: 54px;
             padding: 0 18px;
-            background: #eff7f1;
-            border: 1px solid #cfe1d5;
-            color: #166534;
+            background: #166534;
+            border: 1px solid #166534;
+            color: #ffffff;
             font-size: 15px;
             font-weight: 800;
-            gap: 8px;
+            gap: 10px;
+            border-radius: 16px;
+            box-shadow: 0 10px 24px rgba(22, 101, 52, 0.2);
+            transition: background-color 0.2s ease, color 0.2s ease,
+                border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        body.conference-booking-public-page .back-link-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: auto;
+            height: auto;
+            flex: 0 0 auto;
+            border-radius: 0;
+            background: transparent;
+            color: inherit;
+            transition: transform 0.2s ease;
+        }
+
+        body.conference-booking-public-page .back-link:hover {
+            background: #14532d;
+            border-color: #14532d;
+            color: #ffffff;
+            box-shadow: 0 14px 30px rgba(22, 101, 52, 0.22);
+            transform: translateY(-2px);
+        }
+
+        body.conference-booking-public-page .back-link:hover .back-link-icon {
+            transform: translateX(-2px);
+        }
+
+        body.conference-booking-public-page .back-link:focus-visible {
+            outline: 3px solid rgba(34, 197, 94, 0.28);
+            outline-offset: 3px;
         }
 
         body.conference-booking-public-page .brand-chip {
@@ -3608,12 +3642,18 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             }
 
             body.conference-booking-public-page .back-link {
-                min-height: 34px;
+                min-height: 44px;
                 padding: 0 13px;
                 justify-content: center;
-                border-radius: 999px;
+                border-radius: 14px;
                 font-size: 12px;
-                gap: 6px;
+                gap: 8px;
+            }
+
+            body.conference-booking-public-page .back-link-icon {
+                width: auto;
+                height: auto;
+                flex-basis: auto;
             }
 
             body.conference-booking-public-page .brand-chip {
@@ -4143,7 +4183,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 <div class="page-topbar">
                     <div class="topbar-side left">
                         <a href="index.php" class="back-link">
-                            <i class="fas fa-arrow-left"></i>
+                            <span class="back-link-icon" aria-hidden="true"><i class="fas fa-arrow-left"></i></span>
                             <span>Back to Home</span>
                         </a>
                     </div>
