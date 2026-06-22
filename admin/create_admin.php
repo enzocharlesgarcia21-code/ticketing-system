@@ -10,6 +10,12 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
+$adminMgmtActivityJsonRequest = isset($_GET['admin_mgmt_activity_logs']);
+if ($adminMgmtActivityJsonRequest) {
+    ini_set('display_errors', '0');
+    ob_start();
+}
+
 // Ensure email is in session
 if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
     $u_stmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
@@ -91,6 +97,441 @@ $edit_user_company_options = ticket_request_company_options();
 $edit_user_department_options = ticket_company_group_map();
 $canManageUserAccess = user_permissions_can_manage($conn);
 user_permissions_ensure_table($conn);
+
+function admin_mgmt_format_activity_datetime(?string $value): string
+{
+    $value = trim((string) $value);
+    if ($value === '') return '-';
+    $ts = strtotime($value);
+    return $ts ? date('M d, Y g:i A', $ts) : '-';
+}
+
+function admin_mgmt_user_status(array $user): array
+{
+    $lastSeen = trim((string) ($user['last_seen_at'] ?? ''));
+    if ($lastSeen === '') return ['label' => 'Never opened', 'state' => 'never'];
+    $lastSeenTs = strtotime($lastSeen);
+    if (!$lastSeenTs) return ['label' => 'Unknown', 'state' => 'never'];
+    $lastLogout = trim((string) ($user['last_logout_at'] ?? ''));
+    $lastLogoutTs = $lastLogout !== '' ? strtotime($lastLogout) : false;
+    $loggedOut = $lastLogoutTs !== false && $lastLogoutTs >= $lastSeenTs;
+    $seconds = max(0, time() - $lastSeenTs);
+    if ((int) ($user['is_online'] ?? 0) === 1 && !$loggedOut && $seconds <= 120) {
+        return ['label' => 'Online', 'state' => 'online'];
+    }
+    if ($seconds < 60) return ['label' => 'Just now', 'state' => 'recent'];
+    $minutes = (int) floor($seconds / 60);
+    if ($minutes < 60) return ['label' => $minutes . ' min' . ($minutes === 1 ? '' : 's') . ' ago', 'state' => 'recent'];
+    $hours = (int) floor($minutes / 60);
+    if ($hours < 24) return ['label' => $hours . ' hour' . ($hours === 1 ? '' : 's') . ' ago', 'state' => 'away'];
+    $days = (int) floor($hours / 24);
+    return ['label' => $days . ' day' . ($days === 1 ? '' : 's') . ' ago', 'state' => 'offline'];
+}
+
+function admin_mgmt_table_has_column(mysqli $conn, string $table, string $column): bool
+{
+    static $cache = [];
+    $allowedTables = ['users' => true, 'employee_tickets' => true, 'activity_logs' => true];
+    if (!isset($allowedTables[$table])) return false;
+
+    $key = $table . '.' . $column;
+    if (array_key_exists($key, $cache)) return $cache[$key];
+
+    $safeColumn = $conn->real_escape_string($column);
+    $res = $conn->query("SHOW COLUMNS FROM `$table` LIKE '$safeColumn'");
+    $cache[$key] = $res && $res->num_rows > 0;
+    return $cache[$key];
+}
+
+function admin_mgmt_json_response(array $payload, int $status = 200): void
+{
+    http_response_code($status);
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    echo json_encode($payload);
+    exit;
+}
+
+function admin_mgmt_ticket_number(int $ticketId): string
+{
+    if (function_exists('notif_ticket_number')) {
+        return (string) notif_ticket_number($ticketId);
+    }
+    return str_pad((string) $ticketId, 6, '0', STR_PAD_LEFT);
+}
+
+function admin_mgmt_emit_user_activity(mysqli $conn): void
+{
+    header('Content-Type: application/json');
+
+    activity_logs_ensure_table($conn);
+
+    $userId = (int) ($_GET['user_id'] ?? 0);
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $limit = (int) ($_GET['limit'] ?? 10);
+    if (!in_array($limit, [10, 25, 50], true)) $limit = 10;
+    $offset = ($page - 1) * $limit;
+    $type = trim((string) ($_GET['type'] ?? 'all'));
+    $module = trim((string) ($_GET['module'] ?? 'all'));
+    $dateFrom = trim((string) ($_GET['date_from'] ?? ''));
+    $dateTo = trim((string) ($_GET['date_to'] ?? ''));
+    $search = trim((string) ($_GET['search'] ?? ''));
+
+    if ($userId <= 0) {
+        admin_mgmt_json_response(['ok' => false, 'error' => 'Invalid user id'], 400);
+    }
+
+    $hasFullNameCol = admin_mgmt_table_has_column($conn, 'users', 'full_name');
+    $hasSuperAdminCol = admin_mgmt_table_has_column($conn, 'users', 'is_super_admin');
+    $displayNameExpr = $hasFullNameCol
+        ? "COALESCE(NULLIF(full_name,''), NULLIF(name,''), '')"
+        : "COALESCE(NULLIF(name,''), '')";
+    $userSql = "SELECT id, {$displayNameExpr} AS display_name, name AS raw_name, email, department, role, created_at, last_seen_at, last_logout_at, COALESCE(is_online, 0) AS is_online";
+    $userSql .= $hasSuperAdminCol ? ", COALESCE(is_super_admin, 0) AS is_super_admin" : ", 0 AS is_super_admin";
+    $userSql .= " FROM users WHERE id = ? LIMIT 1";
+
+    $userStmt = $conn->prepare($userSql);
+    if (!$userStmt) {
+        admin_mgmt_json_response(['ok' => false, 'error' => 'System error'], 500);
+    }
+    $userStmt->bind_param('i', $userId);
+    $userStmt->execute();
+    $userRes = $userStmt->get_result();
+    $user = $userRes ? $userRes->fetch_assoc() : null;
+    $userStmt->close();
+
+    if (!$user) {
+        admin_mgmt_json_response(['ok' => false, 'error' => 'User not found'], 404);
+    }
+
+    $items = [];
+    $activityWhere = ['user_id = ?'];
+    $activityParams = [$userId];
+    $activityTypes = 'i';
+    if ($type !== '' && $type !== 'all') {
+        $activityWhere[] = 'activity_type = ?';
+        $activityParams[] = strtoupper($type);
+        $activityTypes .= 's';
+    }
+    if ($module !== '' && $module !== 'all') {
+        $activityWhere[] = 'module_name = ?';
+        $activityParams[] = $module;
+        $activityTypes .= 's';
+    }
+    if ($dateFrom !== '') {
+        $activityWhere[] = 'created_at >= ?';
+        $activityParams[] = $dateFrom . ' 00:00:00';
+        $activityTypes .= 's';
+    }
+    if ($dateTo !== '') {
+        $activityWhere[] = 'created_at <= ?';
+        $activityParams[] = $dateTo . ' 23:59:59';
+        $activityTypes .= 's';
+    }
+    if ($search !== '') {
+        $activityWhere[] = 'activity_description LIKE ?';
+        $activityParams[] = '%' . $search . '%';
+        $activityTypes .= 's';
+    }
+
+    $activitySql = 'SELECT id, activity_type, activity_description, module_name, reference_id, ip_address, created_at FROM activity_logs WHERE ' . implode(' AND ', $activityWhere);
+    if ($activityStmt = $conn->prepare($activitySql)) {
+        $bind = [$activityTypes];
+        foreach ($activityParams as $k => $p) $bind[] = &$activityParams[$k];
+        call_user_func_array([$activityStmt, 'bind_param'], $bind);
+        $activityStmt->execute();
+        $activityRes = $activityStmt->get_result();
+        while ($row = $activityRes ? $activityRes->fetch_assoc() : null) {
+            if (!$row) break;
+            $items[] = [
+                'sort_at' => (string) $row['created_at'],
+                'sort_id' => (int) $row['id'],
+                'id' => (int) $row['id'],
+                'activity_type' => (string) $row['activity_type'],
+                'activity_description' => (string) $row['activity_description'],
+                'module_name' => (string) $row['module_name'],
+                'reference_id' => (string) ($row['reference_id'] ?? ''),
+                'ip_address' => (string) ($row['ip_address'] ?? ''),
+                'created_at' => (string) $row['created_at'],
+                'created_at_display' => admin_mgmt_format_activity_datetime((string) $row['created_at']),
+            ];
+        }
+        $activityStmt->close();
+    }
+
+    $allowTicketRows = ($type === '' || $type === 'all' || strtoupper($type) === 'TICKET_CREATED')
+        && ($module === '' || $module === 'all' || $module === 'Tickets');
+    if ($allowTicketRows) {
+        $userEmail = strtolower(trim((string) ($user['email'] ?? '')));
+        $hasRequesterEmail = admin_mgmt_table_has_column($conn, 'employee_tickets', 'requester_email');
+        $hasTicketCategory = admin_mgmt_table_has_column($conn, 'employee_tickets', 'category');
+        $hasTicketAssignedDepartment = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_department');
+        $hasTicketAssignedGroup = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_group');
+        $ticketSelect = [
+            'id',
+            'subject',
+            ($hasTicketCategory ? 'category' : "'' AS category"),
+            ($hasTicketAssignedDepartment ? 'assigned_department' : "'' AS assigned_department"),
+            ($hasTicketAssignedGroup ? 'assigned_group' : "'' AS assigned_group"),
+            'created_at',
+        ];
+        $ticketWhere = ['(user_id = ?' . ($hasRequesterEmail ? " OR LOWER(TRIM(COALESCE(requester_email, ''))) = ?" : '') . ')'];
+        $ticketParams = [$userId];
+        $ticketTypes = 'i';
+        if ($hasRequesterEmail) {
+            $ticketParams[] = $userEmail;
+            $ticketTypes .= 's';
+        }
+        if ($dateFrom !== '') {
+            $ticketWhere[] = 'created_at >= ?';
+            $ticketParams[] = $dateFrom . ' 00:00:00';
+            $ticketTypes .= 's';
+        }
+        if ($dateTo !== '') {
+            $ticketWhere[] = 'created_at <= ?';
+            $ticketParams[] = $dateTo . ' 23:59:59';
+            $ticketTypes .= 's';
+        }
+        if ($search !== '') {
+            $ticketSearchParts = ['subject LIKE ?', 'CAST(id AS CHAR) LIKE ?'];
+            if ($hasTicketCategory) $ticketSearchParts[] = 'category LIKE ?';
+            if ($hasTicketAssignedDepartment) $ticketSearchParts[] = 'assigned_department LIKE ?';
+            if ($hasTicketAssignedGroup) $ticketSearchParts[] = 'assigned_group LIKE ?';
+            $ticketWhere[] = '(' . implode(' OR ', $ticketSearchParts) . ')';
+            for ($i = 0, $count = count($ticketSearchParts); $i < $count; $i++) {
+                $ticketParams[] = '%' . $search . '%';
+                $ticketTypes .= 's';
+            }
+        }
+
+        $ticketSql = 'SELECT ' . implode(', ', $ticketSelect) . ' FROM employee_tickets WHERE ' . implode(' AND ', $ticketWhere);
+        if ($ticketStmt = $conn->prepare($ticketSql)) {
+            $bind = [$ticketTypes];
+            foreach ($ticketParams as $k => $p) $bind[] = &$ticketParams[$k];
+            call_user_func_array([$ticketStmt, 'bind_param'], $bind);
+            $ticketStmt->execute();
+            $ticketRes = $ticketStmt->get_result();
+            while ($ticket = $ticketRes ? $ticketRes->fetch_assoc() : null) {
+                if (!$ticket) break;
+                $ticketId = (int) ($ticket['id'] ?? 0);
+                $subject = trim((string) ($ticket['subject'] ?? 'Untitled ticket'));
+                $category = trim((string) ($ticket['category'] ?? ''));
+                $target = trim((string) (($ticket['assigned_group'] ?? '') !== '' ? $ticket['assigned_group'] : ($ticket['assigned_department'] ?? '')));
+                $description = 'Created ticket #' . admin_mgmt_ticket_number($ticketId) . ': ' . $subject;
+                if ($category !== '') $description .= ' (' . $category . ')';
+                if ($target !== '') $description .= ' for ' . $target;
+                $createdAt = (string) ($ticket['created_at'] ?? '');
+                $items[] = [
+                    'sort_at' => $createdAt,
+                    'sort_id' => $ticketId,
+                    'id' => 0,
+                    'activity_type' => 'TICKET_CREATED',
+                    'activity_description' => $description,
+                    'module_name' => 'Tickets',
+                    'reference_id' => (string) $ticketId,
+                    'ip_address' => '',
+                    'created_at' => $createdAt,
+                    'created_at_display' => admin_mgmt_format_activity_datetime($createdAt),
+                ];
+            }
+            $ticketStmt->close();
+        }
+    }
+
+    $allowTicketWorkRows = ($type === '' || $type === 'all' || in_array(strtoupper($type), ['CLAIM_TICKET', 'STATUS_CHANGE', 'DEPARTMENT_CHANGE', 'COMPANY_CHANGE', 'NOTE_ADDED'], true))
+        && ($module === '' || $module === 'all' || $module === 'Tickets');
+    if ($allowTicketWorkRows) {
+        if (function_exists('ticket_ensure_activity_table')) {
+            ticket_ensure_activity_table($conn);
+        }
+
+        $hasTicketAssignedUserId = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_user_id');
+        $hasTicketAssignedTo = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_to');
+        $hasTicketCategory = admin_mgmt_table_has_column($conn, 'employee_tickets', 'category');
+        $hasTicketAssignedDepartment = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_department');
+        $hasTicketAssignedGroup = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_group');
+        $ticketWorkSelect = [
+            'ta.id AS activity_id',
+            'ta.ticket_id',
+            'ta.activity_type',
+            'ta.description',
+            'ta.created_at',
+            't.subject',
+            ($hasTicketCategory ? 't.category' : "'' AS category"),
+            ($hasTicketAssignedDepartment ? 't.assigned_department' : "'' AS assigned_department"),
+            ($hasTicketAssignedGroup ? 't.assigned_group' : "'' AS assigned_group"),
+        ];
+        $assigneeParts = [];
+        $ticketWorkParams = [];
+        $ticketWorkTypes = '';
+        if ($hasTicketAssignedUserId) {
+            $assigneeParts[] = 'COALESCE(t.assigned_user_id, 0) = ?';
+            $ticketWorkParams[] = $userId;
+            $ticketWorkTypes .= 'i';
+        }
+        if ($hasTicketAssignedTo) {
+            $assigneeParts[] = 'COALESCE(t.assigned_to, 0) = ?';
+            $ticketWorkParams[] = $userId;
+            $ticketWorkTypes .= 'i';
+        }
+
+        $claimNames = array_values(array_unique(array_filter([
+            trim((string) ($user['display_name'] ?? '')),
+            trim((string) ($user['raw_name'] ?? '')),
+        ], static function ($value) {
+            return $value !== '';
+        })));
+        $actorParts = [];
+        if (count($assigneeParts) > 0) {
+            $actorParts[] = '((' . implode(' OR ', $assigneeParts) . ") AND ta.activity_type IN ('claim_ticket', 'status_change', 'department_change', 'company_change', 'note_added'))";
+        }
+        if (count($claimNames) > 0) {
+            $claimParts = [];
+            foreach ($claimNames as $claimName) {
+                $claimParts[] = 'ta.description = ?';
+                $ticketWorkParams[] = 'Claimed by ' . $claimName;
+                $ticketWorkTypes .= 's';
+            }
+            $actorParts[] = "(ta.activity_type = 'claim_ticket' AND (" . implode(' OR ', $claimParts) . '))';
+        }
+
+        if (count($actorParts) > 0) {
+            $ticketWorkWhere = ['(' . implode(' OR ', $actorParts) . ')'];
+            if ($type !== '' && $type !== 'all') {
+                $ticketWorkWhere[] = 'ta.activity_type = ?';
+                $ticketWorkParams[] = strtolower($type);
+                $ticketWorkTypes .= 's';
+            }
+            if ($dateFrom !== '') {
+                $ticketWorkWhere[] = 'ta.created_at >= ?';
+                $ticketWorkParams[] = $dateFrom . ' 00:00:00';
+                $ticketWorkTypes .= 's';
+            }
+            if ($dateTo !== '') {
+                $ticketWorkWhere[] = 'ta.created_at <= ?';
+                $ticketWorkParams[] = $dateTo . ' 23:59:59';
+                $ticketWorkTypes .= 's';
+            }
+            if ($search !== '') {
+                $ticketWorkSearchParts = ['ta.description LIKE ?', 't.subject LIKE ?', 'CAST(ta.ticket_id AS CHAR) LIKE ?'];
+                if ($hasTicketCategory) $ticketWorkSearchParts[] = 't.category LIKE ?';
+                if ($hasTicketAssignedDepartment) $ticketWorkSearchParts[] = 't.assigned_department LIKE ?';
+                if ($hasTicketAssignedGroup) $ticketWorkSearchParts[] = 't.assigned_group LIKE ?';
+                $ticketWorkWhere[] = '(' . implode(' OR ', $ticketWorkSearchParts) . ')';
+                for ($i = 0, $count = count($ticketWorkSearchParts); $i < $count; $i++) {
+                    $ticketWorkParams[] = '%' . $search . '%';
+                    $ticketWorkTypes .= 's';
+                }
+            }
+
+            $ticketWorkSql = 'SELECT ' . implode(', ', $ticketWorkSelect) . ' FROM ticket_activity ta JOIN employee_tickets t ON t.id = ta.ticket_id WHERE ' . implode(' AND ', $ticketWorkWhere);
+            if ($ticketWorkStmt = $conn->prepare($ticketWorkSql)) {
+                if ($ticketWorkTypes !== '') {
+                    $bind = [$ticketWorkTypes];
+                    foreach ($ticketWorkParams as $k => $p) $bind[] = &$ticketWorkParams[$k];
+                    call_user_func_array([$ticketWorkStmt, 'bind_param'], $bind);
+                }
+                $ticketWorkStmt->execute();
+                $ticketWorkRes = $ticketWorkStmt->get_result();
+                while ($work = $ticketWorkRes ? $ticketWorkRes->fetch_assoc() : null) {
+                    if (!$work) break;
+                    $ticketId = (int) ($work['ticket_id'] ?? 0);
+                    $subject = trim((string) ($work['subject'] ?? 'Untitled ticket'));
+                    $category = trim((string) ($work['category'] ?? ''));
+                    $target = trim((string) (($work['assigned_group'] ?? '') !== '' ? $work['assigned_group'] : ($work['assigned_department'] ?? '')));
+                    $rawDescription = trim((string) ($work['description'] ?? ''));
+                    $description = $rawDescription !== '' ? $rawDescription : 'Updated ticket';
+                    $description .= ' on ticket #' . admin_mgmt_ticket_number($ticketId) . ': ' . $subject;
+                    if ($category !== '') $description .= ' (' . $category . ')';
+                    if ($target !== '') $description .= ' for ' . $target;
+                    $createdAt = (string) ($work['created_at'] ?? '');
+                    $items[] = [
+                        'sort_at' => $createdAt,
+                        'sort_id' => (int) ($work['activity_id'] ?? 0),
+                        'id' => 0,
+                        'activity_type' => strtoupper((string) ($work['activity_type'] ?? 'TICKET_ACTIVITY')),
+                        'activity_description' => $description,
+                        'module_name' => 'Tickets',
+                        'reference_id' => (string) $ticketId,
+                        'ip_address' => '',
+                        'created_at' => $createdAt,
+                        'created_at_display' => admin_mgmt_format_activity_datetime($createdAt),
+                    ];
+                }
+                $ticketWorkStmt->close();
+            }
+        }
+    }
+
+    usort($items, static function (array $a, array $b): int {
+        $aTs = strtotime((string) ($a['sort_at'] ?? '')) ?: 0;
+        $bTs = strtotime((string) ($b['sort_at'] ?? '')) ?: 0;
+        if ($aTs === $bTs) return ((int) ($b['sort_id'] ?? 0)) <=> ((int) ($a['sort_id'] ?? 0));
+        return $bTs <=> $aTs;
+    });
+
+    $total = count($items);
+    $items = array_slice($items, $offset, $limit);
+    foreach ($items as &$item) {
+        unset($item['sort_at'], $item['sort_id']);
+    }
+    unset($item);
+
+    $firstLogin = '';
+    $lastLogin = '';
+    if ($loginStmt = $conn->prepare("SELECT MIN(created_at) AS first_login, MAX(created_at) AS last_login FROM activity_logs WHERE user_id = ? AND activity_type = 'LOGIN'")) {
+        $loginStmt->bind_param('i', $userId);
+        $loginStmt->execute();
+        $loginRes = $loginStmt->get_result();
+        $loginRow = $loginRes ? $loginRes->fetch_assoc() : [];
+        $firstLogin = (string) ($loginRow['first_login'] ?? '');
+        $lastLogin = (string) ($loginRow['last_login'] ?? '');
+        $loginStmt->close();
+    }
+
+    $status = admin_mgmt_user_status($user);
+    $role = (string) ($user['role'] ?? '');
+    $roleLabel = ((int) ($user['is_super_admin'] ?? 0) === 1) ? 'Super Admin' : ($role === 'admin' ? 'Admin' : 'Employee');
+
+    admin_mgmt_json_response([
+        'ok' => true,
+        'user' => [
+            'id' => (int) $user['id'],
+            'name' => (string) ($user['display_name'] ?? ''),
+            'email' => (string) ($user['email'] ?? ''),
+            'department' => (string) ($user['department'] ?? ''),
+            'role' => $roleLabel,
+            'status_label' => $status['label'],
+            'status_state' => $status['state'],
+        ],
+        'summary' => [
+            'account_created' => admin_mgmt_format_activity_datetime((string) ($user['created_at'] ?? '')),
+            'first_login' => admin_mgmt_format_activity_datetime($firstLogin),
+            'last_login' => admin_mgmt_format_activity_datetime($lastLogin),
+            'last_active' => admin_mgmt_format_activity_datetime((string) ($user['last_seen_at'] ?? '')),
+        ],
+        'logs' => $items,
+        'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'total_pages' => max(1, (int) ceil($total / $limit)),
+        ],
+    ]);
+}
+
+if ($adminMgmtActivityJsonRequest) {
+    ini_set('display_errors', '0');
+    if (ob_get_level() === 0) ob_start();
+    try {
+        admin_mgmt_emit_user_activity($conn);
+    } catch (Throwable $e) {
+        error_log('Admin management activity logs failed: ' . $e->getMessage());
+        admin_mgmt_json_response(['ok' => false, 'error' => 'Unable to load activity logs.'], 500);
+    }
+}
+
 activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 'Opened Admin Management', 'Admin Management');
 
 ?>
@@ -698,7 +1139,6 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             overflow: auto;
             border: 1px solid #eef2f7;
             border-radius: 12px;
-            padding-bottom: 150px;
         }
         #usersListCard .users-table-container {
             min-height: 320px;
@@ -960,19 +1400,26 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             letter-spacing: 0.08em;
         }
         .add-user-trigger {
-            background: #1B5E20;
+            background: #166534;
             color: #ffffff;
             border: none;
-            border-radius: 10px;
-            padding: 10px 14px;
-            font-weight: 900;
+            border-radius: 14px;
+            padding: 15px 28px;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            font-size: 13px;
+            gap: 12px;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.28);
         }
-        .add-user-trigger:hover { background: #144a1e; }
+        .add-user-trigger:hover {
+            transform: translateY(-2px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.32);
+        }
 
         .user-table {
             box-shadow: none;
@@ -1102,55 +1549,76 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         .activity-drawer-overlay {
             position: fixed;
             inset: 0;
-            z-index: 3000;
+            z-index: 12000;
             display: none;
-            justify-content: flex-end;
-            background: rgba(15, 23, 42, 0.32);
+            align-items: center;
+            justify-content: center;
+            padding: 24px 22px;
+            background: rgba(15, 23, 42, 0.45);
             backdrop-filter: blur(2px);
+            overflow-y: auto;
         }
         .activity-drawer-overlay.show { display: flex; }
         .activity-drawer {
-            width: min(500px, 100vw);
-            height: 100vh;
+            width: min(920px, 100%);
+            max-height: calc(100vh - 44px);
             background: #ffffff;
-            box-shadow: -24px 0 60px rgba(15, 23, 42, 0.18);
+            border: 1px solid #e5e7eb;
+            border-radius: 22px;
+            box-shadow: 0 22px 60px rgba(2, 6, 23, 0.25);
             display: flex;
             flex-direction: column;
-            transform: translateX(100%);
-            transition: transform 0.22s ease;
+            overflow: hidden;
+            position: relative;
+            z-index: 12001;
+            margin: 0 auto;
         }
-        .activity-drawer-overlay.show .activity-drawer { transform: translateX(0); }
         .activity-drawer-head {
-            padding: 20px 22px 16px;
-            border-bottom: 1px solid #e2e8f0;
+            padding: 22px 24px 18px;
+            border-bottom: 1px solid #ecf1f6;
+            background:
+                radial-gradient(circle at top right, rgba(34, 197, 94, 0.10), transparent 34%),
+                linear-gradient(180deg, #f8fffa 0%, #f8fafc 100%);
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
             gap: 14px;
         }
         .activity-drawer-title {
             margin: 0;
             color: #0f172a;
-            font-size: 20px;
+            font-size: 24px;
+            line-height: 1.1;
             font-weight: 900;
         }
         .activity-drawer-close {
-            width: 38px;
-            height: 38px;
+            width: 40px;
+            height: 40px;
             border-radius: 12px;
             border: 1px solid #dbe3ee;
-            background: #ffffff;
-            color: #334155;
+            background: rgba(255,255,255,0.92);
+            color: #475569;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+        }
+        .activity-drawer-close:hover {
+            background: #f8fafc;
+            color: #0f172a;
         }
         .activity-drawer-body {
-            padding: 18px 22px 22px;
+            padding: 22px 24px 24px;
             overflow: auto;
             flex: 1 1 auto;
             background: #f8fafc;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            align-items: stretch;
         }
         .activity-user-card,
-        .activity-summary-card,
         .activity-timeline-card {
             background: #ffffff;
             border: 1px solid #e2e8f0;
@@ -1159,6 +1627,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         }
         .activity-user-card {
             padding: 16px;
+        }
+        .activity-user-profile {
             display: flex;
             gap: 13px;
             align-items: flex-start;
@@ -1215,7 +1685,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         .activity-status-dot.is-away { background: #f59e0b; }
         .activity-summary-card {
             margin-top: 14px;
-            padding: 14px 16px;
+            padding-top: 14px;
+            border-top: 1px solid #e2e8f0;
             display: grid;
             grid-template-columns: 1fr;
             gap: 12px;
@@ -1235,7 +1706,11 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             font-weight: 800;
             line-height: 1.35;
         }
-        .activity-timeline-card { margin-top: 14px; padding: 16px; }
+        .activity-timeline-card {
+            padding: 16px;
+            max-height: min(520px, calc(100vh - 210px));
+            overflow: auto;
+        }
         .activity-recent-title {
             margin: 0 0 12px;
             color: #0f172a;
@@ -1652,6 +2127,17 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         @media (max-width: 980px) {
             .admin-mgmt-grid { grid-template-columns: 1fr; }
             .form-grid { grid-template-columns: 1fr; }
+            .activity-drawer {
+                width: min(760px, 100%);
+            }
+            .activity-drawer-body {
+                grid-template-columns: 1fr;
+            }
+            .activity-timeline-card {
+                grid-column: auto;
+                grid-row: auto;
+                max-height: none;
+            }
             .access-modal-card {
                 max-width: min(880px, calc(100vw - 28px));
             }
@@ -1674,6 +2160,21 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             .modal-overlay-lite {
                 align-items: center;
                 padding: 16px 12px;
+            }
+            .activity-drawer-overlay {
+                padding: 16px 12px;
+            }
+            .activity-drawer {
+                max-height: calc(100vh - 24px);
+            }
+            .activity-drawer-head {
+                padding: 18px 18px 14px;
+            }
+            .activity-drawer-title {
+                font-size: 20px;
+            }
+            .activity-drawer-body {
+                padding: 18px;
             }
             .modal-card {
                 max-height: calc(100vh - 24px);
@@ -2258,22 +2759,24 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 </div>
                 <div class="activity-drawer-body">
                     <section class="activity-user-card">
-                        <div class="activity-avatar" id="activityUserAvatar">?</div>
-                        <div class="activity-user-main">
-                            <div class="activity-user-name" id="activityUserName">Select a user</div>
-                            <div class="activity-user-email" id="activityUserEmail">No user selected</div>
-                            <div class="activity-user-meta">
-                                <div>Department: <span id="activityUserDepartment">-</span></div>
-                                <div>Role: <span id="activityUserRole">-</span></div>
-                                <div>Status: <span class="activity-status-dot" id="activityStatusDot"></span><span id="activityUserStatus">-</span></div>
+                        <div class="activity-user-profile">
+                            <div class="activity-avatar" id="activityUserAvatar">?</div>
+                            <div class="activity-user-main">
+                                <div class="activity-user-name" id="activityUserName">Select a user</div>
+                                <div class="activity-user-email" id="activityUserEmail">No user selected</div>
+                                <div class="activity-user-meta">
+                                    <div>Department: <span id="activityUserDepartment">-</span></div>
+                                    <div>Role: <span id="activityUserRole">-</span></div>
+                                    <div>Status: <span class="activity-status-dot" id="activityStatusDot"></span><span id="activityUserStatus">-</span></div>
+                                </div>
                             </div>
                         </div>
-                    </section>
 
-                    <section class="activity-summary-card">
-                        <div><span class="activity-summary-label">Account Created</span><span class="activity-summary-value" id="activityAccountCreated">-</span></div>
-                        <div><span class="activity-summary-label">First Login</span><span class="activity-summary-value" id="activityFirstLogin">-</span></div>
-                        <div><span class="activity-summary-label">Last Login</span><span class="activity-summary-value" id="activityLastLogin">-</span></div>
+                        <div class="activity-summary-card">
+                            <div><span class="activity-summary-label">Account Created</span><span class="activity-summary-value" id="activityAccountCreated">-</span></div>
+                            <div><span class="activity-summary-label">First Login</span><span class="activity-summary-value" id="activityFirstLogin">-</span></div>
+                            <div><span class="activity-summary-label">Last Login</span><span class="activity-summary-value" id="activityLastLogin">-</span></div>
+                        </div>
                     </section>
 
                     <section class="activity-timeline-card">
@@ -3291,7 +3794,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 page: '1',
                 limit: '10'
             });
-            fetch('ajax_user_activity_logs.php?' + params.toString(), {
+            params.set('admin_mgmt_activity_logs', '1');
+            fetch('create_admin.php?' + params.toString(), {
                 credentials: 'same-origin',
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
@@ -3503,6 +4007,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                         loadUsersList(tmUsersState.page || 1);
                         Swal.fire({
                             icon: 'success',
+                            iconHtml: '<i class="fa-solid fa-check"></i>',
                             title: 'User updated',
                             html: escapeHtml(data.message || 'User updated successfully.'),
                             width: '420px',
