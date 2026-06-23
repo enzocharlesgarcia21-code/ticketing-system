@@ -193,11 +193,9 @@ body.employee-login-page .login-card {
 }
 
 .auth-split-right[aria-label="Forgot password"] .login-card {
-    justify-content: space-between;
+    justify-content: flex-start;
 }
 
-.auth-split-right[aria-label="Forgot password"] .back-btn,
-.auth-split-right[aria-label="Forgot password"] .login-card h2,
 .auth-split-right[aria-label="Forgot password"] .auth-note {
     margin-bottom: 0;
 }
@@ -205,7 +203,7 @@ body.employee-login-page .login-card {
 .auth-split-right[aria-label="Forgot password"] .login-card form {
     display: flex;
     flex-direction: column;
-    gap: 32px;
+    gap: 30px;
 }
 
 .auth-split-right[aria-label="Forgot password"] .form-group {
@@ -377,27 +375,34 @@ body.employee-login-page .login-card {
 
 body.forgot-password-page .forgot-password-card {
     justify-content: flex-start;
+    padding-top: 95px;
 }
 
 body.forgot-password-page .forgot-password-card .back-btn {
-    margin-bottom: 50px;
+    position: relative;
+    top: -34px;
+    margin-bottom: 30px;
 }
 
 body.forgot-password-page .forgot-password-card h2 {
-    margin-bottom: 52px;
+    margin-bottom: 14px;
 }
 
 body.forgot-password-page .forgot-password-card .auth-note {
     max-width: 390px;
-    margin: 0 auto 42px;
+    margin: 0 auto 52px;
+}
+
+body.forgot-password-page .forgot-password-card form {
+    gap: 30px;
 }
 
 body.forgot-password-page .forgot-password-card .form-group {
-    margin-bottom: 30px;
+    margin-bottom: 0;
 }
 
 body.forgot-password-page .forgot-password-card .form-group label {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
 
 body.forgot-password-page .forgot-password-card form > button[type="submit"] {
@@ -629,16 +634,20 @@ body.verify-reset-otp-page .verify-reset-otp-card .auth-inline-link {
         padding: 40px 24px 34px;
     }
 
+    body.forgot-password-page .forgot-password-card {
+        padding-top: 40px;
+    }
+
     body.forgot-password-page .forgot-password-card .back-btn {
-        margin-bottom: 34px;
+        margin-bottom: 26px;
     }
 
     body.forgot-password-page .forgot-password-card h2 {
-        margin-bottom: 34px;
+        margin-bottom: 10px;
     }
 
     body.forgot-password-page .forgot-password-card .auth-note {
-        margin-bottom: 38px;
+        margin-bottom: 24px;
     }
 
     body.verify-reset-otp-page .verify-reset-otp-card .back-btn {
@@ -729,20 +738,24 @@ body.verify-reset-otp-page .verify-reset-otp-card .auth-inline-link {
         height: 58px;
     }
 
+    body.forgot-password-page .forgot-password-card {
+        padding-top: 24px;
+    }
+
     body.forgot-password-page .forgot-password-card .back-btn {
-        margin-bottom: 26px;
+        margin-bottom: 20px;
     }
 
     body.forgot-password-page .forgot-password-card h2 {
-        margin-bottom: 26px;
+        margin-bottom: 10px;
     }
 
     body.forgot-password-page .forgot-password-card .auth-note {
-        margin-bottom: 30px;
+        margin-bottom: 22px;
     }
 
     body.forgot-password-page .forgot-password-card .form-group {
-        margin-bottom: 24px;
+        margin-bottom: 0;
     }
 
     body.verify-reset-otp-page .verify-reset-otp-card .back-btn {
