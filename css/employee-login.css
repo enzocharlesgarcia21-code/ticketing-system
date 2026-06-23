@@ -192,6 +192,30 @@ body.employee-login-page .login-card {
     max-width: 100%;
 }
 
+.auth-split-right[aria-label="Forgot password"] .login-card {
+    justify-content: space-between;
+}
+
+.auth-split-right[aria-label="Forgot password"] .back-btn,
+.auth-split-right[aria-label="Forgot password"] .login-card h2,
+.auth-split-right[aria-label="Forgot password"] .auth-note {
+    margin-bottom: 0;
+}
+
+.auth-split-right[aria-label="Forgot password"] .login-card form {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.auth-split-right[aria-label="Forgot password"] .form-group {
+    margin-bottom: 0;
+}
+
+.auth-split-right[aria-label="Forgot password"] .login-card form > button[type="submit"] {
+    margin-top: 0;
+}
+
 .form-group {
     margin-bottom: 22px;
 }
