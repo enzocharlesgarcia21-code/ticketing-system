@@ -337,6 +337,7 @@ if ($row = $result->fetch_assoc()) {
     );
     $row['can_view_chat_history'] = $chatClosedMessage === '' || $canViewClosedChat;
     $row['can_chat'] = $chatClosedMessage === '' && ticket_user_can_chat($row, $currentUserId, $userContext);
+    $row['hide_conversation_tab'] = true;
     $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
     $row['assigned_to_name'] = isset($row['assigned_to_name']) ? (string) $row['assigned_to_name'] : '';
     $row['assigned_to_email'] = isset($row['assigned_to_email']) ? (string) $row['assigned_to_email'] : '';
