@@ -1559,7 +1559,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         }
         .activity-drawer-overlay.show { display: flex; }
         .activity-drawer {
-            width: min(920px, 100%);
+            width: min(980px, 100%);
             max-height: calc(100vh - 44px);
             background: #ffffff;
             border: 1px solid #e5e7eb;
@@ -1573,20 +1573,38 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             margin: 0 auto;
         }
         .activity-drawer-head {
-            padding: 22px 24px 18px;
+            padding: 16px 18px 18px;
             border-bottom: 1px solid #ecf1f6;
             background:
                 radial-gradient(circle at top right, rgba(34, 197, 94, 0.10), transparent 34%),
                 linear-gradient(180deg, #f8fffa 0%, #f8fafc 100%);
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: space-between;
             gap: 14px;
+        }
+        .activity-drawer-heading {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-width: 0;
+        }
+        .activity-drawer-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: #dcfce7;
+            color: #16a34a;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            flex: 0 0 auto;
         }
         .activity-drawer-title {
             margin: 0;
             color: #0f172a;
-            font-size: 24px;
+            font-size: 25px;
             line-height: 1.1;
             font-weight: 900;
         }
@@ -1608,46 +1626,59 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             color: #0f172a;
         }
         .activity-drawer-body {
-            padding: 22px 24px 24px;
+            padding: 18px;
             overflow: auto;
             flex: 1 1 auto;
-            background: #f8fafc;
+            background: #ffffff;
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
+            grid-template-columns: minmax(300px, 0.82fr) minmax(0, 1.18fr);
+            gap: 16px;
             align-items: stretch;
         }
         .activity-user-card,
         .activity-timeline-card {
             background: #ffffff;
             border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+            border-radius: 14px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035);
         }
         .activity-user-card {
-            padding: 16px;
+            padding: 18px;
         }
         .activity-user-profile {
             display: flex;
-            gap: 13px;
+            gap: 18px;
             align-items: flex-start;
         }
         .activity-avatar {
-            width: 44px;
-            height: 44px;
+            width: 82px;
+            height: 82px;
             border-radius: 999px;
             background: #ecfdf5;
-            border: 1px solid #bbf7d0;
-            color: #166534;
+            border: 2px solid #22c55e;
+            color: #15803d;
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            font-size: 42px;
             font-weight: 900;
             flex: 0 0 auto;
+            position: relative;
+        }
+        .activity-avatar::after {
+            content: '';
+            position: absolute;
+            right: 5px;
+            bottom: 8px;
+            width: 16px;
+            height: 16px;
+            border-radius: 999px;
+            background: #16a34a;
+            border: 3px solid #ffffff;
         }
         .activity-user-main { min-width: 0; flex: 1 1 auto; }
         .activity-user-name {
-            font-size: 15px;
+            font-size: 20px;
             font-weight: 900;
             color: #0f172a;
             overflow: hidden;
@@ -1655,9 +1686,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             white-space: nowrap;
         }
         .activity-user-email {
-            margin-top: 3px;
+            margin-top: 4px;
             color: #64748b;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 700;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -1666,36 +1697,91 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         .activity-user-meta {
             margin-top: 12px;
             display: grid;
-            gap: 7px;
+            gap: 10px;
             color: #334155;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 700;
+        }
+        .activity-user-meta div {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        .activity-user-meta i {
+            width: 16px;
+            color: #22c55e;
+            text-align: center;
+        }
+        .activity-user-meta span {
+            color: #475569;
+            flex: 0 0 auto;
+        }
+        .activity-user-meta strong {
+            color: #0f172a;
+            font-size: 12px;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .activity-status-dot {
             display: inline-block;
             width: 8px;
             height: 8px;
             border-radius: 999px;
-            margin-right: 6px;
+            margin: 0 -2px 0 2px;
             background: #0f172a;
+            flex: 0 0 auto;
         }
         .activity-status-dot.is-online { background: #22c55e; }
         .activity-status-dot.is-recent,
         .activity-status-dot.is-away { background: #f59e0b; }
         .activity-summary-card {
-            margin-top: 14px;
-            padding-top: 14px;
-            border-top: 1px solid #e2e8f0;
+            margin-top: 22px;
+            padding: 22px 18px 18px 54px;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
             display: grid;
             grid-template-columns: 1fr;
-            gap: 12px;
+            gap: 26px;
+            position: relative;
+        }
+        .activity-summary-card::before {
+            content: '';
+            position: absolute;
+            left: 29px;
+            top: 42px;
+            bottom: 42px;
+            width: 2px;
+            background: #bbf7d0;
+        }
+        .activity-summary-item {
+            position: relative;
+        }
+        .activity-summary-icon {
+            position: absolute;
+            left: -43px;
+            top: -2px;
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            background: #16a34a;
+            color: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            box-shadow: 0 0 0 5px #dcfce7;
+            z-index: 1;
         }
         .activity-summary-label {
             display: block;
-            color: #64748b;
+            color: #16a34a;
             font-size: 11px;
             font-weight: 900;
             text-transform: uppercase;
+            position: relative;
         }
         .activity-summary-value {
             display: block;
@@ -1706,37 +1792,111 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             line-height: 1.35;
         }
         .activity-timeline-card {
-            padding: 16px;
-            max-height: min(520px, calc(100vh - 210px));
-            overflow: auto;
+            padding: 20px 22px;
+            max-height: min(520px, calc(100vh - 180px));
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
         .activity-recent-title {
-            margin: 0 0 12px;
+            margin: 0 0 4px;
             color: #0f172a;
-            font-size: 15px;
+            font-size: 16px;
             font-weight: 900;
+            flex: 0 0 auto;
         }
-        .activity-timeline { display: grid; gap: 8px; }
+        .activity-recent-subtitle {
+            margin: 0 0 22px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .activity-timeline {
+            display: grid;
+            gap: 0;
+            height: min(330px, calc(100vh - 330px));
+            min-height: 230px;
+            overflow-y: scroll;
+            overscroll-behavior: contain;
+            padding: 0 14px 0 28px;
+            scrollbar-gutter: stable;
+            scrollbar-width: auto;
+            scrollbar-color: #13713a #e7f5ec;
+            position: relative;
+        }
+        .activity-timeline::-webkit-scrollbar {
+            width: 14px;
+        }
+        .activity-timeline::-webkit-scrollbar-track {
+            background: #e7f5ec;
+            border-radius: 999px;
+            border: 3px solid #ffffff;
+        }
+        .activity-timeline::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #1a8f49 0%, #0b5f2a 100%);
+            border-radius: 999px;
+            border: 3px solid #ffffff;
+        }
+        .activity-timeline::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #157a3d 0%, #08491f 100%);
+        }
         .activity-item {
             position: relative;
-            padding-left: 18px;
+            padding: 0 0 22px 22px;
             color: #334155;
             font-size: 13px;
-            font-weight: 800;
+            font-weight: 700;
             line-height: 1.4;
+            border-left: 2px solid #bbf7d0;
         }
         .activity-item::before {
             content: '';
             position: absolute;
-            left: 0;
-            top: 8px;
-            width: 6px;
-            height: 6px;
+            left: -6px;
+            top: 2px;
+            width: 10px;
+            height: 10px;
             border-radius: 999px;
-            background: #15803d;
+            background: #16a34a;
         }
         .activity-item.is-warning::before { background: #f59e0b; }
         .activity-item.is-danger::before { background: #dc2626; }
+        .activity-item-main {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 14px;
+            align-items: start;
+        }
+        .activity-item-title {
+            color: #0f172a;
+            font-weight: 900;
+        }
+        .activity-item-detail {
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .activity-item-time {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .activity-see-more {
+            align-self: flex-end;
+            margin-top: 10px;
+            color: #16a34a;
+            font-size: 13px;
+            font-weight: 900;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .activity-see-more:hover {
+            color: #15803d;
+        }
         .activity-empty { padding: 22px 12px; text-align: center; color: #64748b; font-weight: 800; }
         .access-modal-card {
             max-width: 520px;
@@ -2132,10 +2292,17 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             .activity-drawer-body {
                 grid-template-columns: 1fr;
             }
+            .activity-user-card {
+                min-height: auto;
+            }
             .activity-timeline-card {
                 grid-column: auto;
                 grid-row: auto;
                 max-height: none;
+            }
+            .activity-timeline {
+                height: min(320px, calc(100vh - 390px));
+                min-height: 210px;
             }
             .access-modal-card {
                 max-width: min(880px, calc(100vw - 28px));
@@ -2169,11 +2336,39 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             .activity-drawer-head {
                 padding: 18px 18px 14px;
             }
+            .activity-drawer-heading {
+                gap: 10px;
+            }
+            .activity-drawer-icon {
+                width: 36px;
+                height: 36px;
+                border-radius: 10px;
+                font-size: 16px;
+            }
             .activity-drawer-title {
                 font-size: 20px;
             }
             .activity-drawer-body {
                 padding: 18px;
+            }
+            .activity-user-profile {
+                gap: 14px;
+            }
+            .activity-avatar {
+                width: 64px;
+                height: 64px;
+                font-size: 32px;
+            }
+            .activity-item-main {
+                grid-template-columns: 1fr;
+                gap: 4px;
+            }
+            .activity-item-time {
+                font-size: 11px;
+            }
+            .activity-timeline {
+                height: 300px;
+                min-height: 220px;
             }
             .modal-card {
                 max-height: calc(100vh - 24px);
@@ -2751,7 +2946,10 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         <div class="activity-drawer-overlay" id="activityDrawerOverlay" aria-hidden="true">
             <aside class="activity-drawer" role="dialog" aria-modal="true" aria-labelledby="activityDrawerTitle">
                 <div class="activity-drawer-head">
-                    <h2 class="activity-drawer-title" id="activityDrawerTitle">User Activity Timeline</h2>
+                    <div class="activity-drawer-heading">
+                        <span class="activity-drawer-icon"><i class="fas fa-chart-line"></i></span>
+                        <h2 class="activity-drawer-title" id="activityDrawerTitle">User Activity Timeline</h2>
+                    </div>
                     <button type="button" class="activity-drawer-close" id="closeActivityDrawer" aria-label="Close activity logs">
                         <i class="fas fa-times"></i>
                     </button>
@@ -2764,25 +2962,39 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                                 <div class="activity-user-name" id="activityUserName">Select a user</div>
                                 <div class="activity-user-email" id="activityUserEmail">No user selected</div>
                                 <div class="activity-user-meta">
-                                    <div>Department: <span id="activityUserDepartment">-</span></div>
-                                    <div>Role: <span id="activityUserRole">-</span></div>
-                                    <div>Status: <span class="activity-status-dot" id="activityStatusDot"></span><span id="activityUserStatus">-</span></div>
+                                    <div><i class="fas fa-briefcase"></i><span>Department:</span> <strong id="activityUserDepartment">-</strong></div>
+                                    <div><i class="far fa-user"></i><span>Role:</span> <strong id="activityUserRole">-</strong></div>
+                                    <div><i class="far fa-clock"></i><span>Status:</span> <span class="activity-status-dot" id="activityStatusDot"></span><strong id="activityUserStatus">-</strong></div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="activity-summary-card">
-                            <div><span class="activity-summary-label">Account Created</span><span class="activity-summary-value" id="activityAccountCreated">-</span></div>
-                            <div><span class="activity-summary-label">First Login</span><span class="activity-summary-value" id="activityFirstLogin">-</span></div>
-                            <div><span class="activity-summary-label">Last Login</span><span class="activity-summary-value" id="activityLastLogin">-</span></div>
+                            <div class="activity-summary-item">
+                                <span class="activity-summary-icon"><i class="fas fa-user-plus"></i></span>
+                                <span class="activity-summary-label">Account Created</span>
+                                <span class="activity-summary-value" id="activityAccountCreated">-</span>
+                            </div>
+                            <div class="activity-summary-item">
+                                <span class="activity-summary-icon"><i class="fas fa-right-to-bracket"></i></span>
+                                <span class="activity-summary-label">First Login</span>
+                                <span class="activity-summary-value" id="activityFirstLogin">-</span>
+                            </div>
+                            <div class="activity-summary-item">
+                                <span class="activity-summary-icon"><i class="fas fa-angles-right"></i></span>
+                                <span class="activity-summary-label">Last Login</span>
+                                <span class="activity-summary-value" id="activityLastLogin">-</span>
+                            </div>
                         </div>
                     </section>
 
                     <section class="activity-timeline-card">
-                        <h3 class="activity-recent-title">Recent Activities</h3>
+                        <h3 class="activity-recent-title">Recent Changes</h3>
+                        <p class="activity-recent-subtitle">Shows only updates made to profile information.</p>
                         <div class="activity-timeline" id="activityTimeline">
                             <div class="activity-empty">Select a user to load recent activities.</div>
                         </div>
+                        <a class="activity-see-more" href="ajax_user_activity_logs.php" aria-label="See more user activity logs">See more <i class="fas fa-arrow-right"></i></a>
                     </section>
                 </div>
             </aside>
@@ -3752,6 +3964,56 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             var el = document.getElementById(id);
             if (el) el.textContent = value || '-';
         }
+        function activityRelativeTime(value) {
+            var raw = String(value || '').trim();
+            if (!raw || raw === '-') return '';
+            var date = new Date(raw);
+            if (isNaN(date.getTime())) {
+                date = new Date(raw.replace(' ', 'T'));
+            }
+            if (isNaN(date.getTime())) return raw;
+            var seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+            if (seconds < 60) return 'Just now';
+            var minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return minutes + ' min' + (minutes === 1 ? '' : 's') + ' ago';
+            var hours = Math.floor(minutes / 60);
+            if (hours < 24) return hours + ' hour' + (hours === 1 ? '' : 's') + ' ago';
+            var days = Math.floor(hours / 24);
+            if (days < 30) return days + ' day' + (days === 1 ? '' : 's') + ' ago';
+            return raw;
+        }
+        function activityChangeText(log) {
+            var type = String((log && log.activity_type) || '').toUpperCase();
+            var description = String((log && log.activity_description) || '').trim();
+            var moduleName = String((log && log.module_name) || '').trim();
+            var title = description || 'Activity recorded';
+            var detail = moduleName ? moduleName : '';
+
+            if (type.indexOf('LOGIN') > -1) {
+                title = 'User logged into the system';
+                detail = 'Session started successfully';
+            } else if (type.indexOf('LOGOUT') > -1) {
+                title = 'Logged out';
+                detail = 'Session ended successfully';
+            } else if (type.indexOf('PASSWORD') > -1) {
+                title = 'Password changed';
+                detail = description || 'Password updated successfully';
+            } else if (type.indexOf('EMAIL') > -1 && type.indexOf('UPDATED') > -1) {
+                title = 'Email updated';
+            } else if (type.indexOf('USERNAME') > -1 && type.indexOf('UPDATED') > -1) {
+                title = 'Username updated';
+            } else if (type.indexOf('DEPARTMENT') > -1 && (type.indexOf('CHANGED') > -1 || type.indexOf('UPDATED') > -1)) {
+                title = 'Department changed';
+            } else if (type.indexOf('COMPANY') > -1 || type.indexOf('SUBSIDIARY') > -1) {
+                title = 'Subsidiary changed';
+            } else if (type.indexOf('TICKET') > -1) {
+                title = description || 'Ticket activity recorded';
+                detail = moduleName ? 'from ' + moduleName : '';
+            }
+
+            if (detail === title) detail = '';
+            return { title: title, detail: detail };
+        }
         function renderActivityHeader(data) {
             var user = data.user || {};
             var summary = data.summary || {};
@@ -3760,7 +4022,12 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             setActivityText('activityUserEmail', String(user.email || ''));
             setActivityText('activityUserDepartment', String(user.department || '-'));
             setActivityText('activityUserRole', String(user.role || '-'));
-            setActivityText('activityUserStatus', String(user.status_label || '-'));
+            var statusState = String(user.status_state || 'never');
+            var statusLabel = String(user.status_label || '-');
+            if (statusState === 'online' || statusState === 'recent' || statusState === 'away') {
+                statusLabel = 'Active';
+            }
+            setActivityText('activityUserStatus', statusLabel);
             setActivityText('activityAccountCreated', String(summary.account_created || '-'));
             setActivityText('activityFirstLogin', String(summary.first_login || '-'));
             setActivityText('activityLastLogin', String(summary.last_login || '-'));
@@ -3768,7 +4035,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             if (avatar) avatar.textContent = name ? name.trim().charAt(0).toUpperCase() : '?';
             var dot = document.getElementById('activityStatusDot');
             if (dot) {
-                dot.className = 'activity-status-dot is-' + escapeHtml(String(user.status_state || 'never'));
+                dot.className = 'activity-status-dot is-' + escapeHtml(statusState);
             }
         }
         function renderActivityTimeline(logs) {
@@ -3779,9 +4046,17 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             }
             activityTimeline.innerHTML = logs.map(function (log) {
                 var meta = activityIconMeta(log.activity_type);
+                var text = activityChangeText(log);
+                var time = activityRelativeTime(log.created_at || log.created_at_display || '');
                 return '' +
                     '<div class="activity-item ' + escapeHtml(meta.tone) + '">' +
-                    escapeHtml(log.activity_description || '') +
+                        '<div class="activity-item-main">' +
+                            '<div>' +
+                                '<div class="activity-item-title">' + escapeHtml(text.title || 'Activity recorded') + '</div>' +
+                                (text.detail ? '<div class="activity-item-detail">' + escapeHtml(text.detail) + '</div>' : '') +
+                            '</div>' +
+                            '<span class="activity-item-time">' + escapeHtml(time || '') + '</span>' +
+                        '</div>' +
                     '</div>';
             }).join('');
         }

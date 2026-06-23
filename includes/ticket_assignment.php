@@ -714,14 +714,16 @@ function ticket_notification_company_key(string $company): string
     return strtoupper(trim($company));
 }
 
-function ticket_assignee_notification_emails(mysqli $conn, array $assignedUserIds, string $company, string $group, int $excludeUserId = 0): array
+function ticket_assignee_notification_emails(mysqli $conn, array $assignedUserIds, string $company, string $group, int $excludeUserId = 0, bool $skipDepartmentOverride = false): array
 {
     $company = ticket_normalize_company($company);
     $excludeUserId = (int) $excludeUserId;
 
-    $overrideEmails = ticket_department_override_notification_emails($company, $group);
-    if (count($overrideEmails) > 0) {
-        return $overrideEmails;
+    if (!$skipDepartmentOverride) {
+        $overrideEmails = ticket_department_override_notification_emails($company, $group);
+        if (count($overrideEmails) > 0) {
+            return $overrideEmails;
+        }
     }
 
     $emails = [];

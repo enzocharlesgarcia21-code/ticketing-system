@@ -58,12 +58,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body>
+<body class="verify-reset-otp-page">
 
 <div class="auth-wrapper auth-container login-container">
     <section class="auth-split-left" aria-hidden="true"></section>
     <section class="auth-split-right" aria-label="Verify reset OTP">
-    <div class="login-card">
+    <div class="login-card verify-reset-otp-card">
         <a href="forgot_password.php" class="back-btn"><i class="fas fa-arrow-left"></i> Back</a>
 
         <h2>Verify OTP</h2>

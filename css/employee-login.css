@@ -351,6 +351,60 @@ body.employee-login-page .login-card {
     font-weight: 700;
 }
 
+body.forgot-password-page .forgot-password-card {
+    justify-content: flex-start;
+}
+
+body.forgot-password-page .forgot-password-card .back-btn {
+    margin-bottom: 50px;
+}
+
+body.forgot-password-page .forgot-password-card h2 {
+    margin-bottom: 52px;
+}
+
+body.forgot-password-page .forgot-password-card .auth-note {
+    max-width: 390px;
+    margin: 0 auto 42px;
+}
+
+body.forgot-password-page .forgot-password-card .form-group {
+    margin-bottom: 30px;
+}
+
+body.forgot-password-page .forgot-password-card .form-group label {
+    margin-bottom: 12px;
+}
+
+body.forgot-password-page .forgot-password-card form > button[type="submit"] {
+    margin-top: 0;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card {
+    justify-content: flex-start;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card .back-btn {
+    margin-bottom: 34px;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card h2 {
+    margin-bottom: 34px;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card .auth-note {
+    max-width: 390px;
+    margin: 0 auto 34px;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card .form-group {
+    margin-bottom: 0;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card .auth-inline-link {
+    margin-top: 78px;
+}
+
 .otp-label {
     display: block;
     margin-bottom: 12px;
@@ -550,6 +604,34 @@ body.employee-login-page .login-card {
         min-height: 0;
         padding: 40px 24px 34px;
     }
+
+    body.forgot-password-page .forgot-password-card .back-btn {
+        margin-bottom: 34px;
+    }
+
+    body.forgot-password-page .forgot-password-card h2 {
+        margin-bottom: 34px;
+    }
+
+    body.forgot-password-page .forgot-password-card .auth-note {
+        margin-bottom: 38px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .back-btn {
+        margin-bottom: 24px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card h2 {
+        margin-bottom: 24px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .auth-note {
+        margin-bottom: 24px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .auth-inline-link {
+        margin-top: 54px;
+    }
 }
 
 @media (max-width: 768px) {
@@ -621,6 +703,38 @@ body.employee-login-page .login-card {
 
     .login-card form > button[type="submit"] {
         height: 58px;
+    }
+
+    body.forgot-password-page .forgot-password-card .back-btn {
+        margin-bottom: 26px;
+    }
+
+    body.forgot-password-page .forgot-password-card h2 {
+        margin-bottom: 26px;
+    }
+
+    body.forgot-password-page .forgot-password-card .auth-note {
+        margin-bottom: 30px;
+    }
+
+    body.forgot-password-page .forgot-password-card .form-group {
+        margin-bottom: 24px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .back-btn {
+        margin-bottom: 20px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card h2 {
+        margin-bottom: 20px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .auth-note {
+        margin-bottom: 22px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .auth-inline-link {
+        margin-top: 28px;
     }
 }
 
