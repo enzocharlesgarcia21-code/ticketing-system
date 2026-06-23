@@ -1065,6 +1065,137 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             box-shadow: none;
             cursor: not-allowed;
         }
+        .edit-select-wrap {
+            position: relative;
+        }
+        .edit-select-wrap .domain-select {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .edit-select-trigger {
+            width: 100%;
+            min-height: 56px;
+            padding: 13px 48px 13px 18px;
+            border: 2px solid #5fa463;
+            border-radius: 18px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+        .edit-select-trigger::after {
+            content: '\f078';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            color: #64748b;
+            position: absolute;
+            right: 17px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 13px;
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+        .edit-select-wrap.is-open .edit-select-trigger {
+            border-color: #166534;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+        }
+        .edit-select-wrap.is-open .edit-select-trigger::after {
+            transform: translateY(-50%) rotate(180deg);
+            color: #166534;
+        }
+        .edit-select-trigger:disabled {
+            background: #f8fafc;
+            color: #94a3b8;
+            border-color: #dbe4ee;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        .edit-select-menu {
+            position: fixed;
+            z-index: 13050;
+            display: none;
+            padding: 8px 0;
+            max-height: 250px;
+            overflow-y: auto;
+            background: #ffffff;
+            border: 2px solid #5fa463;
+            border-radius: 16px;
+            box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+        .edit-select-menu::-webkit-scrollbar {
+            width: 10px;
+        }
+        .edit-select-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+        .edit-select-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+        .edit-select-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        .edit-select-wrap.is-open .edit-select-menu {
+            display: block;
+        }
+        .edit-select-option {
+            min-height: 42px;
+            padding: 11px 18px;
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        .edit-select-option:hover,
+        .edit-select-option.is-focused {
+            background: #edf7ef;
+        }
+        .edit-select-option.is-selected {
+            background: #166534;
+            color: #ffffff;
+        }
+        .users-filter-select-wrap {
+            width: 170px;
+            flex: 0 0 170px;
+        }
+        .users-filter-select-wrap .edit-select-trigger {
+            min-height: 48px;
+            padding: 11px 42px 11px 14px;
+            border-radius: 14px;
+            box-shadow: none;
+        }
+        .users-filter-select-wrap .edit-select-menu {
+            position: absolute;
+            top: calc(100% + 7px);
+            left: 0;
+            width: 100%;
+            max-height: 220px;
+            z-index: 30;
+        }
+        .users-filter-select-wrap .edit-select-option {
+            min-height: 38px;
+            padding: 9px 16px;
+            font-weight: 500;
+        }
         .btn {
             border: 1px solid transparent;
             border-radius: 14px;
@@ -1126,7 +1257,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             gap: 10px;
             align-items: center;
         }
-        .users-dept-filter.is-hidden {
+        .users-dept-filter.is-hidden,
+        .edit-select-wrap.is-hidden {
             display: none;
         }
         .users-table {
@@ -1882,20 +2014,6 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             font-size: 12px;
             font-weight: 700;
             white-space: nowrap;
-        }
-        .activity-see-more {
-            align-self: flex-end;
-            margin-top: 10px;
-            color: #16a34a;
-            font-size: 13px;
-            font-weight: 900;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .activity-see-more:hover {
-            color: #15803d;
         }
         .activity-empty { padding: 22px 12px; text-align: center; color: #64748b; font-weight: 800; }
         .access-modal-card {
@@ -2900,18 +3018,26 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                         </div>
                         <div class="users-filters">
                             <div class="users-company-inline">
-                                <select class="domain-select" id="usersCompany">
-                                    <option value="all" selected>All Companies</option>
-                                    <?php foreach ($company_domain_options as $opt => $label): ?>
-                                        <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <select class="domain-select users-dept-filter" id="usersDept">
-                                    <option value="all" selected>All Departments</option>
-                                    <?php foreach ($lapc_department_options as $d): ?>
-                                        <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <div class="edit-select-wrap users-filter-select-wrap" data-edit-select="users-company">
+                                    <select class="domain-select" id="usersCompany" tabindex="-1">
+                                        <option value="all" selected>All Companies</option>
+                                        <?php foreach ($company_domain_options as $opt => $label): ?>
+                                            <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Companies</button>
+                                    <div class="edit-select-menu" role="listbox"></div>
+                                </div>
+                                <div class="edit-select-wrap users-filter-select-wrap users-dept-filter-wrap" data-edit-select="users-dept">
+                                    <select class="domain-select users-dept-filter" id="usersDept" tabindex="-1">
+                                        <option value="all" selected>All Departments</option>
+                                        <?php foreach ($lapc_department_options as $d): ?>
+                                            <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Departments</button>
+                                    <div class="edit-select-menu" role="listbox"></div>
+                                </div>
                                 <button type="button" class="btn btn-auto" id="clearUsersFilters">Clear</button>
                             </div>
                         </div>
@@ -2994,7 +3120,6 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                         <div class="activity-timeline" id="activityTimeline">
                             <div class="activity-empty">Select a user to load recent activities.</div>
                         </div>
-                        <a class="activity-see-more" href="ajax_user_activity_logs.php" aria-label="See more user activity logs">See more <i class="fas fa-arrow-right"></i></a>
                     </section>
                 </div>
             </aside>
@@ -3120,18 +3245,26 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
 
                             <div class="form-label">Subsidiary <span class="form-required">*</span></div>
                             <div class="form-field-stack">
-                                <select class="domain-select" name="company" id="editUserCompany" aria-label="Subsidiary" required>
-                                    <?php foreach ($edit_user_company_options as $companyKey => $companyLabel): ?>
-                                        <option value="<?= htmlspecialchars((string) $companyKey, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <div class="edit-select-wrap" data-edit-select="company">
+                                    <select class="domain-select" name="company" id="editUserCompany" aria-label="Subsidiary" required tabindex="-1">
+                                        <?php foreach ($edit_user_company_options as $companyKey => $companyLabel): ?>
+                                            <option value="<?= htmlspecialchars((string) $companyKey, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">Select subsidiary</button>
+                                    <div class="edit-select-menu" role="listbox"></div>
+                                </div>
                             </div>
 
                             <div class="form-label">Department</div>
                             <div class="form-field-stack">
-                                <select class="domain-select" name="department" id="editUserDepartment" aria-label="Department">
-                                    <option value="">No Department</option>
-                                </select>
+                                <div class="edit-select-wrap" data-edit-select="department">
+                                    <select class="domain-select" name="department" id="editUserDepartment" aria-label="Department" tabindex="-1">
+                                        <option value="">No Department</option>
+                                    </select>
+                                    <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">No Department</button>
+                                    <div class="edit-select-menu" role="listbox"></div>
+                                </div>
                             </div>
                         </div>
                         <div class="access-modal-actions">
@@ -3564,7 +3697,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         var companyEl = document.getElementById('usersCompany');
         if (!deptEl || !companyEl) return;
         var isLapc = companyEl.value === '@leadsagri.com';
+        var deptWrap = deptEl.closest ? deptEl.closest('.edit-select-wrap') : null;
         deptEl.classList.toggle('is-hidden', !isLapc);
+        if (deptWrap) deptWrap.classList.toggle('is-hidden', !isLapc);
         deptEl.disabled = !isLapc;
         if (!isLapc) {
             deptEl.value = 'all';
@@ -3857,6 +3992,101 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 return String(option.value || '') === String(value || '');
             });
         }
+        function closeEditSelectMenus(exceptWrap) {
+            Array.prototype.slice.call(document.querySelectorAll('.edit-select-wrap.is-open')).forEach(function (wrap) {
+                if (exceptWrap && wrap === exceptWrap) return;
+                wrap.classList.remove('is-open');
+                var trigger = wrap.querySelector('.edit-select-trigger');
+                if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            });
+        }
+        function positionEditSelectMenu(wrap) {
+            if (!wrap) return;
+            var trigger = wrap.querySelector('.edit-select-trigger');
+            var menu = wrap.querySelector('.edit-select-menu');
+            if (!trigger || !menu) return;
+            var isFilterSelect = wrap.classList.contains('users-filter-select-wrap');
+            if (isFilterSelect) {
+                menu.style.left = '0';
+                menu.style.width = '100%';
+                menu.style.top = 'calc(100% + 7px)';
+                menu.style.bottom = 'auto';
+                menu.style.maxHeight = '220px';
+                return;
+            }
+            var rect = trigger.getBoundingClientRect();
+            var viewportGap = 12;
+            var availableBelow = window.innerHeight - rect.bottom - viewportGap;
+            var availableAbove = rect.top - viewportGap;
+            var maxMenuHeight = 250;
+            var minMenuHeight = 160;
+            var preferredSpace = Math.max(availableBelow, availableAbove);
+            var menuHeight = Math.min(maxMenuHeight, Math.max(minMenuHeight, preferredSpace));
+            var openUp = availableBelow < minMenuHeight && availableAbove > availableBelow;
+            menu.style.left = rect.left + 'px';
+            menu.style.width = rect.width + 'px';
+            menu.style.maxHeight = menuHeight + 'px';
+            if (openUp) {
+                menu.style.top = 'auto';
+                menu.style.bottom = (window.innerHeight - rect.top + 7) + 'px';
+            } else {
+                menu.style.top = (rect.bottom + 7) + 'px';
+                menu.style.bottom = 'auto';
+            }
+        }
+        function refreshEditSelect(selectEl) {
+            if (!selectEl) return;
+            var wrap = selectEl.closest('.edit-select-wrap');
+            if (!wrap) return;
+            var trigger = wrap.querySelector('.edit-select-trigger');
+            var menu = wrap.querySelector('.edit-select-menu');
+            if (!trigger || !menu) return;
+
+            var selectedOption = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+            trigger.textContent = selectedOption ? selectedOption.textContent : '';
+            trigger.disabled = !!selectEl.disabled;
+            menu.innerHTML = Array.prototype.slice.call(selectEl.options).map(function (option, index) {
+                if (selectEl.id === 'usersCompany' && String(option.value || '') === 'all') return '';
+                var selected = option.selected ? ' is-selected' : '';
+                return '<div class="edit-select-option' + selected + '" role="option" aria-selected="' + (option.selected ? 'true' : 'false') + '" data-index="' + index + '">' + escapeHtml(String(option.textContent || '')) + '</div>';
+            }).join('');
+            if (wrap.classList.contains('is-open')) positionEditSelectMenu(wrap);
+        }
+        function refreshEditSelects() {
+            refreshEditSelect(editUserCompany);
+            refreshEditSelect(editUserDepartment);
+            refreshEditSelect(document.getElementById('usersCompany'));
+            refreshEditSelect(document.getElementById('usersDept'));
+        }
+        function initEditSelect(selectEl) {
+            if (!selectEl) return;
+            var wrap = selectEl.closest('.edit-select-wrap');
+            if (!wrap || wrap.dataset.ready === '1') return;
+            wrap.dataset.ready = '1';
+            var trigger = wrap.querySelector('.edit-select-trigger');
+            var menu = wrap.querySelector('.edit-select-menu');
+            if (!trigger || !menu) return;
+
+            trigger.addEventListener('click', function () {
+                if (selectEl.disabled) return;
+                var isOpen = wrap.classList.contains('is-open');
+                closeEditSelectMenus(wrap);
+                wrap.classList.toggle('is-open', !isOpen);
+                trigger.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
+                if (!isOpen) positionEditSelectMenu(wrap);
+            });
+
+            menu.addEventListener('click', function (e) {
+                var optionEl = e.target && e.target.closest ? e.target.closest('.edit-select-option') : null;
+                if (!optionEl) return;
+                var index = Number(optionEl.getAttribute('data-index'));
+                if (!Number.isFinite(index) || !selectEl.options[index]) return;
+                selectEl.selectedIndex = index;
+                selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                refreshEditSelect(selectEl);
+                closeEditSelectMenus();
+            });
+        }
         function syncEditDepartmentOptions(selectedDepartment) {
             if (!editUserDepartment || !editUserCompany) return;
             var company = normalizeEditCompany(editUserCompany.value);
@@ -3865,6 +4095,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 editUserDepartment.innerHTML = '<option value="">No Department</option>';
                 editUserDepartment.value = '';
                 editUserDepartment.disabled = false;
+                refreshEditSelect(editUserDepartment);
                 return;
             }
             editUserDepartment.disabled = false;
@@ -3876,6 +4107,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             } else {
                 editUserDepartment.selectedIndex = 0;
             }
+            refreshEditSelect(editUserDepartment);
         }
         function openEditUserModal(data) {
             if (!editUserModal || !window.TM_CAN_MANAGE_USER_ACCESS) return;
@@ -3892,8 +4124,10 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                     normalizedCompany = editUserCompany.options.length ? String(editUserCompany.options[0].value || '') : '';
                 }
                 editUserCompany.value = normalizedCompany;
+                refreshEditSelect(editUserCompany);
             }
             syncEditDepartmentOptions(String(data.department || ''));
+            refreshEditSelects();
             editUserModal.classList.add('show');
             editUserModal.setAttribute('aria-hidden', 'false');
             if (editUserName) editUserName.focus();
@@ -3903,6 +4137,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             editUserModal.classList.remove('show');
             editUserModal.setAttribute('aria-hidden', 'true');
             if (editUserForm) editUserForm.reset();
+            closeEditSelectMenus();
+            refreshEditSelects();
         }
         function setAccessLoadingState(isLoading) {
             if (saveUserAccessBtn) {
@@ -4024,8 +4260,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             setActivityText('activityUserRole', String(user.role || '-'));
             var statusState = String(user.status_state || 'never');
             var statusLabel = String(user.status_label || '-');
-            if (statusState === 'online' || statusState === 'recent' || statusState === 'away') {
-                statusLabel = 'Active';
+            if (statusState === 'online') {
+                statusLabel = 'Online';
             }
             setActivityText('activityUserStatus', statusLabel);
             setActivityText('activityAccountCreated', String(summary.account_created || '-'));
@@ -4253,8 +4489,31 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 if (e.target === editUserModal) closeEditUserModal();
             });
         }
+        initEditSelect(editUserCompany);
+        initEditSelect(editUserDepartment);
+        initEditSelect(document.getElementById('usersCompany'));
+        initEditSelect(document.getElementById('usersDept'));
+        refreshEditSelects();
+        document.addEventListener('click', function (e) {
+            if (e.target && e.target.closest && e.target.closest('.edit-select-wrap')) return;
+            closeEditSelectMenus();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeEditSelectMenus();
+        });
+        window.addEventListener('resize', function () {
+            var openWrap = document.querySelector('.edit-select-wrap.is-open');
+            if (openWrap) positionEditSelectMenu(openWrap);
+        });
+        if (editUserModal) {
+            editUserModal.addEventListener('scroll', function () {
+                var openWrap = document.querySelector('.edit-select-wrap.is-open');
+                if (openWrap) positionEditSelectMenu(openWrap);
+            }, true);
+        }
         if (editUserCompany) {
             editUserCompany.addEventListener('change', function () {
+                refreshEditSelect(editUserCompany);
                 syncEditDepartmentOptions('');
             });
         }
@@ -4906,12 +5165,17 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         }
         var usersDeptEl = document.getElementById('usersDept');
         if (usersDeptEl) {
-            usersDeptEl.addEventListener('change', function () { loadUsersList(1); });
+            usersDeptEl.addEventListener('change', function () {
+                refreshEditSelect(usersDeptEl);
+                loadUsersList(1);
+            });
         }
         var usersCompanyEl = document.getElementById('usersCompany');
         if (usersCompanyEl) {
             usersCompanyEl.addEventListener('change', function () {
+                refreshEditSelect(usersCompanyEl);
                 syncUsersDepartmentFilter();
+                refreshEditSelect(usersDeptEl);
                 loadUsersList(1);
             });
         }
@@ -4924,6 +5188,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 if (deptEl) deptEl.value = 'all';
                 if (companyEl) companyEl.value = 'all';
                 syncUsersDepartmentFilter();
+                refreshEditSelects();
                 loadUsersList(1);
             });
         }
