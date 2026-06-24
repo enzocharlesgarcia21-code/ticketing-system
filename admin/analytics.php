@@ -1548,7 +1548,7 @@ if ($ticketsStmt) {
         }
         .analytics-filters {
             display: grid;
-            grid-template-columns: 1.5fr 1.2fr 1.15fr 1.15fr 1fr;
+            grid-template-columns: minmax(330px, 1.35fr) minmax(220px, 1fr) minmax(220px, 1fr) minmax(210px, 0.75fr);
             gap: 12px;
             align-items: end;
         }
@@ -1735,8 +1735,17 @@ if ($ticketsStmt) {
             gap: 8px;
             align-items: center;
         }
+        body:not(.employee-analytics-page) .date-inputs {
+            grid-template-columns: minmax(140px, 1fr) auto minmax(140px, 1fr);
+        }
         .date-inputs .analytics-control {
             padding-right: 10px;
+        }
+        body:not(.employee-analytics-page) .date-inputs .analytics-control {
+            min-height: 52px;
+            border: 2px solid #5fa463;
+            border-radius: 16px;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
         }
         .date-separator {
             color: #6b7280;
@@ -1847,6 +1856,12 @@ if ($ticketsStmt) {
             border-radius: 13px;
             flex: 1 1 auto;
         }
+        body:not(.employee-analytics-page) .analytics-status-row .analytics-inline-clear {
+            min-height: 52px;
+            border: 2px solid #5fa463;
+            border-radius: 16px;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+        }
         .analytics-inline-clear {
             color: #111827;
             text-decoration: none;
@@ -1885,6 +1900,11 @@ if ($ticketsStmt) {
             border: 1px solid #c9d4c5;
             color: #1B5E20;
             box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+        }
+        body:not(.employee-analytics-page) .btn-export {
+            border: 2px solid #5fa463;
+            border-radius: 16px;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
         }
         .btn-export i {
             font-size: 1rem;
@@ -2597,7 +2617,7 @@ if ($ticketsStmt) {
 
         @media (max-width: 1280px) {
             .analytics-filters {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
+                grid-template-columns: minmax(330px, 1.25fr) repeat(2, minmax(0, 1fr));
             }
             body.employee-analytics-page .analytics-filters {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2621,7 +2641,7 @@ if ($ticketsStmt) {
                 justify-content: flex-start;
             }
             .analytics-filters {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns: minmax(320px, 1fr) minmax(0, 1fr);
             }
             .analytics-export-actions {
                 justify-content: flex-start;

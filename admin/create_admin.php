@@ -571,11 +571,11 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             color: #333;
         }
         .promote-btn {
-            background-color: #28a745;
-            color: white;
+            background: #166534;
+            color: #ffffff;
             border: none;
             padding: 10px 14px;
-            border-radius: 8px;
+            border-radius: 14px;
             cursor: pointer;
             font-size: 14px;
             font-weight: 700;
@@ -584,9 +584,13 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             align-items: center;
             justify-content: center;
             gap: 8px;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.24);
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
         }
         .promote-btn:hover {
-            background-color: #218838;
+            transform: translateY(-1px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.28);
         }
         .alert-success {
             padding: 10px;
@@ -930,8 +934,10 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         }
         .fullname-row > .form-control,
         .fullname-row > .domain-select,
+        .fullname-row > .edit-select-wrap,
         .username-row > .form-control,
         .username-row > .domain-select,
+        .username-row > .edit-select-wrap,
         .password-row > .password-field,
         .password-row > .btn.btn-auto {
             width: 100%;
@@ -1230,6 +1236,25 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             white-space: nowrap;
         }
         .btn-auto:hover { background: #f1f5f9; }
+        #createUserBtn {
+            background: #166534;
+            color: #ffffff;
+            border: none;
+            border-radius: 14px;
+            padding: 15px 28px;
+            min-height: 54px;
+            gap: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.28);
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+        }
+        #createUserBtn:hover {
+            background: #166534;
+            transform: translateY(-2px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.32);
+        }
         .form-actions {
             display: flex;
             justify-content: flex-end;
@@ -1246,6 +1271,27 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             flex-wrap: wrap;
         }
         .users-list-controls .search-wrapper { flex: 1 1 480px; }
+        .users-list-controls .search-input {
+            min-height: 48px;
+            border: 2px solid #5fa463;
+            border-radius: 14px;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+        }
+        .users-list-controls .search-input:focus {
+            border-color: #166534;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+        }
+        .users-list-controls #clearUsersFilters {
+            min-height: 48px;
+            border: 2px solid #5fa463;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+        }
+        .users-list-controls #clearUsersFilters:hover {
+            background: #f2fbf1;
+            border-color: #166534;
+        }
         .users-filters {
             display: flex;
             gap: 10px;
@@ -1786,7 +1832,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             width: 82px;
             height: 82px;
             border-radius: 999px;
-            background: #ecfdf5;
+            background: #ffffff;
             border: 2px solid #22c55e;
             color: #15803d;
             display: inline-flex;
@@ -2025,10 +2071,12 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            gap: 14px;
-            padding: 14px 16px;
-            border-bottom: 1px solid rgba(20, 83, 45, 0.28);
-            background: linear-gradient(135deg, #14532d 0%, #166534 58%, #15803d 100%);
+            gap: 18px;
+            padding: 22px 24px 18px;
+            border-bottom: 1px solid #ecf1f6;
+            background:
+                radial-gradient(circle at top right, rgba(34, 197, 94, 0.10), transparent 34%),
+                linear-gradient(180deg, #f8fffa 0%, #f8fafc 100%);
             position: sticky;
             top: 0;
             z-index: 2;
@@ -2036,54 +2084,54 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         .access-modal-shell-title {
             display: flex;
             align-items: flex-start;
-            gap: 12px;
+            gap: 14px;
             min-width: 0;
         }
         .access-modal-shell-icon {
-            width: 38px;
-            height: 38px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.14);
-            border: 1px solid rgba(255, 255, 255, 0.28);
-            color: #ffffff;
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ecfdf5 0%, #dcfce7 100%);
+            border: 1px solid #bbf7d0;
+            color: #16a34a;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             flex: 0 0 auto;
-            font-size: 16px;
+            font-size: 18px;
+            box-shadow: 0 10px 20px rgba(22, 163, 74, 0.10);
         }
         .access-modal-shell-heading {
             margin: 0;
-            color: #ffffff;
-            font-size: 18px;
+            color: #0f172a;
+            font-size: 24px;
             font-weight: 900;
-            line-height: 1.15;
+            line-height: 1.1;
         }
         .access-modal-shell-copy {
-            margin-top: 4px;
-            color: rgba(255, 255, 255, 0.86);
-            font-size: 12px;
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 13px;
             font-weight: 600;
-            line-height: 1.4;
+            line-height: 1.5;
+            max-width: 560px;
         }
         .access-modal-close {
-            width: 36px;
-            height: 36px;
+            width: 40px;
+            height: 40px;
             border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            background: rgba(255, 255, 255, 0.12);
-            color: #ffffff;
+            border: 1px solid #dbe3ee;
+            background: rgba(255,255,255,0.92);
+            color: #475569;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             flex: 0 0 auto;
-            transition: all 0.18s ease;
         }
         .access-modal-close:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.4);
-            color: #ffffff;
+            background: #f8fafc;
+            color: #0f172a;
         }
         .access-modal-header-copy {
             display: grid;
@@ -2105,53 +2153,88 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         .access-user-chip {
             display: flex;
             align-items: center;
-            gap: 14px;
-            padding: 8px 10px;
-            border-radius: 14px;
-            background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%);
-            border: 1px solid #dcfce7;
-            margin-bottom: 10px;
+            gap: 16px;
+            padding: 14px 16px;
+            border-radius: 8px;
+            background:
+                radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.10), transparent 34%),
+                #ffffff;
+            border: 1px solid #bbf7d0;
+            margin-bottom: 14px;
         }
         .access-user-avatar {
-            width: 42px;
-            height: 42px;
+            width: 52px;
+            height: 52px;
             border-radius: 999px;
-            background: #166534;
-            color: #ffffff;
+            background: #ffffff;
+            color: #16a34a;
+            border: 2px solid #22c55e;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
+            font-size: 21px;
             font-weight: 900;
             flex: 0 0 auto;
+            position: relative;
+        }
+        .access-user-avatar::after {
+            content: '';
+            position: absolute;
+            right: 1px;
+            bottom: 4px;
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #16a34a;
+            border: 2px solid #ffffff;
         }
         .access-user-name {
             font-size: 15px;
-            font-weight: 800;
+            font-weight: 900;
             color: #0f172a;
             line-height: 1.1;
         }
-        .access-user-email,
-        .access-user-role {
+        .access-user-email {
             color: #64748b;
             font-size: 12px;
-            font-weight: 600;
-            line-height: 1.2;
+            font-weight: 700;
+            line-height: 1.3;
+            margin-top: 2px;
+        }
+        .access-user-role {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .access-user-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 22px;
+            padding: 3px 9px;
+            border-radius: 6px;
+            border: 1px solid #dcfce7;
+            background: #f0fdf4;
+            color: #16a34a;
+            font-size: 10px;
+            font-weight: 900;
         }
         .access-sections {
             display: grid;
-            gap: 8px;
+            gap: 12px;
         }
         .access-section {
             border: 1px solid #e2e8f0;
-            border-radius: 12px;
+            border-radius: 8px;
             background: #ffffff;
             overflow: hidden;
         }
         .access-section-head {
-            padding: 8px 10px;
+            padding: 12px 14px;
             border-bottom: 1px solid #ecf0f4;
-            background: #f8fafc;
+            background: #ffffff;
             font-size: 11px;
             font-weight: 800;
             text-transform: uppercase;
@@ -2167,7 +2250,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            padding: 8px 10px;
+            padding: 11px 14px;
             border-top: 1px solid #f1f5f9;
         }
         .access-toggle-row:first-child {
@@ -2193,8 +2276,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         .switch {
             position: relative;
             display: inline-flex;
-            width: 54px;
-            height: 30px;
+            width: 34px;
+            height: 20px;
             flex: 0 0 auto;
         }
         .switch input {
@@ -2214,20 +2297,20 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         .switch-slider::before {
             content: '';
             position: absolute;
-            width: 24px;
-            height: 24px;
+            width: 14px;
+            height: 14px;
             left: 3px;
             top: 3px;
             border-radius: 50%;
             background: #ffffff;
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.16);
             transition: transform 0.2s ease;
         }
         .switch input:checked + .switch-slider {
             background: #16a34a;
         }
         .switch input:checked + .switch-slider::before {
-            transform: translateX(24px);
+            transform: translateX(14px);
         }
         .switch input:focus-visible + .switch-slider {
             box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.18);
@@ -2267,56 +2350,52 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 #ffffff;
         }
         .access-modal-shell-header {
-            padding: 24px 30px;
-            min-height: 108px;
-            align-items: center;
-            background: #16521f;
+            padding: 22px 24px 18px;
+            min-height: 0;
+            align-items: flex-start;
         }
         .access-modal-shell-title {
-            align-items: center;
-            gap: 18px;
+            align-items: flex-start;
+            gap: 14px;
         }
         .access-modal-shell-icon {
-            width: 58px;
-            height: 58px;
-            border-radius: 50%;
-            font-size: 24px;
-            background: rgba(255, 255, 255, 0.14);
-            border-color: rgba(255, 255, 255, 0.16);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            font-size: 18px;
         }
         .access-modal-shell-heading {
-            font-size: 22px;
-            letter-spacing: -0.02em;
+            font-size: 24px;
+            letter-spacing: 0;
         }
         .access-modal-shell-copy {
-            max-width: 520px;
+            max-width: 560px;
             font-size: 13px;
-            line-height: 1.35;
+            line-height: 1.5;
         }
         .access-modal-close {
-            width: 38px;
-            height: 38px;
-            border-radius: 14px;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
         }
         .access-user-chip {
-            padding: 16px 18px;
-            border-radius: 18px;
-            border-color: #d6f4df;
-            margin-bottom: 20px;
+            padding: 14px 16px;
+            border-radius: 8px;
+            border-color: #bbf7d0;
+            margin-bottom: 14px;
             background:
                 radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.10), transparent 32%),
-                linear-gradient(135deg, #f8fffb 0%, #ffffff 100%);
+                #ffffff;
         }
         .access-user-avatar {
             width: 52px;
             height: 52px;
-            font-size: 19px;
-            background: linear-gradient(135deg, #15803d, #166534);
-            box-shadow: 0 12px 24px rgba(22, 101, 52, 0.18);
+            font-size: 21px;
+            background: #ffffff;
+            box-shadow: none;
         }
         .access-user-name {
-            font-size: 16px;
+            font-size: 15px;
         }
         .access-user-email,
         .access-user-role {
@@ -2336,27 +2415,27 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         }
         .access-section {
             border-color: #dbe5ee;
-            border-radius: 14px;
-            box-shadow: 0 14px 34px rgba(15, 23, 42, 0.05);
+            border-radius: 8px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
         }
         .access-section-head {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 14px 16px;
+            padding: 12px 14px;
             min-height: 58px;
-            background: linear-gradient(180deg, #fbfefd 0%, #f8fafc 100%);
+            background: #ffffff;
         }
         .access-section-icon {
-            width: 34px;
-            height: 34px;
-            border-radius: 10px;
+            width: 28px;
+            height: 28px;
+            border-radius: 7px;
             background: #dcfce7;
             color: #15803d;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
+            font-size: 12px;
             flex: 0 0 auto;
         }
         .access-section-title {
@@ -2379,27 +2458,27 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             line-height: 1.25;
         }
         .access-toggle-row {
-            min-height: 58px;
-            padding: 12px 16px;
+            min-height: 54px;
+            padding: 11px 14px;
         }
         .access-toggle-title {
-            font-size: 14px;
+            font-size: 13px;
         }
         .access-toggle-meta {
             font-size: 11px;
         }
         .access-modal-actions {
             margin: 22px -24px 0;
-            padding: 20px 24px;
+            padding: 18px 24px;
             border-top: 1px solid #e5e7eb;
             background: #ffffff;
         }
         #saveUserAccess {
-            background: #123f1b;
-            box-shadow: 0 12px 24px rgba(18, 63, 27, 0.18);
+            background: #166534;
+            box-shadow: 0 10px 22px rgba(22, 101, 52, 0.20);
         }
         #saveUserAccess:hover {
-            background: #0f3517;
+            background: #14532d;
         }
         @media (max-width: 980px) {
             .admin-mgmt-grid { grid-template-columns: 1fr; }
@@ -2513,10 +2592,10 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 align-items: flex-start;
             }
             .access-modal-shell-header {
-                padding: 14px;
+                padding: 18px 18px 14px;
             }
             .access-modal-shell-heading {
-                font-size: 18px;
+                font-size: 20px;
             }
             .access-modal-actions {
                 flex-direction: column-reverse;
@@ -2723,7 +2802,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             max-width: 100%;
             padding: 8px 10px;
             font-size: 12px;
-            border-radius: 8px;
+            border-radius: 12px;
             gap: 6px;
         }
 
@@ -3029,9 +3108,10 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                                     <div class="edit-select-menu" role="listbox"></div>
                                 </div>
                                 <div class="edit-select-wrap users-filter-select-wrap users-dept-filter-wrap" data-edit-select="users-dept">
+                                    <?php $users_dept_options = array_values(array_unique(array_filter(array_merge($lapc_department_options, $mhc_department_options)))); ?>
                                     <select class="domain-select users-dept-filter" id="usersDept" tabindex="-1">
                                         <option value="all" selected>All Departments</option>
-                                        <?php foreach ($lapc_department_options as $d): ?>
+                                        <?php foreach ($users_dept_options as $d): ?>
                                             <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
                                         <?php endforeach; ?>
                                     </select>
@@ -3147,13 +3227,18 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                             <div class="form-field-stack">
                                 <div class="username-row">
                                     <input type="text" class="form-control" name="username" id="username" placeholder="juan.delacruz" required>
-                                    <select class="domain-select" name="domain" id="domain" required>
-                                        <?php foreach ($company_domain_options as $opt => $label): ?>
-                                            <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>" <?= $opt === '@leadsagri.com' ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars(company_domain_option_label($opt, $label), ENT_QUOTES, 'UTF-8'); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                    <div class="edit-select-wrap" data-edit-select="add-user-domain">
+                                        <select class="domain-select" name="domain" id="domain" required tabindex="-1">
+                                            <option value="" disabled selected hidden>Select Company</option>
+                                            <?php foreach ($company_domain_options as $opt => $label): ?>
+                                                <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>">
+                                                    <?= htmlspecialchars(company_domain_option_label($opt, $label), ENT_QUOTES, 'UTF-8'); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">Select Company</button>
+                                        <div class="edit-select-menu" role="listbox"></div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -3161,9 +3246,13 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                             <div class="form-field-stack">
                                 <div class="fullname-row">
                                     <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required inputmode="text" autocomplete="off">
-                                    <select class="domain-select" name="department" id="newDept" aria-label="Department" required disabled>
-                                        <option value="">Select Company First</option>
-                                    </select>
+                                    <div class="edit-select-wrap" data-edit-select="add-user-department">
+                                        <select class="domain-select" name="department" id="newDept" aria-label="Department" required disabled tabindex="-1">
+                                            <option value="">Select Company First</option>
+                                        </select>
+                                        <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false" disabled>Select Company First</button>
+                                        <div class="edit-select-menu" role="listbox"></div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -3207,7 +3296,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
 
                         <div class="form-actions">
                             <button type="button" class="btn btn-secondary" id="cancelAddUser">Cancel</button>
-                            <button type="submit" class="btn btn-primary" id="createUserBtn">Create User</button>
+                            <button type="submit" class="btn btn-primary" id="createUserBtn">
+                                <span>Create User</span>
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -3511,7 +3602,16 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         if (!companyEl || !deptEl) return;
 
         var selectedCompany = String(companyEl.value || '').trim();
-        var departments = companyDepartments[selectedCompany] || [];
+        if (!selectedCompany && companyEl.options && companyEl.selectedIndex >= 0 && companyEl.options[companyEl.selectedIndex]) {
+            selectedCompany = String(companyEl.options[companyEl.selectedIndex].value || '').trim();
+        }
+
+        var departmentKey = Object.prototype.hasOwnProperty.call(companyDepartments, selectedCompany)
+            ? selectedCompany
+            : Object.keys(companyDepartments).find(function (key) {
+                return String(key || '').toLowerCase() === selectedCompany.toLowerCase();
+            });
+        var departments = departmentKey ? (companyDepartments[departmentKey] || []) : [];
         var html = '';
 
         if (!selectedCompany) {
@@ -3523,7 +3623,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             deptEl.disabled = true;
             deptEl.required = false;
         } else {
-            html = departments.map(function (department) {
+            html = '<option value="">Select department</option>' + departments.map(function (department) {
                 return '<option value="' + escapeHtml(String(department)) + '">' + escapeHtml(String(department)) + '</option>';
             }).join('');
             deptEl.disabled = false;
@@ -3535,6 +3635,10 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             deptEl.value = '';
         } else if (departments.length) {
             deptEl.selectedIndex = 0;
+        }
+        if (typeof refreshEditSelect === 'function') {
+            refreshEditSelect(companyEl);
+            refreshEditSelect(deptEl);
         }
     }
 
@@ -3696,14 +3800,28 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         var deptEl = document.getElementById('usersDept');
         var companyEl = document.getElementById('usersCompany');
         if (!deptEl || !companyEl) return;
-        var isLapc = companyEl.value === '@leadsagri.com';
+        var company = String(companyEl.value || '').trim();
+        var deptKey = Object.prototype.hasOwnProperty.call(companyDepartments, company)
+            ? company
+            : Object.keys(companyDepartments).find(function (k) { return String(k || '').toLowerCase() === company.toLowerCase(); });
+        var departments = deptKey ? (companyDepartments[deptKey] || []) : [];
         var deptWrap = deptEl.closest ? deptEl.closest('.edit-select-wrap') : null;
-        deptEl.classList.toggle('is-hidden', !isLapc);
-        if (deptWrap) deptWrap.classList.toggle('is-hidden', !isLapc);
-        deptEl.disabled = !isLapc;
-        if (!isLapc) {
-            deptEl.value = 'all';
+        var show = !!(departments && departments.length);
+        var html = '<option value="">All Departments</option>';
+        if (show) {
+            html += departments.map(function (d) {
+                return '<option value="' + escapeHtml(String(d)) + '">' + escapeHtml(String(d)) + '</option>';
+            }).join('');
+            deptEl.disabled = false;
+        } else {
+            deptEl.disabled = true;
         }
+
+        deptEl.innerHTML = html;
+        if (deptWrap) deptWrap.classList.toggle('is-hidden', !show);
+        deptEl.classList.toggle('is-hidden', !show);
+
+        if (typeof refreshEditSelect === 'function') refreshEditSelect(deptEl);
     }
 
     function renderItEmployees(list) {
@@ -3910,9 +4028,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             if (!modal) return;
             modal.classList.add('show');
             modal.setAttribute('aria-hidden', 'false');
-            updateDepartmentDropdown();
-            var fullName = document.getElementById('fullName');
-            if (fullName) fullName.focus();
+            syncAddUserDepartmentDropdown();
+            var username = document.getElementById('username');
+            if (username) username.focus();
         }
         function closeModal() {
             if (!modal) return;
@@ -4047,6 +4165,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             trigger.disabled = !!selectEl.disabled;
             menu.innerHTML = Array.prototype.slice.call(selectEl.options).map(function (option, index) {
                 if (selectEl.id === 'usersCompany' && String(option.value || '') === 'all') return '';
+                if (option.disabled && option.hidden) return '';
                 var selected = option.selected ? ' is-selected' : '';
                 return '<div class="edit-select-option' + selected + '" role="option" aria-selected="' + (option.selected ? 'true' : 'false') + '" data-index="' + index + '">' + escapeHtml(String(option.textContent || '')) + '</div>';
             }).join('');
@@ -4055,8 +4174,15 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         function refreshEditSelects() {
             refreshEditSelect(editUserCompany);
             refreshEditSelect(editUserDepartment);
+            refreshEditSelect(document.getElementById('domain'));
+            refreshEditSelect(document.getElementById('newDept'));
             refreshEditSelect(document.getElementById('usersCompany'));
             refreshEditSelect(document.getElementById('usersDept'));
+        }
+        function syncAddUserDepartmentDropdown() {
+            updateDepartmentDropdown();
+            refreshEditSelect(document.getElementById('domain'));
+            refreshEditSelect(document.getElementById('newDept'));
         }
         function initEditSelect(selectEl) {
             if (!selectEl) return;
@@ -4083,6 +4209,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 if (!Number.isFinite(index) || !selectEl.options[index]) return;
                 selectEl.selectedIndex = index;
                 selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                if (selectEl.id === 'domain') {
+                    syncAddUserDepartmentDropdown();
+                }
                 refreshEditSelect(selectEl);
                 closeEditSelectMenus();
             });
@@ -4464,6 +4593,12 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                             .filter(Boolean)
                             .join(' • ');
                     }
+                    if (accessUserRole) {
+                        accessUserRole.innerHTML = [
+                            displayRole ? '<span class="access-user-pill"><i class="fas fa-user"></i>Role: ' + escapeHtml(displayRole) + '</span>' : '',
+                            displayDepartment ? '<span class="access-user-pill"><i class="fas fa-border-all"></i>Department: ' + escapeHtml(displayDepartment) + '</span>' : ''
+                        ].filter(Boolean).join('');
+                    }
                     if (accessUserAvatar) {
                         accessUserAvatar.textContent = displayName ? displayName.trim().charAt(0).toUpperCase() : '?';
                     }
@@ -4491,6 +4626,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         }
         initEditSelect(editUserCompany);
         initEditSelect(editUserDepartment);
+        initEditSelect(document.getElementById('domain'));
+        initEditSelect(document.getElementById('newDept'));
         initEditSelect(document.getElementById('usersCompany'));
         initEditSelect(document.getElementById('usersDept'));
         refreshEditSelects();
@@ -4577,9 +4714,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         }
         var domainSelect = document.getElementById('domain');
         if (domainSelect) {
-            domainSelect.addEventListener('change', updateDepartmentDropdown);
+            domainSelect.addEventListener('change', syncAddUserDepartmentDropdown);
         }
-        updateDepartmentDropdown();
+        syncAddUserDepartmentDropdown();
 
         var autoBtn = document.getElementById('autoGenerateBtn');
         var passEl = document.getElementById('newPassword');
@@ -4607,14 +4744,14 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         if (cancelBtn && form) {
             cancelBtn.addEventListener('click', function () {
                 form.reset();
-                updateDepartmentDropdown();
+                syncAddUserDepartmentDropdown();
                 closeModal();
             });
         }
         if (closeAddUserBtn && form) {
             closeAddUserBtn.addEventListener('click', function () {
                 form.reset();
-                updateDepartmentDropdown();
+                syncAddUserDepartmentDropdown();
                 closeModal();
             });
         }
@@ -4711,6 +4848,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 usernameEl.value = String(usernameEl.value || '')
                     .trim()
                     .toLowerCase();
+                syncAddUserDepartmentDropdown();
             }
             function normalizeFullName() {
                 if (!fullNameEl) return '';
@@ -4814,6 +4952,11 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 }
                 normalizeEmailInputs();
                 var normalizedUsername = String(username.value || '').trim().toLowerCase();
+                if (!String(domain.value || '').trim()) {
+                    showCreateUserError('Company required', 'Please select a company for this user.');
+                    domain.focus();
+                    return;
+                }
                 var emailAddress = normalizedUsername + String(domain.value || '');
                 if (!validEmailLocalPart(normalizedUsername) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailAddress)) {
                     showCreateUserError('Invalid email', 'Please enter a valid email address.');
@@ -4834,7 +4977,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 var fd = new FormData(addUserForm);
                 fd.set('full_name', normalizedName);
                 fd.set('username', normalizedUsername);
-                fd.set('domain', domain.value || '@leadsagri.com');
+                fd.set('domain', domain.value || '');
                 fd.set('password', password.value || '');
                 if (deptEl) fd.set('department', deptEl.disabled ? '' : (deptEl.value || ''));
 

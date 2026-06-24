@@ -334,25 +334,24 @@ $selected_sub_category = $current_sub_category;
             gap: 12px;
         }
         .btn-back {
-            background-color: white;
-            color: #374151;
-            border: 1px solid #D1D5DB;
+            background: #166534;
+            color: #ffffff;
+            border: none;
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 700;
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 10px 16px;
-            border-radius: 10px;
-            transition: all 0.2s ease;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            padding: 13px 20px;
+            border-radius: 14px;
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.28);
         }
         .btn-back:hover {
-            background-color: #10B981;
-            border-color: #059669;
-            color: white;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.4);
+            color: #ffffff;
+            transform: translateY(-2px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.32);
         }
         .form-group {
             margin-bottom: 30px;
@@ -377,6 +376,123 @@ $selected_sub_category = $current_sub_category;
             border-color: #3B82F6;
             outline: none;
             box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+        .kb-edit-select-wrap {
+            position: relative;
+            width: 100%;
+        }
+        .kb-edit-select-wrap.is-open {
+            z-index: 20;
+        }
+        .kb-edit-select-wrap .form-control {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .kb-edit-select-trigger {
+            width: 100%;
+            min-height: 52px;
+            padding: 0 44px 0 18px;
+            border: 2px solid #5fa463;
+            border-radius: 16px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 15px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+        .kb-edit-select-trigger::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #0f172a;
+            font-size: 12px;
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+        .kb-edit-select-wrap.is-open .kb-edit-select-trigger {
+            border-color: #166534;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+        }
+        .kb-edit-select-wrap.is-open .kb-edit-select-trigger::after {
+            transform: translateY(-50%) rotate(180deg);
+            color: #166534;
+        }
+        .kb-edit-select-trigger:disabled {
+            background: #f8fafc;
+            border-color: #d9dee8;
+            color: #94a3b8;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        .kb-edit-select-trigger:disabled::after {
+            color: #94a3b8;
+        }
+        .kb-edit-select-menu {
+            position: absolute;
+            z-index: 12020;
+            top: calc(100% + 7px);
+            left: 0;
+            right: 0;
+            display: none;
+            max-height: 260px;
+            overflow-y: auto;
+            padding: 7px 0;
+            background: #ffffff;
+            border: 2px solid #5fa463;
+            border-radius: 15px;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+        .kb-edit-select-menu::-webkit-scrollbar { width: 10px; }
+        .kb-edit-select-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+        .kb-edit-select-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+        .kb-edit-select-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        .kb-edit-select-wrap.is-open .kb-edit-select-menu {
+            display: block;
+        }
+        .kb-edit-select-option {
+            width: 100%;
+            min-height: 42px;
+            padding: 10px 18px;
+            border: 0;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 15px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        .kb-edit-select-option:hover,
+        .kb-edit-select-option.is-selected {
+            background: #166534;
+            color: #ffffff;
         }
         .custom-category-field {
             margin-top: 12px;
@@ -882,26 +998,34 @@ $selected_sub_category = $current_sub_category;
 
                         <div class="form-group">
                             <label class="form-label">Department</label>
-                            <select name="category" class="form-control" id="kb-edit-category-select" required>
-                                <option value="" disabled selected hidden>Select Department</option>
-                                <?php if ($is_legacy_category): ?>
-                                    <option value="<?= htmlspecialchars($current_category, ENT_QUOTES, 'UTF-8') ?>" selected>
-                                        <?= htmlspecialchars($current_category, ENT_QUOTES, 'UTF-8') ?>
-                                    </option>
-                                <?php endif; ?>
-                                <?php foreach ($categories as $cat): ?>
-                                    <option value="<?= htmlspecialchars($cat) ?>" <?= $selected_category === $cat ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($cat) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <div class="kb-edit-select-wrap" data-kb-edit-select>
+                                <select name="category" class="form-control" id="kb-edit-category-select" required tabindex="-1">
+                                    <option value="" disabled selected hidden>Select Department</option>
+                                    <?php if ($is_legacy_category): ?>
+                                        <option value="<?= htmlspecialchars($current_category, ENT_QUOTES, 'UTF-8') ?>" selected>
+                                            <?= htmlspecialchars($current_category, ENT_QUOTES, 'UTF-8') ?>
+                                        </option>
+                                    <?php endif; ?>
+                                    <?php foreach ($categories as $cat): ?>
+                                        <option value="<?= htmlspecialchars($cat) ?>" <?= $selected_category === $cat ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($cat) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <button type="button" class="kb-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">Select Department</button>
+                                <div class="kb-edit-select-menu" role="listbox"></div>
+                            </div>
                         </div>
 
                         <div class="form-group">
                             <label class="form-label">Category</label>
-                            <select name="sub_category" class="form-control" id="kb-edit-sub-category-select" required>
-                                <option value="" disabled selected hidden>Select department first</option>
-                            </select>
+                            <div class="kb-edit-select-wrap" data-kb-edit-select>
+                                <select name="sub_category" class="form-control" id="kb-edit-sub-category-select" required tabindex="-1">
+                                    <option value="" disabled selected hidden>Select department first</option>
+                                </select>
+                                <button type="button" class="kb-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">Select department first</button>
+                                <div class="kb-edit-select-menu" role="listbox"></div>
+                            </div>
                         </div>
 
                         <div class="form-group">
@@ -1089,6 +1213,93 @@ $selected_sub_category = $current_sub_category;
     const kbEditDepartmentSelect = document.getElementById('kb-edit-category-select');
     const kbEditSubCategorySelect = document.getElementById('kb-edit-sub-category-select');
 
+    function escapeKbEditSelectText(value) {
+        return String(value || '').replace(/[&<>"']/g, function(char) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[char];
+        });
+    }
+
+    function closeKbEditSelects(exceptWrap) {
+        document.querySelectorAll('.kb-edit-select-wrap.is-open').forEach(function(wrap) {
+            if (exceptWrap && wrap === exceptWrap) return;
+            wrap.classList.remove('is-open');
+            const trigger = wrap.querySelector('.kb-edit-select-trigger');
+            if (trigger) {
+                trigger.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    function refreshKbEditSelect(selectEl) {
+        if (!selectEl) return;
+        const wrap = selectEl.closest('.kb-edit-select-wrap');
+        if (!wrap) return;
+
+        const trigger = wrap.querySelector('.kb-edit-select-trigger');
+        const menu = wrap.querySelector('.kb-edit-select-menu');
+        const selectedOption = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+        const fallbackText = selectedOption ? selectedOption.textContent.trim() : 'Select';
+
+        if (trigger) {
+            trigger.textContent = fallbackText;
+            trigger.disabled = selectEl.disabled;
+            trigger.setAttribute('aria-disabled', selectEl.disabled ? 'true' : 'false');
+        }
+
+        if (!menu) return;
+
+        menu.innerHTML = Array.from(selectEl.options).map(function(option, index) {
+            if (option.hidden && option.disabled && option.value === '') {
+                return '';
+            }
+            const isSelected = index === selectEl.selectedIndex;
+            return '<button type="button" class="kb-edit-select-option' + (isSelected ? ' is-selected' : '') + '" role="option" data-index="' + index + '" aria-selected="' + (isSelected ? 'true' : 'false') + '">' + escapeKbEditSelectText(option.textContent.trim()) + '</button>';
+        }).join('');
+    }
+
+    function initKbEditSelect(selectEl) {
+        const wrap = selectEl.closest('.kb-edit-select-wrap');
+        if (!wrap) return;
+
+        const trigger = wrap.querySelector('.kb-edit-select-trigger');
+        const menu = wrap.querySelector('.kb-edit-select-menu');
+        if (!trigger || !menu) return;
+
+        refreshKbEditSelect(selectEl);
+
+        trigger.addEventListener('click', function(event) {
+            event.stopPropagation();
+            if (selectEl.disabled) return;
+            const shouldOpen = !wrap.classList.contains('is-open');
+            closeKbEditSelects(shouldOpen ? wrap : null);
+            wrap.classList.toggle('is-open', shouldOpen);
+            trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        });
+
+        menu.addEventListener('click', function(event) {
+            const optionButton = event.target.closest('.kb-edit-select-option');
+            if (!optionButton) return;
+
+            const optionIndex = Number(optionButton.getAttribute('data-index'));
+            if (Number.isNaN(optionIndex) || !selectEl.options[optionIndex]) return;
+
+            selectEl.selectedIndex = optionIndex;
+            refreshKbEditSelect(selectEl);
+            closeKbEditSelects();
+            selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        selectEl.addEventListener('change', function() {
+            refreshKbEditSelect(selectEl);
+        });
+    }
+
     function syncEditSubCategoryOptions(preferredValue) {
         if (!kbEditDepartmentSelect || !kbEditSubCategorySelect) return;
 
@@ -1122,7 +1333,12 @@ $selected_sub_category = $current_sub_category;
         }
 
         kbEditSubCategorySelect.disabled = !selectedDepartment;
+        refreshKbEditSelect(kbEditSubCategorySelect);
     }
+
+    document.querySelectorAll('[data-kb-edit-select] select').forEach(initKbEditSelect);
+    refreshKbEditSelect(kbEditDepartmentSelect);
+    refreshKbEditSelect(kbEditSubCategorySelect);
 
     if (kbEditDepartmentSelect) {
         kbEditDepartmentSelect.addEventListener('change', function() {
@@ -1130,6 +1346,18 @@ $selected_sub_category = $current_sub_category;
         });
         syncEditSubCategoryOptions(kbEditCurrentSubCategory);
     }
+
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('.kb-edit-select-wrap')) {
+            closeKbEditSelects();
+        }
+    });
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && document.querySelector('.kb-edit-select-wrap.is-open')) {
+            closeKbEditSelects();
+        }
+    });
 
     const removedExistingImages = new Set();
 
