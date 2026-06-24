@@ -826,20 +826,22 @@ function conference_admin_booking_status_text(string $status): string
         .conference-filter-reset {
             min-width: 78px;
             height: 44px;
-            border-radius: 14px;
-            border: 1px solid #d7dee8;
+            border-radius: 16px;
+            border: 2px solid #5fa463;
             background: #ffffff;
-            color: #475569;
+            color: #166534;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
         }
         .conference-filter-reset:hover {
-            border-color: #7fb78d;
+            border-color: #166534;
             color: #14532d;
             background: #f8fff9;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
         }
         .conference-search {
             position: relative;
@@ -886,10 +888,11 @@ function conference_admin_booking_status_text(string $status): string
             align-items: center;
             min-height: 44px;
             min-width: 168px;
-            border: 1px solid #7fb78d;
+            border: 2px solid #5fa463;
             border-radius: 16px;
             background: #ffffff;
             overflow: hidden;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
         }
         .conference-date-input {
             width: 100%;
@@ -917,10 +920,11 @@ function conference_admin_booking_status_text(string $status): string
             color: #1f2937;
             background: #ffffff;
             min-width: 158px;
-            border: 1px solid #7fb78d;
+            border: 2px solid #5fa463;
             border-radius: 16px;
             z-index: 2;
             overflow: visible;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
         }
         .conference-filter-pill::before {
             content: none;
@@ -931,7 +935,7 @@ function conference_admin_booking_status_text(string $status): string
         .conference-filter-trigger {
             width: 100%;
             min-height: 44px;
-            padding: 0 14px;
+            padding: 0 42px 0 14px;
             border: none;
             background: #ffffff;
             color: #1f2937;
@@ -940,10 +944,11 @@ function conference_admin_booking_status_text(string $status): string
             justify-content: space-between;
             gap: 10px;
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 400;
             cursor: pointer;
             text-align: left;
             border-radius: 16px;
+            position: relative;
         }
         .conference-filter-trigger:hover {
             background: #ffffff;
@@ -952,24 +957,48 @@ function conference_admin_booking_status_text(string $status): string
             flex: 1 1 auto;
         }
         .conference-filter-caret {
-            color: #1f2937;
+            color: #166534;
             font-size: 14px;
             pointer-events: none;
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+        .conference-filter-trigger[aria-expanded="true"] .conference-filter-caret {
+            transform: translateY(-50%) rotate(180deg);
         }
         .conference-filter-menu {
             position: absolute;
-            top: calc(100% + 6px);
+            top: calc(100% + 7px);
             left: 0;
             right: 0;
-            padding: 0;
-            border-radius: 0 0 12px 12px;
-            border: 1px solid #cfd8e3;
+            padding: 7px 0;
+            border-radius: 15px;
+            border: 2px solid #5fa463;
             background: #ffffff;
-            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
             display: none;
             flex-direction: column;
             z-index: 60;
-            overflow: hidden;
+            overflow-y: auto;
+            max-height: 240px;
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+        .conference-filter-menu::-webkit-scrollbar { width: 10px; }
+        .conference-filter-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+        .conference-filter-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+        .conference-filter-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
         }
         .conference-filter-menu.is-open {
             display: flex;
@@ -980,8 +1009,8 @@ function conference_admin_booking_status_text(string $status): string
             background: #ffffff;
             color: #1f2937;
             border-radius: 0;
-            min-height: 42px;
-            padding: 9px 14px;
+            min-height: 36px;
+            padding: 8px 14px;
             font-size: 15px;
             font-weight: 400;
             line-height: 1.35;
@@ -990,11 +1019,11 @@ function conference_admin_booking_status_text(string $status): string
             transition: background 0.2s ease, color 0.2s ease;
         }
         .conference-filter-option + .conference-filter-option {
-            border-top: 1px solid #e5e7eb;
+            border-top: none;
         }
         .conference-filter-option:hover,
         .conference-filter-option.is-active {
-            background: #8b8b8b;
+            background: #166534;
             color: #ffffff;
         }
         .conference-table-wrap {
@@ -1419,6 +1448,105 @@ function conference_admin_booking_status_text(string $status): string
             color: #64748b;
             font-size: 13px;
             pointer-events: none;
+        }
+        .booking-edit-select-wrap {
+            position: relative;
+            width: 100%;
+        }
+        .booking-edit-select-wrap .room-input {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .booking-edit-select-trigger {
+            width: 100%;
+            min-height: 48px;
+            padding: 0 42px 0 14px;
+            border: 2px solid #5fa463;
+            border-radius: 15px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+        }
+        .booking-edit-select-trigger::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748b;
+            font-size: 12px;
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+        .booking-edit-select-wrap.is-open .booking-edit-select-trigger::after {
+            transform: translateY(-50%) rotate(180deg);
+            color: #166534;
+        }
+        .booking-edit-select-menu {
+            position: absolute;
+            z-index: 150;
+            top: calc(100% + 7px);
+            left: 0;
+            right: 0;
+            display: none;
+            max-height: 260px;
+            overflow-y: auto;
+            padding: 7px 0;
+            background: #ffffff;
+            border: 2px solid #5fa463;
+            border-radius: 14px;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+        .booking-edit-select-menu::-webkit-scrollbar { width: 10px; }
+        .booking-edit-select-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+        .booking-edit-select-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+        .booking-edit-select-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        .booking-edit-select-wrap.is-open .booking-edit-select-menu {
+            display: block;
+        }
+        .booking-edit-select-option {
+            width: 100%;
+            min-height: 34px;
+            padding: 8px 14px;
+            border: 0;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        .booking-edit-select-option:hover,
+        .booking-edit-select-option.is-selected {
+            background: #166534;
+            color: #ffffff;
         }
         .booking-edit-grid .room-form-group.room-form-group-full {
             grid-column: 1 / -1;
@@ -2311,26 +2439,36 @@ function conference_admin_booking_status_text(string $status): string
             border: 1px solid rgba(226, 232, 240, 0.92);
         }
         #manageRoomsModal .room-modal-header {
-            background: linear-gradient(135deg, #064e2f 0%, #065f36 100%);
-            border-bottom: none;
-            color: #ffffff;
+            background:
+                radial-gradient(circle at top right, rgba(34, 197, 94, 0.10), transparent 34%),
+                linear-gradient(180deg, #f8fffa 0%, #f8fafc 100%);
+            border-bottom: 1px solid #ecf1f6;
+            color: #0f172a;
         }
-        #manageRoomsModal .room-modal-copy h2,
-        #manageRoomsModal .room-modal-copy p {
-            color: #ffffff;
+        #manageRoomsModal .room-modal-copy h2 {
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #manageRoomsModal .room-modal-copy h2 i {
+            color: #16a34a;
+            font-size: 18px;
+            line-height: 1;
         }
         #manageRoomsModal .room-modal-copy p {
-            opacity: 0.9;
+            color: #64748b;
+            opacity: 1;
         }
         #manageRoomsModal .room-modal-close {
-            background: rgba(255, 255, 255, 0.96);
-            border-color: rgba(255, 255, 255, 0.7);
+            background: rgba(255, 255, 255, 0.92);
+            border-color: #dbe3ee;
             color: #475569;
-            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+            box-shadow: none;
         }
         #manageRoomsModal .room-modal-close:hover {
-            background: #ffffff;
-            border-color: #ffffff;
+            background: #f8fafc;
+            border-color: #dbe3ee;
             color: #0f172a;
         }
         #manageRoomsModal .room-modal-body {
@@ -3139,22 +3277,26 @@ function conference_admin_booking_status_text(string $status): string
                         <div class="booking-edit-grid">
                             <div class="room-form-group">
                                 <label for="bookingEditRoomId">Room</label>
-                                <select id="bookingEditRoomId" name="room_id" class="room-input" required>
-                                    <option value="">Select a room</option>
-                                    <?php foreach ($allRooms as $roomOption): ?>
-                                        <?php
-                                            $roomOptionId = (int) ($roomOption['id'] ?? 0);
-                                            $roomOptionName = trim((string) ($roomOption['room_name'] ?? ''));
-                                            $roomOptionActive = (int) ($roomOption['is_active'] ?? 0) === 1;
-                                        ?>
-                                        <option
-                                            value="<?php echo $roomOptionId; ?>"
-                                            <?php echo ((int) ($bookingFormState['room_id'] ?? 0) === $roomOptionId) ? 'selected' : ''; ?>
-                                        >
-                                            <?php echo htmlspecialchars($roomOptionName . ($roomOptionActive ? '' : ' (Inactive)'), ENT_QUOTES, 'UTF-8'); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <div class="booking-edit-select-wrap">
+                                    <select id="bookingEditRoomId" name="room_id" class="room-input" required tabindex="-1">
+                                        <option value="">Select a room</option>
+                                        <?php foreach ($allRooms as $roomOption): ?>
+                                            <?php
+                                                $roomOptionId = (int) ($roomOption['id'] ?? 0);
+                                                $roomOptionName = trim((string) ($roomOption['room_name'] ?? ''));
+                                                $roomOptionActive = (int) ($roomOption['is_active'] ?? 0) === 1;
+                                            ?>
+                                            <option
+                                                value="<?php echo $roomOptionId; ?>"
+                                                <?php echo ((int) ($bookingFormState['room_id'] ?? 0) === $roomOptionId) ? 'selected' : ''; ?>
+                                            >
+                                                <?php echo htmlspecialchars($roomOptionName . ($roomOptionActive ? '' : ' (Inactive)'), ENT_QUOTES, 'UTF-8'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">Select a room</button>
+                                    <div class="booking-edit-select-menu" role="listbox"></div>
+                                </div>
                             </div>
                             <div class="room-form-group">
                                 <label for="bookingEditDate">Booking Date</label>
@@ -3164,27 +3306,36 @@ function conference_admin_booking_status_text(string $status): string
                                 <label>Start Time</label>
                                 <div class="time-group">
                                     <div class="select-wrapper">
-                                        <select id="bookingEditStartHour" name="start_hour" class="room-input" required>
-                                            <?php foreach ($hourOptions as $hour): ?>
-                                                <option value="<?php echo $hour; ?>" <?php echo (string) $hour === (string) ($bookingStartParts['hour'] ?? '') ? 'selected' : ''; ?>><?php echo $hour; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditStartHour" name="start_hour" class="room-input" required tabindex="-1">
+                                                <?php foreach ($hourOptions as $hour): ?>
+                                                    <option value="<?php echo $hour; ?>" <?php echo (string) $hour === (string) ($bookingStartParts['hour'] ?? '') ? 'selected' : ''; ?>><?php echo $hour; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">1</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                     <div class="select-wrapper">
-                                        <select id="bookingEditStartMinute" name="start_minute" class="room-input" required>
-                                            <?php foreach ($minuteOptions as $minute): ?>
-                                                <option value="<?php echo $minute; ?>" <?php echo (string) $minute === (string) ($bookingStartParts['minute'] ?? '') ? 'selected' : ''; ?>><?php echo $minute; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditStartMinute" name="start_minute" class="room-input" required tabindex="-1">
+                                                <?php foreach ($minuteOptions as $minute): ?>
+                                                    <option value="<?php echo $minute; ?>" <?php echo (string) $minute === (string) ($bookingStartParts['minute'] ?? '') ? 'selected' : ''; ?>><?php echo $minute; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">00</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                     <div class="select-wrapper">
-                                        <select id="bookingEditStartPeriod" name="start_period" class="room-input" required>
-                                            <option value="AM" <?php echo strtoupper((string) ($bookingStartParts['period'] ?? '')) === 'AM' ? 'selected' : ''; ?>>AM</option>
-                                            <option value="PM" <?php echo strtoupper((string) ($bookingStartParts['period'] ?? '')) === 'PM' ? 'selected' : ''; ?>>PM</option>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditStartPeriod" name="start_period" class="room-input" required tabindex="-1">
+                                                <option value="AM" <?php echo strtoupper((string) ($bookingStartParts['period'] ?? '')) === 'AM' ? 'selected' : ''; ?>>AM</option>
+                                                <option value="PM" <?php echo strtoupper((string) ($bookingStartParts['period'] ?? '')) === 'PM' ? 'selected' : ''; ?>>PM</option>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">AM</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -3192,27 +3343,36 @@ function conference_admin_booking_status_text(string $status): string
                                 <label>End Time</label>
                                 <div class="time-group">
                                     <div class="select-wrapper">
-                                        <select id="bookingEditEndHour" name="end_hour" class="room-input" required>
-                                            <?php foreach ($hourOptions as $hour): ?>
-                                                <option value="<?php echo $hour; ?>" <?php echo (string) $hour === (string) ($bookingEndParts['hour'] ?? '') ? 'selected' : ''; ?>><?php echo $hour; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditEndHour" name="end_hour" class="room-input" required tabindex="-1">
+                                                <?php foreach ($hourOptions as $hour): ?>
+                                                    <option value="<?php echo $hour; ?>" <?php echo (string) $hour === (string) ($bookingEndParts['hour'] ?? '') ? 'selected' : ''; ?>><?php echo $hour; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">1</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                     <div class="select-wrapper">
-                                        <select id="bookingEditEndMinute" name="end_minute" class="room-input" required>
-                                            <?php foreach ($minuteOptions as $minute): ?>
-                                                <option value="<?php echo $minute; ?>" <?php echo (string) $minute === (string) ($bookingEndParts['minute'] ?? '') ? 'selected' : ''; ?>><?php echo $minute; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditEndMinute" name="end_minute" class="room-input" required tabindex="-1">
+                                                <?php foreach ($minuteOptions as $minute): ?>
+                                                    <option value="<?php echo $minute; ?>" <?php echo (string) $minute === (string) ($bookingEndParts['minute'] ?? '') ? 'selected' : ''; ?>><?php echo $minute; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">00</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                     <div class="select-wrapper">
-                                        <select id="bookingEditEndPeriod" name="end_period" class="room-input" required>
-                                            <option value="AM" <?php echo strtoupper((string) ($bookingEndParts['period'] ?? '')) === 'AM' ? 'selected' : ''; ?>>AM</option>
-                                            <option value="PM" <?php echo strtoupper((string) ($bookingEndParts['period'] ?? '')) === 'PM' ? 'selected' : ''; ?>>PM</option>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditEndPeriod" name="end_period" class="room-input" required tabindex="-1">
+                                                <option value="AM" <?php echo strtoupper((string) ($bookingEndParts['period'] ?? '')) === 'AM' ? 'selected' : ''; ?>>AM</option>
+                                                <option value="PM" <?php echo strtoupper((string) ($bookingEndParts['period'] ?? '')) === 'PM' ? 'selected' : ''; ?>>PM</option>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">AM</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -3242,7 +3402,7 @@ function conference_admin_booking_status_text(string $status): string
         <div class="room-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="roomModalTitle">
             <div class="room-modal-header">
                 <div class="room-modal-copy">
-                    <h2 id="roomModalTitle">Manage Conference Rooms</h2>
+                    <h2 id="roomModalTitle"><i class="fas fa-building" aria-hidden="true"></i><span>Manage Conference Rooms</span></h2>
                     <p>Add new conference rooms and update room details without leaving the conference bookings page.</p>
                 </div>
                 <button type="button" class="room-modal-close" data-room-modal-close aria-label="Close manage rooms modal">
@@ -3269,7 +3429,7 @@ function conference_admin_booking_status_text(string $status): string
                         aria-selected="<?php echo $openRoomModalView === 'form' ? 'true' : 'false'; ?>"
                         aria-controls="roomFormPanel"
                     >
-                        <i class="far fa-building" aria-hidden="true"></i>
+                        <i class="far fa-square-plus" aria-hidden="true"></i>
                         <span>Add Room</span>
                     </button>
                     <button
@@ -3281,7 +3441,7 @@ function conference_admin_booking_status_text(string $status): string
                         aria-selected="<?php echo $openRoomModalView === 'list' ? 'true' : 'false'; ?>"
                         aria-controls="roomListPanel"
                     >
-                        <i class="far fa-building" aria-hidden="true"></i>
+                        <i class="fas fa-door-closed" aria-hidden="true"></i>
                         <span>Conference Rooms</span>
                     </button>
                 </div>
@@ -3695,6 +3855,116 @@ function conference_admin_booking_status_text(string $status): string
                 return;
             }
 
+            function escapeBookingSelectText(value) {
+                return String(value || '').replace(/[&<>"']/g, function (char) {
+                    return {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#039;'
+                    }[char];
+                });
+            }
+
+            function closeBookingEditSelects(exceptWrap) {
+                document.querySelectorAll('.booking-edit-select-wrap.is-open').forEach(function (wrap) {
+                    if (exceptWrap && wrap === exceptWrap) {
+                        return;
+                    }
+                    wrap.classList.remove('is-open');
+                    const trigger = wrap.querySelector('.booking-edit-select-trigger');
+                    if (trigger) {
+                        trigger.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            }
+
+            function refreshBookingEditSelect(selectEl) {
+                if (!selectEl) {
+                    return;
+                }
+
+                const wrap = selectEl.closest('.booking-edit-select-wrap');
+                if (!wrap) {
+                    return;
+                }
+
+                const trigger = wrap.querySelector('.booking-edit-select-trigger');
+                const menu = wrap.querySelector('.booking-edit-select-menu');
+                const selectedOption = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+
+                if (trigger && selectedOption) {
+                    trigger.textContent = selectedOption.textContent.trim();
+                }
+
+                if (!menu) {
+                    return;
+                }
+
+                menu.innerHTML = Array.from(selectEl.options).map(function (option, index) {
+                    const optionText = option.textContent.trim();
+                    const isSelected = index === selectEl.selectedIndex;
+                    return '<button type="button" class="booking-edit-select-option' + (isSelected ? ' is-selected' : '') + '" role="option" data-index="' + index + '" aria-selected="' + (isSelected ? 'true' : 'false') + '">' + escapeBookingSelectText(optionText) + '</button>';
+                }).join('');
+            }
+
+            function refreshBookingEditSelects() {
+                [
+                    bookingEditRoomId,
+                    bookingEditStartHour,
+                    bookingEditStartMinute,
+                    bookingEditStartPeriod,
+                    bookingEditEndHour,
+                    bookingEditEndMinute,
+                    bookingEditEndPeriod
+                ].forEach(refreshBookingEditSelect);
+            }
+
+            function initBookingEditSelect(selectEl) {
+                const wrap = selectEl.closest('.booking-edit-select-wrap');
+                if (!wrap) {
+                    return;
+                }
+
+                const trigger = wrap.querySelector('.booking-edit-select-trigger');
+                const menu = wrap.querySelector('.booking-edit-select-menu');
+                if (!trigger || !menu) {
+                    return;
+                }
+
+                refreshBookingEditSelect(selectEl);
+
+                trigger.addEventListener('click', function (event) {
+                    event.stopPropagation();
+                    const shouldOpen = !wrap.classList.contains('is-open');
+                    closeBookingEditSelects(shouldOpen ? wrap : null);
+                    wrap.classList.toggle('is-open', shouldOpen);
+                    trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+                });
+
+                menu.addEventListener('click', function (event) {
+                    const optionButton = event.target.closest('.booking-edit-select-option');
+                    if (!optionButton) {
+                        return;
+                    }
+
+                    const optionIndex = Number(optionButton.getAttribute('data-index'));
+                    if (Number.isNaN(optionIndex) || !selectEl.options[optionIndex]) {
+                        return;
+                    }
+
+                    selectEl.selectedIndex = optionIndex;
+                    refreshBookingEditSelect(selectEl);
+                    closeBookingEditSelects();
+                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+
+                selectEl.addEventListener('change', function () {
+                    refreshBookingEditSelect(selectEl);
+                });
+            }
+
             function syncBodyModalState() {
                 const hasOpenOverlay =
                     modal.classList.contains('is-open') ||
@@ -3751,6 +4021,7 @@ function conference_admin_booking_status_text(string $status): string
             }
 
             function closeBookingEditDialog() {
+                closeBookingEditSelects();
                 bookingEditModal.classList.remove('is-open');
                 bookingEditModal.setAttribute('aria-hidden', 'true');
                 syncBodyModalState();
@@ -3767,6 +4038,7 @@ function conference_admin_booking_status_text(string $status): string
                 bookingEditEndMinute.value = String(data.end_minute || '');
                 bookingEditEndPeriod.value = String(data.end_period || 'AM').toUpperCase();
                 bookingEditPurpose.value = String(data.purpose || '');
+                refreshBookingEditSelects();
             }
 
             function openBookingActionConfirm(mode, bookingId, roomName, bookingDate, bookingTime) {
@@ -4562,6 +4834,9 @@ function conference_admin_booking_status_text(string $status): string
                 }
             });
 
+            document.querySelectorAll('.booking-edit-select-wrap select').forEach(initBookingEditSelect);
+            refreshBookingEditSelects();
+
             roomFilterButtons.forEach(function (button) {
                 button.addEventListener('click', function () {
                     if (!bookingSearchInput) {
@@ -4598,9 +4873,16 @@ function conference_admin_booking_status_text(string $status): string
                 if (!event.target.closest('[data-filter-dropdown]')) {
                     closeFilterDropdowns();
                 }
+                if (!event.target.closest('.booking-edit-select-wrap')) {
+                    closeBookingEditSelects();
+                }
             });
 
             document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && document.querySelector('.booking-edit-select-wrap.is-open')) {
+                    closeBookingEditSelects();
+                    return;
+                }
                 if (event.key === 'Escape' && bookingDeleteConfirm.classList.contains('is-open')) {
                     closeBookingDeleteConfirm();
                     return;

@@ -1494,6 +1494,140 @@ unset($recent_articles_query['recent_page']);
             box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
         }
 
+        .kb-select-wrap {
+            position: relative;
+            width: 100%;
+        }
+
+        .kb-select-wrap.is-open {
+            z-index: 20;
+        }
+
+        .kb-select-wrap .form-control {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .kb-select-trigger {
+            width: 100%;
+            min-height: 52px;
+            padding: 0 44px 0 18px;
+            border: 2px solid #5fa463;
+            border-radius: 16px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 15px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        .kb-select-trigger::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #0f172a;
+            font-size: 12px;
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+
+        .kb-select-wrap.is-open .kb-select-trigger {
+            border-color: #166534;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+        }
+
+        .kb-select-wrap.is-open .kb-select-trigger::after {
+            transform: translateY(-50%) rotate(180deg);
+            color: #166534;
+        }
+
+        .kb-select-trigger:disabled {
+            background: #f8fafc;
+            border-color: #d9dee8;
+            color: #94a3b8;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        .kb-select-trigger:disabled::after {
+            color: #94a3b8;
+        }
+
+        .kb-select-menu {
+            position: absolute;
+            z-index: 12020;
+            top: calc(100% + 7px);
+            left: 0;
+            right: 0;
+            display: none;
+            max-height: 220px;
+            overflow-y: auto;
+            padding: 7px 0;
+            background: #ffffff;
+            border: 2px solid #5fa463;
+            border-radius: 15px;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+
+        .kb-select-menu::-webkit-scrollbar { width: 10px; }
+
+        .kb-select-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+
+        .kb-select-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+
+        .kb-select-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        .kb-select-wrap.is-open .kb-select-menu {
+            display: block;
+        }
+
+        .kb-select-option {
+            width: 100%;
+            min-height: 36px;
+            padding: 8px 18px;
+            border: 0;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 15px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        .kb-select-option:hover,
+        .kb-select-option.is-selected {
+            background: #166534;
+            color: #ffffff;
+        }
+
         input[type="file"].kb-file-input {
             padding: 10px 12px;
             border-radius: 14px;
@@ -2606,13 +2740,17 @@ unset($recent_articles_query['recent_page']);
 
                     <div class="form-group">
                         <label class="form-label">Department<span class="required-asterisk">*</span></label>
-                        <select name="category" class="form-control" id="kb-category-select" required>
-                            <option value="" disabled selected hidden>Select Department</option>
-                            <?php foreach ($categories as $cat): ?>
-                                <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
-                            <?php endforeach; ?>
-                            <option value="__other">Other</option>
-                        </select>
+                        <div class="kb-select-wrap" data-kb-select>
+                            <select name="category" class="form-control" id="kb-category-select" required tabindex="-1">
+                                <option value="" disabled selected hidden>Select Department</option>
+                                <?php foreach ($categories as $cat): ?>
+                                    <option value="<?= htmlspecialchars($cat) ?>"><?= htmlspecialchars($cat) ?></option>
+                                <?php endforeach; ?>
+                                <option value="__other">Other</option>
+                            </select>
+                            <button type="button" class="kb-select-trigger" aria-haspopup="listbox" aria-expanded="false">Select Department</button>
+                            <div class="kb-select-menu" role="listbox"></div>
+                        </div>
                         <input
                             type="text"
                             name="custom_department"
@@ -2625,14 +2763,19 @@ unset($recent_articles_query['recent_page']);
 
                     <div class="form-group">
                         <label class="form-label">Category</label>
-                        <select
-                            name="sub_category"
-                            id="kb-sub-category"
-                            class="form-control"
-                            disabled
-                        >
-                            <option value="" disabled selected hidden>Select department first</option>
-                        </select>
+                        <div class="kb-select-wrap" data-kb-select>
+                            <select
+                                name="sub_category"
+                                id="kb-sub-category"
+                                class="form-control"
+                                disabled
+                                tabindex="-1"
+                            >
+                                <option value="" disabled selected hidden>Select department first</option>
+                            </select>
+                            <button type="button" class="kb-select-trigger" aria-haspopup="listbox" aria-expanded="false" disabled>Select department first</button>
+                            <div class="kb-select-menu" role="listbox"></div>
+                        </div>
                         <input
                             type="text"
                             name="custom_sub_category"
@@ -3129,6 +3272,93 @@ document.addEventListener('click', function(e) {
     const kbKnownCompanyDepartments = <?= json_encode($kb_company_departments, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     let addImageDataTransfer = new DataTransfer();
 
+    function escapeKbSelectText(value) {
+        return String(value || '').replace(/[&<>"']/g, function(char) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[char];
+        });
+    }
+
+    function closeKbSelects(exceptWrap) {
+        document.querySelectorAll('.kb-select-wrap.is-open').forEach(function(wrap) {
+            if (exceptWrap && wrap === exceptWrap) return;
+            wrap.classList.remove('is-open');
+            const trigger = wrap.querySelector('.kb-select-trigger');
+            if (trigger) {
+                trigger.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    function refreshKbSelect(selectEl) {
+        if (!selectEl) return;
+        const wrap = selectEl.closest('.kb-select-wrap');
+        if (!wrap) return;
+
+        const trigger = wrap.querySelector('.kb-select-trigger');
+        const menu = wrap.querySelector('.kb-select-menu');
+        const selectedOption = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+        const fallbackText = selectedOption ? selectedOption.textContent.trim() : 'Select';
+
+        if (trigger) {
+            trigger.textContent = fallbackText;
+            trigger.disabled = selectEl.disabled;
+            trigger.setAttribute('aria-disabled', selectEl.disabled ? 'true' : 'false');
+        }
+
+        if (!menu) return;
+
+        menu.innerHTML = Array.from(selectEl.options).map(function(option, index) {
+            if (option.hidden && option.disabled && option.value === '') {
+                return '';
+            }
+            const isSelected = index === selectEl.selectedIndex;
+            return '<button type="button" class="kb-select-option' + (isSelected ? ' is-selected' : '') + '" role="option" data-index="' + index + '" aria-selected="' + (isSelected ? 'true' : 'false') + '">' + escapeKbSelectText(option.textContent.trim()) + '</button>';
+        }).join('');
+    }
+
+    function initKbSelect(selectEl) {
+        const wrap = selectEl.closest('.kb-select-wrap');
+        if (!wrap) return;
+
+        const trigger = wrap.querySelector('.kb-select-trigger');
+        const menu = wrap.querySelector('.kb-select-menu');
+        if (!trigger || !menu) return;
+
+        refreshKbSelect(selectEl);
+
+        trigger.addEventListener('click', function(event) {
+            event.stopPropagation();
+            if (selectEl.disabled) return;
+            const shouldOpen = !wrap.classList.contains('is-open');
+            closeKbSelects(shouldOpen ? wrap : null);
+            wrap.classList.toggle('is-open', shouldOpen);
+            trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        });
+
+        menu.addEventListener('click', function(event) {
+            const optionButton = event.target.closest('.kb-select-option');
+            if (!optionButton) return;
+
+            const optionIndex = Number(optionButton.getAttribute('data-index'));
+            if (Number.isNaN(optionIndex) || !selectEl.options[optionIndex]) return;
+
+            selectEl.selectedIndex = optionIndex;
+            refreshKbSelect(selectEl);
+            closeKbSelects();
+            selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+
+        selectEl.addEventListener('change', function() {
+            refreshKbSelect(selectEl);
+        });
+    }
+
     function setupKbContentEditor() {
         const editorShell = document.getElementById('kb-editor-shell');
         const toolbar = editorShell ? editorShell.querySelector('.kb-editor-toolbar') : null;
@@ -3316,6 +3546,11 @@ document.addEventListener('click', function(e) {
             kbSubCategory.disabled = true;
             kbSubCategory.required = false;
             kbSubCategory.style.display = 'none';
+            const subCategoryWrap = kbSubCategory.closest('.kb-select-wrap');
+            if (subCategoryWrap) {
+                subCategoryWrap.style.display = 'none';
+            }
+            refreshKbSelect(kbSubCategory);
             if (kbCustomSubCategory) {
                 kbCustomSubCategory.style.display = 'block';
                 kbCustomSubCategory.required = true;
@@ -3327,6 +3562,10 @@ document.addEventListener('click', function(e) {
             ? (kbDepartmentTicketCategories[resolvedDepartment] || kbDefaultTicketCategories)
             : [];
         kbSubCategory.style.display = 'block';
+        const subCategoryWrap = kbSubCategory.closest('.kb-select-wrap');
+        if (subCategoryWrap) {
+            subCategoryWrap.style.display = 'block';
+        }
         kbSubCategory.innerHTML = '';
 
         const placeholder = document.createElement('option');
@@ -3355,6 +3594,7 @@ document.addEventListener('click', function(e) {
 
         kbSubCategory.disabled = !resolvedDepartment;
         kbSubCategory.required = false;
+        refreshKbSelect(kbSubCategory);
         syncCustomSubCategoryVisibility();
     }
 
@@ -3381,6 +3621,22 @@ document.addEventListener('click', function(e) {
     if (kbSubCategory) {
         kbSubCategory.addEventListener('change', syncCustomSubCategoryVisibility);
     }
+
+    document.querySelectorAll('#addArticleModal [data-kb-select] select').forEach(initKbSelect);
+    refreshKbSelect(kbCategorySelect);
+    refreshKbSelect(kbSubCategory);
+
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('.kb-select-wrap')) {
+            closeKbSelects();
+        }
+    });
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && document.querySelector('.kb-select-wrap.is-open')) {
+            closeKbSelects();
+        }
+    });
 
     const kbAddForm = document.querySelector('#addArticleModal form');
     const kbPublishBtn = document.getElementById('kb-publish-btn');

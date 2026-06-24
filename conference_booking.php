@@ -1281,10 +1281,124 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
 
         body.conference-booking-public-page .availability-filter {
             min-width: 170px;
+            position: relative;
         }
 
         body.conference-booking-public-page .panel-header-actions .availability-filter {
             min-width: 190px;
+        }
+
+        body.conference-booking-public-page .availability-filter .availability-native-select {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        body.conference-booking-public-page .availability-select-trigger {
+            width: 100%;
+            min-height: 52px;
+            padding: 0 44px 0 18px;
+            border: 2px solid #5fa463;
+            border-radius: 16px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        body.conference-booking-public-page .availability-select-trigger::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748b;
+            font-size: 12px;
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+
+        body.conference-booking-public-page .availability-filter.is-open .availability-select-trigger {
+            border-color: #166534;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+        }
+
+        body.conference-booking-public-page .availability-filter.is-open .availability-select-trigger::after {
+            transform: translateY(-50%) rotate(180deg);
+            color: #166534;
+        }
+
+        body.conference-booking-public-page .availability-select-menu {
+            position: absolute;
+            z-index: 80;
+            top: calc(100% + 7px);
+            left: 0;
+            right: 0;
+            display: none;
+            max-height: 240px;
+            overflow-y: auto;
+            padding: 7px 0;
+            background: #ffffff;
+            border: 2px solid #5fa463;
+            border-radius: 15px;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+
+        body.conference-booking-public-page .availability-select-menu::-webkit-scrollbar { width: 10px; }
+
+        body.conference-booking-public-page .availability-select-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+
+        body.conference-booking-public-page .availability-select-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+
+        body.conference-booking-public-page .availability-select-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        body.conference-booking-public-page .availability-filter.is-open .availability-select-menu {
+            display: block;
+        }
+
+        body.conference-booking-public-page .availability-select-option {
+            width: 100%;
+            min-height: 36px;
+            padding: 8px 18px;
+            border: 0;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        body.conference-booking-public-page .availability-select-option:hover,
+        body.conference-booking-public-page .availability-select-option.is-selected {
+            background: #166534;
+            color: #ffffff;
         }
 
         body.conference-booking-public-page .availability-table-wrap {
@@ -3024,13 +3138,13 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         body.conference-booking-public-page .week-nav {
             position: relative;
             background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 9px;
-            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.04);
-            padding: 2px 5px;
+            border: 2px solid #5fa463;
+            border-radius: 16px;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            padding: 1px 4px;
             gap: 3px;
             flex: 0 0 auto;
-            min-height: 36px;
+            min-height: 40px;
             overflow: visible;
         }
 
@@ -3130,6 +3244,18 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             font-size: 12px;
             font-weight: 500;
             color: #111827;
+        }
+
+        body.conference-booking-public-page .availability-filter .availability-select-trigger {
+            min-height: 40px;
+            height: 40px;
+            border-radius: 12px;
+            padding: 0 36px 0 14px;
+            font-size: 12px;
+        }
+
+        body.conference-booking-public-page .availability-filter .availability-select-trigger::after {
+            right: 13px;
         }
 
         body.conference-booking-public-page .panel-header .btn-submit {
@@ -4454,7 +4580,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                             </div>
                                         </div>
                                         <div class="select-wrapper availability-filter">
-                                            <select id="availabilityRoomFilter" class="form-control">
+                                            <select id="availabilityRoomFilter" class="form-control availability-native-select" tabindex="-1">
                                                 <option value="0" <?= $selectedRoomFilter === 0 ? 'selected' : ''; ?>>All Rooms</option>
                                                 <?php foreach ($rooms as $room): ?>
                                                     <?php $roomId = (int) ($room['id'] ?? 0); ?>
@@ -4463,7 +4589,8 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
-                                            <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                            <button type="button" class="availability-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Rooms</button>
+                                            <div class="availability-select-menu" role="listbox"></div>
                                         </div>
                                     </div>
                                     <button type="button" class="btn-submit" id="openBookingModalBtn" <?= count($rooms) === 0 ? 'disabled' : ''; ?>>
@@ -4916,6 +5043,18 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             const shouldOpenBookingModal = <?= json_encode($errorMessage !== '', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
             const params = new URLSearchParams(window.location.search);
 
+            function escapeHtml(value) {
+                return String(value || '').replace(/[&<>"']/g, function (char) {
+                    return {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#039;'
+                    }[char];
+                });
+            }
+
             if (roomSelect && roomSelectButton && roomSelectMenu) {
                 const roomSelectLabel = roomSelectButton.querySelector('.room-select-label');
                 const roomOptionButtons = Array.from(roomSelectMenu.querySelectorAll('.room-select-option'));
@@ -5178,6 +5317,56 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             });
 
             if (availabilityRoomFilter) {
+                const availabilityFilterWrap = availabilityRoomFilter.closest('.availability-filter');
+                const availabilityFilterTrigger = availabilityFilterWrap ? availabilityFilterWrap.querySelector('.availability-select-trigger') : null;
+                const availabilityFilterMenu = availabilityFilterWrap ? availabilityFilterWrap.querySelector('.availability-select-menu') : null;
+
+                function refreshAvailabilityRoomFilter() {
+                    if (!availabilityFilterTrigger || !availabilityFilterMenu) return;
+                    const selectedOption = availabilityRoomFilter.options[availabilityRoomFilter.selectedIndex] || availabilityRoomFilter.options[0];
+                    availabilityFilterTrigger.textContent = selectedOption ? selectedOption.textContent.trim() : 'All Rooms';
+                    availabilityFilterMenu.innerHTML = Array.from(availabilityRoomFilter.options).map(function (option, index) {
+                        const isSelected = index === availabilityRoomFilter.selectedIndex;
+                        return '<button type="button" class="availability-select-option' + (isSelected ? ' is-selected' : '') + '" role="option" data-index="' + index + '" aria-selected="' + (isSelected ? 'true' : 'false') + '">' + escapeHtml(option.textContent.trim()) + '</button>';
+                    }).join('');
+                }
+
+                function closeAvailabilityRoomFilter() {
+                    if (!availabilityFilterWrap || !availabilityFilterTrigger) return;
+                    availabilityFilterWrap.classList.remove('is-open');
+                    availabilityFilterTrigger.setAttribute('aria-expanded', 'false');
+                }
+
+                if (availabilityFilterTrigger && availabilityFilterMenu) {
+                    refreshAvailabilityRoomFilter();
+                    availabilityFilterTrigger.addEventListener('click', function (event) {
+                        event.stopPropagation();
+                        const shouldOpen = !availabilityFilterWrap.classList.contains('is-open');
+                        availabilityFilterWrap.classList.toggle('is-open', shouldOpen);
+                        availabilityFilterTrigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+                    });
+                    availabilityFilterMenu.addEventListener('click', function (event) {
+                        const optionButton = event.target.closest('.availability-select-option');
+                        if (!optionButton) return;
+                        const optionIndex = Number(optionButton.getAttribute('data-index'));
+                        if (!Number.isFinite(optionIndex) || !availabilityRoomFilter.options[optionIndex]) return;
+                        availabilityRoomFilter.selectedIndex = optionIndex;
+                        refreshAvailabilityRoomFilter();
+                        closeAvailabilityRoomFilter();
+                        availabilityRoomFilter.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                    document.addEventListener('click', function (event) {
+                        if (!availabilityFilterWrap.contains(event.target)) {
+                            closeAvailabilityRoomFilter();
+                        }
+                    });
+                    document.addEventListener('keydown', function (event) {
+                        if (event.key === 'Escape') {
+                            closeAvailabilityRoomFilter();
+                        }
+                    });
+                }
+
                 availabilityRoomFilter.addEventListener('change', function () {
                     const params = new URLSearchParams(window.location.search);
                     params.set('week_of', currentWeekOf);
