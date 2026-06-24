@@ -1285,11 +1285,6 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
                             </td>
                         </tr>
                     </table>';
-        $ctaBlock .= '
-                    <div style="margin-top:12px; font-size:13px; line-height:1.45; color:#475569;">
-                        If the button does not appear, use this link.
-                        <a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="color:#05651f; text-decoration:underline; font-weight:800;">' . $ctaLabelSafe . '</a>
-                    </div>';
     }
     $introHtml = $introText !== ''
         ? '<div style="margin:0 0 20px 0; font-size:17px; line-height:1.5; color:#0f172a;">' . htmlspecialchars($introText, ENT_QUOTES, 'UTF-8') . '</div>'

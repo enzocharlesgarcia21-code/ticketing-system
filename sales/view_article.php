@@ -460,7 +460,7 @@ function renderArticleContent($text) {
         .article-content {
             padding: 40px;
             color: #374151;
-            line-height: 1.8;
+            line-height: 1.25;
             font-size: 16px;
             background-color: rgba(255, 255, 255, 0.58);
         }
@@ -511,17 +511,17 @@ function renderArticleContent($text) {
         .article-content h3 { font-size: 20px; }
 
         .article-content p {
-            margin-bottom: 1.5em;
+            margin: 0 0 0.5em;
         }
 
         .article-content ul, 
         .article-content ol {
-            margin-bottom: 1.5em;
+            margin: 0 0 0.5em;
             padding-left: 1.5em;
         }
 
         .article-content li {
-            margin-bottom: 0.5em;
+            margin-bottom: 0.25em;
         }
 
         .article-content code {
