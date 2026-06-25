@@ -550,6 +550,21 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             width: 95%;
             margin: 0 auto 40px;
         }
+        .admin-mgmt-header {
+            margin-bottom: 18px;
+        }
+        .admin-mgmt-header h1 {
+            margin-bottom: 8px;
+        }
+        .admin-mgmt-subtitle {
+            margin: 0;
+            max-width: 980px;
+            color: #6B7280;
+            font-size: 14px;
+            line-height: 1.45;
+            font-weight: 400;
+            white-space: nowrap;
+        }
         .user-table {
             width: 100%;
             border-collapse: collapse;
@@ -825,9 +840,10 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
 
         .admin-mgmt-header {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 8px;
             margin-bottom: 18px;
         }
         .admin-mgmt-header h1 {
@@ -911,6 +927,22 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             border-color: #22c55e;
             box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
         }
+        .add-user-modal-card .form-control {
+            min-height: 44px;
+            padding: 10px 14px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            background: #ffffff;
+            box-shadow: none;
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+        .add-user-modal-card .form-control:focus {
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+        .add-user-modal-card .form-grid {
+            grid-template-columns: 88px 1fr;
+        }
         .form-field-stack {
             display: flex;
             flex-direction: column;
@@ -928,9 +960,14 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         .username-row,
         .password-row {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 280px;
+            grid-template-columns: minmax(0, 1fr) 320px;
             gap: 12px;
             align-items: center;
+        }
+        .add-user-modal-card .fullname-row,
+        .add-user-modal-card .username-row,
+        .add-user-modal-card .password-row {
+            grid-template-columns: minmax(0, 1fr) 390px;
         }
         .fullname-row > .form-control,
         .fullname-row > .domain-select,
@@ -953,6 +990,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         }
         .password-field .form-control {
             padding-right: 44px;
+        }
+        .add-user-modal-card .password-field .form-control {
+            padding-right: 48px;
         }
         .password-field .form-control::-ms-reveal,
         .password-field .form-control::-ms-clear {
@@ -1183,11 +1223,20 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             width: 170px;
             flex: 0 0 170px;
         }
+        .users-dept-filter-wrap {
+            width: 360px;
+            flex-basis: 360px;
+        }
         .users-filter-select-wrap .edit-select-trigger {
-            min-height: 48px;
-            padding: 11px 42px 11px 14px;
-            border-radius: 14px;
+            min-height: 44px;
+            padding: 10px 38px 10px 14px;
+            border-color: #d8e2ec;
+            border-radius: 13px;
             box-shadow: none;
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
         }
         .users-filter-select-wrap .edit-select-menu {
             position: absolute;
@@ -1201,6 +1250,46 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             min-height: 38px;
             padding: 9px 16px;
             font-weight: 500;
+        }
+        .add-user-modal-card .edit-select-trigger {
+            height: 44px;
+            min-height: 44px;
+            padding: 10px 38px 10px 14px;
+            border-color: #d8e2ec;
+            border-radius: 13px;
+            box-shadow: none;
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            line-height: 1.25;
+        }
+        .add-user-modal-card .edit-select-wrap.is-open .edit-select-trigger {
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+        #editUserModal .form-control {
+            min-height: 44px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            border-color: #d8e2ec;
+            box-shadow: none;
+        }
+        #editUserModal .form-control:focus {
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+        #editUserModal .edit-select-trigger {
+            min-height: 44px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            border-color: #d8e2ec;
+            box-shadow: none;
+        }
+        #editUserModal .edit-select-wrap.is-open .edit-select-trigger {
+            border-color: #cbd5e1;
+            box-shadow: none;
         }
         .btn {
             border: 1px solid transparent;
@@ -1236,6 +1325,22 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             white-space: nowrap;
         }
         .btn-auto:hover { background: #f1f5f9; }
+        .add-user-modal-card .password-row > .btn.btn-auto {
+            min-height: 44px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            background: #ffffff;
+            box-shadow: none;
+            transition: border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+        }
+        .add-user-modal-card .password-row > .btn.btn-auto:hover,
+        .add-user-modal-card .password-row > .btn.btn-auto:focus {
+            border-color: #cbd5e1;
+            color: #0f172a;
+            background: #ffffff;
+            box-shadow: none;
+            outline: none;
+        }
         #createUserBtn {
             background: #166534;
             color: #ffffff;
@@ -1264,44 +1369,50 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             border-top: 1px solid #eef2f7;
         }
         .users-list-controls {
-            display: flex;
+            display: grid;
+            grid-template-columns: minmax(280px, 1fr) 170px 360px 96px minmax(0, 1fr);
             align-items: center;
             gap: 10px;
             margin-bottom: 12px;
-            flex-wrap: wrap;
         }
-        .users-list-controls .search-wrapper { flex: 1 1 480px; }
+        .users-list-controls .search-wrapper {
+            min-width: 0;
+        }
         .users-list-controls .search-input {
-            min-height: 48px;
-            border: 2px solid #5fa463;
-            border-radius: 14px;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            min-height: 44px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            box-shadow: none;
         }
         .users-list-controls .search-input:focus {
-            border-color: #166534;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+            border-color: #cbd5e1;
+            box-shadow: none;
         }
         .users-list-controls #clearUsersFilters {
-            min-height: 48px;
-            border: 2px solid #5fa463;
-            border-radius: 14px;
+            grid-column: auto;
+            width: 96px;
+            justify-self: start;
+            min-height: 44px;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            color: #0f172a;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
             background: #ffffff;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
         }
         .users-list-controls #clearUsersFilters:hover {
-            background: #f2fbf1;
-            border-color: #166534;
+            background: #ffffff;
+            border-color: #cbd5e1;
         }
         .users-filters {
-            display: flex;
+            display: contents;
             gap: 10px;
-            flex: 0 0 auto;
-            align-items: center;
         }
         .users-company-inline {
-            display: flex;
+            display: contents;
             gap: 10px;
-            align-items: center;
         }
         .users-dept-filter.is-hidden,
         .edit-select-wrap.is-hidden {
@@ -2515,8 +2626,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             .create-admin-container { width: 95%; }
         }
         @media (max-width: 900px) {
-            .users-list-controls { flex-direction: column; }
-            .users-list-controls .search-wrapper { flex: 1 1 auto; }
+            .users-list-controls { grid-template-columns: 1fr; }
+            .users-list-controls .search-wrapper { min-width: 0; }
+            .users-list-controls #clearUsersFilters { grid-column: auto; width: 100%; }
             .users-filters { width: 100%; }
         }
         @media (max-width: 720px) {
@@ -2762,18 +2874,32 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         .promote-table-card .user-table th {
             font-size: 10.5px;
             letter-spacing: 0.03em;
+            font-weight: 600;
         }
         .promote-table-card .user-table th:nth-child(1),
-        .promote-table-card .user-table td:nth-child(1) { width: 25%; }
+        .promote-table-card .user-table td:nth-child(1) {
+            width: 25%;
+            text-align: left;
+        }
         .promote-table-card .user-table th:nth-child(2),
-        .promote-table-card .user-table td:nth-child(2) { width: 40%; }
+        .promote-table-card .user-table td:nth-child(2) {
+            width: 40%;
+            text-align: left;
+        }
         .promote-table-card .user-table th:nth-child(3),
-        .promote-table-card .user-table td:nth-child(3) { width: 15%; }
+        .promote-table-card .user-table td:nth-child(3) {
+            width: 15%;
+            text-align: center;
+        }
         .promote-table-card .user-table th:nth-child(4),
         .promote-table-card .user-table td:nth-child(4) {
             width: 20%;
             white-space: nowrap;
+            text-align: right;
         }
+        .promote-table-card .user-table th:nth-child(1) { padding-left: 22px; }
+        .promote-table-card .user-table th:nth-child(3) { text-align: center; }
+        .promote-table-card .user-table th:nth-child(4) { padding-right: 22px; }
         .promote-table-card .user-table td:nth-child(2) {
             overflow-wrap: anywhere;
             word-break: break-word;
@@ -2804,6 +2930,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             font-size: 12px;
             border-radius: 12px;
             gap: 6px;
+        }
+        .admin-bottom-grid #clearItSearch {
+            font-weight: 400;
         }
 
         @media (max-width: 1100px) {
@@ -3074,6 +3203,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
     <div class="create-admin-container">
         <div class="admin-mgmt-header">
             <h1>Admin Management</h1>
+            <p class="admin-mgmt-subtitle">Manage user accounts, access roles, and administrative controls to keep the system organized, secure, and easy to maintain.</p>
         </div>
 
         <div class="admin-dashboard">
@@ -3223,7 +3353,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                     <form id="addUserForm" autocomplete="off" novalidate>
                         <?php echo csrf_field(); ?>
                         <div class="form-grid">
-                            <div class="form-label">Account Email <span class="form-required">*</span></div>
+                            <div class="form-label">Email <span class="form-required">*</span></div>
                             <div class="form-field-stack">
                                 <div class="username-row">
                                     <input type="text" class="form-control" name="username" id="username" placeholder="juan.delacruz" required>
@@ -3596,7 +3726,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         return items;
     }
 
-    function updateDepartmentDropdown() {
+    var lastAddUserDepartmentCompany = '';
+    function updateDepartmentDropdown(forceReset) {
         var companyEl = document.getElementById('domain');
         var deptEl = document.getElementById('newDept');
         if (!companyEl || !deptEl) return;
@@ -3612,6 +3743,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 return String(key || '').toLowerCase() === selectedCompany.toLowerCase();
             });
         var departments = departmentKey ? (companyDepartments[departmentKey] || []) : [];
+        var previousDepartment = String(deptEl.value || '').trim();
+        var shouldReset = !!forceReset || selectedCompany !== lastAddUserDepartmentCompany;
         var html = '';
 
         if (!selectedCompany) {
@@ -3633,9 +3766,12 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         deptEl.innerHTML = html;
         if (deptEl.disabled) {
             deptEl.value = '';
+        } else if (!shouldReset && previousDepartment && departments.indexOf(previousDepartment) !== -1) {
+            deptEl.value = previousDepartment;
         } else if (departments.length) {
             deptEl.selectedIndex = 0;
         }
+        lastAddUserDepartmentCompany = selectedCompany;
         if (typeof refreshEditSelect === 'function') {
             refreshEditSelect(companyEl);
             refreshEditSelect(deptEl);
@@ -4028,7 +4164,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             if (!modal) return;
             modal.classList.add('show');
             modal.setAttribute('aria-hidden', 'false');
-            syncAddUserDepartmentDropdown();
+            lastAddUserDepartmentCompany = '';
+            syncAddUserDepartmentDropdown(true);
             var username = document.getElementById('username');
             if (username) username.focus();
         }
@@ -4165,11 +4302,34 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             trigger.disabled = !!selectEl.disabled;
             menu.innerHTML = Array.prototype.slice.call(selectEl.options).map(function (option, index) {
                 if (selectEl.id === 'usersCompany' && String(option.value || '') === 'all') return '';
+                if (selectEl.id === 'usersDept' && String(option.value || '') === '') return '';
+                if (selectEl.id === 'usersDept' && String(option.value || '') === 'all') return '';
+                if (selectEl.id === 'newDept' && String(option.value || '') === '') return '';
                 if (option.disabled && option.hidden) return '';
                 var selected = option.selected ? ' is-selected' : '';
-                return '<div class="edit-select-option' + selected + '" role="option" aria-selected="' + (option.selected ? 'true' : 'false') + '" data-index="' + index + '">' + escapeHtml(String(option.textContent || '')) + '</div>';
+                return '<div class="edit-select-option' + selected + '" role="option" aria-selected="' + (option.selected ? 'true' : 'false') + '" data-index="' + index + '" data-value="' + escapeHtml(String(option.value || '')) + '">' + escapeHtml(String(option.textContent || '')) + '</div>';
             }).join('');
             if (wrap.classList.contains('is-open')) positionEditSelectMenu(wrap);
+        }
+        function syncEditSelectValue(selectEl) {
+            if (!selectEl || selectEl.disabled) return;
+            if (String(selectEl.value || '').trim()) return;
+            var wrap = selectEl.closest ? selectEl.closest('.edit-select-wrap') : null;
+            if (!wrap) return;
+            var trigger = wrap.querySelector('.edit-select-trigger');
+            var selectedOptionEl = wrap.querySelector('.edit-select-option.is-selected');
+            var selectedText = selectedOptionEl ? selectedOptionEl.textContent : (trigger ? trigger.textContent : '');
+            selectedText = String(selectedText || '').trim();
+            if (!selectedText) return;
+            Array.prototype.slice.call(selectEl.options).some(function (option) {
+                var value = String(option.value || '').trim();
+                var label = String(option.textContent || '').trim();
+                if (value !== '' && (value === selectedText || label === selectedText)) {
+                    selectEl.value = option.value;
+                    return true;
+                }
+                return false;
+            });
         }
         function refreshEditSelects() {
             refreshEditSelect(editUserCompany);
@@ -4179,8 +4339,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             refreshEditSelect(document.getElementById('usersCompany'));
             refreshEditSelect(document.getElementById('usersDept'));
         }
-        function syncAddUserDepartmentDropdown() {
-            updateDepartmentDropdown();
+        function syncAddUserDepartmentDropdown(forceReset) {
+            updateDepartmentDropdown(forceReset);
             refreshEditSelect(document.getElementById('domain'));
             refreshEditSelect(document.getElementById('newDept'));
         }
@@ -4208,9 +4368,10 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 var index = Number(optionEl.getAttribute('data-index'));
                 if (!Number.isFinite(index) || !selectEl.options[index]) return;
                 selectEl.selectedIndex = index;
+                selectEl.value = selectEl.options[index].value;
                 selectEl.dispatchEvent(new Event('change', { bubbles: true }));
                 if (selectEl.id === 'domain') {
-                    syncAddUserDepartmentDropdown();
+                    syncAddUserDepartmentDropdown(true);
                 }
                 refreshEditSelect(selectEl);
                 closeEditSelectMenus();
@@ -4714,9 +4875,11 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         }
         var domainSelect = document.getElementById('domain');
         if (domainSelect) {
-            domainSelect.addEventListener('change', syncAddUserDepartmentDropdown);
+            domainSelect.addEventListener('change', function () {
+                syncAddUserDepartmentDropdown(true);
+            });
         }
-        syncAddUserDepartmentDropdown();
+        syncAddUserDepartmentDropdown(true);
 
         var autoBtn = document.getElementById('autoGenerateBtn');
         var passEl = document.getElementById('newPassword');
@@ -4744,14 +4907,16 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         if (cancelBtn && form) {
             cancelBtn.addEventListener('click', function () {
                 form.reset();
-                syncAddUserDepartmentDropdown();
+                lastAddUserDepartmentCompany = '';
+                syncAddUserDepartmentDropdown(true);
                 closeModal();
             });
         }
         if (closeAddUserBtn && form) {
             closeAddUserBtn.addEventListener('click', function () {
                 form.reset();
-                syncAddUserDepartmentDropdown();
+                lastAddUserDepartmentCompany = '';
+                syncAddUserDepartmentDropdown(true);
                 closeModal();
             });
         }
@@ -4957,6 +5122,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                     domain.focus();
                     return;
                 }
+                syncEditSelectValue(deptEl);
                 var emailAddress = normalizedUsername + String(domain.value || '');
                 if (!validEmailLocalPart(normalizedUsername) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailAddress)) {
                     showCreateUserError('Invalid email', 'Please enter a valid email address.');

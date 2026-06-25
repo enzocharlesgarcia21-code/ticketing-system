@@ -74,7 +74,7 @@ foreach ($availabilityRows as $companyRow) {
         }
 
         body {
-            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-family: 'Inter', sans-serif;
             background:
                 radial-gradient(circle at top left, rgba(21, 101, 52, 0.05), transparent 25%),
                 linear-gradient(180deg, #f7f9fc 0%, #eef3f8 100%);
@@ -83,7 +83,7 @@ foreach ($availabilityRows as $companyRow) {
         .routing-page {
             max-width: 1560px;
             margin: 0 auto;
-            padding: 28px 34px 40px;
+            padding: 18px 34px 40px;
         }
 
         .routing-top {
@@ -95,28 +95,26 @@ foreach ($availabilityRows as $companyRow) {
         }
 
         .routing-intro {
-            background: #ffffff;
-            border: 1px solid rgba(222, 230, 240, 0.95);
-            border-radius: 28px;
-            padding: 24px 28px;
-            box-shadow: var(--route-shadow);
-            min-height: 138px;
+            padding: 12px 28px 24px;
+            min-height: 0;
         }
 
         .routing-intro h1 {
-            margin: 0 0 12px;
-            color: #111827;
+            margin: 0;
             font-size: 2.05rem;
             font-weight: 600;
+            color: #111827;
             letter-spacing: -0.03em;
             line-height: 1.1;
+            font-family: 'Inter', sans-serif;
         }
 
         .routing-intro p {
-            margin: 0;
+            margin: 12px 0 0;
             max-width: 780px;
-            color: #4a5b74;
+            color: #64748b;
             font-size: 15px;
+            font-weight: 500;
             line-height: 1.7;
         }
 
@@ -165,7 +163,7 @@ foreach ($availabilityRows as $companyRow) {
         }
 
         .routing-stat-label {
-            color: #51627b;
+            color: #0f172a;
             font-size: 13px;
             font-weight: 700;
             margin-bottom: 4px;
@@ -180,8 +178,9 @@ foreach ($availabilityRows as $companyRow) {
         }
 
         .routing-stat-note {
-            color: #8391a7;
+            color: #64748b;
             font-size: 13px;
+            font-weight: 500;
             line-height: 1.35;
         }
 
@@ -232,7 +231,8 @@ foreach ($availabilityRows as $companyRow) {
         .routing-save-summary {
             color: #64748b;
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
         }
 
         .routing-save-btn {
@@ -240,19 +240,20 @@ foreach ($availabilityRows as $companyRow) {
             padding: 0 18px;
             border: 0;
             border-radius: 12px;
-            background: #1B5E20;
+            background: #16a34a;
             color: #ffffff;
             cursor: pointer;
             font-size: 14px;
-            font-weight: 800;
-            box-shadow: 0 12px 22px rgba(27, 94, 32, 0.22);
+            font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            box-shadow: 0 12px 22px rgba(22, 163, 74, 0.22);
             transition: background 0.16s ease, opacity 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
         }
 
         .routing-save-btn:hover:not(:disabled) {
-            background: #144a1e;
+            background: #15803d;
             transform: translateY(-1px);
-            box-shadow: 0 16px 28px rgba(27, 94, 32, 0.26);
+            box-shadow: 0 16px 28px rgba(22, 163, 74, 0.26);
         }
 
         .routing-save-btn:disabled {
@@ -372,16 +373,16 @@ foreach ($availabilityRows as $companyRow) {
         }
 
         .routing-master-title {
-            color: #1b2a41;
+            color: #0f172a;
             font-size: 16px;
-            font-weight: 400;
+            font-weight: 700;
             margin-bottom: 4px;
         }
 
         .routing-master-note {
-            color: #718096;
+            color: #64748b;
             font-size: 13px;
-            font-weight: 600;
+            font-weight: 500;
         }
 
         .routing-master-action {
@@ -393,9 +394,9 @@ foreach ($availabilityRows as $companyRow) {
 
         .routing-master-state {
             min-width: 86px;
-            color: #46556d;
+            color: #0f172a;
             font-size: 13px;
-            font-weight: 800;
+            font-weight: 700;
             text-align: right;
         }
 
@@ -412,11 +413,30 @@ foreach ($availabilityRows as $companyRow) {
             min-height: 64px;
             background: linear-gradient(180deg, #ffffff 0%, #f9fbfe 100%);
             border-bottom: 1px solid #edf2f7;
-            color: #6c7a90;
+            color: #0f172a;
             font-size: 12px;
-            font-weight: 800;
+            font-weight: 700;
             letter-spacing: 0.08em;
             text-transform: uppercase;
+        }
+
+        .routing-board-head > div:first-child {
+            padding-left: 104px;
+        }
+
+        .routing-board-head > div:nth-child(2),
+        .routing-board-head > div:nth-child(3),
+        .route-row > div:nth-child(2),
+        .route-row > div:nth-child(3) {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .routing-board-head > div:nth-child(2) {
+            width: 150px;
+            justify-self: center;
+            text-align: center;
         }
 
         .route-group {
@@ -492,27 +512,29 @@ foreach ($availabilityRows as $companyRow) {
         }
 
         .route-company-name {
-            color: #22324d;
-            font-size: 17px;
-            font-weight: 400;
-            line-height: 1.2;
+            color: #0f172a;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.4;
             margin-bottom: 4px;
         }
 
         .route-company-domain {
-            color: #8090a7;
+            color: #64748b;
             font-size: 14px;
+            font-weight: 500;
         }
 
         .route-status-pill {
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            width: 150px;
             min-height: 34px;
             border-radius: 999px;
             padding: 0 14px;
             font-size: 13px;
-            font-weight: 800;
+            font-weight: 700;
             white-space: nowrap;
         }
 
@@ -551,7 +573,7 @@ foreach ($availabilityRows as $companyRow) {
         }
 
         .route-switch.is-enabled {
-            background: #55c375;
+            background: #16a34a;
         }
 
         .route-switch.is-pending {
@@ -611,7 +633,7 @@ foreach ($availabilityRows as $companyRow) {
         }
 
         .route-department-label {
-            color: #2a3954;
+            color: #0f172a;
             font-size: 16px;
             font-weight: 700;
             line-height: 1.4;

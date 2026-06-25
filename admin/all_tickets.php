@@ -178,6 +178,7 @@ if (!empty($company_email)) {
 
 if (!empty($search)) {
     $searchSQL = $conn->real_escape_string($search);
+    $searchPrefixSQL = $conn->real_escape_string($search . '%');
     
     // Parse ID from search (remove non-digits)
     $searchId = preg_replace('/[^0-9]/', '', $search);
@@ -185,10 +186,10 @@ if (!empty($search)) {
     $searchById = ($searchId !== '' && $searchIdInt > 0);
 
     $query .= " AND (
-        users.name LIKE '%$searchSQL%' OR
-        LOWER(COALESCE(NULLIF(employee_tickets.requester_email,''), users.email)) LIKE LOWER('%$searchSQL%') OR
-        employee_tickets.subject LIKE '%$searchSQL%' OR
-        employee_tickets.description LIKE '%$searchSQL%' OR
+        users.name LIKE '$searchPrefixSQL' OR
+        LOWER(COALESCE(NULLIF(employee_tickets.requester_email,''), users.email)) LIKE LOWER('$searchPrefixSQL') OR
+        employee_tickets.subject LIKE '$searchPrefixSQL' OR
+        employee_tickets.description LIKE '$searchPrefixSQL' OR
         employee_tickets.id LIKE '%$searchSQL%'";
 
     if ($searchById) {
@@ -249,36 +250,46 @@ $result = $stmt->get_result();
         .at-main .admin-content { max-width: none; min-width: 0; }
         .at-main .admin-card { max-width: 100%; min-width: 0; }
         #filterForm .filter-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: minmax(260px, 1.25fr) minmax(180px, 220px) minmax(110px, 130px) minmax(104px, 120px) minmax(112px, 128px);
             gap: 8px;
             align-items: center;
-            flex-wrap: wrap;
             width: 100%;
             min-width: 0;
         }
-        #filterForm .filter-input {
-            flex: 1 1 260px;
+        #filterForm .filter-row:has(#departmentFilterWrap:not(.is-hidden)) {
+            grid-template-columns: minmax(220px, 1fr) minmax(160px, 190px) minmax(240px, 1.1fr) minmax(96px, 112px) minmax(104px, 118px) minmax(108px, 112px);
+        }
+        #filterForm .filter-row:has(#departmentFilterWrap:not(.is-hidden)) .filter-input {
             min-width: 220px;
+        }
+        #filterForm .filter-input {
+            width: 100%;
+            min-width: 260px;
             max-width: 100%;
             min-height: 44px;
             padding: 10px 14px;
-            border: 2px solid #5fa463;
+            border: 2px solid #d8e2ec;
             border-radius: 13px;
             background: #ffffff;
             color: #0f172a;
             font: inherit;
             font-size: 14px;
             font-weight: 400;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
             outline: none;
             transition: border-color 0.16s ease, box-shadow 0.16s ease;
         }
         #filterForm .filter-input:focus {
-            border-color: #166534;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+            border-color: #cbd5e1;
+            box-shadow: none;
         }
         #filterForm .filter-input::placeholder {
-            color: #6b7280;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            opacity: 1;
         }
         #filterForm .filter-select {
             min-width: 0;
@@ -294,14 +305,14 @@ $result = $stmt->get_result();
             position: relative;
             min-width: 0;
             max-width: 100%;
-            flex: 1 1 150px;
+            width: 100%;
         }
         #filterForm .at-select-wrap.company-filter-wrap {
-            flex-basis: 220px;
+            width: 100%;
         }
         #filterForm .at-select-wrap.sla-filter-wrap,
         #filterForm .at-select-wrap.status-filter-wrap {
-            flex: 0 1 132px;
+            width: 100%;
         }
         #filterForm .at-select-wrap .filter-select {
             position: absolute;
@@ -315,7 +326,7 @@ $result = $stmt->get_result();
             width: 100%;
             min-height: 44px;
             padding: 10px 38px 10px 14px;
-            border: 2px solid #5fa463;
+            border: 2px solid #d8e2ec;
             border-radius: 13px;
             background: #ffffff;
             color: #0f172a;
@@ -327,7 +338,11 @@ $result = $stmt->get_result();
             position: relative;
             display: flex;
             align-items: center;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
         }
         #filterForm .at-select-trigger::after {
             content: "\f078";
@@ -356,7 +371,7 @@ $result = $stmt->get_result();
             overflow-y: auto;
             padding: 7px 0;
             background: #ffffff;
-            border: 2px solid #5fa463;
+            border: 2px solid #d8e2ec;
             border-radius: 13px;
             box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
             scrollbar-width: thin;
@@ -396,34 +411,35 @@ $result = $stmt->get_result();
             color: #ffffff;
         }
         #filterForm .clear-btn {
-            flex: 0 0 auto;
             margin-left: 0;
             min-height: 44px;
-            padding: 10px 18px;
-            border: 2px solid #5fa463;
+            padding: 10px 12px;
+            border: 2px solid #d8e2ec;
             border-radius: 13px;
             background: #ffffff;
-            color: #64748b;
+            color: #0f172a;
+            font: inherit;
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 400;
             text-decoration: none;
+            white-space: nowrap;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
             transition: border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
         }
         #filterForm .clear-btn:hover,
         #filterForm .clear-btn:focus {
-            border-color: #166534;
-            color: #166534;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+            border-color: #cbd5e1;
+            color: #0f172a;
+            box-shadow: none;
             outline: none;
         }
         #filterForm .lapc-department-filter {
-            flex: 1 1 260px;
             min-width: 220px;
-            max-width: 360px;
+            max-width: none;
+            width: 100%;
         }
         #filterForm .lapc-department-filter.is-hidden {
             display: none;
@@ -555,6 +571,9 @@ $result = $stmt->get_result();
         }
         @media (max-width: 1100px) {
             .at-layout { max-width: 1200px; }
+            #filterForm .filter-row {
+                grid-template-columns: minmax(240px, 1.2fr) minmax(160px, 200px) minmax(100px, 120px) minmax(104px, 118px) minmax(108px, 112px);
+            }
             .table-footer-bar {
                 flex-wrap: wrap;
                 justify-content: center;
@@ -569,8 +588,10 @@ $result = $stmt->get_result();
             #filterForm .filter-select,
             #filterForm .lapc-department-filter,
             #filterForm .clear-btn {
-                flex: 1 1 100%;
                 width: 100%;
+            }
+            #filterForm .filter-row {
+                grid-template-columns: 1fr;
             }
             .admin-table {
                 min-width: 0;
@@ -632,7 +653,7 @@ $result = $stmt->get_result();
             <div class="admin-page-header">
                 <div>
                     <h1 class="admin-page-title">All Tickets</h1>
-                    <p class="admin-page-subtitle">Manage and track all support tickets.</p>
+                    <p class="admin-page-subtitle">Manage, monitor, and track support tickets with their status, assigned department, SLA progress, and requestor details.</p>
                 </div>
             </div>
 
@@ -986,13 +1007,9 @@ function rebuildDepartmentFilterOptions(companyValue, selectedDepartment) {
     return departments;
 }
 
-searchInput.addEventListener("keyup", function () {
+searchInput.addEventListener("input", function () {
     clearTimeout(typingTimer);
     typingTimer = setTimeout(doneTyping, doneTypingInterval);
-});
-
-searchInput.addEventListener("keydown", function () {
-    clearTimeout(typingTimer);
 });
 
 function doneTyping() {
@@ -1183,10 +1200,27 @@ if (clearBtn) {
         e.preventDefault();
         if (!filterForm) return;
         filterForm.reset();
+        if (recipientFilterSelect) recipientFilterSelect.value = '';
+        var slaFilterSelect = document.querySelector('#filterForm select[name="sla"]');
+        if (slaFilterSelect) slaFilterSelect.value = '';
+        var statusFilterSelect = document.querySelector('#filterForm select[name="status"]');
+        if (statusFilterSelect) statusFilterSelect.value = '';
         if (companyEmailFilterValue) companyEmailFilterValue.value = '';
         if (departmentFilterValue) departmentFilterValue.value = '';
+        if (departmentFilterSelect) {
+            departmentFilterSelect.value = '';
+            departmentFilterSelect.disabled = true;
+        }
+        if (departmentFilterWrap) {
+            departmentFilterWrap.classList.add('is-hidden');
+            departmentFilterWrap.classList.add('is-disabled');
+        }
         syncRecipientFilters();
         if (searchInput) searchInput.value = '';
+        refreshAtSelect(recipientFilterSelect);
+        refreshAtSelect(departmentFilterSelect);
+        refreshAtSelect(slaFilterSelect);
+        refreshAtSelect(statusFilterSelect);
         submitForm(1);
     });
 }

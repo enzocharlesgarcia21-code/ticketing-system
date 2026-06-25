@@ -531,10 +531,12 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-admin-title p {
             margin: 0;
-            color: #475569;
-            font-size: 17px;
-            line-height: 1.65;
-            max-width: 760px;
+            color: #6B7280;
+            font-size: 14px;
+            line-height: 1.45;
+            font-weight: 400;
+            max-width: 980px;
+            white-space: nowrap;
         }
         .conference-manage-btn {
             display: inline-flex;
@@ -808,7 +810,8 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-card-head-tools {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) auto auto;
+            grid-template-columns: minmax(260px, 1fr) max-content;
+            column-gap: 10px;
             align-items: stretch;
             width: 100%;
             border: 1px solid #e8e8ef;
@@ -821,27 +824,27 @@ function conference_admin_booking_status_text(string $status): string
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 4px 8px 4px 0;
+            padding: 0 8px 0 0;
         }
         .conference-filter-reset {
             min-width: 78px;
             height: 44px;
-            border-radius: 16px;
-            border: 2px solid #5fa463;
+            border-radius: 13px;
+            border: 2px solid #d8e2ec;
             background: #ffffff;
             color: #166534;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
             transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
         }
         .conference-filter-reset:hover {
-            border-color: #166534;
+            border-color: #cbd5e1;
             color: #14532d;
             background: #f8fff9;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+            box-shadow: none;
         }
         .conference-search {
             position: relative;
@@ -866,12 +869,12 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-search input {
             width: 100%;
-            min-height: 50px;
+            min-height: 44px;
             border: none;
             background: transparent;
-            padding: 12px 18px 12px 48px;
+            padding: 10px 18px 10px 48px;
             color: #0f172a;
-            font-size: 15px;
+            font-size: 14px;
         }
         .conference-search input:focus,
         .conference-filter-select:focus {
@@ -880,7 +883,7 @@ function conference_admin_booking_status_text(string $status): string
         .conference-search:focus-within,
         .conference-filter-pill:focus-within,
         .conference-date-filter:focus-within {
-            box-shadow: inset 0 0 0 2px rgba(22, 163, 74, 0.15);
+            box-shadow: none;
         }
         .conference-date-filter {
             position: relative;
@@ -888,11 +891,11 @@ function conference_admin_booking_status_text(string $status): string
             align-items: center;
             min-height: 44px;
             min-width: 168px;
-            border: 2px solid #5fa463;
-            border-radius: 16px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
             background: #ffffff;
             overflow: hidden;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
         }
         .conference-date-input {
             width: 100%;
@@ -905,9 +908,41 @@ function conference_admin_booking_status_text(string $status): string
             padding: 0 14px;
             cursor: pointer;
         }
+        .conference-date-filter.is-empty .conference-date-input {
+            color: transparent;
+            opacity: 0;
+        }
+        .conference-date-filter.is-empty::after {
+            content: "\f073";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #1f2937;
+            font-size: 13px;
+            pointer-events: none;
+        }
+        .conference-date-placeholder {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #1f2937;
+            font-size: 14px;
+            font-weight: 500;
+            pointer-events: none;
+        }
+        .conference-date-filter:not(.is-empty) .conference-date-placeholder {
+            display: none;
+        }
         .conference-date-input::-webkit-calendar-picker-indicator {
             cursor: pointer;
             opacity: 1;
+        }
+        .conference-date-filter.is-empty .conference-date-input::-webkit-calendar-picker-indicator {
+            opacity: 0;
         }
         .conference-date-input:focus {
             outline: none;
@@ -920,11 +955,11 @@ function conference_admin_booking_status_text(string $status): string
             color: #1f2937;
             background: #ffffff;
             min-width: 158px;
-            border: 2px solid #5fa463;
-            border-radius: 16px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
             z-index: 2;
             overflow: visible;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
         }
         .conference-filter-pill::before {
             content: none;
@@ -947,7 +982,7 @@ function conference_admin_booking_status_text(string $status): string
             font-weight: 400;
             cursor: pointer;
             text-align: left;
-            border-radius: 16px;
+            border-radius: 13px;
             position: relative;
         }
         .conference-filter-trigger:hover {
@@ -976,7 +1011,7 @@ function conference_admin_booking_status_text(string $status): string
             right: 0;
             padding: 7px 0;
             border-radius: 15px;
-            border: 2px solid #5fa463;
+            border: 2px solid #d8e2ec;
             background: #ffffff;
             box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
             display: none;
@@ -1465,7 +1500,7 @@ function conference_admin_booking_status_text(string $status): string
             width: 100%;
             min-height: 48px;
             padding: 0 42px 0 14px;
-            border: 2px solid #5fa463;
+            border: 2px solid #d8e2ec;
             border-radius: 15px;
             background: #ffffff;
             color: #0f172a;
@@ -1477,7 +1512,7 @@ function conference_admin_booking_status_text(string $status): string
             position: relative;
             display: flex;
             align-items: center;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
         }
         .booking-edit-select-trigger::after {
             content: "\f078";
@@ -1506,7 +1541,7 @@ function conference_admin_booking_status_text(string $status): string
             overflow-y: auto;
             padding: 7px 0;
             background: #ffffff;
-            border: 2px solid #5fa463;
+            border: 2px solid #d8e2ec;
             border-radius: 14px;
             box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
             scrollbar-width: thin;
@@ -2449,12 +2484,22 @@ function conference_admin_booking_status_text(string $status): string
             color: #0f172a;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 16px;
+            font-size: 25px;
+            line-height: 1.1;
+            font-weight: 700;
         }
         #manageRoomsModal .room-modal-copy h2 i {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: #dcfce7;
             color: #16a34a;
-            font-size: 18px;
-            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            flex: 0 0 auto;
         }
         #manageRoomsModal .room-modal-copy p {
             color: #64748b;
@@ -2490,6 +2535,8 @@ function conference_admin_booking_status_text(string $status): string
             gap: 12px;
             justify-content: flex-start;
             color: #667085;
+            font-size: 15px;
+            font-weight: 700;
         }
         #manageRoomsModal .room-modal-tab i {
             color: inherit;
@@ -2925,7 +2972,7 @@ function conference_admin_booking_status_text(string $status): string
         <div class="conference-admin-header">
             <div class="conference-admin-title">
                 <h1>Conference Bookings</h1>
-                <p>Manage and monitor all room reservations in one place.</p>
+                <p>Manage and monitor all conference room reservations, schedules, and booking details in one organized place.</p>
             </div>
             <div class="conference-admin-actions">
                 <button type="button" class="conference-manage-btn" id="openManageRoomsModal">
@@ -3017,7 +3064,8 @@ function conference_admin_booking_status_text(string $status): string
                             <input type="search" id="bookingSearchInput" placeholder="Search email or room...">
                         </label>
                         <div class="conference-filter-actions">
-                            <label class="conference-date-filter" for="bookingDateFilter">
+                            <label class="conference-date-filter is-empty" for="bookingDateFilter">
+                                <span class="conference-date-placeholder">Date</span>
                                 <input type="date" id="bookingDateFilter" class="conference-date-input" aria-label="Filter bookings by date">
                             </label>
                             <div class="conference-filter-pill" data-filter-dropdown>
@@ -3825,6 +3873,14 @@ function conference_admin_booking_status_text(string $status): string
             const bookingsPerPage = 5;
             let currentBookingPage = 1;
             let pendingUnavailableForm = null;
+
+            function syncBookingDatePlaceholder() {
+                if (!bookingDateFilter) return;
+                const dateWrap = bookingDateFilter.closest('.conference-date-filter');
+                if (dateWrap) {
+                    dateWrap.classList.toggle('is-empty', String(bookingDateFilter.value || '').trim() === '');
+                }
+            }
             const roomFormDefaults = <?php echo json_encode([
                 'mode' => $roomFormMode,
                 'room_id' => (int) ($roomFormState['room_id'] ?? 0),
@@ -4767,7 +4823,10 @@ function conference_admin_booking_status_text(string $status): string
             }
 
             if (bookingDateFilter) {
+                syncBookingDatePlaceholder();
+                bookingDateFilter.addEventListener('input', syncBookingDatePlaceholder);
                 bookingDateFilter.addEventListener('change', function () {
+                    syncBookingDatePlaceholder();
                     applyBookingFilters(true);
                 });
             }
@@ -4785,6 +4844,7 @@ function conference_admin_booking_status_text(string $status): string
                     }
                     if (bookingDateFilter) {
                         bookingDateFilter.value = '';
+                        syncBookingDatePlaceholder();
                     }
                     if (bookingStatusFilter) {
                         bookingStatusFilter.value = 'all';
