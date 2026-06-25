@@ -1492,7 +1492,7 @@ if ($ticketsStmt) {
         }
         .admin-content {
             max-width: 1460px;
-            padding-top: 10px;
+            padding-top: 0;
         }
         body.employee-analytics-page .admin-content {
             max-width: 1320px;
@@ -1500,10 +1500,16 @@ if ($ticketsStmt) {
         }
         .admin-page-header {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
             gap: 16px;
             margin-bottom: 20px;
+        }
+        .analytics-heading {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 860px;
         }
         .analytics-title {
             display: inline-flex;
@@ -1519,12 +1525,20 @@ if ($ticketsStmt) {
             color: #1B5E20;
             font-size: 1.7rem;
         }
+        .analytics-subtitle {
+            margin: 0;
+            color: #6B7280;
+            font-size: 14px;
+            line-height: 1.45;
+            font-weight: 400;
+        }
         .analytics-header-actions {
             display: flex;
             align-items: center;
             gap: 12px;
             flex-wrap: wrap;
             justify-content: flex-end;
+            margin-top: 32px;
         }
         .analytics-toolbar,
         .analytics-card,
@@ -1621,8 +1635,8 @@ if ($ticketsStmt) {
         }
         .analytics-control:focus,
         .analytics-status-row:focus-within {
-            border-color: #1B5E20;
-            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
+            border-color: #cbd5e1;
+            box-shadow: none;
         }
         .analytics-select-wrap {
             position: relative;
@@ -1637,10 +1651,10 @@ if ($ticketsStmt) {
         }
         .analytics-select-trigger {
             width: 100%;
-            min-height: 52px;
-            padding: 0 44px 0 18px;
-            border: 2px solid #5fa463;
-            border-radius: 16px;
+            min-height: 44px;
+            padding: 0 38px 0 14px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
             background: #ffffff;
             color: #0f172a;
             font: inherit;
@@ -1651,14 +1665,14 @@ if ($ticketsStmt) {
             position: relative;
             display: flex;
             align-items: center;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
         }
         .analytics-select-trigger::after {
             content: "\f078";
             font-family: "Font Awesome 6 Free";
             font-weight: 900;
             position: absolute;
-            right: 16px;
+            right: 13px;
             top: 50%;
             transform: translateY(-50%);
             color: #0f172a;
@@ -1690,7 +1704,7 @@ if ($ticketsStmt) {
             overflow-y: auto;
             padding: 7px 0;
             background: #ffffff;
-            border: 2px solid #5fa463;
+            border: 2px solid #d8e2ec;
             border-radius: 15px;
             box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
             scrollbar-width: thin;
@@ -1742,10 +1756,10 @@ if ($ticketsStmt) {
             padding-right: 10px;
         }
         body:not(.employee-analytics-page) .date-inputs .analytics-control {
-            min-height: 52px;
-            border: 2px solid #5fa463;
-            border-radius: 16px;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            min-height: 44px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            box-shadow: none;
         }
         .date-separator {
             color: #6b7280;
@@ -1857,10 +1871,10 @@ if ($ticketsStmt) {
             flex: 1 1 auto;
         }
         body:not(.employee-analytics-page) .analytics-status-row .analytics-inline-clear {
-            min-height: 52px;
-            border: 2px solid #5fa463;
-            border-radius: 16px;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            min-height: 44px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            box-shadow: none;
         }
         .analytics-inline-clear {
             color: #111827;
@@ -1902,9 +1916,9 @@ if ($ticketsStmt) {
             box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
         }
         body:not(.employee-analytics-page) .btn-export {
-            border: 2px solid #5fa463;
+            border: 2px solid #d8e2ec;
             border-radius: 16px;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
         }
         .btn-export i {
             font-size: 1rem;
@@ -1916,7 +1930,7 @@ if ($ticketsStmt) {
         .btn-export-pdf:hover,
         .btn-export-excel:hover {
             background: #f2fbf1;
-            border-color: #99c08d;
+            border-color: #cbd5e1;
         }
 
         .analytics-metrics {
@@ -2639,6 +2653,7 @@ if ($ticketsStmt) {
             }
             .analytics-header-actions {
                 justify-content: flex-start;
+                margin-top: 0;
             }
             .analytics-filters {
                 grid-template-columns: minmax(320px, 1fr) minmax(0, 1fr);
@@ -2801,7 +2816,10 @@ if ($ticketsStmt) {
             ?>
             
             <div class="admin-page-header">
-                <h1 class="admin-page-title analytics-title"><i class="fa-solid fa-chart-line"></i> Analytics</h1>
+                <div class="analytics-heading">
+                    <h1 class="admin-page-title analytics-title">Analytics</h1>
+                    <p class="analytics-subtitle">Provides an overview of ticket analytics, performance trends, department activity, and resolution progress to help administrators monitor and manage support operations effectively.</p>
+                </div>
                 <?php if (!$analyticsIsEmployeeView): ?>
                     <div class="analytics-header-actions">
                         <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">

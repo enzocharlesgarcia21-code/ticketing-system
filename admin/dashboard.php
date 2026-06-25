@@ -624,7 +624,7 @@ if ($recentRes) {
                 <div>
                     <div class="admin-page-title">Admin Dashboard</div>
                     <div class="admin-page-subtitle">
-                        Overview of ticket activity and system performance.
+                        Overview of ticket activity and system performance, providing key insights to help track requests, monitor progress, and manage daily support operations efficiently.
                     </div>
                 </div>
             </div>

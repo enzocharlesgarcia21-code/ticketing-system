@@ -1486,24 +1486,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
 
                 $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, (string) $assigned_group, (int) $user_id);
+                $ticketSubmittedAt = date('M d, Y h:i A');
+
                 if (count($assigneeEmails) > 0) {
                     $assigneeLines = [
                         "Ticket ID: #$ticketNumber",
                         "Category: $category",
-                        "Current Status: $ticketStatus",
-                        "Full Name: $name",
-                        "Requester Email: $email",
-                        "Assigned Recipient: $assignedRecipientLabel",
+                        "Requestor: $name",
+                        "Email: $email",
+                        "Date Submitted: $ticketSubmittedAt",
+                        "Level of Urgency: $priority",
                         "Description:\n$raw_description"
                     ];
-                    if ($requiresDepartment) {
-                        array_splice($assigneeLines, 5, 0, ["Assigned Department: $assigned_department"]);
-                    }
                     if ($attachmentSummary !== '') {
                         $assigneeLines[] = $attachmentSummary;
                     }
-                    $assigneeTpl = notif_email_simple('Ticket Submitted', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks($ticket_id));
-                    $assigneeOk = notif_email_send($assigneeEmails, "Ticket Submitted (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
+                    $assigneeTpl = notif_email_simple('New Ticket Assigned', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks($ticket_id));
+                    $assigneeOk = notif_email_send($assigneeEmails, "New Ticket Assigned (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
                     sales_email_debug_log([
                         'event' => 'sales_ticket_assignee_email',
                         'ticket_id' => (int) $ticket_id,
@@ -1538,19 +1537,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $requesterLines = [
                     "Ticket ID: #$ticketNumber",
                     "Category: $category",
-                    "Current Status: $ticketStatus",
-                    "Full Name: $name",
-                    "Requester Email: $email",
-                    "Assigned Recipient: $assignedRecipientLabel",
+                    "Requestor: $name",
+                    "Email: $email",
+                    "Date Submitted: $ticketSubmittedAt",
+                    "Level of Urgency: $priority",
                     "Description:\n$raw_description"
                 ];
-                if ($requiresDepartment) {
-                    array_splice($requesterLines, 5, 0, ["Assigned Department: $assigned_department"]);
-                }
                 if ($attachmentSummary !== '') {
                     $requesterLines[] = $attachmentSummary;
                 }
-                $requesterTpl = notif_email_simple('Ticket Submitted', $requesterLines, 'Go To Leads DeskMetamorph', notif_base_url() . '/ticketing/index.php');
+                $requesterTpl = notif_email_simple('Ticket Submitted', $requesterLines, 'View Ticket', notif_base_url() . '/ticketing/index.php');
                 $requesterEmails = sales_clean_email_list([$creatorEmail, $email]);
                 $requesterOk = false;
                 if (count($requesterEmails) > 0) {

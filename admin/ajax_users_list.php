@@ -51,6 +51,10 @@ if ($onlineRes && $onlineRes->num_rows > 0) {
     $hasOnlineCol = true;
 }
 
+$displayNameExpr = $hasFullNameCol
+    ? "COALESCE(NULLIF(full_name,''), NULLIF(name,''), '')"
+    : "COALESCE(NULLIF(name,''), '')";
+
 function user_status_payload(?string $lastSeenAt, ?string $lastLogoutAt, int $isOnline): array
 {
     $lastSeenAt = trim((string) $lastSeenAt);
@@ -124,11 +128,10 @@ $types = '';
 $where[] = "NOT (company = 'Sales' AND UPPER(COALESCE(department,'')) = 'SALES' AND role = 'employee')";
 
 if ($q !== '') {
-    $term = '%' . $q . '%';
-    $where[] = "(name LIKE ? OR email LIKE ?)";
+    $term = $q . '%';
+    $where[] = "$displayNameExpr LIKE ?";
     $params[] = $term;
-    $params[] = $term;
-    $types .= 'ss';
+    $types .= 's';
 }
 
 if ($role !== '' && $role !== 'all') {
@@ -149,7 +152,7 @@ if ($company !== '' && $company !== 'all') {
     }
 }
 
-if ($company === '@leadsagri.com' && $department !== '' && $department !== 'all') {
+if (in_array($company, ['@leadsagri.com', '@malvedaholdings.com'], true) && $department !== '' && $department !== 'all') {
     $deptKey = strtoupper($department);
     $aliasMap = [
         'ADMIN & LEGAL' => ['ADMIN & LEGAL', 'ADMIN', 'ADMINISTRATION'],
@@ -163,6 +166,7 @@ if ($company === '@leadsagri.com' && $department !== '' && $department !== 'all'
         'INSTITUTIONAL SALES' => ['INSTITUTIONAL SALES', 'SALES'],
         'MANAGEMENT' => ['MANAGEMENT'],
         'MARKETING' => ['MARKETING'],
+        'MARKETING CREATIVES' => ['MARKETING CREATIVES'],
         'NEW BUSINESS SEGMENT' => ['NEW BUSINESS SEGMENT'],
         'SEED PRODUCTION' => ['SEED PRODUCTION'],
         'SUPPLY CHAIN' => ['SUPPLY CHAIN', 'LOGISTICS'],
@@ -179,9 +183,6 @@ if ($company === '@leadsagri.com' && $department !== '' && $department !== 'all'
 }
 
 $countSql = "SELECT COUNT(*) AS total FROM users";
-$displayNameExpr = $hasFullNameCol
-    ? "COALESCE(NULLIF(full_name,''), NULLIF(name,''), '')"
-    : "COALESCE(NULLIF(name,''), '')";
 
 $sql = "SELECT id, $displayNameExpr AS display_name, email, company, department, role";
 if ($hasSuperAdminCol) {

@@ -1550,17 +1550,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $ticketStmt->close();
     }
 
-    $usesSpecificEmailRoute = $isLapcAdminLegalTicket || ticket_uses_specific_email_route($assigned_company, $assigned_group);
-    $adminEmails = [];
-    if (!$usesSpecificEmailRoute) {
-        $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
-        if ($admins) {
-            while ($admin = $admins->fetch_assoc()) {
-                $adminEmails[] = $admin['email'];
-            }
-        }
-    }
-
     $requesterName = (string) ($ticketDetails['name'] ?? ($user_name ?? ($_SESSION['name'] ?? 'Unknown')));
     $employeeEmail = (string) ($ticketDetails['email'] ?? '');
     $createdAt = (string) ($ticketDetails['created_at'] ?? '');
@@ -1577,40 +1566,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $attachments = notif_ticket_email_attachments($conn, (int) $ticket_id, (string) ($attachmentName ?? ''));
     $attachmentSummary = notif_ticket_attachment_summary($attachments);
 
-    $adminSubject = "Ticket Submitted (#$ticketNumber)";
-    $adminTpl = notif_email_simple('Ticket Submitted', [
-        "Ticket ID: #$ticketNumber",
-        "Title: $ticketSubject",
-        "Category: $category",
-        "Priority: $priority",
-        "Current Status: $ticketStatus",
-        "Assigned Department: $ticketAssignedDept",
-        "Requested by: $requesterName",
-        "Requester Email: $employeeEmail"
-    ], 'Open Ticket', notif_ticket_link_admin((int) $ticket_id));
-
-    if (count($adminEmails) > 0) {
-        $adminOk = notif_email_send($adminEmails, $adminSubject, (string) $adminTpl['html'], (string) $adminTpl['text'], $attachments);
-        if (!$adminOk) {
-            error_log('Ticket email failed (admins) | ticketId=' . (string) $ticket_id);
-        }
-    }
-
     $assigneeEmailExcludeUserId = $isLapcAdminLegalTicket ? 0 : (int) $user_id;
     $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, $assigned_group, $assigneeEmailExcludeUserId, $isLapcAdminLegalTicket);
     if (count($assigneeEmails) > 0) {
         $assigneeLines = [
             "Ticket ID: #$ticketNumber",
             "Category: $category",
-            "Current Status: $ticketStatus",
-            "Requested by: $requesterName",
+            "Requestor: $requesterName",
+            "Email: $employeeEmail",
+            "Date Submitted: $createdAt",
+            "Level of Urgency: $priority",
             "Description:\n$ticketDescription"
         ];
         if ($attachmentSummary !== '') {
             $assigneeLines[] = $attachmentSummary;
         }
-        $assigneeTpl = notif_email_simple('Ticket Submitted', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks((int) $ticket_id));
-        notif_email_send($assigneeEmails, "Ticket Submitted (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
+        $assigneeTpl = notif_email_simple('New Ticket Assigned', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks((int) $ticket_id));
+        notif_email_send($assigneeEmails, "New Ticket Assigned (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
     }
 
     if ($employeeEmail !== '') {
@@ -1618,14 +1590,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $employeeLines = [
             "Ticket ID: #$ticketNumber",
             "Category: $category",
-            "Current Status: $ticketStatus",
-            "Assigned Department: $ticketAssignedDept",
+            "Requestor: $requesterName",
+            "Email: $employeeEmail",
+            "Date Submitted: $createdAt",
+            "Level of Urgency: $priority",
             "Description:\n$ticketDescription"
         ];
         if ($attachmentSummary !== '') {
             $employeeLines[] = $attachmentSummary;
         }
-        $employeeTpl = notif_email_simple('Ticket Submitted', $employeeLines, 'Go To Leads DeskMetamorph', notif_ticket_link_employee_tickets((int) $ticket_id));
+        $employeeTpl = notif_email_simple('Ticket Submitted', $employeeLines, 'View Ticket', notif_ticket_link_employee_tickets((int) $ticket_id));
 
         $employeeOk = notif_email_send([$employeeEmail], $employeeSubject, (string) $employeeTpl['html'], (string) $employeeTpl['text'], $attachments);
         if (!$employeeOk) {

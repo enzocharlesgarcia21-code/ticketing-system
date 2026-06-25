@@ -2169,17 +2169,6 @@ function notifyTicketClosed(mysqli $conn, array $ticket, int $inactivitySeconds 
         }
     }
 
-    $adminEmails = ticket_user_email_addresses($conn, notif_admin_user_ids($conn));
-    $adminEmails = array_values(array_filter(array_unique($adminEmails), static function ($email) use ($usedEmails) {
-        return !isset($usedEmails[$email]);
-    }));
-    if (count($adminEmails) > 0) {
-        $adminMail = notif_email_simple($title, $commonLines, 'View Ticket', notif_ticket_link_admin($ticketId));
-        if (notif_email_send($adminEmails, $title . ' (#' . $ticketNumber . ')', (string) ($adminMail['html'] ?? ''), (string) ($adminMail['text'] ?? ''))) {
-            $emailed += count($adminEmails);
-        }
-    }
-
     return ['inserted' => $inserted, 'emailed' => $emailed];
 }
 
@@ -2748,7 +2737,6 @@ function ticket_priority_escalation_recipient_data(mysqli $conn, array $ticket):
     }
     $deptAliases = array_values(array_unique(array_filter(array_map('strtoupper', array_map('trim', $deptAliases)))));
     $departmentAdminId = count($deptAliases) > 0 ? ticket_find_department_admin_id($conn, $deptAliases) : null;
-    $departmentAdminEmails = $departmentAdminId ? ticket_user_email_addresses($conn, [(int) $departmentAdminId]) : [];
 
     $notifyUserIds = [];
     if ($requesterId > 0) {
@@ -2761,7 +2749,7 @@ function ticket_priority_escalation_recipient_data(mysqli $conn, array $ticket):
     $notifyUserIds = array_merge($notifyUserIds, notif_admin_user_ids($conn));
     $notifyUserIds = notif_unique_user_ids($notifyUserIds);
 
-    $emailRecipients = array_values(array_unique(array_merge($departmentEmails, $departmentAdminEmails)));
+    $emailRecipients = array_values(array_unique($departmentEmails));
 
     ticket_priority_escalation_log('recipient_resolution', [
         'ticket_id' => $ticketId,

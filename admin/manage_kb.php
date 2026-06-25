@@ -478,9 +478,7 @@ unset($recent_articles_query['recent_page']);
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body {
-            background-image:
-                linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.16)),
-                url('../assets/img/kbkb.jpg');
+            
             background-repeat: no-repeat;
             background-position: center top;
             background-attachment: fixed;
@@ -497,10 +495,17 @@ unset($recent_articles_query['recent_page']);
         .kb-page-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             gap: 20px;
             margin-bottom: 18px;
             flex-wrap: wrap;
+        }
+
+        .kb-page-heading {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 820px;
         }
 
         .page-title {
@@ -510,6 +515,14 @@ unset($recent_articles_query['recent_page']);
             letter-spacing: -0.03em;
             line-height: 1.1;
             margin: 0;
+        }
+
+        .kb-page-subtitle {
+            margin: 0;
+            color: #6B7280;
+            font-size: 14px;
+            line-height: 1.45;
+            font-weight: 400;
         }
 
         .btn-add-article {
@@ -1489,9 +1502,9 @@ unset($recent_articles_query['recent_page']);
         }
 
         .form-control:focus {
-            border-color: #10B981;
+            border-color: #cbd5e1;
             outline: none;
-            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
+            box-shadow: none;
         }
 
         .kb-select-wrap {
@@ -1516,7 +1529,7 @@ unset($recent_articles_query['recent_page']);
             width: 100%;
             min-height: 52px;
             padding: 0 44px 0 18px;
-            border: 2px solid #5fa463;
+            border: 2px solid #d8e2ec;
             border-radius: 16px;
             background: #ffffff;
             color: #0f172a;
@@ -1528,7 +1541,7 @@ unset($recent_articles_query['recent_page']);
             position: relative;
             display: flex;
             align-items: center;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
             transition: border-color 0.16s ease, box-shadow 0.16s ease;
         }
 
@@ -1546,8 +1559,8 @@ unset($recent_articles_query['recent_page']);
         }
 
         .kb-select-wrap.is-open .kb-select-trigger {
-            border-color: #166534;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+            border-color: #cbd5e1;
+            box-shadow: none;
         }
 
         .kb-select-wrap.is-open .kb-select-trigger::after {
@@ -1578,7 +1591,7 @@ unset($recent_articles_query['recent_page']);
             overflow-y: auto;
             padding: 7px 0;
             background: #ffffff;
-            border: 2px solid #5fa463;
+            border: 2px solid #d8e2ec;
             border-radius: 15px;
             box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
             scrollbar-width: thin;
@@ -1898,9 +1911,9 @@ unset($recent_articles_query['recent_page']);
         }
         .kb-image-dropzone:hover,
         .kb-image-dropzone.is-active {
-            border-color: #166534;
-            background: #F0FDF4;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            border-color: #cbd5e1;
+            background: #F8FBFA;
+            box-shadow: none;
         }
         .kb-image-dropzone input[type="file"] {
             position: absolute;
@@ -2320,7 +2333,10 @@ unset($recent_articles_query['recent_page']);
 
         <!-- Page Header -->
         <div class="kb-page-header">
-            <div class="page-title">Knowledge Base</div>
+            <div class="kb-page-heading">
+                <div class="page-title">Knowledge Base</div>
+                <p class="kb-page-subtitle">Organize and maintain useful articles, guides, and resources to help users find important information quickly and easily.</p>
+            </div>
             <button class="btn-add-article" onclick="openModal()">
                 <i class="fas fa-plus"></i> Add New Article
             </button>
