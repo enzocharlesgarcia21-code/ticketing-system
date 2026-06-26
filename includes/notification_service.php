@@ -129,6 +129,31 @@ function notif_ticket_number(int $ticketId): string
     return str_pad((string) $ticketId, 6, '0', STR_PAD_LEFT);
 }
 
+function notif_urgency_email_label(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+
+    if (preg_match('/\(\s*\d+\s*(?:to|-)\s*\d+\s*days?\s*\)/i', $value)) {
+        return $value;
+    }
+
+    $key = strtolower($value);
+    if (strpos($key, 'low') === 0) {
+        return 'Low (7-9 days)';
+    }
+    if (strpos($key, 'medium') === 0) {
+        return 'Medium (4-6 days)';
+    }
+    if (strpos($key, 'high') === 0) {
+        return 'High (1-3 days)';
+    }
+
+    return $value;
+}
+
 function notif_company_display_map(): array
 {
     return [
@@ -980,14 +1005,14 @@ function notif_compact_email_lines(array $lines): array
         }
 
         if (stripos($line, 'Priority:') === 0) {
-            continue;
+            $line = 'Level of Urgency:' . substr($line, strlen('Priority:'));
         }
 
         if (stripos($line, 'Current status:') === 0) {
             if ($seenStatus) {
                 continue;
             }
-            $line = 'Ticket Status:' . substr($line, strlen('Current status:'));
+            $line = 'Current Status:' . substr($line, strlen('Current status:'));
             $seenStatus = true;
         }
 
@@ -1066,23 +1091,67 @@ function sendPriorityEscalationNotification(mysqli $conn, array $ticket, array $
 
     $emailed = 0;
     if (count($emails) > 0) {
+        $creatorEmail = strtolower(trim((string) ($ticket['creator_email'] ?? $ticket['requester_email'] ?? '')));
+        $requesterEmails = $creatorEmail !== '' && in_array($creatorEmail, $emails, true) ? [$creatorEmail] : [];
+        $assigneeEmails = array_values(array_filter($emails, static function ($email) use ($requesterEmails) {
+            return !in_array($email, $requesterEmails, true);
+        }));
+        $ticketNumber = notif_ticket_number($ticketId);
+        $createdAt = trim((string) ($ticket['created_at'] ?? ''));
+        $createdAtLabel = $createdAt !== '' ? ((($createdTs = strtotime($createdAt)) !== false) ? date('M d, Y h:i A', $createdTs) : $createdAt) : '';
+        $currentSlaLabel = $displayNewPriority === 'Breach' ? 'Breached' : $displayNewPriority;
+        $requestorLabel = trim((string) ($ticket['creator_name'] ?? $ticket['requester_name'] ?? ''));
+        $assigneeName = trim((string) ($ticket['assignee_name'] ?? ''));
+        $assigneeCompany = trim(notif_replace_company_domains((string) ($ticket['assigned_company'] ?? '')));
+        $assigneeDepartment = trim((string) ($ticket['assignee_department'] ?? ($ticket['assigned_department'] ?? '')));
+        $assigneeContext = '';
+        if ($assigneeCompany !== '' && $assigneeDepartment !== '') {
+            $assigneeContext = $assigneeCompany . '-' . $assigneeDepartment;
+        } elseif ($assigneeDepartment !== '') {
+            $assigneeContext = $assigneeDepartment;
+        } elseif ($assigneeCompany !== '') {
+            $assigneeContext = $assigneeCompany;
+        }
+        $assigneeLabel = $assigneeName !== ''
+            ? $assigneeName . ($assigneeContext !== '' ? ' (' . $assigneeContext . ')' : '')
+            : ($assigneeContext !== '' ? $assigneeContext : 'Assigned Department');
+        $assigneeEmail = trim((string) ($ticket['assignee_email'] ?? ''));
+        if ($assigneeEmail === '' && count($assigneeEmails) > 0) {
+            $assigneeEmail = (string) $assigneeEmails[0];
+        }
         $lines = [
-            'Ticket #' . notif_ticket_number($ticketId) . ' SLA status has been escalated to ' . $displayNewPriority . '.',
-            'Immediate attention is required.',
+            'Ticket ID: #' . $ticketNumber,
+            'Category: ' . trim((string) ($ticket['category'] ?? '')),
+            'Current Status: ' . $currentSlaLabel,
+            'Requestor: ' . ($requestorLabel !== '' ? $requestorLabel : 'Requester'),
+            'Email: ' . trim((string) ($ticket['creator_email'] ?? $ticket['requester_email'] ?? '')),
+            'Assignee: ' . $assigneeLabel,
+            'Assignee Email: ' . $assigneeEmail,
+            'Date Submitted: ' . $createdAtLabel,
+            'Level of Urgency: ' . notif_urgency_email_label((string) ($ticket['priority'] ?? '')),
+            'Escalated From: ' . $oldPriorityLabel,
+            'Escalated To: ' . $displayNewPriority,
         ];
-        if ($oldPriority !== '') {
-            $lines[] = 'Previous SLA status: ' . $oldPriorityLabel;
+        $lines = array_values(array_filter($lines, static function ($line) {
+            return !preg_match('/:\s*$/', (string) $line);
+        }));
+
+        if (count($requesterEmails) > 0) {
+            $mail = notif_email_simple($title, $lines, 'View Ticket', notif_ticket_link_employee_tickets($ticketId));
+            if (notif_email_send($requesterEmails, $title, (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''))) {
+                $emailed += count($requesterEmails);
+            }
         }
-        if (!empty($ticket['subject'])) {
-            $lines[] = 'Subject: ' . (string) $ticket['subject'];
-        }
-        $ctaUrl = trim((string) ($options['email_cta_url'] ?? ''));
-        if ($ctaUrl === '') {
-            $ctaUrl = notif_ticket_link_admin($ticketId);
-        }
-        $mail = notif_email_simple($title, $lines, 'View Ticket', $ctaUrl);
-        if (notif_email_send($emails, $title, (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''))) {
-            $emailed = count($emails);
+
+        if (count($assigneeEmails) > 0) {
+            $ctaUrl = trim((string) ($options['email_cta_url'] ?? ''));
+            if ($ctaUrl === '') {
+                $ctaUrl = notif_ticket_link_employee_tasks($ticketId);
+            }
+            $mail = notif_email_simple($title, $lines, 'View Ticket', $ctaUrl);
+            if (notif_email_send($assigneeEmails, $title, (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''))) {
+                $emailed += count($assigneeEmails);
+            }
         }
     }
 
@@ -1128,7 +1197,7 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
     $claimedByLabel = $updatedBy;
     $claimedByEmail = trim((string) ($ticket['assignee_email'] ?? ''));
     $submittedAtLabel = '';
-    if ($title === 'Ticket Claimed') {
+    if ($title === 'Ticket Claimed' || $title === 'Ticket Resolved') {
         $assigneeName = trim((string) ($ticket['assignee_name'] ?? ''));
         $assigneeCompany = trim(notif_replace_company_domains((string) ($ticket['assigned_company'] ?? '')));
         $assigneeDepartment = trim((string) ($ticket['assignee_department'] ?? ($ticket['assigned_department'] ?? '')));
@@ -1149,6 +1218,14 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
         if ($createdAt !== '') {
             $createdTs = strtotime($createdAt);
             $submittedAtLabel = $createdTs ? date('M d, Y h:i A', $createdTs) : $createdAt;
+        }
+    }
+    $resolvedAtLabel = '';
+    if ($title === 'Ticket Resolved') {
+        $resolvedAt = trim((string) ($ticket['updated_at'] ?? ''));
+        if ($resolvedAt !== '') {
+            $resolvedTs = strtotime($resolvedAt);
+            $resolvedAtLabel = $resolvedTs ? date('M d, Y h:i A', $resolvedTs) : $resolvedAt;
         }
     }
 
@@ -1177,7 +1254,7 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
         }
     }
 
-    if ($skipEmail) {
+    if ($skipEmail || $title === 'Ticket Closed') {
         return ['inserted' => $inserted, 'emailed' => 0];
     }
 
@@ -1196,10 +1273,34 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
                 if ($submittedAtLabel !== '') {
                     $lines[] = 'Date Submitted: ' . $submittedAtLabel;
                 }
+                $lines[] = 'Current Status: In Progress';
+                $claimedPriority = notif_urgency_email_label((string) ($ticket['priority'] ?? ''));
+                if ($claimedPriority !== '') {
+                    $lines[] = 'Level of Urgency: ' . $claimedPriority;
+                }
             } elseif ($title === 'Ticket Resolved') {
-                $lines[] = 'Resolved By: ' . $updatedBy;
+                $lines[] = 'Resolved By: ' . ($claimedByLabel !== '' ? $claimedByLabel : $updatedBy);
+                if ($claimedByEmail !== '') {
+                    $lines[] = 'Assignee Email: ' . $claimedByEmail;
+                }
+                if ($submittedAtLabel !== '') {
+                    $lines[] = 'Date Submitted: ' . $submittedAtLabel;
+                }
+                if ($resolvedAtLabel !== '') {
+                    $lines[] = 'Date Resolved: ' . $resolvedAtLabel;
+                }
+                $resolvedPriority = notif_urgency_email_label((string) ($ticket['priority'] ?? ''));
+                if ($resolvedPriority !== '') {
+                    $lines[] = 'Level of Urgency: ' . $resolvedPriority;
+                }
             } else {
-                $lines[] = 'Updated By: ' . $updatedBy;
+                $assigneeLabelForUpdate = $claimedByLabel !== '' ? $claimedByLabel : $updatedBy;
+                if ($assigneeLabelForUpdate !== '') {
+                    $lines[] = 'Assignee: ' . $assigneeLabelForUpdate;
+                }
+                if ($claimedByEmail !== '') {
+                    $lines[] = 'Assignee Email: ' . $claimedByEmail;
+                }
             }
         }
         foreach ($extraLines as $line) {
@@ -1215,7 +1316,7 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
         }
     }
 
-    if (count($assigneeEmails) > 0) {
+    if (count($assigneeEmails) > 0 && $title !== 'Ticket Resolved') {
         $lines = [
             'Ticket has been updated.',
             'Ticket ID: #' . $ticketNumber,
@@ -1285,15 +1386,48 @@ function notif_send_pending_chat_email(mysqli $conn, int $userId, int $ticketId,
 
     $ticketNumber = notif_ticket_number($ticketId);
     $ticketSubject = trim($ticketSubject);
+    $ticket = notif_ticket_data($conn, $ticketId) ?: [];
+    $requestor = trim((string) ($ticket['creator_name'] ?? $ticket['requester_name'] ?? ''));
+    $requesterEmail = trim((string) ($ticket['creator_email'] ?? $ticket['requester_email'] ?? ''));
+    $isRequesterRecipient = $requesterEmail !== '' && strcasecmp($email, $requesterEmail) === 0;
+    if (!$isRequesterRecipient) {
+        $requesterIds = notif_requester_user_ids($conn, $ticket);
+        $isRequesterRecipient = in_array($userId, $requesterIds, true);
+    }
+
+    $assigneeName = trim((string) ($ticket['assignee_name'] ?? ''));
+    $assigneeEmail = trim((string) ($ticket['assignee_email'] ?? ''));
+    $assigneeCompany = trim(notif_replace_company_domains((string) ($ticket['assigned_company'] ?? '')));
+    $assigneeDepartment = trim((string) ($ticket['assignee_department'] ?? ($ticket['assigned_department'] ?? '')));
+    $assigneeContext = '';
+    if ($assigneeCompany !== '' && $assigneeDepartment !== '') {
+        $assigneeContext = $assigneeCompany . '-' . $assigneeDepartment;
+    } elseif ($assigneeDepartment !== '') {
+        $assigneeContext = $assigneeDepartment;
+    } elseif ($assigneeCompany !== '') {
+        $assigneeContext = $assigneeCompany;
+    }
+    $assigneeLabel = $assigneeName !== ''
+        ? $assigneeName . ($assigneeContext !== '' ? ' (' . $assigneeContext . ')' : '')
+        : ($assigneeContext !== '' ? $assigneeContext : '-');
+
     $lines = [
         'Ticket ID: #' . $ticketNumber,
-        'You have a pending chat reply that needs your attention.',
+        'Category: ' . trim((string) ($ticket['category'] ?? '-')),
+        'Current Status: ' . trim((string) ($ticket['status'] ?? '-')),
     ];
+    if ($isRequesterRecipient) {
+        $lines[] = 'Assignee: ' . $assigneeLabel;
+        $lines[] = 'Email: ' . ($assigneeEmail !== '' ? $assigneeEmail : '-');
+    } else {
+        $lines[] = 'Requestor: ' . ($requestor !== '' ? $requestor : '-');
+        $lines[] = 'Email: ' . ($requesterEmail !== '' ? $requesterEmail : '-');
+    }
     if ($ticketSubject !== '') {
         $lines[] = 'Subject: ' . $ticketSubject;
     }
 
-    $mail = notif_email_simple('Pending Chat', $lines, 'Open Chat', notif_ticket_link_employee_chat($ticketId));
+    $mail = notif_email_simple('Pending Chat', $lines, 'View Message', notif_ticket_link_employee_chat($ticketId));
     return notif_email_send([$email], 'Pending Chat (#' . $ticketNumber . ')', (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''));
 }
 
@@ -1320,8 +1454,9 @@ function notif_email_assignee_assignment(string $title, array $lines, string $ct
                 $label = 'Requestor';
             } elseif ($labelKey === 'requester email') {
                 $label = 'Email';
-            } elseif ($labelKey === 'priority' || $labelKey === 'urgency') {
+            } elseif ($labelKey === 'priority' || $labelKey === 'urgency' || $labelKey === 'level of urgency') {
                 $label = 'Level of Urgency';
+                $value = notif_urgency_email_label($value);
             } elseif ($labelKey === 'created' || $labelKey === 'created at') {
                 $label = 'Date Submitted';
             } elseif ($labelKey === 'description') {
@@ -1401,8 +1536,9 @@ function notif_email_requester_ticket_submitted(string $title, array $lines, str
             $label = 'Requestor';
         } elseif ($labelKey === 'requester email') {
             $label = 'Email';
-        } elseif ($labelKey === 'priority' || $labelKey === 'urgency') {
+        } elseif ($labelKey === 'priority' || $labelKey === 'urgency' || $labelKey === 'level of urgency') {
             $label = 'Level of Urgency';
+            $value = notif_urgency_email_label($value);
         } elseif ($labelKey === 'created' || $labelKey === 'created at') {
             $label = 'Date Submitted';
         } elseif ($labelKey === 'description') {
@@ -1477,26 +1613,24 @@ function notif_email_requester_ticket_claimed(string $title, array $lines, strin
         $labelKey = strtolower($label);
         if ($labelKey === 'handled by' || $labelKey === 'updated by') {
             $label = 'Claimed By';
-        } elseif ($labelKey === 'current status' || $labelKey === 'status') {
+        } elseif ($labelKey === 'current status' || $labelKey === 'status' || $labelKey === 'ticket status') {
             $label = 'Current Status';
-            if (strcasecmp($value, 'In Progress') === 0) {
-                $value = 'On-going';
-            }
-        } elseif ($labelKey === 'priority' || $labelKey === 'urgency') {
+        } elseif ($labelKey === 'priority' || $labelKey === 'urgency' || $labelKey === 'level of urgency') {
             $label = 'Level of Urgency';
+            $value = notif_urgency_email_label($value);
         } elseif ($labelKey === 'created' || $labelKey === 'created at') {
-            $label = 'Date Submitted';
+            $label = 'Date Submitted';                  
         } elseif ($labelKey === 'description') {
             $label = 'Description';
         } elseif ($labelKey === 'assignee email') {
-            $label = 'Assignee Email';
+            $label = ' Email';
         } elseif ($labelKey === 'subject' || $labelKey === 'title' || $labelKey === 'requester' || $labelKey === 'requestor' || $labelKey === 'email' || $labelKey === 'requester email') {
             continue;
         }
         $details[$label] = $value;
     }
 
-    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Claimed By', 'Assignee Email', 'Date Submitted', 'Level of Urgency', 'Description'];
+    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Claimed By', ' Email', 'Date Submitted', 'Level of Urgency', 'Description'];
     $rowsHtml = '';
     foreach ($orderedLabels as $label) {
         if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
@@ -1521,7 +1655,7 @@ function notif_email_requester_ticket_claimed(string $title, array $lines, strin
                     <div style="font-size:19px;font-weight:700;color:#fff200;margin-top:12px;line-height:1.25;">' . $safeTitle . '</div>
                 </div>
                 <div style="padding:30px 28px 26px;">
-                    <div style="margin:0 0 28px 0;font-size:16px;line-height:1.5;color:#050505;">A team member is currently reviewing your ticket and will keep you updated.</div>
+                    <div style="margin:0 0 28px 0;font-size:16px;line-height:1.5;color:#050505;">Your ticket is under review by our team, and we will keep you informed of any progress.</div>
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 2px 0;">
                         ' . $rowsHtml . '
                     </table>
@@ -1534,6 +1668,620 @@ function notif_email_requester_ticket_claimed(string $title, array $lines, strin
         </div>';
 
     $bodyText = "Leads DeskMetamorph\n$title\n\nA team member is currently reviewing your ticket and will keep you updated.\n\n" . $lineText . "\nWhat Happens Next?\nYou can stay updated through email notifications and ticket tracking.\n\n$ctaLabel: $ctaUrl\n";
+    return ['html' => $bodyHtml, 'text' => $bodyText];
+}
+
+function notif_email_requester_ticket_resolved(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
+{
+    $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $ctaLabelSafe = htmlspecialchars($ctaLabel !== '' ? $ctaLabel : 'View Ticket', ENT_QUOTES, 'UTF-8');
+    $ctaUrlSafe = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
+    $details = [];
+    $lineText = '';
+
+    foreach ($lines as $line) {
+        $line = trim((string) $line);
+        if ($line === '' || $line === '...' || $line === '…') {
+            continue;
+        }
+        if (!preg_match('/^([^:]+):\s*(.*)$/s', $line, $matches)) {
+            continue;
+        }
+
+        $label = trim((string) ($matches[1] ?? ''));
+        $value = trim((string) ($matches[2] ?? ''));
+        $labelKey = strtolower($label);
+        if ($labelKey === 'resolved by' || $labelKey === 'updated by') {
+            $label = 'Resolved By';
+        } elseif ($labelKey === 'current status' || $labelKey === 'status' || $labelKey === 'ticket status') {
+            $label = 'Current Status';
+            $value = 'Resolved';
+        } elseif ($labelKey === 'priority' || $labelKey === 'urgency' || $labelKey === 'level of urgency') {
+            $label = 'Level of Urgency';
+            $value = notif_urgency_email_label($value);
+        } elseif ($labelKey === 'created' || $labelKey === 'created at') {
+            $label = 'Date Submitted';
+        } elseif ($labelKey === 'resolved at' || $labelKey === 'date resolved') {
+            $label = 'Date Resolved';
+        } elseif ($labelKey === 'description') {
+            $label = 'Description';
+        } elseif ($labelKey === 'assignee email') {
+            $label = 'Email';
+        } elseif ($labelKey === 'subject' || $labelKey === 'title' || $labelKey === 'requester' || $labelKey === 'requestor' || $labelKey === 'email' || $labelKey === 'requester email') {
+            continue;
+        }
+        $details[$label] = $value;
+        $lineText .= $label . ': ' . $value . "\n";
+    }
+
+    if (empty($details['Current Status'])) {
+        $details['Current Status'] = 'Resolved';
+    }
+    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Resolved By', 'Email', 'Date Submitted', 'Date Resolved', 'Level of Urgency', 'Description'];
+    $rowsHtml = '';
+    foreach ($orderedLabels as $label) {
+        if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
+            continue;
+        }
+        $rowsHtml .= '
+                        <tr>
+                            <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                        </tr>';
+    }
+
+    $ctaBlock = $ctaUrlSafe !== ''
+        ? '<a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="display:block;width:100%;box-sizing:border-box;text-align:center;background:#006633;border:1px solid #006633;border-radius:6px;padding:12px 18px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;line-height:1.2;">' . $ctaLabelSafe . '</a>'
+        : '';
+
+    $bodyHtml = '
+        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;">
+            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;">
+                <div style="background:#005c2f;padding:24px 26px 18px;color:#ffffff;">
+                    <div style="font-size:31px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;">Leads DeskMetamorph</div>
+                    <div style="font-size:19px;font-weight:700;color:#fff200;margin-top:12px;line-height:1.25;">' . $safeTitle . '</div>
+                </div>
+                <div style="padding:30px 28px 26px;">
+                    <div style="margin:0 0 28px 0;font-size:16px;line-height:1.5;color:#050505;">Your ticket has been successfully resolved.</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 2px 0;">
+                        ' . $rowsHtml . '
+                    </table>
+                    <div style="border-top:1px solid #d8d8d8;margin:6px 0 20px 0;"></div>
+                    <div style="margin:0 0 8px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;">What Happens Next?</div>
+                    <div style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#050505;">You can stay updated through email notifications and ticket tracking.</div>
+                    ' . $ctaBlock . '
+                </div>
+            </div>
+        </div>';
+
+    $bodyText = "Leads DeskMetamorph\n$title\n\nYour ticket has been resolved.\n\n" . $lineText . "\nWhat Happens Next?\nYou can stay updated through email notifications and ticket tracking.\n\n$ctaLabel: $ctaUrl\n";
+    return ['html' => $bodyHtml, 'text' => $bodyText];
+}
+
+function notif_email_requester_ticket_reassigned(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
+{
+    $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $ctaLabelSafe = htmlspecialchars($ctaLabel !== '' ? $ctaLabel : 'View Ticket', ENT_QUOTES, 'UTF-8');
+    $ctaUrlSafe = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
+    $details = [];
+    $lineText = '';
+    $fromTarget = '';
+    $toTarget = '';
+
+    foreach ($lines as $line) {
+        $line = trim((string) $line);
+        if ($line === '' || $line === '...' || $line === 'â€¦') {
+            continue;
+        }
+        if (!preg_match('/^([^:]+):\s*(.*)$/s', $line, $matches)) {
+            continue;
+        }
+
+        $label = trim((string) ($matches[1] ?? ''));
+        $value = trim((string) ($matches[2] ?? ''));
+        $labelKey = strtolower($label);
+        if ($labelKey === 'from' || $labelKey === 'reassigned from') {
+            $fromTarget = notif_replace_company_domains($value);
+            continue;
+        }
+        if ($labelKey === 'to' || $labelKey === 'reassigned to') {
+            $toTarget = notif_replace_company_domains($value);
+            continue;
+        }
+        if ($labelKey === 'handled by' || $labelKey === 'updated by' || $labelKey === 'assigned to') {
+            $label = 'Claimed By';
+        } elseif ($labelKey === 'current status' || $labelKey === 'status' || $labelKey === 'ticket status' || $labelKey === 'current status') {
+            $label = 'Current Status';
+            $value = strcasecmp($value, 'On-going') === 0 || strcasecmp($value, 'Ongoing') === 0 ? 'In Progress' : $value;
+        } elseif ($labelKey === 'priority' || $labelKey === 'urgency' || $labelKey === 'level of urgency') {
+            $label = 'Level of Urgency';
+            $value = notif_urgency_email_label($value);
+        } elseif ($labelKey === 'created' || $labelKey === 'created at') {
+            $label = 'Date Submitted';
+        } elseif ($labelKey === 'date reassigned' || $labelKey === 'reassigned at') {
+            $label = 'Date Reassigned';
+        } elseif ($labelKey === 'description') {
+            $label = 'Description';
+        } elseif (strpos($labelKey, 'note') === 0) {
+            $label = 'Note';
+        } elseif ($labelKey === 'assignee email') {
+            $label = 'Email';
+        } elseif ($labelKey === 'subject' || $labelKey === 'title' || $labelKey === 'requester' || $labelKey === 'requestor' || $labelKey === 'email' || $labelKey === 'requester email') {
+            continue;
+        }
+        $details[$label] = $value;
+    }
+
+    $ticketId = 0;
+    if (!empty($details['Ticket ID']) && preg_match('/(\d+)/', (string) $details['Ticket ID'], $idMatch)) {
+        $ticketId = (int) $idMatch[1];
+    }
+    if ($ticketId > 0) {
+        $details['Ticket ID'] = '#' . notif_ticket_number($ticketId);
+    }
+
+    $ticket = null;
+    if ($ticketId > 0 && isset($GLOBALS['conn']) && $GLOBALS['conn'] instanceof mysqli) {
+        $ticket = notif_ticket_data($GLOBALS['conn'], $ticketId);
+    }
+    if (is_array($ticket)) {
+        if (empty($details['Category']) && trim((string) ($ticket['category'] ?? '')) !== '') {
+            $details['Category'] = (string) $ticket['category'];
+        }
+        if (empty($details['Current Status']) && trim((string) ($ticket['status'] ?? '')) !== '') {
+            $details['Current Status'] = (string) $ticket['status'];
+        }
+        if (empty($details['Claimed By'])) {
+            $assigneeName = trim((string) ($ticket['assignee_name'] ?? ''));
+            $assigneeCompany = trim(notif_replace_company_domains((string) ($ticket['assigned_company'] ?? '')));
+            $assigneeDepartment = trim((string) ($ticket['assignee_department'] ?? ($ticket['assigned_department'] ?? '')));
+            $assigneeContext = '';
+            if ($assigneeCompany !== '' && $assigneeDepartment !== '') {
+                $assigneeContext = $assigneeCompany . '-' . $assigneeDepartment;
+            } elseif ($assigneeDepartment !== '') {
+                $assigneeContext = $assigneeDepartment;
+            } elseif ($assigneeCompany !== '') {
+                $assigneeContext = $assigneeCompany;
+            }
+            if ($assigneeName !== '') {
+                $details['Claimed By'] = $assigneeName . ($assigneeContext !== '' ? ' (' . $assigneeContext . ')' : '');
+            }
+        }
+        if (empty($details['Email']) && trim((string) ($ticket['assignee_email'] ?? '')) !== '') {
+            $details['Email'] = (string) $ticket['assignee_email'];
+        }
+        if (empty($details['Date Reassigned']) && trim((string) ($ticket['updated_at'] ?? '')) !== '') {
+            $updatedTs = strtotime((string) $ticket['updated_at']);
+            $details['Date Reassigned'] = $updatedTs ? date('M d, Y h:i A', $updatedTs) : (string) $ticket['updated_at'];
+        }
+        if (empty($details['Level of Urgency']) && trim((string) ($ticket['priority'] ?? '')) !== '') {
+            $details['Level of Urgency'] = notif_urgency_email_label((string) $ticket['priority']);
+        }
+        if (empty($details['Description']) && trim((string) ($ticket['description'] ?? '')) !== '') {
+            $details['Description'] = (string) $ticket['description'];
+        }
+    }
+
+    $companyForIntro = '';
+    if (is_array($ticket)) {
+        $companyForIntro = trim(notif_replace_company_domains((string) ($ticket['assigned_company'] ?? '')));
+    }
+    if ($companyForIntro === '' && !empty($details['Claimed By']) && preg_match('/\(([A-Z0-9 &\/]+)-[^)]+\)/', (string) $details['Claimed By'], $companyMatch)) {
+        $companyForIntro = trim((string) ($companyMatch[1] ?? ''));
+    }
+
+    $cleanTarget = static function (string $value, bool $dropCompany = false): string {
+        $value = trim(notif_replace_company_domains($value));
+        $value = preg_replace('/\s+Department\b/i', '', $value);
+        $value = trim((string) $value);
+        if ($dropCompany) {
+            $value = trim((string) preg_replace('/\s+-\s+[A-Z0-9 &\/]+$/i', '', $value));
+            $value = trim((string) preg_replace('/\s+at\s+[A-Z0-9 &\/]+$/i', '', $value));
+        } else {
+            $value = trim((string) preg_replace('/\s+-\s+/', ' at ', $value));
+        }
+        return $value;
+    };
+
+    $fromLabel = $cleanTarget($fromTarget, true);
+    $toLabel = $cleanTarget($toTarget, true);
+
+    $ticketNumber = (string) ($details['Ticket ID'] ?? '');
+    $introText = trim($ticketNumber) !== '' && $fromLabel !== '' && $toLabel !== ''
+        ? 'Ticket ' . $ticketNumber . ' was reassigned from ' . $fromLabel . ' to ' . $toLabel . '.'
+        : 'Your ticket has been reassigned to another department for further handling.';
+
+    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Claimed By', 'Email', 'Date Reassigned', 'Level of Urgency', 'Description', 'Note'];
+    $rowsHtml = '';
+    foreach ($orderedLabels as $label) {
+        if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
+            continue;
+        }
+        $lineText .= $label . ': ' . (string) $details[$label] . "\n";
+        $rowsHtml .= '
+                        <tr>
+                            <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                        </tr>';
+    }
+
+    $ctaBlock = $ctaUrlSafe !== ''
+        ? '<a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="display:block;width:100%;box-sizing:border-box;text-align:center;background:#006633;border:1px solid #006633;border-radius:6px;padding:12px 18px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;line-height:1.2;">' . $ctaLabelSafe . '</a>'
+        : '';
+
+    $bodyHtml = '
+        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;">
+            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;">
+                <div style="background:#005c2f;padding:24px 26px 18px;color:#ffffff;">
+                    <div style="font-size:31px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;">Leads DeskMetamorph</div>
+                    <div style="font-size:19px;font-weight:700;color:#fff200;margin-top:12px;line-height:1.25;">' . $safeTitle . '</div>
+                </div>
+                <div style="padding:30px 28px 26px;">
+                    <div style="margin:0 0 28px 0;font-size:16px;line-height:1.5;color:#050505;">' . htmlspecialchars($introText, ENT_QUOTES, 'UTF-8') . '</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 2px 0;">
+                        ' . $rowsHtml . '
+                    </table>
+                    <div style="border-top:1px solid #d8d8d8;margin:6px 0 20px 0;"></div>
+                    <div style="margin:0 0 8px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;">What Happens Next?</div>
+                    <div style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#050505;">You can stay updated through email notifications and ticket tracking.</div>
+                    ' . $ctaBlock . '
+                </div>
+            </div>
+        </div>';
+
+    $bodyText = "Leads DeskMetamorph\n$title\n\n" . $introText . "\n\n" . $lineText . "\nWhat Happens Next?\nYou can stay updated through email notifications and ticket tracking.\n\n$ctaLabel: $ctaUrl\n";
+    return ['html' => $bodyHtml, 'text' => $bodyText];
+}
+
+function notif_email_requester_ticket_status_updated(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
+{
+    $safeTitle = htmlspecialchars('Ticket Status Updated', ENT_QUOTES, 'UTF-8');
+    $ctaLabelSafe = htmlspecialchars($ctaLabel !== '' ? $ctaLabel : 'View Ticket', ENT_QUOTES, 'UTF-8');
+    $ctaUrlSafe = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
+    $details = [];
+    $lineText = '';
+
+    foreach ($lines as $line) {
+        $line = trim((string) $line);
+        if ($line === '' || $line === '...' || $line === 'â€¦') {
+            continue;
+        }
+        if (!preg_match('/^([^:]+):\s*(.*)$/s', $line, $matches)) {
+            continue;
+        }
+
+        $label = trim((string) ($matches[1] ?? ''));
+        $value = trim((string) ($matches[2] ?? ''));
+        $labelKey = strtolower($label);
+        if ($labelKey === 'status' || $labelKey === 'current status' || $labelKey === 'ticket status') {
+            $label = 'Current Status';
+        } elseif ($labelKey === 'handled by' || $labelKey === 'updated by' || $labelKey === 'assignee' || $labelKey === 'assigned to') {
+            $label = 'Assignee';
+        } elseif ($labelKey === 'assignee email') {
+            $label = 'Email';
+        } elseif ($labelKey === 'priority' || $labelKey === 'urgency' || $labelKey === 'level of urgency') {
+            $label = 'Level of Urgency';
+            $value = notif_urgency_email_label($value);
+        } elseif ($labelKey === 'description') {
+            $label = 'Description';
+        } elseif ($labelKey === 'subject' || $labelKey === 'title' || $labelKey === 'requester' || $labelKey === 'requestor' || $labelKey === 'requester email') {
+            continue;
+        }
+        $details[$label] = $value;
+    }
+
+    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Assignee', 'Email', 'Level of Urgency', 'Description'];
+    $rowsHtml = '';
+    foreach ($orderedLabels as $label) {
+        if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
+            continue;
+        }
+        $lineText .= $label . ': ' . (string) $details[$label] . "\n";
+        $rowsHtml .= '
+                        <tr>
+                            <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                        </tr>';
+    }
+
+    $ctaBlock = $ctaUrlSafe !== ''
+        ? '<a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="display:block;width:100%;box-sizing:border-box;text-align:center;background:#006633;border:1px solid #006633;border-radius:6px;padding:12px 18px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;line-height:1.2;">' . $ctaLabelSafe . '</a>'
+        : '';
+
+    $bodyHtml = '
+        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;">
+            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;">
+                <div style="background:#005c2f;padding:24px 26px 18px;color:#ffffff;">
+                    <div style="font-size:31px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;">Leads DeskMetamorph</div>
+                    <div style="font-size:19px;font-weight:700;color:#fff200;margin-top:12px;line-height:1.25;">' . $safeTitle . '</div>
+                </div>
+                <div style="padding:30px 28px 26px;">
+                    <div style="margin:0 0 28px 0;font-size:16px;line-height:1.5;color:#050505;">Your ticket status has been updated.</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 2px 0;">
+                        ' . $rowsHtml . '
+                    </table>
+                    <div style="border-top:1px solid #d8d8d8;margin:6px 0 20px 0;"></div>
+                    <div style="margin:0 0 8px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;">What Happens Next?</div>
+                    <div style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#050505;">You can stay updated through email notifications and ticket tracking.</div>
+                    ' . $ctaBlock . '
+                </div>
+            </div>
+        </div>';
+
+    $bodyText = "Leads DeskMetamorph\nTicket Status Updated\n\nYour ticket status has been updated.\n\n" . $lineText . "\nWhat Happens Next?\nYou can stay updated through email notifications and ticket tracking.\n\n$ctaLabel: $ctaUrl\n";
+    return ['html' => $bodyHtml, 'text' => $bodyText];
+}
+
+function notif_email_follow_up(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
+{
+    $safeTitle = htmlspecialchars('Follow Up', ENT_QUOTES, 'UTF-8');
+    $ctaLabelSafe = htmlspecialchars($ctaLabel !== '' ? $ctaLabel : 'View Ticket', ENT_QUOTES, 'UTF-8');
+    $ctaUrlSafe = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
+    $details = [];
+    $lineText = '';
+
+    foreach ($lines as $line) {
+        $line = trim((string) $line);
+        if ($line === '' || $line === '...' || $line === '…') {
+            continue;
+        }
+        if (!preg_match('/^([^:]+):\s*(.*)$/s', $line, $matches)) {
+            continue;
+        }
+
+        $label = trim((string) ($matches[1] ?? ''));
+        $value = trim((string) ($matches[2] ?? ''));
+        $labelKey = strtolower($label);
+        if ($labelKey === 'status' || $labelKey === 'current status' || $labelKey === 'ticket status') {
+            $label = 'Current Status';
+        } elseif ($labelKey === 'requested by' || $labelKey === 'requester' || $labelKey === 'requestor') {
+            $label = 'Requestor';
+        } elseif ($labelKey === 'requester email') {
+            $label = 'Email';
+        } elseif ($labelKey === 'follow-up message' || $labelKey === 'follow up message' || $labelKey === 'assigned to' || $labelKey === 'attachments') {
+            continue;
+        }
+        $details[$label] = $value;
+        $lineText .= $label . ': ' . $value . "\n";
+    }
+
+    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Requestor', 'Email'];
+    $rowsHtml = '';
+    foreach ($orderedLabels as $label) {
+        if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
+            continue;
+        }
+        $rowsHtml .= '
+                        <tr>
+                            <td style="width:160px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                        </tr>';
+    }
+
+    $ctaBlock = $ctaUrlSafe !== ''
+        ? '<a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="display:block;width:100%;box-sizing:border-box;text-align:center;background:#006633;border:1px solid #006633;border-radius:6px;padding:12px 18px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;line-height:1.2;">' . $ctaLabelSafe . '</a>'
+        : '';
+
+    $bodyHtml = '
+        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;">
+            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;">
+                <div style="background:#005c2f;padding:24px 26px 18px;color:#ffffff;">
+                    <div style="font-size:31px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;">Leads DeskMetamorph</div>
+                    <div style="font-size:19px;font-weight:700;color:#fff200;margin-top:12px;line-height:1.25;">' . $safeTitle . '</div>
+                </div>
+                <div style="padding:30px 28px 26px;">
+                    <div style="margin:0 0 28px 0;font-size:16px;line-height:1.5;color:#050505;">The requestor has provided a follow-up update.</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 2px 0;">
+                        ' . $rowsHtml . '
+                    </table>
+                    <div style="border-top:1px solid #d8d8d8;margin:6px 0 20px 0;"></div>
+                    <div style="margin:0 0 8px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;">Action Required:</div>
+                    <div style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#050505;">Please review the follow-up and provide an update to the requestor.</div>
+                    ' . $ctaBlock . '
+                </div>
+            </div>
+        </div>';
+
+    $bodyText = "Leads DeskMetamorph\nFollow Up\n\nThe requestor has provided a follow-up update.\n\n" . $lineText . "\nAction Required:\nPlease review the follow-up and provide an update to the requestor.\n\n$ctaLabel: $ctaUrl\n";
+    return ['html' => $bodyHtml, 'text' => $bodyText];
+}
+
+function notif_email_pending_chat(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
+{
+    $safeTitle = htmlspecialchars('Pending Chat', ENT_QUOTES, 'UTF-8');
+    $ctaLabelSafe = htmlspecialchars($ctaLabel !== '' ? $ctaLabel : 'View Ticket', ENT_QUOTES, 'UTF-8');
+    $ctaUrlSafe = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
+    $isRequesterAudience = false;
+    $details = [];
+    $lineText = '';
+
+    foreach ($lines as $line) {
+        $line = trim((string) $line);
+        if ($line === '' || $line === '...' || $line === '…') {
+            continue;
+        }
+        if (!preg_match('/^([^:]+):\s*(.*)$/s', $line, $matches)) {
+            continue;
+        }
+
+        $label = trim((string) ($matches[1] ?? ''));
+        $value = trim((string) ($matches[2] ?? ''));
+        $labelKey = strtolower($label);
+        if ($labelKey === 'status' || $labelKey === 'current status' || $labelKey === 'ticket status') {
+            $label = 'Current Status';
+        } elseif ($labelKey === 'assignee' || $labelKey === 'assigned to') {
+            $label = 'Assignee';
+        } elseif ($labelKey === 'requested by' || $labelKey === 'requester' || $labelKey === 'requestor') {
+            $label = 'Requestor';
+        } elseif ($labelKey === 'requester email' || $labelKey === 'assignee email') {
+            $label = 'Email';
+        } elseif ($labelKey === 'subject' || $labelKey === 'title') {
+            continue;
+        }
+        $details[$label] = $value;
+        $lineText .= $label . ': ' . $value . "\n";
+    }
+    $isRequesterAudience = isset($details['Assignee']) && !isset($details['Requestor']);
+
+    $orderedLabels = $isRequesterAudience
+        ? ['Ticket ID', 'Category', 'Current Status', 'Assignee', 'Email']
+        : ['Ticket ID', 'Category', 'Current Status', 'Requestor', 'Email'];
+    $rowsHtml = '';
+    foreach ($orderedLabels as $label) {
+        if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
+            continue;
+        }
+        $rowsHtml .= '
+                        <tr>
+                            <td style="width:160px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                        </tr>';
+    }
+
+    $ctaBlock = $ctaUrlSafe !== ''
+        ? '<a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="display:block;width:100%;box-sizing:border-box;text-align:center;background:#006633;border:1px solid #006633;border-radius:6px;padding:12px 18px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;line-height:1.2;">' . $ctaLabelSafe . '</a>'
+        : '';
+    if ($isRequesterAudience) {
+        $introText = 'A pending chat is awaiting your response and requires your attention.';
+        $footerTitle = 'What Happens Next?';
+        $footerText = 'You can stay updated through email notifications and ticket tracking.';
+    } else {
+        $introText = 'A pending chat is awaiting your response and requires your attention.';
+        $footerTitle = 'Action Required:';
+        $footerText = 'Please review the chat details and provide an update or response to the requestor.';
+    }
+
+    $bodyHtml = '
+        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;">
+            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;">
+                <div style="background:#005c2f;padding:24px 26px 18px;color:#ffffff;">
+                    <div style="font-size:31px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;">Leads DeskMetamorph</div>
+                    <div style="font-size:19px;font-weight:700;color:#fff200;margin-top:12px;line-height:1.25;">' . $safeTitle . '</div>
+                </div>
+                <div style="padding:30px 28px 26px;">
+                    <div style="margin:0 0 28px 0;font-size:16px;line-height:1.5;color:#050505;">' . htmlspecialchars($introText, ENT_QUOTES, 'UTF-8') . '</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 2px 0;">
+                        ' . $rowsHtml . '
+                    </table>
+                    <div style="border-top:1px solid #d8d8d8;margin:6px 0 20px 0;"></div>
+                    <div style="margin:0 0 8px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;">' . $footerTitle . '</div>
+                    <div style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#050505;">' . $footerText . '</div>
+                    ' . $ctaBlock . '
+                </div>
+            </div>
+        </div>';
+
+    $bodyText = "Leads DeskMetamorph\nPending Chat\n\n" . $introText . "\n\n" . $lineText . "\n$footerTitle\n$footerText\n\n$ctaLabel: $ctaUrl\n";
+    return ['html' => $bodyHtml, 'text' => $bodyText];
+}
+
+function notif_email_priority_escalation(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
+{
+    $safeTitle = htmlspecialchars('Priority Escalation', ENT_QUOTES, 'UTF-8');
+    $ctaLabelSafe = htmlspecialchars($ctaLabel !== '' ? $ctaLabel : 'View Ticket', ENT_QUOTES, 'UTF-8');
+    $ctaUrlSafe = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
+    $isRequesterAudience = stripos($ctaUrl, '/employee/my_task.php') === false && stripos($ctaUrl, '/admin/') === false;
+    $details = [];
+    $lineText = '';
+    $from = '';
+    $to = '';
+
+    foreach ($lines as $line) {
+        $line = trim((string) $line);
+        if ($line === '' || $line === '...' || $line === 'â€¦') {
+            continue;
+        }
+        if (!preg_match('/^([^:]+):\s*(.*)$/s', $line, $matches)) {
+            continue;
+        }
+
+        $label = trim((string) ($matches[1] ?? ''));
+        $value = trim((string) ($matches[2] ?? ''));
+        $labelKey = strtolower($label);
+        if ($labelKey === 'escalated from' || $labelKey === 'previous sla status') {
+            $from = $value;
+            continue;
+        }
+        if ($labelKey === 'escalated to' || $labelKey === 'new sla status') {
+            $to = $value;
+            continue;
+        }
+        if ($labelKey === 'status' || $labelKey === 'current status' || $labelKey === 'ticket status') {
+            $label = 'Current Status';
+        } elseif ($labelKey === 'assignee' || $labelKey === 'assigned to') {
+            $label = 'Assignee';
+        } elseif ($labelKey === 'assignee email') {
+            $label = 'Assignee Email';
+        } elseif ($labelKey === 'requested by' || $labelKey === 'requester' || $labelKey === 'requestor') {
+            $label = 'Requestor';
+        } elseif ($labelKey === 'requester email') {
+            $label = 'Email';
+        } elseif ($labelKey === 'created' || $labelKey === 'created at') {
+            $label = 'Date Submitted';
+        } elseif ($labelKey === 'priority' || $labelKey === 'urgency' || $labelKey === 'level of urgency') {
+            $label = 'Level of Urgency';
+            $value = notif_urgency_email_label($value);
+        } elseif ($labelKey === 'subject' || $labelKey === 'title' || $labelKey === 'immediate attention is required') {
+            continue;
+        }
+        $details[$label] = $value;
+    }
+
+    $ticketNumber = trim((string) ($details['Ticket ID'] ?? ''));
+    $toIntro = strcasecmp($to, 'Breach') === 0 ? 'Breached' : $to;
+    $introText = ($ticketNumber !== '' && $from !== '' && $to !== '')
+        ? 'Ticket ' . $ticketNumber . ' has been escalated from ' . $from . ' to ' . $toIntro . '.'
+        : 'This ticket was escalated and requires attention.';
+
+    if ($isRequesterAudience && !empty($details['Assignee Email'])) {
+        $details['Email'] = $details['Assignee Email'];
+    }
+    $orderedLabels = $isRequesterAudience
+        ? ['Ticket ID', 'Category', 'Current Status', 'Assignee', 'Email', 'Date Submitted', 'Level of Urgency']
+        : ['Ticket ID', 'Category', 'Current Status', 'Requestor', 'Email', 'Date Submitted', 'Level of Urgency'];
+    $rowsHtml = '';
+    foreach ($orderedLabels as $label) {
+        if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
+            continue;
+        }
+        $lineText .= $label . ': ' . (string) $details[$label] . "\n";
+        $rowsHtml .= '
+                        <tr>
+                            <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                        </tr>';
+    }
+
+    $ctaBlock = $ctaUrlSafe !== ''
+        ? '<a href="' . $ctaUrlSafe . '" target="_blank" rel="noopener" style="display:block;width:100%;box-sizing:border-box;text-align:center;background:#006633;border:1px solid #006633;border-radius:6px;padding:12px 18px;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;line-height:1.2;">' . $ctaLabelSafe . '</a>'
+        : '';
+
+    $footerTitle = $isRequesterAudience ? 'What Happens Next?' : 'Action Required:';
+    $footerText = $isRequesterAudience
+        ? 'You can stay updated through email notifications and ticket tracking.'
+        : 'Please review the escalated ticket and take the necessary action as soon as possible.';
+
+    $bodyHtml = '
+        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;">
+            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;">
+                <div style="background:#005c2f;padding:24px 26px 18px;color:#ffffff;">
+                    <div style="font-size:31px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;">Leads DeskMetamorph</div>
+                    <div style="font-size:19px;font-weight:700;color:#fff200;margin-top:12px;line-height:1.25;">' . $safeTitle . '</div>
+                </div>
+                <div style="padding:30px 28px 26px;">
+                    <div style="margin:0 0 28px 0;font-size:16px;line-height:1.5;color:#050505;">' . htmlspecialchars($introText, ENT_QUOTES, 'UTF-8') . '</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 2px 0;">
+                        ' . $rowsHtml . '
+                    </table>
+                    <div style="border-top:1px solid #d8d8d8;margin:6px 0 20px 0;"></div>
+                    <div style="margin:0 0 8px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;">' . $footerTitle . '</div>
+                    <div style="margin:0 0 16px 0;font-size:15px;line-height:1.5;color:#050505;">' . $footerText . '</div>
+                    ' . $ctaBlock . '
+                </div>
+            </div>
+        </div>';
+
+    $bodyText = "Leads DeskMetamorph\nPriority Escalation\n\n" . $introText . "\n\n" . $lineText . "\n$footerTitle\n$footerText\n\n$ctaLabel: $ctaUrl\n";
     return ['html' => $bodyHtml, 'text' => $bodyText];
 }
 
@@ -1558,6 +2306,33 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
     if ($isRequesterTicketClaimed) {
         return notif_email_requester_ticket_claimed($title, $lines, $ctaLabel, $ctaUrl);
     }
+    $isRequesterTicketResolved = $normalizedTitle === 'ticket resolved'
+        && stripos($ctaUrl, '/employee/my_task.php') === false
+        && stripos($ctaUrl, '/admin/') === false;
+    if ($isRequesterTicketResolved) {
+        return notif_email_requester_ticket_resolved($title, $lines, $ctaLabel, $ctaUrl);
+    }
+    $isRequesterTicketReassigned = $normalizedTitle === 'ticket reassigned'
+        && stripos($ctaUrl, '/employee/my_task.php') === false
+        && stripos($ctaUrl, '/admin/') === false;
+    if ($isRequesterTicketReassigned) {
+        return notif_email_requester_ticket_reassigned($title, $lines, $ctaLabel, $ctaUrl);
+    }
+    $isRequesterTicketStatusUpdated = $normalizedTitle === 'ticket status updated'
+        && stripos($ctaUrl, '/employee/my_task.php') === false
+        && stripos($ctaUrl, '/admin/') === false;
+    if ($isRequesterTicketStatusUpdated) {
+        return notif_email_requester_ticket_status_updated($title, $lines, $ctaLabel, $ctaUrl);
+    }
+    if (in_array($normalizedTitle, ['ticket follow up', 'follow up', 'follow-up'], true)) {
+        return notif_email_follow_up($title, $lines, $ctaLabel, $ctaUrl);
+    }
+    if ($normalizedTitle === 'pending chat') {
+        return notif_email_pending_chat($title, $lines, $ctaLabel, $ctaUrl);
+    }
+    if (in_array($normalizedTitle, ['priority escalation', 'sla escalation'], true)) {
+        return notif_email_priority_escalation($title, $lines, $ctaLabel, $ctaUrl);
+    }
     $introText = '';
     if ($normalizedTitle === 'ticket submitted' || $normalizedTitle === 'new ticket submitted' || $normalizedTitle === 'new sales ticket') {
         $introText = 'Your ticket has been successfully submitted and is now awaiting review.';
@@ -1581,6 +2356,9 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
         }
         $line = preg_replace('/^Status:\s*/i', 'Current Status: ', $line);
         $line = preg_replace('/^Current status:\s*/i', 'Current Status: ', $line);
+        if (preg_match('/^(Priority|Urgency|Level of Urgency):\s*(.*)$/i', $line, $urgencyMatch)) {
+            $line = 'Level of Urgency: ' . notif_urgency_email_label((string) ($urgencyMatch[2] ?? ''));
+        }
         $lineText .= $line . "\n";
         $safeLine = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
         if (preg_match('/^([A-Za-z][A-Za-z\s&]+:)(\s*.*)$/s', $safeLine, $matches)) {

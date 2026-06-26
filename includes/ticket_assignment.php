@@ -636,7 +636,9 @@ function ticket_notification_department_email_map(): array
             'ADMIN' => ['enzomendoza8teen@gmail.com'],
             // 'HR' => ['hr@leadsagri.com'],
             'HR' => ['matthewpascua052203@gmail.com'],
-            'IT' => ['jbalido@leadsagri.com'],
+            'IT' => [''],
+
+        
         ],
         'LINGAP' => [
             // '_default' => ['partnership@lingapleads.org' , 'info@lingapleads.org'],
@@ -676,6 +678,142 @@ function ticket_department_override_notification_emails(string $company, string 
 function ticket_uses_specific_email_route(string $company, string $group): bool
 {
     return count(ticket_department_override_notification_emails($company, $group)) > 0;
+}
+
+function ticket_users_table_has_column(mysqli $conn, string $column): bool
+{
+    static $cache = [];
+    $allowed = [
+        'status' => true,
+        'account_status' => true,
+        'is_verified' => true,
+        'is_active' => true,
+        'active' => true,
+        'deleted_at' => true,
+    ];
+    if (!isset($allowed[$column])) {
+        return false;
+    }
+    if (array_key_exists($column, $cache)) {
+        return $cache[$column];
+    }
+
+    $safeColumn = $conn->real_escape_string($column);
+    $res = $conn->query("SHOW COLUMNS FROM users LIKE '$safeColumn'");
+    $cache[$column] = $res && $res->num_rows > 0;
+    if ($res instanceof mysqli_result) {
+        $res->free();
+    }
+    return $cache[$column];
+}
+
+function ticket_registered_department_notification_emails(mysqli $conn, string $company, string $group, int $excludeUserId = 0): array
+{
+    $company = ticket_normalize_company($company);
+    $group = trim($group);
+    $excludeUserId = (int) $excludeUserId;
+    if ($group === '') {
+        return [];
+    }
+
+    $allowedGroups = ticket_company_allowed_groups($company);
+    $groupKey = in_array($group, $allowedGroups, true) ? $group : ticket_department_key_from_value($group);
+    $deptAliases = ticket_department_user_aliases($company, $groupKey);
+    if (count($deptAliases) === 0) {
+        $deptAliases = ticket_department_aliases_for_key($groupKey);
+    }
+    $deptAliases[] = $group;
+    $deptAliases[] = $groupKey;
+    $deptAliases = array_values(array_unique(array_filter(array_map(static function ($value) {
+        return strtoupper(trim((string) $value));
+    }, $deptAliases), static function ($value) {
+        return $value !== '';
+    })));
+    if (count($deptAliases) === 0) {
+        return [];
+    }
+
+    $where = [
+        "TRIM(COALESCE(email, '')) <> ''",
+        "role IN ('employee', 'admin')",
+        "UPPER(TRIM(COALESCE(department, ''))) IN (" . implode(',', array_fill(0, count($deptAliases), '?')) . ")",
+    ];
+    $types = str_repeat('s', count($deptAliases));
+    $params = $deptAliases;
+
+    if ($excludeUserId > 0) {
+        $where[] = 'id <> ?';
+        $types .= 'i';
+        $params[] = $excludeUserId;
+    }
+
+    if (strpos($company, '@') === 0) {
+        $domain = ltrim(strtolower($company), '@');
+        if ($domain !== '') {
+            $companyKey = ticket_notification_company_key($company);
+            $companyAliases = array_values(array_unique(array_filter([
+                strtoupper($company),
+                strtoupper($domain),
+                strtoupper($companyKey),
+                strtoupper($companyKey . ' (' . $company . ')'),
+                strtoupper($companyKey . ' (' . $domain . ')'),
+            ], static function ($value) {
+                return trim((string) $value) !== '';
+            })));
+            $where[] = "(LOWER(email) LIKE ? OR UPPER(TRIM(COALESCE(company, ''))) IN (" . implode(',', array_fill(0, count($companyAliases), '?')) . "))";
+            $types .= 's' . str_repeat('s', count($companyAliases));
+            $params[] = '%@' . $domain;
+            foreach ($companyAliases as $companyAlias) {
+                $params[] = $companyAlias;
+            }
+        }
+    }
+
+    if (ticket_users_table_has_column($conn, 'status')) {
+        $where[] = "LOWER(TRIM(status)) = 'active'";
+    } elseif (ticket_users_table_has_column($conn, 'account_status')) {
+        $where[] = "LOWER(TRIM(account_status)) = 'active'";
+    } elseif (ticket_users_table_has_column($conn, 'is_verified')) {
+        $where[] = "COALESCE(is_verified, 0) = 1";
+    }
+    if (ticket_users_table_has_column($conn, 'is_active')) {
+        $where[] = "COALESCE(is_active, 1) = 1";
+    }
+    if (ticket_users_table_has_column($conn, 'active')) {
+        $where[] = "COALESCE(active, 1) = 1";
+    }
+    if (ticket_users_table_has_column($conn, 'deleted_at')) {
+        $where[] = "deleted_at IS NULL";
+    }
+
+    $sql = "
+        SELECT DISTINCT LOWER(TRIM(email)) AS email
+        FROM users
+        WHERE " . implode("\n          AND ", $where) . "
+        ORDER BY email ASC
+    ";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        return [];
+    }
+
+    $bind = [$types];
+    foreach ($params as $idx => $param) {
+        $bind[] = &$params[$idx];
+    }
+    call_user_func_array([$stmt, 'bind_param'], $bind);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $emails = [];
+    while ($res && ($row = $res->fetch_assoc())) {
+        $email = strtolower(trim((string) ($row['email'] ?? '')));
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $emails[] = $email;
+        }
+    }
+    $stmt->close();
+
+    return array_values(array_unique($emails));
 }
 
 function ticket_notification_company_key(string $company): string
@@ -718,15 +856,15 @@ function ticket_assignee_notification_emails(mysqli $conn, array $assignedUserId
 {
     $company = ticket_normalize_company($company);
     $excludeUserId = (int) $excludeUserId;
+    $emails = [];
 
     if (!$skipDepartmentOverride) {
         $overrideEmails = ticket_department_override_notification_emails($company, $group);
         if (count($overrideEmails) > 0) {
-            return $overrideEmails;
+            $emails = array_merge($emails, $overrideEmails);
         }
     }
 
-    $emails = [];
     foreach ($assignedUserIds as $notifyUserId) {
         $notifyUserId = (int) $notifyUserId;
         if ($notifyUserId <= 0) continue;
@@ -737,8 +875,13 @@ function ticket_assignee_notification_emails(mysqli $conn, array $assignedUserId
             $emails[] = $assigneeEmail;
         }
     }
+    $emails = array_merge($emails, ticket_registered_department_notification_emails($conn, $company, $group, $excludeUserId));
 
-    return array_values(array_unique($emails));
+    return array_values(array_unique(array_filter(array_map(static function ($email) {
+        return strtolower(trim((string) $email));
+    }, $emails), static function ($email) {
+        return $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL);
+    })));
 }
 
 function ticket_find_department_admin_id(mysqli $conn, array $deptAliases): ?int

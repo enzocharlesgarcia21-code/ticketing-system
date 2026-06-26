@@ -489,7 +489,7 @@ unset($recent_articles_query['recent_page']);
             padding: 28px 36px 48px;
             width: min(100%, 1360px);
             max-width: 1360px;
-            margin: 0 auto;
+            margin: 0 auto 0 36px;
         }
 
         .kb-page-header {

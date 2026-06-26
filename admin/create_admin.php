@@ -548,7 +548,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             padding: 20px 30px;
             max-width: 1380px;
             width: 95%;
-            margin: 0 auto 40px;
+            margin: 0 auto 40px 36px;
         }
         .admin-mgmt-header {
             margin-bottom: 18px;
@@ -1252,9 +1252,11 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             font-weight: 500;
         }
         .add-user-modal-card .edit-select-trigger {
+            display: block;
+            position: relative;
             height: 44px;
             min-height: 44px;
-            padding: 10px 38px 10px 14px;
+            padding: 10px 54px 10px 14px;
             border-color: #d8e2ec;
             border-radius: 13px;
             box-shadow: none;
