@@ -548,7 +548,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             padding: 20px 30px;
             max-width: 1380px;
             width: 95%;
-            margin: 0 auto 40px;
+            margin: 0 auto 40px 36px;
         }
         .admin-mgmt-header {
             margin-bottom: 18px;
