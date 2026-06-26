@@ -82,8 +82,8 @@ foreach ($availabilityRows as $companyRow) {
 
         .routing-page {
             max-width: 1560px;
-            margin: 0 auto;
-            padding: 18px 34px 40px;
+            margin: 0 auto 0 36px;
+            padding: 18px 28px 40px;
         }
 
         .routing-top {
@@ -95,7 +95,7 @@ foreach ($availabilityRows as $companyRow) {
         }
 
         .routing-intro {
-            padding: 12px 28px 24px;
+            padding: 12px 0 24px;
             min-height: 0;
         }
 

@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/notification_service.php';
+require_once '../includes/conference_booking.php';
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
     header('Location: admin_login.php');
@@ -12,6 +13,7 @@ $sampleTicketNumber = str_pad((string) $sampleTicketId, 6, '0', STR_PAD_LEFT);
 $employeeTicketUrl = notif_ticket_link_employee_tickets($sampleTicketId);
 $employeeTaskUrl = notif_ticket_link_employee_tasks($sampleTicketId);
 $chatUrl = notif_ticket_link_employee_chat($sampleTicketId);
+$conferenceBookingUrl = conference_booking_employee_link();
 
 function preview_template(
     string $group,
@@ -104,7 +106,8 @@ $statusUpdatedLines = [
     'Ticket ID: #' . $sampleTicketNumber,
     'Category: Leave Request',
     'Current Status: In Progress',
-    'Updated By: Mikaela Reyes (LAPC-HR)',
+    'Assignee: Mikaela Reyes (LAPC-HR)',
+    'Assignee Email: mikaelareyes@leadsagri.com',
     'Level of Urgency: Medium (4-6 days)',
     'Description: Vacation leave request.',
 ];
@@ -115,6 +118,8 @@ $priorityEscalationLines = [
     'Current Status: Breached',
     'Requestor: Enzo Garcia (LAPC-IT)',
     'Email: enzogarcia@leadsagri.com',
+    'Assignee: Mikaela Reyes (LAPC-HR)',
+    'Assignee Email: mikaelareyes@leadsagri.com',
     'Date Submitted: May 16, 2025 10:30 AM',
     'Level of Urgency: Medium (4-6 days)',
     'Escalated From: At Risk',
@@ -128,6 +133,16 @@ $closedLines = [
     'Last chat activity: May 16, 2025 04:30 PM',
     'Subject: Laptop login issue',
     'Category: Hardware',
+];
+
+$conferenceBookingConfirmationLines = [
+    'Hello Enzo Garcia,',
+    'Your conference booking has been created successfully.',
+    'Room: MPDC',
+    'Date: Jun 24, 2026',
+    'Time: 10:00 AM to 2:00 PM',
+    'Purpose: Project planning session',
+    'You can view your bookings anytime from the conference booking page.',
 ];
 
 $templates = [
@@ -147,9 +162,18 @@ $templates = [
         'Current Status: In Progress',
         'Requestor: Enzo Garcia (LAPC-IT)',
         'Email: enzogarcia@leadsagri.com',
-    ], 'View Ticket', $chatUrl),
+    ], 'View Message', $chatUrl),
+    preview_template('Chat / SLA', 'Requester', 'Pending Chat (#' . $sampleTicketNumber . ')', 'Pending Chat', [
+        'Ticket ID: #' . $sampleTicketNumber,
+        'Category: Leave Request',
+        'Current Status: In Progress',
+        'Assignee: Mikaela Reyes (LAPC-HR)',
+        'Email: mikaelareyes@leadsagri.com',
+    ], 'View Message', $chatUrl),
     preview_template('Chat / SLA', 'Requester', 'Priority Escalation (#000825)', 'Priority Escalation', $priorityEscalationLines, 'View Ticket', $employeeTicketUrl),
     preview_template('Chat / SLA', 'Assignee', 'Priority Escalation (#000825)', 'Priority Escalation', $priorityEscalationLines, 'View Ticket', $employeeTaskUrl),
+
+    preview_template('Conference Booking', 'Booker', 'Conference Booking Confirmed', 'Conference Booking Confirmed', $conferenceBookingConfirmationLines, 'View My Bookings', $conferenceBookingUrl),
 ];
 
 $groups = [];
