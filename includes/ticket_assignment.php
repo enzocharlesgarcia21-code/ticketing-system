@@ -2111,65 +2111,7 @@ function notifyTicketClosed(mysqli $conn, array $ticket, int $inactivitySeconds 
         }
     }
 
-    $lastChatAt = trim((string) ($ticket['last_chat_at'] ?? ''));
-    $commonLines = [
-        'Ticket ID: #' . $ticketNumber,
-        'Current status: Closed',
-        'Closure reason: ' . $reason,
-    ];
-    if ($lastChatAt !== '') {
-        $ts = strtotime($lastChatAt);
-        if ($ts !== false) {
-            $commonLines[] = 'Last chat activity: ' . date('M d, Y h:i A', $ts);
-        }
-    }
-    if (!empty($ticket['subject'])) {
-        $commonLines[] = 'Subject: ' . (string) $ticket['subject'];
-    }
-    if (!empty($ticket['category'])) {
-        $commonLines[] = 'Category: ' . (string) $ticket['category'];
-    }
-    $commonLines = notif_compact_email_lines($commonLines);
-
-    $emailed = 0;
-    $usedEmails = [];
-
-    $requesterEmail = strtolower(trim((string) ($ticket['creator_email'] ?? '')));
-    if ($requesterEmail !== '') {
-        $requesterMail = notif_email_simple($title, $commonLines, 'View Ticket', notif_ticket_link_employee_tickets($ticketId));
-        if (notif_email_send([$requesterEmail], $title . ' (#' . $ticketNumber . ')', (string) ($requesterMail['html'] ?? ''), (string) ($requesterMail['text'] ?? ''))) {
-            $emailed++;
-            $usedEmails[$requesterEmail] = true;
-        }
-    }
-
-    $assigneeUserIds = [];
-    $assignedUserId = (int) ($ticket['assigned_user_id'] ?? 0);
-    $handlerId = (int) ($ticket['assigned_to'] ?? 0);
-    if ($assignedUserId > 0) $assigneeUserIds[] = $assignedUserId;
-    if ($handlerId > 0) $assigneeUserIds[] = $handlerId;
-
-    $assigneeEmails = ticket_user_email_addresses($conn, $assigneeUserIds);
-    foreach ([(string) ($ticket['assignee_email'] ?? ''), (string) ($ticket['assigned_to_email'] ?? '')] as $email) {
-        $email = strtolower(trim($email));
-        if ($email !== '') {
-            $assigneeEmails[] = $email;
-        }
-    }
-    $assigneeEmails = array_values(array_filter(array_unique($assigneeEmails), static function ($email) use ($usedEmails) {
-        return !isset($usedEmails[$email]);
-    }));
-    if (count($assigneeEmails) > 0) {
-        $assigneeMail = notif_email_simple($title, $commonLines, 'View Task', notif_ticket_link_employee_tasks($ticketId));
-        if (notif_email_send($assigneeEmails, $title . ' (#' . $ticketNumber . ')', (string) ($assigneeMail['html'] ?? ''), (string) ($assigneeMail['text'] ?? ''))) {
-            $emailed += count($assigneeEmails);
-            foreach ($assigneeEmails as $email) {
-                $usedEmails[$email] = true;
-            }
-        }
-    }
-
-    return ['inserted' => $inserted, 'emailed' => $emailed];
+    return ['inserted' => $inserted, 'emailed' => 0];
 }
 
 function autoCloseTicket(mysqli $conn, int $ticketId, int $inactivitySeconds = 7200): ?array
@@ -2726,7 +2668,13 @@ function ticket_priority_escalation_recipient_data(mysqli $conn, array $ticket):
         $departmentUserIds[] = $assignedUserId;
     }
     $departmentUserIds = notif_unique_user_ids($departmentUserIds);
-    $departmentEmails = ticket_user_email_addresses($conn, $departmentUserIds);
+    $assigneeEmailIds = $assignedUserId > 0 ? [$assignedUserId] : $departmentUserIds;
+    $assigneeEmails = ticket_user_email_addresses($conn, $assigneeEmailIds);
+    $requesterEmails = $requesterId > 0 ? ticket_user_email_addresses($conn, [$requesterId]) : [];
+    $requesterEmail = trim((string) ($ticket['creator_email'] ?? $ticket['requester_email'] ?? ''));
+    if ($requesterEmail !== '') {
+        $requesterEmails[] = strtolower($requesterEmail);
+    }
 
     $deptAliases = [];
     $groupKey = ticket_department_key_from_value($group);
@@ -2749,7 +2697,7 @@ function ticket_priority_escalation_recipient_data(mysqli $conn, array $ticket):
     $notifyUserIds = array_merge($notifyUserIds, notif_admin_user_ids($conn));
     $notifyUserIds = notif_unique_user_ids($notifyUserIds);
 
-    $emailRecipients = array_values(array_unique($departmentEmails));
+    $emailRecipients = array_values(array_unique(array_filter(array_merge($requesterEmails, $assigneeEmails))));
 
     ticket_priority_escalation_log('recipient_resolution', [
         'ticket_id' => $ticketId,

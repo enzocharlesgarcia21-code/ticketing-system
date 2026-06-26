@@ -903,8 +903,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
             'Ticket ID: #' . $ticketNumber,
             'Category: ' . trim((string) ($ticket['category'] ?? '-')),
             'Status: ' . ($statusLabel !== '' ? $statusLabel : '-'),
-            'Assigned To: ' . ($assignedTarget !== '' ? $assignedTarget : '-'),
             'Requested by: ' . $requestorName,
+            'Email: ' . trim((string) ($ticket['creator_email'] ?? $ticket['requester_email'] ?? '-')),
             'Follow-up Message: ' . $message,
         ];
         if ($attachmentSummary !== '') {
