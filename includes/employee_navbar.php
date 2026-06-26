@@ -8,14 +8,20 @@ $csrfToken = csrf_token();
 
 $user_id = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
 $user_email = 'Account';
+$user_name = 'Account';
 $tmUserPermissions = user_permissions_defaults();
 
 if ($user_id > 0 && isset($conn)) {
     user_permissions_ensure_table($conn);
     $tmUserPermissions = user_permissions_get_for_user($conn, $user_id);
-    $user_query = $conn->query("SELECT email FROM users WHERE id = $user_id");
+    $user_query = $conn->query("SELECT name, email FROM users WHERE id = $user_id");
     if ($user_query && $user_query->num_rows > 0) {
-        $user_email = $user_query->fetch_assoc()['email'];
+        $user_row = $user_query->fetch_assoc();
+        $user_email = trim((string) ($user_row['email'] ?? ''));
+        $user_name = trim((string) ($user_row['name'] ?? ''));
+        if ($user_name === '') {
+            $user_name = $user_email !== '' ? $user_email : 'Account';
+        }
     }
 }
 
@@ -68,25 +74,6 @@ $showSharedMobileSidebar = in_array($currentEmployeePage, $sharedMobileSidebarPa
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style id="employee-navbar-critical-logo-styles">
-html.employee-page-transition-active,
-html.employee-page-transition-active body {
-    background: #ffffff !important;
-}
-
-#employeePageTransition {
-    position: fixed;
-    inset: 0;
-    z-index: 2147483000;
-    background: #ffffff;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.003s ease;
-}
-
-html.employee-page-transition-active #employeePageTransition {
-    opacity: 1;
-}
-
 .navbar .logo-icon {
     width: 56px;
     height: 56px;
@@ -121,100 +108,6 @@ html.employee-page-transition-active #employeePageTransition {
     }
 }
 </style>
-<script>
-(function () {
-    var transitionKey = 'tm_employee_page_transition';
-    var shouldShow = false;
-
-    try {
-        shouldShow = sessionStorage.getItem(transitionKey) === '1';
-        if (shouldShow) {
-            sessionStorage.removeItem(transitionKey);
-        }
-    } catch (error) {}
-
-    if (shouldShow && document.documentElement) {
-        document.documentElement.classList.add('employee-page-transition-active');
-    }
-})();
-</script>
-<div id="employeePageTransition" aria-hidden="true"></div>
-<script>
-(function () {
-    var transitionKey = 'tm_employee_page_transition';
-    var root = document.documentElement;
-
-    function showTransition() {
-        if (!root) return;
-        root.classList.add('employee-page-transition-active');
-        try {
-            sessionStorage.setItem(transitionKey, '1');
-        } catch (error) {}
-    }
-
-    function hideTransition() {
-        if (!root) return;
-        window.setTimeout(function () {
-            window.requestAnimationFrame(function () {
-                root.classList.remove('employee-page-transition-active');
-            });
-        }, 3);
-    }
-
-    function isPlainPageClick(event) {
-        return !event.defaultPrevented &&
-            event.button === 0 &&
-            !event.metaKey &&
-            !event.ctrlKey &&
-            !event.shiftKey &&
-            !event.altKey;
-    }
-
-    function shouldTransitionLink(link) {
-        if (!link) return false;
-        var rawHref = link.getAttribute('href') || '';
-        if (
-            rawHref === '' ||
-            rawHref.charAt(0) === '#' ||
-            /^javascript:/i.test(rawHref) ||
-            /^mailto:/i.test(rawHref) ||
-            /^tel:/i.test(rawHref) ||
-            link.hasAttribute('download')
-        ) {
-            return false;
-        }
-
-        var target = (link.getAttribute('target') || '').toLowerCase();
-        if (target && target !== '_self') return false;
-
-        var url;
-        try {
-            url = new URL(rawHref, window.location.href);
-        } catch (error) {
-            return false;
-        }
-
-        if (url.origin !== window.location.origin) return false;
-        if (url.pathname === window.location.pathname && url.search === window.location.search && url.hash) return false;
-        return /\/employee\/[^/]+\.php$/i.test(url.pathname);
-    }
-
-    window.TMEmployeePageTransition = {
-        show: showTransition,
-        hide: hideTransition
-    };
-
-    window.addEventListener('pageshow', hideTransition);
-    document.addEventListener('DOMContentLoaded', hideTransition);
-
-    document.addEventListener('click', function (event) {
-        if (!isPlainPageClick(event)) return;
-        var link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
-        if (!shouldTransitionLink(link)) return;
-        showTransition();
-    }, true);
-})();
-</script>
 <nav class="navbar">
     <div class="nav-left">
         <img src="../assets/img/UPDATEDlogo.png" alt="Leads Agri Logo" class="logo-icon" width="56" height="56">
@@ -263,8 +156,9 @@ html.employee-page-transition-active #employeePageTransition {
             </div>
 
             <div class="user-menu">
-                <button type="button" class="user-btn" aria-label="<?= htmlspecialchars($user_email, ENT_QUOTES, 'UTF-8'); ?>" onclick="window.toggleEmployeeUserMenu && window.toggleEmployeeUserMenu(event)">
+                <button type="button" class="user-btn" aria-label="<?= htmlspecialchars($user_name, ENT_QUOTES, 'UTF-8'); ?>" onclick="window.toggleEmployeeUserMenu && window.toggleEmployeeUserMenu(event)">
                     <i class="fas fa-user"></i>
+                    <span class="user-btn-name"><?= htmlspecialchars($user_name, ENT_QUOTES, 'UTF-8'); ?></span>
                     <i class="fas fa-chevron-down" style="font-size: 10px;"></i>
                 </button>
                 <div class="user-dropdown">
@@ -1119,6 +1013,13 @@ window.TM_MESSENGER_STYLE = 'employee';
     pointer-events: auto;
 }
 .user-btn:hover { background: rgba(255,255,255,0.25); }
+.user-btn-name {
+    display: inline-block;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .user-dropdown {
     position: absolute;
     right: 0;
@@ -1881,22 +1782,18 @@ document.addEventListener('DOMContentLoaded', function() {
             body: body
         }).then(() => {
             if (!ticketId) {
-                if (window.TMEmployeePageTransition) window.TMEmployeePageTransition.show();
                 window.location.href = 'notifications.php';
                 return;
             }
             const notifType = String(type || '');
             if (notifType === 'hr_chat_pending') {
-                if (window.TMEmployeePageTransition) window.TMEmployeePageTransition.show();
                 window.location.href = `my_task.php?ticket_id=${ticketId}&chat=1`;
                 return;
             }
             const taskTypes = new Set(['dept_assigned', 'reassigned', 'priority_escalated', 'new_ticket', 'follow_up', 'hr_chat_pending']);
             if (taskTypes.has(notifType)) {
-                if (window.TMEmployeePageTransition) window.TMEmployeePageTransition.show();
                 window.location.href = `my_task.php?ticket_id=${ticketId}`;
             } else {
-                if (window.TMEmployeePageTransition) window.TMEmployeePageTransition.show();
                 window.location.href = `my_tickets.php?ticket_id=${ticketId}`;
             }
         });

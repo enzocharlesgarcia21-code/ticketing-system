@@ -38,7 +38,7 @@ $ticketSubmittedLines = [
     'Requestor: Enzo Garcia (LAPC-IT)',
     'Email: enzogarcia@leadsagri.com',
     'Date Submitted: May 16, 2025 10:30 AM',
-    'Level of Urgency: Medium (4 to 6 days)',
+    'Level of Urgency: Medium (4-6 days)',
     'Description: Vacation leave request.',
 ];
 
@@ -48,7 +48,7 @@ $assigneeAssignedLines = [
     'Requestor: Enzo Garcia (LAPC-IT)',
     'Email: enzogarcia@leadsagri.com',
     'Date Submitted: May 16, 2025 10:30 AM',
-    'Level of Urgency: Medium (4 to 6 days)',
+    'Level of Urgency: Medium (4-6 days)',
     'Description: chel',
 ];
 
@@ -56,32 +56,69 @@ $updateLines = [
     'Ticket has been updated.',
     'Ticket ID: #' . $sampleTicketNumber,
     'Category: Leave Request',
-    'Current Status: On-going',
+    'Current Status: In Progress',
     'Handled By: Mikaela Reyes (LAPC-HR)',
     'Assignee Email: mikaelareyes@leadsagri.com',
     'Date Submitted: May 16, 2025 10:30 AM',
-    'Level of Urgency: Medium (4 to 6 days)',
+    'Level of Urgency: Medium (4-6 days)',
     'Description: Vacation leave request.',
 ];
 
-$reassignedLines = [
+$requesterReassignedLines = [
     'Ticket has been updated.',
     'Ticket ID: #' . $sampleTicketNumber,
-    'Subject: Laptop login issue',
-    'Requester: Enzo Garcia',
-    'Requester Email: enzogarcia@leadsagri.com',
-    'From: HR',
-    'To: IT',
-    'Category: Hardware',
+    'Category: Leave Request',
+    'Current Status: In Progress',
+    'Reassigned From: HR',
+    'Reassigned To: Accounting at LAPC',
+    'Claimed By: Priya Shah (LAPC-Accounting)',
+    'Assignee Email: priyashah@leadsagri.com',
+    'Date Reassigned: May 19, 2025 02:15 PM',
+    'Level of Urgency: Medium (4-6 days)',
+    'Description: Vacation leave request.',
+    'Note: HR review completed. Ticket reassigned to Accounting for leave credit validation and final processing.',
 ];
 
 $resolvedLines = [
     'Ticket has been updated.',
     'Ticket ID: #' . $sampleTicketNumber,
-    'Resolved By: Matthew Pascua',
-    'Subject: Laptop login issue',
-    'Category: Hardware',
-    'Current Status: Resolved',
+    'Category: Leave Request',
+    'Resolved By: Mikaela Reyes (LAPC-HR)',
+    'Assignee Email: mikaelareyes@leadsagri.com',
+    'Date Submitted: May 16, 2025 10:30 AM',
+    'Date Resolved: May 16, 2025 3:45 PM',
+    'Level of Urgency: Medium (4-6 days)',
+    'Description: Vacation leave request.',
+];
+
+$followUpLines = [
+    'Ticket ID: #' . $sampleTicketNumber,
+    'Category: Leave Request',
+    'Current Status: In Progress',
+    'Requestor: Enzo Garcia (LAPC-IT)',
+    'Email: enzogarcia@leadsagri.com',
+];
+
+$statusUpdatedLines = [
+    'Ticket has been updated.',
+    'Ticket ID: #' . $sampleTicketNumber,
+    'Category: Leave Request',
+    'Current Status: In Progress',
+    'Updated By: Mikaela Reyes (LAPC-HR)',
+    'Level of Urgency: Medium (4-6 days)',
+    'Description: Vacation leave request.',
+];
+
+$priorityEscalationLines = [
+    'Ticket ID: #000825',
+    'Category: Leave Request',
+    'Current Status: Breached',
+    'Requestor: Enzo Garcia (LAPC-IT)',
+    'Email: enzogarcia@leadsagri.com',
+    'Date Submitted: May 16, 2025 10:30 AM',
+    'Level of Urgency: Medium (4-6 days)',
+    'Escalated From: At Risk',
+    'Escalated To: Breach',
 ];
 
 $closedLines = [
@@ -98,24 +135,21 @@ $templates = [
     preview_template('New Ticket', 'Assignee', 'New Ticket Assigned (#' . $sampleTicketNumber . ')', 'New Ticket Assigned', $assigneeAssignedLines, 'View Ticket', $employeeTaskUrl),
 
     preview_template('Assignment / Updates', 'Requester', 'Ticket Claimed (#' . $sampleTicketNumber . ')', 'Ticket Claimed', $updateLines, 'View Ticket', $employeeTicketUrl),
-    preview_template('Assignment / Updates', 'Assignee', 'Ticket Assigned (#' . $sampleTicketNumber . ')', 'Ticket Assigned', $assigneeAssignedLines, 'View Ticket', $employeeTaskUrl),
-    preview_template('Assignment / Updates', 'Assignee', 'Ticket Reassigned (#' . $sampleTicketNumber . ')', 'Ticket Reassigned', $reassignedLines, 'View Ticket', $employeeTaskUrl),
+    preview_template('Assignment / Updates', 'Requester', 'Ticket Reassigned (#' . $sampleTicketNumber . ')', 'Ticket Reassigned', $requesterReassignedLines, 'View Ticket', $employeeTicketUrl),
 
     preview_template('Lifecycle', 'Requester', 'Ticket Resolved (#' . $sampleTicketNumber . ')', 'Ticket Resolved', $resolvedLines, 'View Ticket', $employeeTicketUrl),
-    preview_template('Lifecycle', 'Assignee', 'Ticket Resolved (#' . $sampleTicketNumber . ')', 'Ticket Resolved', $resolvedLines, 'View Task', $employeeTaskUrl),
-    preview_template('Lifecycle', 'Requester / Admin', 'Ticket Closed (#' . $sampleTicketNumber . ')', 'Ticket Closed', $closedLines, 'View Ticket', $employeeTicketUrl),
 
-    preview_template('Chat / SLA', 'Employee', 'Pending Chat (#' . $sampleTicketNumber . ')', 'Pending Chat', [
+    preview_template('Chat / SLA', 'Assignee', 'Follow Up (#' . $sampleTicketNumber . ')', 'Ticket Follow Up', $followUpLines, 'View Ticket', $employeeTaskUrl),
+    preview_template('Chat / SLA', 'Requester', 'Ticket Status Updated (#' . $sampleTicketNumber . ')', 'Ticket Status Updated', $statusUpdatedLines, 'View Ticket', $employeeTicketUrl),
+    preview_template('Chat / SLA', 'Assignee', 'Pending Chat (#' . $sampleTicketNumber . ')', 'Pending Chat', [
         'Ticket ID: #' . $sampleTicketNumber,
-        'You have a pending chat reply that needs your attention.',
-        'Subject: Laptop login issue',
-    ], 'Open Chat', $chatUrl),
-    preview_template('Chat / SLA', 'Assignee', 'SLA Escalation (#' . $sampleTicketNumber . ')', 'SLA Escalation', [
-        'Ticket #' . $sampleTicketNumber . ' SLA status has been escalated to At Risk.',
-        'Immediate attention is required.',
-        'Previous SLA status: On Track',
-        'Subject: Laptop login issue',
-    ], 'View Ticket', $employeeTaskUrl),
+        'Category: Leave Request',
+        'Current Status: In Progress',
+        'Requestor: Enzo Garcia (LAPC-IT)',
+        'Email: enzogarcia@leadsagri.com',
+    ], 'View Ticket', $chatUrl),
+    preview_template('Chat / SLA', 'Requester', 'Priority Escalation (#000825)', 'Priority Escalation', $priorityEscalationLines, 'View Ticket', $employeeTicketUrl),
+    preview_template('Chat / SLA', 'Assignee', 'Priority Escalation (#000825)', 'Priority Escalation', $priorityEscalationLines, 'View Ticket', $employeeTaskUrl),
 ];
 
 $groups = [];

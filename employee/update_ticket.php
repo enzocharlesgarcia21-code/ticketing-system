@@ -600,19 +600,21 @@ $updateOk = false;
                     if ($requesterAssignmentChanged) {
                         $assigneeEmailTitle = ($oldAssignedUserId > 0 || $oldCompany !== '' || $oldDept !== '') ? 'Ticket Reassigned' : 'Ticket Assigned';
                     }
-                    $assigneeLines = [
-                        "Ticket has been updated.",
-                        "Ticket ID: #$ticketNumber",
-                        "Subject: $ticketSubject",
-                        "Requester: $requesterName",
-                    ];
-                    if ($requesterEmail !== '') {
-                        $assigneeLines[] = 'Requester Email: ' . $requesterEmail;
-                    }
-                    $assigneeLines = array_merge($assigneeLines, $sharedUpdateLines);
-                    $assigneeTpl = notif_email_simple($assigneeEmailTitle, $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks($id));
-                    if (!notif_email_send($assigneeEmails, $assigneeEmailTitle . " (#$ticketNumber)", (string) ($assigneeTpl['html'] ?? ''), (string) ($assigneeTpl['text'] ?? ''), $attachments)) {
-                        error_log('Ticket update email failed (assignee) | ticketId=' . (string) $id);
+                    if ($assigneeEmailTitle !== 'Ticket Assigned') {
+                        $assigneeLines = [
+                            "Ticket has been updated.",
+                            "Ticket ID: #$ticketNumber",
+                            "Subject: $ticketSubject",
+                            "Requester: $requesterName",
+                        ];
+                        if ($requesterEmail !== '') {
+                            $assigneeLines[] = 'Requester Email: ' . $requesterEmail;
+                        }
+                        $assigneeLines = array_merge($assigneeLines, $sharedUpdateLines);
+                        $assigneeTpl = notif_email_simple($assigneeEmailTitle, $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks($id));
+                        if (!notif_email_send($assigneeEmails, $assigneeEmailTitle . " (#$ticketNumber)", (string) ($assigneeTpl['html'] ?? ''), (string) ($assigneeTpl['text'] ?? ''), $attachments)) {
+                            error_log('Ticket update email failed (assignee) | ticketId=' . (string) $id);
+                        }
                     }
                 }
             }
