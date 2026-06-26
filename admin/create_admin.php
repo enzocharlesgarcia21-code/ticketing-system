@@ -3,10 +3,17 @@ require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/user_permissions.php';
+require_once '../includes/activity_logger.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: dashboard.php");
     exit();
+}
+
+$adminMgmtActivityJsonRequest = isset($_GET['admin_mgmt_activity_logs']);
+if ($adminMgmtActivityJsonRequest) {
+    ini_set('display_errors', '0');
+    ob_start();
 }
 
 // Ensure email is in session
@@ -86,8 +93,446 @@ function company_domain_option_label(string $domain, string $label): string
 
 $lapc_department_options = ticket_company_allowed_groups('@leadsagri.com');
 $mhc_department_options = ticket_company_allowed_groups('@malvedaholdings.com');
+$edit_user_company_options = ticket_request_company_options();
+$edit_user_department_options = ticket_company_group_map();
 $canManageUserAccess = user_permissions_can_manage($conn);
 user_permissions_ensure_table($conn);
+
+function admin_mgmt_format_activity_datetime(?string $value): string
+{
+    $value = trim((string) $value);
+    if ($value === '') return '-';
+    $ts = strtotime($value);
+    return $ts ? date('M d, Y g:i A', $ts) : '-';
+}
+
+function admin_mgmt_user_status(array $user): array
+{
+    $lastSeen = trim((string) ($user['last_seen_at'] ?? ''));
+    if ($lastSeen === '') return ['label' => 'Never opened', 'state' => 'never'];
+    $lastSeenTs = strtotime($lastSeen);
+    if (!$lastSeenTs) return ['label' => 'Unknown', 'state' => 'never'];
+    $lastLogout = trim((string) ($user['last_logout_at'] ?? ''));
+    $lastLogoutTs = $lastLogout !== '' ? strtotime($lastLogout) : false;
+    $loggedOut = $lastLogoutTs !== false && $lastLogoutTs >= $lastSeenTs;
+    $seconds = max(0, time() - $lastSeenTs);
+    if ((int) ($user['is_online'] ?? 0) === 1 && !$loggedOut && $seconds <= 120) {
+        return ['label' => 'Online', 'state' => 'online'];
+    }
+    if ($seconds < 60) return ['label' => 'Just now', 'state' => 'recent'];
+    $minutes = (int) floor($seconds / 60);
+    if ($minutes < 60) return ['label' => $minutes . ' min' . ($minutes === 1 ? '' : 's') . ' ago', 'state' => 'recent'];
+    $hours = (int) floor($minutes / 60);
+    if ($hours < 24) return ['label' => $hours . ' hour' . ($hours === 1 ? '' : 's') . ' ago', 'state' => 'away'];
+    $days = (int) floor($hours / 24);
+    return ['label' => $days . ' day' . ($days === 1 ? '' : 's') . ' ago', 'state' => 'offline'];
+}
+
+function admin_mgmt_table_has_column(mysqli $conn, string $table, string $column): bool
+{
+    static $cache = [];
+    $allowedTables = ['users' => true, 'employee_tickets' => true, 'activity_logs' => true];
+    if (!isset($allowedTables[$table])) return false;
+
+    $key = $table . '.' . $column;
+    if (array_key_exists($key, $cache)) return $cache[$key];
+
+    $safeColumn = $conn->real_escape_string($column);
+    $res = $conn->query("SHOW COLUMNS FROM `$table` LIKE '$safeColumn'");
+    $cache[$key] = $res && $res->num_rows > 0;
+    return $cache[$key];
+}
+
+function admin_mgmt_json_response(array $payload, int $status = 200): void
+{
+    http_response_code($status);
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    echo json_encode($payload);
+    exit;
+}
+
+function admin_mgmt_ticket_number(int $ticketId): string
+{
+    if (function_exists('notif_ticket_number')) {
+        return (string) notif_ticket_number($ticketId);
+    }
+    return str_pad((string) $ticketId, 6, '0', STR_PAD_LEFT);
+}
+
+function admin_mgmt_emit_user_activity(mysqli $conn): void
+{
+    header('Content-Type: application/json');
+
+    activity_logs_ensure_table($conn);
+
+    $userId = (int) ($_GET['user_id'] ?? 0);
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $limit = (int) ($_GET['limit'] ?? 10);
+    if (!in_array($limit, [10, 25, 50], true)) $limit = 10;
+    $offset = ($page - 1) * $limit;
+    $type = trim((string) ($_GET['type'] ?? 'all'));
+    $module = trim((string) ($_GET['module'] ?? 'all'));
+    $dateFrom = trim((string) ($_GET['date_from'] ?? ''));
+    $dateTo = trim((string) ($_GET['date_to'] ?? ''));
+    $search = trim((string) ($_GET['search'] ?? ''));
+
+    if ($userId <= 0) {
+        admin_mgmt_json_response(['ok' => false, 'error' => 'Invalid user id'], 400);
+    }
+
+    $hasFullNameCol = admin_mgmt_table_has_column($conn, 'users', 'full_name');
+    $hasSuperAdminCol = admin_mgmt_table_has_column($conn, 'users', 'is_super_admin');
+    $displayNameExpr = $hasFullNameCol
+        ? "COALESCE(NULLIF(full_name,''), NULLIF(name,''), '')"
+        : "COALESCE(NULLIF(name,''), '')";
+    $userSql = "SELECT id, {$displayNameExpr} AS display_name, name AS raw_name, email, department, role, created_at, last_seen_at, last_logout_at, COALESCE(is_online, 0) AS is_online";
+    $userSql .= $hasSuperAdminCol ? ", COALESCE(is_super_admin, 0) AS is_super_admin" : ", 0 AS is_super_admin";
+    $userSql .= " FROM users WHERE id = ? LIMIT 1";
+
+    $userStmt = $conn->prepare($userSql);
+    if (!$userStmt) {
+        admin_mgmt_json_response(['ok' => false, 'error' => 'System error'], 500);
+    }
+    $userStmt->bind_param('i', $userId);
+    $userStmt->execute();
+    $userRes = $userStmt->get_result();
+    $user = $userRes ? $userRes->fetch_assoc() : null;
+    $userStmt->close();
+
+    if (!$user) {
+        admin_mgmt_json_response(['ok' => false, 'error' => 'User not found'], 404);
+    }
+
+    $items = [];
+    $activityWhere = ['user_id = ?'];
+    $activityParams = [$userId];
+    $activityTypes = 'i';
+    if ($type !== '' && $type !== 'all') {
+        $activityWhere[] = 'activity_type = ?';
+        $activityParams[] = strtoupper($type);
+        $activityTypes .= 's';
+    }
+    if ($module !== '' && $module !== 'all') {
+        $activityWhere[] = 'module_name = ?';
+        $activityParams[] = $module;
+        $activityTypes .= 's';
+    }
+    if ($dateFrom !== '') {
+        $activityWhere[] = 'created_at >= ?';
+        $activityParams[] = $dateFrom . ' 00:00:00';
+        $activityTypes .= 's';
+    }
+    if ($dateTo !== '') {
+        $activityWhere[] = 'created_at <= ?';
+        $activityParams[] = $dateTo . ' 23:59:59';
+        $activityTypes .= 's';
+    }
+    if ($search !== '') {
+        $activityWhere[] = 'activity_description LIKE ?';
+        $activityParams[] = '%' . $search . '%';
+        $activityTypes .= 's';
+    }
+
+    $activitySql = 'SELECT id, activity_type, activity_description, module_name, reference_id, ip_address, created_at FROM activity_logs WHERE ' . implode(' AND ', $activityWhere);
+    if ($activityStmt = $conn->prepare($activitySql)) {
+        $bind = [$activityTypes];
+        foreach ($activityParams as $k => $p) $bind[] = &$activityParams[$k];
+        call_user_func_array([$activityStmt, 'bind_param'], $bind);
+        $activityStmt->execute();
+        $activityRes = $activityStmt->get_result();
+        while ($row = $activityRes ? $activityRes->fetch_assoc() : null) {
+            if (!$row) break;
+            $items[] = [
+                'sort_at' => (string) $row['created_at'],
+                'sort_id' => (int) $row['id'],
+                'id' => (int) $row['id'],
+                'activity_type' => (string) $row['activity_type'],
+                'activity_description' => (string) $row['activity_description'],
+                'module_name' => (string) $row['module_name'],
+                'reference_id' => (string) ($row['reference_id'] ?? ''),
+                'ip_address' => (string) ($row['ip_address'] ?? ''),
+                'created_at' => (string) $row['created_at'],
+                'created_at_display' => admin_mgmt_format_activity_datetime((string) $row['created_at']),
+            ];
+        }
+        $activityStmt->close();
+    }
+
+    $allowTicketRows = ($type === '' || $type === 'all' || strtoupper($type) === 'TICKET_CREATED')
+        && ($module === '' || $module === 'all' || $module === 'Tickets');
+    if ($allowTicketRows) {
+        $userEmail = strtolower(trim((string) ($user['email'] ?? '')));
+        $hasRequesterEmail = admin_mgmt_table_has_column($conn, 'employee_tickets', 'requester_email');
+        $hasTicketCategory = admin_mgmt_table_has_column($conn, 'employee_tickets', 'category');
+        $hasTicketAssignedDepartment = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_department');
+        $hasTicketAssignedGroup = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_group');
+        $ticketSelect = [
+            'id',
+            'subject',
+            ($hasTicketCategory ? 'category' : "'' AS category"),
+            ($hasTicketAssignedDepartment ? 'assigned_department' : "'' AS assigned_department"),
+            ($hasTicketAssignedGroup ? 'assigned_group' : "'' AS assigned_group"),
+            'created_at',
+        ];
+        $ticketWhere = ['(user_id = ?' . ($hasRequesterEmail ? " OR LOWER(TRIM(COALESCE(requester_email, ''))) = ?" : '') . ')'];
+        $ticketParams = [$userId];
+        $ticketTypes = 'i';
+        if ($hasRequesterEmail) {
+            $ticketParams[] = $userEmail;
+            $ticketTypes .= 's';
+        }
+        if ($dateFrom !== '') {
+            $ticketWhere[] = 'created_at >= ?';
+            $ticketParams[] = $dateFrom . ' 00:00:00';
+            $ticketTypes .= 's';
+        }
+        if ($dateTo !== '') {
+            $ticketWhere[] = 'created_at <= ?';
+            $ticketParams[] = $dateTo . ' 23:59:59';
+            $ticketTypes .= 's';
+        }
+        if ($search !== '') {
+            $ticketSearchParts = ['subject LIKE ?', 'CAST(id AS CHAR) LIKE ?'];
+            if ($hasTicketCategory) $ticketSearchParts[] = 'category LIKE ?';
+            if ($hasTicketAssignedDepartment) $ticketSearchParts[] = 'assigned_department LIKE ?';
+            if ($hasTicketAssignedGroup) $ticketSearchParts[] = 'assigned_group LIKE ?';
+            $ticketWhere[] = '(' . implode(' OR ', $ticketSearchParts) . ')';
+            for ($i = 0, $count = count($ticketSearchParts); $i < $count; $i++) {
+                $ticketParams[] = '%' . $search . '%';
+                $ticketTypes .= 's';
+            }
+        }
+
+        $ticketSql = 'SELECT ' . implode(', ', $ticketSelect) . ' FROM employee_tickets WHERE ' . implode(' AND ', $ticketWhere);
+        if ($ticketStmt = $conn->prepare($ticketSql)) {
+            $bind = [$ticketTypes];
+            foreach ($ticketParams as $k => $p) $bind[] = &$ticketParams[$k];
+            call_user_func_array([$ticketStmt, 'bind_param'], $bind);
+            $ticketStmt->execute();
+            $ticketRes = $ticketStmt->get_result();
+            while ($ticket = $ticketRes ? $ticketRes->fetch_assoc() : null) {
+                if (!$ticket) break;
+                $ticketId = (int) ($ticket['id'] ?? 0);
+                $subject = trim((string) ($ticket['subject'] ?? 'Untitled ticket'));
+                $category = trim((string) ($ticket['category'] ?? ''));
+                $target = trim((string) (($ticket['assigned_group'] ?? '') !== '' ? $ticket['assigned_group'] : ($ticket['assigned_department'] ?? '')));
+                $description = 'Created ticket #' . admin_mgmt_ticket_number($ticketId) . ': ' . $subject;
+                if ($category !== '') $description .= ' (' . $category . ')';
+                if ($target !== '') $description .= ' for ' . $target;
+                $createdAt = (string) ($ticket['created_at'] ?? '');
+                $items[] = [
+                    'sort_at' => $createdAt,
+                    'sort_id' => $ticketId,
+                    'id' => 0,
+                    'activity_type' => 'TICKET_CREATED',
+                    'activity_description' => $description,
+                    'module_name' => 'Tickets',
+                    'reference_id' => (string) $ticketId,
+                    'ip_address' => '',
+                    'created_at' => $createdAt,
+                    'created_at_display' => admin_mgmt_format_activity_datetime($createdAt),
+                ];
+            }
+            $ticketStmt->close();
+        }
+    }
+
+    $allowTicketWorkRows = ($type === '' || $type === 'all' || in_array(strtoupper($type), ['CLAIM_TICKET', 'STATUS_CHANGE', 'DEPARTMENT_CHANGE', 'COMPANY_CHANGE', 'NOTE_ADDED'], true))
+        && ($module === '' || $module === 'all' || $module === 'Tickets');
+    if ($allowTicketWorkRows) {
+        if (function_exists('ticket_ensure_activity_table')) {
+            ticket_ensure_activity_table($conn);
+        }
+
+        $hasTicketAssignedUserId = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_user_id');
+        $hasTicketAssignedTo = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_to');
+        $hasTicketCategory = admin_mgmt_table_has_column($conn, 'employee_tickets', 'category');
+        $hasTicketAssignedDepartment = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_department');
+        $hasTicketAssignedGroup = admin_mgmt_table_has_column($conn, 'employee_tickets', 'assigned_group');
+        $ticketWorkSelect = [
+            'ta.id AS activity_id',
+            'ta.ticket_id',
+            'ta.activity_type',
+            'ta.description',
+            'ta.created_at',
+            't.subject',
+            ($hasTicketCategory ? 't.category' : "'' AS category"),
+            ($hasTicketAssignedDepartment ? 't.assigned_department' : "'' AS assigned_department"),
+            ($hasTicketAssignedGroup ? 't.assigned_group' : "'' AS assigned_group"),
+        ];
+        $assigneeParts = [];
+        $ticketWorkParams = [];
+        $ticketWorkTypes = '';
+        if ($hasTicketAssignedUserId) {
+            $assigneeParts[] = 'COALESCE(t.assigned_user_id, 0) = ?';
+            $ticketWorkParams[] = $userId;
+            $ticketWorkTypes .= 'i';
+        }
+        if ($hasTicketAssignedTo) {
+            $assigneeParts[] = 'COALESCE(t.assigned_to, 0) = ?';
+            $ticketWorkParams[] = $userId;
+            $ticketWorkTypes .= 'i';
+        }
+
+        $claimNames = array_values(array_unique(array_filter([
+            trim((string) ($user['display_name'] ?? '')),
+            trim((string) ($user['raw_name'] ?? '')),
+        ], static function ($value) {
+            return $value !== '';
+        })));
+        $actorParts = [];
+        if (count($assigneeParts) > 0) {
+            $actorParts[] = '((' . implode(' OR ', $assigneeParts) . ") AND ta.activity_type IN ('claim_ticket', 'status_change', 'department_change', 'company_change', 'note_added'))";
+        }
+        if (count($claimNames) > 0) {
+            $claimParts = [];
+            foreach ($claimNames as $claimName) {
+                $claimParts[] = 'ta.description = ?';
+                $ticketWorkParams[] = 'Claimed by ' . $claimName;
+                $ticketWorkTypes .= 's';
+            }
+            $actorParts[] = "(ta.activity_type = 'claim_ticket' AND (" . implode(' OR ', $claimParts) . '))';
+        }
+
+        if (count($actorParts) > 0) {
+            $ticketWorkWhere = ['(' . implode(' OR ', $actorParts) . ')'];
+            if ($type !== '' && $type !== 'all') {
+                $ticketWorkWhere[] = 'ta.activity_type = ?';
+                $ticketWorkParams[] = strtolower($type);
+                $ticketWorkTypes .= 's';
+            }
+            if ($dateFrom !== '') {
+                $ticketWorkWhere[] = 'ta.created_at >= ?';
+                $ticketWorkParams[] = $dateFrom . ' 00:00:00';
+                $ticketWorkTypes .= 's';
+            }
+            if ($dateTo !== '') {
+                $ticketWorkWhere[] = 'ta.created_at <= ?';
+                $ticketWorkParams[] = $dateTo . ' 23:59:59';
+                $ticketWorkTypes .= 's';
+            }
+            if ($search !== '') {
+                $ticketWorkSearchParts = ['ta.description LIKE ?', 't.subject LIKE ?', 'CAST(ta.ticket_id AS CHAR) LIKE ?'];
+                if ($hasTicketCategory) $ticketWorkSearchParts[] = 't.category LIKE ?';
+                if ($hasTicketAssignedDepartment) $ticketWorkSearchParts[] = 't.assigned_department LIKE ?';
+                if ($hasTicketAssignedGroup) $ticketWorkSearchParts[] = 't.assigned_group LIKE ?';
+                $ticketWorkWhere[] = '(' . implode(' OR ', $ticketWorkSearchParts) . ')';
+                for ($i = 0, $count = count($ticketWorkSearchParts); $i < $count; $i++) {
+                    $ticketWorkParams[] = '%' . $search . '%';
+                    $ticketWorkTypes .= 's';
+                }
+            }
+
+            $ticketWorkSql = 'SELECT ' . implode(', ', $ticketWorkSelect) . ' FROM ticket_activity ta JOIN employee_tickets t ON t.id = ta.ticket_id WHERE ' . implode(' AND ', $ticketWorkWhere);
+            if ($ticketWorkStmt = $conn->prepare($ticketWorkSql)) {
+                if ($ticketWorkTypes !== '') {
+                    $bind = [$ticketWorkTypes];
+                    foreach ($ticketWorkParams as $k => $p) $bind[] = &$ticketWorkParams[$k];
+                    call_user_func_array([$ticketWorkStmt, 'bind_param'], $bind);
+                }
+                $ticketWorkStmt->execute();
+                $ticketWorkRes = $ticketWorkStmt->get_result();
+                while ($work = $ticketWorkRes ? $ticketWorkRes->fetch_assoc() : null) {
+                    if (!$work) break;
+                    $ticketId = (int) ($work['ticket_id'] ?? 0);
+                    $subject = trim((string) ($work['subject'] ?? 'Untitled ticket'));
+                    $category = trim((string) ($work['category'] ?? ''));
+                    $target = trim((string) (($work['assigned_group'] ?? '') !== '' ? $work['assigned_group'] : ($work['assigned_department'] ?? '')));
+                    $rawDescription = trim((string) ($work['description'] ?? ''));
+                    $description = $rawDescription !== '' ? $rawDescription : 'Updated ticket';
+                    $description .= ' on ticket #' . admin_mgmt_ticket_number($ticketId) . ': ' . $subject;
+                    if ($category !== '') $description .= ' (' . $category . ')';
+                    if ($target !== '') $description .= ' for ' . $target;
+                    $createdAt = (string) ($work['created_at'] ?? '');
+                    $items[] = [
+                        'sort_at' => $createdAt,
+                        'sort_id' => (int) ($work['activity_id'] ?? 0),
+                        'id' => 0,
+                        'activity_type' => strtoupper((string) ($work['activity_type'] ?? 'TICKET_ACTIVITY')),
+                        'activity_description' => $description,
+                        'module_name' => 'Tickets',
+                        'reference_id' => (string) $ticketId,
+                        'ip_address' => '',
+                        'created_at' => $createdAt,
+                        'created_at_display' => admin_mgmt_format_activity_datetime($createdAt),
+                    ];
+                }
+                $ticketWorkStmt->close();
+            }
+        }
+    }
+
+    usort($items, static function (array $a, array $b): int {
+        $aTs = strtotime((string) ($a['sort_at'] ?? '')) ?: 0;
+        $bTs = strtotime((string) ($b['sort_at'] ?? '')) ?: 0;
+        if ($aTs === $bTs) return ((int) ($b['sort_id'] ?? 0)) <=> ((int) ($a['sort_id'] ?? 0));
+        return $bTs <=> $aTs;
+    });
+
+    $total = count($items);
+    $items = array_slice($items, $offset, $limit);
+    foreach ($items as &$item) {
+        unset($item['sort_at'], $item['sort_id']);
+    }
+    unset($item);
+
+    $firstLogin = '';
+    $lastLogin = '';
+    if ($loginStmt = $conn->prepare("SELECT MIN(created_at) AS first_login, MAX(created_at) AS last_login FROM activity_logs WHERE user_id = ? AND activity_type = 'LOGIN'")) {
+        $loginStmt->bind_param('i', $userId);
+        $loginStmt->execute();
+        $loginRes = $loginStmt->get_result();
+        $loginRow = $loginRes ? $loginRes->fetch_assoc() : [];
+        $firstLogin = (string) ($loginRow['first_login'] ?? '');
+        $lastLogin = (string) ($loginRow['last_login'] ?? '');
+        $loginStmt->close();
+    }
+
+    $status = admin_mgmt_user_status($user);
+    $role = (string) ($user['role'] ?? '');
+    $roleLabel = ((int) ($user['is_super_admin'] ?? 0) === 1) ? 'Super Admin' : ($role === 'admin' ? 'Admin' : 'Employee');
+
+    admin_mgmt_json_response([
+        'ok' => true,
+        'user' => [
+            'id' => (int) $user['id'],
+            'name' => (string) ($user['display_name'] ?? ''),
+            'email' => (string) ($user['email'] ?? ''),
+            'department' => (string) ($user['department'] ?? ''),
+            'role' => $roleLabel,
+            'status_label' => $status['label'],
+            'status_state' => $status['state'],
+        ],
+        'summary' => [
+            'account_created' => admin_mgmt_format_activity_datetime((string) ($user['created_at'] ?? '')),
+            'first_login' => admin_mgmt_format_activity_datetime($firstLogin),
+            'last_login' => admin_mgmt_format_activity_datetime($lastLogin),
+            'last_active' => admin_mgmt_format_activity_datetime((string) ($user['last_seen_at'] ?? '')),
+        ],
+        'logs' => $items,
+        'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'total_pages' => max(1, (int) ceil($total / $limit)),
+        ],
+    ]);
+}
+
+if ($adminMgmtActivityJsonRequest) {
+    ini_set('display_errors', '0');
+    if (ob_get_level() === 0) ob_start();
+    try {
+        admin_mgmt_emit_user_activity($conn);
+    } catch (Throwable $e) {
+        error_log('Admin management activity logs failed: ' . $e->getMessage());
+        admin_mgmt_json_response(['ok' => false, 'error' => 'Unable to load activity logs.'], 500);
+    }
+}
+
+activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 'Opened Admin Management', 'Admin Management');
 
 ?>
 
@@ -104,6 +549,21 @@ user_permissions_ensure_table($conn);
             max-width: 1380px;
             width: 95%;
             margin: 0 auto 40px;
+        }
+        .admin-mgmt-header {
+            margin-bottom: 18px;
+        }
+        .admin-mgmt-header h1 {
+            margin-bottom: 8px;
+        }
+        .admin-mgmt-subtitle {
+            margin: 0;
+            max-width: 980px;
+            color: #6B7280;
+            font-size: 14px;
+            line-height: 1.45;
+            font-weight: 400;
+            white-space: nowrap;
         }
         .user-table {
             width: 100%;
@@ -126,11 +586,11 @@ user_permissions_ensure_table($conn);
             color: #333;
         }
         .promote-btn {
-            background-color: #28a745;
-            color: white;
+            background: #166534;
+            color: #ffffff;
             border: none;
             padding: 10px 14px;
-            border-radius: 8px;
+            border-radius: 14px;
             cursor: pointer;
             font-size: 14px;
             font-weight: 700;
@@ -139,9 +599,13 @@ user_permissions_ensure_table($conn);
             align-items: center;
             justify-content: center;
             gap: 8px;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.24);
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
         }
         .promote-btn:hover {
-            background-color: #218838;
+            transform: translateY(-1px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.28);
         }
         .alert-success {
             padding: 10px;
@@ -376,9 +840,10 @@ user_permissions_ensure_table($conn);
 
         .admin-mgmt-header {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 8px;
             margin-bottom: 18px;
         }
         .admin-mgmt-header h1 {
@@ -462,6 +927,22 @@ user_permissions_ensure_table($conn);
             border-color: #22c55e;
             box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
         }
+        .add-user-modal-card .form-control {
+            min-height: 44px;
+            padding: 10px 14px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            background: #ffffff;
+            box-shadow: none;
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+        .add-user-modal-card .form-control:focus {
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+        .add-user-modal-card .form-grid {
+            grid-template-columns: 88px 1fr;
+        }
         .form-field-stack {
             display: flex;
             flex-direction: column;
@@ -479,14 +960,21 @@ user_permissions_ensure_table($conn);
         .username-row,
         .password-row {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 280px;
+            grid-template-columns: minmax(0, 1fr) 320px;
             gap: 12px;
             align-items: center;
         }
+        .add-user-modal-card .fullname-row,
+        .add-user-modal-card .username-row,
+        .add-user-modal-card .password-row {
+            grid-template-columns: minmax(0, 1fr) 390px;
+        }
         .fullname-row > .form-control,
         .fullname-row > .domain-select,
+        .fullname-row > .edit-select-wrap,
         .username-row > .form-control,
         .username-row > .domain-select,
+        .username-row > .edit-select-wrap,
         .password-row > .password-field,
         .password-row > .btn.btn-auto {
             width: 100%;
@@ -502,6 +990,9 @@ user_permissions_ensure_table($conn);
         }
         .password-field .form-control {
             padding-right: 44px;
+        }
+        .add-user-modal-card .password-field .form-control {
+            padding-right: 48px;
         }
         .password-field .form-control::-ms-reveal,
         .password-field .form-control::-ms-clear {
@@ -620,6 +1111,186 @@ user_permissions_ensure_table($conn);
             box-shadow: none;
             cursor: not-allowed;
         }
+        .edit-select-wrap {
+            position: relative;
+        }
+        .edit-select-wrap .domain-select {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .edit-select-trigger {
+            width: 100%;
+            min-height: 56px;
+            padding: 13px 48px 13px 18px;
+            border: 2px solid #5fa463;
+            border-radius: 18px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+        .edit-select-trigger::after {
+            content: '\f078';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            color: #64748b;
+            position: absolute;
+            right: 17px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 13px;
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+        .edit-select-wrap.is-open .edit-select-trigger {
+            border-color: #166534;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+        }
+        .edit-select-wrap.is-open .edit-select-trigger::after {
+            transform: translateY(-50%) rotate(180deg);
+            color: #166534;
+        }
+        .edit-select-trigger:disabled {
+            background: #f8fafc;
+            color: #94a3b8;
+            border-color: #dbe4ee;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        .edit-select-menu {
+            position: fixed;
+            z-index: 13050;
+            display: none;
+            padding: 8px 0;
+            max-height: 250px;
+            overflow-y: auto;
+            background: #ffffff;
+            border: 2px solid #5fa463;
+            border-radius: 16px;
+            box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+        .edit-select-menu::-webkit-scrollbar {
+            width: 10px;
+        }
+        .edit-select-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+        .edit-select-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+        .edit-select-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        .edit-select-wrap.is-open .edit-select-menu {
+            display: block;
+        }
+        .edit-select-option {
+            min-height: 42px;
+            padding: 11px 18px;
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        .edit-select-option:hover,
+        .edit-select-option.is-focused {
+            background: #edf7ef;
+        }
+        .edit-select-option.is-selected {
+            background: #166534;
+            color: #ffffff;
+        }
+        .users-filter-select-wrap {
+            width: 170px;
+            flex: 0 0 170px;
+        }
+        .users-dept-filter-wrap {
+            width: 360px;
+            flex-basis: 360px;
+        }
+        .users-filter-select-wrap .edit-select-trigger {
+            min-height: 44px;
+            padding: 10px 38px 10px 14px;
+            border-color: #d8e2ec;
+            border-radius: 13px;
+            box-shadow: none;
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+        .users-filter-select-wrap .edit-select-menu {
+            position: absolute;
+            top: calc(100% + 7px);
+            left: 0;
+            width: 100%;
+            max-height: 220px;
+            z-index: 30;
+        }
+        .users-filter-select-wrap .edit-select-option {
+            min-height: 38px;
+            padding: 9px 16px;
+            font-weight: 500;
+        }
+        .add-user-modal-card .edit-select-trigger {
+            height: 44px;
+            min-height: 44px;
+            padding: 10px 38px 10px 14px;
+            border-color: #d8e2ec;
+            border-radius: 13px;
+            box-shadow: none;
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            line-height: 1.25;
+        }
+        .add-user-modal-card .edit-select-wrap.is-open .edit-select-trigger {
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+        #editUserModal .form-control {
+            min-height: 44px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            border-color: #d8e2ec;
+            box-shadow: none;
+        }
+        #editUserModal .form-control:focus {
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+        #editUserModal .edit-select-trigger {
+            min-height: 44px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            border-color: #d8e2ec;
+            box-shadow: none;
+        }
+        #editUserModal .edit-select-wrap.is-open .edit-select-trigger {
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
         .btn {
             border: 1px solid transparent;
             border-radius: 14px;
@@ -654,6 +1325,41 @@ user_permissions_ensure_table($conn);
             white-space: nowrap;
         }
         .btn-auto:hover { background: #f1f5f9; }
+        .add-user-modal-card .password-row > .btn.btn-auto {
+            min-height: 44px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            background: #ffffff;
+            box-shadow: none;
+            transition: border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+        }
+        .add-user-modal-card .password-row > .btn.btn-auto:hover,
+        .add-user-modal-card .password-row > .btn.btn-auto:focus {
+            border-color: #cbd5e1;
+            color: #0f172a;
+            background: #ffffff;
+            box-shadow: none;
+            outline: none;
+        }
+        #createUserBtn {
+            background: #166534;
+            color: #ffffff;
+            border: none;
+            border-radius: 14px;
+            padding: 15px 28px;
+            min-height: 54px;
+            gap: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.28);
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+        }
+        #createUserBtn:hover {
+            background: #166534;
+            transform: translateY(-2px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.32);
+        }
         .form-actions {
             display: flex;
             justify-content: flex-end;
@@ -663,25 +1369,53 @@ user_permissions_ensure_table($conn);
             border-top: 1px solid #eef2f7;
         }
         .users-list-controls {
-            display: flex;
+            display: grid;
+            grid-template-columns: minmax(280px, 1fr) 170px 360px 96px minmax(0, 1fr);
             align-items: center;
             gap: 10px;
             margin-bottom: 12px;
-            flex-wrap: wrap;
         }
-        .users-list-controls .search-wrapper { flex: 1 1 480px; }
+        .users-list-controls .search-wrapper {
+            min-width: 0;
+        }
+        .users-list-controls .search-input {
+            min-height: 44px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            box-shadow: none;
+        }
+        .users-list-controls .search-input:focus {
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+        .users-list-controls #clearUsersFilters {
+            grid-column: auto;
+            width: 96px;
+            justify-self: start;
+            min-height: 44px;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            color: #0f172a;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            background: #ffffff;
+            box-shadow: none;
+        }
+        .users-list-controls #clearUsersFilters:hover {
+            background: #ffffff;
+            border-color: #cbd5e1;
+        }
         .users-filters {
-            display: flex;
+            display: contents;
             gap: 10px;
-            flex: 0 0 auto;
-            align-items: center;
         }
         .users-company-inline {
-            display: flex;
+            display: contents;
             gap: 10px;
-            align-items: center;
         }
-        .users-dept-filter.is-hidden {
+        .users-dept-filter.is-hidden,
+        .edit-select-wrap.is-hidden {
             display: none;
         }
         .users-table {
@@ -711,10 +1445,17 @@ user_permissions_ensure_table($conn);
         .users-table { border-top: none; }
         .users-table { table-layout: fixed; }
         .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 28%; text-align: center; }
-        .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 34%; text-align: center; }
-        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 28%; text-align: center; }
-        .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 10%; text-align: right; }
-        .users-table td { vertical-align: middle; }
+        .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 25%; text-align: center; }
+        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 23%; text-align: center; }
+        .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 14%; text-align: center; }
+        .users-table th:nth-child(5), .users-table td:nth-child(5) { width: 10%; text-align: right; }
+        .users-table td {
+            vertical-align: middle;
+            overflow: hidden;
+        }
+        .users-table td:nth-child(5) {
+            overflow: visible;
+        }
         .users-cell {
             display: inline-block;
             max-width: 100%;
@@ -724,17 +1465,24 @@ user_permissions_ensure_table($conn);
             vertical-align: middle;
         }
         .users-name-wrap {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 9px;
             max-width: 100%;
+            min-width: 0;
+            overflow: hidden;
+            flex-wrap: nowrap;
+            white-space: nowrap;
         }
         .users-name-wrap .users-cell { min-width: 0; }
+        .users-name-wrap .users-badge-current {
+            max-width: 100%;
+        }
         .users-badge-current {
             flex: 0 0 auto;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 900;
-            padding: 4px 10px;
+            padding: 4px 8px;
             border-radius: 999px;
             background: #dcfce7;
             color: #166534;
@@ -743,10 +1491,103 @@ user_permissions_ensure_table($conn);
             white-space: nowrap;
         }
         .users-actions {
+            position: relative;
             display: inline-flex;
             justify-content: flex-end;
+            align-items: center;
             width: 100%;
         }
+        .btn-icon-menu,
+        .btn-icon-activity {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            border: 1px solid #bbf7d0;
+            background: #f0fdf4;
+            color: #15803d;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-icon-menu:hover,
+        .btn-icon-activity:hover {
+            background: #dcfce7;
+            border-color: #86efac;
+        }
+        .users-action-menu {
+            position: fixed;
+            z-index: 10050;
+            display: none;
+            min-width: 178px;
+            max-width: calc(100vw - 16px);
+            padding: 6px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 18px 38px rgba(15, 23, 42, 0.16);
+        }
+        .users-actions.is-open .users-action-menu {
+            display: grid;
+            gap: 4px;
+        }
+        .users-action-item {
+            width: 100%;
+            border: 0;
+            border-radius: 9px;
+            background: transparent;
+            color: #334155;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 9px 10px;
+            font-size: 12px;
+            font-weight: 800;
+            text-align: left;
+        }
+        .users-action-item:hover {
+            background: #f0fdf4;
+            color: #166534;
+        }
+        .users-action-item.is-danger {
+            color: #ef4444;
+        }
+        .users-action-item.is-danger:hover {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+        .users-status {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            max-width: 100%;
+            color: #334155;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+        .users-status-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 999px;
+            flex: 0 0 auto;
+            background: #111827;
+            box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
+        }
+        .users-status.is-online { color: #166534; }
+        .users-status.is-online .users-status-dot {
+            background: #22c55e;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16);
+        }
+        .users-status.is-recent,
+        .users-status.is-away { color: #92400e; }
+        .users-status.is-recent .users-status-dot,
+        .users-status.is-away .users-status-dot {
+            background: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
+        }
+        .users-status.is-never { color: #64748b; }
         .btn-icon-danger {
             width: 34px;
             height: 34px;
@@ -847,19 +1688,26 @@ user_permissions_ensure_table($conn);
             letter-spacing: 0.08em;
         }
         .add-user-trigger {
-            background: #1B5E20;
+            background: #166534;
             color: #ffffff;
             border: none;
-            border-radius: 10px;
-            padding: 10px 14px;
-            font-weight: 900;
+            border-radius: 14px;
+            padding: 15px 28px;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            font-size: 13px;
+            gap: 12px;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.28);
         }
-        .add-user-trigger:hover { background: #144a1e; }
+        .add-user-trigger:hover {
+            transform: translateY(-2px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.32);
+        }
 
         .user-table {
             box-shadow: none;
@@ -986,18 +1834,345 @@ user_permissions_ensure_table($conn);
         .users-access-row.is-clickable.is-active td {
             background: #ecfdf5;
         }
-        .users-access-meta {
+        .activity-drawer-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 12000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 22px;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(2px);
+            overflow-y: auto;
+        }
+        .activity-drawer-overlay.show { display: flex; }
+        .activity-drawer {
+            width: min(980px, 100%);
+            max-height: calc(100vh - 44px);
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 22px;
+            box-shadow: 0 22px 60px rgba(2, 6, 23, 0.25);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            z-index: 12001;
+            margin: 0 auto;
+        }
+        .activity-drawer-head {
+            padding: 16px 18px 18px;
+            border-bottom: 1px solid #ecf1f6;
+            background:
+                radial-gradient(circle at top right, rgba(34, 197, 94, 0.10), transparent 34%),
+                linear-gradient(180deg, #f8fffa 0%, #f8fafc 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+        }
+        .activity-drawer-heading {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-width: 0;
+        }
+        .activity-drawer-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: #dcfce7;
+            color: #16a34a;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            color: #16a34a;
-            font-size: 11px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-left: auto;
+            justify-content: center;
+            font-size: 19px;
+            flex: 0 0 auto;
+        }
+        .activity-drawer-title {
+            margin: 0;
+            color: #0f172a;
+            font-size: 25px;
+            line-height: 1.1;
+            font-weight: 900;
+        }
+        .activity-drawer-close {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            border: 1px solid #dbe3ee;
+            background: rgba(255,255,255,0.92);
+            color: #475569;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+        }
+        .activity-drawer-close:hover {
+            background: #f8fafc;
+            color: #0f172a;
+        }
+        .activity-drawer-body {
+            padding: 18px;
+            overflow: auto;
+            flex: 1 1 auto;
+            background: #ffffff;
+            display: grid;
+            grid-template-columns: minmax(300px, 0.82fr) minmax(0, 1.18fr);
+            gap: 16px;
+            align-items: stretch;
+        }
+        .activity-user-card,
+        .activity-timeline-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.035);
+        }
+        .activity-user-card {
+            padding: 18px;
+        }
+        .activity-user-profile {
+            display: flex;
+            gap: 18px;
+            align-items: flex-start;
+        }
+        .activity-avatar {
+            width: 82px;
+            height: 82px;
+            border-radius: 999px;
+            background: #ffffff;
+            border: 2px solid #22c55e;
+            color: #15803d;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 42px;
+            font-weight: 900;
+            flex: 0 0 auto;
+            position: relative;
+        }
+        .activity-avatar::after {
+            content: '';
+            position: absolute;
+            right: 5px;
+            bottom: 8px;
+            width: 16px;
+            height: 16px;
+            border-radius: 999px;
+            background: #16a34a;
+            border: 3px solid #ffffff;
+        }
+        .activity-user-main { min-width: 0; flex: 1 1 auto; }
+        .activity-user-name {
+            font-size: 20px;
+            font-weight: 900;
+            color: #0f172a;
+            overflow: hidden;
+            text-overflow: ellipsis;
             white-space: nowrap;
         }
+        .activity-user-email {
+            margin-top: 4px;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 700;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .activity-user-meta {
+            margin-top: 12px;
+            display: grid;
+            gap: 10px;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .activity-user-meta div {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        .activity-user-meta i {
+            width: 16px;
+            color: #22c55e;
+            text-align: center;
+        }
+        .activity-user-meta span {
+            color: #475569;
+            flex: 0 0 auto;
+        }
+        .activity-user-meta strong {
+            color: #0f172a;
+            font-size: 12px;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .activity-status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            margin: 0 -2px 0 2px;
+            background: #0f172a;
+            flex: 0 0 auto;
+        }
+        .activity-status-dot.is-online { background: #22c55e; }
+        .activity-status-dot.is-recent,
+        .activity-status-dot.is-away { background: #f59e0b; }
+        .activity-summary-card {
+            margin-top: 22px;
+            padding: 22px 18px 18px 54px;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 26px;
+            position: relative;
+        }
+        .activity-summary-card::before {
+            content: '';
+            position: absolute;
+            left: 29px;
+            top: 42px;
+            bottom: 42px;
+            width: 2px;
+            background: #bbf7d0;
+        }
+        .activity-summary-item {
+            position: relative;
+        }
+        .activity-summary-icon {
+            position: absolute;
+            left: -43px;
+            top: -2px;
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            background: #16a34a;
+            color: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            box-shadow: 0 0 0 5px #dcfce7;
+            z-index: 1;
+        }
+        .activity-summary-label {
+            display: block;
+            color: #16a34a;
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            position: relative;
+        }
+        .activity-summary-value {
+            display: block;
+            margin-top: 4px;
+            color: #0f172a;
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 1.35;
+        }
+        .activity-timeline-card {
+            padding: 20px 22px;
+            max-height: min(520px, calc(100vh - 180px));
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .activity-recent-title {
+            margin: 0 0 4px;
+            color: #0f172a;
+            font-size: 16px;
+            font-weight: 900;
+            flex: 0 0 auto;
+        }
+        .activity-recent-subtitle {
+            margin: 0 0 22px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .activity-timeline {
+            display: grid;
+            gap: 0;
+            height: min(330px, calc(100vh - 330px));
+            min-height: 230px;
+            overflow-y: scroll;
+            overscroll-behavior: contain;
+            padding: 0 14px 0 28px;
+            scrollbar-gutter: stable;
+            scrollbar-width: auto;
+            scrollbar-color: #13713a #e7f5ec;
+            position: relative;
+        }
+        .activity-timeline::-webkit-scrollbar {
+            width: 14px;
+        }
+        .activity-timeline::-webkit-scrollbar-track {
+            background: #e7f5ec;
+            border-radius: 999px;
+            border: 3px solid #ffffff;
+        }
+        .activity-timeline::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #1a8f49 0%, #0b5f2a 100%);
+            border-radius: 999px;
+            border: 3px solid #ffffff;
+        }
+        .activity-timeline::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #157a3d 0%, #08491f 100%);
+        }
+        .activity-item {
+            position: relative;
+            padding: 0 0 22px 22px;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.4;
+            border-left: 2px solid #bbf7d0;
+        }
+        .activity-item::before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 2px;
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #16a34a;
+        }
+        .activity-item.is-warning::before { background: #f59e0b; }
+        .activity-item.is-danger::before { background: #dc2626; }
+        .activity-item-main {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 14px;
+            align-items: start;
+        }
+        .activity-item-title {
+            color: #0f172a;
+            font-weight: 900;
+        }
+        .activity-item-detail {
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .activity-item-time {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .activity-empty { padding: 22px 12px; text-align: center; color: #64748b; font-weight: 800; }
         .access-modal-card {
             max-width: 520px;
             margin-top: 0;
@@ -1007,10 +2182,12 @@ user_permissions_ensure_table($conn);
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            gap: 14px;
-            padding: 14px 16px;
-            border-bottom: 1px solid rgba(20, 83, 45, 0.28);
-            background: linear-gradient(135deg, #14532d 0%, #166534 58%, #15803d 100%);
+            gap: 18px;
+            padding: 22px 24px 18px;
+            border-bottom: 1px solid #ecf1f6;
+            background:
+                radial-gradient(circle at top right, rgba(34, 197, 94, 0.10), transparent 34%),
+                linear-gradient(180deg, #f8fffa 0%, #f8fafc 100%);
             position: sticky;
             top: 0;
             z-index: 2;
@@ -1018,54 +2195,54 @@ user_permissions_ensure_table($conn);
         .access-modal-shell-title {
             display: flex;
             align-items: flex-start;
-            gap: 12px;
+            gap: 14px;
             min-width: 0;
         }
         .access-modal-shell-icon {
-            width: 38px;
-            height: 38px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.14);
-            border: 1px solid rgba(255, 255, 255, 0.28);
-            color: #ffffff;
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ecfdf5 0%, #dcfce7 100%);
+            border: 1px solid #bbf7d0;
+            color: #16a34a;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             flex: 0 0 auto;
-            font-size: 16px;
+            font-size: 18px;
+            box-shadow: 0 10px 20px rgba(22, 163, 74, 0.10);
         }
         .access-modal-shell-heading {
             margin: 0;
-            color: #ffffff;
-            font-size: 18px;
+            color: #0f172a;
+            font-size: 24px;
             font-weight: 900;
-            line-height: 1.15;
+            line-height: 1.1;
         }
         .access-modal-shell-copy {
-            margin-top: 4px;
-            color: rgba(255, 255, 255, 0.86);
-            font-size: 12px;
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 13px;
             font-weight: 600;
-            line-height: 1.4;
+            line-height: 1.5;
+            max-width: 560px;
         }
         .access-modal-close {
-            width: 36px;
-            height: 36px;
+            width: 40px;
+            height: 40px;
             border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            background: rgba(255, 255, 255, 0.12);
-            color: #ffffff;
+            border: 1px solid #dbe3ee;
+            background: rgba(255,255,255,0.92);
+            color: #475569;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             flex: 0 0 auto;
-            transition: all 0.18s ease;
         }
         .access-modal-close:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.4);
-            color: #ffffff;
+            background: #f8fafc;
+            color: #0f172a;
         }
         .access-modal-header-copy {
             display: grid;
@@ -1087,53 +2264,88 @@ user_permissions_ensure_table($conn);
         .access-user-chip {
             display: flex;
             align-items: center;
-            gap: 14px;
-            padding: 8px 10px;
-            border-radius: 14px;
-            background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%);
-            border: 1px solid #dcfce7;
-            margin-bottom: 10px;
+            gap: 16px;
+            padding: 14px 16px;
+            border-radius: 8px;
+            background:
+                radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.10), transparent 34%),
+                #ffffff;
+            border: 1px solid #bbf7d0;
+            margin-bottom: 14px;
         }
         .access-user-avatar {
-            width: 42px;
-            height: 42px;
+            width: 52px;
+            height: 52px;
             border-radius: 999px;
-            background: #166534;
-            color: #ffffff;
+            background: #ffffff;
+            color: #16a34a;
+            border: 2px solid #22c55e;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
+            font-size: 21px;
             font-weight: 900;
             flex: 0 0 auto;
+            position: relative;
+        }
+        .access-user-avatar::after {
+            content: '';
+            position: absolute;
+            right: 1px;
+            bottom: 4px;
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #16a34a;
+            border: 2px solid #ffffff;
         }
         .access-user-name {
             font-size: 15px;
-            font-weight: 800;
+            font-weight: 900;
             color: #0f172a;
             line-height: 1.1;
         }
-        .access-user-email,
-        .access-user-role {
+        .access-user-email {
             color: #64748b;
             font-size: 12px;
-            font-weight: 600;
-            line-height: 1.2;
+            font-weight: 700;
+            line-height: 1.3;
+            margin-top: 2px;
+        }
+        .access-user-role {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .access-user-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 22px;
+            padding: 3px 9px;
+            border-radius: 6px;
+            border: 1px solid #dcfce7;
+            background: #f0fdf4;
+            color: #16a34a;
+            font-size: 10px;
+            font-weight: 900;
         }
         .access-sections {
             display: grid;
-            gap: 8px;
+            gap: 12px;
         }
         .access-section {
             border: 1px solid #e2e8f0;
-            border-radius: 12px;
+            border-radius: 8px;
             background: #ffffff;
             overflow: hidden;
         }
         .access-section-head {
-            padding: 8px 10px;
+            padding: 12px 14px;
             border-bottom: 1px solid #ecf0f4;
-            background: #f8fafc;
+            background: #ffffff;
             font-size: 11px;
             font-weight: 800;
             text-transform: uppercase;
@@ -1149,7 +2361,7 @@ user_permissions_ensure_table($conn);
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            padding: 8px 10px;
+            padding: 11px 14px;
             border-top: 1px solid #f1f5f9;
         }
         .access-toggle-row:first-child {
@@ -1175,8 +2387,8 @@ user_permissions_ensure_table($conn);
         .switch {
             position: relative;
             display: inline-flex;
-            width: 54px;
-            height: 30px;
+            width: 34px;
+            height: 20px;
             flex: 0 0 auto;
         }
         .switch input {
@@ -1196,20 +2408,20 @@ user_permissions_ensure_table($conn);
         .switch-slider::before {
             content: '';
             position: absolute;
-            width: 24px;
-            height: 24px;
+            width: 14px;
+            height: 14px;
             left: 3px;
             top: 3px;
             border-radius: 50%;
             background: #ffffff;
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.16);
             transition: transform 0.2s ease;
         }
         .switch input:checked + .switch-slider {
             background: #16a34a;
         }
         .switch input:checked + .switch-slider::before {
-            transform: translateX(24px);
+            transform: translateX(14px);
         }
         .switch input:focus-visible + .switch-slider {
             box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.18);
@@ -1249,56 +2461,52 @@ user_permissions_ensure_table($conn);
                 #ffffff;
         }
         .access-modal-shell-header {
-            padding: 24px 30px;
-            min-height: 108px;
-            align-items: center;
-            background: #16521f;
+            padding: 22px 24px 18px;
+            min-height: 0;
+            align-items: flex-start;
         }
         .access-modal-shell-title {
-            align-items: center;
-            gap: 18px;
+            align-items: flex-start;
+            gap: 14px;
         }
         .access-modal-shell-icon {
-            width: 58px;
-            height: 58px;
-            border-radius: 50%;
-            font-size: 24px;
-            background: rgba(255, 255, 255, 0.14);
-            border-color: rgba(255, 255, 255, 0.16);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
+            width: 46px;
+            height: 46px;
+            border-radius: 14px;
+            font-size: 18px;
         }
         .access-modal-shell-heading {
-            font-size: 22px;
-            letter-spacing: -0.02em;
+            font-size: 24px;
+            letter-spacing: 0;
         }
         .access-modal-shell-copy {
-            max-width: 520px;
+            max-width: 560px;
             font-size: 13px;
-            line-height: 1.35;
+            line-height: 1.5;
         }
         .access-modal-close {
-            width: 38px;
-            height: 38px;
-            border-radius: 14px;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
         }
         .access-user-chip {
-            padding: 16px 18px;
-            border-radius: 18px;
-            border-color: #d6f4df;
-            margin-bottom: 20px;
+            padding: 14px 16px;
+            border-radius: 8px;
+            border-color: #bbf7d0;
+            margin-bottom: 14px;
             background:
                 radial-gradient(circle at 100% 0%, rgba(34, 197, 94, 0.10), transparent 32%),
-                linear-gradient(135deg, #f8fffb 0%, #ffffff 100%);
+                #ffffff;
         }
         .access-user-avatar {
             width: 52px;
             height: 52px;
-            font-size: 19px;
-            background: linear-gradient(135deg, #15803d, #166534);
-            box-shadow: 0 12px 24px rgba(22, 101, 52, 0.18);
+            font-size: 21px;
+            background: #ffffff;
+            box-shadow: none;
         }
         .access-user-name {
-            font-size: 16px;
+            font-size: 15px;
         }
         .access-user-email,
         .access-user-role {
@@ -1318,27 +2526,27 @@ user_permissions_ensure_table($conn);
         }
         .access-section {
             border-color: #dbe5ee;
-            border-radius: 14px;
-            box-shadow: 0 14px 34px rgba(15, 23, 42, 0.05);
+            border-radius: 8px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
         }
         .access-section-head {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 14px 16px;
+            padding: 12px 14px;
             min-height: 58px;
-            background: linear-gradient(180deg, #fbfefd 0%, #f8fafc 100%);
+            background: #ffffff;
         }
         .access-section-icon {
-            width: 34px;
-            height: 34px;
-            border-radius: 10px;
+            width: 28px;
+            height: 28px;
+            border-radius: 7px;
             background: #dcfce7;
             color: #15803d;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
+            font-size: 12px;
             flex: 0 0 auto;
         }
         .access-section-title {
@@ -1361,31 +2569,49 @@ user_permissions_ensure_table($conn);
             line-height: 1.25;
         }
         .access-toggle-row {
-            min-height: 58px;
-            padding: 12px 16px;
+            min-height: 54px;
+            padding: 11px 14px;
         }
         .access-toggle-title {
-            font-size: 14px;
+            font-size: 13px;
         }
         .access-toggle-meta {
             font-size: 11px;
         }
         .access-modal-actions {
             margin: 22px -24px 0;
-            padding: 20px 24px;
+            padding: 18px 24px;
             border-top: 1px solid #e5e7eb;
             background: #ffffff;
         }
         #saveUserAccess {
-            background: #123f1b;
-            box-shadow: 0 12px 24px rgba(18, 63, 27, 0.18);
+            background: #166534;
+            box-shadow: 0 10px 22px rgba(22, 101, 52, 0.20);
         }
         #saveUserAccess:hover {
-            background: #0f3517;
+            background: #14532d;
         }
         @media (max-width: 980px) {
             .admin-mgmt-grid { grid-template-columns: 1fr; }
             .form-grid { grid-template-columns: 1fr; }
+            .activity-drawer {
+                width: min(760px, 100%);
+            }
+            .activity-drawer-body {
+                grid-template-columns: 1fr;
+            }
+            .activity-user-card {
+                min-height: auto;
+            }
+            .activity-timeline-card {
+                grid-column: auto;
+                grid-row: auto;
+                max-height: none;
+            }
+            .activity-timeline {
+                height: min(320px, calc(100vh - 390px));
+                min-height: 210px;
+            }
             .access-modal-card {
                 max-width: min(880px, calc(100vw - 28px));
             }
@@ -1400,14 +2626,58 @@ user_permissions_ensure_table($conn);
             .create-admin-container { width: 95%; }
         }
         @media (max-width: 900px) {
-            .users-list-controls { flex-direction: column; }
-            .users-list-controls .search-wrapper { flex: 1 1 auto; }
+            .users-list-controls { grid-template-columns: 1fr; }
+            .users-list-controls .search-wrapper { min-width: 0; }
+            .users-list-controls #clearUsersFilters { grid-column: auto; width: 100%; }
             .users-filters { width: 100%; }
         }
         @media (max-width: 720px) {
             .modal-overlay-lite {
                 align-items: center;
                 padding: 16px 12px;
+            }
+            .activity-drawer-overlay {
+                padding: 16px 12px;
+            }
+            .activity-drawer {
+                max-height: calc(100vh - 24px);
+            }
+            .activity-drawer-head {
+                padding: 18px 18px 14px;
+            }
+            .activity-drawer-heading {
+                gap: 10px;
+            }
+            .activity-drawer-icon {
+                width: 36px;
+                height: 36px;
+                border-radius: 10px;
+                font-size: 16px;
+            }
+            .activity-drawer-title {
+                font-size: 20px;
+            }
+            .activity-drawer-body {
+                padding: 18px;
+            }
+            .activity-user-profile {
+                gap: 14px;
+            }
+            .activity-avatar {
+                width: 64px;
+                height: 64px;
+                font-size: 32px;
+            }
+            .activity-item-main {
+                grid-template-columns: 1fr;
+                gap: 4px;
+            }
+            .activity-item-time {
+                font-size: 11px;
+            }
+            .activity-timeline {
+                height: 300px;
+                min-height: 220px;
             }
             .modal-card {
                 max-height: calc(100vh - 24px);
@@ -1434,10 +2704,10 @@ user_permissions_ensure_table($conn);
                 align-items: flex-start;
             }
             .access-modal-shell-header {
-                padding: 14px;
+                padding: 18px 18px 14px;
             }
             .access-modal-shell-heading {
-                font-size: 18px;
+                font-size: 20px;
             }
             .access-modal-actions {
                 flex-direction: column-reverse;
@@ -1503,10 +2773,11 @@ user_permissions_ensure_table($conn);
             height: 100%;
             justify-content: center;
         }
-        .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 34%; text-align: left; }
-        .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 36%; text-align: left; }
-        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 22%; text-align: left; }
-        .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 8%; text-align: right; }
+        .users-table th:nth-child(1), .users-table td:nth-child(1) { width: 28%; text-align: left; }
+        .users-table th:nth-child(2), .users-table td:nth-child(2) { width: 25%; text-align: left; }
+        .users-table th:nth-child(3), .users-table td:nth-child(3) { width: 23%; text-align: left; }
+        .users-table th:nth-child(4), .users-table td:nth-child(4) { width: 14%; text-align: left; }
+        .users-table th:nth-child(5), .users-table td:nth-child(5) { width: 10%; text-align: right; }
         .users-table tbody tr:hover td { background: #f8fafc; }
         .users-avatar {
             width: 36px;
@@ -1524,7 +2795,9 @@ user_permissions_ensure_table($conn);
         .users-name-block {
             display: inline-flex;
             flex-direction: column;
+            flex: 1 1 90px;
             min-width: 0;
+            max-width: 100%;
         }
         .users-name {
             font-weight: 800;
@@ -1541,17 +2814,31 @@ user_permissions_ensure_table($conn);
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 6px 10px;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            padding: 5px 8px;
             border-radius: 999px;
-            font-size: 12px;
-            font-weight: 900;
+            font-size: 10px;
+            font-weight: 800;
+            line-height: 1;
             border: 1px solid #e5e7eb;
             background: #f1f5f9;
             color: #334155;
             text-transform: uppercase;
-            letter-spacing: 0.02em;
+            letter-spacing: 0;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
+        .dept-badge.dept-long,
+        .dept-badge.dept-very-long,
+        .dept-badge.dept-ultra-long {
+            width: 100%;
+        }
+        .dept-badge.dept-long { font-size: 8px; padding-left: 5px; padding-right: 5px; }
+        .dept-badge.dept-very-long { font-size: 7px; padding-left: 4px; padding-right: 4px; }
+        .dept-badge.dept-ultra-long { font-size: 6px; padding-left: 3px; padding-right: 3px; }
         .dept-it { background: #dbeafe; border-color: #bfdbfe; color: #1d4ed8; }
         .dept-hr { background: #fef9c3; border-color: #fde68a; color: #854d0e; }
         .dept-admin { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
@@ -1587,18 +2874,32 @@ user_permissions_ensure_table($conn);
         .promote-table-card .user-table th {
             font-size: 10.5px;
             letter-spacing: 0.03em;
+            font-weight: 600;
         }
         .promote-table-card .user-table th:nth-child(1),
-        .promote-table-card .user-table td:nth-child(1) { width: 25%; }
+        .promote-table-card .user-table td:nth-child(1) {
+            width: 25%;
+            text-align: left;
+        }
         .promote-table-card .user-table th:nth-child(2),
-        .promote-table-card .user-table td:nth-child(2) { width: 40%; }
+        .promote-table-card .user-table td:nth-child(2) {
+            width: 40%;
+            text-align: left;
+        }
         .promote-table-card .user-table th:nth-child(3),
-        .promote-table-card .user-table td:nth-child(3) { width: 15%; }
+        .promote-table-card .user-table td:nth-child(3) {
+            width: 15%;
+            text-align: center;
+        }
         .promote-table-card .user-table th:nth-child(4),
         .promote-table-card .user-table td:nth-child(4) {
             width: 20%;
             white-space: nowrap;
+            text-align: right;
         }
+        .promote-table-card .user-table th:nth-child(1) { padding-left: 22px; }
+        .promote-table-card .user-table th:nth-child(3) { text-align: center; }
+        .promote-table-card .user-table th:nth-child(4) { padding-right: 22px; }
         .promote-table-card .user-table td:nth-child(2) {
             overflow-wrap: anywhere;
             word-break: break-word;
@@ -1627,8 +2928,11 @@ user_permissions_ensure_table($conn);
             max-width: 100%;
             padding: 8px 10px;
             font-size: 12px;
-            border-radius: 8px;
+            border-radius: 12px;
             gap: 6px;
+        }
+        .admin-bottom-grid #clearItSearch {
+            font-weight: 400;
         }
 
         @media (max-width: 1100px) {
@@ -1899,6 +3203,7 @@ user_permissions_ensure_table($conn);
     <div class="create-admin-container">
         <div class="admin-mgmt-header">
             <h1>Admin Management</h1>
+            <p class="admin-mgmt-subtitle">Manage user accounts, access roles, and administrative controls to keep the system organized, secure, and easy to maintain.</p>
         </div>
 
         <div class="admin-dashboard">
@@ -1922,18 +3227,27 @@ user_permissions_ensure_table($conn);
                         </div>
                         <div class="users-filters">
                             <div class="users-company-inline">
-                                <select class="domain-select" id="usersCompany">
-                                    <option value="all" selected>All Companies</option>
-                                    <?php foreach ($company_domain_options as $opt => $label): ?>
-                                        <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <select class="domain-select users-dept-filter" id="usersDept">
-                                    <option value="all" selected>All Departments</option>
-                                    <?php foreach ($lapc_department_options as $d): ?>
-                                        <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <div class="edit-select-wrap users-filter-select-wrap" data-edit-select="users-company">
+                                    <select class="domain-select" id="usersCompany" tabindex="-1">
+                                        <option value="all" selected>All Companies</option>
+                                        <?php foreach ($company_domain_options as $opt => $label): ?>
+                                            <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Companies</button>
+                                    <div class="edit-select-menu" role="listbox"></div>
+                                </div>
+                                <div class="edit-select-wrap users-filter-select-wrap users-dept-filter-wrap" data-edit-select="users-dept">
+                                    <?php $users_dept_options = array_values(array_unique(array_filter(array_merge($lapc_department_options, $mhc_department_options)))); ?>
+                                    <select class="domain-select users-dept-filter" id="usersDept" tabindex="-1">
+                                        <option value="all" selected>All Departments</option>
+                                        <?php foreach ($users_dept_options as $d): ?>
+                                            <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Departments</button>
+                                    <div class="edit-select-menu" role="listbox"></div>
+                                </div>
                                 <button type="button" class="btn btn-auto" id="clearUsersFilters">Clear</button>
                             </div>
                         </div>
@@ -1947,11 +3261,12 @@ user_permissions_ensure_table($conn);
                                         <th>Name</th>
                                         <th>Email</th>
                                         <th>Department</th>
+                                        <th>Status</th>
                                         <th style="text-align:right;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="usersListBody">
-                                    <tr><td class="users-empty" colspan="4">Loading...</td></tr>
+                                    <tr><td class="users-empty" colspan="5">Loading...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -1962,6 +3277,62 @@ user_permissions_ensure_table($conn);
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="activity-drawer-overlay" id="activityDrawerOverlay" aria-hidden="true">
+            <aside class="activity-drawer" role="dialog" aria-modal="true" aria-labelledby="activityDrawerTitle">
+                <div class="activity-drawer-head">
+                    <div class="activity-drawer-heading">
+                        <span class="activity-drawer-icon"><i class="fas fa-chart-line"></i></span>
+                        <h2 class="activity-drawer-title" id="activityDrawerTitle">User Activity Timeline</h2>
+                    </div>
+                    <button type="button" class="activity-drawer-close" id="closeActivityDrawer" aria-label="Close activity logs">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="activity-drawer-body">
+                    <section class="activity-user-card">
+                        <div class="activity-user-profile">
+                            <div class="activity-avatar" id="activityUserAvatar">?</div>
+                            <div class="activity-user-main">
+                                <div class="activity-user-name" id="activityUserName">Select a user</div>
+                                <div class="activity-user-email" id="activityUserEmail">No user selected</div>
+                                <div class="activity-user-meta">
+                                    <div><i class="fas fa-briefcase"></i><span>Department:</span> <strong id="activityUserDepartment">-</strong></div>
+                                    <div><i class="far fa-user"></i><span>Role:</span> <strong id="activityUserRole">-</strong></div>
+                                    <div><i class="far fa-clock"></i><span>Status:</span> <span class="activity-status-dot" id="activityStatusDot"></span><strong id="activityUserStatus">-</strong></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="activity-summary-card">
+                            <div class="activity-summary-item">
+                                <span class="activity-summary-icon"><i class="fas fa-user-plus"></i></span>
+                                <span class="activity-summary-label">Account Created</span>
+                                <span class="activity-summary-value" id="activityAccountCreated">-</span>
+                            </div>
+                            <div class="activity-summary-item">
+                                <span class="activity-summary-icon"><i class="fas fa-right-to-bracket"></i></span>
+                                <span class="activity-summary-label">First Login</span>
+                                <span class="activity-summary-value" id="activityFirstLogin">-</span>
+                            </div>
+                            <div class="activity-summary-item">
+                                <span class="activity-summary-icon"><i class="fas fa-angles-right"></i></span>
+                                <span class="activity-summary-label">Last Login</span>
+                                <span class="activity-summary-value" id="activityLastLogin">-</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="activity-timeline-card">
+                        <h3 class="activity-recent-title">Recent Changes</h3>
+                        <p class="activity-recent-subtitle">Shows only updates made to profile information.</p>
+                        <div class="activity-timeline" id="activityTimeline">
+                            <div class="activity-empty">Select a user to load recent activities.</div>
+                        </div>
+                    </section>
+                </div>
+            </aside>
         </div>
 
         <div class="modal-overlay-lite" id="addUserModal" aria-hidden="true">
@@ -1982,17 +3353,22 @@ user_permissions_ensure_table($conn);
                     <form id="addUserForm" autocomplete="off" novalidate>
                         <?php echo csrf_field(); ?>
                         <div class="form-grid">
-                            <div class="form-label">Account Email <span class="form-required">*</span></div>
+                            <div class="form-label">Email <span class="form-required">*</span></div>
                             <div class="form-field-stack">
                                 <div class="username-row">
                                     <input type="text" class="form-control" name="username" id="username" placeholder="juan.delacruz" required>
-                                    <select class="domain-select" name="domain" id="domain" required>
-                                        <?php foreach ($company_domain_options as $opt => $label): ?>
-                                            <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>" <?= $opt === '@leadsagri.com' ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars(company_domain_option_label($opt, $label), ENT_QUOTES, 'UTF-8'); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                    <div class="edit-select-wrap" data-edit-select="add-user-domain">
+                                        <select class="domain-select" name="domain" id="domain" required tabindex="-1">
+                                            <option value="" disabled selected hidden>Select Company</option>
+                                            <?php foreach ($company_domain_options as $opt => $label): ?>
+                                                <option value="<?= htmlspecialchars($opt, ENT_QUOTES, 'UTF-8'); ?>">
+                                                    <?= htmlspecialchars(company_domain_option_label($opt, $label), ENT_QUOTES, 'UTF-8'); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">Select Company</button>
+                                        <div class="edit-select-menu" role="listbox"></div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -2000,9 +3376,13 @@ user_permissions_ensure_table($conn);
                             <div class="form-field-stack">
                                 <div class="fullname-row">
                                     <input type="text" class="form-control" name="full_name" id="fullName" placeholder="Juan Dela Cruz" required inputmode="text" autocomplete="off">
-                                    <select class="domain-select" name="department" id="newDept" aria-label="Department" required disabled>
-                                        <option value="">Select Company First</option>
-                                    </select>
+                                    <div class="edit-select-wrap" data-edit-select="add-user-department">
+                                        <select class="domain-select" name="department" id="newDept" aria-label="Department" required disabled tabindex="-1">
+                                            <option value="">Select Company First</option>
+                                        </select>
+                                        <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false" disabled>Select Company First</button>
+                                        <div class="edit-select-menu" role="listbox"></div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -2046,7 +3426,71 @@ user_permissions_ensure_table($conn);
 
                         <div class="form-actions">
                             <button type="button" class="btn btn-secondary" id="cancelAddUser">Cancel</button>
-                            <button type="submit" class="btn btn-primary" id="createUserBtn">Create User</button>
+                            <button type="submit" class="btn btn-primary" id="createUserBtn">
+                                <span>Create User</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay-lite" id="editUserModal" aria-hidden="true">
+            <div class="modal-card add-user-modal-card">
+                <div class="add-user-modal-header">
+                    <div class="add-user-modal-title">
+                        <span class="add-user-modal-icon"><i class="fas fa-user-pen"></i></span>
+                        <div>
+                            <h2>Edit User</h2>
+                            <p>Update the selected user's name, email address, and department.</p>
+                        </div>
+                    </div>
+                    <button type="button" class="add-user-modal-close" id="closeEditUserModal" aria-label="Close edit user modal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="mgmt-card-body">
+                    <form id="editUserForm" autocomplete="off" novalidate>
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="id" id="editUserId" value="">
+                        <div class="form-grid">
+                            <div class="form-label">Name <span class="form-required">*</span></div>
+                            <div class="form-field-stack">
+                                <input type="text" class="form-control" name="name" id="editUserName" placeholder="Juan Dela Cruz" required>
+                            </div>
+
+                            <div class="form-label">Email <span class="form-required">*</span></div>
+                            <div class="form-field-stack">
+                                <input type="email" class="form-control" name="email" id="editUserEmail" placeholder="user@leadsagri.com" required>
+                            </div>
+
+                            <div class="form-label">Subsidiary <span class="form-required">*</span></div>
+                            <div class="form-field-stack">
+                                <div class="edit-select-wrap" data-edit-select="company">
+                                    <select class="domain-select" name="company" id="editUserCompany" aria-label="Subsidiary" required tabindex="-1">
+                                        <?php foreach ($edit_user_company_options as $companyKey => $companyLabel): ?>
+                                            <option value="<?= htmlspecialchars((string) $companyKey, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) $companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">Select subsidiary</button>
+                                    <div class="edit-select-menu" role="listbox"></div>
+                                </div>
+                            </div>
+
+                            <div class="form-label">Department</div>
+                            <div class="form-field-stack">
+                                <div class="edit-select-wrap" data-edit-select="department">
+                                    <select class="domain-select" name="department" id="editUserDepartment" aria-label="Department" tabindex="-1">
+                                        <option value="">No Department</option>
+                                    </select>
+                                    <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">No Department</button>
+                                    <div class="edit-select-menu" role="listbox"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="access-modal-actions">
+                            <button type="button" class="btn btn-secondary" id="cancelEditUser">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="saveEditUser">Save Changes</button>
                         </div>
                     </form>
                 </div>
@@ -2226,6 +3670,7 @@ user_permissions_ensure_table($conn);
         "@lingapleads.org": [],
         "@leadsav.com": []
     };
+    var editCompanyDepartments = <?php echo json_encode($edit_user_department_options, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     var tmUsersState = { page: 1, limit: window.TM_USERS_PAGE_SIZE, total: 0, totalPages: 1 };
     var tmItState = { page: 1, limit: window.TM_IT_PAGE_SIZE, total: 0, totalPages: 1 };
     var tmItAdminsState = { page: 1, limit: window.TM_IT_ADMINS_PAGE_SIZE, total: 0, totalPages: 1 };
@@ -2281,13 +3726,25 @@ user_permissions_ensure_table($conn);
         return items;
     }
 
-    function updateDepartmentDropdown() {
+    var lastAddUserDepartmentCompany = '';
+    function updateDepartmentDropdown(forceReset) {
         var companyEl = document.getElementById('domain');
         var deptEl = document.getElementById('newDept');
         if (!companyEl || !deptEl) return;
 
         var selectedCompany = String(companyEl.value || '').trim();
-        var departments = companyDepartments[selectedCompany] || [];
+        if (!selectedCompany && companyEl.options && companyEl.selectedIndex >= 0 && companyEl.options[companyEl.selectedIndex]) {
+            selectedCompany = String(companyEl.options[companyEl.selectedIndex].value || '').trim();
+        }
+
+        var departmentKey = Object.prototype.hasOwnProperty.call(companyDepartments, selectedCompany)
+            ? selectedCompany
+            : Object.keys(companyDepartments).find(function (key) {
+                return String(key || '').toLowerCase() === selectedCompany.toLowerCase();
+            });
+        var departments = departmentKey ? (companyDepartments[departmentKey] || []) : [];
+        var previousDepartment = String(deptEl.value || '').trim();
+        var shouldReset = !!forceReset || selectedCompany !== lastAddUserDepartmentCompany;
         var html = '';
 
         if (!selectedCompany) {
@@ -2299,7 +3756,7 @@ user_permissions_ensure_table($conn);
             deptEl.disabled = true;
             deptEl.required = false;
         } else {
-            html = departments.map(function (department) {
+            html = '<option value="">Select department</option>' + departments.map(function (department) {
                 return '<option value="' + escapeHtml(String(department)) + '">' + escapeHtml(String(department)) + '</option>';
             }).join('');
             deptEl.disabled = false;
@@ -2309,8 +3766,15 @@ user_permissions_ensure_table($conn);
         deptEl.innerHTML = html;
         if (deptEl.disabled) {
             deptEl.value = '';
+        } else if (!shouldReset && previousDepartment && departments.indexOf(previousDepartment) !== -1) {
+            deptEl.value = previousDepartment;
         } else if (departments.length) {
             deptEl.selectedIndex = 0;
+        }
+        lastAddUserDepartmentCompany = selectedCompany;
+        if (typeof refreshEditSelect === 'function') {
+            refreshEditSelect(companyEl);
+            refreshEditSelect(deptEl);
         }
     }
 
@@ -2318,7 +3782,7 @@ user_permissions_ensure_table($conn);
         var body = document.getElementById('usersListBody');
         if (!body) return;
         if (!users || users.length === 0) {
-            body.innerHTML = '<tr><td class="users-empty" colspan="4">No users found.</td></tr>';
+            body.innerHTML = '<tr><td class="users-empty" colspan="5">No users found.</td></tr>';
             return;
         }
         function deptClass(dept) {
@@ -2338,6 +3802,7 @@ user_permissions_ensure_table($conn);
         body.innerHTML = users.map(function (u) {
             var dept = u.department ? String(u.department) : '-';
             var email = u.email ? String(u.email) : '-';
+            var company = u.company ? String(u.company) : '';
             var id = u.id != null ? String(u.id) : '';
             var name = String(u.name || '');
             var role = String(u.role || '');
@@ -2349,18 +3814,29 @@ user_permissions_ensure_table($conn);
             if (isCurrent) badges.push('<span class="users-badge-current">Current</span>');
             if (isSuper) badges.push('<span class="users-badge-current">Super Admin</span>');
             var badge = badges.join('');
-            var action = (!isCurrent && !isAdmin)
-                ? '<span class="users-actions"><button type="button" class="btn-icon-danger users-del" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '" aria-label="Delete user"><i class="fas fa-trash"></i></button></span>'
-                : '<span class="users-actions"></span>';
+            var menuItems = [];
+            menuItems.push('<button type="button" class="users-action-item users-activity" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '"><i class="fas fa-chart-line"></i><span>Activity Logs</span></button>');
+            if (canManageAccess) {
+                menuItems.push('<button type="button" class="users-action-item users-edit" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '" data-email="' + escapeHtml(email) + '" data-company="' + escapeHtml(company) + '" data-department="' + escapeHtml(dept === '-' ? '' : dept) + '"><i class="fas fa-user-pen"></i><span>Edit</span></button>');
+            }
+            if (!isCurrent && !isAdmin) {
+                menuItems.push('<button type="button" class="users-action-item users-del is-danger" data-id="' + escapeHtml(id) + '" data-name="' + escapeHtml(name) + '"><i class="fas fa-trash"></i><span>Delete</span></button>');
+            }
+            var action = menuItems.length
+                ? '<span class="users-actions"><button type="button" class="btn-icon-menu users-action-toggle" aria-label="Open user actions" aria-expanded="false"><i class="fas fa-ellipsis-h"></i></button><span class="users-action-menu">' + menuItems.join('') + '</span></span>'
+                : '';
             var initial = name ? name.trim().charAt(0).toUpperCase() : '?';
             var deptCls = deptClass(dept);
-            var deptBadge = '<span class="dept-badge ' + deptCls + '" title="' + escapeHtml(dept) + '">' + escapeHtml(dept) + '</span>';
-            var accessMeta = canManageAccess
-                ? '<span class="users-access-meta"><i class="fas fa-sliders-h"></i> Access</span>'
-                : '';
+            var deptLen = dept.length;
+            var deptSizeCls = deptLen >= 36 ? 'dept-ultra-long' : (deptLen >= 28 ? 'dept-very-long' : (deptLen >= 20 ? 'dept-long' : ''));
+            var deptBadge = '<span class="dept-badge ' + deptCls + ' ' + deptSizeCls + '" title="' + escapeHtml(dept) + '">' + escapeHtml(dept) + '</span>';
+            var statusLabel = String(u.status_label || 'Never opened');
+            var statusState = String(u.status_state || 'never').toLowerCase();
+            var statusTitle = u.last_seen_at ? ('Last seen: ' + String(u.last_seen_at)) : statusLabel;
+            var status = '<span class="users-status is-' + escapeHtml(statusState) + '" title="' + escapeHtml(statusTitle) + '"><span class="users-status-dot"></span><span class="users-cell">' + escapeHtml(statusLabel) + '</span></span>';
             var rowClasses = 'users-access-row' + (canManageAccess ? ' is-clickable' : '');
             return '' +
-                '<tr class="' + rowClasses + '" data-user-id="' + escapeHtml(id) + '" data-user-name="' + escapeHtml(name) + '" data-user-email="' + escapeHtml(email) + '" data-user-role="' + escapeHtml(role) + '" data-user-department="' + escapeHtml(dept) + '">' +
+                '<tr class="' + rowClasses + '" data-user-id="' + escapeHtml(id) + '" data-user-name="' + escapeHtml(name) + '" data-user-email="' + escapeHtml(email) + '" data-user-company="' + escapeHtml(company) + '" data-user-role="' + escapeHtml(role) + '" data-user-department="' + escapeHtml(dept) + '">' +
                 '  <td>' +
                 '    <span class="users-name-wrap">' +
                 '      <span class="users-avatar">' + escapeHtml(initial) + '</span>' +
@@ -2368,11 +3844,11 @@ user_permissions_ensure_table($conn);
                 '        <span class="users-name users-cell" title="' + escapeHtml(name) + '">' + escapeHtml(name) + '</span>' +
                 '      </span>' +
                 '      ' + badge +
-                '      ' + accessMeta +
                 '    </span>' +
                 '  </td>' +
                 '  <td><span class="users-cell" title="' + escapeHtml(email) + '">' + escapeHtml(email) + '</span></td>' +
                 '  <td>' + deptBadge + '</td>' +
+                '  <td>' + status + '</td>' +
                 '  <td>' + action + '</td>' +
                 '</tr>';
         }).join('');
@@ -2460,12 +3936,28 @@ user_permissions_ensure_table($conn);
         var deptEl = document.getElementById('usersDept');
         var companyEl = document.getElementById('usersCompany');
         if (!deptEl || !companyEl) return;
-        var isLapc = companyEl.value === '@leadsagri.com';
-        deptEl.classList.toggle('is-hidden', !isLapc);
-        deptEl.disabled = !isLapc;
-        if (!isLapc) {
-            deptEl.value = 'all';
+        var company = String(companyEl.value || '').trim();
+        var deptKey = Object.prototype.hasOwnProperty.call(companyDepartments, company)
+            ? company
+            : Object.keys(companyDepartments).find(function (k) { return String(k || '').toLowerCase() === company.toLowerCase(); });
+        var departments = deptKey ? (companyDepartments[deptKey] || []) : [];
+        var deptWrap = deptEl.closest ? deptEl.closest('.edit-select-wrap') : null;
+        var show = !!(departments && departments.length);
+        var html = '<option value="">All Departments</option>';
+        if (show) {
+            html += departments.map(function (d) {
+                return '<option value="' + escapeHtml(String(d)) + '">' + escapeHtml(String(d)) + '</option>';
+            }).join('');
+            deptEl.disabled = false;
+        } else {
+            deptEl.disabled = true;
         }
+
+        deptEl.innerHTML = html;
+        if (deptWrap) deptWrap.classList.toggle('is-hidden', !show);
+        deptEl.classList.toggle('is-hidden', !show);
+
+        if (typeof refreshEditSelect === 'function') refreshEditSelect(deptEl);
     }
 
     function renderItEmployees(list) {
@@ -2643,6 +4135,16 @@ user_permissions_ensure_table($conn);
     document.addEventListener('DOMContentLoaded', function () {
         var modal = document.getElementById('addUserModal');
         var openBtn = document.getElementById('openAddUser');
+        var editUserModal = document.getElementById('editUserModal');
+        var editUserForm = document.getElementById('editUserForm');
+        var closeEditUserModalBtn = document.getElementById('closeEditUserModal');
+        var cancelEditUserBtn = document.getElementById('cancelEditUser');
+        var editUserId = document.getElementById('editUserId');
+        var editUserName = document.getElementById('editUserName');
+        var editUserEmail = document.getElementById('editUserEmail');
+        var editUserCompany = document.getElementById('editUserCompany');
+        var editUserDepartment = document.getElementById('editUserDepartment');
+        var saveEditUserBtn = document.getElementById('saveEditUser');
         var accessModal = document.getElementById('userAccessModal');
         var accessForm = document.getElementById('userAccessForm');
         var accessSections = document.getElementById('accessSections');
@@ -2654,18 +4156,279 @@ user_permissions_ensure_table($conn);
         var saveUserAccessBtn = document.getElementById('saveUserAccess');
         var selectedAccessRow = null;
         var accessPermissionsBaseline = '';
+        var activityDrawer = document.getElementById('activityDrawerOverlay');
+        var closeActivityDrawerBtn = document.getElementById('closeActivityDrawer');
+        var activityTimeline = document.getElementById('activityTimeline');
+        var activityState = { userId: '' };
         function openModal() {
             if (!modal) return;
             modal.classList.add('show');
             modal.setAttribute('aria-hidden', 'false');
-            updateDepartmentDropdown();
-            var fullName = document.getElementById('fullName');
-            if (fullName) fullName.focus();
+            lastAddUserDepartmentCompany = '';
+            syncAddUserDepartmentDropdown(true);
+            var username = document.getElementById('username');
+            if (username) username.focus();
         }
         function closeModal() {
             if (!modal) return;
             modal.classList.remove('show');
             modal.setAttribute('aria-hidden', 'true');
+        }
+        function normalizeEditCompany(value) {
+            var raw = String(value || '').trim();
+            if (Object.prototype.hasOwnProperty.call(editCompanyDepartments, raw)) return raw;
+            var lower = raw.toLowerCase();
+            var aliases = {
+                'lapc': '@leadsagri.com',
+                'lapc (@leadsagri.com)': '@leadsagri.com',
+                'leadsagri.com': '@leadsagri.com',
+                'leads agricultural products corporation - lapc': '@leadsagri.com',
+                '@leadsagri.com': '@leadsagri.com',
+                'mhc': '@malvedaholdings.com',
+                'mhc (@malvedaholdings.com)': '@malvedaholdings.com',
+                'malveda holdings corporation - mhc': '@malvedaholdings.com',
+                '@malvedaholdings.com': '@malvedaholdings.com',
+                'mpdc': '@malvedaproperties.com',
+                'mpdc (@malvedaproperties.com)': '@malvedaproperties.com',
+                'malveda properties & development corporation - mpdc': '@malvedaproperties.com',
+                '@malvedaproperties.com': '@malvedaproperties.com',
+                'gpsci': '@gpsci.net',
+                'gpci': '@gpsci.net',
+                'gpsci (@gpsci.net)': '@gpsci.net',
+                'golden primestocks chemical inc - gpsci': '@gpsci.net',
+                'golden primestocks chemical inc - gpci': '@gpsci.net',
+                '@gpsci.net': '@gpsci.net',
+                'pcc': '@primestocks.ph',
+                'pcc (@primestocks.ph)': '@primestocks.ph',
+                'primestocks chemical corporation - pcc': '@primestocks.ph',
+                '@primestocks.ph': '@primestocks.ph',
+                'farmasee': '@farmasee.ph',
+                'farmasee (@farmasee.ph)': '@farmasee.ph',
+                '@farmasee.ph': '@farmasee.ph',
+                'farmex / lav': '@leads-farmex.com',
+                'farmex': '@leads-farmex.com',
+                'lav': '@leads-farmex.com',
+                'lav (@leadsav.com)': '@leads-farmex.com',
+                'farmex corp': '@leads-farmex.com',
+                '@leads-farmex.com': '@leads-farmex.com',
+                'ltc': '@leadstech-corp.com',
+                'ltc (@leadstech-corp.com)': '@leadstech-corp.com',
+                'leads tech corporation - ltc': '@leadstech-corp.com',
+                '@leadstech-corp.com': '@leadstech-corp.com',
+                'lingap': '@lingapleads.org',
+                'lingap (@lingapleads.org)': '@lingapleads.org',
+                'lingap leads foundation - lingap': '@lingapleads.org',
+                '@lingapleads.org': '@lingapleads.org'
+            };
+            return aliases[lower] || raw;
+        }
+        function editCompanyFromEmail(email) {
+            var value = String(email || '').trim().toLowerCase();
+            var at = value.lastIndexOf('@');
+            if (at < 0) return '';
+            var domain = value.slice(at);
+            var domainMap = {
+                '@leadsagri.com': '@leadsagri.com',
+                '@malvedaholdings.com': '@malvedaholdings.com',
+                '@malvedaproperties.com': '@malvedaproperties.com',
+                '@gpsci.net': '@gpsci.net',
+                '@primestocks.ph': '@primestocks.ph',
+                '@farmasee.ph': '@farmasee.ph',
+                '@leads-farmex.com': '@leads-farmex.com',
+                '@leadsav.com': '@leads-farmex.com',
+                '@leadstech-corp.com': '@leadstech-corp.com',
+                '@lingapleads.org': '@lingapleads.org'
+            };
+            return domainMap[domain] || '';
+        }
+        function editCompanyOptionExists(value) {
+            if (!editUserCompany) return false;
+            return Array.prototype.slice.call(editUserCompany.options).some(function (option) {
+                return String(option.value || '') === String(value || '');
+            });
+        }
+        function closeEditSelectMenus(exceptWrap) {
+            Array.prototype.slice.call(document.querySelectorAll('.edit-select-wrap.is-open')).forEach(function (wrap) {
+                if (exceptWrap && wrap === exceptWrap) return;
+                wrap.classList.remove('is-open');
+                var trigger = wrap.querySelector('.edit-select-trigger');
+                if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            });
+        }
+        function positionEditSelectMenu(wrap) {
+            if (!wrap) return;
+            var trigger = wrap.querySelector('.edit-select-trigger');
+            var menu = wrap.querySelector('.edit-select-menu');
+            if (!trigger || !menu) return;
+            var isFilterSelect = wrap.classList.contains('users-filter-select-wrap');
+            if (isFilterSelect) {
+                menu.style.left = '0';
+                menu.style.width = '100%';
+                menu.style.top = 'calc(100% + 7px)';
+                menu.style.bottom = 'auto';
+                menu.style.maxHeight = '220px';
+                return;
+            }
+            var rect = trigger.getBoundingClientRect();
+            var viewportGap = 12;
+            var availableBelow = window.innerHeight - rect.bottom - viewportGap;
+            var availableAbove = rect.top - viewportGap;
+            var maxMenuHeight = 250;
+            var minMenuHeight = 160;
+            var preferredSpace = Math.max(availableBelow, availableAbove);
+            var menuHeight = Math.min(maxMenuHeight, Math.max(minMenuHeight, preferredSpace));
+            var openUp = availableBelow < minMenuHeight && availableAbove > availableBelow;
+            menu.style.left = rect.left + 'px';
+            menu.style.width = rect.width + 'px';
+            menu.style.maxHeight = menuHeight + 'px';
+            if (openUp) {
+                menu.style.top = 'auto';
+                menu.style.bottom = (window.innerHeight - rect.top + 7) + 'px';
+            } else {
+                menu.style.top = (rect.bottom + 7) + 'px';
+                menu.style.bottom = 'auto';
+            }
+        }
+        function refreshEditSelect(selectEl) {
+            if (!selectEl) return;
+            var wrap = selectEl.closest('.edit-select-wrap');
+            if (!wrap) return;
+            var trigger = wrap.querySelector('.edit-select-trigger');
+            var menu = wrap.querySelector('.edit-select-menu');
+            if (!trigger || !menu) return;
+
+            var selectedOption = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+            trigger.textContent = selectedOption ? selectedOption.textContent : '';
+            trigger.disabled = !!selectEl.disabled;
+            menu.innerHTML = Array.prototype.slice.call(selectEl.options).map(function (option, index) {
+                if (selectEl.id === 'usersCompany' && String(option.value || '') === 'all') return '';
+                if (selectEl.id === 'usersDept' && String(option.value || '') === '') return '';
+                if (selectEl.id === 'usersDept' && String(option.value || '') === 'all') return '';
+                if (selectEl.id === 'newDept' && String(option.value || '') === '') return '';
+                if (option.disabled && option.hidden) return '';
+                var selected = option.selected ? ' is-selected' : '';
+                return '<div class="edit-select-option' + selected + '" role="option" aria-selected="' + (option.selected ? 'true' : 'false') + '" data-index="' + index + '" data-value="' + escapeHtml(String(option.value || '')) + '">' + escapeHtml(String(option.textContent || '')) + '</div>';
+            }).join('');
+            if (wrap.classList.contains('is-open')) positionEditSelectMenu(wrap);
+        }
+        function syncEditSelectValue(selectEl) {
+            if (!selectEl || selectEl.disabled) return;
+            if (String(selectEl.value || '').trim()) return;
+            var wrap = selectEl.closest ? selectEl.closest('.edit-select-wrap') : null;
+            if (!wrap) return;
+            var trigger = wrap.querySelector('.edit-select-trigger');
+            var selectedOptionEl = wrap.querySelector('.edit-select-option.is-selected');
+            var selectedText = selectedOptionEl ? selectedOptionEl.textContent : (trigger ? trigger.textContent : '');
+            selectedText = String(selectedText || '').trim();
+            if (!selectedText) return;
+            Array.prototype.slice.call(selectEl.options).some(function (option) {
+                var value = String(option.value || '').trim();
+                var label = String(option.textContent || '').trim();
+                if (value !== '' && (value === selectedText || label === selectedText)) {
+                    selectEl.value = option.value;
+                    return true;
+                }
+                return false;
+            });
+        }
+        function refreshEditSelects() {
+            refreshEditSelect(editUserCompany);
+            refreshEditSelect(editUserDepartment);
+            refreshEditSelect(document.getElementById('domain'));
+            refreshEditSelect(document.getElementById('newDept'));
+            refreshEditSelect(document.getElementById('usersCompany'));
+            refreshEditSelect(document.getElementById('usersDept'));
+        }
+        function syncAddUserDepartmentDropdown(forceReset) {
+            updateDepartmentDropdown(forceReset);
+            refreshEditSelect(document.getElementById('domain'));
+            refreshEditSelect(document.getElementById('newDept'));
+        }
+        function initEditSelect(selectEl) {
+            if (!selectEl) return;
+            var wrap = selectEl.closest('.edit-select-wrap');
+            if (!wrap || wrap.dataset.ready === '1') return;
+            wrap.dataset.ready = '1';
+            var trigger = wrap.querySelector('.edit-select-trigger');
+            var menu = wrap.querySelector('.edit-select-menu');
+            if (!trigger || !menu) return;
+
+            trigger.addEventListener('click', function () {
+                if (selectEl.disabled) return;
+                var isOpen = wrap.classList.contains('is-open');
+                closeEditSelectMenus(wrap);
+                wrap.classList.toggle('is-open', !isOpen);
+                trigger.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
+                if (!isOpen) positionEditSelectMenu(wrap);
+            });
+
+            menu.addEventListener('click', function (e) {
+                var optionEl = e.target && e.target.closest ? e.target.closest('.edit-select-option') : null;
+                if (!optionEl) return;
+                var index = Number(optionEl.getAttribute('data-index'));
+                if (!Number.isFinite(index) || !selectEl.options[index]) return;
+                selectEl.selectedIndex = index;
+                selectEl.value = selectEl.options[index].value;
+                selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                if (selectEl.id === 'domain') {
+                    syncAddUserDepartmentDropdown(true);
+                }
+                refreshEditSelect(selectEl);
+                closeEditSelectMenus();
+            });
+        }
+        function syncEditDepartmentOptions(selectedDepartment) {
+            if (!editUserDepartment || !editUserCompany) return;
+            var company = normalizeEditCompany(editUserCompany.value);
+            var departments = editCompanyDepartments[company] || [];
+            if (!departments.length) {
+                editUserDepartment.innerHTML = '<option value="">No Department</option>';
+                editUserDepartment.value = '';
+                editUserDepartment.disabled = false;
+                refreshEditSelect(editUserDepartment);
+                return;
+            }
+            editUserDepartment.disabled = false;
+            editUserDepartment.innerHTML = departments.map(function (department) {
+                return '<option value="' + escapeHtml(String(department)) + '">' + escapeHtml(String(department)) + '</option>';
+            }).join('');
+            if (selectedDepartment && departments.indexOf(selectedDepartment) !== -1) {
+                editUserDepartment.value = selectedDepartment;
+            } else {
+                editUserDepartment.selectedIndex = 0;
+            }
+            refreshEditSelect(editUserDepartment);
+        }
+        function openEditUserModal(data) {
+            if (!editUserModal || !window.TM_CAN_MANAGE_USER_ACCESS) return;
+            data = data || {};
+            if (editUserId) editUserId.value = String(data.id || '');
+            if (editUserName) editUserName.value = String(data.name || '');
+            if (editUserEmail) editUserEmail.value = String(data.email || '');
+            if (editUserCompany) {
+                var normalizedCompany = normalizeEditCompany(data.company || '');
+                if (!editCompanyOptionExists(normalizedCompany)) {
+                    normalizedCompany = editCompanyFromEmail(data.email || '');
+                }
+                if (!editCompanyOptionExists(normalizedCompany)) {
+                    normalizedCompany = editUserCompany.options.length ? String(editUserCompany.options[0].value || '') : '';
+                }
+                editUserCompany.value = normalizedCompany;
+                refreshEditSelect(editUserCompany);
+            }
+            syncEditDepartmentOptions(String(data.department || ''));
+            refreshEditSelects();
+            editUserModal.classList.add('show');
+            editUserModal.setAttribute('aria-hidden', 'false');
+            if (editUserName) editUserName.focus();
+        }
+        function closeEditUserModal() {
+            if (!editUserModal) return;
+            editUserModal.classList.remove('show');
+            editUserModal.setAttribute('aria-hidden', 'true');
+            if (editUserForm) editUserForm.reset();
+            closeEditSelectMenus();
+            refreshEditSelects();
         }
         function setAccessLoadingState(isLoading) {
             if (saveUserAccessBtn) {
@@ -2699,6 +4462,152 @@ user_permissions_ensure_table($conn);
             }
             resetAccessModalCard();
             setAccessLoadingState(false);
+        }
+        function activityIconMeta(type) {
+            var t = String(type || '').toUpperCase();
+            if (t.indexOf('FAILED') > -1 || t.indexOf('DELETED') > -1) return { icon: 'fa-exclamation', tone: 'is-danger' };
+            if (t.indexOf('PASSWORD') > -1 || t.indexOf('UPDATED') > -1 || t.indexOf('CHANGED') > -1) return { icon: 'fa-pen', tone: 'is-warning' };
+            if (t.indexOf('LOGIN') > -1) return { icon: 'fa-right-to-bracket', tone: '' };
+            if (t.indexOf('LOGOUT') > -1) return { icon: 'fa-right-from-bracket', tone: '' };
+            if (t.indexOf('TICKET') > -1) return { icon: 'fa-ticket-alt', tone: '' };
+            return { icon: 'fa-circle', tone: '' };
+        }
+        function openActivityDrawer(userId) {
+            if (!activityDrawer || !userId) return;
+            activityState.userId = String(userId);
+            activityState.page = 1;
+            activityDrawer.classList.add('show');
+            activityDrawer.setAttribute('aria-hidden', 'false');
+            loadActivityLogs();
+        }
+        function closeActivityDrawer() {
+            if (!activityDrawer) return;
+            activityDrawer.classList.remove('show');
+            activityDrawer.setAttribute('aria-hidden', 'true');
+            activityState.userId = '';
+        }
+        function setActivityText(id, value) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = value || '-';
+        }
+        function activityRelativeTime(value) {
+            var raw = String(value || '').trim();
+            if (!raw || raw === '-') return '';
+            var date = new Date(raw);
+            if (isNaN(date.getTime())) {
+                date = new Date(raw.replace(' ', 'T'));
+            }
+            if (isNaN(date.getTime())) return raw;
+            var seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+            if (seconds < 60) return 'Just now';
+            var minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return minutes + ' min' + (minutes === 1 ? '' : 's') + ' ago';
+            var hours = Math.floor(minutes / 60);
+            if (hours < 24) return hours + ' hour' + (hours === 1 ? '' : 's') + ' ago';
+            var days = Math.floor(hours / 24);
+            if (days < 30) return days + ' day' + (days === 1 ? '' : 's') + ' ago';
+            return raw;
+        }
+        function activityChangeText(log) {
+            var type = String((log && log.activity_type) || '').toUpperCase();
+            var description = String((log && log.activity_description) || '').trim();
+            var moduleName = String((log && log.module_name) || '').trim();
+            var title = description || 'Activity recorded';
+            var detail = moduleName ? moduleName : '';
+
+            if (type.indexOf('LOGIN') > -1) {
+                title = 'User logged into the system';
+                detail = 'Session started successfully';
+            } else if (type.indexOf('LOGOUT') > -1) {
+                title = 'Logged out';
+                detail = 'Session ended successfully';
+            } else if (type.indexOf('PASSWORD') > -1) {
+                title = 'Password changed';
+                detail = description || 'Password updated successfully';
+            } else if (type.indexOf('EMAIL') > -1 && type.indexOf('UPDATED') > -1) {
+                title = 'Email updated';
+            } else if (type.indexOf('USERNAME') > -1 && type.indexOf('UPDATED') > -1) {
+                title = 'Username updated';
+            } else if (type.indexOf('DEPARTMENT') > -1 && (type.indexOf('CHANGED') > -1 || type.indexOf('UPDATED') > -1)) {
+                title = 'Department changed';
+            } else if (type.indexOf('COMPANY') > -1 || type.indexOf('SUBSIDIARY') > -1) {
+                title = 'Subsidiary changed';
+            } else if (type.indexOf('TICKET') > -1) {
+                title = description || 'Ticket activity recorded';
+                detail = moduleName ? 'from ' + moduleName : '';
+            }
+
+            if (detail === title) detail = '';
+            return { title: title, detail: detail };
+        }
+        function renderActivityHeader(data) {
+            var user = data.user || {};
+            var summary = data.summary || {};
+            var name = String(user.name || 'Selected user');
+            setActivityText('activityUserName', name);
+            setActivityText('activityUserEmail', String(user.email || ''));
+            setActivityText('activityUserDepartment', String(user.department || '-'));
+            setActivityText('activityUserRole', String(user.role || '-'));
+            var statusState = String(user.status_state || 'never');
+            var statusLabel = String(user.status_label || '-');
+            if (statusState === 'online') {
+                statusLabel = 'Online';
+            }
+            setActivityText('activityUserStatus', statusLabel);
+            setActivityText('activityAccountCreated', String(summary.account_created || '-'));
+            setActivityText('activityFirstLogin', String(summary.first_login || '-'));
+            setActivityText('activityLastLogin', String(summary.last_login || '-'));
+            var avatar = document.getElementById('activityUserAvatar');
+            if (avatar) avatar.textContent = name ? name.trim().charAt(0).toUpperCase() : '?';
+            var dot = document.getElementById('activityStatusDot');
+            if (dot) {
+                dot.className = 'activity-status-dot is-' + escapeHtml(statusState);
+            }
+        }
+        function renderActivityTimeline(logs) {
+            if (!activityTimeline) return;
+            if (!logs || !logs.length) {
+                activityTimeline.innerHTML = '<div class="activity-empty">No recent activities found.</div>';
+                return;
+            }
+            activityTimeline.innerHTML = logs.map(function (log) {
+                var meta = activityIconMeta(log.activity_type);
+                var text = activityChangeText(log);
+                var time = activityRelativeTime(log.created_at || log.created_at_display || '');
+                return '' +
+                    '<div class="activity-item ' + escapeHtml(meta.tone) + '">' +
+                        '<div class="activity-item-main">' +
+                            '<div>' +
+                                '<div class="activity-item-title">' + escapeHtml(text.title || 'Activity recorded') + '</div>' +
+                                (text.detail ? '<div class="activity-item-detail">' + escapeHtml(text.detail) + '</div>' : '') +
+                            '</div>' +
+                            '<span class="activity-item-time">' + escapeHtml(time || '') + '</span>' +
+                        '</div>' +
+                    '</div>';
+            }).join('');
+        }
+        function loadActivityLogs() {
+            if (!activityState.userId || !activityTimeline) return;
+            activityTimeline.innerHTML = '<div class="activity-empty">Loading recent activities...</div>';
+            var params = new URLSearchParams({
+                user_id: activityState.userId,
+                page: '1',
+                limit: '10'
+            });
+            params.set('admin_mgmt_activity_logs', '1');
+            fetch('create_admin.php?' + params.toString(), {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data || !data.ok) throw new Error((data && data.error) ? data.error : 'Unable to load activity logs.');
+                    renderActivityHeader(data);
+                    renderActivityTimeline(data.logs || []);
+                })
+                .catch(function (error) {
+                    activityTimeline.innerHTML = '<div class="activity-empty">' + escapeHtml(error && error.message ? error.message : 'Unable to load activity logs.') + '</div>';
+                });
         }
         function showAccessAlert(icon, title, text) {
             Swal.fire({
@@ -2845,6 +4754,12 @@ user_permissions_ensure_table($conn);
                             .filter(Boolean)
                             .join(' • ');
                     }
+                    if (accessUserRole) {
+                        accessUserRole.innerHTML = [
+                            displayRole ? '<span class="access-user-pill"><i class="fas fa-user"></i>Role: ' + escapeHtml(displayRole) + '</span>' : '',
+                            displayDepartment ? '<span class="access-user-pill"><i class="fas fa-border-all"></i>Department: ' + escapeHtml(displayDepartment) + '</span>' : ''
+                        ].filter(Boolean).join('');
+                    }
                     if (accessUserAvatar) {
                         accessUserAvatar.textContent = displayName ? displayName.trim().charAt(0).toUpperCase() : '?';
                     }
@@ -2863,16 +4778,108 @@ user_permissions_ensure_table($conn);
                 if (e.target === modal) closeModal();
             });
         }
+        if (closeEditUserModalBtn) closeEditUserModalBtn.addEventListener('click', closeEditUserModal);
+        if (cancelEditUserBtn) cancelEditUserBtn.addEventListener('click', closeEditUserModal);
+        if (editUserModal) {
+            editUserModal.addEventListener('click', function (e) {
+                if (e.target === editUserModal) closeEditUserModal();
+            });
+        }
+        initEditSelect(editUserCompany);
+        initEditSelect(editUserDepartment);
+        initEditSelect(document.getElementById('domain'));
+        initEditSelect(document.getElementById('newDept'));
+        initEditSelect(document.getElementById('usersCompany'));
+        initEditSelect(document.getElementById('usersDept'));
+        refreshEditSelects();
+        document.addEventListener('click', function (e) {
+            if (e.target && e.target.closest && e.target.closest('.edit-select-wrap')) return;
+            closeEditSelectMenus();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeEditSelectMenus();
+        });
+        window.addEventListener('resize', function () {
+            var openWrap = document.querySelector('.edit-select-wrap.is-open');
+            if (openWrap) positionEditSelectMenu(openWrap);
+        });
+        if (editUserModal) {
+            editUserModal.addEventListener('scroll', function () {
+                var openWrap = document.querySelector('.edit-select-wrap.is-open');
+                if (openWrap) positionEditSelectMenu(openWrap);
+            }, true);
+        }
+        if (editUserCompany) {
+            editUserCompany.addEventListener('change', function () {
+                refreshEditSelect(editUserCompany);
+                syncEditDepartmentOptions('');
+            });
+        }
+        if (editUserForm) {
+            editUserForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                if (!window.TM_CAN_MANAGE_USER_ACCESS) {
+                    showAccessAlert('warning', 'Access denied', 'Only the super admin can edit users.');
+                    return;
+                }
+                if (saveEditUserBtn) saveEditUserBtn.disabled = true;
+                fetch('ajax_update_user.php', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: new FormData(editUserForm)
+                })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || !data.ok) {
+                            throw new Error((data && data.error) ? data.error : 'Failed to update user.');
+                        }
+                        closeEditUserModal();
+                        loadUsersList(tmUsersState.page || 1);
+                        Swal.fire({
+                            icon: 'success',
+                            iconHtml: '<i class="fa-solid fa-check"></i>',
+                            title: 'User updated',
+                            html: escapeHtml(data.message || 'User updated successfully.'),
+                            width: '420px',
+                            confirmButtonText: 'OK',
+                            buttonsStyling: false,
+                            customClass: {
+                                popup: 'swal-admin-alert-popup',
+                                icon: 'swal-admin-alert-icon',
+                                title: 'swal-admin-alert-title',
+                                htmlContainer: 'swal-admin-alert-html',
+                                actions: 'swal-admin-alert-actions',
+                                confirmButton: 'swal-admin-alert-confirm'
+                            }
+                        });
+                    })
+                    .catch(function (error) {
+                        showAccessAlert('error', 'Update failed', error && error.message ? error.message : 'Failed to update user.');
+                    })
+                    .finally(function () {
+                        if (saveEditUserBtn) saveEditUserBtn.disabled = false;
+                    });
+            });
+        }
         if (accessModal) {
             accessModal.addEventListener('click', function (e) {
                 if (e.target === accessModal) closeAccessModal();
             });
         }
+        if (closeActivityDrawerBtn) closeActivityDrawerBtn.addEventListener('click', closeActivityDrawer);
+        if (activityDrawer) {
+            activityDrawer.addEventListener('click', function (e) {
+                if (e.target === activityDrawer) closeActivityDrawer();
+            });
+        }
         var domainSelect = document.getElementById('domain');
         if (domainSelect) {
-            domainSelect.addEventListener('change', updateDepartmentDropdown);
+            domainSelect.addEventListener('change', function () {
+                syncAddUserDepartmentDropdown(true);
+            });
         }
-        updateDepartmentDropdown();
+        syncAddUserDepartmentDropdown(true);
 
         var autoBtn = document.getElementById('autoGenerateBtn');
         var passEl = document.getElementById('newPassword');
@@ -2900,14 +4907,16 @@ user_permissions_ensure_table($conn);
         if (cancelBtn && form) {
             cancelBtn.addEventListener('click', function () {
                 form.reset();
-                updateDepartmentDropdown();
+                lastAddUserDepartmentCompany = '';
+                syncAddUserDepartmentDropdown(true);
                 closeModal();
             });
         }
         if (closeAddUserBtn && form) {
             closeAddUserBtn.addEventListener('click', function () {
                 form.reset();
-                updateDepartmentDropdown();
+                lastAddUserDepartmentCompany = '';
+                syncAddUserDepartmentDropdown(true);
                 closeModal();
             });
         }
@@ -3004,6 +5013,7 @@ user_permissions_ensure_table($conn);
                 usernameEl.value = String(usernameEl.value || '')
                     .trim()
                     .toLowerCase();
+                syncAddUserDepartmentDropdown();
             }
             function normalizeFullName() {
                 if (!fullNameEl) return '';
@@ -3107,6 +5117,12 @@ user_permissions_ensure_table($conn);
                 }
                 normalizeEmailInputs();
                 var normalizedUsername = String(username.value || '').trim().toLowerCase();
+                if (!String(domain.value || '').trim()) {
+                    showCreateUserError('Company required', 'Please select a company for this user.');
+                    domain.focus();
+                    return;
+                }
+                syncEditSelectValue(deptEl);
                 var emailAddress = normalizedUsername + String(domain.value || '');
                 if (!validEmailLocalPart(normalizedUsername) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailAddress)) {
                     showCreateUserError('Invalid email', 'Please enter a valid email address.');
@@ -3127,7 +5143,7 @@ user_permissions_ensure_table($conn);
                 var fd = new FormData(addUserForm);
                 fd.set('full_name', normalizedName);
                 fd.set('username', normalizedUsername);
-                fd.set('domain', domain.value || '@leadsagri.com');
+                fd.set('domain', domain.value || '');
                 fd.set('password', password.value || '');
                 if (deptEl) fd.set('department', deptEl.disabled ? '' : (deptEl.value || ''));
 
@@ -3240,11 +5256,96 @@ user_permissions_ensure_table($conn);
             });
         }
 
+        function closeUserActionMenus(exceptWrap) {
+            Array.prototype.slice.call(document.querySelectorAll('.users-actions.is-open')).forEach(function (wrap) {
+                if (wrap === exceptWrap) return;
+                wrap.classList.remove('is-open');
+                var toggle = wrap.querySelector('.users-action-toggle');
+                var menu = wrap.querySelector('.users-action-menu');
+                if (menu) {
+                    menu.style.top = '';
+                    menu.style.left = '';
+                    menu.style.maxHeight = '';
+                    menu.style.overflowY = '';
+                }
+                if (toggle) toggle.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        function positionUserActionMenu(toggle, menu) {
+            var viewportGap = 8;
+            var menuGap = 6;
+            var toggleRect = toggle.getBoundingClientRect();
+            var menuRect = menu.getBoundingClientRect();
+            var roomBelow = window.innerHeight - toggleRect.bottom - viewportGap;
+            var roomAbove = toggleRect.top - viewportGap;
+            var openAbove = roomBelow < menuRect.height + menuGap && roomAbove > roomBelow;
+            var availableHeight = Math.max(80, (openAbove ? roomAbove : roomBelow) - menuGap);
+            var top = openAbove
+                ? toggleRect.top - Math.min(menuRect.height, availableHeight) - menuGap
+                : toggleRect.bottom + menuGap;
+            var left = toggleRect.right - menuRect.width;
+
+            left = Math.max(viewportGap, Math.min(left, window.innerWidth - menuRect.width - viewportGap));
+            top = Math.max(viewportGap, top);
+            menu.style.left = Math.round(left) + 'px';
+            menu.style.top = Math.round(top) + 'px';
+            menu.style.maxHeight = Math.floor(availableHeight) + 'px';
+            menu.style.overflowY = menuRect.height > availableHeight ? 'auto' : '';
+        }
+
         var usersBody = document.getElementById('usersListBody');
         if (usersBody) {
             usersBody.addEventListener('click', function (e) {
+                var menuToggle = e.target && e.target.closest ? e.target.closest('.users-action-toggle') : null;
+                if (menuToggle) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var actionWrap = menuToggle.closest('.users-actions');
+                    closeUserActionMenus(actionWrap);
+                    if (actionWrap) {
+                        actionWrap.classList.toggle('is-open');
+                        var isOpen = actionWrap.classList.contains('is-open');
+                        menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+
+                        if (isOpen) {
+                            var menu = actionWrap.querySelector('.users-action-menu');
+                            if (menu) positionUserActionMenu(menuToggle, menu);
+                        }
+                    }
+                    return;
+                }
+
+                var editBtn = e.target && e.target.closest ? e.target.closest('.users-edit') : null;
+                if (editBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeUserActionMenus();
+                    openEditUserModal({
+                        id: editBtn.getAttribute('data-id') || '',
+                        name: editBtn.getAttribute('data-name') || '',
+                        email: editBtn.getAttribute('data-email') || '',
+                        company: editBtn.getAttribute('data-company') || '',
+                        department: editBtn.getAttribute('data-department') || ''
+                    });
+                    return;
+                }
+
+                var activityBtn = e.target && e.target.closest ? e.target.closest('.users-activity') : null;
+                if (activityBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeUserActionMenus();
+                    var activityUserId = activityBtn.getAttribute('data-id') || '';
+                    openActivityDrawer(activityUserId);
+                    return;
+                }
+
                 var btn = e.target && e.target.closest ? e.target.closest('.users-del') : null;
                 if (btn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeUserActionMenus();
                     var id = btn.getAttribute('data-id');
                     var name = btn.getAttribute('data-name') || 'this user';
                     if (!id) return;
@@ -3343,10 +5444,25 @@ user_permissions_ensure_table($conn);
                 }
 
                 var row = e.target && e.target.closest ? e.target.closest('.users-access-row[data-user-id]') : null;
+                if (e.target && e.target.closest && e.target.closest('.users-actions')) return;
                 if (!row || !window.TM_CAN_MANAGE_USER_ACCESS) return;
                 loadUserAccess(row);
             });
         }
+        document.addEventListener('click', function (e) {
+            if (e.target && e.target.closest && e.target.closest('.users-actions')) return;
+            closeUserActionMenus();
+        });
+
+        var usersTableWrap = document.querySelector('#usersListCard .users-table-wrap');
+        if (usersTableWrap) {
+            usersTableWrap.addEventListener('scroll', function () {
+                closeUserActionMenus();
+            }, { passive: true });
+        }
+        window.addEventListener('resize', function () {
+            closeUserActionMenus();
+        }, { passive: true });
 
         var debounceT = null;
         var usersSearch = document.getElementById('usersSearch');
@@ -3358,12 +5474,17 @@ user_permissions_ensure_table($conn);
         }
         var usersDeptEl = document.getElementById('usersDept');
         if (usersDeptEl) {
-            usersDeptEl.addEventListener('change', function () { loadUsersList(1); });
+            usersDeptEl.addEventListener('change', function () {
+                refreshEditSelect(usersDeptEl);
+                loadUsersList(1);
+            });
         }
         var usersCompanyEl = document.getElementById('usersCompany');
         if (usersCompanyEl) {
             usersCompanyEl.addEventListener('change', function () {
+                refreshEditSelect(usersCompanyEl);
                 syncUsersDepartmentFilter();
+                refreshEditSelect(usersDeptEl);
                 loadUsersList(1);
             });
         }
@@ -3376,6 +5497,7 @@ user_permissions_ensure_table($conn);
                 if (deptEl) deptEl.value = 'all';
                 if (companyEl) companyEl.value = 'all';
                 syncUsersDepartmentFilter();
+                refreshEditSelects();
                 loadUsersList(1);
             });
         }

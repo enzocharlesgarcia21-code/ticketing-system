@@ -103,6 +103,12 @@ $search     = $_GET['search']     ?? '';
 $view       = (string) ($_GET['view'] ?? '');
 $view = $view === 'trash' ? '' : $view;
 $department_key = $department !== '' ? ticket_department_key_from_value((string) $department) : '';
+$departmentFilterOptionsByCompany = [
+    '@leadsagri.com' => ticket_company_allowed_groups('@leadsagri.com'),
+    '@malvedaholdings.com' => ticket_company_allowed_groups('@malvedaholdings.com'),
+];
+$normalizedCompanyFilter = ticket_normalize_company((string) $company_email);
+$initialDepartmentFilterOptions = $departmentFilterOptionsByCompany[$normalizedCompanyFilter] ?? [];
 $adminId = (int) ($_SESSION['user_id'] ?? 0);
 $allowedViews = ['all', 'my_open', 'resolved'];
 if (!in_array($view, $allowedViews, true)) $view = '';
@@ -172,6 +178,7 @@ if (!empty($company_email)) {
 
 if (!empty($search)) {
     $searchSQL = $conn->real_escape_string($search);
+    $searchPrefixSQL = $conn->real_escape_string($search . '%');
     
     // Parse ID from search (remove non-digits)
     $searchId = preg_replace('/[^0-9]/', '', $search);
@@ -179,10 +186,10 @@ if (!empty($search)) {
     $searchById = ($searchId !== '' && $searchIdInt > 0);
 
     $query .= " AND (
-        users.name LIKE '%$searchSQL%' OR
-        LOWER(COALESCE(NULLIF(employee_tickets.requester_email,''), users.email)) LIKE LOWER('%$searchSQL%') OR
-        employee_tickets.subject LIKE '%$searchSQL%' OR
-        employee_tickets.description LIKE '%$searchSQL%' OR
+        users.name LIKE '$searchPrefixSQL' OR
+        LOWER(COALESCE(NULLIF(employee_tickets.requester_email,''), users.email)) LIKE LOWER('$searchPrefixSQL') OR
+        employee_tickets.subject LIKE '$searchPrefixSQL' OR
+        employee_tickets.description LIKE '$searchPrefixSQL' OR
         employee_tickets.id LIKE '%$searchSQL%'";
 
     if ($searchById) {
@@ -243,17 +250,46 @@ $result = $stmt->get_result();
         .at-main .admin-content { max-width: none; min-width: 0; }
         .at-main .admin-card { max-width: 100%; min-width: 0; }
         #filterForm .filter-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: minmax(260px, 1.25fr) minmax(180px, 220px) minmax(110px, 130px) minmax(104px, 120px) minmax(112px, 128px);
             gap: 8px;
             align-items: center;
-            flex-wrap: wrap;
             width: 100%;
             min-width: 0;
         }
-        #filterForm .filter-input {
-            flex: 1 1 260px;
+        #filterForm .filter-row:has(#departmentFilterWrap:not(.is-hidden)) {
+            grid-template-columns: minmax(220px, 1fr) minmax(160px, 190px) minmax(240px, 1.1fr) minmax(96px, 112px) minmax(104px, 118px) minmax(108px, 112px);
+        }
+        #filterForm .filter-row:has(#departmentFilterWrap:not(.is-hidden)) .filter-input {
             min-width: 220px;
+        }
+        #filterForm .filter-input {
+            width: 100%;
+            min-width: 260px;
             max-width: 100%;
+            min-height: 44px;
+            padding: 10px 14px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            box-shadow: none;
+            outline: none;
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+        #filterForm .filter-input:focus {
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+        #filterForm .filter-input::placeholder {
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            opacity: 1;
         }
         #filterForm .filter-select {
             min-width: 0;
@@ -265,14 +301,145 @@ $result = $stmt->get_result();
         #filterForm #departmentFilterSelect { width: 100%; }
         #filterForm select[name="sla"] { flex: 0 1 132px; }
         #filterForm select[name="status"] { flex: 0 1 132px; }
+        #filterForm .at-select-wrap {
+            position: relative;
+            min-width: 0;
+            max-width: 100%;
+            width: 100%;
+        }
+        #filterForm .at-select-wrap.company-filter-wrap {
+            width: 100%;
+        }
+        #filterForm .at-select-wrap.sla-filter-wrap,
+        #filterForm .at-select-wrap.status-filter-wrap {
+            width: 100%;
+        }
+        #filterForm .at-select-wrap .filter-select {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #filterForm .at-select-trigger {
+            width: 100%;
+            min-height: 44px;
+            padding: 10px 38px 10px 14px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            box-shadow: none;
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+        #filterForm .at-select-trigger::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 13px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #0f172a;
+            font-size: 11px;
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+        #filterForm .at-select-wrap.is-open .at-select-trigger::after {
+            transform: translateY(-50%) rotate(180deg);
+            color: #166534;
+        }
+        #filterForm .at-select-menu {
+            position: absolute;
+            z-index: 80;
+            top: calc(100% + 7px);
+            left: 0;
+            right: 0;
+            display: none;
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 7px 0;
+            background: #ffffff;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+        #filterForm .at-select-menu::-webkit-scrollbar { width: 10px; }
+        #filterForm .at-select-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+        #filterForm .at-select-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+        #filterForm .at-select-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        #filterForm .at-select-wrap.is-open .at-select-menu {
+            display: block;
+        }
+        #filterForm .at-select-option {
+            min-height: 34px;
+            padding: 8px 14px;
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 400;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        #filterForm .at-select-option:hover {
+            background: #edf7ef;
+        }
+        #filterForm .at-select-option.is-selected {
+            background: #166534;
+            color: #ffffff;
+        }
         #filterForm .clear-btn {
-            flex: 0 0 auto;
             margin-left: 0;
+            min-height: 44px;
+            padding: 10px 12px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            text-decoration: none;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: none;
+            transition: border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+        }
+        #filterForm .clear-btn:hover,
+        #filterForm .clear-btn:focus {
+            border-color: #cbd5e1;
+            color: #0f172a;
+            box-shadow: none;
+            outline: none;
         }
         #filterForm .lapc-department-filter {
-            flex: 1 1 260px;
             min-width: 220px;
-            max-width: 360px;
+            max-width: none;
+            width: 100%;
         }
         #filterForm .lapc-department-filter.is-hidden {
             display: none;
@@ -404,6 +571,9 @@ $result = $stmt->get_result();
         }
         @media (max-width: 1100px) {
             .at-layout { max-width: 1200px; }
+            #filterForm .filter-row {
+                grid-template-columns: minmax(240px, 1.2fr) minmax(160px, 200px) minmax(100px, 120px) minmax(104px, 118px) minmax(108px, 112px);
+            }
             .table-footer-bar {
                 flex-wrap: wrap;
                 justify-content: center;
@@ -418,8 +588,10 @@ $result = $stmt->get_result();
             #filterForm .filter-select,
             #filterForm .lapc-department-filter,
             #filterForm .clear-btn {
-                flex: 1 1 100%;
                 width: 100%;
+            }
+            #filterForm .filter-row {
+                grid-template-columns: 1fr;
             }
             .admin-table {
                 min-width: 0;
@@ -481,7 +653,7 @@ $result = $stmt->get_result();
             <div class="admin-page-header">
                 <div>
                     <h1 class="admin-page-title">All Tickets</h1>
-                    <p class="admin-page-subtitle">Manage and track all support tickets.</p>
+                    <p class="admin-page-subtitle">Manage, monitor, and track support tickets with their status, assigned department, SLA progress, and requestor details.</p>
                 </div>
             </div>
 
@@ -499,56 +671,58 @@ $result = $stmt->get_result();
                                placeholder="Search by ID, name, email or subject..."
                                value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
 
-                        <select id="recipientFilterSelect" class="filter-select">
-                            <option value="" <?= $company_email === '' ? 'selected' : '' ?>>All Company</option>
-                            <option value="@farmasee.ph">FARMASEE</option>
-                            <option value="__farmex_lav__" <?= $company_email === '__farmex_lav__' ? 'selected' : '' ?>>FARMEX / LAV</option>
-                            <option value="@gpsci.net" <?= $company_email === '@gpsci.net' ? 'selected' : '' ?>>GPSCI</option>
-                            <option value="@leadsagri.com">LAPC</option>
-                            <option value="@leadstech-corp.com">LTC</option>
-                            <option value="@lingapleads.org">LINGAP</option>
-                            <option value="@malvedaholdings.com">MHC</option>
-                            <option value="@malvedaproperties.com">MPDC</option>
-                            <option value="@primestocks.ph">PCC</option>
-                        </select>
-
-                        <div id="departmentFilterWrap" class="lapc-department-filter is-hidden is-disabled">
-                            <select id="departmentFilterSelect" class="filter-select" disabled>
-                                <option value="" disabled selected hidden>All Department</option>
-                                <option value="Admin &amp; Legal">Admin &amp; Legal</option>
-                                <option value="Banana Farm Operations">Banana Farm Operations</option>
-                                <option value="Diagnostics / Lingap">Diagnostics / Lingap</option>
-                                <option value="Digital Agri Solutions and Innovations">Digital Agri Solutions and Innovations</option>
-                                <option value="E-Commerce">E-Commerce</option>
-                                <option value="Executive">Executive</option>
-                                <option value="Finance and Accounting">Finance and Accounting</option>
-                                <option value="HR">HR</option>
-                                <option value="IT">IT</option>
-                                <option value="Institutional Sales (Bidding)">Institutional Sales (Bidding)</option>
-                                <option value="Management">Management</option>
-                                <option value="Marketing">Marketing</option>
-                                <option value="New Business Segment">New Business Segment</option>
-                                <option value="Seed Production">Seed Production</option>
-                                <option value="Supply Chain">Supply Chain</option>
-                                <option value="Supply Chain Innovation">Supply Chain Innovation</option>
-                                <option value="Technical">Technical</option>
+                        <div class="at-select-wrap company-filter-wrap" data-at-select="company">
+                            <select id="recipientFilterSelect" class="filter-select" tabindex="-1">
+                                <option value="" <?= $company_email === '' ? 'selected' : '' ?>>All Company</option>
+                                <option value="@farmasee.ph">FARMASEE</option>
+                                <option value="__farmex_lav__" <?= $company_email === '__farmex_lav__' ? 'selected' : '' ?>>FARMEX / LAV</option>
+                                <option value="@gpsci.net" <?= $company_email === '@gpsci.net' ? 'selected' : '' ?>>GPSCI</option>
+                                <option value="@leadsagri.com">LAPC</option>
+                                <option value="@leadstech-corp.com">LTC</option>
+                                <option value="@lingapleads.org">LINGAP</option>
+                                <option value="@malvedaholdings.com">MHC</option>
+                                <option value="@malvedaproperties.com">MPDC</option>
+                                <option value="@primestocks.ph">PCC</option>
                             </select>
+                            <button type="button" class="at-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Company</button>
+                            <div class="at-select-menu" role="listbox"></div>
                         </div>
 
-                        <select name="sla" class="filter-select" onchange="submitForm()">
-                            <option value="" <?= $sla === '' ? 'selected' : '' ?>>All SLA</option>
-                            <option value="On Track" <?= $sla=='On Track'?'selected':'' ?>>On Track</option>
-                            <option value="At Risk" <?= $sla=='At Risk'?'selected':'' ?>>At Risk</option>
-                            <option value="Breach" <?= $sla=='Breach'?'selected':'' ?>>Breach</option>
-                        </select>
+                        <div id="departmentFilterWrap" class="at-select-wrap lapc-department-filter is-hidden is-disabled" data-at-select="department">
+                            <select id="departmentFilterSelect" class="filter-select" tabindex="-1" disabled>
+                                <option value="" disabled <?= $department === '' ? 'selected' : ''; ?> hidden>All Department</option>
+                                <?php foreach ($initialDepartmentFilterOptions as $departmentOption): ?>
+                                    <option value="<?= htmlspecialchars((string) $departmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $department === (string) $departmentOption ? 'selected' : ''; ?>>
+                                        <?= htmlspecialchars((string) $departmentOption, ENT_QUOTES, 'UTF-8'); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" class="at-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Department</button>
+                            <div class="at-select-menu" role="listbox"></div>
+                        </div>
 
-                        <select name="status" class="filter-select" onchange="submitForm()">
-                            <option value="" <?= $status === '' ? 'selected' : '' ?>>All Status</option>
-                            <option value="Open" <?= $status=='Open'?'selected':'' ?>>Open</option>
-                            <option value="In Progress" <?= $status=='In Progress'?'selected':'' ?>>In Progress</option>
-                            <option value="Resolved" <?= $status=='Resolved'?'selected':'' ?>>Resolved</option>
-                            <option value="Closed" <?= $status=='Closed'?'selected':'' ?>>Closed</option>
-                        </select>
+                        <div class="at-select-wrap sla-filter-wrap" data-at-select="sla">
+                            <select name="sla" class="filter-select" tabindex="-1">
+                                <option value="" <?= $sla === '' ? 'selected' : '' ?>>All SLA</option>
+                                <option value="On Track" <?= $sla=='On Track'?'selected':'' ?>>On Track</option>
+                                <option value="At Risk" <?= $sla=='At Risk'?'selected':'' ?>>At Risk</option>
+                                <option value="Breach" <?= $sla=='Breach'?'selected':'' ?>>Breach</option>
+                            </select>
+                            <button type="button" class="at-select-trigger" aria-haspopup="listbox" aria-expanded="false">All SLA</button>
+                            <div class="at-select-menu" role="listbox"></div>
+                        </div>
+
+                        <div class="at-select-wrap status-filter-wrap" data-at-select="status">
+                            <select name="status" class="filter-select" tabindex="-1">
+                                <option value="" <?= $status === '' ? 'selected' : '' ?>>All Status</option>
+                                <option value="Open" <?= $status=='Open'?'selected':'' ?>>Open</option>
+                                <option value="In Progress" <?= $status=='In Progress'?'selected':'' ?>>In Progress</option>
+                                <option value="Resolved" <?= $status=='Resolved'?'selected':'' ?>>Resolved</option>
+                                <option value="Closed" <?= $status=='Closed'?'selected':'' ?>>Closed</option>
+                            </select>
+                            <button type="button" class="at-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Status</button>
+                            <div class="at-select-menu" role="listbox"></div>
+                        </div>
 
                         <a href="all_tickets.php" class="clear-btn" id="clearFiltersBtn">Clear Filters</a>
                     </div>
@@ -733,15 +907,109 @@ const departmentFilterSelect = document.getElementById("departmentFilterSelect")
 const departmentFilterWrap = document.getElementById("departmentFilterWrap");
 const companyEmailFilterValue = document.getElementById("companyEmailFilterValue");
 const departmentFilterValue = document.getElementById("departmentFilterValue");
-const lapcDomainValue = '@leadsagri.com';
+const departmentOptionsByCompany = <?php echo json_encode($departmentFilterOptionsByCompany, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
-searchInput.addEventListener("keyup", function () {
+function atEscapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, function (ch) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch];
+    });
+}
+
+function closeAtSelects(exceptWrap) {
+    document.querySelectorAll('#filterForm .at-select-wrap.is-open').forEach(function (wrap) {
+        if (exceptWrap && wrap === exceptWrap) return;
+        wrap.classList.remove('is-open');
+        var trigger = wrap.querySelector('.at-select-trigger');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    });
+}
+
+function refreshAtSelect(selectEl) {
+    if (!selectEl) return;
+    var wrap = selectEl.closest('.at-select-wrap');
+    if (!wrap) return;
+    var trigger = wrap.querySelector('.at-select-trigger');
+    var menu = wrap.querySelector('.at-select-menu');
+    if (!trigger || !menu) return;
+    var selectedOption = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+    trigger.textContent = selectedOption ? selectedOption.textContent.trim() : '';
+    trigger.disabled = !!selectEl.disabled;
+    menu.innerHTML = Array.prototype.slice.call(selectEl.options).map(function (option, index) {
+        if (String(option.value || '') === '') return '';
+        var selected = option.selected ? ' is-selected' : '';
+        return '<div class="at-select-option' + selected + '" role="option" aria-selected="' + (option.selected ? 'true' : 'false') + '" data-index="' + index + '">' + atEscapeHtml(option.textContent.trim()) + '</div>';
+    }).join('');
+}
+
+function initAtSelect(selectEl) {
+    if (!selectEl) return;
+    var wrap = selectEl.closest('.at-select-wrap');
+    if (!wrap) return;
+    var trigger = wrap.querySelector('.at-select-trigger');
+    var menu = wrap.querySelector('.at-select-menu');
+    if (!trigger || !menu) return;
+    refreshAtSelect(selectEl);
+    trigger.addEventListener('click', function () {
+        if (selectEl.disabled) return;
+        var isOpen = wrap.classList.contains('is-open');
+        closeAtSelects(wrap);
+        wrap.classList.toggle('is-open', !isOpen);
+        trigger.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
+    });
+    menu.addEventListener('click', function (event) {
+        var optionEl = event.target && event.target.closest ? event.target.closest('.at-select-option') : null;
+        if (!optionEl) return;
+        var index = Number(optionEl.getAttribute('data-index'));
+        if (!Number.isFinite(index) || !selectEl.options[index]) return;
+        selectEl.selectedIndex = index;
+        refreshAtSelect(selectEl);
+        closeAtSelects();
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+}
+
+function getCompanyDepartmentOptions(companyValue) {
+    var key = String(companyValue || '').toLowerCase();
+    return Array.isArray(departmentOptionsByCompany[key]) ? departmentOptionsByCompany[key] : [];
+}
+
+function rebuildDepartmentFilterOptions(companyValue, selectedDepartment) {
+    if (!departmentFilterSelect) return [];
+    var departments = getCompanyDepartmentOptions(companyValue);
+    var selectedValue = String(selectedDepartment || '');
+    departmentFilterSelect.innerHTML = '';
+
+    var placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.disabled = true;
+    placeholder.hidden = true;
+    placeholder.textContent = 'All Department';
+    placeholder.selected = true;
+    departmentFilterSelect.appendChild(placeholder);
+
+    departments.forEach(function (departmentName) {
+        var value = String(departmentName || '');
+        if (!value) return;
+        var option = document.createElement('option');
+        option.value = value;
+        option.textContent = value;
+        if (selectedValue === value) {
+            option.selected = true;
+            placeholder.selected = false;
+        }
+        departmentFilterSelect.appendChild(option);
+    });
+
+    if (departments.indexOf(selectedValue) === -1) {
+        departmentFilterSelect.value = '';
+    }
+
+    return departments;
+}
+
+searchInput.addEventListener("input", function () {
     clearTimeout(typingTimer);
     typingTimer = setTimeout(doneTyping, doneTypingInterval);
-});
-
-searchInput.addEventListener("keydown", function () {
-    clearTimeout(typingTimer);
 });
 
 function doneTyping() {
@@ -758,20 +1026,19 @@ function syncRecipientFilters() {
         recipientFilterSelect.value = '';
     }
 
-    if (currentCompany === lapcDomainValue) {
+    var companyDepartments = rebuildDepartmentFilterOptions(currentCompany, currentDepartment);
+    if (companyDepartments.length > 0) {
         departmentFilterWrap.classList.remove('is-hidden');
         departmentFilterWrap.classList.remove('is-disabled');
         departmentFilterSelect.disabled = false;
-        if (departmentFilterSelect.options.length > 0) {
-            departmentFilterSelect.options[0].textContent = 'All Department';
-        }
-        departmentFilterSelect.value = currentDepartment;
     } else {
         departmentFilterWrap.classList.add('is-hidden');
         departmentFilterWrap.classList.add('is-disabled');
         departmentFilterSelect.disabled = true;
         departmentFilterSelect.value = '';
     }
+    refreshAtSelect(recipientFilterSelect);
+    refreshAtSelect(departmentFilterSelect);
 }
 
 function handleRecipientFilterChange() {
@@ -786,16 +1053,21 @@ function handleRecipientFilterChange() {
         departmentFilterSelect.disabled = true;
         departmentFilterWrap.classList.add('is-hidden');
         departmentFilterWrap.classList.add('is-disabled');
+        refreshAtSelect(recipientFilterSelect);
+        refreshAtSelect(departmentFilterSelect);
         submitForm(1);
         return;
     }
 
-    if (selectedValue === lapcDomainValue) {
+    var selectedDepartments = rebuildDepartmentFilterOptions(selectedValue, '');
+    if (selectedDepartments.length > 0) {
         departmentFilterValue.value = '';
         departmentFilterSelect.value = '';
         departmentFilterSelect.disabled = false;
         departmentFilterWrap.classList.remove('is-hidden');
         departmentFilterWrap.classList.remove('is-disabled');
+        refreshAtSelect(recipientFilterSelect);
+        refreshAtSelect(departmentFilterSelect);
         submitForm(1);
         return;
     }
@@ -805,12 +1077,15 @@ function handleRecipientFilterChange() {
     departmentFilterSelect.disabled = true;
     departmentFilterWrap.classList.add('is-hidden');
     departmentFilterWrap.classList.add('is-disabled');
+    refreshAtSelect(recipientFilterSelect);
+    refreshAtSelect(departmentFilterSelect);
     submitForm(1);
 }
 
 function handleDepartmentFilterChange() {
     if (!departmentFilterSelect || !companyEmailFilterValue || !departmentFilterValue) return;
     departmentFilterValue.value = String(departmentFilterSelect.value || '');
+    refreshAtSelect(departmentFilterSelect);
     submitForm(1);
 }
 
@@ -925,10 +1200,27 @@ if (clearBtn) {
         e.preventDefault();
         if (!filterForm) return;
         filterForm.reset();
+        if (recipientFilterSelect) recipientFilterSelect.value = '';
+        var slaFilterSelect = document.querySelector('#filterForm select[name="sla"]');
+        if (slaFilterSelect) slaFilterSelect.value = '';
+        var statusFilterSelect = document.querySelector('#filterForm select[name="status"]');
+        if (statusFilterSelect) statusFilterSelect.value = '';
         if (companyEmailFilterValue) companyEmailFilterValue.value = '';
         if (departmentFilterValue) departmentFilterValue.value = '';
+        if (departmentFilterSelect) {
+            departmentFilterSelect.value = '';
+            departmentFilterSelect.disabled = true;
+        }
+        if (departmentFilterWrap) {
+            departmentFilterWrap.classList.add('is-hidden');
+            departmentFilterWrap.classList.add('is-disabled');
+        }
         syncRecipientFilters();
         if (searchInput) searchInput.value = '';
+        refreshAtSelect(recipientFilterSelect);
+        refreshAtSelect(departmentFilterSelect);
+        refreshAtSelect(slaFilterSelect);
+        refreshAtSelect(statusFilterSelect);
         submitForm(1);
     });
 }
@@ -940,6 +1232,17 @@ if (filterForm) {
     });
 }
 
+document.querySelectorAll('#filterForm .at-select-wrap select').forEach(function (selectEl) {
+    initAtSelect(selectEl);
+});
+document.addEventListener('click', function (event) {
+    if (event.target && event.target.closest && event.target.closest('#filterForm .at-select-wrap')) return;
+    closeAtSelects();
+});
+document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeAtSelects();
+});
+
 if (limitSelect) {
     limitSelect.addEventListener('change', function () {
         submitForm(1);
@@ -947,11 +1250,28 @@ if (limitSelect) {
 }
 
 if (recipientFilterSelect) {
-    recipientFilterSelect.addEventListener('change', handleRecipientFilterChange);
+    recipientFilterSelect.addEventListener('change', function () {
+        refreshAtSelect(recipientFilterSelect);
+        handleRecipientFilterChange();
+    });
 }
 
 if (departmentFilterSelect) {
     departmentFilterSelect.addEventListener('change', handleDepartmentFilterChange);
+}
+var slaFilterSelect = document.querySelector('#filterForm select[name="sla"]');
+if (slaFilterSelect) {
+    slaFilterSelect.addEventListener('change', function () {
+        refreshAtSelect(slaFilterSelect);
+        submitForm(1);
+    });
+}
+var statusFilterSelect = document.querySelector('#filterForm select[name="status"]');
+if (statusFilterSelect) {
+    statusFilterSelect.addEventListener('change', function () {
+        refreshAtSelect(statusFilterSelect);
+        submitForm(1);
+    });
 }
 setInterval(scheduleAdminTicketsRefresh, adminTicketsAutoRefreshMs);
 document.addEventListener('visibilitychange', function () {

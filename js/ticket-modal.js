@@ -2491,6 +2491,7 @@ var TMTicketModal = (function () {
     if (isSalesTicket && !hasActualAssignee) hideUpdateTab = false;
     if (isClosedTicket) hideUpdateTab = true;
     var hideConversationTab = false;
+    if (data && data.hide_conversation_tab === true) hideConversationTab = true;
     var canViewChatHistory = !!(data && data.can_view_chat_history === true);
     var isReassignedViewOnly = !!(data && data.reassigned_view_only === true);
     if (isReassignedViewOnly) {
@@ -4911,7 +4912,7 @@ var TMTicketModal = (function () {
           modalContent.innerHTML = buildFallbackHtml(data);
         }
         try {
-          if (data && data.id != null && (data.reassigned_view_only !== true || data.can_view_chat_history === true)) {
+          if (data && data.id != null && data.hide_conversation_tab !== true && (data.reassigned_view_only !== true || data.can_view_chat_history === true)) {
             var tabsEl = modalContent.querySelector('.tm-tabs');
             var existingConversationTab = tabsEl ? tabsEl.querySelector('.tm-tab[data-tab="conversation"]') : null;
             if (tabsEl && !existingConversationTab) {

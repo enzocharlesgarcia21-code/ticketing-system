@@ -192,6 +192,28 @@ body.employee-login-page .login-card {
     max-width: 100%;
 }
 
+.auth-split-right[aria-label="Forgot password"] .login-card {
+    justify-content: flex-start;
+}
+
+.auth-split-right[aria-label="Forgot password"] .auth-note {
+    margin-bottom: 0;
+}
+
+.auth-split-right[aria-label="Forgot password"] .login-card form {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.auth-split-right[aria-label="Forgot password"] .form-group {
+    margin-bottom: 0;
+}
+
+.auth-split-right[aria-label="Forgot password"] .login-card form > button[type="submit"] {
+    margin-top: 0;
+}
+
 .form-group {
     margin-bottom: 22px;
 }
@@ -349,6 +371,67 @@ body.employee-login-page .login-card {
 .auth-note strong {
     color: #374151;
     font-weight: 700;
+}
+
+body.forgot-password-page .forgot-password-card {
+    justify-content: flex-start;
+    padding-top: 95px;
+}
+
+body.forgot-password-page .forgot-password-card .back-btn {
+    position: relative;
+    top: -34px;
+    margin-bottom: 30px;
+}
+
+body.forgot-password-page .forgot-password-card h2 {
+    margin-bottom: 14px;
+}
+
+body.forgot-password-page .forgot-password-card .auth-note {
+    max-width: 390px;
+    margin: 0 auto 52px;
+}
+
+body.forgot-password-page .forgot-password-card form {
+    gap: 30px;
+}
+
+body.forgot-password-page .forgot-password-card .form-group {
+    margin-bottom: 0;
+}
+
+body.forgot-password-page .forgot-password-card .form-group label {
+    margin-bottom: 8px;
+}
+
+body.forgot-password-page .forgot-password-card form > button[type="submit"] {
+    margin-top: 0;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card {
+    justify-content: flex-start;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card .back-btn {
+    margin-bottom: 34px;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card h2 {
+    margin-bottom: 34px;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card .auth-note {
+    max-width: 390px;
+    margin: 0 auto 34px;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card .form-group {
+    margin-bottom: 0;
+}
+
+body.verify-reset-otp-page .verify-reset-otp-card .auth-inline-link {
+    margin-top: 78px;
 }
 
 .otp-label {
@@ -550,6 +633,38 @@ body.employee-login-page .login-card {
         min-height: 0;
         padding: 40px 24px 34px;
     }
+
+    body.forgot-password-page .forgot-password-card {
+        padding-top: 40px;
+    }
+
+    body.forgot-password-page .forgot-password-card .back-btn {
+        margin-bottom: 26px;
+    }
+
+    body.forgot-password-page .forgot-password-card h2 {
+        margin-bottom: 10px;
+    }
+
+    body.forgot-password-page .forgot-password-card .auth-note {
+        margin-bottom: 24px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .back-btn {
+        margin-bottom: 24px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card h2 {
+        margin-bottom: 24px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .auth-note {
+        margin-bottom: 24px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .auth-inline-link {
+        margin-top: 54px;
+    }
 }
 
 @media (max-width: 768px) {
@@ -621,6 +736,42 @@ body.employee-login-page .login-card {
 
     .login-card form > button[type="submit"] {
         height: 58px;
+    }
+
+    body.forgot-password-page .forgot-password-card {
+        padding-top: 24px;
+    }
+
+    body.forgot-password-page .forgot-password-card .back-btn {
+        margin-bottom: 20px;
+    }
+
+    body.forgot-password-page .forgot-password-card h2 {
+        margin-bottom: 10px;
+    }
+
+    body.forgot-password-page .forgot-password-card .auth-note {
+        margin-bottom: 22px;
+    }
+
+    body.forgot-password-page .forgot-password-card .form-group {
+        margin-bottom: 0;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .back-btn {
+        margin-bottom: 20px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card h2 {
+        margin-bottom: 20px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .auth-note {
+        margin-bottom: 22px;
+    }
+
+    body.verify-reset-otp-page .verify-reset-otp-card .auth-inline-link {
+        margin-top: 28px;
     }
 }
 

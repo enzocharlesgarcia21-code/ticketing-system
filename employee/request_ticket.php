@@ -59,6 +59,47 @@ function find_domain_recipient_ids(mysqli $conn, string $domain): array
     return array_values(array_unique($ids));
 }
 
+function request_ticket_admin_legal_recipient_email_map(): array
+{
+    return [
+        'Aimi Bing Santos (Bing)' => 'asantos@leadsagri.com',
+        'Ace Loui Rosal (Ace)' => 'arosal@leadsagri.com',
+        'Cherry Jane Cabote (CJ)' => 'yang@leadsagri.com',
+    ];
+}
+
+function request_ticket_user_id_by_email(mysqli $conn, string $email): int
+{
+    $email = strtolower(trim($email));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return 0;
+    }
+
+    $stmt = $conn->prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1");
+    if (!$stmt) return 0;
+
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    return $row ? (int) ($row['id'] ?? 0) : 0;
+}
+
+function request_ticket_admin_legal_selected_recipient(mysqli $conn, string $requestFor): array
+{
+    $emailMap = request_ticket_admin_legal_recipient_email_map();
+    $email = strtolower(trim((string) ($emailMap[$requestFor] ?? '')));
+    $userId = $email !== '' ? request_ticket_user_id_by_email($conn, $email) : 0;
+
+    return [
+        'name' => $requestFor,
+        'email' => $email,
+        'user_id' => $userId,
+    ];
+}
+
 function request_ticket_upload_dir(): string
 {
     return __DIR__ . '/../uploads';
@@ -544,6 +585,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $allowed_categories = $lapc_department_categories[$assigned_group];
     }
     $isLapcAdminLegalTicket = ($assigned_company === '@leadsagri.com' && $assigned_group === 'Admin & Legal');
+    $adminLegalSelectedRecipient = ['name' => '', 'email' => '', 'user_id' => 0];
     if ($isLapcAdminLegalTicket) {
         if (!isset($lapc_admin_legal_request_categories[$admin_legal_request_for])) {
             if ($isAjax) {
@@ -553,6 +595,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 exit();
             }
             $_SESSION['error'] = 'Please choose who this Admin & Legal request is for.';
+            header("Location: request_ticket.php");
+            exit();
+        }
+        $adminLegalSelectedRecipient = request_ticket_admin_legal_selected_recipient($conn, $admin_legal_request_for);
+        if ((int) ($adminLegalSelectedRecipient['user_id'] ?? 0) <= 0) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'error' => 'The selected Admin & Legal request recipient does not have a registered account.'], JSON_UNESCAPED_UNICODE);
+                exit();
+            }
+            $_SESSION['error'] = 'The selected Admin & Legal request recipient does not have a registered account.';
             header("Location: request_ticket.php");
             exit();
         }
@@ -1130,6 +1184,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         $assigned_user_ids = find_domain_recipient_ids($conn, $assigned_company);
     }
+    if ($isLapcAdminLegalTicket) {
+        $selectedAdminLegalUserId = (int) ($adminLegalSelectedRecipient['user_id'] ?? 0);
+        $assigned_user_ids = $selectedAdminLegalUserId > 0 ? [$selectedAdminLegalUserId] : [];
+    }
     // Do not auto-assign request tickets to a specific user on creation.
     // The ticket stays routed to the target company/department and only gets
     // locked to a person once someone replies or changes the status.
@@ -1451,15 +1509,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    $notifTargetLabel = notif_assignment_target_label((string) $assigned_company, (string) $assigned_department, $requiresDepartment ? 'the selected department' : 'the selected recipient');
-    $employeeTicketNotifMsg = "New ticket #$ticket_number from $user_name was assigned to your group.";
+    $notifTargetLabel = $isLapcAdminLegalTicket && $admin_legal_request_for !== ''
+        ? $admin_legal_request_for
+        : notif_assignment_target_label((string) $assigned_company, (string) $assigned_department, $requiresDepartment ? 'the selected department' : 'the selected recipient');
+    $employeeTicketNotifMsg = $isLapcAdminLegalTicket
+        ? "New ticket #$ticket_number from $user_name was assigned to you."
+        : "New ticket #$ticket_number from $user_name was assigned to your group.";
     $adminTicketNotifMsg = "New ticket #$ticket_number from $user_name was assigned to $notifTargetLabel.";
     foreach ($assigned_user_ids as $notifyUserId) {
         $notifyUserId = (int) $notifyUserId;
-        if ($notifyUserId <= 0 || $notifyUserId === (int) $user_id) continue;
+        if ($notifyUserId <= 0 || (!$isLapcAdminLegalTicket && $notifyUserId === (int) $user_id)) continue;
         notif_insert_system($conn, $notifyUserId, (int) $ticket_id, $employeeTicketNotifMsg, 'dept_assigned');
     }
-    notif_insert_admins($conn, (int) $ticket_id, $adminTicketNotifMsg, 'new_ticket');
+    if (!$isLapcAdminLegalTicket) {
+        notif_insert_admins($conn, (int) $ticket_id, $adminTicketNotifMsg, 'new_ticket');
+    }
 
     /* ================= SUCCESS RESPONSE ================= */
 
@@ -1486,17 +1550,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $ticketStmt->close();
     }
 
-    $usesSpecificEmailRoute = ticket_uses_specific_email_route($assigned_company, $assigned_group);
-    $adminEmails = [];
-    if (!$usesSpecificEmailRoute) {
-        $admins = $conn->query("SELECT email FROM users WHERE role = 'admin' AND email <> ''");
-        if ($admins) {
-            while ($admin = $admins->fetch_assoc()) {
-                $adminEmails[] = $admin['email'];
-            }
-        }
-    }
-
     $requesterName = (string) ($ticketDetails['name'] ?? ($user_name ?? ($_SESSION['name'] ?? 'Unknown')));
     $employeeEmail = (string) ($ticketDetails['email'] ?? '');
     $createdAt = (string) ($ticketDetails['created_at'] ?? '');
@@ -1513,39 +1566,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $attachments = notif_ticket_email_attachments($conn, (int) $ticket_id, (string) ($attachmentName ?? ''));
     $attachmentSummary = notif_ticket_attachment_summary($attachments);
 
-    $adminSubject = "Ticket Submitted (#$ticketNumber)";
-    $adminTpl = notif_email_simple('Ticket Submitted', [
-        "Ticket ID: #$ticketNumber",
-        "Title: $ticketSubject",
-        "Category: $category",
-        "Priority: $priority",
-        "Current Status: $ticketStatus",
-        "Assigned Department: $ticketAssignedDept",
-        "Requested by: $requesterName",
-        "Requester Email: $employeeEmail"
-    ], 'Open Ticket', notif_ticket_link_admin((int) $ticket_id));
-
-    if (count($adminEmails) > 0) {
-        $adminOk = notif_email_send($adminEmails, $adminSubject, (string) $adminTpl['html'], (string) $adminTpl['text'], $attachments);
-        if (!$adminOk) {
-            error_log('Ticket email failed (admins) | ticketId=' . (string) $ticket_id);
-        }
-    }
-
-    $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, $assigned_group, (int) $user_id);
+    $assigneeEmailExcludeUserId = $isLapcAdminLegalTicket ? 0 : (int) $user_id;
+    $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, $assigned_group, $assigneeEmailExcludeUserId, $isLapcAdminLegalTicket);
     if (count($assigneeEmails) > 0) {
         $assigneeLines = [
             "Ticket ID: #$ticketNumber",
             "Category: $category",
-            "Current Status: $ticketStatus",
-            "Requested by: $requesterName",
+            "Requestor: $requesterName",
+            "Email: $employeeEmail",
+            "Date Submitted: $createdAt",
+            "Level of Urgency: $priority",
             "Description:\n$ticketDescription"
         ];
         if ($attachmentSummary !== '') {
             $assigneeLines[] = $attachmentSummary;
         }
-        $assigneeTpl = notif_email_simple('Ticket Submitted', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks((int) $ticket_id));
-        notif_email_send($assigneeEmails, "Ticket Submitted (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
+        $assigneeTpl = notif_email_simple('New Ticket Assigned', $assigneeLines, 'View Ticket', notif_ticket_link_employee_tasks((int) $ticket_id));
+        notif_email_send($assigneeEmails, "New Ticket Assigned (#$ticketNumber)", (string) $assigneeTpl['html'], (string) $assigneeTpl['text'], $attachments);
     }
 
     if ($employeeEmail !== '') {
@@ -1553,14 +1590,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $employeeLines = [
             "Ticket ID: #$ticketNumber",
             "Category: $category",
-            "Current Status: $ticketStatus",
-            "Assigned Department: $ticketAssignedDept",
+            "Requestor: $requesterName",
+            "Email: $employeeEmail",
+            "Date Submitted: $createdAt",
+            "Level of Urgency: $priority",
             "Description:\n$ticketDescription"
         ];
         if ($attachmentSummary !== '') {
             $employeeLines[] = $attachmentSummary;
         }
-        $employeeTpl = notif_email_simple('Ticket Submitted', $employeeLines, 'Go To Leads DeskMetamorph', notif_ticket_link_employee_tickets((int) $ticket_id));
+        $employeeTpl = notif_email_simple('Ticket Submitted', $employeeLines, 'View Ticket', notif_ticket_link_employee_tickets((int) $ticket_id));
 
         $employeeOk = notif_email_send([$employeeEmail], $employeeSubject, (string) $employeeTpl['html'], (string) $employeeTpl['text'], $attachments);
         if (!$employeeOk) {

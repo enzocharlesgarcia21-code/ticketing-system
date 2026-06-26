@@ -7,6 +7,13 @@ $csrfToken = csrf_token();
 $canManageTicketReceiving = isset($conn) && $conn instanceof mysqli && user_permissions_can_manage($conn);
 $appBasePath = rtrim(str_replace('\\', '/', dirname(dirname($_SERVER['SCRIPT_NAME']))), '/');
 $adminBaseUrl = ($appBasePath !== '' ? $appBasePath : '') . '/admin';
+$adminDisplayName = trim((string) ($_SESSION['name'] ?? ''));
+if ($adminDisplayName === '') {
+    $adminDisplayName = trim((string) ($_SESSION['full_name'] ?? ''));
+}
+if ($adminDisplayName === '') {
+    $adminDisplayName = trim((string) ($_SESSION['email'] ?? 'Admin'));
+}
 
 function admin_nav_url(string $path): string
 {
@@ -28,10 +35,6 @@ $adminNavSections = [
     'Tools' => [
         ['href' => 'conference_bookings.php', 'label' => 'Conference Bookings', 'icon' => 'fa-calendar-check', 'active' => ['conference_bookings.php', 'manage_rooms.php']],
         ['href' => 'notifications.php', 'label' => 'Notifications', 'icon' => 'fa-bell', 'active' => ['notifications.php']],
-    ],
-    'Account' => [
-        ['href' => 'profile.php', 'label' => 'Profile', 'icon' => 'fa-user', 'active' => ['profile.php']],
-        ['href' => 'logout.php', 'label' => 'Logout', 'icon' => 'fa-right-from-bracket', 'active' => []],
     ],
 ];
 
@@ -117,10 +120,21 @@ foreach ($adminNavSections as $items) {
             </div>
         </div>
 
-        <div class="admin-user-dropdown">
-            <div class="admin-user-pill" aria-label="<?= htmlspecialchars($_SESSION['email'] ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?>">
+        <div class="admin-user-dropdown" id="adminUserDropdown">
+            <button type="button" class="admin-user-pill" id="adminUserMenuToggle" aria-haspopup="true" aria-expanded="false" aria-label="Open account menu">
                 <span class="admin-user-icon"><i class="fas fa-user"></i></span>
-                <span class="admin-user-email"><?= htmlspecialchars($_SESSION['email'] ?? 'Admin', ENT_QUOTES, 'UTF-8'); ?></span>
+                <span class="admin-user-email"><?= htmlspecialchars($adminDisplayName, ENT_QUOTES, 'UTF-8'); ?></span>
+                <span class="admin-user-caret"><i class="fas fa-chevron-down"></i></span>
+            </button>
+            <div class="admin-user-menu" id="adminUserMenu" role="menu">
+                <a href="<?= htmlspecialchars(admin_nav_url('profile.php'), ENT_QUOTES, 'UTF-8'); ?>" class="admin-user-menu-item" role="menuitem">
+                    <i class="fas fa-user"></i>
+                    <span>Profile</span>
+                </a>
+                <a href="<?= htmlspecialchars(admin_nav_url('logout.php'), ENT_QUOTES, 'UTF-8'); ?>" class="admin-user-menu-item" role="menuitem">
+                    <i class="fas fa-right-from-bracket"></i>
+                    <span>Logout</span>
+                </a>
             </div>
         </div>
     </div>
@@ -366,8 +380,9 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
 
 .admin-topbar-kicker {
     color: #78907a;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 400;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     line-height: 1.2;
@@ -448,6 +463,10 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
     right: 4px;
 }
 
+.admin-user-dropdown {
+    position: relative;
+}
+
 .admin-main-header .admin-user-pill {
     min-height: 42px;
     background: #ffffff;
@@ -456,6 +475,13 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
     border-radius: 12px;
     padding: 0 12px;
     box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    font-weight: 500;
 }
 
 .admin-main-header .admin-user-pill:hover {
@@ -467,7 +493,61 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-weight: 700;
+    font-weight: 600;
+}
+
+.admin-user-caret {
+    color: #64748b;
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.admin-user-dropdown.show .admin-user-caret {
+    transform: rotate(180deg);
+}
+
+.admin-user-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 170px;
+    display: none;
+    padding: 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.14);
+    z-index: 4020;
+}
+
+.admin-user-dropdown.show .admin-user-menu {
+    display: grid;
+    gap: 4px;
+}
+
+.admin-user-menu-item {
+    min-height: 38px;
+    padding: 9px 10px;
+    border-radius: 9px;
+    color: #1f2937;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.admin-user-menu-item i {
+    width: 16px;
+    color: var(--admin-shell-green);
+    text-align: center;
+}
+
+.admin-user-menu-item:hover {
+    background: #f8fafc;
+    color: #0f172a;
 }
 
 .admin-sidebar-backdrop {
@@ -1527,6 +1607,22 @@ document.addEventListener('DOMContentLoaded', function() {
             );
         });
     }
+    const adminUserDropdown = document.getElementById('adminUserDropdown');
+    const adminUserMenuToggle = document.getElementById('adminUserMenuToggle');
+    if (adminUserMenuToggle && adminUserDropdown) {
+        adminUserMenuToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const nextOpen = !adminUserDropdown.classList.contains('show');
+            adminUserDropdown.classList.toggle('show', nextOpen);
+            adminUserMenuToggle.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+            const notifMenu = document.getElementById('notifDropdown');
+            if (notifMenu) notifMenu.classList.remove('show');
+        });
+        adminUserDropdown.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
 
     // Close dropdown when clicking outside
     document.addEventListener('click', function(e) {
@@ -1534,6 +1630,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const dropdown = document.getElementById('notifDropdown');
         if (wrapper && !wrapper.contains(e.target)) {
             dropdown.classList.remove('show');
+        }
+        if (adminUserDropdown && !adminUserDropdown.contains(e.target)) {
+            adminUserDropdown.classList.remove('show');
+            if (adminUserMenuToggle) adminUserMenuToggle.setAttribute('aria-expanded', 'false');
         }
     });
 });

@@ -3,6 +3,7 @@ require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/mailer.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/activity_logger.php';
 
 header('Content-Type: application/json');
 
@@ -253,6 +254,7 @@ if (!$insert->execute()) {
 }
 $newUserId = (int) $insert->insert_id;
 $insert->close();
+activity_log($conn, $newUserId, 'USER_CREATED', 'User account created by admin', 'Admin Management', $newUserId);
 
 $successPayload = [
     'ok' => true,

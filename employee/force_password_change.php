@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/activity_logger.php';
 
 function force_password_redirect_target($value): string
 {
@@ -71,6 +72,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $update->bind_param("si", $hash, $userId);
             if ($update->execute()) {
                 $update->close();
+                activity_log($conn, $userId, 'PASSWORD_CHANGED', 'Password changed', 'Authentication');
                 unset($_SESSION['force_password_change']);
                 if ($postLoginRedirect !== '') {
                     unset($_SESSION['post_login_redirect']);

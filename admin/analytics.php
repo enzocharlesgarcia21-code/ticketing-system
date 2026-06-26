@@ -1492,7 +1492,7 @@ if ($ticketsStmt) {
         }
         .admin-content {
             max-width: 1460px;
-            padding-top: 10px;
+            padding-top: 0;
         }
         body.employee-analytics-page .admin-content {
             max-width: 1320px;
@@ -1500,10 +1500,16 @@ if ($ticketsStmt) {
         }
         .admin-page-header {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
             gap: 16px;
             margin-bottom: 20px;
+        }
+        .analytics-heading {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 860px;
         }
         .analytics-title {
             display: inline-flex;
@@ -1519,12 +1525,20 @@ if ($ticketsStmt) {
             color: #1B5E20;
             font-size: 1.7rem;
         }
+        .analytics-subtitle {
+            margin: 0;
+            color: #6B7280;
+            font-size: 14px;
+            line-height: 1.45;
+            font-weight: 400;
+        }
         .analytics-header-actions {
             display: flex;
             align-items: center;
             gap: 12px;
             flex-wrap: wrap;
             justify-content: flex-end;
+            margin-top: 32px;
         }
         .analytics-toolbar,
         .analytics-card,
@@ -1548,7 +1562,7 @@ if ($ticketsStmt) {
         }
         .analytics-filters {
             display: grid;
-            grid-template-columns: 1.5fr 1.2fr 1.15fr 1.15fr 1fr;
+            grid-template-columns: minmax(330px, 1.35fr) minmax(220px, 1fr) minmax(220px, 1fr) minmax(210px, 0.75fr);
             gap: 12px;
             align-items: end;
         }
@@ -1621,8 +1635,113 @@ if ($ticketsStmt) {
         }
         .analytics-control:focus,
         .analytics-status-row:focus-within {
-            border-color: #1B5E20;
-            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
+            border-color: #cbd5e1;
+            box-shadow: none;
+        }
+        .analytics-select-wrap {
+            position: relative;
+        }
+        .analytics-select-wrap .analytics-control {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .analytics-select-trigger {
+            width: 100%;
+            min-height: 44px;
+            padding: 0 38px 0 14px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 15px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            box-shadow: none;
+        }
+        .analytics-select-trigger::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 13px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #0f172a;
+            font-size: 12px;
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+        .analytics-select-wrap.is-open .analytics-select-trigger::after {
+            transform: translateY(-50%) rotate(180deg);
+            color: #166534;
+        }
+        .analytics-select-trigger:disabled {
+            background: #f8fafc;
+            border-color: #d9dee8;
+            color: #94a3b8;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        .analytics-select-trigger:disabled::after {
+            color: #94a3b8;
+        }
+        .analytics-select-menu {
+            position: absolute;
+            z-index: 120;
+            top: calc(100% + 7px);
+            left: 0;
+            right: 0;
+            display: none;
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 7px 0;
+            background: #ffffff;
+            border: 2px solid #d8e2ec;
+            border-radius: 15px;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+        .analytics-select-menu::-webkit-scrollbar { width: 10px; }
+        .analytics-select-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+        .analytics-select-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+        .analytics-select-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        .analytics-select-wrap.is-open .analytics-select-menu {
+            display: block;
+        }
+        .analytics-select-option {
+            min-height: 36px;
+            padding: 8px 18px;
+            color: #0f172a;
+            font-size: 15px;
+            font-weight: 400;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        .analytics-select-option:hover {
+            background: #edf7ef;
+        }
+        .analytics-select-option.is-selected {
+            background: #166534;
+            color: #ffffff;
         }
         .date-inputs {
             display: grid;
@@ -1630,8 +1749,17 @@ if ($ticketsStmt) {
             gap: 8px;
             align-items: center;
         }
+        body:not(.employee-analytics-page) .date-inputs {
+            grid-template-columns: minmax(140px, 1fr) auto minmax(140px, 1fr);
+        }
         .date-inputs .analytics-control {
             padding-right: 10px;
+        }
+        body:not(.employee-analytics-page) .date-inputs .analytics-control {
+            min-height: 44px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            box-shadow: none;
         }
         .date-separator {
             color: #6b7280;
@@ -1649,6 +1777,9 @@ if ($ticketsStmt) {
             background: transparent;
         }
         .analytics-status-row .analytics-control {
+            flex: 1 1 auto;
+        }
+        .analytics-status-row .analytics-select-wrap {
             flex: 1 1 auto;
         }
         .assignee-dropdown {
@@ -1739,6 +1870,12 @@ if ($ticketsStmt) {
             border-radius: 13px;
             flex: 1 1 auto;
         }
+        body:not(.employee-analytics-page) .analytics-status-row .analytics-inline-clear {
+            min-height: 44px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
+            box-shadow: none;
+        }
         .analytics-inline-clear {
             color: #111827;
             text-decoration: none;
@@ -1778,6 +1915,11 @@ if ($ticketsStmt) {
             color: #1B5E20;
             box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
         }
+        body:not(.employee-analytics-page) .btn-export {
+            border: 2px solid #d8e2ec;
+            border-radius: 16px;
+            box-shadow: none;
+        }
         .btn-export i {
             font-size: 1rem;
         }
@@ -1788,7 +1930,7 @@ if ($ticketsStmt) {
         .btn-export-pdf:hover,
         .btn-export-excel:hover {
             background: #f2fbf1;
-            border-color: #99c08d;
+            border-color: #cbd5e1;
         }
 
         .analytics-metrics {
@@ -2489,7 +2631,7 @@ if ($ticketsStmt) {
 
         @media (max-width: 1280px) {
             .analytics-filters {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
+                grid-template-columns: minmax(330px, 1.25fr) repeat(2, minmax(0, 1fr));
             }
             body.employee-analytics-page .analytics-filters {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2511,9 +2653,10 @@ if ($ticketsStmt) {
             }
             .analytics-header-actions {
                 justify-content: flex-start;
+                margin-top: 0;
             }
             .analytics-filters {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns: minmax(320px, 1fr) minmax(0, 1fr);
             }
             .analytics-export-actions {
                 justify-content: flex-start;
@@ -2673,7 +2816,10 @@ if ($ticketsStmt) {
             ?>
             
             <div class="admin-page-header">
-                <h1 class="admin-page-title analytics-title"><i class="fa-solid fa-chart-line"></i> Analytics</h1>
+                <div class="analytics-heading">
+                    <h1 class="admin-page-title analytics-title">Analytics</h1>
+                    <p class="analytics-subtitle">Provides an overview of ticket analytics, performance trends, department activity, and resolution progress to help administrators monitor and manage support operations effectively.</p>
+                </div>
                 <?php if (!$analyticsIsEmployeeView): ?>
                     <div class="analytics-header-actions">
                         <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">
@@ -2705,14 +2851,18 @@ if ($ticketsStmt) {
                         <?php else: ?>
                             <div class="analytics-filter">
                                 <label>Company</label>
-                                <select class="analytics-control" name="company" id="analyticsCompanyFilter">
-                                    <option value="" <?= $company_filter === '' ? 'selected' : '' ?>>All Company</option>
-                                    <?php foreach ($company_options as $companyOption => $companyLabel): ?>
-                                        <option value="<?= htmlspecialchars($companyOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $company_filter === $companyOption ? 'selected' : '' ?>>
-                                            <?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <div class="analytics-select-wrap" data-analytics-select="company">
+                                    <select class="analytics-control" name="company" id="analyticsCompanyFilter" tabindex="-1">
+                                        <option value="" <?= $company_filter === '' ? 'selected' : '' ?>>All Company</option>
+                                        <?php foreach ($company_options as $companyOption => $companyLabel): ?>
+                                            <option value="<?= htmlspecialchars($companyOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $company_filter === $companyOption ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="analytics-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Company</button>
+                                    <div class="analytics-select-menu" role="listbox"></div>
+                                </div>
                             </div>
                         <?php endif; ?>
                         <div class="analytics-filter">
@@ -2723,23 +2873,31 @@ if ($ticketsStmt) {
                                     <?= htmlspecialchars($department_filter !== '' ? $department_filter : 'Unassigned', ENT_QUOTES, 'UTF-8'); ?>
                                 </div>
                             <?php else: ?>
-                                <select class="analytics-control" name="department" id="analyticsDepartmentFilter" <?= $company_filter !== '@leadsagri.com' ? 'disabled' : '' ?>>
-                                    <option value="" <?= $department_filter === '' ? 'selected' : '' ?>>All Department</option>
-                                    <?php foreach ($department_options as $d): ?>
-                                        <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $department_filter === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <div class="analytics-select-wrap" data-analytics-select="department">
+                                    <select class="analytics-control" name="department" id="analyticsDepartmentFilter" <?= $company_filter !== '@leadsagri.com' ? 'disabled' : '' ?> tabindex="-1">
+                                        <option value="" <?= $department_filter === '' ? 'selected' : '' ?>>All Department</option>
+                                        <?php foreach ($department_options as $d): ?>
+                                            <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $department_filter === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="analytics-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Department</button>
+                                    <div class="analytics-select-menu" role="listbox"></div>
+                                </div>
                             <?php endif; ?>
                         </div>
                         <div class="analytics-filter">
                             <label>Status</label>
                             <div class="analytics-status-row">
-                                <select class="analytics-control" name="status">
-                                    <option value="" <?= $status_filter === '' ? 'selected' : '' ?> disabled hidden>Select</option>
-                                    <?php foreach ($allowed_statuses as $st): ?>
-                                        <option value="<?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8'); ?>" <?= $status_filter === $st ? 'selected' : '' ?>><?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8'); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <div class="analytics-select-wrap" data-analytics-select="status">
+                                    <select class="analytics-control" name="status" id="analyticsStatusFilter" tabindex="-1">
+                                        <option value="" <?= $status_filter === '' ? 'selected' : '' ?> disabled hidden>Select</option>
+                                        <?php foreach ($allowed_statuses as $st): ?>
+                                            <option value="<?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8'); ?>" <?= $status_filter === $st ? 'selected' : '' ?>><?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="analytics-select-trigger" aria-haspopup="listbox" aria-expanded="false">Select</button>
+                                    <div class="analytics-select-menu" role="listbox"></div>
+                                </div>
                                 <a href="<?= htmlspecialchars(basename($_SERVER['PHP_SELF']), ENT_QUOTES, 'UTF-8') ?>" class="analytics-inline-clear">Clear</a>
                             </div>
                         </div>
@@ -3115,6 +3273,64 @@ if ($ticketsStmt) {
 
         var companyFilter = document.getElementById('analyticsCompanyFilter');
         var departmentFilter = document.getElementById('analyticsDepartmentFilter');
+        var statusFilter = document.getElementById('analyticsStatusFilter');
+
+        function closeAnalyticsSelects(exceptWrap) {
+            document.querySelectorAll('.analytics-select-wrap.is-open').forEach(function (wrap) {
+                if (exceptWrap && wrap === exceptWrap) return;
+                wrap.classList.remove('is-open');
+                var trigger = wrap.querySelector('.analytics-select-trigger');
+                if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        function refreshAnalyticsSelect(selectEl) {
+            if (!selectEl) return;
+            var wrap = selectEl.closest('.analytics-select-wrap');
+            if (!wrap) return;
+            var trigger = wrap.querySelector('.analytics-select-trigger');
+            var menu = wrap.querySelector('.analytics-select-menu');
+            if (!trigger || !menu) return;
+            var selectedOption = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+            trigger.textContent = selectedOption ? selectedOption.textContent.trim() : '';
+            trigger.disabled = !!selectEl.disabled;
+            menu.innerHTML = Array.prototype.slice.call(selectEl.options).map(function (option, index) {
+                if (selectEl.id === 'analyticsCompanyFilter' && String(option.value || '') === '') return '';
+                if (selectEl.id === 'analyticsDepartmentFilter' && String(option.value || '') === '') return '';
+                if (selectEl.id === 'analyticsStatusFilter' && String(option.value || '') === '') return '';
+                var selected = option.selected ? ' is-selected' : '';
+                return '<div class="analytics-select-option' + selected + '" role="option" aria-selected="' + (option.selected ? 'true' : 'false') + '" data-index="' + index + '">' + option.textContent.trim().replace(/[&<>"']/g, function (ch) {
+                    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch];
+                }) + '</div>';
+            }).join('');
+        }
+
+        function initAnalyticsSelect(selectEl) {
+            if (!selectEl) return;
+            var wrap = selectEl.closest('.analytics-select-wrap');
+            if (!wrap) return;
+            var trigger = wrap.querySelector('.analytics-select-trigger');
+            var menu = wrap.querySelector('.analytics-select-menu');
+            if (!trigger || !menu) return;
+            refreshAnalyticsSelect(selectEl);
+            trigger.addEventListener('click', function () {
+                if (selectEl.disabled) return;
+                var isOpen = wrap.classList.contains('is-open');
+                closeAnalyticsSelects(wrap);
+                wrap.classList.toggle('is-open', !isOpen);
+                trigger.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
+            });
+            menu.addEventListener('click', function (event) {
+                var optionEl = event.target && event.target.closest ? event.target.closest('.analytics-select-option') : null;
+                if (!optionEl) return;
+                var index = Number(optionEl.getAttribute('data-index'));
+                if (!Number.isFinite(index) || !selectEl.options[index]) return;
+                selectEl.selectedIndex = index;
+                refreshAnalyticsSelect(selectEl);
+                closeAnalyticsSelects();
+                selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        }
 
         function syncDepartmentAvailability() {
             if (!departmentFilter) return;
@@ -3123,20 +3339,38 @@ if ($ticketsStmt) {
             if (!isLapc) {
                 departmentFilter.value = '';
             }
+            refreshAnalyticsSelect(departmentFilter);
         }
 
         if (companyFilter) {
+            initAnalyticsSelect(companyFilter);
             companyFilter.addEventListener('change', function () {
+                refreshAnalyticsSelect(companyFilter);
                 syncDepartmentAvailability();
                 filterForm.submit();
             });
         }
+        if (departmentFilter) {
+            initAnalyticsSelect(departmentFilter);
+        }
+        if (statusFilter) {
+            initAnalyticsSelect(statusFilter);
+        }
+
+        document.addEventListener('click', function (event) {
+            if (event.target && event.target.closest && event.target.closest('.analytics-select-wrap')) return;
+            closeAnalyticsSelects();
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') closeAnalyticsSelects();
+        });
 
         var startDateInput = filterForm.querySelector('input[name="start_date"]');
         var endDateInput = filterForm.querySelector('input[name="end_date"]');
         var controls = filterForm.querySelectorAll('select[name="department"], select[name="status"]');
         controls.forEach(function (control) {
             control.addEventListener('change', function () {
+                refreshAnalyticsSelect(control);
                 filterForm.submit();
             });
         });

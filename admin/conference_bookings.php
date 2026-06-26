@@ -12,6 +12,9 @@ conference_booking_ensure_tables($conn);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim((string) ($_POST['action'] ?? ''));
+    $acceptHeader = (string) ($_SERVER['HTTP_ACCEPT'] ?? '');
+    $requestedWith = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''));
+    $wantsJson = stripos($acceptHeader, 'application/json') !== false || $requestedWith === 'xmlhttprequest';
 
     if ($action === 'update_conference_booking') {
         csrf_validate();
@@ -108,14 +111,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $roomName = (string) ($_POST['room_name'] ?? '');
         $description = (string) ($_POST['description'] ?? '');
         $isActive = ((string) ($_POST['is_active'] ?? '0') === '1') ? 1 : 0;
+        $roomColor = conference_room_normalize_color((string) ($_POST['room_color_preview'] ?? 'green'));
 
         $_SESSION['conference_room_add_old'] = [
             'room_name' => $roomName,
             'description' => $description,
             'is_active' => $isActive,
+            'room_color' => $roomColor,
         ];
 
-        $result = insertRoom($conn, $roomName, $description, $isActive);
+        $result = insertRoom($conn, $roomName, $description, $isActive, 0, $roomColor);
         if (!empty($result['ok'])) {
             unset($_SESSION['conference_room_add_old']);
             $_SESSION['conference_room_flash_success'] = 'Room added successfully.';
@@ -136,15 +141,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $roomName = (string) ($_POST['room_name'] ?? '');
         $description = (string) ($_POST['description'] ?? '');
         $isActive = ((string) ($_POST['is_active'] ?? '0') === '1') ? 1 : 0;
+        $roomColor = conference_room_normalize_color((string) ($_POST['room_color_preview'] ?? 'green'));
 
         $_SESSION['conference_room_edit_old'] = [
             'id' => $roomId,
             'room_name' => $roomName,
             'description' => $description,
             'is_active' => $isActive,
+            'room_color' => $roomColor,
         ];
 
-        $result = updateRoom($conn, $roomId, $roomName, $description, $isActive);
+        $result = updateRoom($conn, $roomId, $roomName, $description, $isActive, null, $roomColor);
         if (!empty($result['ok'])) {
             unset($_SESSION['conference_room_edit_old']);
             $_SESSION['conference_room_flash_success'] = 'Room updated successfully.';
@@ -165,11 +172,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $isActive = ((string) ($_POST['is_active'] ?? '0') === '1') ? 1 : 0;
         $unavailableReason = trim((string) ($_POST['unavailable_reason'] ?? ''));
         $room = conference_booking_find_room($conn, $roomId);
+        $ok = false;
+        $message = '';
+        $error = '';
 
         if (!$room) {
-            $_SESSION['conference_room_flash_error'] = 'Conference room not found.';
+            $error = 'Conference room not found.';
         } elseif ($isActive === 0 && $unavailableReason === '') {
-            $_SESSION['conference_room_flash_error'] = 'Please add a reason before turning the room off.';
+            $error = 'Please add a reason before turning the room off.';
         } else {
             $result = updateRoom(
                 $conn,
@@ -182,12 +192,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!empty($result['ok'])) {
                 conference_room_update_unavailable_reason($conn, $roomId, $isActive === 1 ? '' : $unavailableReason);
                 $roomName = trim((string) ($room['room_name'] ?? 'the selected room'));
-                $_SESSION['conference_room_flash_success'] = $roomName . ' is now ' . ($isActive === 1 ? 'available for booking.' : 'unavailable for booking.');
+                $ok = true;
+                $message = $roomName . ' is now ' . ($isActive === 1 ? 'available for booking.' : 'unavailable for booking.');
             } else {
-                $_SESSION['conference_room_flash_error'] = trim((string) ($result['error'] ?? 'Unable to update the room status right now.'));
+                $error = trim((string) ($result['error'] ?? 'Unable to update the room status right now.'));
             }
         }
 
+        if ($wantsJson) {
+            header('Content-Type: application/json');
+            http_response_code($ok ? 200 : 422);
+            echo json_encode([
+                'ok' => $ok,
+                'message' => $ok ? $message : $error,
+                'room_id' => $roomId,
+                'is_active' => $isActive,
+                'next_is_active' => $isActive === 1 ? 0 : 1,
+                'status_text' => conference_room_status_text($isActive),
+                'unavailable_reason' => $isActive === 1 ? '' : $unavailableReason,
+            ]);
+            exit();
+        }
+
+        if ($ok) {
+            $_SESSION['conference_room_flash_success'] = $message;
+        } else {
+            $_SESSION['conference_room_flash_error'] = $error;
+        }
         $_SESSION['conference_room_modal_open'] = 1;
         $_SESSION['conference_room_modal_view'] = 'list';
         header('Location: conference_bookings.php');
@@ -200,9 +231,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $roomId = (int) ($_POST['room_id'] ?? 0);
         $saturdayEnabled = ((string) ($_POST['saturday_enabled'] ?? '0') === '1') ? 1 : 0;
         $room = conference_booking_find_room($conn, $roomId);
+        $ok = false;
+        $message = '';
+        $error = '';
 
         if (!$room) {
-            $_SESSION['conference_room_flash_error'] = 'Conference room not found.';
+            $error = 'Conference room not found.';
         } else {
             $result = updateRoom(
                 $conn,
@@ -215,12 +249,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!empty($result['ok'])) {
                 $roomName = trim((string) ($room['room_name'] ?? 'the selected room'));
-                $_SESSION['conference_room_flash_success'] = $roomName . ' Saturday booking is now ' . ($saturdayEnabled === 1 ? 'enabled.' : 'disabled.');
+                $ok = true;
+                $message = $roomName . ' Saturday booking is now ' . ($saturdayEnabled === 1 ? 'enabled.' : 'disabled.');
             } else {
-                $_SESSION['conference_room_flash_error'] = trim((string) ($result['error'] ?? 'Unable to update the Saturday booking setting right now.'));
+                $error = trim((string) ($result['error'] ?? 'Unable to update the Saturday booking setting right now.'));
             }
         }
 
+        if ($wantsJson) {
+            header('Content-Type: application/json');
+            http_response_code($ok ? 200 : 422);
+            echo json_encode([
+                'ok' => $ok,
+                'message' => $ok ? $message : $error,
+                'room_id' => $roomId,
+                'saturday_enabled' => $saturdayEnabled,
+                'next_saturday_enabled' => $saturdayEnabled === 1 ? 0 : 1,
+                'status_text' => conference_room_saturday_text($saturdayEnabled),
+            ]);
+            exit();
+        }
+
+        if ($ok) {
+            $_SESSION['conference_room_flash_success'] = $message;
+        } else {
+            $_SESSION['conference_room_flash_error'] = $error;
+        }
         $_SESSION['conference_room_modal_open'] = 1;
         $_SESSION['conference_room_modal_view'] = 'list';
         header('Location: conference_bookings.php');
@@ -315,6 +369,7 @@ $roomFormState = [
     'room_name' => trim((string) ($roomAddOld['room_name'] ?? '')),
     'description' => trim((string) ($roomAddOld['description'] ?? '')),
     'is_active' => isset($roomAddOld['is_active']) ? (int) $roomAddOld['is_active'] : 1,
+    'room_color' => conference_room_normalize_color((string) ($roomAddOld['room_color'] ?? 'green')),
 ];
 
 if ((int) ($roomEditOld['id'] ?? 0) > 0) {
@@ -324,6 +379,7 @@ if ((int) ($roomEditOld['id'] ?? 0) > 0) {
         'room_name' => trim((string) ($roomEditOld['room_name'] ?? '')),
         'description' => trim((string) ($roomEditOld['description'] ?? '')),
         'is_active' => isset($roomEditOld['is_active']) ? (int) $roomEditOld['is_active'] : 1,
+        'room_color' => conference_room_normalize_color((string) ($roomEditOld['room_color'] ?? 'green')),
     ];
 }
 
@@ -475,33 +531,36 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-admin-title p {
             margin: 0;
-            color: #475569;
-            font-size: 17px;
-            line-height: 1.65;
-            max-width: 760px;
+            color: #6B7280;
+            font-size: 14px;
+            line-height: 1.45;
+            font-weight: 400;
+            max-width: 980px;
+            white-space: nowrap;
         }
         .conference-manage-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            min-height: 48px;
-            padding: 12px 22px;
-            border-radius: 18px;
-            background: linear-gradient(135deg, #166534, #15803d);
+            gap: 12px;
+            padding: 15px 28px;
+            border-radius: 14px;
+            background: #166534;
             color: #ffffff;
+            font-family: inherit;
             font-size: 15px;
             font-weight: 600;
             text-decoration: none;
             border: none;
             cursor: pointer;
-            box-shadow: 0 16px 34px rgba(21, 128, 61, 0.2);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 10px 24px rgba(13, 93, 34, 0.28);
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
         }
         .conference-manage-btn:hover {
             color: #ffffff;
-            transform: translateY(-1px);
-            box-shadow: 0 20px 38px rgba(21, 128, 61, 0.26);
+            transform: translateY(-2px);
+            filter: brightness(0.98);
+            box-shadow: 0 14px 28px rgba(13, 93, 34, 0.32);
         }
         .conference-admin-stats {
             display: grid;
@@ -751,7 +810,8 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-card-head-tools {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) auto auto;
+            grid-template-columns: minmax(260px, 1fr) max-content;
+            column-gap: 10px;
             align-items: stretch;
             width: 100%;
             border: 1px solid #e8e8ef;
@@ -764,25 +824,27 @@ function conference_admin_booking_status_text(string $status): string
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 4px 8px 4px 0;
+            padding: 0 8px 0 0;
         }
         .conference-filter-reset {
             min-width: 78px;
             height: 44px;
-            border-radius: 14px;
-            border: 1px solid #d7dee8;
+            border-radius: 13px;
+            border: 2px solid #d8e2ec;
             background: #ffffff;
-            color: #475569;
+            color: #166534;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+            box-shadow: none;
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
         }
         .conference-filter-reset:hover {
-            border-color: #7fb78d;
+            border-color: #cbd5e1;
             color: #14532d;
             background: #f8fff9;
+            box-shadow: none;
         }
         .conference-search {
             position: relative;
@@ -807,12 +869,12 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-search input {
             width: 100%;
-            min-height: 50px;
+            min-height: 44px;
             border: none;
             background: transparent;
-            padding: 12px 18px 12px 48px;
+            padding: 10px 18px 10px 48px;
             color: #0f172a;
-            font-size: 15px;
+            font-size: 14px;
         }
         .conference-search input:focus,
         .conference-filter-select:focus {
@@ -821,7 +883,7 @@ function conference_admin_booking_status_text(string $status): string
         .conference-search:focus-within,
         .conference-filter-pill:focus-within,
         .conference-date-filter:focus-within {
-            box-shadow: inset 0 0 0 2px rgba(22, 163, 74, 0.15);
+            box-shadow: none;
         }
         .conference-date-filter {
             position: relative;
@@ -829,10 +891,11 @@ function conference_admin_booking_status_text(string $status): string
             align-items: center;
             min-height: 44px;
             min-width: 168px;
-            border: 1px solid #7fb78d;
-            border-radius: 16px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
             background: #ffffff;
             overflow: hidden;
+            box-shadow: none;
         }
         .conference-date-input {
             width: 100%;
@@ -845,9 +908,41 @@ function conference_admin_booking_status_text(string $status): string
             padding: 0 14px;
             cursor: pointer;
         }
+        .conference-date-filter.is-empty .conference-date-input {
+            color: transparent;
+            opacity: 0;
+        }
+        .conference-date-filter.is-empty::after {
+            content: "\f073";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #1f2937;
+            font-size: 13px;
+            pointer-events: none;
+        }
+        .conference-date-placeholder {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #1f2937;
+            font-size: 14px;
+            font-weight: 500;
+            pointer-events: none;
+        }
+        .conference-date-filter:not(.is-empty) .conference-date-placeholder {
+            display: none;
+        }
         .conference-date-input::-webkit-calendar-picker-indicator {
             cursor: pointer;
             opacity: 1;
+        }
+        .conference-date-filter.is-empty .conference-date-input::-webkit-calendar-picker-indicator {
+            opacity: 0;
         }
         .conference-date-input:focus {
             outline: none;
@@ -860,10 +955,11 @@ function conference_admin_booking_status_text(string $status): string
             color: #1f2937;
             background: #ffffff;
             min-width: 158px;
-            border: 1px solid #7fb78d;
-            border-radius: 16px;
+            border: 2px solid #d8e2ec;
+            border-radius: 13px;
             z-index: 2;
             overflow: visible;
+            box-shadow: none;
         }
         .conference-filter-pill::before {
             content: none;
@@ -874,7 +970,7 @@ function conference_admin_booking_status_text(string $status): string
         .conference-filter-trigger {
             width: 100%;
             min-height: 44px;
-            padding: 0 14px;
+            padding: 0 42px 0 14px;
             border: none;
             background: #ffffff;
             color: #1f2937;
@@ -883,10 +979,11 @@ function conference_admin_booking_status_text(string $status): string
             justify-content: space-between;
             gap: 10px;
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 400;
             cursor: pointer;
             text-align: left;
-            border-radius: 16px;
+            border-radius: 13px;
+            position: relative;
         }
         .conference-filter-trigger:hover {
             background: #ffffff;
@@ -895,24 +992,48 @@ function conference_admin_booking_status_text(string $status): string
             flex: 1 1 auto;
         }
         .conference-filter-caret {
-            color: #1f2937;
+            color: #166534;
             font-size: 14px;
             pointer-events: none;
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+        .conference-filter-trigger[aria-expanded="true"] .conference-filter-caret {
+            transform: translateY(-50%) rotate(180deg);
         }
         .conference-filter-menu {
             position: absolute;
-            top: calc(100% + 6px);
+            top: calc(100% + 7px);
             left: 0;
             right: 0;
-            padding: 0;
-            border-radius: 0 0 12px 12px;
-            border: 1px solid #cfd8e3;
+            padding: 7px 0;
+            border-radius: 15px;
+            border: 2px solid #d8e2ec;
             background: #ffffff;
-            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
             display: none;
             flex-direction: column;
             z-index: 60;
-            overflow: hidden;
+            overflow-y: auto;
+            max-height: 240px;
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+        .conference-filter-menu::-webkit-scrollbar { width: 10px; }
+        .conference-filter-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+        .conference-filter-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+        .conference-filter-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
         }
         .conference-filter-menu.is-open {
             display: flex;
@@ -923,8 +1044,8 @@ function conference_admin_booking_status_text(string $status): string
             background: #ffffff;
             color: #1f2937;
             border-radius: 0;
-            min-height: 42px;
-            padding: 9px 14px;
+            min-height: 36px;
+            padding: 8px 14px;
             font-size: 15px;
             font-weight: 400;
             line-height: 1.35;
@@ -933,11 +1054,11 @@ function conference_admin_booking_status_text(string $status): string
             transition: background 0.2s ease, color 0.2s ease;
         }
         .conference-filter-option + .conference-filter-option {
-            border-top: 1px solid #e5e7eb;
+            border-top: none;
         }
         .conference-filter-option:hover,
         .conference-filter-option.is-active {
-            background: #8b8b8b;
+            background: #166534;
             color: #ffffff;
         }
         .conference-table-wrap {
@@ -1363,6 +1484,105 @@ function conference_admin_booking_status_text(string $status): string
             font-size: 13px;
             pointer-events: none;
         }
+        .booking-edit-select-wrap {
+            position: relative;
+            width: 100%;
+        }
+        .booking-edit-select-wrap .room-input {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .booking-edit-select-trigger {
+            width: 100%;
+            min-height: 48px;
+            padding: 0 42px 0 14px;
+            border: 2px solid #d8e2ec;
+            border-radius: 15px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            box-shadow: none;
+        }
+        .booking-edit-select-trigger::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748b;
+            font-size: 12px;
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+        .booking-edit-select-wrap.is-open .booking-edit-select-trigger::after {
+            transform: translateY(-50%) rotate(180deg);
+            color: #166534;
+        }
+        .booking-edit-select-menu {
+            position: absolute;
+            z-index: 150;
+            top: calc(100% + 7px);
+            left: 0;
+            right: 0;
+            display: none;
+            max-height: 260px;
+            overflow-y: auto;
+            padding: 7px 0;
+            background: #ffffff;
+            border: 2px solid #d8e2ec;
+            border-radius: 14px;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+        .booking-edit-select-menu::-webkit-scrollbar { width: 10px; }
+        .booking-edit-select-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+        .booking-edit-select-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+        .booking-edit-select-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        .booking-edit-select-wrap.is-open .booking-edit-select-menu {
+            display: block;
+        }
+        .booking-edit-select-option {
+            width: 100%;
+            min-height: 34px;
+            padding: 8px 14px;
+            border: 0;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        .booking-edit-select-option:hover,
+        .booking-edit-select-option.is-selected {
+            background: #166534;
+            color: #ffffff;
+        }
         .booking-edit-grid .room-form-group.room-form-group-full {
             grid-column: 1 / -1;
         }
@@ -1376,8 +1596,12 @@ function conference_admin_booking_status_text(string $status): string
             font-size: 13px;
             line-height: 1.6;
         }
+        html {
+            scrollbar-gutter: stable;
+        }
         body.room-modal-active {
             overflow: hidden;
+            padding-right: var(--modal-scrollbar-compensation, 0px);
         }
         .room-modal {
             position: fixed;
@@ -1622,6 +1846,10 @@ function conference_admin_booking_status_text(string $status): string
         }
         .room-modal-panel {
             min-height: 480px;
+            max-height: calc(100vh - 300px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-gutter: stable;
         }
         .room-page-btn {
             display: inline-flex;
@@ -1670,8 +1898,9 @@ function conference_admin_booking_status_text(string $status): string
             border-radius: 18px;
             border: 1px solid rgba(226, 232, 240, 0.9);
             box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
-            overflow: hidden;
+            overflow: hidden auto;
             min-height: 480px;
+            scrollbar-gutter: stable;
         }
         .room-form-card {
             display: flex;
@@ -1680,6 +1909,28 @@ function conference_admin_booking_status_text(string $status): string
         .room-table-card {
             display: flex;
             flex-direction: column;
+        }
+        .room-modal-panel::-webkit-scrollbar,
+        .room-form-card::-webkit-scrollbar,
+        .room-table-card::-webkit-scrollbar,
+        .room-table-wrap::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        .room-modal-panel::-webkit-scrollbar-thumb,
+        .room-form-card::-webkit-scrollbar-thumb,
+        .room-table-card::-webkit-scrollbar-thumb,
+        .room-table-wrap::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+            border: 2px solid #ffffff;
+        }
+        .room-modal-panel::-webkit-scrollbar-track,
+        .room-form-card::-webkit-scrollbar-track,
+        .room-table-card::-webkit-scrollbar-track,
+        .room-table-wrap::-webkit-scrollbar-track {
+            background: #f8fafc;
+            border-radius: 999px;
         }
         .room-card-head {
             padding: 16px 18px;
@@ -1702,7 +1953,7 @@ function conference_admin_booking_status_text(string $status): string
         }
         .room-form-grid {
             display: grid;
-            grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+            grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.45fr);
             gap: 18px 20px;
         }
         .room-form-group {
@@ -1716,6 +1967,11 @@ function conference_admin_booking_status_text(string $status): string
             color: #334155;
             font-size: 14px;
             font-weight: 700;
+        }
+        .room-label-muted {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 600;
         }
         .room-input,
         .room-textarea {
@@ -1739,6 +1995,218 @@ function conference_admin_booking_status_text(string $status): string
             border-color: #15803d;
             background: #ffffff;
             box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.12);
+        }
+        .room-color-panel {
+            grid-column: 1 / -1;
+            display: grid;
+            gap: 10px;
+        }
+        .room-color-heading {
+            display: grid;
+            gap: 4px;
+        }
+        .room-color-heading h3,
+        .room-preview-title h3 {
+            margin: 0;
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 800;
+        }
+        .room-color-heading p,
+        .room-preview-title p {
+            margin: 0;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .room-color-swatches {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .room-color-swatch {
+            position: relative;
+            width: 46px;
+            height: 46px;
+            min-height: 46px;
+            border: 1px solid #d8e1ec;
+            border-radius: 10px;
+            background: #ffffff;
+            cursor: pointer;
+            display: inline-grid;
+            place-items: center;
+            padding: 6px;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+        .room-color-swatch input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .room-color-swatch-dot {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            background: var(--swatch-color);
+            box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+        }
+        .room-color-swatch-check {
+            position: absolute;
+            inset: 6px;
+            width: auto;
+            height: auto;
+            border-radius: 6px;
+            background: #00a651;
+            color: #ffffff;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            z-index: 2;
+        }
+        .room-color-swatch input:checked ~ .room-color-swatch-check {
+            display: inline-flex;
+        }
+        .room-color-swatch input:checked ~ .room-color-swatch-dot,
+        .room-color-swatch input:checked ~ span:last-child {
+            transform: translateZ(0);
+        }
+        .room-color-swatch-label {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+            white-space: nowrap;
+        }
+        .room-color-swatch.is-selected,
+        .room-color-swatch:focus-within {
+            border-color: #00a651;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(0, 166, 81, 0.14);
+        }
+        .room-color-custom-divider {
+            width: 1px;
+            height: 36px;
+            background: #d8e1ec;
+            margin: 0 6px;
+        }
+        .room-color-custom {
+            min-height: 46px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 10px;
+            color: #334155;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .room-color-custom input[type="radio"],
+        .room-color-custom input[type="color"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .room-color-custom i {
+            width: 24px;
+            height: 24px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8fafc;
+            border: 1px solid #d8e1ec;
+            color: #64748b;
+            font-size: 12px;
+        }
+        .room-color-custom.is-selected {
+            color: #00a651;
+        }
+        .room-color-custom.is-selected i {
+            border-color: #00a651;
+            background: #ecfdf5;
+            color: #00a651;
+        }
+        .room-preview-panel {
+            grid-column: 1 / -1;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 14px;
+            display: grid;
+            gap: 12px;
+            background: #ffffff;
+        }
+        .room-preview-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.9fr);
+            gap: 12px;
+        }
+        .room-preview-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #ffffff;
+            min-width: 0;
+        }
+        .room-preview-card-head {
+            padding: 10px 12px;
+            color: #0f172a;
+            font-size: 13px;
+            font-weight: 800;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .room-preview-board {
+            display: grid;
+            grid-template-columns: 88px repeat(3, minmax(0, 1fr));
+            min-height: 118px;
+            font-size: 11px;
+        }
+        .room-preview-time,
+        .room-preview-day {
+            background: #166534;
+            color: #ffffff;
+            font-weight: 800;
+            padding: 9px 10px;
+        }
+        .room-preview-time {
+            display: grid;
+            align-content: center;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .room-preview-cell {
+            border-left: 1px solid #dfe7ef;
+            border-top: 1px solid #dfe7ef;
+            padding: 10px;
+            background: var(--room-preview-color, #b7edc3);
+            color: var(--room-preview-text, #166534);
+        }
+        .room-preview-cell strong {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+        .room-preview-legend {
+            padding: 12px;
+            display: grid;
+            gap: 10px;
+        }
+        .room-preview-legend-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 28px;
+            color: #334155;
+            font-size: 13px;
+        }
+        .room-preview-legend-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+            background: var(--room-preview-color, #86efac);
+            border: 1px solid rgba(15, 23, 42, 0.08);
         }
         .room-toggle-wrap {
             min-height: 48px;
@@ -1806,7 +2274,7 @@ function conference_admin_booking_status_text(string $status): string
         .room-table-wrap {
             flex: 1 1 auto;
             overflow-x: auto;
-            overflow-y: visible;
+            overflow-y: auto;
             scrollbar-gutter: stable;
         }
         .room-table {
@@ -1857,20 +2325,28 @@ function conference_admin_booking_status_text(string $status): string
             align-items: center;
             gap: 10px;
             flex-wrap: wrap;
+            min-width: 172px;
         }
         .room-status-toggle-button {
             position: relative;
             width: 58px;
             height: 32px;
+            flex: 0 0 58px;
             border: none;
             border-radius: 999px;
             background: #cbd5e1;
             box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.1);
             cursor: pointer;
-            transition: background 0.2s ease, transform 0.2s ease;
+            transform: translateZ(0);
+            transition: background 0.2s ease, box-shadow 0.2s ease;
+        }
+        .room-status-toggle-button.is-updating {
+            cursor: wait;
+            opacity: 0.78;
+            pointer-events: none;
         }
         .room-status-toggle-button:hover {
-            transform: translateY(-1px);
+            transform: translateZ(0);
         }
         .room-status-toggle-button::after {
             content: "";
@@ -1899,11 +2375,14 @@ function conference_admin_booking_status_text(string $status): string
             font-size: 12px;
             font-weight: 700;
             line-height: 1.35;
+            display: inline-block;
+            min-width: 112px;
         }
         .room-unavailable-note {
             flex-basis: 100%;
             margin-top: 4px;
             max-width: 260px;
+            min-height: 18px;
             color: #991b1b;
             font-size: 12px;
             font-weight: 600;
@@ -1989,6 +2468,297 @@ function conference_admin_booking_status_text(string $status): string
             background: #fee2e2;
             border-color: #fca5a5;
             color: #991b1b;
+        }
+        #manageRoomsModal .room-modal-dialog {
+            background: #ffffff;
+            border: 1px solid rgba(226, 232, 240, 0.92);
+        }
+        #manageRoomsModal .room-modal-header {
+            background:
+                radial-gradient(circle at top right, rgba(34, 197, 94, 0.10), transparent 34%),
+                linear-gradient(180deg, #f8fffa 0%, #f8fafc 100%);
+            border-bottom: 1px solid #ecf1f6;
+            color: #0f172a;
+        }
+        #manageRoomsModal .room-modal-copy h2 {
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 25px;
+            line-height: 1.1;
+            font-weight: 700;
+        }
+        #manageRoomsModal .room-modal-copy h2 i {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: #dcfce7;
+            color: #16a34a;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            flex: 0 0 auto;
+        }
+        #manageRoomsModal .room-modal-copy p {
+            color: #64748b;
+            opacity: 1;
+        }
+        #manageRoomsModal .room-modal-close {
+            background: rgba(255, 255, 255, 0.92);
+            border-color: #dbe3ee;
+            color: #475569;
+            box-shadow: none;
+        }
+        #manageRoomsModal .room-modal-close:hover {
+            background: #f8fafc;
+            border-color: #dbe3ee;
+            color: #0f172a;
+        }
+        #manageRoomsModal .room-modal-body {
+            background: #ffffff;
+        }
+        #manageRoomsModal .room-alert[data-dynamic-room-alert="1"] {
+            position: absolute;
+            left: 22px;
+            right: 22px;
+            top: 118px;
+            z-index: 4;
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.14);
+        }
+        #manageRoomsModal .room-modal-tabs {
+            padding-inline: 0;
+            border-bottom-color: #e5e7eb;
+        }
+        #manageRoomsModal .room-modal-tab {
+            gap: 12px;
+            justify-content: flex-start;
+            color: #667085;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        #manageRoomsModal .room-modal-tab i {
+            color: inherit;
+            font-size: 18px;
+        }
+        #manageRoomsModal .room-modal-tab.is-active {
+            color: #00a651;
+        }
+        #manageRoomsModal .room-modal-tab.is-active::after {
+            background: #00c853;
+        }
+        #manageRoomsModal .room-form-card,
+        #manageRoomsModal .room-table-card {
+            border-color: #e5e7eb;
+            box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+        }
+        #manageRoomsModal .room-card-head {
+            position: relative;
+            padding-left: 86px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 72%);
+        }
+        #manageRoomsModal .room-card-head::before {
+            content: "\2b";
+            position: absolute;
+            left: 26px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 48px;
+            height: 48px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #dcfce7;
+            color: #00a651;
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            font-size: 22px;
+        }
+        #manageRoomsModal .room-table-card .room-card-head {
+            padding-left: 18px;
+            background: #ffffff;
+        }
+        #manageRoomsModal .room-table-card .room-card-head::before {
+            content: none;
+        }
+        #manageRoomsModal .room-card-head h2 {
+            color: #1f2937;
+            font-weight: 600;
+        }
+        #manageRoomsModal .room-card-head p {
+            color: #667085;
+        }
+        #manageRoomsModal .room-form-group label {
+            color: #1f2937;
+            font-weight: 600;
+        }
+        #manageRoomsModal .room-color-heading h3,
+        #manageRoomsModal .room-preview-title h3,
+        #manageRoomsModal .room-preview-card-head {
+            color: #1f2937;
+            font-weight: 600;
+        }
+        #manageRoomsModal .room-color-heading p,
+        #manageRoomsModal .room-preview-title p {
+            color: #667085;
+            font-weight: 400;
+        }
+        #manageRoomsModal .room-label-muted {
+            color: #667085;
+            font-weight: 400;
+        }
+        #manageRoomsModal .room-input,
+        #manageRoomsModal .room-textarea {
+            background: #ffffff;
+            border-color: #d9dee8;
+            color: #0f172a;
+        }
+        #manageRoomsModal .room-input:focus,
+        #manageRoomsModal .room-textarea:focus {
+            border-color: #00a651;
+            box-shadow: 0 0 0 3px rgba(0, 166, 81, 0.14);
+        }
+        #manageRoomsModal .room-form-group.room-form-group-description {
+            grid-column: auto;
+        }
+        #manageRoomsModal .room-textarea {
+            min-height: 58px;
+            height: 58px;
+            resize: none;
+        }
+        #manageRoomsModal .room-form-actions {
+            border-top: 1px solid #eef2f7;
+            margin: 20px -22px -22px;
+            padding: 18px 22px;
+        }
+        #manageRoomsModal .room-page-btn-primary {
+            background: #006b3f;
+            box-shadow: 0 12px 26px rgba(0, 107, 63, 0.24);
+        }
+        #manageRoomsModal .room-page-btn-primary:hover {
+            background: #005b35;
+            box-shadow: 0 16px 30px rgba(0, 107, 63, 0.3);
+        }
+        #manageRoomsModal .room-table th {
+            background: #ffffff;
+            color: #008f46;
+            font-size: 12px;
+        }
+        #manageRoomsModal .room-table td {
+            border-bottom-color: #eef2f7;
+        }
+        #manageRoomsModal .room-primary {
+            color: #0f172a;
+            font-weight: 800;
+        }
+        #manageRoomsModal .room-status-toggle-button {
+            background: linear-gradient(135deg, #cbd5e1, #e2e8f0);
+        }
+        #manageRoomsModal .room-status-toggle-button.is-active {
+            background: linear-gradient(135deg, #00c853, #00a651);
+        }
+        #manageRoomsModal .room-edit-btn {
+            border-color: #bbf7d0;
+            background: #ecfdf5;
+            color: #007a3d;
+        }
+        #manageRoomsModal .room-delete-btn {
+            border-color: #fecaca;
+            background: #fff1f2;
+            color: #b91c1c;
+        }
+        #roomUnavailableReasonConfirm {
+            background: rgba(15, 23, 42, 0.46);
+            backdrop-filter: blur(8px);
+        }
+        #roomUnavailableReasonConfirm .room-delete-confirm-card {
+            position: relative;
+            border-color: rgba(226, 232, 240, 0.94);
+            box-shadow: 0 34px 72px rgba(15, 23, 42, 0.3);
+        }
+        #roomUnavailableReasonConfirm .room-delete-confirm-close {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            width: 38px;
+            height: 38px;
+            border: none;
+            background: transparent;
+            color: #667085;
+            font-size: 24px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #roomUnavailableReasonConfirm .room-delete-confirm-body {
+            text-align: center;
+        }
+        #roomUnavailableReasonConfirm .room-delete-confirm-icon {
+            display: none;
+        }
+        #roomUnavailableReasonConfirm .room-delete-confirm-title {
+            color: #07162d;
+            font-size: 30px;
+            font-weight: 900;
+        }
+        #roomUnavailableReasonConfirm .room-delete-confirm-copy {
+            color: #475569;
+            font-size: 17px;
+        }
+        #roomUnavailableReasonConfirm .room-unavailable-note-panel {
+            margin-top: 22px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 22px;
+            text-align: left;
+            background: #ffffff;
+        }
+        #roomUnavailableReasonConfirm .room-unavailable-note-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #00a651;
+            font-weight: 900;
+            font-size: 18px;
+        }
+        #roomUnavailableReasonConfirm .room-unavailable-note-head i {
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #dcfce7;
+            color: #00a651;
+        }
+        #roomUnavailableReasonConfirm .room-unavailable-note-panel p {
+            margin: 12px 0 16px;
+            color: #475569;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        #roomUnavailableReasonConfirm .room-unavailable-reason-field {
+            background: #ffffff;
+            border: 2px solid #00a651;
+            border-radius: 18px;
+        }
+        #roomUnavailableReasonConfirm .room-delete-confirm-actions {
+            border-top-color: #e5e7eb;
+            justify-content: center;
+            gap: 16px;
+        }
+        #roomUnavailableReasonConfirm .room-delete-confirm-btn-delete {
+            background: linear-gradient(180deg, #ff3150 0%, #d90429 100%);
+            border-color: #e11d48;
+            box-shadow: 0 10px 22px rgba(225, 29, 72, 0.22);
+        }
+        #roomUnavailableReasonConfirm .room-delete-confirm-btn-cancel {
+            border-color: #00a651;
+            color: #008f46;
+            background: #ffffff;
         }
         .room-empty {
             padding: 46px 20px;
@@ -2158,6 +2928,11 @@ function conference_admin_booking_status_text(string $status): string
             .room-table-card {
                 min-height: auto;
             }
+            .room-modal-panel,
+            .room-form-card,
+            .room-table-card {
+                max-height: calc(100vh - 220px);
+            }
             .room-modal-tabs,
             .room-form-actions {
                 flex-direction: column;
@@ -2169,6 +2944,16 @@ function conference_admin_booking_status_text(string $status): string
             }
             .room-form-grid {
                 grid-template-columns: 1fr;
+            }
+            .room-color-swatches {
+                gap: 8px;
+            }
+            .room-preview-grid {
+                grid-template-columns: 1fr;
+            }
+            .room-preview-board {
+                grid-template-columns: 78px repeat(3, minmax(120px, 1fr));
+                overflow-x: auto;
             }
             .room-page-btn,
             .room-submit-btn {
@@ -2187,7 +2972,7 @@ function conference_admin_booking_status_text(string $status): string
         <div class="conference-admin-header">
             <div class="conference-admin-title">
                 <h1>Conference Bookings</h1>
-                <p>Manage and monitor all room reservations in one place.</p>
+                <p>Manage and monitor all conference room reservations, schedules, and booking details in one organized place.</p>
             </div>
             <div class="conference-admin-actions">
                 <button type="button" class="conference-manage-btn" id="openManageRoomsModal">
@@ -2279,7 +3064,8 @@ function conference_admin_booking_status_text(string $status): string
                             <input type="search" id="bookingSearchInput" placeholder="Search email or room...">
                         </label>
                         <div class="conference-filter-actions">
-                            <label class="conference-date-filter" for="bookingDateFilter">
+                            <label class="conference-date-filter is-empty" for="bookingDateFilter">
+                                <span class="conference-date-placeholder">Date</span>
                                 <input type="date" id="bookingDateFilter" class="conference-date-input" aria-label="Filter bookings by date">
                             </label>
                             <div class="conference-filter-pill" data-filter-dropdown>
@@ -2539,22 +3325,26 @@ function conference_admin_booking_status_text(string $status): string
                         <div class="booking-edit-grid">
                             <div class="room-form-group">
                                 <label for="bookingEditRoomId">Room</label>
-                                <select id="bookingEditRoomId" name="room_id" class="room-input" required>
-                                    <option value="">Select a room</option>
-                                    <?php foreach ($allRooms as $roomOption): ?>
-                                        <?php
-                                            $roomOptionId = (int) ($roomOption['id'] ?? 0);
-                                            $roomOptionName = trim((string) ($roomOption['room_name'] ?? ''));
-                                            $roomOptionActive = (int) ($roomOption['is_active'] ?? 0) === 1;
-                                        ?>
-                                        <option
-                                            value="<?php echo $roomOptionId; ?>"
-                                            <?php echo ((int) ($bookingFormState['room_id'] ?? 0) === $roomOptionId) ? 'selected' : ''; ?>
-                                        >
-                                            <?php echo htmlspecialchars($roomOptionName . ($roomOptionActive ? '' : ' (Inactive)'), ENT_QUOTES, 'UTF-8'); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <div class="booking-edit-select-wrap">
+                                    <select id="bookingEditRoomId" name="room_id" class="room-input" required tabindex="-1">
+                                        <option value="">Select a room</option>
+                                        <?php foreach ($allRooms as $roomOption): ?>
+                                            <?php
+                                                $roomOptionId = (int) ($roomOption['id'] ?? 0);
+                                                $roomOptionName = trim((string) ($roomOption['room_name'] ?? ''));
+                                                $roomOptionActive = (int) ($roomOption['is_active'] ?? 0) === 1;
+                                            ?>
+                                            <option
+                                                value="<?php echo $roomOptionId; ?>"
+                                                <?php echo ((int) ($bookingFormState['room_id'] ?? 0) === $roomOptionId) ? 'selected' : ''; ?>
+                                            >
+                                                <?php echo htmlspecialchars($roomOptionName . ($roomOptionActive ? '' : ' (Inactive)'), ENT_QUOTES, 'UTF-8'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">Select a room</button>
+                                    <div class="booking-edit-select-menu" role="listbox"></div>
+                                </div>
                             </div>
                             <div class="room-form-group">
                                 <label for="bookingEditDate">Booking Date</label>
@@ -2564,27 +3354,36 @@ function conference_admin_booking_status_text(string $status): string
                                 <label>Start Time</label>
                                 <div class="time-group">
                                     <div class="select-wrapper">
-                                        <select id="bookingEditStartHour" name="start_hour" class="room-input" required>
-                                            <?php foreach ($hourOptions as $hour): ?>
-                                                <option value="<?php echo $hour; ?>" <?php echo (string) $hour === (string) ($bookingStartParts['hour'] ?? '') ? 'selected' : ''; ?>><?php echo $hour; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditStartHour" name="start_hour" class="room-input" required tabindex="-1">
+                                                <?php foreach ($hourOptions as $hour): ?>
+                                                    <option value="<?php echo $hour; ?>" <?php echo (string) $hour === (string) ($bookingStartParts['hour'] ?? '') ? 'selected' : ''; ?>><?php echo $hour; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">1</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                     <div class="select-wrapper">
-                                        <select id="bookingEditStartMinute" name="start_minute" class="room-input" required>
-                                            <?php foreach ($minuteOptions as $minute): ?>
-                                                <option value="<?php echo $minute; ?>" <?php echo (string) $minute === (string) ($bookingStartParts['minute'] ?? '') ? 'selected' : ''; ?>><?php echo $minute; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditStartMinute" name="start_minute" class="room-input" required tabindex="-1">
+                                                <?php foreach ($minuteOptions as $minute): ?>
+                                                    <option value="<?php echo $minute; ?>" <?php echo (string) $minute === (string) ($bookingStartParts['minute'] ?? '') ? 'selected' : ''; ?>><?php echo $minute; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">00</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                     <div class="select-wrapper">
-                                        <select id="bookingEditStartPeriod" name="start_period" class="room-input" required>
-                                            <option value="AM" <?php echo strtoupper((string) ($bookingStartParts['period'] ?? '')) === 'AM' ? 'selected' : ''; ?>>AM</option>
-                                            <option value="PM" <?php echo strtoupper((string) ($bookingStartParts['period'] ?? '')) === 'PM' ? 'selected' : ''; ?>>PM</option>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditStartPeriod" name="start_period" class="room-input" required tabindex="-1">
+                                                <option value="AM" <?php echo strtoupper((string) ($bookingStartParts['period'] ?? '')) === 'AM' ? 'selected' : ''; ?>>AM</option>
+                                                <option value="PM" <?php echo strtoupper((string) ($bookingStartParts['period'] ?? '')) === 'PM' ? 'selected' : ''; ?>>PM</option>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">AM</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -2592,27 +3391,36 @@ function conference_admin_booking_status_text(string $status): string
                                 <label>End Time</label>
                                 <div class="time-group">
                                     <div class="select-wrapper">
-                                        <select id="bookingEditEndHour" name="end_hour" class="room-input" required>
-                                            <?php foreach ($hourOptions as $hour): ?>
-                                                <option value="<?php echo $hour; ?>" <?php echo (string) $hour === (string) ($bookingEndParts['hour'] ?? '') ? 'selected' : ''; ?>><?php echo $hour; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditEndHour" name="end_hour" class="room-input" required tabindex="-1">
+                                                <?php foreach ($hourOptions as $hour): ?>
+                                                    <option value="<?php echo $hour; ?>" <?php echo (string) $hour === (string) ($bookingEndParts['hour'] ?? '') ? 'selected' : ''; ?>><?php echo $hour; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">1</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                     <div class="select-wrapper">
-                                        <select id="bookingEditEndMinute" name="end_minute" class="room-input" required>
-                                            <?php foreach ($minuteOptions as $minute): ?>
-                                                <option value="<?php echo $minute; ?>" <?php echo (string) $minute === (string) ($bookingEndParts['minute'] ?? '') ? 'selected' : ''; ?>><?php echo $minute; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditEndMinute" name="end_minute" class="room-input" required tabindex="-1">
+                                                <?php foreach ($minuteOptions as $minute): ?>
+                                                    <option value="<?php echo $minute; ?>" <?php echo (string) $minute === (string) ($bookingEndParts['minute'] ?? '') ? 'selected' : ''; ?>><?php echo $minute; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">00</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                     <div class="select-wrapper">
-                                        <select id="bookingEditEndPeriod" name="end_period" class="room-input" required>
-                                            <option value="AM" <?php echo strtoupper((string) ($bookingEndParts['period'] ?? '')) === 'AM' ? 'selected' : ''; ?>>AM</option>
-                                            <option value="PM" <?php echo strtoupper((string) ($bookingEndParts['period'] ?? '')) === 'PM' ? 'selected' : ''; ?>>PM</option>
-                                        </select>
-                                        <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                        <div class="booking-edit-select-wrap">
+                                            <select id="bookingEditEndPeriod" name="end_period" class="room-input" required tabindex="-1">
+                                                <option value="AM" <?php echo strtoupper((string) ($bookingEndParts['period'] ?? '')) === 'AM' ? 'selected' : ''; ?>>AM</option>
+                                                <option value="PM" <?php echo strtoupper((string) ($bookingEndParts['period'] ?? '')) === 'PM' ? 'selected' : ''; ?>>PM</option>
+                                            </select>
+                                            <button type="button" class="booking-edit-select-trigger" aria-haspopup="listbox" aria-expanded="false">AM</button>
+                                            <div class="booking-edit-select-menu" role="listbox"></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -2642,7 +3450,7 @@ function conference_admin_booking_status_text(string $status): string
         <div class="room-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="roomModalTitle">
             <div class="room-modal-header">
                 <div class="room-modal-copy">
-                    <h2 id="roomModalTitle">Manage Conference Rooms</h2>
+                    <h2 id="roomModalTitle"><i class="fas fa-building" aria-hidden="true"></i><span>Manage Conference Rooms</span></h2>
                     <p>Add new conference rooms and update room details without leaving the conference bookings page.</p>
                 </div>
                 <button type="button" class="room-modal-close" data-room-modal-close aria-label="Close manage rooms modal">
@@ -2669,7 +3477,8 @@ function conference_admin_booking_status_text(string $status): string
                         aria-selected="<?php echo $openRoomModalView === 'form' ? 'true' : 'false'; ?>"
                         aria-controls="roomFormPanel"
                     >
-                        Add Room
+                        <i class="far fa-square-plus" aria-hidden="true"></i>
+                        <span>Add Room</span>
                     </button>
                     <button
                         type="button"
@@ -2680,7 +3489,8 @@ function conference_admin_booking_status_text(string $status): string
                         aria-selected="<?php echo $openRoomModalView === 'list' ? 'true' : 'false'; ?>"
                         aria-controls="roomListPanel"
                     >
-                        Conference Rooms
+                        <i class="fas fa-door-closed" aria-hidden="true"></i>
+                        <span>Conference Rooms</span>
                     </button>
                 </div>
 
@@ -2698,11 +3508,119 @@ function conference_admin_booking_status_text(string $status): string
                         <div class="room-form-grid">
                             <div class="room-form-group">
                                 <label for="roomFormName">Room Name</label>
-                                <input type="text" id="roomFormName" name="room_name" class="room-input" value="<?php echo htmlspecialchars((string) ($roomFormState['room_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" required>
+                                <input type="text" id="roomFormName" name="room_name" class="room-input" placeholder="Enter room name" value="<?php echo htmlspecialchars((string) ($roomFormState['room_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" required>
                             </div>
                             <div class="room-form-group room-form-group-description">
-                                <label for="roomFormDescription">Description</label>
-                                <textarea id="roomFormDescription" name="description" class="room-textarea" placeholder="Optional details about the room"><?php echo htmlspecialchars((string) ($roomFormState['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                <label for="roomFormDescription">Description <span class="room-label-muted">(Optional)</span></label>
+                                <input type="text" id="roomFormDescription" name="description" class="room-input" placeholder="Add optional details about the room" value="<?php echo htmlspecialchars((string) ($roomFormState['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            </div>
+
+                            <div class="room-color-panel">
+                                <div class="room-color-heading">
+                                    <h3>Room Color</h3>
+                                    <p>Choose a light color preview for how this room can appear in the booking table and legend.</p>
+                                </div>
+                                <div class="room-color-swatches" id="roomColorSwatches" aria-label="Room color preview choices">
+                                    <label class="room-color-swatch" style="--swatch-color: #b7edc3;">
+                                        <input type="radio" name="room_color_preview" value="green" data-preview-color="#b7edc3" data-preview-soft="#ecfdf3" data-preview-text="#166534" <?php echo (string) ($roomFormState['room_color'] ?? 'green') === 'green' ? 'checked' : ''; ?>>
+                                        <span class="room-color-swatch-check"><i class="fas fa-check"></i></span>
+                                        <span class="room-color-swatch-dot"></span>
+                                        <span class="room-color-swatch-label">Green</span>
+                                    </label>
+                                    <label class="room-color-swatch" style="--swatch-color: #9ecbf3;">
+                                        <input type="radio" name="room_color_preview" value="blue" data-preview-color="#9ecbf3" data-preview-soft="#ebf6ff" data-preview-text="#173f66" <?php echo (string) ($roomFormState['room_color'] ?? 'green') === 'blue' ? 'checked' : ''; ?>>
+                                        <span class="room-color-swatch-check"><i class="fas fa-check"></i></span>
+                                        <span class="room-color-swatch-dot"></span>
+                                        <span class="room-color-swatch-label">Blue</span>
+                                    </label>
+                                    <label class="room-color-swatch" style="--swatch-color: #fff7a8;">
+                                        <input type="radio" name="room_color_preview" value="yellow" data-preview-color="#fff7a8" data-preview-soft="#fffde7" data-preview-text="#5f4b00" <?php echo (string) ($roomFormState['room_color'] ?? 'green') === 'yellow' ? 'checked' : ''; ?>>
+                                        <span class="room-color-swatch-check"><i class="fas fa-check"></i></span>
+                                        <span class="room-color-swatch-dot"></span>
+                                        <span class="room-color-swatch-label">Yellow</span>
+                                    </label>
+                                    <label class="room-color-swatch" style="--swatch-color: #fda4af;">
+                                        <input type="radio" name="room_color_preview" value="pink" data-preview-color="#fda4af" data-preview-soft="#fff1f2" data-preview-text="#9f1239" <?php echo (string) ($roomFormState['room_color'] ?? 'green') === 'pink' ? 'checked' : ''; ?>>
+                                        <span class="room-color-swatch-check"><i class="fas fa-check"></i></span>
+                                        <span class="room-color-swatch-dot"></span>
+                                        <span class="room-color-swatch-label">Pink</span>
+                                    </label>
+                                    <label class="room-color-swatch" style="--swatch-color: #f87171;">
+                                        <input type="radio" name="room_color_preview" value="red" data-preview-color="#f87171" data-preview-soft="#fef2f2" data-preview-text="#7f1d1d" <?php echo (string) ($roomFormState['room_color'] ?? 'green') === 'red' ? 'checked' : ''; ?>>
+                                        <span class="room-color-swatch-check"><i class="fas fa-check"></i></span>
+                                        <span class="room-color-swatch-dot"></span>
+                                        <span class="room-color-swatch-label">Red</span>
+                                    </label>
+                                    <label class="room-color-swatch" style="--swatch-color: #c4b5fd;">
+                                        <input type="radio" name="room_color_preview" value="purple" data-preview-color="#c4b5fd" data-preview-soft="#f5f3ff" data-preview-text="#5b21b6" <?php echo (string) ($roomFormState['room_color'] ?? 'green') === 'purple' ? 'checked' : ''; ?>>
+                                        <span class="room-color-swatch-check"><i class="fas fa-check"></i></span>
+                                        <span class="room-color-swatch-dot"></span>
+                                        <span class="room-color-swatch-label">Purple</span>
+                                    </label>
+                                    <label class="room-color-swatch" style="--swatch-color: #fdba74;">
+                                        <input type="radio" name="room_color_preview" value="orange" data-preview-color="#fdba74" data-preview-soft="#fff7ed" data-preview-text="#9a3412" <?php echo (string) ($roomFormState['room_color'] ?? 'green') === 'orange' ? 'checked' : ''; ?>>
+                                        <span class="room-color-swatch-check"><i class="fas fa-check"></i></span>
+                                        <span class="room-color-swatch-dot"></span>
+                                        <span class="room-color-swatch-label">Orange</span>
+                                    </label>
+                                    <label class="room-color-swatch" style="--swatch-color: #d1d5db;">
+                                        <input type="radio" name="room_color_preview" value="gray" data-preview-color="#d1d5db" data-preview-soft="#f8fafc" data-preview-text="#374151" <?php echo (string) ($roomFormState['room_color'] ?? 'green') === 'gray' ? 'checked' : ''; ?>>
+                                        <span class="room-color-swatch-check"><i class="fas fa-check"></i></span>
+                                        <span class="room-color-swatch-dot"></span>
+                                        <span class="room-color-swatch-label">Gray</span>
+                                    </label>
+                                    <span class="room-color-custom-divider" aria-hidden="true"></span>
+                                    <?php
+                                        $roomFormColorValue = (string) ($roomFormState['room_color'] ?? 'green');
+                                        $roomFormCustomColor = conference_room_is_custom_color($roomFormColorValue) ? $roomFormColorValue : '#b7edc3';
+                                        $roomFormIsCustomColor = conference_room_is_custom_color($roomFormColorValue);
+                                    ?>
+                                    <label class="room-color-custom" for="roomCustomColorInput">
+                                        <input
+                                            type="radio"
+                                            name="room_color_preview"
+                                            value="<?php echo htmlspecialchars($roomFormCustomColor, ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-preview-color="<?php echo htmlspecialchars($roomFormCustomColor, ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-preview-soft="<?php echo htmlspecialchars($roomFormCustomColor, ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-preview-text="<?php echo htmlspecialchars(conference_room_text_color_for_hex($roomFormCustomColor), ENT_QUOTES, 'UTF-8'); ?>"
+                                            <?php echo $roomFormIsCustomColor ? 'checked' : ''; ?>
+                                        >
+                                        <input type="color" id="roomCustomColorInput" value="<?php echo htmlspecialchars($roomFormCustomColor, ENT_QUOTES, 'UTF-8'); ?>" aria-label="Choose custom room color">
+                                        <i class="fas fa-link" aria-hidden="true"></i>
+                                        <span>Custom Color</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="room-preview-panel" id="roomColorPreview" style="--room-preview-color: #b7edc3; --room-preview-soft: #ecfdf3; --room-preview-text: #166534;">
+                                <div class="room-preview-title">
+                                    <h3>How this color will appear</h3>
+                                    <p>This is a compact preview of the selected color in the booking table and legend.</p>
+                                </div>
+                                <div class="room-preview-grid">
+                                    <div class="room-preview-card">
+                                        <div class="room-preview-card-head">Booking Table Preview</div>
+                                        <div class="room-preview-board">
+                                            <div class="room-preview-time">Time<br>30-minute<br>Rows</div>
+                                            <div class="room-preview-day">Mon 22 Jun 2026</div>
+                                            <div class="room-preview-day">Tue 23 Jun 2026</div>
+                                            <div class="room-preview-day">Wed 24 Jun 2026</div>
+                                            <div class="room-preview-time">7:00 AM</div>
+                                            <div class="room-preview-cell"><strong data-room-preview-name>New Room</strong><span>Open for booking</span></div>
+                                            <div class="room-preview-cell"><strong data-room-preview-name>New Room</strong><span>Open for booking</span></div>
+                                            <div class="room-preview-cell"><strong data-room-preview-name>New Room</strong><span>Open for booking</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="room-preview-card">
+                                        <div class="room-preview-card-head">Legend Preview</div>
+                                        <div class="room-preview-legend">
+                                            <div class="room-preview-legend-row"><span class="room-preview-legend-dot"></span><span data-room-preview-name>New Room</span></div>
+                                            <div class="room-preview-legend-row"><span class="room-preview-legend-dot" style="background:#b7edc3;"></span><span>Caltex</span></div>
+                                            <div class="room-preview-legend-row"><span class="room-preview-legend-dot" style="background:#fff7a8;"></span><span>GPSCI</span></div>
+                                            <div class="room-preview-legend-row"><span class="room-preview-legend-dot" style="background:#9ecbf3;"></span><span>MPDC</span></div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -2810,6 +3728,7 @@ function conference_admin_booking_status_text(string $status): string
                                                         data-room-description="<?php echo htmlspecialchars((string) ($room['description'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                                                         data-room-active="<?php echo (int) ($room['is_active'] ?? 0); ?>"
                                                         data-room-saturday-enabled="<?php echo (int) ($room['saturday_enabled'] ?? 0); ?>"
+                                                        data-room-color="<?php echo htmlspecialchars(conference_room_normalize_color((string) ($room['room_color'] ?? 'green')), ENT_QUOTES, 'UTF-8'); ?>"
                                                     >
                                                         <i class="fas fa-pen-to-square"></i>
                                                         <span>Edit</span>
@@ -2858,11 +3777,21 @@ function conference_admin_booking_status_text(string $status): string
             </div>
             <div class="room-delete-confirm" id="roomUnavailableReasonConfirm" aria-hidden="true">
                 <div class="room-delete-confirm-card" role="dialog" aria-modal="true" aria-labelledby="roomUnavailableReasonTitle">
+                    <button type="button" class="room-delete-confirm-close" id="roomUnavailableReasonClose" aria-label="Close turn off room dialog">
+                        <i class="fas fa-xmark"></i>
+                    </button>
                     <div class="room-delete-confirm-body">
                         <div class="room-delete-confirm-icon" aria-hidden="true"><i class="fas fa-note-sticky"></i></div>
                         <h3 class="room-delete-confirm-title" id="roomUnavailableReasonTitle">Turn room off?</h3>
                         <p class="room-delete-confirm-copy" id="roomUnavailableReasonCopy">Add a note explaining why this room will be unavailable for booking.</p>
-                        <textarea id="roomUnavailableReasonInput" class="room-unavailable-reason-field" placeholder="Enter reason..." required></textarea>
+                        <div class="room-unavailable-note-panel">
+                            <div class="room-unavailable-note-head">
+                                <i class="far fa-message" aria-hidden="true"></i>
+                                <span>Add a note (required)</span>
+                            </div>
+                            <p>Let your colleagues know why this room is being turned off.</p>
+                            <textarea id="roomUnavailableReasonInput" class="room-unavailable-reason-field" placeholder="Enter reason..." required></textarea>
+                        </div>
                     </div>
                     <div class="room-delete-confirm-actions">
                         <button type="button" class="room-delete-confirm-btn room-delete-confirm-btn-delete" id="roomUnavailableReasonSubmit">Turn Off Room</button>
@@ -2899,6 +3828,10 @@ function conference_admin_booking_status_text(string $status): string
             const roomFormTitle = document.getElementById('roomFormTitle');
             const roomFormHelp = document.getElementById('roomFormHelp');
             const roomFormSubmitText = document.getElementById('roomFormSubmitText');
+            const roomColorPreview = document.getElementById('roomColorPreview');
+            const roomColorInputs = document.querySelectorAll('input[name="room_color_preview"]');
+            const roomCustomColorInput = document.getElementById('roomCustomColorInput');
+            const roomPreviewNames = document.querySelectorAll('[data-room-preview-name]');
             const bookingEditBookingId = document.getElementById('bookingEditBookingId');
             const bookingEditRoomId = document.getElementById('bookingEditRoomId');
             const bookingEditDate = document.getElementById('bookingEditDate');
@@ -2919,6 +3852,7 @@ function conference_admin_booking_status_text(string $status): string
             const unavailableReasonInput = document.getElementById('roomUnavailableReasonInput');
             const unavailableReasonSubmit = document.getElementById('roomUnavailableReasonSubmit');
             const unavailableReasonCancel = document.getElementById('roomUnavailableReasonCancel');
+            const unavailableReasonClose = document.getElementById('roomUnavailableReasonClose');
             const bookingDeleteConfirm = document.getElementById('bookingDeleteConfirm');
             const bookingDeleteConfirmTitle = document.getElementById('bookingDeleteConfirmTitle');
             const bookingDeleteConfirmBookingId = document.getElementById('bookingDeleteConfirmBookingId');
@@ -2939,12 +3873,21 @@ function conference_admin_booking_status_text(string $status): string
             const bookingsPerPage = 5;
             let currentBookingPage = 1;
             let pendingUnavailableForm = null;
+
+            function syncBookingDatePlaceholder() {
+                if (!bookingDateFilter) return;
+                const dateWrap = bookingDateFilter.closest('.conference-date-filter');
+                if (dateWrap) {
+                    dateWrap.classList.toggle('is-empty', String(bookingDateFilter.value || '').trim() === '');
+                }
+            }
             const roomFormDefaults = <?php echo json_encode([
                 'mode' => $roomFormMode,
                 'room_id' => (int) ($roomFormState['room_id'] ?? 0),
                 'room_name' => (string) ($roomFormState['room_name'] ?? ''),
                 'description' => (string) ($roomFormState['description'] ?? ''),
                 'is_active' => (int) ($roomFormState['is_active'] ?? 1),
+                'room_color' => (string) ($roomFormState['room_color'] ?? 'green'),
             ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
             const roomModalDefaultView = <?php echo json_encode($openRoomModalView, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
             const bookingFormDefaults = <?php echo json_encode([
@@ -2964,8 +3907,118 @@ function conference_admin_booking_status_text(string $status): string
             const shouldOpenModal = <?php echo $openRoomModal ? 'true' : 'false'; ?>;
             const shouldOpenBookingEditModal = <?php echo $openBookingEditModal ? 'true' : 'false'; ?>;
 
-            if (!modal || !bookingEditModal || !roomFormAction || !roomFormRoomId || !roomFormName || !roomFormDescription || !roomFormActiveValue || !roomFormTitle || !roomFormHelp || !roomFormSubmitText || !cancelEditButton || !bookingEditBookingId || !bookingEditRoomId || !bookingEditDate || !bookingEditStartHour || !bookingEditStartMinute || !bookingEditStartPeriod || !bookingEditEndHour || !bookingEditEndMinute || !bookingEditEndPeriod || !bookingEditPurpose || !deleteConfirm || !deleteConfirmRoomId || !deleteConfirmCopy || !deleteConfirmCancel || !unavailableReasonConfirm || !unavailableReasonTitle || !unavailableReasonCopy || !unavailableReasonInput || !unavailableReasonSubmit || !unavailableReasonCancel || !bookingDeleteConfirm || !bookingDeleteConfirmTitle || !bookingDeleteConfirmBookingId || !bookingDeleteConfirmAction || !bookingDeleteConfirmCopy || !bookingDeleteConfirmSubmit || !bookingDeleteConfirmCancel) {
+            if (!modal || !bookingEditModal || !roomFormAction || !roomFormRoomId || !roomFormName || !roomFormDescription || !roomFormActiveValue || !roomFormTitle || !roomFormHelp || !roomFormSubmitText || !roomColorPreview || !cancelEditButton || !bookingEditBookingId || !bookingEditRoomId || !bookingEditDate || !bookingEditStartHour || !bookingEditStartMinute || !bookingEditStartPeriod || !bookingEditEndHour || !bookingEditEndMinute || !bookingEditEndPeriod || !bookingEditPurpose || !deleteConfirm || !deleteConfirmRoomId || !deleteConfirmCopy || !deleteConfirmCancel || !unavailableReasonConfirm || !unavailableReasonTitle || !unavailableReasonCopy || !unavailableReasonInput || !unavailableReasonSubmit || !unavailableReasonCancel || !unavailableReasonClose || !bookingDeleteConfirm || !bookingDeleteConfirmTitle || !bookingDeleteConfirmBookingId || !bookingDeleteConfirmAction || !bookingDeleteConfirmCopy || !bookingDeleteConfirmSubmit || !bookingDeleteConfirmCancel) {
                 return;
+            }
+
+            function escapeBookingSelectText(value) {
+                return String(value || '').replace(/[&<>"']/g, function (char) {
+                    return {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#039;'
+                    }[char];
+                });
+            }
+
+            function closeBookingEditSelects(exceptWrap) {
+                document.querySelectorAll('.booking-edit-select-wrap.is-open').forEach(function (wrap) {
+                    if (exceptWrap && wrap === exceptWrap) {
+                        return;
+                    }
+                    wrap.classList.remove('is-open');
+                    const trigger = wrap.querySelector('.booking-edit-select-trigger');
+                    if (trigger) {
+                        trigger.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            }
+
+            function refreshBookingEditSelect(selectEl) {
+                if (!selectEl) {
+                    return;
+                }
+
+                const wrap = selectEl.closest('.booking-edit-select-wrap');
+                if (!wrap) {
+                    return;
+                }
+
+                const trigger = wrap.querySelector('.booking-edit-select-trigger');
+                const menu = wrap.querySelector('.booking-edit-select-menu');
+                const selectedOption = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
+
+                if (trigger && selectedOption) {
+                    trigger.textContent = selectedOption.textContent.trim();
+                }
+
+                if (!menu) {
+                    return;
+                }
+
+                menu.innerHTML = Array.from(selectEl.options).map(function (option, index) {
+                    const optionText = option.textContent.trim();
+                    const isSelected = index === selectEl.selectedIndex;
+                    return '<button type="button" class="booking-edit-select-option' + (isSelected ? ' is-selected' : '') + '" role="option" data-index="' + index + '" aria-selected="' + (isSelected ? 'true' : 'false') + '">' + escapeBookingSelectText(optionText) + '</button>';
+                }).join('');
+            }
+
+            function refreshBookingEditSelects() {
+                [
+                    bookingEditRoomId,
+                    bookingEditStartHour,
+                    bookingEditStartMinute,
+                    bookingEditStartPeriod,
+                    bookingEditEndHour,
+                    bookingEditEndMinute,
+                    bookingEditEndPeriod
+                ].forEach(refreshBookingEditSelect);
+            }
+
+            function initBookingEditSelect(selectEl) {
+                const wrap = selectEl.closest('.booking-edit-select-wrap');
+                if (!wrap) {
+                    return;
+                }
+
+                const trigger = wrap.querySelector('.booking-edit-select-trigger');
+                const menu = wrap.querySelector('.booking-edit-select-menu');
+                if (!trigger || !menu) {
+                    return;
+                }
+
+                refreshBookingEditSelect(selectEl);
+
+                trigger.addEventListener('click', function (event) {
+                    event.stopPropagation();
+                    const shouldOpen = !wrap.classList.contains('is-open');
+                    closeBookingEditSelects(shouldOpen ? wrap : null);
+                    wrap.classList.toggle('is-open', shouldOpen);
+                    trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+                });
+
+                menu.addEventListener('click', function (event) {
+                    const optionButton = event.target.closest('.booking-edit-select-option');
+                    if (!optionButton) {
+                        return;
+                    }
+
+                    const optionIndex = Number(optionButton.getAttribute('data-index'));
+                    if (Number.isNaN(optionIndex) || !selectEl.options[optionIndex]) {
+                        return;
+                    }
+
+                    selectEl.selectedIndex = optionIndex;
+                    refreshBookingEditSelect(selectEl);
+                    closeBookingEditSelects();
+                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+
+                selectEl.addEventListener('change', function () {
+                    refreshBookingEditSelect(selectEl);
+                });
             }
 
             function syncBodyModalState() {
@@ -2975,6 +4028,15 @@ function conference_admin_booking_status_text(string $status): string
                     deleteConfirm.classList.contains('is-open') ||
                     unavailableReasonConfirm.classList.contains('is-open') ||
                     bookingDeleteConfirm.classList.contains('is-open');
+                if (hasOpenOverlay) {
+                    const currentCompensation = document.body.style.getPropertyValue('--modal-scrollbar-compensation');
+                    const scrollbarWidth = currentCompensation
+                        ? parseInt(currentCompensation, 10)
+                        : Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+                    document.body.style.setProperty('--modal-scrollbar-compensation', scrollbarWidth + 'px');
+                } else {
+                    document.body.style.removeProperty('--modal-scrollbar-compensation');
+                }
                 document.body.classList.toggle('room-modal-active', hasOpenOverlay);
             }
 
@@ -3015,6 +4077,7 @@ function conference_admin_booking_status_text(string $status): string
             }
 
             function closeBookingEditDialog() {
+                closeBookingEditSelects();
                 bookingEditModal.classList.remove('is-open');
                 bookingEditModal.setAttribute('aria-hidden', 'true');
                 syncBodyModalState();
@@ -3031,6 +4094,7 @@ function conference_admin_booking_status_text(string $status): string
                 bookingEditEndMinute.value = String(data.end_minute || '');
                 bookingEditEndPeriod.value = String(data.end_period || 'AM').toUpperCase();
                 bookingEditPurpose.value = String(data.purpose || '');
+                refreshBookingEditSelects();
             }
 
             function openBookingActionConfirm(mode, bookingId, roomName, bookingDate, bookingTime) {
@@ -3127,6 +4191,88 @@ function conference_admin_booking_status_text(string $status): string
                 });
             }
 
+            function syncRoomPreview() {
+                const selectedColor = document.querySelector('input[name="room_color_preview"]:checked');
+                const roomName = roomFormName.value.trim() || 'New Room';
+
+                roomColorInputs.forEach(function (input) {
+                    const swatch = input.closest('.room-color-swatch');
+                    if (swatch) {
+                        swatch.classList.toggle('is-selected', input === selectedColor);
+                    }
+                });
+                const customWrap = roomCustomColorInput ? roomCustomColorInput.closest('.room-color-custom') : null;
+                const customRadio = customWrap ? customWrap.querySelector('input[name="room_color_preview"]') : null;
+                if (customWrap && customRadio) {
+                    customWrap.classList.toggle('is-selected', customRadio === selectedColor);
+                }
+
+                roomPreviewNames.forEach(function (node) {
+                    node.textContent = roomName;
+                });
+
+                if (!selectedColor) {
+                    return;
+                }
+
+                roomColorPreview.style.setProperty('--room-preview-color', selectedColor.getAttribute('data-preview-color') || '#b7edc3');
+                roomColorPreview.style.setProperty('--room-preview-soft', selectedColor.getAttribute('data-preview-soft') || '#ecfdf3');
+                roomColorPreview.style.setProperty('--room-preview-text', selectedColor.getAttribute('data-preview-text') || '#166534');
+            }
+
+            function textColorForHex(hexColor) {
+                const hex = String(hexColor || '').replace('#', '');
+                if (!/^[0-9a-fA-F]{6}$/.test(hex)) {
+                    return '#166534';
+                }
+
+                const red = parseInt(hex.slice(0, 2), 16);
+                const green = parseInt(hex.slice(2, 4), 16);
+                const blue = parseInt(hex.slice(4, 6), 16);
+                const luminance = ((red * 299) + (green * 587) + (blue * 114)) / 1000;
+                return luminance >= 150 ? '#0f172a' : '#ffffff';
+            }
+
+            function updateCustomColorValue(hexColor, selectCustom) {
+                if (!roomCustomColorInput) {
+                    return;
+                }
+
+                const cleanColor = /^#[0-9a-fA-F]{6}$/.test(String(hexColor || '')) ? String(hexColor).toLowerCase() : '#b7edc3';
+                const customRadio = roomCustomColorInput.closest('.room-color-custom') ? roomCustomColorInput.closest('.room-color-custom').querySelector('input[name="room_color_preview"]') : null;
+                roomCustomColorInput.value = cleanColor;
+
+                if (customRadio) {
+                    customRadio.value = cleanColor;
+                    customRadio.setAttribute('data-preview-color', cleanColor);
+                    customRadio.setAttribute('data-preview-soft', cleanColor);
+                    customRadio.setAttribute('data-preview-text', textColorForHex(cleanColor));
+                    if (selectCustom) {
+                        customRadio.checked = true;
+                    }
+                }
+            }
+
+            function setRoomColorSelection(colorName) {
+                const normalizedColor = String(colorName || 'green').trim().toLowerCase();
+                if (/^#[0-9a-f]{6}$/.test(normalizedColor)) {
+                    updateCustomColorValue(normalizedColor, true);
+                    syncRoomPreview();
+                    return;
+                }
+
+                const selectedInput = Array.from(roomColorInputs).find(function (input) {
+                    return input.value === normalizedColor;
+                }) || Array.from(roomColorInputs).find(function (input) {
+                    return input.value === 'green';
+                });
+
+                if (selectedInput) {
+                    selectedInput.checked = true;
+                }
+                syncRoomPreview();
+            }
+
             function setAddMode(preserveValues) {
                 roomFormAction.value = 'add_conference_room';
                 roomFormRoomId.value = '';
@@ -3139,7 +4285,10 @@ function conference_admin_booking_status_text(string $status): string
                     roomFormName.value = '';
                     roomFormDescription.value = '';
                     roomFormActiveValue.value = '1';
+                    setRoomColorSelection('green');
                 }
+
+                syncRoomPreview();
             }
 
             function setEditMode(data) {
@@ -3152,6 +4301,8 @@ function conference_admin_booking_status_text(string $status): string
                 roomFormName.value = String(data.room_name || '');
                 roomFormDescription.value = String(data.description || '');
                 roomFormActiveValue.value = String(String(data.is_active || '0') === '1' || Number(data.is_active || 0) === 1 ? '1' : '0');
+                setRoomColorSelection(data.room_color || 'green');
+                syncRoomPreview();
             }
 
             function closeFilterDropdowns(exceptDropdown) {
@@ -3191,6 +4342,122 @@ function conference_admin_booking_status_text(string $status): string
                 dropdown.querySelectorAll('.conference-filter-option').forEach(function (optionButton) {
                     optionButton.classList.toggle('is-active', optionButton.getAttribute('data-filter-value') === select.value);
                 });
+            }
+
+            function showRoomModalFlash(message, isError) {
+                const body = modal.querySelector('.room-modal-body');
+                const tabs = modal.querySelector('.room-modal-tabs');
+                if (!body || !tabs || !message) {
+                    return;
+                }
+                let alert = body.querySelector('.room-alert[data-dynamic-room-alert="1"]');
+                if (!alert) {
+                    alert = document.createElement('div');
+                    alert.setAttribute('data-dynamic-room-alert', '1');
+                    body.insertBefore(alert, tabs);
+                }
+                alert.className = 'room-alert ' + (isError ? 'room-alert-error' : 'room-alert-success');
+                alert.textContent = message;
+            }
+
+            function setToggleFormUpdating(form, updating) {
+                const button = form.querySelector('.room-status-toggle-button');
+                if (!button) {
+                    return;
+                }
+                button.classList.toggle('is-updating', updating);
+                button.disabled = updating;
+            }
+
+            function setUnavailableReasonNote(form, reason) {
+                const wrap = form.querySelector('.room-status-toggle-wrap');
+                if (!wrap) {
+                    return;
+                }
+                let note = wrap.querySelector('.room-unavailable-note');
+                const cleanReason = String(reason || '').trim();
+                if (cleanReason === '') {
+                    if (note) {
+                        note.remove();
+                    }
+                    return;
+                }
+                if (!note) {
+                    note = document.createElement('div');
+                    note.className = 'room-unavailable-note';
+                    wrap.appendChild(note);
+                }
+                note.textContent = 'Reason: ' + cleanReason;
+            }
+
+            function applyToggleResponse(form, data) {
+                const actionInput = form.querySelector('input[name="action"]');
+                const button = form.querySelector('.room-status-toggle-button');
+                const text = form.querySelector('.room-status-toggle-text');
+                if (!actionInput || !button || !text || !data) {
+                    return;
+                }
+
+                if (actionInput.value === 'toggle_conference_room_status') {
+                    const activeInput = form.querySelector('input[name="is_active"]');
+                    const reasonInput = form.querySelector('input[name="unavailable_reason"]');
+                    const isActive = Number(data.is_active || 0) === 1;
+                    button.classList.toggle('is-active', isActive);
+                    button.setAttribute('aria-label', isActive ? 'Mark room as unavailable for booking' : 'Mark room as available for booking');
+                    button.setAttribute('title', isActive ? 'Set as unavailable for booking' : 'Set as available for booking');
+                    if (activeInput) {
+                        activeInput.value = String(data.next_is_active ?? (isActive ? 0 : 1));
+                    }
+                    if (reasonInput) {
+                        reasonInput.value = isActive ? '' : String(data.unavailable_reason || '');
+                    }
+                    text.textContent = data.status_text || (isActive ? 'Available for booking' : 'Unavailable for booking');
+                    setUnavailableReasonNote(form, isActive ? '' : (data.unavailable_reason || ''));
+                    return;
+                }
+
+                if (actionInput.value === 'toggle_conference_room_saturday') {
+                    const saturdayInput = form.querySelector('input[name="saturday_enabled"]');
+                    const saturdayEnabled = Number(data.saturday_enabled || 0) === 1;
+                    button.classList.toggle('is-active', saturdayEnabled);
+                    button.setAttribute('aria-label', saturdayEnabled ? 'Disable Saturday booking for this room' : 'Enable Saturday booking for this room');
+                    button.setAttribute('title', saturdayEnabled ? 'Disable Saturday booking' : 'Enable Saturday booking');
+                    if (saturdayInput) {
+                        saturdayInput.value = String(data.next_saturday_enabled ?? (saturdayEnabled ? 0 : 1));
+                    }
+                    text.textContent = data.status_text || (saturdayEnabled ? 'Saturday Enabled' : 'Saturday Disabled');
+                }
+            }
+
+            function submitToggleForm(form) {
+                setToggleFormUpdating(form, true);
+                fetch('conference_bookings.php', {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(function (response) {
+                        return response.json().catch(function () {
+                            return {};
+                        }).then(function (data) {
+                            if (!response.ok || !data.ok) {
+                                throw new Error(data.message || 'Unable to update the room right now.');
+                            }
+                            return data;
+                        });
+                    })
+                    .then(function (data) {
+                        applyToggleResponse(form, data);
+                    })
+                    .catch(function (error) {
+                        showRoomModalFlash(error.message || 'Unable to update the room right now.', true);
+                    })
+                    .finally(function () {
+                        setToggleFormUpdating(form, false);
+                    });
             }
 
             function renderBookingPagination(filteredRows) {
@@ -3366,6 +4633,33 @@ function conference_admin_booking_status_text(string $status): string
                 });
             }
 
+            roomFormName.addEventListener('input', syncRoomPreview);
+            roomColorInputs.forEach(function (input) {
+                input.addEventListener('change', syncRoomPreview);
+            });
+            if (roomCustomColorInput) {
+                const customColorWrap = roomCustomColorInput.closest('.room-color-custom');
+                const customColorRadio = customColorWrap ? customColorWrap.querySelector('input[name="room_color_preview"]') : null;
+                customColorWrap && customColorWrap.addEventListener('click', function () {
+                    updateCustomColorValue(roomCustomColorInput.value, true);
+                    syncRoomPreview();
+                    if (typeof roomCustomColorInput.showPicker === 'function') {
+                        roomCustomColorInput.showPicker();
+                    }
+                });
+                roomCustomColorInput.addEventListener('input', function () {
+                    updateCustomColorValue(roomCustomColorInput.value, true);
+                    syncRoomPreview();
+                });
+                if (customColorRadio) {
+                    customColorRadio.addEventListener('change', function () {
+                        updateCustomColorValue(roomCustomColorInput.value, true);
+                        syncRoomPreview();
+                    });
+                }
+            }
+            syncRoomPreview();
+
             roomTabButtons.forEach(function (button) {
                 button.addEventListener('click', function () {
                     const targetView = button.getAttribute('data-room-tab') || 'form';
@@ -3384,7 +4678,8 @@ function conference_admin_booking_status_text(string $status): string
                         room_id: button.getAttribute('data-room-id') || '',
                         room_name: button.getAttribute('data-room-name') || '',
                         description: button.getAttribute('data-room-description') || '',
-                        is_active: button.getAttribute('data-room-active') || '0'
+                        is_active: button.getAttribute('data-room-active') || '0',
+                        room_color: button.getAttribute('data-room-color') || 'green'
                     });
                     setRoomModalTab('form');
                     openModal();
@@ -3464,16 +4759,20 @@ function conference_admin_booking_status_text(string $status): string
                     const actionInput = form.querySelector('input[name="action"]');
                     const activeInput = form.querySelector('input[name="is_active"]');
                     const reasonInput = form.querySelector('input[name="unavailable_reason"]');
-                    if (!actionInput || actionInput.value !== 'toggle_conference_room_status' || !activeInput) {
+                    if (!actionInput || (actionInput.value !== 'toggle_conference_room_status' && actionInput.value !== 'toggle_conference_room_saturday')) {
                         return;
                     }
 
-                    if (String(activeInput.value || '') === '0' && reasonInput && reasonInput.value.trim() === '') {
+                    event.preventDefault();
+
+                    if (actionInput.value === 'toggle_conference_room_status' && activeInput && String(activeInput.value || '') === '0' && reasonInput && reasonInput.value.trim() === '') {
                         const toggleButton = form.querySelector('[data-room-status-toggle]');
                         const roomName = toggleButton ? String(toggleButton.getAttribute('data-room-name') || '').trim() : '';
-                        event.preventDefault();
                         openUnavailableReasonConfirm(form, roomName);
+                        return;
                     }
+
+                    submitToggleForm(form);
                 });
             });
 
@@ -3497,10 +4796,11 @@ function conference_admin_booking_status_text(string $status): string
                 unavailableReasonConfirm.classList.remove('is-open');
                 unavailableReasonConfirm.setAttribute('aria-hidden', 'true');
                 syncBodyModalState();
-                formToSubmit.submit();
+                submitToggleForm(formToSubmit);
             });
 
             unavailableReasonCancel.addEventListener('click', closeUnavailableReasonConfirm);
+            unavailableReasonClose.addEventListener('click', closeUnavailableReasonConfirm);
 
             closeTargets.forEach(function (target) {
                 target.addEventListener('click', closeModal);
@@ -3523,7 +4823,10 @@ function conference_admin_booking_status_text(string $status): string
             }
 
             if (bookingDateFilter) {
+                syncBookingDatePlaceholder();
+                bookingDateFilter.addEventListener('input', syncBookingDatePlaceholder);
                 bookingDateFilter.addEventListener('change', function () {
+                    syncBookingDatePlaceholder();
                     applyBookingFilters(true);
                 });
             }
@@ -3541,6 +4844,7 @@ function conference_admin_booking_status_text(string $status): string
                     }
                     if (bookingDateFilter) {
                         bookingDateFilter.value = '';
+                        syncBookingDatePlaceholder();
                     }
                     if (bookingStatusFilter) {
                         bookingStatusFilter.value = 'all';
@@ -3590,6 +4894,9 @@ function conference_admin_booking_status_text(string $status): string
                 }
             });
 
+            document.querySelectorAll('.booking-edit-select-wrap select').forEach(initBookingEditSelect);
+            refreshBookingEditSelects();
+
             roomFilterButtons.forEach(function (button) {
                 button.addEventListener('click', function () {
                     if (!bookingSearchInput) {
@@ -3626,9 +4933,16 @@ function conference_admin_booking_status_text(string $status): string
                 if (!event.target.closest('[data-filter-dropdown]')) {
                     closeFilterDropdowns();
                 }
+                if (!event.target.closest('.booking-edit-select-wrap')) {
+                    closeBookingEditSelects();
+                }
             });
 
             document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && document.querySelector('.booking-edit-select-wrap.is-open')) {
+                    closeBookingEditSelects();
+                    return;
+                }
                 if (event.key === 'Escape' && bookingDeleteConfirm.classList.contains('is-open')) {
                     closeBookingDeleteConfirm();
                     return;

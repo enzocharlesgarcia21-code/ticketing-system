@@ -15,6 +15,7 @@ function conference_booking_ensure_tables(mysqli $conn): void
             id INT AUTO_INCREMENT PRIMARY KEY,
             room_name VARCHAR(150) NOT NULL UNIQUE,
             description TEXT NULL,
+            room_color VARCHAR(30) NULL,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             unavailable_reason TEXT NULL,
             saturday_enabled TINYINT(1) NOT NULL DEFAULT 0,
@@ -48,6 +49,7 @@ function conference_booking_ensure_tables(mysqli $conn): void
     $roomColumns = [
         'room_name' => "VARCHAR(150) NOT NULL",
         'description' => "TEXT NULL",
+        'room_color' => "VARCHAR(30) NULL",
         'is_active' => "TINYINT(1) NOT NULL DEFAULT 1",
         'unavailable_reason' => "TEXT NULL",
         'saturday_enabled' => "TINYINT(1) NOT NULL DEFAULT 0",
@@ -173,6 +175,51 @@ function conference_booking_seed_default_rooms(mysqli $conn): void
     }
 }
 
+function conference_room_color_palette(): array
+{
+    return [
+        'green' => ['color' => '#b7edc3', 'soft' => '#ecfdf3', 'text' => '#166534'],
+        'blue' => ['color' => '#9ecbf3', 'soft' => '#ebf6ff', 'text' => '#173f66'],
+        'yellow' => ['color' => '#fff7a8', 'soft' => '#fffde7', 'text' => '#5f4b00'],
+        'pink' => ['color' => '#fda4af', 'soft' => '#fff1f2', 'text' => '#9f1239'],
+        'red' => ['color' => '#f87171', 'soft' => '#fef2f2', 'text' => '#7f1d1d'],
+        'purple' => ['color' => '#c4b5fd', 'soft' => '#f5f3ff', 'text' => '#5b21b6'],
+        'orange' => ['color' => '#fdba74', 'soft' => '#fff7ed', 'text' => '#9a3412'],
+        'gray' => ['color' => '#d1d5db', 'soft' => '#f8fafc', 'text' => '#374151'],
+    ];
+}
+
+function conference_room_normalize_color(string $roomColor): string
+{
+    $roomColor = strtolower(trim($roomColor));
+    if (preg_match('/^#[0-9a-f]{6}$/', $roomColor)) {
+        return $roomColor;
+    }
+
+    $palette = conference_room_color_palette();
+    return isset($palette[$roomColor]) ? $roomColor : 'green';
+}
+
+function conference_room_is_custom_color(string $roomColor): bool
+{
+    return (bool) preg_match('/^#[0-9a-fA-F]{6}$/', trim($roomColor));
+}
+
+function conference_room_text_color_for_hex(string $hexColor): string
+{
+    $hexColor = ltrim(trim($hexColor), '#');
+    if (!preg_match('/^[0-9a-fA-F]{6}$/', $hexColor)) {
+        return '#166534';
+    }
+
+    $red = hexdec(substr($hexColor, 0, 2));
+    $green = hexdec(substr($hexColor, 2, 2));
+    $blue = hexdec(substr($hexColor, 4, 2));
+    $luminance = (($red * 299) + ($green * 587) + ($blue * 114)) / 1000;
+
+    return $luminance >= 150 ? '#0f172a' : '#ffffff';
+}
+
 function conference_booking_seed_default_saturday_availability(mysqli $conn): void
 {
     $defaults = [
@@ -279,7 +326,7 @@ function conference_booking_active_rooms(mysqli $conn): array
 
     $rooms = [];
     $res = $conn->query("
-        SELECT id, room_name, description, is_active, unavailable_reason, saturday_enabled, created_at
+        SELECT id, room_name, description, room_color, is_active, unavailable_reason, saturday_enabled, created_at
         FROM conference_rooms
         WHERE is_active = 1
         ORDER BY room_name ASC, id ASC
@@ -363,7 +410,7 @@ function conference_booking_find_room(mysqli $conn, int $roomId): ?array
     }
 
     $stmt = $conn->prepare("
-        SELECT id, room_name, description, is_active, unavailable_reason, saturday_enabled
+        SELECT id, room_name, description, room_color, is_active, unavailable_reason, saturday_enabled
         FROM conference_rooms
         WHERE id = ?
         LIMIT 1
@@ -387,7 +434,7 @@ function conference_room_all(mysqli $conn): array
 
     $rooms = [];
     $res = $conn->query("
-        SELECT id, room_name, description, is_active, unavailable_reason, saturday_enabled, created_at
+        SELECT id, room_name, description, room_color, is_active, unavailable_reason, saturday_enabled, created_at
         FROM conference_rooms
         ORDER BY is_active DESC, room_name ASC, id ASC
     ");
@@ -451,7 +498,7 @@ function conference_room_name_exists(mysqli $conn, string $roomName, int $exclud
     return (bool) $exists;
 }
 
-function insertRoom(mysqli $conn, string $name, string $description, int $status, int $saturdayEnabled = 0): array
+function insertRoom(mysqli $conn, string $name, string $description, int $status, int $saturdayEnabled = 0, string $roomColor = 'green'): array
 {
     conference_booking_ensure_tables($conn);
 
@@ -459,6 +506,7 @@ function insertRoom(mysqli $conn, string $name, string $description, int $status
     $description = trim($description);
     $status = $status === 1 ? 1 : 0;
     $saturdayEnabled = $saturdayEnabled === 1 ? 1 : 0;
+    $roomColor = conference_room_normalize_color($roomColor);
 
     if ($name === '') {
         return ['ok' => false, 'error' => 'Room name is required.'];
@@ -468,14 +516,14 @@ function insertRoom(mysqli $conn, string $name, string $description, int $status
     }
 
     $stmt = $conn->prepare("
-        INSERT INTO conference_rooms (room_name, description, is_active, saturday_enabled)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO conference_rooms (room_name, description, is_active, saturday_enabled, room_color)
+        VALUES (?, ?, ?, ?, ?)
     ");
     if (!$stmt) {
         return ['ok' => false, 'error' => 'Unable to add the room right now.'];
     }
 
-    $stmt->bind_param("ssii", $name, $description, $status, $saturdayEnabled);
+    $stmt->bind_param("ssiis", $name, $description, $status, $saturdayEnabled, $roomColor);
     $ok = $stmt->execute();
     $roomId = $ok ? (int) $stmt->insert_id : 0;
     $errno = (int) $stmt->errno;
@@ -491,7 +539,7 @@ function insertRoom(mysqli $conn, string $name, string $description, int $status
     return ['ok' => true, 'room_id' => $roomId];
 }
 
-function updateRoom(mysqli $conn, int $id, string $name, string $description, int $status, ?int $saturdayEnabled = null): array
+function updateRoom(mysqli $conn, int $id, string $name, string $description, int $status, ?int $saturdayEnabled = null, ?string $roomColor = null): array
 {
     conference_booking_ensure_tables($conn);
 
@@ -520,9 +568,13 @@ function updateRoom(mysqli $conn, int $id, string $name, string $description, in
         $saturdayEnabled = $saturdayEnabled === 1 ? 1 : 0;
     }
 
+    $roomColor = $roomColor === null
+        ? trim((string) ($room['room_color'] ?? 'green'))
+        : conference_room_normalize_color($roomColor);
+
     $stmt = $conn->prepare("
         UPDATE conference_rooms
-        SET room_name = ?, description = ?, is_active = ?, saturday_enabled = ?
+        SET room_name = ?, description = ?, is_active = ?, saturday_enabled = ?, room_color = ?
         WHERE id = ?
         LIMIT 1
     ");
@@ -530,7 +582,7 @@ function updateRoom(mysqli $conn, int $id, string $name, string $description, in
         return ['ok' => false, 'error' => 'Unable to update the room right now.'];
     }
 
-    $stmt->bind_param("ssiii", $name, $description, $status, $saturdayEnabled, $id);
+    $stmt->bind_param("ssiisi", $name, $description, $status, $saturdayEnabled, $roomColor, $id);
     $ok = $stmt->execute();
     $errno = (int) $stmt->errno;
     $stmt->close();

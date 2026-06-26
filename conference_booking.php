@@ -215,7 +215,7 @@ function conference_booking_page_scheduler_event(array $booking, string $dayStar
     ];
 }
 
-function conference_booking_page_room_visuals(string $roomName): array
+function conference_booking_page_room_visuals(string $roomName, string $roomColor = ''): array
 {
     $normalizedRoomName = strtolower(trim($roomName));
     $slug = preg_replace('/[^a-z0-9]+/', '-', $normalizedRoomName);
@@ -224,19 +224,66 @@ function conference_booking_page_room_visuals(string $roomName): array
         $slug = 'room';
     }
 
+    $roomColor = trim($roomColor);
+    if ($roomColor !== '') {
+        $colorKey = conference_room_normalize_color($roomColor);
+        $palette = conference_room_color_palette();
+
+        if (conference_room_is_custom_color($colorKey)) {
+            return [
+                'slug' => $slug,
+                'color_key' => $colorKey,
+                'label_color' => $colorKey,
+                'booking_color' => $colorKey,
+                'soft_color' => $colorKey,
+                'text_color' => conference_room_text_color_for_hex($colorKey),
+                'has_saved_color' => true,
+            ];
+        }
+
+        $colors = (array) ($palette[$colorKey] ?? $palette['green']);
+
+        return [
+            'slug' => $slug,
+            'color_key' => $colorKey,
+            'label_color' => (string) ($colors['color'] ?? '#b7edc3'),
+            'booking_color' => (string) ($colors['color'] ?? '#b7edc3'),
+            'soft_color' => (string) ($colors['soft'] ?? '#ecfdf3'),
+            'text_color' => (string) ($colors['text'] ?? '#166534'),
+            'has_saved_color' => true,
+        ];
+    }
+
     if ($slug === 'caltex') {
         return [
             'slug' => 'caltex',
             'label_color' => '#166534',
             'booking_color' => '#166534',
+            'soft_color' => '#ecfdf3',
+            'text_color' => '#166534',
+            'has_saved_color' => false,
         ];
     }
 
     if ($slug === 'mpdc') {
         return [
             'slug' => 'mpdc',
-            'label_color' => '#baccdc',
-            'booking_color' => '#baccdc',
+            'label_color' => '#9ecbf3',
+            'booking_color' => '#9ecbf3',
+            'soft_color' => '#ebf6ff',
+            'text_color' => '#173f66',
+            'has_saved_color' => false,
+        ];
+    }
+
+    if (strpos($normalizedRoomName, 'gpsci') !== false) {
+        return [
+            'slug' => 'gpsci',
+            'label_color' => '#fff7a8',
+            'booking_color' => '#fff7a8',
+            'soft_color' => '#fffde7',
+            'text_color' => '#5f4b00',
+            'has_saved_color' => false,
         ];
     }
 
@@ -255,6 +302,9 @@ function conference_booking_page_room_visuals(string $roomName): array
         'slug' => $slug,
         'label_color' => (string) $palette['label_color'],
         'booking_color' => (string) $palette['booking_color'],
+        'soft_color' => '#f8fafc',
+        'text_color' => (string) $palette['label_color'],
+        'has_saved_color' => false,
     ];
 }
 
@@ -971,6 +1021,113 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.12);
         }
 
+        body.conference-booking-public-page .room-select-wrapper {
+            position: relative;
+        }
+
+        body.conference-booking-public-page .room-select-wrapper .room-native-select {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        body.conference-booking-public-page .room-select-button {
+            width: 100%;
+            min-height: 52px;
+            padding: 0 42px 0 44px;
+            border-radius: 14px;
+            border: 1px solid #dbe2ea;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+            cursor: pointer;
+        }
+
+        body.conference-booking-public-page .room-select-button:focus {
+            outline: none;
+            border-color: var(--booking-green);
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.12);
+        }
+
+        body.conference-booking-public-page .room-select-button.is-placeholder {
+            color: #6b7280;
+        }
+
+        body.conference-booking-public-page .room-select-button:disabled {
+            cursor: not-allowed;
+            background: #f8fafc;
+            color: #9ca3af;
+        }
+
+        body.conference-booking-public-page .room-select-wrapper .select-icon {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280;
+            pointer-events: none;
+        }
+
+        body.conference-booking-public-page .room-select-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+            flex: 0 0 auto;
+            background: var(--room-option-color, #d1d5db);
+            border: 1px solid color-mix(in srgb, var(--room-option-color, #d1d5db) 72%, #0f172a);
+        }
+
+        body.conference-booking-public-page .room-select-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            z-index: 40;
+            max-height: 230px;
+            overflow-y: auto;
+            padding: 6px;
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16);
+        }
+
+        body.conference-booking-public-page .room-select-menu[hidden] {
+            display: none;
+        }
+
+        body.conference-booking-public-page .room-select-option {
+            width: 100%;
+            min-height: 34px;
+            padding: 7px 10px;
+            border: 0;
+            border-radius: 9px;
+            background: transparent;
+            color: #1f2937;
+            font: inherit;
+            font-size: 14px;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        body.conference-booking-public-page .room-select-option:hover,
+        body.conference-booking-public-page .room-select-option.is-selected {
+            background: #f0fdf4;
+        }
+
         body.conference-booking-public-page .time-group {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1124,10 +1281,124 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
 
         body.conference-booking-public-page .availability-filter {
             min-width: 170px;
+            position: relative;
         }
 
         body.conference-booking-public-page .panel-header-actions .availability-filter {
             min-width: 190px;
+        }
+
+        body.conference-booking-public-page .availability-filter .availability-native-select {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        body.conference-booking-public-page .availability-select-trigger {
+            width: 100%;
+            min-height: 52px;
+            padding: 0 44px 0 18px;
+            border: 2px solid #5fa463;
+            border-radius: 16px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        body.conference-booking-public-page .availability-select-trigger::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748b;
+            font-size: 12px;
+            transition: transform 0.16s ease, color 0.16s ease;
+        }
+
+        body.conference-booking-public-page .availability-filter.is-open .availability-select-trigger {
+            border-color: #166534;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+        }
+
+        body.conference-booking-public-page .availability-filter.is-open .availability-select-trigger::after {
+            transform: translateY(-50%) rotate(180deg);
+            color: #166534;
+        }
+
+        body.conference-booking-public-page .availability-select-menu {
+            position: absolute;
+            z-index: 80;
+            top: calc(100% + 7px);
+            left: 0;
+            right: 0;
+            display: none;
+            max-height: 240px;
+            overflow-y: auto;
+            padding: 7px 0;
+            background: #ffffff;
+            border: 2px solid #5fa463;
+            border-radius: 15px;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+
+        body.conference-booking-public-page .availability-select-menu::-webkit-scrollbar { width: 10px; }
+
+        body.conference-booking-public-page .availability-select-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+        }
+
+        body.conference-booking-public-page .availability-select-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+
+        body.conference-booking-public-page .availability-select-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        body.conference-booking-public-page .availability-filter.is-open .availability-select-menu {
+            display: block;
+        }
+
+        body.conference-booking-public-page .availability-select-option {
+            width: 100%;
+            min-height: 36px;
+            padding: 8px 18px;
+            border: 0;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        body.conference-booking-public-page .availability-select-option:hover,
+        body.conference-booking-public-page .availability-select-option.is-selected {
+            background: #166534;
+            color: #ffffff;
         }
 
         body.conference-booking-public-page .availability-table-wrap {
@@ -1847,6 +2118,19 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             border: 1px solid #d9e6db;
             background: linear-gradient(180deg, #f6fbf7 0%, #ffffff 32%);
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 20px 40px rgba(15, 23, 42, 0.06);
+            cursor: grab;
+            scroll-behavior: smooth;
+            user-select: none;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        body.conference-booking-public-page .scheduler-board-wrap.is-dragging {
+            cursor: grabbing;
+            scroll-behavior: auto;
+        }
+
+        body.conference-booking-public-page .scheduler-board-wrap.is-dragging * {
+            cursor: grabbing !important;
         }
 
         body.conference-booking-public-page .scheduler-board {
@@ -2063,9 +2347,9 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 repeating-linear-gradient(
                     to bottom,
                     transparent 0 calc(var(--scheduler-slot-height) - 1px),
-                    rgba(214, 227, 216, 0.95) calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
+                    #e5e7eb calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
                 ),
-                linear-gradient(180deg, rgba(22, 101, 52, 0.045) 0%, rgba(255, 255, 255, 0.96) 24%, rgba(250, 253, 250, 0.95) 100%);
+                #ffffff;
         }
 
         body.conference-booking-public-page .scheduler-room-lane:first-child {
@@ -2672,12 +2956,46 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         body.conference-booking-public-page .back-link {
             min-height: 54px;
             padding: 0 18px;
-            background: #eff7f1;
-            border: 1px solid #cfe1d5;
-            color: #166534;
+            background: #166534;
+            border: 1px solid #166534;
+            color: #ffffff;
             font-size: 15px;
             font-weight: 800;
-            gap: 8px;
+            gap: 10px;
+            border-radius: 16px;
+            box-shadow: 0 10px 24px rgba(22, 101, 52, 0.2);
+            transition: background-color 0.2s ease, color 0.2s ease,
+                border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        body.conference-booking-public-page .back-link-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: auto;
+            height: auto;
+            flex: 0 0 auto;
+            border-radius: 0;
+            background: transparent;
+            color: inherit;
+            transition: transform 0.2s ease;
+        }
+
+        body.conference-booking-public-page .back-link:hover {
+            background: #14532d;
+            border-color: #14532d;
+            color: #ffffff;
+            box-shadow: 0 14px 30px rgba(22, 101, 52, 0.22);
+            transform: translateY(-2px);
+        }
+
+        body.conference-booking-public-page .back-link:hover .back-link-icon {
+            transform: translateX(-2px);
+        }
+
+        body.conference-booking-public-page .back-link:focus-visible {
+            outline: 3px solid rgba(34, 197, 94, 0.28);
+            outline-offset: 3px;
         }
 
         body.conference-booking-public-page .brand-chip {
@@ -2820,13 +3138,13 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         body.conference-booking-public-page .week-nav {
             position: relative;
             background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 9px;
-            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.04);
-            padding: 2px 5px;
+            border: 2px solid #5fa463;
+            border-radius: 16px;
+            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            padding: 1px 4px;
             gap: 3px;
             flex: 0 0 auto;
-            min-height: 36px;
+            min-height: 40px;
             overflow: visible;
         }
 
@@ -2928,6 +3246,18 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             color: #111827;
         }
 
+        body.conference-booking-public-page .availability-filter .availability-select-trigger {
+            min-height: 40px;
+            height: 40px;
+            border-radius: 12px;
+            padding: 0 36px 0 14px;
+            font-size: 12px;
+        }
+
+        body.conference-booking-public-page .availability-filter .availability-select-trigger::after {
+            right: 13px;
+        }
+
         body.conference-booking-public-page .panel-header .btn-submit {
             min-height: 36px;
             height: 36px;
@@ -2944,6 +3274,42 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
 
         body.conference-booking-public-page .panel-header .btn-submit i {
             font-size: 11px;
+        }
+
+        body.conference-booking-public-page .panel-header.scheduler-header {
+            grid-template-areas: "actions";
+        }
+
+        body.conference-booking-public-page .scheduler-header .panel-header-actions {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            grid-template-rows: auto auto;
+            gap: 12px;
+            align-items: center;
+            width: 100%;
+        }
+
+        body.conference-booking-public-page .scheduler-header .scheduler-header-legend {
+            justify-self: start;
+            margin-right: 0;
+        }
+
+        body.conference-booking-public-page .scheduler-header-right {
+            justify-self: end;
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+            flex-wrap: nowrap;
+            width: auto;
+        }
+
+        body.conference-booking-public-page .scheduler-header-controls {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: nowrap;
+            width: auto;
         }
 
         body.conference-booking-public-page .panel-divider {
@@ -3036,8 +3402,13 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .legend-dot.mpdc {
-            background: linear-gradient(180deg, #6da4e0 0%, #4d84c8 100%);
-            border: 1px solid #4d84c8;
+            background: linear-gradient(180deg, #b9dcfb 0%, #9ecbf3 100%);
+            border: 1px solid #7fb4e5;
+        }
+
+        body.conference-booking-public-page .legend-dot.gpsci {
+            background: linear-gradient(180deg, #fffde7 0%, #fff7a8 100%);
+            border: 1px solid #f5e663;
         }
 
         body.conference-booking-public-page .legend-dot.is-room {
@@ -3122,6 +3493,10 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             color: #2d5f8f !important;
         }
 
+        body.conference-booking-public-page .scheduler-room-head-name.room-gpsci {
+            color: #5f4b00 !important;
+        }
+
         body.conference-booking-public-page .scheduler-room-head.room-caltex {
             background: linear-gradient(135deg, rgba(240, 253, 244, 0.98) 0%, rgba(220, 252, 231, 0.9) 100%);
             border-left-color: rgba(22, 101, 52, 0.1);
@@ -3136,13 +3511,33 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .scheduler-room-head.room-mpdc {
-            background: linear-gradient(180deg, #6da4e0 0%, #4d84c8 100%);
-            border-left-color: rgba(77, 132, 200, 0.28);
+            background: linear-gradient(180deg, #b9dcfb 0%, #9ecbf3 100%);
+            border-left-color: rgba(127, 180, 229, 0.42);
         }
 
         body.conference-booking-public-page .scheduler-room-head.room-mpdc .scheduler-room-head-name,
         body.conference-booking-public-page .scheduler-room-head.room-mpdc .scheduler-room-head-state {
-            color: #eff6ff !important;
+            color: #173f66 !important;
+        }
+
+        body.conference-booking-public-page .scheduler-room-head.room-gpsci {
+            background: linear-gradient(180deg, #fffde7 0%, #fff7a8 100%);
+            border-left-color: rgba(245, 230, 99, 0.55);
+        }
+
+        body.conference-booking-public-page .scheduler-room-head.room-gpsci .scheduler-room-head-name,
+        body.conference-booking-public-page .scheduler-room-head.room-gpsci .scheduler-room-head-state {
+            color: #5f4b00 !important;
+        }
+
+        body.conference-booking-public-page .scheduler-room-head.has-saved-color {
+            background: var(--room-color, #b7edc3);
+            border-left-color: var(--room-color, #b7edc3);
+        }
+
+        body.conference-booking-public-page .scheduler-room-head.has-saved-color .scheduler-room-head-name,
+        body.conference-booking-public-page .scheduler-room-head.has-saved-color .scheduler-room-head-state {
+            color: var(--room-text-color, #166534) !important;
         }
 
         body.conference-booking-public-page .scheduler-room-head-state {
@@ -3196,20 +3591,42 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 repeating-linear-gradient(
                     to bottom,
                     transparent 0 calc(var(--scheduler-slot-height) - 1px),
-                    rgba(220, 252, 231, 0.92) calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
+                    #e5e7eb calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
                 ),
-                linear-gradient(180deg, rgba(240, 253, 244, 0.72) 0%, rgba(255, 255, 255, 0.98) 22%);
+                #ffffff;
         }
 
         body.conference-booking-public-page .scheduler-room-lane.room-mpdc {
-            --scheduler-booking-color: #6da4e0;
+            --scheduler-booking-color: #9ecbf3;
             background:
                 repeating-linear-gradient(
                     to bottom,
                     transparent 0 calc(var(--scheduler-slot-height) - 1px),
-                    rgba(209, 225, 247, 0.92) calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
+                    #e5e7eb calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
                 ),
-                linear-gradient(180deg, rgba(228, 238, 252, 0.88) 0%, rgba(255, 255, 255, 0.98) 24%);
+                #ffffff;
+        }
+
+        body.conference-booking-public-page .scheduler-room-lane.room-gpsci {
+            --scheduler-booking-color: #fff7a8;
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    transparent 0 calc(var(--scheduler-slot-height) - 1px),
+                    #e5e7eb calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
+                ),
+                #ffffff;
+        }
+
+        body.conference-booking-public-page .scheduler-room-lane.has-saved-color {
+            --scheduler-booking-color: var(--room-color, #b7edc3);
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    transparent 0 calc(var(--scheduler-slot-height) - 1px),
+                    #e5e7eb calc(var(--scheduler-slot-height) - 1px) var(--scheduler-slot-height)
+                ),
+                #ffffff;
         }
 
         body.conference-booking-public-page .scheduler-event {
@@ -3235,10 +3652,17 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .scheduler-room-lane.room-mpdc .scheduler-event.status-booked {
-            background: linear-gradient(180deg, #6da4e0 0%, #4d84c8 100%);
-            border-color: rgba(77, 132, 200, 0.28);
-            color: #ffffff;
-            box-shadow: inset 3px 0 0 #2f65b0;
+            background: linear-gradient(180deg, #b9dcfb 0%, #9ecbf3 100%);
+            border-color: rgba(127, 180, 229, 0.42);
+            color: #173f66;
+            box-shadow: inset 3px 0 0 #5f9fd8;
+        }
+
+        body.conference-booking-public-page .scheduler-room-lane.room-gpsci .scheduler-event.status-booked {
+            background: linear-gradient(180deg, #fffde7 0%, #fff7a8 100%);
+            border-color: rgba(245, 230, 99, 0.55);
+            color: #5f4b00;
+            box-shadow: inset 3px 0 0 #ead94f;
         }
 
         body.conference-booking-public-page .scheduler-event.room-caltex.status-booked {
@@ -3249,10 +3673,17 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .scheduler-event.room-mpdc.status-booked {
-            background: linear-gradient(180deg, #6da4e0 0%, #4d84c8 100%);
-            border-color: rgba(77, 132, 200, 0.28);
-            color: #ffffff;
-            box-shadow: inset 3px 0 0 #2f65b0;
+            background: linear-gradient(180deg, #b9dcfb 0%, #9ecbf3 100%);
+            border-color: rgba(127, 180, 229, 0.42);
+            color: #173f66;
+            box-shadow: inset 3px 0 0 #5f9fd8;
+        }
+
+        body.conference-booking-public-page .scheduler-event.room-gpsci.status-booked {
+            background: linear-gradient(180deg, #fffde7 0%, #fff7a8 100%);
+            border-color: rgba(245, 230, 99, 0.55);
+            color: #5f4b00;
+            box-shadow: inset 3px 0 0 #ead94f;
         }
 
         body.conference-booking-public-page .scheduler-event.room-mpdc .scheduler-event-title,
@@ -3283,6 +3714,38 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         body.conference-booking-public-page .scheduler-event.room-caltex .scheduler-event-buffer {
             background: rgba(84, 148, 102, 0.12);
             border-top-color: rgba(84, 148, 102, 0.28);
+        }
+
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-title,
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-meta,
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-buffer,
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-time {
+            color: #5f4b00 !important;
+            opacity: 1;
+        }
+
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-time {
+            background: rgba(95, 75, 0, 0.08);
+        }
+
+        body.conference-booking-public-page .scheduler-event.room-gpsci .scheduler-event-buffer {
+            background: rgba(95, 75, 0, 0.06);
+            border-top-color: rgba(95, 75, 0, 0.16);
+        }
+
+        body.conference-booking-public-page .scheduler-event.has-saved-color.status-booked {
+            background: var(--room-color, #b7edc3);
+            border-color: var(--room-color, #b7edc3);
+            color: var(--room-text-color, #166534);
+            box-shadow: inset 3px 0 0 color-mix(in srgb, var(--room-color, #b7edc3) 70%, #0f172a);
+        }
+
+        body.conference-booking-public-page .scheduler-event.has-saved-color .scheduler-event-title,
+        body.conference-booking-public-page .scheduler-event.has-saved-color .scheduler-event-meta,
+        body.conference-booking-public-page .scheduler-event.has-saved-color .scheduler-event-buffer,
+        body.conference-booking-public-page .scheduler-event.has-saved-color .scheduler-event-time {
+            color: var(--room-text-color, #166534) !important;
+            opacity: 1;
         }
 
         body.conference-booking-public-page .scheduler-event.status-pending {
@@ -3461,12 +3924,18 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             }
 
             body.conference-booking-public-page .back-link {
-                min-height: 34px;
+                min-height: 44px;
                 padding: 0 13px;
                 justify-content: center;
-                border-radius: 999px;
+                border-radius: 14px;
                 font-size: 12px;
-                gap: 6px;
+                gap: 8px;
+            }
+
+            body.conference-booking-public-page .back-link-icon {
+                width: auto;
+                height: auto;
+                flex-basis: auto;
             }
 
             body.conference-booking-public-page .brand-chip {
@@ -3996,7 +4465,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 <div class="page-topbar">
                     <div class="topbar-side left">
                         <a href="index.php" class="back-link">
-                            <i class="fas fa-arrow-left"></i>
+                            <span class="back-link-icon" aria-hidden="true"><i class="fas fa-arrow-left"></i></span>
                             <span>Back to Home</span>
                         </a>
                     </div>
@@ -4030,8 +4499,25 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                             <div class="legend-title">Legend</div>
                                             <div class="legend-items">
                                                 <span class="legend-item"><span class="legend-dot available"></span>Open</span>
-                                                <span class="legend-item"><span class="legend-dot caltex"></span>Caltex</span>
-                                                <span class="legend-item"><span class="legend-dot mpdc"></span>MPDC</span>
+                                                        <?php foreach ($schedulerRooms as $legendRoom): ?>
+                                                    <?php
+                                                        $legendRoomName = trim((string) ($legendRoom['room_name'] ?? 'Room'));
+                                                        $legendRoomVisuals = conference_booking_page_room_visuals($legendRoomName, (string) ($legendRoom['room_color'] ?? ''));
+                                                        $legendRoomSlug = (string) ($legendRoomVisuals['slug'] ?? 'room');
+                                                        $legendRoomColor = (string) ($legendRoomVisuals['label_color'] ?? '#16a34a');
+                                                        $legendHasSavedColor = !empty($legendRoomVisuals['has_saved_color']);
+                                                        $legendDotClass = !$legendHasSavedColor && in_array($legendRoomSlug, ['caltex', 'gpsci', 'mpdc'], true)
+                                                            ? 'legend-dot ' . $legendRoomSlug
+                                                            : 'legend-dot is-room';
+                                                    ?>
+                                                    <span class="legend-item">
+                                                        <span
+                                                            class="<?= htmlspecialchars($legendDotClass, ENT_QUOTES, 'UTF-8'); ?>"
+                                                            style="--legend-room-color: <?= htmlspecialchars($legendRoomColor, ENT_QUOTES, 'UTF-8'); ?>;"
+                                                        ></span>
+                                                        <?= htmlspecialchars($legendRoomName !== '' ? $legendRoomName : 'Room', ENT_QUOTES, 'UTF-8'); ?>
+                                                    </span>
+                                                <?php endforeach; ?>
                                             </div>
                                             <div class="legend-tooltip">
                                                 <span class="legend-tooltip-trigger" tabindex="0" aria-label="View timezone note">
@@ -4094,7 +4580,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                             </div>
                                         </div>
                                         <div class="select-wrapper availability-filter">
-                                            <select id="availabilityRoomFilter" class="form-control">
+                                            <select id="availabilityRoomFilter" class="form-control availability-native-select" tabindex="-1">
                                                 <option value="0" <?= $selectedRoomFilter === 0 ? 'selected' : ''; ?>>All Rooms</option>
                                                 <?php foreach ($rooms as $room): ?>
                                                     <?php $roomId = (int) ($room['id'] ?? 0); ?>
@@ -4103,7 +4589,8 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
-                                            <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
+                                            <button type="button" class="availability-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Rooms</button>
+                                            <div class="availability-select-menu" role="listbox"></div>
                                         </div>
                                     </div>
                                     <button type="button" class="btn-submit" id="openBookingModalBtn" <?= count($rooms) === 0 ? 'disabled' : ''; ?>>
@@ -4178,10 +4665,14 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                                             <?php
                                                                 $roomSupportsDate = conference_booking_room_supports_booking_date($room, $dayDate);
                                                                 $roomHeadState = $roomSupportsDate ? 'Open for booking' : 'Saturday disabled';
-                                                                $roomVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'));
+                                                                $roomVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'), (string) ($room['room_color'] ?? ''));
                                                                 $roomSlug = (string) ($roomVisuals['slug'] ?? 'room');
+                                                                $roomHasSavedColor = !empty($roomVisuals['has_saved_color']);
+                                                                $roomInlineStyle = $roomHasSavedColor
+                                                                    ? '--room-color:' . (string) ($roomVisuals['label_color'] ?? '#b7edc3') . '; --room-soft-color:' . (string) ($roomVisuals['soft_color'] ?? '#ecfdf3') . '; --room-text-color:' . (string) ($roomVisuals['text_color'] ?? '#166534') . ';'
+                                                                    : '';
                                                             ?>
-                                                            <div class="scheduler-room-head room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomSupportsDate ? '' : 'is-disabled'; ?>">
+                                                            <div class="scheduler-room-head room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomHasSavedColor ? 'has-saved-color' : ''; ?> <?= $roomSupportsDate ? '' : 'is-disabled'; ?>" style="<?= htmlspecialchars($roomInlineStyle, ENT_QUOTES, 'UTF-8'); ?>">
                                                                 <span class="scheduler-room-head-name room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($room['room_name'] ?? 'Room'), ENT_QUOTES, 'UTF-8'); ?></span>
                                                                 <span class="scheduler-room-head-state"><?= htmlspecialchars($roomHeadState, ENT_QUOTES, 'UTF-8'); ?></span>
                                                             </div>
@@ -4212,11 +4703,15 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                                                 $roomId = (int) ($room['id'] ?? 0);
                                                                 $roomSupportsDate = conference_booking_room_supports_booking_date($room, $dayDate);
                                                                 $roomEvents = (array) ($schedulerEventsByDateRoom[$dayDate][$roomId] ?? []);
-                                                                $roomVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'));
+                                                                $roomVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'), (string) ($room['room_color'] ?? ''));
                                                                 $roomSlug = (string) ($roomVisuals['slug'] ?? 'room');
                                                                 $roomBookingColor = (string) ($roomVisuals['booking_color'] ?? '#16a34a');
+                                                                $roomHasSavedColor = !empty($roomVisuals['has_saved_color']);
+                                                                $roomInlineStyle = $roomHasSavedColor
+                                                                    ? '--room-color:' . (string) ($roomVisuals['label_color'] ?? '#b7edc3') . '; --room-soft-color:' . (string) ($roomVisuals['soft_color'] ?? '#ecfdf3') . '; --room-text-color:' . (string) ($roomVisuals['text_color'] ?? '#166534') . ';'
+                                                                    : '';
                                                             ?>
-                                                            <div class="scheduler-room-lane room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomSupportsDate ? '' : 'is-disabled'; ?>">
+                                                            <div class="scheduler-room-lane room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomHasSavedColor ? 'has-saved-color' : ''; ?> <?= $roomSupportsDate ? '' : 'is-disabled'; ?>" style="<?= htmlspecialchars($roomInlineStyle, ENT_QUOTES, 'UTF-8'); ?>">
                                                                 <?php if (!$roomSupportsDate): ?>
                                                                     <div class="scheduler-disabled-block">
                                                                         <span class="scheduler-disabled-title">Unavailable</span>
@@ -4229,13 +4724,13 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                                                         $eventStatus = (string) ($event['status'] ?? 'booked');
                                                                         $eventInlineStyle = '';
                                                                         if ($eventStatus === 'booked') {
-                                                                            $eventInlineStyle = '--scheduler-booking-color:' . $roomBookingColor . ';';
+                                                                            $eventInlineStyle = '--scheduler-booking-color:' . $roomBookingColor . ';' . $roomInlineStyle;
                                                                         }
                                                                         $eventInlineStyle .= 'top: calc((var(--scheduler-minute-height) * ' . (int) ($event['top_minutes'] ?? 0) . ') + (var(--scheduler-event-gap) / 2));';
                                                                         $eventInlineStyle .= ' height: calc((var(--scheduler-minute-height) * ' . (int) ($event['display_minutes'] ?? 30) . ') - var(--scheduler-event-gap));';
                                                                     ?>
                                                                     <article
-                                                                        class="scheduler-event room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> status-<?= htmlspecialchars($eventStatus, ENT_QUOTES, 'UTF-8'); ?> <?= htmlspecialchars((string) ($event['size_class'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                                                                        class="scheduler-event room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomHasSavedColor ? 'has-saved-color' : ''; ?> status-<?= htmlspecialchars($eventStatus, ENT_QUOTES, 'UTF-8'); ?> <?= htmlspecialchars((string) ($event['size_class'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                                                                         style="<?= htmlspecialchars($eventInlineStyle, ENT_QUOTES, 'UTF-8'); ?>"
                                                                         title="<?= htmlspecialchars((string) ($event['tooltip'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                                                                     >
@@ -4343,17 +4838,48 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
 
                                     <div class="form-group">
                                         <label for="room_id">CONFERENCE ROOM<span class="required-asterisk">*</span></label>
-                                        <div class="icon-field select-wrapper">
+                                        <div class="icon-field select-wrapper room-select-wrapper">
                                             <span class="field-icon"><i class="far fa-clipboard"></i></span>
-                                            <select id="room_id" name="room_id" class="form-control" required <?= count($rooms) === 0 ? 'disabled' : ''; ?>>
+                                            <select id="room_id" name="room_id" class="form-control room-native-select" required <?= count($rooms) === 0 ? 'disabled' : ''; ?>>
                                                 <option value="" disabled <?= (string) $form['room_id'] === '' ? 'selected' : ''; ?> hidden>Select a room</option>
                                                 <?php foreach ($rooms as $room): ?>
-                                                    <?php $roomId = (int) ($room['id'] ?? 0); ?>
-                                                    <option value="<?= $roomId; ?>" data-saturday-enabled="<?= (int) ($room['saturday_enabled'] ?? 0) === 1 ? '1' : '0'; ?>" <?= (string) $roomId === (string) $form['room_id'] ? 'selected' : ''; ?>>
+                                                    <?php
+                                                        $roomId = (int) ($room['id'] ?? 0);
+                                                        $roomOptionVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'), (string) ($room['room_color'] ?? ''));
+                                                        $roomOptionColor = (string) ($roomOptionVisuals['label_color'] ?? '#d1d5db');
+                                                    ?>
+                                                    <option value="<?= $roomId; ?>" data-saturday-enabled="<?= (int) ($room['saturday_enabled'] ?? 0) === 1 ? '1' : '0'; ?>" data-room-color="<?= htmlspecialchars($roomOptionColor, ENT_QUOTES, 'UTF-8'); ?>" <?= (string) $roomId === (string) $form['room_id'] ? 'selected' : ''; ?>>
                                                         <?= htmlspecialchars((string) ($room['room_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
+                                            <button type="button" class="room-select-button is-placeholder" id="roomSelectButton" aria-haspopup="listbox" aria-expanded="false" <?= count($rooms) === 0 ? 'disabled' : ''; ?>>
+                                                <span class="room-select-dot" id="roomSelectButtonDot" aria-hidden="true" hidden></span>
+                                                <span class="room-select-label">Select a room</span>
+                                            </button>
+                                            <div class="room-select-menu" id="roomSelectMenu" role="listbox" hidden>
+                                                <?php foreach ($rooms as $room): ?>
+                                                    <?php
+                                                        $roomId = (int) ($room['id'] ?? 0);
+                                                        $roomOptionVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'), (string) ($room['room_color'] ?? ''));
+                                                        $roomOptionColor = (string) ($roomOptionVisuals['label_color'] ?? '#d1d5db');
+                                                        $roomOptionName = (string) ($room['room_name'] ?? '');
+                                                    ?>
+                                                    <button
+                                                        type="button"
+                                                        class="room-select-option"
+                                                        role="option"
+                                                        data-room-value="<?= $roomId; ?>"
+                                                        data-room-name="<?= htmlspecialchars($roomOptionName, ENT_QUOTES, 'UTF-8'); ?>"
+                                                        data-room-color="<?= htmlspecialchars($roomOptionColor, ENT_QUOTES, 'UTF-8'); ?>"
+                                                        aria-selected="<?= (string) $roomId === (string) $form['room_id'] ? 'true' : 'false'; ?>"
+                                                        style="--room-option-color: <?= htmlspecialchars($roomOptionColor, ENT_QUOTES, 'UTF-8'); ?>;"
+                                                    >
+                                                        <span class="room-select-dot" aria-hidden="true"></span>
+                                                        <span><?= htmlspecialchars($roomOptionName, ENT_QUOTES, 'UTF-8'); ?></span>
+                                                    </button>
+                                                <?php endforeach; ?>
+                                            </div>
                                             <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
                                         </div>
                                     </div>
@@ -4484,6 +5010,9 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             const departmentSelect = document.getElementById('booker_department');
             const departmentAsterisk = document.getElementById('bookerDepartmentAsterisk');
             const roomSelect = document.getElementById('room_id');
+            const roomSelectButton = document.getElementById('roomSelectButton');
+            const roomSelectButtonDot = document.getElementById('roomSelectButtonDot');
+            const roomSelectMenu = document.getElementById('roomSelectMenu');
             const bookingDateField = document.getElementById('bookingDateField');
             const bookingDateInput = document.getElementById('booking_date');
             const purposeInput = document.getElementById('purpose');
@@ -4506,12 +5035,181 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             const closeBookingModalBtn = document.getElementById('closeBookingModalBtn');
             const clearBookingBtn = document.getElementById('clearBookingBtn');
             const bookingSaturdayNote = document.getElementById('bookingSaturdayNote');
+            const schedulerBoardWrap = document.querySelector('.scheduler-board-wrap');
             const departmentMap = <?= json_encode($companyDepartmentMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
             const roomSaturdayMap = <?= json_encode($roomSaturdayMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
             const selectedDepartment = <?= json_encode((string) $form['booker_department'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
             const currentWeekOf = <?= json_encode($referenceWeekDate, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
             const shouldOpenBookingModal = <?= json_encode($errorMessage !== '', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
             const params = new URLSearchParams(window.location.search);
+
+            function escapeHtml(value) {
+                return String(value || '').replace(/[&<>"']/g, function (char) {
+                    return {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#039;'
+                    }[char];
+                });
+            }
+
+            if (roomSelect && roomSelectButton && roomSelectMenu) {
+                const roomSelectLabel = roomSelectButton.querySelector('.room-select-label');
+                const roomOptionButtons = Array.from(roomSelectMenu.querySelectorAll('.room-select-option'));
+
+                function closeRoomSelectMenu() {
+                    roomSelectMenu.hidden = true;
+                    roomSelectButton.setAttribute('aria-expanded', 'false');
+                }
+
+                function openRoomSelectMenu() {
+                    roomSelectMenu.hidden = false;
+                    roomSelectButton.setAttribute('aria-expanded', 'true');
+                }
+
+                function syncRoomSelectButton() {
+                    const selectedOption = roomSelect.options[roomSelect.selectedIndex];
+                    const selectedValue = String(roomSelect.value || '');
+                    const selectedName = selectedOption && selectedValue !== '' ? selectedOption.textContent.trim() : 'Select a room';
+                    const selectedColor = selectedOption ? String(selectedOption.dataset.roomColor || '') : '';
+
+                    if (roomSelectLabel) {
+                        roomSelectLabel.textContent = selectedName;
+                    }
+
+                    if (roomSelectButtonDot) {
+                        if (selectedValue !== '' && selectedColor !== '') {
+                            roomSelectButtonDot.hidden = false;
+                            roomSelectButtonDot.style.setProperty('--room-option-color', selectedColor);
+                        } else {
+                            roomSelectButtonDot.hidden = true;
+                            roomSelectButtonDot.style.removeProperty('--room-option-color');
+                        }
+                    }
+
+                    roomSelectButton.classList.toggle('is-placeholder', selectedValue === '');
+                    roomOptionButtons.forEach(function (optionButton) {
+                        const isSelected = String(optionButton.dataset.roomValue || '') === selectedValue;
+                        optionButton.classList.toggle('is-selected', isSelected);
+                        optionButton.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+                    });
+                }
+
+                roomSelectButton.addEventListener('click', function () {
+                    if (roomSelect.disabled) {
+                        return;
+                    }
+
+                    if (roomSelectMenu.hidden) {
+                        openRoomSelectMenu();
+                    } else {
+                        closeRoomSelectMenu();
+                    }
+                });
+
+                roomOptionButtons.forEach(function (optionButton) {
+                    optionButton.addEventListener('click', function () {
+                        const nextValue = String(optionButton.dataset.roomValue || '');
+                        roomSelect.value = nextValue;
+                        roomSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                        syncRoomSelectButton();
+                        closeRoomSelectMenu();
+                        roomSelectButton.focus();
+                    });
+                });
+
+                document.addEventListener('click', function (event) {
+                    if (roomSelectButton.contains(event.target) || roomSelectMenu.contains(event.target)) {
+                        return;
+                    }
+
+                    closeRoomSelectMenu();
+                });
+
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape') {
+                        closeRoomSelectMenu();
+                    }
+                });
+
+                roomSelect.addEventListener('change', syncRoomSelectButton);
+                syncRoomSelectButton();
+            }
+
+            if (schedulerBoardWrap) {
+                let isDraggingScheduler = false;
+                let schedulerDragStarted = false;
+                let schedulerDragStartX = 0;
+                let schedulerDragStartY = 0;
+                let schedulerDragScrollLeft = 0;
+
+                schedulerBoardWrap.addEventListener('pointerdown', function (event) {
+                    if (event.button !== 0 || event.target.closest('button, a, input, select, textarea, label')) {
+                        return;
+                    }
+
+                    isDraggingScheduler = true;
+                    schedulerDragStarted = false;
+                    schedulerDragStartX = event.clientX;
+                    schedulerDragStartY = event.clientY;
+                    schedulerDragScrollLeft = schedulerBoardWrap.scrollLeft;
+                    schedulerBoardWrap.classList.add('is-dragging');
+                    schedulerBoardWrap.setPointerCapture(event.pointerId);
+                });
+
+                schedulerBoardWrap.addEventListener('pointermove', function (event) {
+                    if (!isDraggingScheduler) {
+                        return;
+                    }
+
+                    const deltaX = event.clientX - schedulerDragStartX;
+                    const deltaY = event.clientY - schedulerDragStartY;
+
+                    if (!schedulerDragStarted) {
+                        if (Math.abs(deltaX) < 4) {
+                            return;
+                        }
+
+                        if (Math.abs(deltaX) < Math.abs(deltaY)) {
+                            stopSchedulerDrag(event);
+                            return;
+                        }
+                    }
+
+                    schedulerDragStarted = true;
+                    schedulerBoardWrap.scrollLeft = schedulerDragScrollLeft - deltaX;
+                    event.preventDefault();
+                });
+
+                function stopSchedulerDrag(event) {
+                    if (!isDraggingScheduler) {
+                        return;
+                    }
+
+                    isDraggingScheduler = false;
+                    schedulerBoardWrap.classList.remove('is-dragging');
+
+                    if (event && schedulerBoardWrap.hasPointerCapture(event.pointerId)) {
+                        schedulerBoardWrap.releasePointerCapture(event.pointerId);
+                    }
+                }
+
+                schedulerBoardWrap.addEventListener('pointerup', stopSchedulerDrag);
+                schedulerBoardWrap.addEventListener('pointercancel', stopSchedulerDrag);
+                schedulerBoardWrap.addEventListener('lostpointercapture', stopSchedulerDrag);
+
+                schedulerBoardWrap.addEventListener('click', function (event) {
+                    if (!schedulerDragStarted) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    event.stopPropagation();
+                    schedulerDragStarted = false;
+                }, true);
+            }
 
             if (!companySelect || !departmentSelect) {
                 return;
@@ -4619,6 +5317,56 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             });
 
             if (availabilityRoomFilter) {
+                const availabilityFilterWrap = availabilityRoomFilter.closest('.availability-filter');
+                const availabilityFilterTrigger = availabilityFilterWrap ? availabilityFilterWrap.querySelector('.availability-select-trigger') : null;
+                const availabilityFilterMenu = availabilityFilterWrap ? availabilityFilterWrap.querySelector('.availability-select-menu') : null;
+
+                function refreshAvailabilityRoomFilter() {
+                    if (!availabilityFilterTrigger || !availabilityFilterMenu) return;
+                    const selectedOption = availabilityRoomFilter.options[availabilityRoomFilter.selectedIndex] || availabilityRoomFilter.options[0];
+                    availabilityFilterTrigger.textContent = selectedOption ? selectedOption.textContent.trim() : 'All Rooms';
+                    availabilityFilterMenu.innerHTML = Array.from(availabilityRoomFilter.options).map(function (option, index) {
+                        const isSelected = index === availabilityRoomFilter.selectedIndex;
+                        return '<button type="button" class="availability-select-option' + (isSelected ? ' is-selected' : '') + '" role="option" data-index="' + index + '" aria-selected="' + (isSelected ? 'true' : 'false') + '">' + escapeHtml(option.textContent.trim()) + '</button>';
+                    }).join('');
+                }
+
+                function closeAvailabilityRoomFilter() {
+                    if (!availabilityFilterWrap || !availabilityFilterTrigger) return;
+                    availabilityFilterWrap.classList.remove('is-open');
+                    availabilityFilterTrigger.setAttribute('aria-expanded', 'false');
+                }
+
+                if (availabilityFilterTrigger && availabilityFilterMenu) {
+                    refreshAvailabilityRoomFilter();
+                    availabilityFilterTrigger.addEventListener('click', function (event) {
+                        event.stopPropagation();
+                        const shouldOpen = !availabilityFilterWrap.classList.contains('is-open');
+                        availabilityFilterWrap.classList.toggle('is-open', shouldOpen);
+                        availabilityFilterTrigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+                    });
+                    availabilityFilterMenu.addEventListener('click', function (event) {
+                        const optionButton = event.target.closest('.availability-select-option');
+                        if (!optionButton) return;
+                        const optionIndex = Number(optionButton.getAttribute('data-index'));
+                        if (!Number.isFinite(optionIndex) || !availabilityRoomFilter.options[optionIndex]) return;
+                        availabilityRoomFilter.selectedIndex = optionIndex;
+                        refreshAvailabilityRoomFilter();
+                        closeAvailabilityRoomFilter();
+                        availabilityRoomFilter.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+                    document.addEventListener('click', function (event) {
+                        if (!availabilityFilterWrap.contains(event.target)) {
+                            closeAvailabilityRoomFilter();
+                        }
+                    });
+                    document.addEventListener('keydown', function (event) {
+                        if (event.key === 'Escape') {
+                            closeAvailabilityRoomFilter();
+                        }
+                    });
+                }
+
                 availabilityRoomFilter.addEventListener('change', function () {
                     const params = new URLSearchParams(window.location.search);
                     params.set('week_of', currentWeekOf);
