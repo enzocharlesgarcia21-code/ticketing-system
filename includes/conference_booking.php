@@ -1483,13 +1483,9 @@ function conference_booking_cancel(mysqli $conn, int $bookingId): array
 
         $booking['status'] = 'Cancelled';
         $conn->commit();
-<<<<<<< HEAD
 
         $emailed = $affected > 0 ? conference_booking_send_cancel_email($booking) : false;
 
-=======
-        $emailed = $affected > 0 ? conference_booking_send_cancel_email($booking) : false;
->>>>>>> de545fa5a514012238fe43e38bd29f958a156a05
         if ($affected > 0) {
             $message = conference_booking_cancel_notification_message($booking);
             conference_booking_insert_user_notification(
@@ -1500,10 +1496,7 @@ function conference_booking_cancel(mysqli $conn, int $bookingId): array
                 'conference_booking_cancelled'
             );
         }
-<<<<<<< HEAD
 
-=======
->>>>>>> de545fa5a514012238fe43e38bd29f958a156a05
 
         return [
             'ok' => true,

@@ -2129,7 +2129,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             grid-template-columns: 44px minmax(0, 1fr) 44px;
             gap: 8px;
             align-items: center;
-            width: min(100%, 1180px);
+            width: min(100%, 1320px);
             margin: 0 auto;
         }
 
@@ -2137,6 +2137,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             z-index: 20;
             width: 44px;
             height: 44px;
+            padding: 0;
             border: 1px solid var(--booking-green);
             border-radius: 999px;
             background: var(--booking-green);
@@ -2148,6 +2149,19 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             cursor: pointer;
             justify-self: center;
             transition: opacity 0.18s ease, transform 0.18s ease, background 0.18s ease;
+        }
+
+        body.conference-booking-public-page .scheduler-scroll-button i {
+            display: block;
+            line-height: 1;
+        }
+
+        body.conference-booking-public-page .scheduler-scroll-button.scroll-right i {
+            transform: translateX(-1px);
+        }
+
+        body.conference-booking-public-page .scheduler-scroll-button.scroll-left i {
+            transform: translateX(1px);
         }
 
         body.conference-booking-public-page .scheduler-scroll-button:hover,
@@ -2987,8 +3001,8 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .content-wrapper {
-            width: min(100%, 1180px);
-            max-width: 1180px;
+            width: min(100%, 1280px);
+            max-width: 1280px;
             margin: 0 auto;
         }
 
@@ -3134,7 +3148,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             margin-top: 0;
             padding-bottom: 22px;
             width: 100%;
-            max-width: 1120px;
+            max-width: 1220px;
             margin-left: auto;
             margin-right: auto;
         }
