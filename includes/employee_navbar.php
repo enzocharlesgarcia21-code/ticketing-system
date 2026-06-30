@@ -1713,6 +1713,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getNotificationTitle(actionType, type, priorityKey) {
         if (type === 'priority_escalated') return getPriorityNotificationTitle(priorityKey);
+        if (type === 'conference_booking_created') return 'Conference Booking Created';
+        if (type === 'conference_booking_cancelled') return 'Conference Booking Cancelled';
         if (type === 'conference_booking_deleted') return 'Conference Booking Deleted';
         if (actionType === 'assign') return 'Ticket Assigned';
         if (actionType === 'reassign') return 'Ticket Reassigned';

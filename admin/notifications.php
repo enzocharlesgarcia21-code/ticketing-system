@@ -156,6 +156,7 @@ function notif_priority_from_message(string $message): string
             border-radius: 0;
             box-shadow: none;
             overflow: visible;
+            max-width: 860px;
         }
         .notif-section-label {
             font-size: 1.08rem;
@@ -165,31 +166,34 @@ function notif_priority_from_message(string $message): string
             padding-left: 4px;
         }
         .notif-section-card {
-            background: #ffffff;
-            border-radius: 28px;
-            box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
-            border: 1px solid rgba(226, 232, 240, 0.8);
-            overflow: hidden;
-            margin-bottom: 28px;
+            background: transparent;
+            border-radius: 0;
+            box-shadow: none;
+            border: 0;
+            overflow: visible;
+            margin-bottom: 18px;
         }
         .notif-item-row {
             position: relative;
-            padding: 22px 54px 22px 28px;
-            border-bottom: 1px solid #edf2f7;
+            padding: 16px 24px 16px 22px;
+            border-bottom: 1px solid #eef2f7;
+            border-radius: 16px;
             display: flex;
             align-items: flex-start;
-            gap: 18px;
+            gap: 0;
             transition: background 0.2s ease;
             cursor: pointer;
             text-decoration: none;
             color: inherit;
             background: #ffffff;
+            margin-bottom: 10px;
         }
         .notif-item-row > * {
             pointer-events: none;
         }
         .notif-item-row:last-child {
-            border-bottom: 0;
+            border-bottom: 1px solid #eef2f7;
+            margin-bottom: 0;
         }
         .notif-item-row::before {
             content: "";
@@ -215,8 +219,8 @@ function notif_priority_from_message(string $message): string
         .notif-item-row.unread::after {
             content: "";
             position: absolute;
-            right: 24px;
-            top: 32px;
+            right: 16px;
+            top: 22px;
             width: 11px;
             height: 11px;
             border-radius: 50%;
@@ -224,117 +228,70 @@ function notif_priority_from_message(string $message): string
             box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.96);
         }
 
-        .notif-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.55rem;
-            flex-shrink: 0;
-            color: #ffffff;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.22);
-        }
-        .notif-content {
+        .notif-list-page .notif-content {
             flex-grow: 1;
             min-width: 0;
         }
-        .notif-text {
-            font-size: 0.98rem;
+        .notif-list-page .notif-text {
+            font-size: 0.92rem;
             color: #1f2937;
-            margin-bottom: 10px;
-            line-height: 1.5;
+            margin-bottom: 8px;
+            line-height: 1.4;
         }
-        .notif-title-row {
+        .notif-list-page .notif-title {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 6px;
             flex-wrap: wrap;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
         }
-        .notif-title {
-            font-size: 1rem;
+        .notif-list-page .notif-title-text {
+            font-size: 0.92rem;
             font-weight: 700;
             color: #111827;
             line-height: 1.3;
         }
-        .priority-badge{
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 34px;
-            padding: 0 18px;
-            border-radius: 14px;
+        .notif-list-page .notif-pill {
+            min-height: 26px;
+            border-radius: 11px;
             border: 2px solid currentColor;
-            font-size: 12px;
-            font-weight: 800;
             background: #ffffff;
+        }
+        .notif-list-page .notif-pill-icon {
+            width: 28px;
+            height: 26px;
+            font-size: 13px;
+        }
+        .notif-list-page .notif-pill-text {
+            padding: 0 16px 0 12px;
+            font-size: 11px;
+            font-weight: 800;
             letter-spacing: 0.01em;
             line-height: 1;
         }
-        .priority-badge.priority-critical { color:#E53935; background:#fff3f4; }
-        .priority-badge.priority-high { color:#ef4444; background:#fef2f2; }
-        .priority-badge.priority-medium { color:#eab308; background:#fffbeb; }
-        .priority-badge.priority-low { color:#16a34a; background:#ecfdf5; }
-        .priority-badge.priority-neutral { color:#64748b; background:#f8fafc; border-color:#cbd5e1; }
-        .priority-transition-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 36px;
-            gap: 8px;
-            padding: 0 16px;
-            border-radius: 14px;
+        .notif-list-page .notif-pill.notif-priority-breach-pill {
+            min-height: 26px;
+            border-radius: 11px;
             border: 2px solid currentColor;
-            background: #fff7f7;
-            color: #dc2626;
+            background: #ffffff;
+        }
+        .notif-list-page .notif-pill.notif-priority-breach-pill .notif-pill-icon {
+            width: 28px;
+            height: 26px;
             font-size: 13px;
-            font-weight: 900;
-            line-height: 1;
         }
-        .priority-transition-badge.priority-medium { color: #eab308; background: #fffbeb; }
-        .priority-transition-badge.priority-high,
-        .priority-transition-badge.priority-critical { color: #dc2626; background: #fff7f7; }
-        .priority-transition-icon {
-            width: 24px;
-            height: 24px;
-            border-radius: 8px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: #ffffff;
-            background: #dc2626;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.24);
+        .notif-list-page .notif-pill.notif-priority-breach-pill .notif-pill-text {
+            padding: 0 16px 0 12px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.01em;
         }
-        .priority-transition-badge.priority-medium .priority-transition-icon {
-            background: #eab308;
-        }
-        .priority-transition-icon i {
-            color: #ffffff;
-            font-size: 12px;
-        }
-        .notif-icon.type-assigned { background: linear-gradient(135deg, #60a5fa, #2563eb); }
-        .notif-icon.type-updated { background: linear-gradient(135deg, #34d399, #0f766e); }
-        .notif-icon.type-reassigned { background: linear-gradient(135deg, #b77cf5, #9333ea); }
-        .notif-icon.type-closed { background: linear-gradient(135deg, #58b368, #43A047); }
-        .notif-icon.type-note { background: linear-gradient(135deg, #fcd34d, #f59e0b); }
-        .notif-icon.type-booking { background: linear-gradient(135deg, #34d399, #0f766e); }
-        .notif-icon.type-follow-up { background: linear-gradient(135deg, #fde68a, #f59e0b); color: #7c4a03; }
-        .notif-icon.type-neutral { background: linear-gradient(135deg, #cbd5e1, #94a3b8); }
-        .notif-icon.type-critical { background: linear-gradient(135deg, #ef4444, #dc2626); }
-        .notif-icon.type-high { background: linear-gradient(135deg, #ef4444, #dc2626); }
-        .notif-icon.type-low { background: linear-gradient(135deg, #4ade80, #22c55e); }
-        .notif-icon.type-medium { background: linear-gradient(135deg, #facc15, #eab308); }
         .notif-item-row.notif-priority-escalation {
             background: linear-gradient(180deg, #fffafa 0%, #fff5f5 100%);
             border-color: #fecaca;
         }
         .notif-item-row.notif-priority-escalation:hover {
             background: linear-gradient(180deg, #fff7f7 0%, #feecec 100%);
-        }
-        .notif-icon.type-card {
-            border-radius: 16px;
         }
         .notif-item-row.notif-follow-up {
             background: linear-gradient(180deg, #fffdf4 0%, #fff9e7 100%);
@@ -345,16 +302,7 @@ function notif_priority_from_message(string $message): string
         .notif-item-row.notif-follow-up.unread::after {
             background: #f4c542;
         }
-        .notif-follow-up .notif-chat-pill {
-            background: linear-gradient(135deg, #fff3bd 0%, #f9d24d 100%);
-            border-color: #d4a017;
-            color: #7c4a03;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
-        }
-        .notif-follow-up .notif-chat-pill i {
-            color: #7c4a03;
-        }
-        .notif-item-row.notif-follow-up .notif-title {
+        .notif-item-row.notif-follow-up .notif-title-text {
             color: #111827;
         }
         .notif-item-row.notif-follow-up .notif-text strong {
@@ -391,8 +339,8 @@ function notif_priority_from_message(string $message): string
             background: #e2e8f0;
             color: #475569;
         }
-        .notif-date {
-            font-size: 0.86rem;
+        .notif-list-page .notif-date {
+            font-size: 0.8rem;
             color: #94a3b8;
         }
         .pagination {
@@ -500,12 +448,13 @@ function notif_priority_from_message(string $message): string
             display: flex; 
             justify-content: space-between; 
             align-items: center; 
+            max-width: 860px;
+            width: 100%;
+            gap: 16px;
             margin-bottom: 20px;
         }
         .page-title {
-            font-size: 1.5rem;
-            color: #1f2937;
-            font-weight: 600;
+            margin: 0;
         }
         @media (max-width: 768px) {
             .pagination-glass {
@@ -562,73 +511,50 @@ function notif_priority_from_message(string $message): string
                                         $priorityKey = $p;
                                     }
                                 }
-                                $priorityClass = $priorityKey !== '' ? 'priority-' . $priorityKey : 'priority-neutral';
                                 $ticketIdJs = isset($row['ticket_id']) && $row['ticket_id'] !== null ? (int) $row['ticket_id'] : null;
                                 $actionType = notif_normalize_action_type((string) ($row['action_type'] ?? ''), $typeKey);
-                                $priorityTransition = $typeKey === 'priority_escalated'
-                                    ? notif_priority_transition_from_message((string) ($row['message'] ?? ''))
-                                    : ['from' => '', 'to' => ''];
-                                $priorityLabel = ($typeKey !== 'note_added' && $priorityKey !== '')
-                                    ? '<span class="priority-badge ' . $priorityClass . '">' . htmlspecialchars(ucfirst($priorityKey), ENT_QUOTES, 'UTF-8') . '</span>'
-                                    : '';
-                                if ($typeKey === 'priority_escalated' && $priorityKey !== '') {
-                                    $fromPriority = trim((string) ($priorityTransition['from'] ?? ''));
-                                    $toPriority = trim((string) ($priorityTransition['to'] ?? ucfirst($priorityKey)));
-                                    $transitionText = ($fromPriority !== '' ? $fromPriority . ' &rarr; ' : '') . ($toPriority !== '' ? $toPriority : ucfirst($priorityKey));
-                                    $priorityLabel = '<span class="priority-transition-badge ' . $priorityClass . '"><span class="priority-transition-icon"><i class="fas fa-exclamation"></i></span><span>' . $transitionText . '</span></span>';
-                                }
                                 $iconClass = 'fa-ticket';
-                                $iconTypeClass = 'type-neutral';
                                 $accentColor = '#94a3b8';
                                 $dotColor = '#94a3b8';
                                 $customTitle = trim((string) ($row['title'] ?? ''));
                                 $titleText = $customTitle !== '' ? $customTitle : 'Ticket Update';
                                 if ($typeKey === 'priority_escalated' && in_array($priorityKey, ['high', 'critical'], true)) {
                                     $iconClass = 'fa-exclamation';
-                                    $iconTypeClass = 'type-critical type-card';
                                     $accentColor = '#ef4444';
                                     $dotColor = '#ef4444';
                                     $titleText = 'Priority Escalation';
                                 } elseif ($typeKey === 'priority_escalated' && $priorityKey === 'medium') {
                                     $iconClass = 'fa-exclamation';
-                                    $iconTypeClass = 'type-medium type-card';
                                     $accentColor = '#d4a017';
                                     $dotColor = '#d4a017';
                                     $titleText = 'Priority Escalation';
                                 } elseif ($priorityKey === 'critical') {
                                     $iconClass = 'fa-exclamation';
-                                    $iconTypeClass = 'type-critical type-card';
                                     $accentColor = '#E53935';
                                     $dotColor = '#E53935';
                                     $titleText = 'Priority Escalation';
                                 } elseif ($priorityKey === 'high') {
                                     $iconClass = 'fa-exclamation';
-                                    $iconTypeClass = 'type-high type-card';
                                     $accentColor = '#ef4444';
                                     $dotColor = '#ef4444';
                                     $titleText = 'Ticket Warning';
                                 } elseif ($priorityKey === 'medium') {
                                     $iconClass = 'fa-triangle-exclamation';
-                                    $iconTypeClass = 'type-medium type-card';
                                     $accentColor = '#eab308';
                                     $dotColor = '#eab308';
                                 } elseif ($priorityKey === 'low') {
                                     $iconClass = 'fa-arrow-down';
-                                    $iconTypeClass = 'type-low type-card';
                                     $accentColor = '#22c55e';
                                     $dotColor = '#22c55e';
                                 }
                                 $isFollowUp = $typeKey === 'follow_up';
                                 if ($isFollowUp) {
                                     $iconClass = 'fa-rotate';
-                                    $iconTypeClass = 'type-follow-up type-card';
                                     $accentColor = '#d4a017';
                                     $dotColor = '#d4a017';
-                                    $priorityLabel = '';
                                     $titleText = 'Follow Up Request';
                                 } elseif ($typeKey === 'conference_booking') {
                                     $iconClass = 'fa-calendar-check';
-                                    $iconTypeClass = 'type-booking type-card';
                                     $accentColor = '#0f766e';
                                     $dotColor = '#0f766e';
                                     if ($customTitle === '') {
@@ -636,7 +562,6 @@ function notif_priority_from_message(string $message): string
                                     }
                                 } elseif ($actionType === 'update' && $typeKey === 'note_added') {
                                     $iconClass = 'fa-sticky-note';
-                                    $iconTypeClass = 'type-note type-card';
                                     if ($priorityKey === '') {
                                         $accentColor = '#ca8a04';
                                         $dotColor = '#ca8a04';
@@ -644,29 +569,24 @@ function notif_priority_from_message(string $message): string
                                     }
                                 } elseif ($actionType === 'update') {
                                     $iconClass = 'fa-rotate';
-                                    $iconTypeClass = 'type-updated type-card';
                                     $accentColor = '#0f766e';
                                     $dotColor = '#0f766e';
                                     $titleText = 'Status Update';
                                 } elseif ($actionType === 'close') {
                                     if ($priorityKey === '') {
                                         $iconClass = 'fa-check';
-                                        $iconTypeClass = 'type-closed type-card';
                                         $accentColor = '#43A047';
                                         $dotColor = '#43A047';
                                         $titleText = 'Ticket Closed';
                                     }
                                 } elseif ($actionType === 'reassign') {
                                     $iconClass = 'fa-retweet';
-                                    $iconTypeClass = 'type-reassigned type-card';
                                     $accentColor = '#9333ea';
                                     $dotColor = '#9333ea';
-                                    $priorityLabel = '';
                                     $titleText = 'Ticket Reassigned';
                                 } elseif ($actionType === 'assign') {
                                     if ($priorityKey === '') {
                                         $iconClass = 'fa-inbox';
-                                        $iconTypeClass = 'type-assigned type-card';
                                         $accentColor = '#2563eb';
                                         $dotColor = '#2563eb';
                                         $titleText = 'Ticket Assigned';
@@ -676,10 +596,84 @@ function notif_priority_from_message(string $message): string
                                 }
                                 if ($typeKey === 'hr_chat_pending') {
                                     $iconClass = 'fa-comments';
-                                    $iconTypeClass = 'type-updated type-card';
                                     $accentColor = '#1B5E20';
                                     $dotColor = '#1B5E20';
                                     $titleText = 'Pending Chat';
+                                }
+                                if ($customTitle === '') {
+                                    if ($typeKey === 'priority_escalated') {
+                                        if (in_array($priorityKey, ['critical', 'high'], true)) {
+                                            $titleText = 'Priority Escalation';
+                                        } elseif ($priorityKey === 'low') {
+                                            $titleText = 'Ticket Assigned';
+                                        } else {
+                                            $titleText = 'Ticket Update';
+                                        }
+                                    } elseif ($typeKey === 'conference_booking') {
+                                        $titleText = 'Conference Booking';
+                                    } elseif ($actionType === 'assign') {
+                                        $titleText = 'Ticket Assigned';
+                                    } elseif ($actionType === 'reassign') {
+                                        $titleText = 'Ticket Reassigned';
+                                    } elseif ($actionType === 'close') {
+                                        $titleText = 'Ticket Closed';
+                                    } elseif ($typeKey === 'follow_up') {
+                                        $titleText = 'Follow Up Request';
+                                    } elseif ($actionType === 'update' && $typeKey === 'note_added') {
+                                        $titleText = 'Ticket Note';
+                                    } elseif ($actionType === 'update') {
+                                        $titleText = 'Status Update';
+                                    } else {
+                                        $titleText = 'Ticket Update';
+                                    }
+                                }
+                                $pillVariantClass = 'variant-update';
+                                $pillText = 'Update';
+                                $pillIconClass = 'fa-rotate';
+                                if ($isFollowUp) {
+                                    $pillVariantClass = 'variant-follow-up';
+                                    $pillText = 'Follow Up';
+                                    $pillIconClass = 'fa-rotate';
+                                } elseif ($typeKey === 'conference_booking') {
+                                    $pillVariantClass = 'variant-booking';
+                                    $pillText = 'Booking';
+                                    $pillIconClass = 'fa-calendar-check';
+                                } elseif ($typeKey === 'hr_chat_pending') {
+                                    $pillVariantClass = 'variant-update';
+                                    $pillText = 'Chat';
+                                    $pillIconClass = 'fa-comments';
+                                } elseif ($priorityKey === 'critical') {
+                                    $pillVariantClass = 'variant-critical';
+                                    $pillText = 'Critical';
+                                    $pillIconClass = 'fa-exclamation';
+                                } elseif ($priorityKey === 'high') {
+                                    $pillVariantClass = $typeKey === 'priority_escalated' ? 'variant-high notif-priority-breach-pill' : 'variant-high';
+                                    $pillText = 'High';
+                                    $pillIconClass = 'fa-exclamation';
+                                } elseif ($priorityKey === 'medium') {
+                                    $pillVariantClass = 'variant-medium';
+                                    $pillText = 'Medium';
+                                    $pillIconClass = 'fa-triangle-exclamation';
+                                } elseif ($priorityKey === 'low') {
+                                    $pillVariantClass = 'variant-low';
+                                    $pillText = 'Low';
+                                    $pillIconClass = 'fa-arrow-down';
+                                } elseif ($actionType === 'assign') {
+                                    $pillVariantClass = 'variant-assign';
+                                    $pillText = 'Assigned';
+                                    $pillIconClass = 'fa-check';
+                                } elseif ($actionType === 'reassign') {
+                                    $pillVariantClass = 'variant-reassign';
+                                    $pillText = 'Reassigned';
+                                    $pillIconClass = 'fa-retweet';
+                                } elseif ($actionType === 'close') {
+                                    $pillVariantClass = 'variant-close';
+                                    $pillText = 'Closed';
+                                    $pillIconClass = 'fa-check';
+                                } elseif ($typeKey === 'note_added') {
+                                    $pillVariantClass = 'variant-note';
+                                    $pillText = 'Note';
+                                    $pillIconClass = 'fa-plus';
                                 }
                                 $displayMessage = notif_display_message($typeKey, (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
                                 $notificationHref = $typeKey === 'conference_booking'
@@ -701,15 +695,13 @@ function notif_priority_from_message(string $message): string
                                data-notification-type="<?= htmlspecialchars($typeKey, ENT_QUOTES, 'UTF-8') ?>"
                                style="--notif-accent: <?= htmlspecialchars($accentColor, ENT_QUOTES, 'UTF-8') ?>; --notif-dot: <?= htmlspecialchars($dotColor, ENT_QUOTES, 'UTF-8') ?>;"
                                onclick="return handleNotificationRowClick(event, this);">
-                                <div class="notif-icon <?= htmlspecialchars($iconTypeClass, ENT_QUOTES, 'UTF-8') ?>"><i class="fas <?= htmlspecialchars($iconClass, ENT_QUOTES, 'UTF-8') ?>"></i></div>
                                 <div class="notif-content">
-                                    <div class="notif-title-row">
-                                        <?php if ($isFollowUp): ?>
-                                            <span class="notif-chat-pill notif-follow-pill"><i class="fas fa-rotate"></i><span>Follow Up</span></span>
-                                        <?php else: ?>
-                                            <?= $priorityLabel ?>
-                                        <?php endif; ?>
-                                        <span class="notif-title"><?= htmlspecialchars($titleText, ENT_QUOTES, 'UTF-8') ?></span>
+                                    <div class="notif-title">
+                                        <span class="notif-pill <?= htmlspecialchars($pillVariantClass, ENT_QUOTES, 'UTF-8') ?>">
+                                            <span class="notif-pill-icon"><i class="fas <?= htmlspecialchars($pillIconClass, ENT_QUOTES, 'UTF-8') ?>"></i></span>
+                                            <span class="notif-pill-text"><?= htmlspecialchars($pillText, ENT_QUOTES, 'UTF-8') ?></span>
+                                        </span>
+                                        <span class="notif-title-text"><?= htmlspecialchars($titleText, ENT_QUOTES, 'UTF-8') ?></span>
                                     </div>
                                     <div class="notif-text"><?= notif_message_highlight_html($displayMessage) ?></div>
                                     <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
