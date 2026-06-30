@@ -808,15 +808,17 @@ function admin_conference_booking_summary(string $message): array
                                    data-notification-type="<?= htmlspecialchars($typeKey, ENT_QUOTES, 'UTF-8') ?>"
                                    style="--notif-accent: #0f9f5a; --notif-dot: #008a22;"
                                    onclick="return handleNotificationRowClick(event, this);">
-                                    <span class="notif-pill variant-booking">
-                                        <span class="notif-pill-icon"><i class="fas fa-calendar-check"></i></span>
-                                        <span class="notif-pill-text">Booking</span>
-                                    </span>
-                                    <span class="admin-booking-body">
-                                        <h3 class="admin-booking-title">Conference Booking Created</h3>
-                                        <div class="admin-booking-subtitle"><?= htmlspecialchars($bookingSubtitle, ENT_QUOTES, 'UTF-8') ?></div>
-                                        <span class="admin-booking-time notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></span>
-                                    </span>
+                                    <div class="notif-content">
+                                        <div class="notif-title">
+                                            <span class="notif-pill variant-booking">
+                                                <span class="notif-pill-icon"><i class="fas fa-calendar-check"></i></span>
+                                                <span class="notif-pill-text">Booking</span>
+                                            </span>
+                                            <span class="notif-title-text">Conference Booking Created</span>
+                                        </div>
+                                        <div class="notif-text"><?= htmlspecialchars($bookingSubtitle, ENT_QUOTES, 'UTF-8') ?></div>
+                                        <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
+                                    </div>
                                 </a>
                                 <?php continue; ?>
                             <?php endif; ?>
