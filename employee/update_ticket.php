@@ -428,6 +428,24 @@ $updateOk = false;
         $notif_user_id = notif_requester_user_id($conn, $old_data);
         $statusChanged = (string) ($old_data['status'] ?? '') !== (string) $new_status;
         $noteChanged = !empty($admin_note) && (string) $admin_note !== (string) ($old_data['admin_note'] ?? '');
+        $suppressClaimFollowupEmail = false;
+        if ($noteChanged && !$statusChanged && !$requesterAssignmentChanged) {
+            $recentClaimStmt = $conn->prepare("
+                SELECT 1
+                FROM ticket_activity
+                WHERE ticket_id = ?
+                  AND activity_type = 'claim_ticket'
+                  AND created_at >= (NOW() - INTERVAL 10 MINUTE)
+                LIMIT 1
+            ");
+            if ($recentClaimStmt) {
+                $recentClaimStmt->bind_param("i", $id);
+                $recentClaimStmt->execute();
+                $recentClaimRes = $recentClaimStmt->get_result();
+                $suppressClaimFollowupEmail = $recentClaimRes && $recentClaimRes->num_rows > 0;
+                $recentClaimStmt->close();
+            }
+        }
 
         $requesterNotification = null;
 
@@ -579,7 +597,7 @@ $updateOk = false;
                 flush_ticket_update_redirect("my_task.php");
                 $responseFlushed = true;
 
-                if ($requesterEmail !== '') {
+                if (!$suppressClaimFollowupEmail && $requesterEmail !== '') {
                     $requesterEmailTitle = 'Ticket Updated';
                     if ($requesterAssignmentChanged) {
                         $requesterEmailTitle = ($oldAssignedUserId > 0 || $oldCompany !== '' || $oldDept !== '') ? 'Ticket Reassigned' : 'Ticket Assigned';
@@ -595,7 +613,7 @@ $updateOk = false;
                     }
                 }
 
-                if (count($assigneeEmails) > 0) {
+                if (!$suppressClaimFollowupEmail && count($assigneeEmails) > 0) {
                     $assigneeEmailTitle = 'Ticket Updated';
                     if ($requesterAssignmentChanged) {
                         $assigneeEmailTitle = ($oldAssignedUserId > 0 || $oldCompany !== '' || $oldDept !== '') ? 'Ticket Reassigned' : 'Ticket Assigned';
