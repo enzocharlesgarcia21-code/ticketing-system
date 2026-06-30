@@ -189,6 +189,17 @@ function smtp_generate_message_id(int $ticketId): string
     return '<ticket-' . $ticketId . '-' . $suffix . '@' . smtp_message_id_domain() . '>';
 }
 
+function smtp_generate_context_message_id(string $context, int $recordId): string
+{
+    $context = strtolower(preg_replace('/[^a-z0-9-]+/', '-', $context) ?? $context);
+    $context = trim($context, '-');
+    if ($context === '') {
+        $context = 'message';
+    }
+    $suffix = function_exists('random_bytes') ? bin2hex(random_bytes(8)) : str_replace('.', '', uniqid('', true));
+    return '<' . $context . '-' . $recordId . '-' . $suffix . '@' . smtp_message_id_domain() . '>';
+}
+
 function smtp_ensure_ticket_thread_columns(mysqli $conn): void
 {
     static $done = false;
@@ -301,6 +312,125 @@ function smtp_record_ticket_thread_message(int $ticketId, string $messageId): vo
     }
 }
 
+function smtp_ensure_conference_booking_thread_columns(mysqli $conn): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    $cols = [
+        'root_message_id' => "VARCHAR(255) NULL",
+        'last_message_id' => "VARCHAR(255) NULL",
+        'thread_subject' => "VARCHAR(255) NULL",
+    ];
+    $existing = [];
+    $res = $conn->query("SHOW COLUMNS FROM conference_bookings");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            if (isset($row['Field'])) {
+                $existing[(string) $row['Field']] = true;
+            }
+        }
+        $res->free();
+    }
+    foreach ($cols as $col => $ddl) {
+        if (!isset($existing[$col])) {
+            $conn->query("ALTER TABLE conference_bookings ADD COLUMN $col $ddl");
+        }
+    }
+}
+
+function smtp_conference_booking_thread_subject(int $bookingId): string
+{
+    if ($bookingId <= 0) return '';
+    return 'Conference Booking #' . str_pad((string) $bookingId, 6, '0', STR_PAD_LEFT);
+}
+
+function smtp_prepare_conference_booking_threading(int $bookingId, string $subject, array $existingThread = []): ?array
+{
+    if ($bookingId <= 0) return null;
+
+    global $conn;
+    if (!isset($conn) || !($conn instanceof mysqli)) {
+        return null;
+    }
+
+    smtp_ensure_conference_booking_thread_columns($conn);
+
+    $rootMessageId = trim((string) ($existingThread['root_message_id'] ?? ''));
+    $lastMessageId = trim((string) ($existingThread['last_message_id'] ?? ''));
+    $threadSubject = trim((string) ($existingThread['thread_subject'] ?? ''));
+    $stmt = $conn->prepare("SELECT root_message_id, last_message_id, thread_subject FROM conference_bookings WHERE id = ? LIMIT 1");
+    if ($stmt) {
+        $stmt->bind_param("i", $bookingId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if ($row) {
+            $rootMessageId = trim((string) ($row['root_message_id'] ?? '')) ?: $rootMessageId;
+            $lastMessageId = trim((string) ($row['last_message_id'] ?? '')) ?: $lastMessageId;
+            $threadSubject = trim((string) ($row['thread_subject'] ?? '')) ?: $threadSubject;
+        }
+    }
+
+    $isRoot = false;
+    $normalizedThreadSubject = smtp_conference_booking_thread_subject($bookingId);
+    if ($normalizedThreadSubject === '') {
+        $normalizedThreadSubject = $subject;
+    }
+
+    if ($rootMessageId === '') {
+        $rootMessageId = smtp_generate_context_message_id('conference-booking', $bookingId);
+        $threadSubject = $normalizedThreadSubject;
+        $isRoot = true;
+        $update = $conn->prepare("UPDATE conference_bookings SET root_message_id = ?, last_message_id = ?, thread_subject = ? WHERE id = ?");
+        if ($update) {
+            $update->bind_param("sssi", $rootMessageId, $rootMessageId, $threadSubject, $bookingId);
+            $update->execute();
+            $update->close();
+        }
+    }
+
+    if ($threadSubject !== $normalizedThreadSubject) {
+        $threadSubject = $normalizedThreadSubject;
+        $update = $conn->prepare("UPDATE conference_bookings SET thread_subject = ? WHERE id = ?");
+        if ($update) {
+            $update->bind_param("si", $threadSubject, $bookingId);
+            $update->execute();
+            $update->close();
+        }
+    }
+
+    return [
+        'context' => 'conference_booking',
+        'record_id' => $bookingId,
+        'subject' => $threadSubject,
+        'message_id' => $isRoot ? $rootMessageId : smtp_generate_context_message_id('conference-booking', $bookingId),
+        'root_message_id' => $rootMessageId,
+        'last_message_id' => $lastMessageId !== '' ? $lastMessageId : $rootMessageId,
+        'is_root' => $isRoot,
+    ];
+}
+
+function smtp_record_conference_booking_thread_message(int $bookingId, string $messageId): void
+{
+    if ($bookingId <= 0 || trim($messageId) === '') return;
+
+    global $conn;
+    if (!isset($conn) || !($conn instanceof mysqli)) {
+        return;
+    }
+
+    smtp_ensure_conference_booking_thread_columns($conn);
+    $stmt = $conn->prepare("UPDATE conference_bookings SET last_message_id = ? WHERE id = ?");
+    if ($stmt) {
+        $stmt->bind_param("si", $messageId, $bookingId);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
 function smtp_last_error(?string $error = null): string
 {
     static $lastError = '';
@@ -325,8 +455,19 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
     }
 
     try {
-        $ticketId = isset($options['ticket_id']) ? (int) $options['ticket_id'] : smtp_extract_ticket_id_from_subject($subject);
-        $threading = smtp_prepare_ticket_threading($ticketId, $subject);
+        $threading = null;
+        $conferenceBookingId = isset($options['conference_booking_id']) ? (int) $options['conference_booking_id'] : 0;
+        if ($conferenceBookingId > 0) {
+            $threading = smtp_prepare_conference_booking_threading($conferenceBookingId, $subject, [
+                'root_message_id' => $options['conference_booking_root_message_id'] ?? '',
+                'last_message_id' => $options['conference_booking_last_message_id'] ?? '',
+                'thread_subject' => $options['conference_booking_thread_subject'] ?? '',
+            ]);
+        }
+        if (!$threading) {
+            $ticketId = isset($options['ticket_id']) ? (int) $options['ticket_id'] : smtp_extract_ticket_id_from_subject($subject);
+            $threading = smtp_prepare_ticket_threading($ticketId, $subject);
+        }
         if ($threading && !empty($threading['subject'])) {
             $subject = (string) $threading['subject'];
         }
@@ -385,7 +526,11 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
 
                 $mail->send();
                 if ($threading) {
-                    smtp_record_ticket_thread_message((int) $threading['ticket_id'], (string) $threading['message_id']);
+                    if (($threading['context'] ?? '') === 'conference_booking') {
+                        smtp_record_conference_booking_thread_message((int) ($threading['record_id'] ?? 0), (string) $threading['message_id']);
+                    } else {
+                        smtp_record_ticket_thread_message((int) ($threading['ticket_id'] ?? 0), (string) $threading['message_id']);
+                    }
                 }
                 return true;
             } catch (\Throwable $attemptError) {

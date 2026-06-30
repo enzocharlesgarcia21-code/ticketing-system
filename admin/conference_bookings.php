@@ -59,7 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['conference_booking_edit_old'], $_SESSION['conference_booking_edit_modal_open']);
             $booking = (array) ($result['booking'] ?? []);
             $roomName = trim((string) ($booking['room_name'] ?? 'the selected room'));
-            $_SESSION['conference_booking_flash_success'] = 'Booking for ' . $roomName . ' was updated successfully.';
+            $emailNote = !empty($result['emailed']) ? ' The requestor was also notified by email.' : '';
+            $_SESSION['conference_booking_flash_success'] = 'Booking for ' . $roomName . ' was updated successfully.' . $emailNote;
         } else {
             $_SESSION['conference_booking_flash_error'] = trim((string) ($result['error'] ?? 'Unable to update the booking right now.'));
             $_SESSION['conference_booking_edit_modal_open'] = 1;

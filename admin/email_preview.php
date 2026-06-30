@@ -37,10 +37,11 @@ function preview_conference_booking_template(
     string $subject,
     string $title,
     string $introText,
-    array $booking
+    array $booking,
+    array $options = []
 ): array {
     $email = trim((string) ($booking['booked_by_email'] ?? ''));
-    $mail = conference_booking_email_template($title, $email, $introText, $booking);
+    $mail = conference_booking_email_template($title, $email, $introText, $booking, $options);
     return [
         'group' => 'Conference Booking',
         'audience' => 'Booker',
@@ -161,6 +162,10 @@ $conferenceBookingSample = [
     'purpose' => 'UAT meeting',
 ];
 
+$conferenceBookingUpdatedSample = $conferenceBookingSample;
+$conferenceBookingUpdatedSample['start_time'] = '10:00:00';
+$conferenceBookingUpdatedSample['end_time'] = '12:00:00';
+
 $templates = [
     preview_template('New Ticket', 'Requester / Employee', 'Ticket Submitted (#' . $sampleTicketNumber . ')', 'Ticket Submitted', $ticketSubmittedLines, 'View Ticket', $employeeTicketUrl),
     preview_template('New Ticket', 'Assignee', 'New Ticket Assigned (#' . $sampleTicketNumber . ')', 'New Ticket Assigned', $assigneeAssignedLines, 'View Ticket', $employeeTaskUrl),
@@ -190,6 +195,11 @@ $templates = [
     preview_template('Chat / SLA', 'Assignee', 'Priority Escalation (#000825)', 'Priority Escalation', $priorityEscalationLines, 'View Ticket', $employeeTaskUrl),
 
     preview_conference_booking_template('Conference Booking Created', 'Conference Booking Created', 'Your conference room booking has been created successfully.', $conferenceBookingSample),
+    preview_conference_booking_template('Conference Booking Updated', 'Conference Booking Updated', 'Your conference room booking has been updated successfully.', $conferenceBookingUpdatedSample, [
+        'is_updated' => true,
+        'old_start_time' => '08:00:00',
+        'old_end_time' => '10:00:00',
+    ]),
     preview_conference_booking_template('Conference Booking Cancelled', 'Conference Booking Cancelled', 'Your conference room booking has been cancelled.', $conferenceBookingSample),
     preview_conference_booking_template('Conference Booking Deleted', 'Conference Booking Deleted', 'An administrator removed your conference room booking.', $conferenceBookingSample),
 ];

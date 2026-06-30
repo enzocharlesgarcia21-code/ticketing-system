@@ -1349,7 +1349,7 @@ function notif_send_ticket_status_update(mysqli $conn, int $ticketId, string $ol
     return ['inserted' => $inserted, 'emailed' => $emailed];
 }
 
-function notif_email_send(array $toEmails, string $subjectLine, string $bodyHtml, string $bodyText, array $attachments = []): bool
+function notif_email_send(array $toEmails, string $subjectLine, string $bodyHtml, string $bodyText, array $attachments = [], array $options = []): bool
 {
     $to = array_values(array_filter(array_map('trim', $toEmails), static function ($v) { return is_string($v) && $v !== ''; }));
     global $conn;
@@ -1360,10 +1360,9 @@ function notif_email_send(array $toEmails, string $subjectLine, string $bodyHtml
         }));
     }
     if (count($to) === 0) return false;
-    $options = [];
-    if (preg_match('/\(#0*(\d+)\)/', $subjectLine, $m)) {
+    if (!isset($options['ticket_id']) && preg_match('/\(#0*(\d+)\)/', $subjectLine, $m)) {
         $options['ticket_id'] = (int) $m[1];
-    } elseif (preg_match('/Ticket(?:\s+ID)?\s*:\s*#?0*(\d+)|Ticket\s+#0*(\d+)/i', strip_tags($bodyText . "\n" . $bodyHtml), $m)) {
+    } elseif (!isset($options['ticket_id']) && preg_match('/Ticket(?:\s+ID)?\s*:\s*#?0*(\d+)|Ticket\s+#0*(\d+)/i', strip_tags($bodyText . "\n" . $bodyHtml), $m)) {
         $options['ticket_id'] = (int) ((string) ($m[1] ?? '') !== '' ? $m[1] : $m[2]);
     }
     $ok = sendSmtpEmail($to, $subjectLine, $bodyHtml, $bodyText, $attachments, $options);
