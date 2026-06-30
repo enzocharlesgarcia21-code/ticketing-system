@@ -2409,6 +2409,9 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
 function notif_display_message(string $type, string $message, int $ticketId = 0): string
 {
     $type = strtolower(trim($type));
+    if ($type === 'conference_booking_created') {
+        return $message;
+    }
     if ($type === 'note_added') {
         return $ticketId > 0
             ? ("A private note was added to ticket #" . $ticketId . ".")

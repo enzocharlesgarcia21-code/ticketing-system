@@ -1012,6 +1012,20 @@ function conference_booking_delete_notification_message(array $booking): string
 
 function conference_booking_create_notification_message(array $booking): string
 {
+    $payload = [
+        'user_email' => trim((string) ($booking['booked_by_email'] ?? $booking['user_email'] ?? '')),
+        'room_name' => trim((string) ($booking['room_name'] ?? '')),
+        'booking_date' => trim((string) ($booking['booking_date'] ?? '')),
+        'start_time' => trim((string) ($booking['start_time'] ?? '')),
+        'end_time' => trim((string) ($booking['end_time'] ?? '')),
+        'location' => trim((string) ($booking['location'] ?? $booking['room_location'] ?? $booking['room_name'] ?? '')),
+        'purpose' => trim((string) ($booking['purpose'] ?? '')),
+    ];
+    $json = json_encode($payload);
+    if ($json !== false) {
+        return $json;
+    }
+
     $roomName = trim((string) ($booking['room_name'] ?? 'the selected conference room'));
     $dateValue = trim((string) ($booking['booking_date'] ?? ''));
     $dateLabel = $dateValue !== '' ? date('M d, Y', strtotime($dateValue)) : 'the selected date';
@@ -1390,9 +1404,7 @@ function conference_booking_cancel(mysqli $conn, int $bookingId): array
 
         $booking['status'] = 'Cancelled';
         $conn->commit();
-<<<<<<< HEAD
         $emailed = $affected > 0 ? conference_booking_send_cancel_email($booking) : false;
-=======
         if ($affected > 0) {
             $message = conference_booking_cancel_notification_message($booking);
             conference_booking_insert_user_notification(
@@ -1403,7 +1415,6 @@ function conference_booking_cancel(mysqli $conn, int $bookingId): array
                 'conference_booking_cancelled'
             );
         }
->>>>>>> 01e42414bbbdb38963725bc300d8869ccf7083ab
 
         return [
             'ok' => true,
@@ -1562,10 +1573,12 @@ function conference_booking_create(
         $createdBooking = conference_booking_find_by_id($conn, $bookingId);
         $notificationBooking = $createdBooking ?: [
             'user_id' => $bookingUserId,
+            'booked_by_email' => $bookerEmail,
             'room_name' => (string) ($room['room_name'] ?? 'Conference Room'),
             'booking_date' => $bookingDate,
             'start_time' => $startTime,
             'end_time' => $endTime,
+            'purpose' => $purpose,
         ];
         $message = conference_booking_create_notification_message($notificationBooking);
         conference_booking_insert_user_notification(

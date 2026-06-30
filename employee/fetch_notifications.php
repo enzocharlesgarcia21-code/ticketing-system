@@ -40,7 +40,7 @@ function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
         return;
     }
 
-    $thresholdSeconds = 8 * 3600;
+    $thresholdSeconds = 5 * 60;
     $stmt = $conn->prepare("
         SELECT
             t.id,
@@ -78,13 +78,12 @@ function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
             WHERE user_id = ?
               AND ticket_id = ?
               AND type = 'hr_chat_pending'
-              AND created_at >= ?
+              AND created_at >= (NOW() - INTERVAL 5 MINUTE)
             LIMIT 1
         ");
         $hasCurrentReminder = false;
         if ($existsStmt) {
-            $lastUnreadMessageAt = (string) ($row['last_unread_message_at'] ?? '');
-            $existsStmt->bind_param("iis", $userId, $ticketId, $lastUnreadMessageAt);
+            $existsStmt->bind_param("ii", $userId, $ticketId);
             $existsStmt->execute();
             $existsRes = $existsStmt->get_result();
             $hasCurrentReminder = (bool) ($existsRes && $existsRes->fetch_assoc());

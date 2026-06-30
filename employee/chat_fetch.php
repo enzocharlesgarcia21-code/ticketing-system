@@ -75,6 +75,7 @@ function has_unread_hr_chat_reminder(mysqli $conn, int $userId, int $ticketId): 
           AND ticket_id = ?
           AND type = 'hr_chat_pending'
           AND is_read = 0
+          AND created_at >= (NOW() - INTERVAL 5 MINUTE)
         LIMIT 1
     ");
     if (!$stmt) {
@@ -164,7 +165,7 @@ function maybe_send_hr_chat_reminder(mysqli $conn, int $ticketId, int $viewerUse
         return;
     }
 
-    $thresholdSeconds = 8 * 3600;
+    $thresholdSeconds = 5 * 60;
     $stmt = $conn->prepare("
         SELECT
             t.id,
