@@ -2124,6 +2124,73 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             -webkit-overflow-scrolling: touch;
         }
 
+        body.conference-booking-public-page .scheduler-board-frame {
+            display: grid;
+            grid-template-columns: 44px minmax(0, 1fr) 44px;
+            gap: 8px;
+            align-items: center;
+            width: min(100%, 1180px);
+            margin: 0 auto;
+        }
+
+        body.conference-booking-public-page .scheduler-scroll-button {
+            z-index: 20;
+            width: 44px;
+            height: 44px;
+            border: 1px solid var(--booking-green);
+            border-radius: 999px;
+            background: var(--booking-green);
+            color: #ffffff;
+            box-shadow: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            justify-self: center;
+            transition: opacity 0.18s ease, transform 0.18s ease, background 0.18s ease;
+        }
+
+        body.conference-booking-public-page .scheduler-scroll-button:hover,
+        body.conference-booking-public-page .scheduler-scroll-button:focus-visible {
+            background: #14532d;
+            transform: scale(1.04);
+            outline: none;
+        }
+
+        body.conference-booking-public-page .scheduler-scroll-button.is-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        body.conference-booking-public-page .scheduler-scroll-button.scroll-right {
+            grid-column: 3;
+            grid-row: 1;
+        }
+
+        body.conference-booking-public-page .scheduler-scroll-button.scroll-left {
+            grid-column: 1;
+            grid-row: 1;
+        }
+
+        body.conference-booking-public-page .scheduler-board-frame .scheduler-board-wrap {
+            grid-column: 2;
+            grid-row: 1;
+            min-width: 0;
+        }
+
+        @media (max-width: 640px) {
+            body.conference-booking-public-page .scheduler-board-frame {
+                grid-template-columns: 38px minmax(0, 1fr) 38px;
+                gap: 6px;
+            }
+
+            body.conference-booking-public-page .scheduler-scroll-button {
+                width: 38px;
+                height: 38px;
+            }
+        }
+
         body.conference-booking-public-page .scheduler-board-wrap.is-dragging {
             cursor: grabbing;
             scroll-behavior: auto;
@@ -3282,8 +3349,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
 
         body.conference-booking-public-page .scheduler-header .panel-header-actions {
             display: grid;
-            grid-template-columns: minmax(0, 1fr);
-            grid-template-rows: auto auto;
+            grid-template-columns: auto minmax(0, 1fr);
             gap: 12px;
             align-items: center;
             width: 100%;
@@ -4637,52 +4703,59 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                             <?php endif; ?>
 
                             <?php if (count($schedulerRooms) > 0 && $schedulerIntervalCount > 0): ?>
-                                <div class="scheduler-board-wrap">
-                                    <div
-                                        class="scheduler-board"
-                                        style="--scheduler-lane-count: <?= $schedulerLaneCount; ?>; --scheduler-interval-count: <?= max(1, $schedulerIntervalCount); ?>; --scheduler-day-min-width: <?= 220 + max(0, $schedulerLaneCount - 1) * 120; ?>px;"
-                                    >
-                                        <div class="scheduler-board-head">
-                                            <div class="scheduler-time-head">
-                                                <span class="scheduler-time-head-label">Time</span>
-                                                <span class="scheduler-time-head-note">30-minute rows</span>
-                                            </div>
-                                            <?php foreach ($weekDays as $day): ?>
-                                                <?php
-                                                    $dayDate = (string) ($day['date'] ?? '');
-                                                    $isTodayColumn = $highlightTodayDate !== '' && $dayDate === $highlightTodayDate;
-                                                ?>
-                                                <div class="scheduler-day-head <?= $isTodayColumn ? 'is-today' : ''; ?>">
-                                                    <div class="scheduler-day-head-main">
-                                                        <span class="scheduler-day-name"><?= htmlspecialchars(date('D', strtotime($dayDate)), ENT_QUOTES, 'UTF-8'); ?></span>
-                                                        <span class="scheduler-day-date"><?= htmlspecialchars(date('d M Y', strtotime($dayDate)), ENT_QUOTES, 'UTF-8'); ?></span>
-                                                        <?php if ($isTodayColumn): ?>
-                                                            <span class="scheduler-day-badge">Today</span>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                    <div class="scheduler-room-heads">
-                                                        <?php foreach ($schedulerRooms as $room): ?>
-                                                            <?php
-                                                                $roomSupportsDate = conference_booking_room_supports_booking_date($room, $dayDate);
-                                                                $roomHeadState = $roomSupportsDate ? 'Open for booking' : 'Saturday disabled';
-                                                                $roomVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'), (string) ($room['room_color'] ?? ''));
-                                                                $roomSlug = (string) ($roomVisuals['slug'] ?? 'room');
-                                                                $roomHasSavedColor = !empty($roomVisuals['has_saved_color']);
-                                                                $roomInlineStyle = $roomHasSavedColor
-                                                                    ? '--room-color:' . (string) ($roomVisuals['label_color'] ?? '#b7edc3') . '; --room-soft-color:' . (string) ($roomVisuals['soft_color'] ?? '#ecfdf3') . '; --room-text-color:' . (string) ($roomVisuals['text_color'] ?? '#166534') . ';'
-                                                                    : '';
-                                                            ?>
-                                                            <div class="scheduler-room-head room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomHasSavedColor ? 'has-saved-color' : ''; ?> <?= $roomSupportsDate ? '' : 'is-disabled'; ?>" style="<?= htmlspecialchars($roomInlineStyle, ENT_QUOTES, 'UTF-8'); ?>">
-                                                                <span class="scheduler-room-head-name room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($room['room_name'] ?? 'Room'), ENT_QUOTES, 'UTF-8'); ?></span>
-                                                                <span class="scheduler-room-head-state"><?= htmlspecialchars($roomHeadState, ENT_QUOTES, 'UTF-8'); ?></span>
-                                                            </div>
-                                                        <?php endforeach; ?>
-                                                    </div>
+                                <div class="scheduler-board-frame">
+                                    <button type="button" class="scheduler-scroll-button scroll-left is-hidden" id="schedulerScrollLeft" aria-label="Scroll scheduler left">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </button>
+                                    <button type="button" class="scheduler-scroll-button scroll-right is-hidden" id="schedulerScrollRight" aria-label="Scroll scheduler right">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </button>
+                                    <div class="scheduler-board-wrap">
+                                        <div
+                                            class="scheduler-board"
+                                            style="--scheduler-lane-count: <?= $schedulerLaneCount; ?>; --scheduler-interval-count: <?= max(1, $schedulerIntervalCount); ?>; --scheduler-day-min-width: <?= 220 + max(0, $schedulerLaneCount - 1) * 120; ?>px;"
+                                        >
+                                            <div class="scheduler-board-head">
+                                                <div class="scheduler-time-head">
+                                                    <span class="scheduler-time-head-label">Time</span>
+                                                    <span class="scheduler-time-head-note">30-minute rows</span>
                                                 </div>
-                                            <?php endforeach; ?>
-                                        </div>
+                                                <?php foreach ($weekDays as $day): ?>
+                                                    <?php
+                                                        $dayDate = (string) ($day['date'] ?? '');
+                                                        $isTodayColumn = $highlightTodayDate !== '' && $dayDate === $highlightTodayDate;
+                                                    ?>
+                                                    <div class="scheduler-day-head <?= $isTodayColumn ? 'is-today' : ''; ?>">
+                                                        <div class="scheduler-day-head-main">
+                                                            <span class="scheduler-day-name"><?= htmlspecialchars(date('D', strtotime($dayDate)), ENT_QUOTES, 'UTF-8'); ?></span>
+                                                            <span class="scheduler-day-date"><?= htmlspecialchars(date('d M Y', strtotime($dayDate)), ENT_QUOTES, 'UTF-8'); ?></span>
+                                                            <?php if ($isTodayColumn): ?>
+                                                                <span class="scheduler-day-badge">Today</span>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                        <div class="scheduler-room-heads">
+                                                            <?php foreach ($schedulerRooms as $room): ?>
+                                                                <?php
+                                                                    $roomSupportsDate = conference_booking_room_supports_booking_date($room, $dayDate);
+                                                                    $roomHeadState = $roomSupportsDate ? 'Open for booking' : 'Saturday disabled';
+                                                                    $roomVisuals = conference_booking_page_room_visuals((string) ($room['room_name'] ?? 'room'), (string) ($room['room_color'] ?? ''));
+                                                                    $roomSlug = (string) ($roomVisuals['slug'] ?? 'room');
+                                                                    $roomHasSavedColor = !empty($roomVisuals['has_saved_color']);
+                                                                    $roomInlineStyle = $roomHasSavedColor
+                                                                        ? '--room-color:' . (string) ($roomVisuals['label_color'] ?? '#b7edc3') . '; --room-soft-color:' . (string) ($roomVisuals['soft_color'] ?? '#ecfdf3') . '; --room-text-color:' . (string) ($roomVisuals['text_color'] ?? '#166534') . ';'
+                                                                        : '';
+                                                                ?>
+                                                                <div class="scheduler-room-head room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?> <?= $roomHasSavedColor ? 'has-saved-color' : ''; ?> <?= $roomSupportsDate ? '' : 'is-disabled'; ?>" style="<?= htmlspecialchars($roomInlineStyle, ENT_QUOTES, 'UTF-8'); ?>">
+                                                                    <span class="scheduler-room-head-name room-<?= htmlspecialchars($roomSlug, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string) ($room['room_name'] ?? 'Room'), ENT_QUOTES, 'UTF-8'); ?></span>
+                                                                    <span class="scheduler-room-head-state"><?= htmlspecialchars($roomHeadState, ENT_QUOTES, 'UTF-8'); ?></span>
+                                                                </div>
+                                                            <?php endforeach; ?>
+                                                        </div>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
 
-                                        <div class="scheduler-board-body">
+                                            <div class="scheduler-board-body">
                                             <div class="scheduler-time-rail">
                                                 <?php foreach ($schedulerGridTicks as $tick): ?>
                                                     <div class="scheduler-time-slot <?= !empty($tick['is_hour']) ? 'is-hour' : ''; ?>">
@@ -4755,6 +4828,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                             <?php endforeach; ?>
                                         </div>
                                     </div>
+                                </div>
                                 </div>
                             <?php else: ?>
                                 <div class="scheduler-empty">
@@ -5036,6 +5110,8 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             const clearBookingBtn = document.getElementById('clearBookingBtn');
             const bookingSaturdayNote = document.getElementById('bookingSaturdayNote');
             const schedulerBoardWrap = document.querySelector('.scheduler-board-wrap');
+            const schedulerScrollLeft = document.getElementById('schedulerScrollLeft');
+            const schedulerScrollRight = document.getElementById('schedulerScrollRight');
             const departmentMap = <?= json_encode($companyDepartmentMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
             const roomSaturdayMap = <?= json_encode($roomSaturdayMap, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
             const selectedDepartment = <?= json_encode((string) $form['booker_department'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
@@ -5144,6 +5220,43 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 let schedulerDragStartX = 0;
                 let schedulerDragStartY = 0;
                 let schedulerDragScrollLeft = 0;
+
+                function updateSchedulerScrollButtons() {
+                    if (!schedulerScrollLeft || !schedulerScrollRight) {
+                        return;
+                    }
+
+                    const maxScroll = Math.max(0, schedulerBoardWrap.scrollWidth - schedulerBoardWrap.clientWidth);
+                    const currentScroll = schedulerBoardWrap.scrollLeft;
+                    const hasOverflow = maxScroll > 4;
+
+                    schedulerScrollLeft.classList.toggle('is-hidden', !hasOverflow || currentScroll <= 4);
+                    schedulerScrollRight.classList.toggle('is-hidden', !hasOverflow || currentScroll >= maxScroll - 4);
+                }
+
+                function scrollSchedulerBy(direction) {
+                    const amount = Math.max(240, Math.floor(schedulerBoardWrap.clientWidth * 0.72));
+                    schedulerBoardWrap.scrollBy({
+                        left: direction * amount,
+                        behavior: 'smooth'
+                    });
+                }
+
+                if (schedulerScrollLeft) {
+                    schedulerScrollLeft.addEventListener('click', function () {
+                        scrollSchedulerBy(-1);
+                    });
+                }
+
+                if (schedulerScrollRight) {
+                    schedulerScrollRight.addEventListener('click', function () {
+                        scrollSchedulerBy(1);
+                    });
+                }
+
+                schedulerBoardWrap.addEventListener('scroll', updateSchedulerScrollButtons, { passive: true });
+                window.addEventListener('resize', updateSchedulerScrollButtons);
+                window.setTimeout(updateSchedulerScrollButtons, 0);
 
                 schedulerBoardWrap.addEventListener('pointerdown', function (event) {
                     if (event.button !== 0 || event.target.closest('button, a, input, select, textarea, label')) {
