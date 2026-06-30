@@ -366,9 +366,84 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
 .admin-content,
 .routing-page,
 .conference-admin-page,
+.manage-rooms-page,
+.kb-wrapper,
+.edit-container,
+.create-admin-container,
 .profile-shell {
     animation: none !important;
     transition: none !important;
+}
+
+.admin-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    padding: 30px;
+    background: transparent;
+}
+
+.admin-content {
+    width: 100%;
+    max-width: 1460px;
+    min-width: 0;
+}
+
+.admin-content > .routing-page,
+.admin-content > .conference-admin-page,
+.admin-content > .manage-rooms-page,
+.admin-content > .kb-wrapper,
+.admin-content > .edit-container,
+.admin-content > .create-admin-container,
+.admin-content > .profile-shell {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+.admin-content :is(
+    .admin-page-title,
+    .analytics-title,
+    .admin-mgmt-header h1,
+    .routing-intro h1,
+    .conference-admin-title h1,
+    .manage-rooms-title h1,
+    .page-header .page-title,
+    .kb-page-header .page-title,
+    .edit-container .page-title,
+    .profile-title
+) {
+    color: #111827;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 2.05rem;
+    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+}
+
+.admin-content :is(
+    .admin-page-subtitle,
+    .analytics-subtitle,
+    .admin-mgmt-subtitle,
+    .routing-intro p,
+    .conference-admin-title p,
+    .manage-rooms-title p,
+    .kb-page-subtitle,
+    .profile-subtitle
+) {
+    color: #6B7280;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    font-weight: 400;
+}
+
+@media (max-width: 768px) {
+    .admin-container {
+        padding: 20px;
+    }
 }
 
 .admin-main-header-left {

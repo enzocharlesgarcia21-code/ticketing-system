@@ -97,16 +97,10 @@ function conference_room_status_text(int $isActive): string
         }
         .manage-rooms-title h1 {
             margin: 0 0 8px;
-            color: #0f172a;
-            font-size: 32px;
-            font-weight: 800;
         }
         .manage-rooms-title p {
             margin: 0;
             max-width: 780px;
-            color: #64748b;
-            font-size: 15px;
-            line-height: 1.6;
         }
         .manage-rooms-actions {
             display: flex;
@@ -453,6 +447,8 @@ function conference_room_status_text(int $isActive): string
 <body>
     <?php include '../includes/admin_navbar.php'; ?>
 
+    <div class="admin-container">
+        <div class="admin-content">
     <main class="manage-rooms-page">
         <div class="manage-rooms-header">
             <div class="manage-rooms-title">
@@ -631,5 +627,7 @@ function conference_room_status_text(int $isActive): string
             <?php endif; ?>
         </section>
     </main>
+        </div>
+    </div>
 </body>
 </html>

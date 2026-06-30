@@ -101,21 +101,11 @@ foreach ($availabilityRows as $companyRow) {
 
         .routing-intro h1 {
             margin: 0;
-            font-size: 2.05rem;
-            font-weight: 600;
-            color: #111827;
-            letter-spacing: -0.03em;
-            line-height: 1.1;
-            font-family: 'Inter', sans-serif;
         }
 
         .routing-intro p {
             margin: 12px 0 0;
             max-width: 780px;
-            color: #64748b;
-            font-size: 15px;
-            font-weight: 500;
-            line-height: 1.7;
         }
 
         .routing-summary {
@@ -711,6 +701,8 @@ foreach ($availabilityRows as $companyRow) {
 <body>
 <?php include '../includes/admin_navbar.php'; ?>
 
+<div class="admin-container">
+    <div class="admin-content">
 <div class="routing-page">
     <section class="routing-top">
         <div class="routing-intro">
@@ -874,6 +866,8 @@ foreach ($availabilityRows as $companyRow) {
     <div class="routing-save-bar">
         <div class="routing-save-summary" id="routeSaveSummary">No pending changes.</div>
         <button type="button" class="routing-save-btn" id="routeSaveButton" disabled>Save Changes</button>
+    </div>
+</div>
     </div>
 </div>
 

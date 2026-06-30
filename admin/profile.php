@@ -50,17 +50,10 @@ if (!isset($_SESSION['email']) && !empty($user['email'])) {
 
         .profile-title {
             margin: 0;
-            color: #172033;
-            font-size: 30px;
-            font-weight: 800;
-            letter-spacing: -0.02em;
         }
 
         .profile-subtitle {
             margin: 6px 0 0;
-            color: #64748b;
-            font-size: 14px;
-            font-weight: 600;
         }
 
         .profile-card {
@@ -162,6 +155,8 @@ if (!isset($_SESSION['email']) && !empty($user['email'])) {
 <div class="admin-page">
     <?php include '../includes/admin_navbar.php'; ?>
 
+    <div class="admin-container">
+        <div class="admin-content">
     <main class="profile-shell">
         <div class="profile-header">
             <div>
@@ -209,6 +204,8 @@ if (!isset($_SESSION['email']) && !empty($user['email'])) {
             </div>
         </section>
     </main>
+        </div>
+    </div>
 </div>
 </body>
 </html>
