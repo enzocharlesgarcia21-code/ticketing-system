@@ -183,23 +183,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
 <title>Ticket Details</title>
-<link rel="stylesheet" href="../css/employee.css">
+<link rel="stylesheet" href="../css/admin.css?v=<?php echo time(); ?>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
-<div class="sidebar">
-    <h2>Admin Panel</h2>
-    <a href="dashboard.php">Dashboard</a>
-    <a href="all_tickets.php" class="active">All Tickets</a>
-    <a href="logout.php">Logout</a>
-</div>
+<div class="admin-page">
+<?php include '../includes/admin_navbar.php'; ?>
 
-<div class="main-content">
+<div class="admin-container">
+    <div class="admin-content">
 
 <h1>Ticket #<?= $ticket['id']; ?></h1>
 
-<div class="recent">
+<div class="admin-card recent">
 
 <!-- ===== EMPLOYEE INFO ===== -->
 <h3>Employee Information</h3>
@@ -276,6 +273,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 </form>
 
+</div>
+</div>
 </div>
 </div>
 

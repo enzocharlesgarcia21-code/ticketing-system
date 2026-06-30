@@ -640,9 +640,9 @@ $result = $stmt->get_result();
     <?php include '../includes/admin_navbar.php'; ?>
 
     <div class="admin-container">
-        <div class="at-layout">
-            <div class="at-main">
-                <div class="admin-content">
+        <div class="admin-content">
+            <div class="at-layout">
+                <div class="at-main">
 
             <?php if(isset($_SESSION['success'])): ?>
                 <div class="admin-notice">

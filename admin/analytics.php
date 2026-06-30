@@ -363,10 +363,19 @@ $company_options = [
 if ($company_filter !== '' && !array_key_exists($company_filter, $company_options)) $company_filter = '';
 
 $department_options = ticket_lapc_departments();
-if (!$analyticsIsEmployeeView && $company_filter !== '@leadsagri.com') {
-    $department_filter = '';
-} elseif (!$analyticsIsEmployeeView && $department_filter !== '' && !in_array($department_filter, $department_options, true)) {
-    $department_filter = '';
+$department_options_by_company = [];
+foreach ($company_options as $companyOption => $_companyLabel) {
+    $department_options_by_company[$companyOption] = analytics_is_combined_farmex_lav_filter($companyOption)
+        ? []
+        : ticket_company_allowed_groups($companyOption);
+}
+if (!$analyticsIsEmployeeView) {
+    $department_options = $company_filter !== '' ? ($department_options_by_company[$company_filter] ?? []) : [];
+    if ($company_filter === '' || count($department_options) === 0) {
+        $department_filter = '';
+    } elseif ($department_filter !== '' && !in_array($department_filter, $department_options, true)) {
+        $department_filter = '';
+    }
 }
 
 $categories = [
@@ -1289,10 +1298,16 @@ if ($employeeIsLapcMarketing) {
     $companyChartDatasets['marketing_operations'] = $marketingOperationsDataset;
     $companyChartDatasets['channel_campaigns'] = $channelCampaignDataset;
 }
-$companyLegendItems = $lapcDepartmentItems;
+$adminCompanyChartHasComparisonTabs = !$analyticsIsEmployeeView && $company_filter === '';
+$initialCompanyChartView = $employeeIsLapcMarketing
+    ? 'marketing_operations'
+    : ((!$analyticsIsEmployeeView && $company_filter !== '' && $company_filter !== '@leadsagri.com') ? 'other' : 'lapc');
+
+$companyLegendItems = $initialCompanyChartView === 'other' ? $otherCompanyItems : $lapcDepartmentItems;
 if ($employeeIsLapcMarketing) {
     $companyLegendItems = $marketingOperationsItems;
 }
+$initialCompanyChartDataset = $companyChartDatasets[$initialCompanyChartView] ?? $companyChartDatasets['lapc'];
 $companyChartTotal = array_sum(array_column($companyLegendItems, 'count'));
 foreach ($companyLegendItems as $idx => $item) {
     $companyLegendItems[$idx]['percent'] = $companyChartTotal > 0 ? round(((int) $item['count'] / $companyChartTotal) * 100) : 0;
@@ -1516,10 +1531,6 @@ if ($ticketsStmt) {
             align-items: center;
             gap: 12px;
             margin: 0;
-            font-size: 2.05rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-            color: #111827;
         }
         .analytics-title i {
             color: #1B5E20;
@@ -1527,10 +1538,6 @@ if ($ticketsStmt) {
         }
         .analytics-subtitle {
             margin: 0;
-            color: #6B7280;
-            font-size: 14px;
-            line-height: 1.45;
-            font-weight: 400;
         }
         .analytics-header-actions {
             display: flex;
@@ -2678,9 +2685,6 @@ if ($ticketsStmt) {
             .admin-content {
                 padding-top: 0;
             }
-            .analytics-title {
-                font-size: 1.7rem;
-            }
             .analytics-filters {
                 grid-template-columns: 1fr;
             }
@@ -2874,7 +2878,7 @@ if ($ticketsStmt) {
                                 </div>
                             <?php else: ?>
                                 <div class="analytics-select-wrap" data-analytics-select="department">
-                                    <select class="analytics-control" name="department" id="analyticsDepartmentFilter" <?= $company_filter !== '@leadsagri.com' ? 'disabled' : '' ?> tabindex="-1">
+                                    <select class="analytics-control" name="department" id="analyticsDepartmentFilter" <?= count($department_options) === 0 ? 'disabled' : '' ?> tabindex="-1">
                                         <option value="" <?= $department_filter === '' ? 'selected' : '' ?>>All Department</option>
                                         <?php foreach ($department_options as $d): ?>
                                             <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $department_filter === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
@@ -2976,15 +2980,15 @@ if ($ticketsStmt) {
                 <div class="chart-card category-card">
                     <div class="chart-header">
                         <div class="chart-heading">
-                            <div class="chart-title" id="companyChartTitle"><?= $employeeIsLapcMarketing ? 'Marketing Request Type Distribution' : ($analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company') ?></div>
-                            <p class="chart-subtitle" id="companyChartSubtitle"><?= htmlspecialchars($employeeIsLapcMarketing ? 'LAPC • Marketing Operations' : ($analyticsIsEmployeeView ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department'), ENT_QUOTES, 'UTF-8') ?></p>
+                            <div class="chart-title" id="companyChartTitle"><?= htmlspecialchars((string) ($initialCompanyChartDataset['title'] ?? ($analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company')), ENT_QUOTES, 'UTF-8') ?></div>
+                            <p class="chart-subtitle" id="companyChartSubtitle"><?= htmlspecialchars((string) ($initialCompanyChartDataset['subtitle'] ?? ($analyticsIsEmployeeView ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department')), ENT_QUOTES, 'UTF-8') ?></p>
                         </div>
                         <?php if ($employeeIsLapcMarketing): ?>
                         <div class="company-chart-toggle" aria-label="Marketing request type view">
                             <button type="button" class="company-chart-toggle-btn active" data-company-view="marketing_operations" aria-pressed="true">Marketing Operations</button>
                             <button type="button" class="company-chart-toggle-btn" data-company-view="channel_campaigns" aria-pressed="false">Channel &amp; Campaigns</button>
                         </div>
-                        <?php elseif (!$analyticsIsEmployeeView): ?>
+                        <?php elseif ($adminCompanyChartHasComparisonTabs): ?>
                         <div class="company-chart-toggle" aria-label="Tickets per company view">
                             <button type="button" class="company-chart-toggle-btn active" data-company-view="lapc" aria-pressed="true">LAPC</button>
                             <button type="button" class="company-chart-toggle-btn" data-company-view="other" aria-pressed="false">Other Companies</button>
@@ -3274,6 +3278,7 @@ if ($ticketsStmt) {
         var companyFilter = document.getElementById('analyticsCompanyFilter');
         var departmentFilter = document.getElementById('analyticsDepartmentFilter');
         var statusFilter = document.getElementById('analyticsStatusFilter');
+        var departmentOptionsByCompany = <?= json_encode($department_options_by_company) ?>;
 
         function closeAnalyticsSelects(exceptWrap) {
             document.querySelectorAll('.analytics-select-wrap.is-open').forEach(function (wrap) {
@@ -3332,11 +3337,39 @@ if ($ticketsStmt) {
             });
         }
 
+        function rebuildDepartmentOptions() {
+            if (!companyFilter || !departmentFilter) return;
+            var selectedCompany = companyFilter.value || '';
+            var selectedDepartment = departmentFilter.value || '';
+            var options = departmentOptionsByCompany[selectedCompany] || [];
+
+            departmentFilter.innerHTML = '';
+            var allOption = document.createElement('option');
+            allOption.value = '';
+            allOption.textContent = 'All Department';
+            departmentFilter.appendChild(allOption);
+
+            options.forEach(function (department) {
+                var option = document.createElement('option');
+                option.value = department;
+                option.textContent = department;
+                departmentFilter.appendChild(option);
+            });
+
+            if (selectedDepartment !== '' && options.indexOf(selectedDepartment) !== -1) {
+                departmentFilter.value = selectedDepartment;
+            } else {
+                departmentFilter.value = '';
+            }
+        }
+
         function syncDepartmentAvailability() {
             if (!departmentFilter) return;
-            var isLapc = companyFilter && companyFilter.value === '@leadsagri.com';
-            departmentFilter.disabled = !isLapc;
-            if (!isLapc) {
+            rebuildDepartmentOptions();
+            var selectedCompany = companyFilter ? (companyFilter.value || '') : '';
+            var hasDepartmentOptions = selectedCompany !== '' && (departmentOptionsByCompany[selectedCompany] || []).length > 0;
+            departmentFilter.disabled = !hasDepartmentOptions;
+            if (!hasDepartmentOptions) {
                 departmentFilter.value = '';
             }
             refreshAnalyticsSelect(departmentFilter);
@@ -3388,7 +3421,7 @@ if ($ticketsStmt) {
     const textColor = '#7b8798';
     const gridColor = '#e7edf5';
     const companyChartDatasets = <?= json_encode($companyChartDatasets) ?>;
-    const initialCompanyChartView = <?= json_encode($employeeIsLapcMarketing ? 'marketing_operations' : 'lapc') ?>;
+    const initialCompanyChartView = <?= json_encode($initialCompanyChartView) ?>;
     let activeCompanyChartData = companyChartDatasets[initialCompanyChartView] || companyChartDatasets.lapc || { title: <?= json_encode($analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company') ?>, subtitle: <?= json_encode($analyticsIsEmployeeView ? 'Categories in your assigned department' : 'LAPC tickets by department') ?>, labels: [], counts: [], colors: [] };
 
     function companyChartTotal(data) {

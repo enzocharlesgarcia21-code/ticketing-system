@@ -1010,6 +1010,28 @@ function conference_booking_delete_notification_message(array $booking): string
     return 'Your conference booking for ' . $roomName . ' on ' . $dateLabel . ' from ' . $startLabel . ' to ' . $endLabel . ' was deleted by an administrator.';
 }
 
+function conference_booking_create_notification_message(array $booking): string
+{
+    $roomName = trim((string) ($booking['room_name'] ?? 'the selected conference room'));
+    $dateValue = trim((string) ($booking['booking_date'] ?? ''));
+    $dateLabel = $dateValue !== '' ? date('M d, Y', strtotime($dateValue)) : 'the selected date';
+    $startLabel = conference_booking_format_time_12h((string) ($booking['start_time'] ?? ''));
+    $endLabel = conference_booking_format_time_12h((string) ($booking['end_time'] ?? ''));
+
+    return 'Your conference booking for ' . $roomName . ' on ' . $dateLabel . ' from ' . $startLabel . ' to ' . $endLabel . ' was created.';
+}
+
+function conference_booking_cancel_notification_message(array $booking): string
+{
+    $roomName = trim((string) ($booking['room_name'] ?? 'the selected conference room'));
+    $dateValue = trim((string) ($booking['booking_date'] ?? ''));
+    $dateLabel = $dateValue !== '' ? date('M d, Y', strtotime($dateValue)) : 'the selected date';
+    $startLabel = conference_booking_format_time_12h((string) ($booking['start_time'] ?? ''));
+    $endLabel = conference_booking_format_time_12h((string) ($booking['end_time'] ?? ''));
+
+    return 'Your conference booking for ' . $roomName . ' on ' . $dateLabel . ' from ' . $startLabel . ' to ' . $endLabel . ' was cancelled.';
+}
+
 function conference_booking_admin_notification_message(
     array $room,
     string $bookingDate,
@@ -1039,7 +1061,14 @@ function conference_booking_admin_notification_message(
     return $bookerName . ' booked ' . $roomName . ' for ' . $dateLabel . ' from ' . $startLabel . ' to ' . $endLabel . $requesterLabel . '.' . $purposeLabel;
 }
 
-function conference_booking_insert_user_notification(mysqli $conn, int $userId, string $message, string $title): bool
+function conference_booking_insert_user_notification(
+    mysqli $conn,
+    int $userId,
+    string $message,
+    string $title,
+    string $type = 'conference_booking_deleted',
+    string $actionType = 'update'
+): bool
 {
     $userId = (int) $userId;
     if ($userId <= 0 || trim($message) === '') {
@@ -1050,8 +1079,6 @@ function conference_booking_insert_user_notification(mysqli $conn, int $userId, 
     notif_ensure_title_column($conn);
 
     $ticketId = 0;
-    $type = 'conference_booking_deleted';
-    $actionType = 'update';
     $stmt = $conn->prepare("
         INSERT INTO notifications (user_id, ticket_id, title, message, type, action_type)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -1363,7 +1390,20 @@ function conference_booking_cancel(mysqli $conn, int $bookingId): array
 
         $booking['status'] = 'Cancelled';
         $conn->commit();
+<<<<<<< HEAD
         $emailed = $affected > 0 ? conference_booking_send_cancel_email($booking) : false;
+=======
+        if ($affected > 0) {
+            $message = conference_booking_cancel_notification_message($booking);
+            conference_booking_insert_user_notification(
+                $conn,
+                (int) ($booking['user_id'] ?? 0),
+                $message,
+                'Conference Booking Cancelled',
+                'conference_booking_cancelled'
+            );
+        }
+>>>>>>> 01e42414bbbdb38963725bc300d8869ccf7083ab
 
         return [
             'ok' => true,
@@ -1520,6 +1560,21 @@ function conference_booking_create(
         $conn->commit();
 
         $createdBooking = conference_booking_find_by_id($conn, $bookingId);
+        $notificationBooking = $createdBooking ?: [
+            'user_id' => $bookingUserId,
+            'room_name' => (string) ($room['room_name'] ?? 'Conference Room'),
+            'booking_date' => $bookingDate,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+        ];
+        $message = conference_booking_create_notification_message($notificationBooking);
+        conference_booking_insert_user_notification(
+            $conn,
+            (int) ($notificationBooking['user_id'] ?? 0),
+            $message,
+            'Conference Booking Created',
+            'conference_booking_created'
+        );
         $emailed = conference_booking_send_create_email($createdBooking ?: [
             'booked_by_email' => $bookerEmail,
             'booked_by_name' => $bookerName !== '' ? $bookerName : ($bookerEmail !== '' ? $bookerEmail : 'Employee'),

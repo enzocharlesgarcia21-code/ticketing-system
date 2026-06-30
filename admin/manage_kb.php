@@ -509,20 +509,11 @@ unset($recent_articles_query['recent_page']);
         }
 
         .page-title {
-            font-size: 2.05rem;
-            font-weight: 600;
-            color: #111827;
-            letter-spacing: -0.03em;
-            line-height: 1.1;
             margin: 0;
         }
 
         .kb-page-subtitle {
             margin: 0;
-            color: #6B7280;
-            font-size: 14px;
-            line-height: 1.45;
-            font-weight: 400;
         }
 
         .btn-add-article {
@@ -2317,6 +2308,8 @@ unset($recent_articles_query['recent_page']);
 
     <?php include '../includes/admin_navbar.php'; ?>
 
+    <div class="admin-container">
+        <div class="admin-content">
     <div class="kb-wrapper">
         
         <?php if ($success_msg): ?>
@@ -2654,6 +2647,8 @@ unset($recent_articles_query['recent_page']);
             </div>
         <?php endif; ?>
 
+    </div>
+        </div>
     </div>
 </div>
 

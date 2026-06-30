@@ -109,6 +109,9 @@ function notif_action_type_from_legacy_type(string $type): string
         case 'status_update':
         case 'note_added':
         case 'conference_booking':
+        case 'conference_booking_created':
+        case 'conference_booking_cancelled':
+        case 'conference_booking_deleted':
             return 'update';
         default:
             return '';
