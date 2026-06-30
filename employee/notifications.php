@@ -454,43 +454,55 @@ function notif_priority_from_message(string $message): string
             color: #94a3b8;
         }
         .notif-item-row.booking-created {
-            gap: 12px;
-            padding: 14px;
-            border-radius: 8px;
+            padding: 16px 24px 16px 22px;
+            border-radius: 16px;
             background: #ffffff;
             box-shadow: 0 1px 0 rgba(0,0,0,0.06);
+            display: block;
         }
         .notif-item-row.booking-created::before {
             background: #0f7a3a;
         }
-        .notif-item-row.booking-created .left-pill {
-            min-width: 78px;
+        .notif-item-row.booking-created .booking-header {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 12px;
+            min-width: 0;
+        }
+        .notif-item-row.booking-created .left-pill {
+            min-width: 0;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            gap: 0;
             align-self: flex-start;
             background: #e9f7ef;
-            border-radius: 8px;
-            padding: 8px;
+            border: 2px solid #0f7a3a;
+            border-radius: 11px;
+            padding: 0;
+            overflow: hidden;
             flex: 0 0 auto;
         }
         .notif-item-row.booking-created .booking-icon {
-            width: 20px;
-            height: 20px;
+            width: 28px;
+            height: 26px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            color: #0f7a3a;
-            font-size: 16px;
+            background: linear-gradient(135deg, #34d399, #0f766e);
+            color: #ffffff;
+            font-size: 13px;
         }
         .notif-item-row.booking-created .pill-label {
             color: #0f7a3a;
-            font-weight: 600;
-            font-size: 0.86rem;
+            font-weight: 800;
+            font-size: 11px;
+            line-height: 1;
+            padding: 0 4px;
         }
         .notif-item-row.booking-created .notification-body {
             min-width: 0;
-            flex: 1;
+            display: block;
         }
         .notif-item-row.booking-created .booking-title {
             margin: 0;
@@ -507,13 +519,13 @@ function notif_priority_from_message(string $message): string
             text-overflow: ellipsis;
         }
         .notif-item-row.booking-created .notif-details {
-            margin-top: 8px;
+            margin-top: 2px;
             color: #666666;
             font-size: 13px;
             line-height: 1.35;
         }
         .notif-item-row.booking-created .notif-meta {
-            margin-top: 10px;
+            margin-top: 0;
             color: #1e88e5;
             font-weight: 600;
             font-size: 0.8rem;
@@ -1140,12 +1152,14 @@ function notif_priority_from_message(string $message): string
                                  data-notification-type="<?= htmlspecialchars($typeJs, ENT_QUOTES, 'UTF-8') ?>"
                                  onclick="openEmployeeNotification(this)"
                                  onkeydown="handleEmployeeNotificationKey(event, this)">
-                                <div class="left-pill">
-                                    <span class="booking-icon"><i class="fas fa-calendar-check"></i></span>
-                                    <span class="pill-label">Booking</span>
+                                <div class="booking-header">
+                                    <div class="left-pill">
+                                        <span class="booking-icon"><i class="fas fa-calendar-check"></i></span>
+                                        <span class="pill-label">Booking</span>
+                                    </div>
+                                    <h4 class="booking-title">Conference Booking Created</h4>
                                 </div>
                                 <div class="notification-body">
-                                    <h4 class="booking-title">Conference Booking Created</h4>
                                     <div class="notif-subtitle"><?= htmlspecialchars($subtitle, ENT_QUOTES, 'UTF-8') ?></div>
                                     <div class="notif-details"><?= htmlspecialchars($details, ENT_QUOTES, 'UTF-8') ?></div>
                                     <div class="notif-meta notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
