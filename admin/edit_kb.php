@@ -326,9 +326,6 @@ $selected_sub_category = $current_sub_category;
             margin-bottom: 25px;
         }
         .page-title {
-            font-size: 24px;
-            font-weight: 700;
-            color: #111827;
             display: flex;
             align-items: center;
             gap: 12px;
@@ -970,6 +967,8 @@ $selected_sub_category = $current_sub_category;
 <div class="admin-page">
     <?php include '../includes/admin_navbar.php'; ?>
 
+    <div class="admin-container">
+        <div class="admin-content">
     <div class="edit-container">
         <div class="page-header">
             <a href="manage_kb.php" class="btn-back">
@@ -1202,6 +1201,8 @@ $selected_sub_category = $current_sub_category;
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
         </div>
     </div>
 </div>
