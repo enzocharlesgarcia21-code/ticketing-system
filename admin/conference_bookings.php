@@ -77,7 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($result['ok'])) {
             $booking = (array) ($result['booking'] ?? []);
             $roomName = trim((string) ($booking['room_name'] ?? 'the selected room'));
-            $_SESSION['conference_booking_flash_success'] = 'Booking for ' . $roomName . ' was cancelled successfully.';
+            $emailNote = !empty($result['emailed']) ? ' The requestor was also notified by email.' : '';
+            $_SESSION['conference_booking_flash_success'] = 'Booking for ' . $roomName . ' was cancelled successfully.' . $emailNote;
         } else {
             $_SESSION['conference_booking_flash_error'] = trim((string) ($result['error'] ?? 'Unable to cancel the booking right now.'));
         }

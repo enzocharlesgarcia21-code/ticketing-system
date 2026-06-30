@@ -1067,68 +1067,103 @@ function conference_booking_insert_user_notification(mysqli $conn, int $userId, 
     return (bool) $ok;
 }
 
-function conference_booking_send_delete_email(array $booking): bool
+function conference_booking_email_template(string $title, string $email, string $introText, array $booking): array
 {
-    $email = trim((string) ($booking['booked_by_email'] ?? ''));
-    if ($email === '') {
-        return false;
-    }
-
-    $title = 'Conference Booking Deleted';
-    $bookedBy = trim((string) ($booking['booked_by_name'] ?? 'Employee'));
     $roomName = trim((string) ($booking['room_name'] ?? 'Conference Room'));
     $dateValue = trim((string) ($booking['booking_date'] ?? ''));
     $dateLabel = $dateValue !== '' ? date('M d, Y', strtotime($dateValue)) : 'the selected date';
     $startLabel = conference_booking_format_time_12h((string) ($booking['start_time'] ?? ''));
     $endLabel = conference_booking_format_time_12h((string) ($booking['end_time'] ?? ''));
     $purpose = trim((string) ($booking['purpose'] ?? ''));
+    $ctaUrl = conference_booking_employee_link();
 
-    $lines = [
-        'Hello ' . $bookedBy . ',',
-        'An administrator removed your conference room booking.',
-        'Room: ' . $roomName,
-        'Date: ' . $dateLabel,
-        'Time: ' . $startLabel . ' to ' . $endLabel,
+    $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $safeEmail = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
+    $safeIntro = htmlspecialchars($introText, ENT_QUOTES, 'UTF-8');
+    $safeCtaUrl = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
+
+    $details = [
+        'Room' => $roomName,
+        'Date' => $dateLabel,
+        'Time' => $startLabel . ' to ' . $endLabel,
     ];
     if ($purpose !== '') {
-        $lines[] = 'Purpose: ' . $purpose;
+        $details['Purpose'] = $purpose;
     }
-    $lines[] = 'Please create a new booking if you still need the room.';
 
-    $mail = notif_email_simple($title, $lines, 'View My Bookings', conference_booking_employee_link());
+    $rowsHtml = '';
+    $lineText = '';
+    foreach ($details as $label => $value) {
+        $lineText .= $label . ': ' . $value . "\n";
+        $rowsHtml .= '
+                        <tr>
+                            <td style="width:160px;padding:0 28px 20px 0;font-size:16px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
+                            <td style="padding:0 0 20px 0;font-size:16px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8')) . '</td>
+                        </tr>';
+    }
+
+    $bodyHtml = '
+        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;">
+            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;">
+                <div style="background:#005c2f;padding:26px 36px 24px;color:#ffffff;">
+                    <div style="font-size:31px;font-weight:700;line-height:1.12;letter-spacing:-0.01em;text-shadow:0 1px 2px rgba(0,0,0,0.35);">Leads DeskMetamorph</div>
+                    <div style="font-size:20px;font-weight:700;color:#fff200;margin-top:14px;line-height:1.25;">' . $safeTitle . '</div>
+                </div>
+                <div style="padding:34px 38px 30px;">
+                    <div style="margin:0 0 24px 0;font-size:18px;line-height:1.45;color:#050505;">Hello <a href="mailto:' . $safeEmail . '" style="color:#0b57d0;text-decoration:underline;">' . $safeEmail . '</a>,</div>
+                    <div style="margin:0 0 28px 0;font-size:18px;line-height:1.45;color:#050505;">' . $safeIntro . '</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 4px 0;">
+                        ' . $rowsHtml . '
+                    </table>
+                    <div style="border-top:1px solid #cfcfcf;margin:6px 0 22px 0;"></div>
+                    <div style="margin:0 0 10px 0;font-size:17px;line-height:1.35;color:#050505;font-weight:700;">What Happens Next?</div>
+                    <div style="margin:0 0 20px 0;font-size:17px;line-height:1.45;color:#050505;">If you still need the room, please submit a new booking request.</div>
+                    <a href="' . $safeCtaUrl . '" target="_blank" rel="noopener" style="display:block;width:100%;box-sizing:border-box;text-align:center;background:#006633;border:1px solid #006633;border-radius:6px;padding:14px 18px;color:#ffffff;text-decoration:none;font-weight:700;font-size:18px;line-height:1.2;">Book Conference Room</a>
+                </div>
+            </div>
+        </div>';
+
+    $bodyText = "Leads DeskMetamorph\n$title\n\nHello $email,\n\n$introText\n\n" . $lineText . "\nWhat Happens Next?\nIf you still need the room, please submit a new booking request.\n\nBook Conference Room: $ctaUrl\n";
+
+    return ['html' => $bodyHtml, 'text' => $bodyText];
+}
+
+function conference_booking_send_event_email(array $booking, string $title, string $introText): bool
+{
+    $email = trim((string) ($booking['booked_by_email'] ?? ''));
+    if ($email === '') {
+        return false;
+    }
+
+    $mail = conference_booking_email_template($title, $email, $introText, $booking);
     return notif_email_send([$email], $title, (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''));
+}
+
+function conference_booking_send_delete_email(array $booking): bool
+{
+    return conference_booking_send_event_email(
+        $booking,
+        'Conference Booking Deleted',
+        'An administrator removed your conference room booking.'
+    );
+}
+
+function conference_booking_send_cancel_email(array $booking): bool
+{
+    return conference_booking_send_event_email(
+        $booking,
+        'Conference Booking Cancelled',
+        'Your conference room booking has been cancelled.'
+    );
 }
 
 function conference_booking_send_create_email(array $booking): bool
 {
-    $email = trim((string) ($booking['booked_by_email'] ?? ''));
-    if ($email === '') {
-        return false;
-    }
-
-    $title = 'Conference Booking Confirmed';
-    $bookedBy = trim((string) ($booking['booked_by_name'] ?? 'Employee'));
-    $roomName = trim((string) ($booking['room_name'] ?? 'Conference Room'));
-    $dateValue = trim((string) ($booking['booking_date'] ?? ''));
-    $dateLabel = $dateValue !== '' ? date('M d, Y', strtotime($dateValue)) : 'the selected date';
-    $startLabel = conference_booking_format_time_12h((string) ($booking['start_time'] ?? ''));
-    $endLabel = conference_booking_format_time_12h((string) ($booking['end_time'] ?? ''));
-    $purpose = trim((string) ($booking['purpose'] ?? ''));
-
-    $lines = [
-        'Hello ' . $bookedBy . ',',
-        'Your conference booking has been created successfully.',
-        'Room: ' . $roomName,
-        'Date: ' . $dateLabel,
-        'Time: ' . $startLabel . ' to ' . $endLabel,
-    ];
-    if ($purpose !== '') {
-        $lines[] = 'Purpose: ' . $purpose;
-    }
-    $lines[] = 'You can view your bookings anytime from the conference booking page.';
-
-    $mail = notif_email_simple($title, $lines, 'View My Bookings', conference_booking_employee_link());
-    return notif_email_send([$email], $title, (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''));
+    return conference_booking_send_event_email(
+        $booking,
+        'Conference Booking Created',
+        'Your conference room booking has been created successfully.'
+    );
 }
 
 function conference_booking_delete(mysqli $conn, int $bookingId, int $deletedByUserId = 0): array
@@ -1328,11 +1363,13 @@ function conference_booking_cancel(mysqli $conn, int $bookingId): array
 
         $booking['status'] = 'Cancelled';
         $conn->commit();
+        $emailed = $affected > 0 ? conference_booking_send_cancel_email($booking) : false;
 
         return [
             'ok' => true,
             'booking' => $booking,
             'changed' => $affected > 0,
+            'emailed' => $emailed,
         ];
     } catch (Throwable $e) {
         $conn->rollback();
