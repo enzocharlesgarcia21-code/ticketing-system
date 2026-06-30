@@ -2729,6 +2729,7 @@ function ticket_priority_escalation_stage_config(string $targetPriority): ?array
             'target_priority' => 'High',
             'from_priorities' => ['', 'Low'],
             'days' => 3,
+            'interval' => '+5 minutes',
             'escalated_at_column' => 'auto_escalated_high_at',
             'notified_at_column' => 'auto_escalated_high_notified_at',
             'emailed_at_column' => 'auto_escalated_high_emailed_at',
@@ -2739,6 +2740,7 @@ function ticket_priority_escalation_stage_config(string $targetPriority): ?array
             'target_priority' => 'Critical',
             'from_priorities' => ['High'],
             'days' => 3,
+            'interval' => '+5 minutes',
             'escalated_at_column' => 'auto_escalated_critical_at',
             'notified_at_column' => 'auto_escalated_critical_notified_at',
             'emailed_at_column' => 'auto_escalated_critical_emailed_at',
@@ -2772,7 +2774,10 @@ function ticket_priority_escalation_due_at(array $ticket, string $targetPriority
         return null;
     }
 
-    $dueTs = strtotime('+' . (int) $config['days'] . ' days', $referenceTs);
+    $interval = trim((string) ($config['interval'] ?? ''));
+    $dueTs = $interval !== ''
+        ? strtotime($interval, $referenceTs)
+        : strtotime('+' . (int) $config['days'] . ' days', $referenceTs);
     if ($dueTs === false) {
         return null;
     }
@@ -2920,7 +2925,7 @@ function ticket_mark_priority_escalation_delivery(mysqli $conn, int $ticketId, s
         $sets[] = $config['notified_at_column'] . " = COALESCE(" . $config['notified_at_column'] . ", " . $quotedNotificationTime . ")";
     }
     if ($emailsSent) {
-        $sets[] = $config['emailed_at_column'] . " = COALESCE(" . $config['emailed_at_column'] . ", NOW())";
+        $sets[] = $config['emailed_at_column'] . " = NOW()";
     }
     if (count($sets) === 0) {
         return;
@@ -3016,7 +3021,8 @@ function ticket_process_priority_escalation_stage(mysqli $conn, int $ticketId, s
     }
 
     $shouldSendNotifications = empty($stageTicket[$notifiedAtColumn]);
-    $shouldSendEmails = empty($stageTicket[$emailedAtColumn]);
+    $emailedAtTs = !empty($stageTicket[$emailedAtColumn]) ? strtotime((string) $stageTicket[$emailedAtColumn]) : false;
+    $shouldSendEmails = empty($stageTicket[$emailedAtColumn]) || ($emailedAtTs !== false && $emailedAtTs <= time() - (5 * 60));
     if (!$shouldSendNotifications && !$shouldSendEmails && !$escalated) {
         return null;
     }
@@ -3146,12 +3152,19 @@ function ticket_apply_sla_priority(mysqli $conn, bool $force = false): array
                     COALESCE(priority, '') IN ('', 'Low', 'High')
                     AND " . ticket_escalation_reference_sql() . " IS NOT NULL
                     AND (
-                        (DATE_ADD(" . ticket_escalation_reference_sql() . ", INTERVAL 3 DAY) <= NOW() AND auto_escalated_high_at IS NULL)
-                        OR (DATE_ADD(COALESCE(auto_escalated_high_at, DATE_ADD(" . ticket_escalation_reference_sql() . ", INTERVAL 3 DAY)), INTERVAL 3 DAY) <= NOW() AND (priority = 'High' OR auto_escalated_high_at IS NOT NULL) AND auto_escalated_critical_at IS NULL)
+                        (DATE_ADD(" . ticket_escalation_reference_sql() . ", INTERVAL 5 MINUTE) <= NOW() AND auto_escalated_high_at IS NULL)
+                        OR (DATE_ADD(COALESCE(auto_escalated_high_at, DATE_ADD(" . ticket_escalation_reference_sql() . ", INTERVAL 5 MINUTE)), INTERVAL 5 MINUTE) <= NOW() AND (priority = 'High' OR auto_escalated_high_at IS NOT NULL) AND auto_escalated_critical_at IS NULL)
                     )
                 )
                 OR (auto_escalated_high_at IS NOT NULL AND (auto_escalated_high_notified_at IS NULL OR auto_escalated_high_emailed_at IS NULL))
-                OR (auto_escalated_critical_at IS NOT NULL AND (auto_escalated_critical_notified_at IS NULL OR auto_escalated_critical_emailed_at IS NULL))
+                OR (
+                    auto_escalated_critical_at IS NOT NULL
+                    AND (
+                        auto_escalated_critical_notified_at IS NULL
+                        OR auto_escalated_critical_emailed_at IS NULL
+                        OR auto_escalated_critical_emailed_at <= (NOW() - INTERVAL 5 MINUTE)
+                    )
+                )
           )
         ORDER BY " . ticket_escalation_reference_sql() . " ASC, id ASC
     ";

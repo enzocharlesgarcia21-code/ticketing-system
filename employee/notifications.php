@@ -453,6 +453,71 @@ function notif_priority_from_message(string $message): string
             font-size: 0.8rem;
             color: #94a3b8;
         }
+        .notif-item-row.booking-created {
+            gap: 12px;
+            padding: 14px;
+            border-radius: 8px;
+            background: #ffffff;
+            box-shadow: 0 1px 0 rgba(0,0,0,0.06);
+        }
+        .notif-item-row.booking-created::before {
+            background: #0f7a3a;
+        }
+        .notif-item-row.booking-created .left-pill {
+            min-width: 78px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            align-self: flex-start;
+            background: #e9f7ef;
+            border-radius: 8px;
+            padding: 8px;
+            flex: 0 0 auto;
+        }
+        .notif-item-row.booking-created .booking-icon {
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #0f7a3a;
+            font-size: 16px;
+        }
+        .notif-item-row.booking-created .pill-label {
+            color: #0f7a3a;
+            font-weight: 600;
+            font-size: 0.86rem;
+        }
+        .notif-item-row.booking-created .notification-body {
+            min-width: 0;
+            flex: 1;
+        }
+        .notif-item-row.booking-created .booking-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.25;
+            color: #111827;
+        }
+        .notif-item-row.booking-created .notif-subtitle {
+            margin-top: 6px;
+            color: #333333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .notif-item-row.booking-created .notif-details {
+            margin-top: 8px;
+            color: #666666;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+        .notif-item-row.booking-created .notif-meta {
+            margin-top: 10px;
+            color: #1e88e5;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
         .notif-chat-pending .notif-date {
             font-size: 0.8rem;
             color: #94a3b8;
@@ -1027,6 +1092,66 @@ function notif_priority_from_message(string $message): string
                             <div class="notif-section-label"><?= htmlspecialchars($sectionLabel, ENT_QUOTES, 'UTF-8') ?></div>
                             <div class="notif-section-card">
                             <?php $currentSection = $sectionLabel; ?>
+                        <?php endif; ?>
+                        <?php if ($typeJs === 'conference_booking_created'): ?>
+                            <?php
+                                $payload = json_decode((string) ($row['message'] ?? ''), true);
+                                $payload = is_array($payload) ? $payload : [];
+                                $formatBookingTime = static function (string $timeValue): string {
+                                    $timeValue = trim($timeValue);
+                                    if ($timeValue === '') {
+                                        return '';
+                                    }
+                                    if (function_exists('conference_booking_format_time_12h')) {
+                                        return conference_booking_format_time_12h($timeValue);
+                                    }
+                                    $ts = strtotime($timeValue);
+                                    return $ts !== false ? date('g:i A', $ts) : $timeValue;
+                                };
+                                $email = trim((string) ($payload['user_email'] ?? ''));
+                                $room = trim((string) ($payload['room_name'] ?? ($payload['room'] ?? '')));
+                                $dateValue = trim((string) ($payload['booking_date'] ?? ''));
+                                $date = $dateValue !== '' && strtotime($dateValue) !== false ? date('M d, Y', strtotime($dateValue)) : '';
+                                $start = $formatBookingTime((string) ($payload['start_time'] ?? ''));
+                                $end = $formatBookingTime((string) ($payload['end_time'] ?? ''));
+                                $location = trim((string) ($payload['location'] ?? ($payload['room_location'] ?? $room)));
+                                $purpose = trim((string) ($payload['purpose'] ?? ''));
+                                $fallbackMessage = trim((string) ($row['message'] ?? ''));
+                                if ($email === '') $email = 'Someone';
+                                if ($room === '') $room = 'the room';
+                                if ($location === '') $location = $room;
+                                $subtitle = $email . ' booked ' . $room . ($date !== '' ? ' on ' . $date : '') . '.';
+                                $details = trim('from ' . $start . ' to ' . $end . ' (' . $location . ').');
+                                if ($start === '' && $end === '') {
+                                    $details = '(' . $location . ').';
+                                }
+                                if ($purpose !== '') {
+                                    $details .= ' Purpose: ' . $purpose . '.';
+                                } elseif (!$payload && $fallbackMessage !== '') {
+                                    $details = $fallbackMessage;
+                                }
+                            ?>
+                            <div class="notif-item-row booking-created <?= $row['is_read'] == 0 ? 'unread' : '' ?>"
+                                 style="--notif-accent: #0f7a3a; --notif-dot: #0f7a3a;"
+                                 role="button"
+                                 tabindex="0"
+                                 data-notification-id="<?= (int) $row['id'] ?>"
+                                 data-ticket-id="<?= $ticketIdJs === null ? '' : (int) $ticketIdJs ?>"
+                                 data-notification-type="<?= htmlspecialchars($typeJs, ENT_QUOTES, 'UTF-8') ?>"
+                                 onclick="openEmployeeNotification(this)"
+                                 onkeydown="handleEmployeeNotificationKey(event, this)">
+                                <div class="left-pill">
+                                    <span class="booking-icon"><i class="fas fa-calendar-check"></i></span>
+                                    <span class="pill-label">Booking</span>
+                                </div>
+                                <div class="notification-body">
+                                    <h4 class="booking-title">Conference Booking Created</h4>
+                                    <div class="notif-subtitle"><?= htmlspecialchars($subtitle, ENT_QUOTES, 'UTF-8') ?></div>
+                                    <div class="notif-details"><?= htmlspecialchars($details, ENT_QUOTES, 'UTF-8') ?></div>
+                                    <div class="notif-meta notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
+                                </div>
+                            </div>
+                            <?php continue; ?>
                         <?php endif; ?>
                         <div class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?> <?= $typeJs === 'hr_chat_pending' ? 'notif-chat-pending' : '' ?> <?= $typeJs === 'follow_up' ? 'notif-follow-up' : '' ?> <?= $typeJs === 'priority_escalated' ? 'notif-priority-escalation' : '' ?>"
                              style="--notif-accent: <?= htmlspecialchars($accentColor, ENT_QUOTES, 'UTF-8') ?>; --notif-dot: <?= htmlspecialchars($dotColor, ENT_QUOTES, 'UTF-8') ?>;"

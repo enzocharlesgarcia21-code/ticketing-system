@@ -124,6 +124,34 @@ function notif_priority_from_message(string $message): string
     if ($to === 'on track') return 'low';
     return $to;
 }
+
+function admin_conference_booking_summary(string $message): array
+{
+    $message = trim($message);
+    $payload = json_decode($message, true);
+    if (is_array($payload)) {
+        $booker = trim((string) ($payload['user_email'] ?? $payload['booked_by_email'] ?? 'Someone'));
+        $room = trim((string) ($payload['room_name'] ?? $payload['room'] ?? 'the room'));
+        $dateValue = trim((string) ($payload['booking_date'] ?? ''));
+        $date = $dateValue !== '' && strtotime($dateValue) !== false ? date('M d, Y', strtotime($dateValue)) : '';
+        return [
+            'booker' => $booker !== '' ? $booker : 'Someone',
+            'room' => $room !== '' ? $room : 'the room',
+            'date' => $date,
+        ];
+    }
+
+    $booker = 'Someone';
+    $room = 'the room';
+    $date = '';
+    if (preg_match('/^(.*?)\s+booked\s+(.*?)\s+for\s+(.*?)\s+from\s+/i', $message, $matches)) {
+        $booker = trim((string) ($matches[1] ?? '')) ?: $booker;
+        $room = trim((string) ($matches[2] ?? '')) ?: $room;
+        $date = trim((string) ($matches[3] ?? ''));
+    }
+
+    return ['booker' => $booker, 'room' => $room, 'date' => $date];
+}
 ?>
 
 <!DOCTYPE html>
@@ -157,6 +185,7 @@ function notif_priority_from_message(string $message): string
             box-shadow: none;
             overflow: visible;
             max-width: 860px;
+            margin: 0 auto;
         }
         .notif-section-label {
             font-size: 1.08rem;
@@ -286,6 +315,13 @@ function notif_priority_from_message(string $message): string
             font-weight: 800;
             letter-spacing: 0.01em;
         }
+        .notif-list-page .notif-pill.variant-booking {
+            color: #0f766e;
+            background: #f0fdfa;
+        }
+        .notif-list-page .notif-pill.variant-booking .notif-pill-icon {
+            background: linear-gradient(135deg, #34d399, #0f766e);
+        }
         .notif-item-row.notif-priority-escalation {
             background: linear-gradient(180deg, #fffafa 0%, #fff5f5 100%);
             border-color: #fecaca;
@@ -342,6 +378,74 @@ function notif_priority_from_message(string $message): string
         .notif-list-page .notif-date {
             font-size: 0.8rem;
             color: #94a3b8;
+        }
+        .notif-item-row.admin-booking-created {
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px 24px 16px 22px;
+        }
+        .notif-item-row.admin-booking-created::before {
+            width: 7px;
+            background: #0f9f5a;
+        }
+        .notif-item-row.admin-booking-created .admin-booking-pill {
+            display: inline-flex;
+            align-items: stretch;
+            min-width: 0;
+            min-height: 26px;
+            height: 26px;
+            border: 2px solid #16a34a;
+            border-radius: 11px;
+            overflow: hidden;
+            background: #ffffff;
+            color: #0f7a3a;
+            flex: 0 0 auto;
+        }
+        .notif-item-row.admin-booking-created .admin-booking-icon {
+            width: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #0f9f5a;
+            color: #ffffff;
+            font-size: 13px;
+        }
+        .notif-item-row.admin-booking-created .admin-booking-label {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 16px 0 12px;
+            font-weight: 800;
+            font-size: 11px;
+            line-height: 1;
+            color: #0f7a3a;
+        }
+        .notif-item-row.admin-booking-created .admin-booking-body {
+            min-width: 0;
+            flex: 1;
+        }
+        .notif-item-row.admin-booking-created .admin-booking-title {
+            margin: 0 0 6px;
+            font-size: 0.92rem;
+            line-height: 1.25;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .notif-item-row.admin-booking-created .admin-booking-subtitle {
+            color: #1f2937;
+            font-size: 0.92rem;
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .notif-item-row.admin-booking-created .admin-booking-time {
+            margin-top: 8px;
+            display: block;
+            color: #94a3b8;
+            font-size: 0.8rem;
+            font-weight: 400;
         }
         .pagination {
             display: flex;
@@ -451,7 +555,7 @@ function notif_priority_from_message(string $message): string
             max-width: 860px;
             width: 100%;
             gap: 16px;
-            margin-bottom: 20px;
+            margin: 0 auto 20px;
         }
         .page-title {
             margin: 0;
@@ -687,6 +791,34 @@ function notif_priority_from_message(string $message): string
                                 <div class="notif-section-label"><?= htmlspecialchars($sectionLabel, ENT_QUOTES, 'UTF-8') ?></div>
                                 <div class="notif-section-card">
                                 <?php $currentSection = $sectionLabel; ?>
+                            <?php endif; ?>
+                            <?php if ($typeKey === 'conference_booking'): ?>
+                                <?php
+                                    $bookingSummary = admin_conference_booking_summary((string) ($row['message'] ?? ''));
+                                    $bookingSubtitle = $bookingSummary['booker'] . ' booked ' . $bookingSummary['room'];
+                                    if (trim((string) ($bookingSummary['date'] ?? '')) !== '') {
+                                        $bookingSubtitle .= ' on ' . trim((string) $bookingSummary['date']);
+                                    }
+                                    $bookingSubtitle .= '.';
+                                ?>
+                                <a class="notif-item-row admin-booking-created <?= $row['is_read'] == 0 ? 'unread' : '' ?>"
+                                   href="<?= htmlspecialchars($notificationHref, ENT_QUOTES, 'UTF-8') ?>"
+                                   data-notification-id="<?= (int) $row['id'] ?>"
+                                   data-ticket-id="<?= $ticketIdJs !== null ? (int) $ticketIdJs : '' ?>"
+                                   data-notification-type="<?= htmlspecialchars($typeKey, ENT_QUOTES, 'UTF-8') ?>"
+                                   style="--notif-accent: #0f9f5a; --notif-dot: #008a22;"
+                                   onclick="return handleNotificationRowClick(event, this);">
+                                    <span class="notif-pill variant-booking">
+                                        <span class="notif-pill-icon"><i class="fas fa-calendar-check"></i></span>
+                                        <span class="notif-pill-text">Booking</span>
+                                    </span>
+                                    <span class="admin-booking-body">
+                                        <h3 class="admin-booking-title">Conference Booking Created</h3>
+                                        <div class="admin-booking-subtitle"><?= htmlspecialchars($bookingSubtitle, ENT_QUOTES, 'UTF-8') ?></div>
+                                        <span class="admin-booking-time notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></span>
+                                    </span>
+                                </a>
+                                <?php continue; ?>
                             <?php endif; ?>
                             <a class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?> <?= $typeKey === 'follow_up' ? 'notif-follow-up' : '' ?> <?= $typeKey === 'hr_chat_pending' ? 'notif-chat-pending' : '' ?> <?= $typeKey === 'priority_escalated' ? 'notif-priority-escalation' : '' ?>"
                                href="<?= htmlspecialchars($notificationHref, ENT_QUOTES, 'UTF-8') ?>"
