@@ -366,9 +366,84 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
 .admin-content,
 .routing-page,
 .conference-admin-page,
+.manage-rooms-page,
+.kb-wrapper,
+.edit-container,
+.create-admin-container,
 .profile-shell {
     animation: none !important;
     transition: none !important;
+}
+
+.admin-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    padding: 30px;
+    background: transparent;
+}
+
+.admin-content {
+    width: 100%;
+    max-width: 1460px;
+    min-width: 0;
+}
+
+.admin-content > .routing-page,
+.admin-content > .conference-admin-page,
+.admin-content > .manage-rooms-page,
+.admin-content > .kb-wrapper,
+.admin-content > .edit-container,
+.admin-content > .create-admin-container,
+.admin-content > .profile-shell {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+.admin-content :is(
+    .admin-page-title,
+    .analytics-title,
+    .admin-mgmt-header h1,
+    .routing-intro h1,
+    .conference-admin-title h1,
+    .manage-rooms-title h1,
+    .page-header .page-title,
+    .kb-page-header .page-title,
+    .edit-container .page-title,
+    .profile-title
+) {
+    color: #111827;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 2.05rem;
+    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+}
+
+.admin-content :is(
+    .admin-page-subtitle,
+    .analytics-subtitle,
+    .admin-mgmt-subtitle,
+    .routing-intro p,
+    .conference-admin-title p,
+    .manage-rooms-title p,
+    .kb-page-subtitle,
+    .profile-subtitle
+) {
+    color: #6B7280;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    font-weight: 400;
+}
+
+@media (max-width: 768px) {
+    .admin-container {
+        padding: 20px;
+    }
 }
 
 .admin-main-header-left {
@@ -1186,6 +1261,22 @@ body.admin-sidebar-preload .admin-nav-icon {
     color: #334155;
     margin-bottom: 6px;
 }
+.notif-item.admin-booking-created .notif-title {
+    margin-bottom: 6px;
+}
+.notif-item.admin-booking-created .notif-title-text {
+    font-weight: 800;
+}
+.notif-item.admin-booking-created .admin-booking-subtitle {
+    color: #1f2937;
+    font-size: 0.92rem;
+    line-height: 1.35;
+    margin-bottom: 6px;
+}
+.notif-item.admin-booking-created .notif-time {
+    color: #94a3b8;
+    font-weight: 400;
+}
 .notif-keyword {
     display: inline-flex;
     align-items: center;
@@ -1779,7 +1870,13 @@ function fetchAdminNotifications() {
                     const unreadDotHtml = Number(n.is_read) === 0 ? '<span class="notif-unread-dot" aria-hidden="true"></span>' : '';
                     const breachPillClass = isPriorityEscalation && priorityKey === 'high' ? 'notif-priority-breach-pill' : '';
                     const pillHtml = `<span class="notif-pill ${variantClass} ${breachPillClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span>${isChatPending ? '' : `<span class="notif-pill-text">${escapeHtml(pillText)}</span>`}</span>`;
-                    const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
+                    const bookingSummary = notificationType === 'conference_booking' ? adminBookingSummary(n.message) : null;
+                    const bookingSubtitle = bookingSummary
+                        ? `${bookingSummary.booker} booked ${bookingSummary.room}${bookingSummary.date ? ` on ${bookingSummary.date}` : ''}.`
+                        : '';
+                    const messageHtml = notificationType === 'conference_booking'
+                        ? `<div class="notif-title">${pillHtml}<span class="notif-title-text">Conference Booking Created</span></div><div class="admin-booking-subtitle">${escapeHtml(bookingSubtitle)}</div>`
+                        : `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
                     
                     const notifIdValue = parseInt(String(n.id || 0), 10) || 0;
                     const ticketIdValue = parseInt(String(n.ticket_id || 0), 10) || 0;
@@ -1787,7 +1884,7 @@ function fetchAdminNotifications() {
 
                     return `
                     ${sectionHtml}
-                    <a href="${escapeHtml(targetHref)}" class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''} ${isChatPending ? 'notif-chat-pending' : ''}" data-notif-id="${notifIdValue}" data-ticket-id="${ticketIdValue}" data-notification-type="${escapeHtml(notificationType)}" data-href="${escapeHtml(targetHref)}">
+                    <a href="${escapeHtml(targetHref)}" class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${notificationType === 'conference_booking' ? 'admin-booking-created' : ''} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''} ${isChatPending ? 'notif-chat-pending' : ''}" data-notif-id="${notifIdValue}" data-ticket-id="${ticketIdValue}" data-notification-type="${escapeHtml(notificationType)}" data-href="${escapeHtml(targetHref)}">
                         ${unreadDotHtml}
                         <div class="notif-content">
                             ${messageHtml}
@@ -1865,13 +1962,42 @@ function handleNotificationClick(notifId, ticketId, type, targetHref) {
 }
 
 function escapeHtml(text) {
-    if (!text) return '';
-    return text
+    if (text === null || text === undefined) return '';
+    return text.toString()
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+function formatAdminBookingDate(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const date = new Date(`${raw}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return raw;
+    return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+}
+
+function adminBookingSummary(message) {
+    const raw = String(message || '').trim();
+    try {
+        const payload = JSON.parse(raw || '{}');
+        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+            return {
+                booker: String(payload.user_email || payload.booked_by_email || 'Someone').trim() || 'Someone',
+                room: String(payload.room_name || payload.room || 'the room').trim() || 'the room',
+                date: formatAdminBookingDate(payload.booking_date || '')
+            };
+        }
+    } catch (error) {}
+
+    const match = raw.match(/^(.*?)\s+booked\s+(.*?)\s+for\s+(.*?)\s+from\s+/i);
+    return {
+        booker: match && match[1] ? match[1].trim() : 'Someone',
+        room: match && match[2] ? match[2].trim() : 'the room',
+        date: match && match[3] ? match[3].trim() : ''
+    };
 }
 
 function getPriorityNotificationTitle(priorityKey) {

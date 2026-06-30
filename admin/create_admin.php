@@ -559,11 +559,6 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         .admin-mgmt-subtitle {
             margin: 0;
             max-width: 980px;
-            color: #6B7280;
-            font-size: 14px;
-            line-height: 1.45;
-            font-weight: 400;
-            white-space: nowrap;
         }
         .user-table {
             width: 100%;
@@ -848,11 +843,6 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         }
         .admin-mgmt-header h1 {
             margin: 0;
-            font-size: 2.05rem;
-            font-weight: 600;
-            color: #111827;
-            letter-spacing: -0.03em;
-            line-height: 1.1;
         }
         .admin-mgmt-grid {
             display: grid;
@@ -3202,6 +3192,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
 
     <?php include '../includes/admin_navbar.php'; ?>
 
+    <div class="admin-container">
+        <div class="admin-content">
     <div class="create-admin-container">
         <div class="admin-mgmt-header">
             <h1>Admin Management</h1>
@@ -3648,6 +3640,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         </div>
         </div>
 
+    </div>
+        </div>
     </div>
 
 </div>

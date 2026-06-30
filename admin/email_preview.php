@@ -13,7 +13,6 @@ $sampleTicketNumber = str_pad((string) $sampleTicketId, 6, '0', STR_PAD_LEFT);
 $employeeTicketUrl = notif_ticket_link_employee_tickets($sampleTicketId);
 $employeeTaskUrl = notif_ticket_link_employee_tasks($sampleTicketId);
 $chatUrl = notif_ticket_link_employee_chat($sampleTicketId);
-$conferenceBookingUrl = conference_booking_employee_link();
 
 function preview_template(
     string $group,
@@ -28,6 +27,24 @@ function preview_template(
     return [
         'group' => $group,
         'audience' => $audience,
+        'subject' => $subject,
+        'html' => (string) ($mail['html'] ?? ''),
+        'text' => (string) ($mail['text'] ?? ''),
+    ];
+}
+
+function preview_conference_booking_template(
+    string $subject,
+    string $title,
+    string $introText,
+    array $booking,
+    array $options = []
+): array {
+    $email = trim((string) ($booking['booked_by_email'] ?? ''));
+    $mail = conference_booking_email_template($title, $email, $introText, $booking, $options);
+    return [
+        'group' => 'Conference Booking',
+        'audience' => 'Booker',
         'subject' => $subject,
         'html' => (string) ($mail['html'] ?? ''),
         'text' => (string) ($mail['text'] ?? ''),
@@ -135,15 +152,19 @@ $closedLines = [
     'Category: Hardware',
 ];
 
-$conferenceBookingConfirmationLines = [
-    'Hello Enzo Garcia,',
-    'Your conference booking has been created successfully.',
-    'Room: MPDC',
-    'Date: Jun 24, 2026',
-    'Time: 10:00 AM to 2:00 PM',
-    'Purpose: Project planning session',
-    'You can view your bookings anytime from the conference booking page.',
+$conferenceBookingSample = [
+    'booked_by_email' => 'rachelleambayan@gmail.com',
+    'booked_by_name' => 'Rachelle Ambayan',
+    'room_name' => 'MPDC',
+    'booking_date' => '2026-04-13',
+    'start_time' => '08:00:00',
+    'end_time' => '10:00:00',
+    'purpose' => 'UAT meeting',
 ];
+
+$conferenceBookingUpdatedSample = $conferenceBookingSample;
+$conferenceBookingUpdatedSample['start_time'] = '10:00:00';
+$conferenceBookingUpdatedSample['end_time'] = '12:00:00';
 
 $templates = [
     preview_template('New Ticket', 'Requester / Employee', 'Ticket Submitted (#' . $sampleTicketNumber . ')', 'Ticket Submitted', $ticketSubmittedLines, 'View Ticket', $employeeTicketUrl),
@@ -173,7 +194,14 @@ $templates = [
     preview_template('Chat / SLA', 'Requester', 'Priority Escalation (#000825)', 'Priority Escalation', $priorityEscalationLines, 'View Ticket', $employeeTicketUrl),
     preview_template('Chat / SLA', 'Assignee', 'Priority Escalation (#000825)', 'Priority Escalation', $priorityEscalationLines, 'View Ticket', $employeeTaskUrl),
 
-    preview_template('Conference Booking', 'Booker', 'Conference Booking Confirmed', 'Conference Booking Confirmed', $conferenceBookingConfirmationLines, 'View My Bookings', $conferenceBookingUrl),
+    preview_conference_booking_template('Conference Booking Created', 'Conference Booking Created', 'Your conference room booking has been created successfully.', $conferenceBookingSample),
+    preview_conference_booking_template('Conference Booking Updated', 'Conference Booking Updated', 'Your conference room booking has been updated successfully.', $conferenceBookingUpdatedSample, [
+        'is_updated' => true,
+        'old_start_time' => '08:00:00',
+        'old_end_time' => '10:00:00',
+    ]),
+    preview_conference_booking_template('Conference Booking Cancelled', 'Conference Booking Cancelled', 'Your conference room booking has been cancelled.', $conferenceBookingSample),
+    preview_conference_booking_template('Conference Booking Deleted', 'Conference Booking Deleted', 'An administrator removed your conference room booking.', $conferenceBookingSample),
 ];
 
 $groups = [];

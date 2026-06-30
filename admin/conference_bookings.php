@@ -59,7 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['conference_booking_edit_old'], $_SESSION['conference_booking_edit_modal_open']);
             $booking = (array) ($result['booking'] ?? []);
             $roomName = trim((string) ($booking['room_name'] ?? 'the selected room'));
-            $_SESSION['conference_booking_flash_success'] = 'Booking for ' . $roomName . ' was updated successfully.';
+            $emailNote = !empty($result['emailed']) ? ' The requestor was also notified by email.' : '';
+            $_SESSION['conference_booking_flash_success'] = 'Booking for ' . $roomName . ' was updated successfully.' . $emailNote;
         } else {
             $_SESSION['conference_booking_flash_error'] = trim((string) ($result['error'] ?? 'Unable to update the booking right now.'));
             $_SESSION['conference_booking_edit_modal_open'] = 1;
@@ -77,7 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($result['ok'])) {
             $booking = (array) ($result['booking'] ?? []);
             $roomName = trim((string) ($booking['room_name'] ?? 'the selected room'));
-            $_SESSION['conference_booking_flash_success'] = 'Booking for ' . $roomName . ' was cancelled successfully.';
+            $emailNote = !empty($result['emailed']) ? ' The requestor was also notified by email.' : '';
+            $_SESSION['conference_booking_flash_success'] = 'Booking for ' . $roomName . ' was cancelled successfully.' . $emailNote;
         } else {
             $_SESSION['conference_booking_flash_error'] = trim((string) ($result['error'] ?? 'Unable to cancel the booking right now.'));
         }
@@ -523,20 +525,10 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-admin-title h1 {
             margin: 0 0 10px;
-            color: #111827;
-            font-size: 2.05rem;
-            line-height: 1.1;
-            font-weight: 600;
-            letter-spacing: -0.03em;
         }
         .conference-admin-title p {
             margin: 0;
-            color: #6B7280;
-            font-size: 14px;
-            line-height: 1.45;
-            font-weight: 400;
             max-width: 980px;
-            white-space: nowrap;
         }
         .conference-manage-btn {
             display: inline-flex;
@@ -2833,9 +2825,6 @@ function conference_admin_booking_status_text(string $status): string
                 font-size: 13px;
                 margin-top: 10px;
             }
-            .conference-admin-title h1 {
-                font-size: 2.05rem;
-            }
             .conference-manage-btn {
                 width: 100%;
                 justify-content: center;
@@ -2968,6 +2957,8 @@ function conference_admin_booking_status_text(string $status): string
 <body>
     <?php include '../includes/admin_navbar.php'; ?>
 
+    <div class="admin-container">
+        <div class="admin-content">
     <main class="conference-admin-page">
         <div class="conference-admin-header">
             <div class="conference-admin-title">
@@ -3281,6 +3272,8 @@ function conference_admin_booking_status_text(string $status): string
             </section>
         </div>
     </main>
+        </div>
+    </div>
 
     <div class="room-delete-confirm" id="bookingDeleteConfirm" aria-hidden="true">
         <div class="room-delete-confirm-card" role="dialog" aria-modal="true" aria-labelledby="bookingDeleteConfirmTitle">

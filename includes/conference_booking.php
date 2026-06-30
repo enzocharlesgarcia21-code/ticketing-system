@@ -86,6 +86,9 @@ function conference_booking_ensure_tables(mysqli $conn): void
         'end_time' => "TIME NOT NULL",
         'purpose' => "TEXT NOT NULL",
         'status' => "VARCHAR(50) NOT NULL DEFAULT 'Booked'",
+        'root_message_id' => "VARCHAR(255) NULL",
+        'last_message_id' => "VARCHAR(255) NULL",
+        'thread_subject' => "VARCHAR(255) NULL",
         'created_at' => "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
         'updated_at' => "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
     ];
@@ -960,6 +963,9 @@ function conference_booking_find_by_id(mysqli $conn, int $bookingId, bool $forUp
             b.end_time,
             b.purpose,
             b.status,
+            b.root_message_id,
+            b.last_message_id,
+            b.thread_subject,
             b.created_at,
             b.updated_at,
             r.room_name,
@@ -1010,6 +1016,51 @@ function conference_booking_delete_notification_message(array $booking): string
     return 'Your conference booking for ' . $roomName . ' on ' . $dateLabel . ' from ' . $startLabel . ' to ' . $endLabel . ' was deleted by an administrator.';
 }
 
+function conference_booking_create_notification_message(array $booking): string
+{
+    $payload = [
+        'user_email' => trim((string) ($booking['booked_by_email'] ?? $booking['user_email'] ?? '')),
+        'room_name' => trim((string) ($booking['room_name'] ?? '')),
+        'booking_date' => trim((string) ($booking['booking_date'] ?? '')),
+        'start_time' => trim((string) ($booking['start_time'] ?? '')),
+        'end_time' => trim((string) ($booking['end_time'] ?? '')),
+        'location' => trim((string) ($booking['location'] ?? $booking['room_location'] ?? $booking['room_name'] ?? '')),
+        'purpose' => trim((string) ($booking['purpose'] ?? '')),
+    ];
+    $json = json_encode($payload);
+    if ($json !== false) {
+        return $json;
+    }
+
+    $roomName = trim((string) ($booking['room_name'] ?? 'the selected conference room'));
+    $dateValue = trim((string) ($booking['booking_date'] ?? ''));
+    $dateLabel = $dateValue !== '' ? date('M d, Y', strtotime($dateValue)) : 'the selected date';
+    $startLabel = conference_booking_format_time_12h((string) ($booking['start_time'] ?? ''));
+    $endLabel = conference_booking_format_time_12h((string) ($booking['end_time'] ?? ''));
+
+    return 'Your conference booking for ' . $roomName . ' on ' . $dateLabel . ' from ' . $startLabel . ' to ' . $endLabel . ' was created.';
+}
+
+function conference_booking_cancel_notification_message(array $booking): string
+{
+    $roomName = trim((string) ($booking['room_name'] ?? 'the selected conference room'));
+    $dateValue = trim((string) ($booking['booking_date'] ?? ''));
+    $dateLabel = $dateValue !== '' ? date('M d, Y', strtotime($dateValue)) : 'the selected date';
+    $startLabel = conference_booking_format_time_12h((string) ($booking['start_time'] ?? ''));
+    $endLabel = conference_booking_format_time_12h((string) ($booking['end_time'] ?? ''));
+
+    return 'Your conference booking for ' . $roomName . ' on ' . $dateLabel . ' from ' . $startLabel . ' to ' . $endLabel . ' was cancelled.';
+}
+
+function conference_booking_update_notification_message(array $booking): string
+{
+    $roomName = trim((string) ($booking['room_name'] ?? 'the selected conference room'));
+    $dateValue = trim((string) ($booking['booking_date'] ?? ''));
+    $dateLabel = $dateValue !== '' ? date('M d, Y', strtotime($dateValue)) : 'the selected date';
+
+    return 'Your conference booking for ' . $roomName . ' on ' . $dateLabel . ' was updated.';
+}
+
 function conference_booking_admin_notification_message(
     array $room,
     string $bookingDate,
@@ -1039,7 +1090,14 @@ function conference_booking_admin_notification_message(
     return $bookerName . ' booked ' . $roomName . ' for ' . $dateLabel . ' from ' . $startLabel . ' to ' . $endLabel . $requesterLabel . '.' . $purposeLabel;
 }
 
-function conference_booking_insert_user_notification(mysqli $conn, int $userId, string $message, string $title): bool
+function conference_booking_insert_user_notification(
+    mysqli $conn,
+    int $userId,
+    string $message,
+    string $title,
+    string $type = 'conference_booking_deleted',
+    string $actionType = 'update'
+): bool
 {
     $userId = (int) $userId;
     if ($userId <= 0 || trim($message) === '') {
@@ -1050,8 +1108,6 @@ function conference_booking_insert_user_notification(mysqli $conn, int $userId, 
     notif_ensure_title_column($conn);
 
     $ticketId = 0;
-    $type = 'conference_booking_deleted';
-    $actionType = 'update';
     $stmt = $conn->prepare("
         INSERT INTO notifications (user_id, ticket_id, title, message, type, action_type)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -1067,68 +1123,155 @@ function conference_booking_insert_user_notification(mysqli $conn, int $userId, 
     return (bool) $ok;
 }
 
-function conference_booking_send_delete_email(array $booking): bool
+function conference_booking_email_template(string $title, string $email, string $introText, array $booking, array $options = []): array
 {
-    $email = trim((string) ($booking['booked_by_email'] ?? ''));
-    if ($email === '') {
-        return false;
-    }
-
-    $title = 'Conference Booking Deleted';
-    $bookedBy = trim((string) ($booking['booked_by_name'] ?? 'Employee'));
+    $bookedBy = trim((string) ($booking['booked_by_name'] ?? ''));
     $roomName = trim((string) ($booking['room_name'] ?? 'Conference Room'));
     $dateValue = trim((string) ($booking['booking_date'] ?? ''));
     $dateLabel = $dateValue !== '' ? date('M d, Y', strtotime($dateValue)) : 'the selected date';
     $startLabel = conference_booking_format_time_12h((string) ($booking['start_time'] ?? ''));
     $endLabel = conference_booking_format_time_12h((string) ($booking['end_time'] ?? ''));
     $purpose = trim((string) ($booking['purpose'] ?? ''));
+    $ctaUrl = conference_booking_employee_link();
+    $greetingName = $bookedBy !== '' ? $bookedBy : $email;
 
-    $lines = [
-        'Hello ' . $bookedBy . ',',
-        'An administrator removed your conference room booking.',
-        'Room: ' . $roomName,
-        'Date: ' . $dateLabel,
-        'Time: ' . $startLabel . ' to ' . $endLabel,
-    ];
-    if ($purpose !== '') {
-        $lines[] = 'Purpose: ' . $purpose;
+    $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+    $safeGreetingName = htmlspecialchars($greetingName, ENT_QUOTES, 'UTF-8');
+    $safeIntro = htmlspecialchars($introText, ENT_QUOTES, 'UTF-8');
+    $safeCtaUrl = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
+
+    $isUpdated = !empty($options['is_updated']);
+    $oldStartLabel = conference_booking_format_time_12h((string) ($options['old_start_time'] ?? ''));
+    $oldEndLabel = conference_booking_format_time_12h((string) ($options['old_end_time'] ?? ''));
+    $newTimeLabel = $startLabel . ' to ' . $endLabel;
+    $updatedTimeLabel = ($oldStartLabel !== '' && $oldEndLabel !== '')
+        ? ($oldStartLabel . ' to ' . $oldEndLabel . ' -> ' . $newTimeLabel)
+        : $newTimeLabel;
+
+    if ($isUpdated) {
+        $details = [
+            'Room' => $roomName,
+            'Date' => $dateLabel,
+        ];
+        if ($purpose !== '') {
+            $details['Purpose'] = $purpose;
+        }
+        $details['Updated Time'] = $updatedTimeLabel;
+        $footerText = 'If you still need the room, please submit a new booking request';
+        $ctaLabel = 'Book Conference Room';
+    } else {
+        $details = [
+            'Room' => $roomName,
+            'Date' => $dateLabel,
+            'Time' => $newTimeLabel,
+        ];
+        if ($purpose !== '') {
+            $details['Purpose'] = $purpose;
+        }
+        $footerText = 'If you still need the room, please submit a new booking request.';
+        $ctaLabel = 'Book Conference Room';
     }
-    $lines[] = 'Please create a new booking if you still need the room.';
 
-    $mail = notif_email_simple($title, $lines, 'View My Bookings', conference_booking_employee_link());
-    return notif_email_send([$email], $title, (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''));
+    $rowsHtml = '';
+    $lineText = '';
+    foreach ($details as $label => $value) {
+        $lineText .= $label . ': ' . $value . "\n";
+        $rowsHtml .= '
+                        <tr>
+                            <td style="width:160px;padding:0 28px 20px 0;font-size:16px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
+                            <td style="padding:0 0 20px 0;font-size:16px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8')) . '</td>
+                        </tr>';
+    }
+
+    $bodyHtml = '
+        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;">
+            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;">
+                <div style="background:#005c2f;padding:26px 36px 24px;color:#ffffff;">
+                    <div style="font-size:31px;font-weight:700;line-height:1.12;letter-spacing:-0.01em;text-shadow:0 1px 2px rgba(0,0,0,0.35);">Leads DeskMetamorph</div>
+                    <div style="font-size:20px;font-weight:700;color:#fff200;margin-top:14px;line-height:1.25;">' . $safeTitle . '</div>
+                </div>
+                <div style="padding:34px 38px 30px;">
+                    <div style="margin:0 0 24px 0;font-size:18px;line-height:1.45;color:#050505;">Hello ' . $safeGreetingName . ',</div>
+                    <div style="margin:0 0 28px 0;font-size:18px;line-height:1.45;color:#050505;">' . $safeIntro . '</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 4px 0;">
+                        ' . $rowsHtml . '
+                    </table>
+                    <div style="border-top:1px solid #cfcfcf;margin:6px 0 22px 0;"></div>
+                    <div style="margin:0 0 10px 0;font-size:17px;line-height:1.35;color:#050505;font-weight:700;">What Happens Next?</div>
+                    <div style="margin:0 0 20px 0;font-size:17px;line-height:1.45;color:#050505;">' . htmlspecialchars($footerText, ENT_QUOTES, 'UTF-8') . '</div>
+                    <a href="' . $safeCtaUrl . '" target="_blank" rel="noopener" style="display:block;width:100%;box-sizing:border-box;text-align:center;background:#006633;border:1px solid #006633;border-radius:6px;padding:14px 18px;color:#ffffff;text-decoration:none;font-weight:700;font-size:18px;line-height:1.2;">' . htmlspecialchars($ctaLabel, ENT_QUOTES, 'UTF-8') . '</a>
+                </div>
+            </div>
+        </div>';
+
+    $bodyText = "Leads DeskMetamorph\n$title\n\nHello $greetingName,\n\n$introText\n\n" . $lineText . "\nWhat Happens Next?\n$footerText\n\n$ctaLabel: $ctaUrl\n";
+
+    return ['html' => $bodyHtml, 'text' => $bodyText];
+}
+
+function conference_booking_send_event_email(array $booking, string $title, string $introText, array $options = []): bool
+{
+    $email = trim((string) ($booking['booked_by_email'] ?? ''));
+    if ($email === '') {
+        return false;
+    }
+
+    $bookingId = (int) ($booking['id'] ?? 0);
+    $mail = conference_booking_email_template($title, $email, $introText, $booking, $options);
+    return notif_email_send(
+        [$email],
+        $title,
+        (string) ($mail['html'] ?? ''),
+        (string) ($mail['text'] ?? ''),
+        [],
+        $bookingId > 0 ? [
+            'conference_booking_id' => $bookingId,
+            'conference_booking_root_message_id' => (string) ($booking['root_message_id'] ?? ''),
+            'conference_booking_last_message_id' => (string) ($booking['last_message_id'] ?? ''),
+            'conference_booking_thread_subject' => (string) ($booking['thread_subject'] ?? ''),
+        ] : []
+    );
+}
+
+function conference_booking_send_delete_email(array $booking): bool
+{
+    return conference_booking_send_event_email(
+        $booking,
+        'Conference Booking Deleted',
+        'An administrator removed your conference room booking.'
+    );
+}
+
+function conference_booking_send_cancel_email(array $booking): bool
+{
+    return conference_booking_send_event_email(
+        $booking,
+        'Conference Booking Cancelled',
+        'Your conference room booking has been cancelled.'
+    );
 }
 
 function conference_booking_send_create_email(array $booking): bool
 {
-    $email = trim((string) ($booking['booked_by_email'] ?? ''));
-    if ($email === '') {
-        return false;
-    }
+    return conference_booking_send_event_email(
+        $booking,
+        'Conference Booking Created',
+        'Your conference room booking has been created successfully.'
+    );
+}
 
-    $title = 'Conference Booking Confirmed';
-    $bookedBy = trim((string) ($booking['booked_by_name'] ?? 'Employee'));
-    $roomName = trim((string) ($booking['room_name'] ?? 'Conference Room'));
-    $dateValue = trim((string) ($booking['booking_date'] ?? ''));
-    $dateLabel = $dateValue !== '' ? date('M d, Y', strtotime($dateValue)) : 'the selected date';
-    $startLabel = conference_booking_format_time_12h((string) ($booking['start_time'] ?? ''));
-    $endLabel = conference_booking_format_time_12h((string) ($booking['end_time'] ?? ''));
-    $purpose = trim((string) ($booking['purpose'] ?? ''));
-
-    $lines = [
-        'Hello ' . $bookedBy . ',',
-        'Your conference booking has been created successfully.',
-        'Room: ' . $roomName,
-        'Date: ' . $dateLabel,
-        'Time: ' . $startLabel . ' to ' . $endLabel,
-    ];
-    if ($purpose !== '') {
-        $lines[] = 'Purpose: ' . $purpose;
-    }
-    $lines[] = 'You can view your bookings anytime from the conference booking page.';
-
-    $mail = notif_email_simple($title, $lines, 'View My Bookings', conference_booking_employee_link());
-    return notif_email_send([$email], $title, (string) ($mail['html'] ?? ''), (string) ($mail['text'] ?? ''));
+function conference_booking_send_update_email(array $booking, array $oldBooking): bool
+{
+    return conference_booking_send_event_email(
+        $booking,
+        'Conference Booking Updated',
+        'Your conference room booking has been updated successfully.',
+        [
+            'is_updated' => true,
+            'old_start_time' => (string) ($oldBooking['start_time'] ?? ''),
+            'old_end_time' => (string) ($oldBooking['end_time'] ?? ''),
+        ]
+    );
 }
 
 function conference_booking_delete(mysqli $conn, int $bookingId, int $deletedByUserId = 0): array
@@ -1271,11 +1414,23 @@ function conference_booking_update_admin(
 
         $updatedBooking = conference_booking_find_by_id($conn, $bookingId, true);
         $conn->commit();
+        $emailed = $affected > 0 ? conference_booking_send_update_email($updatedBooking ?: $booking, $booking) : false;
+        if ($affected > 0) {
+            $message = conference_booking_update_notification_message($updatedBooking ?: $booking);
+            conference_booking_insert_user_notification(
+                $conn,
+                (int) ($booking['user_id'] ?? 0),
+                $message,
+                'Conference Booking Updated',
+                'conference_booking_updated'
+            );
+        }
 
         return [
             'ok' => true,
             'booking' => $updatedBooking ?: $booking,
             'changed' => $affected > 0,
+            'emailed' => $emailed,
         ];
     } catch (Throwable $e) {
         $conn->rollback();
@@ -1329,10 +1484,37 @@ function conference_booking_cancel(mysqli $conn, int $bookingId): array
         $booking['status'] = 'Cancelled';
         $conn->commit();
 
+         
+
+        $emailed = $affected > 0 ? conference_booking_send_cancel_email($booking) : false;
+
+
+        $emailed = $affected > 0 ? conference_booking_send_cancel_email($booking) : false;
+
+
+
+        $emailed = $affected > 0 ? conference_booking_send_cancel_email($booking) : false;
+
+
+        if ($affected > 0) {
+            $message = conference_booking_cancel_notification_message($booking);
+            conference_booking_insert_user_notification(
+                $conn,
+                (int) ($booking['user_id'] ?? 0),
+                $message,
+                'Conference Booking Cancelled',
+                'conference_booking_cancelled'
+            );
+        }
+
+
+
+
         return [
             'ok' => true,
             'booking' => $booking,
             'changed' => $affected > 0,
+            'emailed' => $emailed,
         ];
     } catch (Throwable $e) {
         $conn->rollback();
@@ -1483,7 +1665,25 @@ function conference_booking_create(
         $conn->commit();
 
         $createdBooking = conference_booking_find_by_id($conn, $bookingId);
+        $notificationBooking = $createdBooking ?: [
+            'user_id' => $bookingUserId,
+            'booked_by_email' => $bookerEmail,
+            'room_name' => (string) ($room['room_name'] ?? 'Conference Room'),
+            'booking_date' => $bookingDate,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'purpose' => $purpose,
+        ];
+        $message = conference_booking_create_notification_message($notificationBooking);
+        conference_booking_insert_user_notification(
+            $conn,
+            (int) ($notificationBooking['user_id'] ?? 0),
+            $message,
+            'Conference Booking Created',
+            'conference_booking_created'
+        );
         $emailed = conference_booking_send_create_email($createdBooking ?: [
+            'id' => $bookingId,
             'booked_by_email' => $bookerEmail,
             'booked_by_name' => $bookerName !== '' ? $bookerName : ($bookerEmail !== '' ? $bookerEmail : 'Employee'),
             'room_name' => (string) ($room['room_name'] ?? 'Conference Room'),

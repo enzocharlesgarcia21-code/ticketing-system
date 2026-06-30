@@ -355,6 +355,7 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-item.variant-high::before { --notif-accent: #ef4444; }
 .notif-item.variant-critical::before { --notif-accent: #E53935; }
 .notif-item.variant-update::before { --notif-accent: #0f766e; }
+.notif-item.variant-booking::before { --notif-accent: #0f7a3a; }
 .notif-item.variant-reassign::before { --notif-accent: #9333ea; }
 
 .notif-item:hover {
@@ -431,6 +432,9 @@ window.TM_MESSENGER_STYLE = 'employee';
 }
 .notif-item.unread.variant-update {
     background: #f0fdfa;
+}
+.notif-item.unread.variant-booking {
+    background: #f4fbf7;
 }
 .notif-item.unread.variant-reassign {
     background: #faf5ff;
@@ -674,6 +678,57 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-item.notif-chat-pending .notif-msg strong {
     color: #1d4f9b;
     font-weight: 700;
+}
+.notif-item.booking-created-card {
+    gap: 12px;
+    padding: 14px 40px 14px 16px;
+}
+.notif-item.booking-created-card .left-pill {
+    min-width: 78px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    background: #e9f7ef;
+    border-radius: 8px;
+    padding: 8px;
+    flex: 0 0 auto;
+}
+.notif-item.booking-created-card .booking-icon {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #0f7a3a;
+    font-size: 16px;
+}
+.notif-item.booking-created-card .pill-label {
+    color: #0f7a3a;
+    font-weight: 600;
+    font-size: 0.86rem;
+}
+.notif-item.booking-created-card .notification-body {
+    min-width: 0;
+    flex: 1;
+}
+.notif-item.booking-created-card .booking-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    line-height: 1.25;
+    color: #111827;
+}
+.notif-item.booking-created-card .booking-detail {
+    margin-top: 6px;
+    color: #333333;
+    font-size: 0.9rem;
+    line-height: 1.35;
+}
+.notif-item.booking-created-card .notif-time {
+    margin-top: 8px;
+    color: #1e88e5;
+    font-weight: 600;
 }
 .notif-item.priority-escalation .notif-msg {
     font-size: 0.95rem;
@@ -1609,6 +1664,32 @@ document.addEventListener('DOMContentLoaded', function() {
                             : (allowed.includes(rawPriority) ? rawPriority : '');
                         const typeKey = (n.type || '').toString();
                         const titleText = getNotificationTitle(actionType, typeKey, priorityKey);
+                        if (typeKey === 'conference_booking_created') {
+                            const payload = parseBookingPayload(n.message);
+                            const email = payload.user_email || 'Someone';
+                            const room = payload.room_name || payload.room || 'the room';
+                            const date = formatBookingDate(payload.booking_date || '');
+                            const start = formatBookingTime(payload.start_time || '');
+                            const end = formatBookingTime(payload.end_time || '');
+                            const location = payload.location || payload.room_location || room;
+                            const detail = `${email} booked ${room}${date ? ` on ${date}` : ''}${start || end ? ` from ${start} to ${end}` : ''} (${location}).`;
+                            const unreadDotHtml = Number(n.is_read) === 0 ? '<span class="notif-unread-dot" aria-hidden="true"></span>' : '';
+                            return `
+                                ${sectionHtml}
+                                <div class="notif-item booking-created-card variant-booking ${n.is_read == 0 ? 'unread' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, 'conference_booking_created')">
+                                    ${unreadDotHtml}
+                                    <div class="left-pill">
+                                        <span class="booking-icon"><i class="fas fa-calendar-check"></i></span>
+                                        <span class="pill-label">Booking</span>
+                                    </div>
+                                    <div class="notification-body">
+                                        <h4 class="booking-title">Conference Booking Created</h4>
+                                        <div class="booking-detail">${escapeHtml(detail)}</div>
+                                        <time class="notif-time" data-timestamp="${escapeHtml(n.created_at)}">${escapeHtml(n.time_ago || '')}</time>
+                                    </div>
+                                </div>
+                            `;
+                        }
                         const isFollowUp = typeKey === 'follow_up';
                         const isChatPending = typeKey === 'hr_chat_pending';
                         let variantClass = 'variant-update';
@@ -1704,6 +1785,31 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/'/g, "&#039;");
     }
 
+    function parseBookingPayload(message) {
+        try {
+            const parsed = JSON.parse(String(message || '{}'));
+            return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function formatBookingDate(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        const date = new Date(`${raw}T00:00:00`);
+        if (Number.isNaN(date.getTime())) return raw;
+        return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+    }
+
+    function formatBookingTime(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        const date = new Date(`1970-01-01T${raw.length === 5 ? `${raw}:00` : raw}`);
+        if (Number.isNaN(date.getTime())) return raw;
+        return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    }
+
     function getPriorityNotificationTitle(priorityKey) {
         if (priorityKey === 'critical') return 'Priority Escalation';
         if (priorityKey === 'high') return 'Priority Escalation';
@@ -1713,6 +1819,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getNotificationTitle(actionType, type, priorityKey) {
         if (type === 'priority_escalated') return getPriorityNotificationTitle(priorityKey);
+        if (type === 'conference_booking_created') return 'Conference Booking Created';
+        if (type === 'conference_booking_cancelled') return 'Conference Booking Cancelled';
         if (type === 'conference_booking_deleted') return 'Conference Booking Deleted';
         if (actionType === 'assign') return 'Ticket Assigned';
         if (actionType === 'reassign') return 'Ticket Reassigned';
