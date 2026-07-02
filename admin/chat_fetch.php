@@ -60,9 +60,13 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             t.assigned_group,
             t.assigned_department,
             t.company,
+            COALESCE(NULLIF(t.requester_name, ''), requester.name) AS requester_name,
+            COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email,
             assignee.name AS assignee_name,
             assignee.email AS assignee_email,
             assignee.department AS assignee_department,
+            requester.last_seen_at AS requester_last_seen_at,
+            handler.last_seen_at AS handler_last_seen_at,
             handler.name AS assigned_to_name,
             MAX(tm.created_at) AS last_message_time,
             COALESCE(SUM(CASE WHEN tm.id IS NOT NULL AND tm.is_read = 0 AND tm.sender_id <> ? THEN 1 ELSE 0 END), 0) AS unread_count,
@@ -107,7 +111,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     }
 
     $sql .= "
-        GROUP BY t.id, t.subject, t.category, t.user_id, t.assigned_user_id, t.assigned_to, t.status, t.assigned_company, t.assigned_group, t.assigned_department, t.company, assignee.name, assignee.email, assignee.department, handler.name
+        GROUP BY t.id, t.subject, t.category, t.user_id, t.assigned_user_id, t.assigned_to, t.status, t.assigned_company, t.assigned_group, t.assigned_department, t.company, t.requester_name, t.requester_email, requester.name, requester.email, requester.last_seen_at, assignee.name, assignee.email, assignee.department, handler.name, handler.last_seen_at
         HAVING COUNT(tm.id) > 0
         ORDER BY COALESCE(MAX(tm.created_at), MAX(t.created_at)) DESC
         LIMIT 50
@@ -134,19 +138,21 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
         $ticketRow = ticket_chat_apply_effective_handler($r);
         $chatClosedMessage = ticket_chat_closed_status_message($ticketRow);
         $canChat = ticket_user_can_chat($ticketRow, $current_user_id, $userContext);
+        $partnerLastSeenAt = ((int) ($r['user_id'] ?? 0) === $current_user_id)
+            ? (string) ($r['handler_last_seen_at'] ?? '')
+            : (string) ($r['requester_last_seen_at'] ?? '');
         $category = trim((string) ($r['category'] ?? ''));
-        $assignedCompany = strtolower(trim((string) ($r['assigned_company'] ?? '')));
-        $assignedGroup = trim((string) ($r['assigned_group'] ?? ($r['assigned_department'] ?? '')));
-        $subjectDisplay = ($assignedCompany === '@leadsagri.com'
-            && $assignedGroup === 'HR'
-            && in_array($category, ['Leave Concern', 'Others'], true))
-            ? $category
-            : (string) ($r['subject'] ?? '');
+        $subjectDisplay = $category !== '' ? $category : (string) ($r['subject'] ?? '');
         $rows[] = [
             'id' => (int) $r['id'],
-            'subject' => (string) $r['subject'],
+            'subject' => $subjectDisplay,
+            'original_subject' => (string) $r['subject'],
             'subject_display' => $subjectDisplay,
             'status' => (string) ($r['status'] ?? ''),
+            'requester_name' => (string) ($r['requester_name'] ?? ''),
+            'requester_email' => (string) ($r['requester_email'] ?? ''),
+            'assigned_to_name' => (string) ($ticketRow['assigned_to_name'] ?? $r['assigned_to_name'] ?? ''),
+            'chat_partner_last_seen_at' => $partnerLastSeenAt,
             'last_message_time' => (string) $r['last_message_time'],
             'ticket_created_at' => (string) $r['ticket_created_at'],
             'unread_count_raw' => (int) $r['unread_count'],
@@ -293,6 +299,7 @@ while ($row = $result->fetch_assoc()) {
             'is_image' => ticket_chat_attachment_is_image((string) $row['attachment_stored_name']),
         ] : null,
         'created_at' => date('H:i', strtotime($row['created_at'])),
+        'created_at_full' => date('Y-m-d H:i:s', strtotime($row['created_at'])),
         'is_read' => ((int) ($row['is_read'] ?? 0) === 1),
         'is_edited' => !empty($row['edited_at']),
         'edited_at' => !empty($row['edited_at']) ? date('H:i', strtotime($row['edited_at'])) : '',

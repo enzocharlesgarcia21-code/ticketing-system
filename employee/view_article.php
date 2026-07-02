@@ -298,7 +298,8 @@ function renderArticleContent($text) {
 
         .article-title {
             font-size: 32px;
-            font-weight: 800;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+            font-weight: 800 !important;
             color: #111827;
             line-height: 1.3;
             margin: 0;

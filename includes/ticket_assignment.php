@@ -637,7 +637,7 @@ function ticket_notification_department_email_map(): array
             // 'HR' => ['hr@leadsagri.com'],
             'HR' => ['matthewpascua052203@gmail.com'],
             'IT' => [''],
-
+ // it it@malvedaholdings.com
         
         ],
         'LINGAP' => [
@@ -999,11 +999,6 @@ function ticket_find_department_user_options(mysqli $conn, string $company, stri
         $where[] = "COALESCE(u.is_super_admin, 0) = 0";
     }
 
-    if (ticket_users_has_admin_registration_columns($conn)) {
-        $where[] = "TRIM(COALESCE(u.username, '')) <> ''";
-        $where[] = "TRIM(COALESCE(u.full_name, '')) <> ''";
-    }
-
     $deptPlaceholders = implode(',', array_fill(0, count($deptAliases), '?'));
     $where[] = "UPPER(TRIM(COALESCE(u.department, ''))) IN ($deptPlaceholders)";
     foreach ($deptAliases as $deptAlias) {
@@ -1016,22 +1011,20 @@ function ticket_find_department_user_options(mysqli $conn, string $company, stri
         if ($domain === '') {
             return [];
         }
-        $where[] = "LOWER(u.email) LIKE ?";
+        $companyKey = ticket_notification_company_key($company);
+        $companyAliases = array_values(array_unique(array_filter(array_merge(
+            [$company, $domain, $companyKey, $companyKey . ' (' . $company . ')', $companyKey . ' (' . $domain . ')'],
+            ticket_company_aliases($companyKey)
+        ), static function ($value) {
+            return trim((string) $value) !== '';
+        })));
+        $companyPlaceholders = implode(',', array_fill(0, count($companyAliases), '?'));
+        $where[] = "(LOWER(u.email) LIKE ? OR UPPER(TRIM(COALESCE(u.company, ''))) IN ($companyPlaceholders))";
         $params[] = '%@' . $domain;
         $types .= 's';
-
-        if ($company === '@leadsagri.com') {
-            $where[] = "(
-                TRIM(COALESCE(u.company, '')) = ''
-                OR UPPER(TRIM(COALESCE(u.company, ''))) IN (
-                    'LAPC',
-                    'LAPC (@LEADSAGRI.COM)',
-                    '@LEADSAGRI.COM',
-                    'LEADSAGRI.COM',
-                    'LEADS AGRICULTURAL PRODUCTS CORPORATION - LAPC'
-                )
-                OR LOWER(u.email) LIKE '%@leadsagri.com'
-            )";
+        foreach ($companyAliases as $companyAlias) {
+            $params[] = strtoupper(trim((string) $companyAlias));
+            $types .= 's';
         }
     } else {
         $companyAliases = ticket_company_aliases($company);
@@ -1044,6 +1037,23 @@ function ticket_find_department_user_options(mysqli $conn, string $company, stri
             $params[] = trim((string) $companyAlias);
             $types .= 's';
         }
+    }
+
+    if (ticket_users_table_has_column($conn, 'status')) {
+        $where[] = "LOWER(TRIM(u.status)) = 'active'";
+    } elseif (ticket_users_table_has_column($conn, 'account_status')) {
+        $where[] = "LOWER(TRIM(u.account_status)) = 'active'";
+    } elseif (ticket_users_table_has_column($conn, 'is_verified')) {
+        $where[] = "COALESCE(u.is_verified, 0) = 1";
+    }
+    if (ticket_users_table_has_column($conn, 'is_active')) {
+        $where[] = "COALESCE(u.is_active, 1) = 1";
+    }
+    if (ticket_users_table_has_column($conn, 'active')) {
+        $where[] = "COALESCE(u.active, 1) = 1";
+    }
+    if (ticket_users_table_has_column($conn, 'deleted_at')) {
+        $where[] = "u.deleted_at IS NULL";
     }
 
     $sql = "
@@ -1917,18 +1927,22 @@ function ticket_chat_store_attachment(array $file): array
     $tmpPath = trim((string) ($file['tmp_name'] ?? ''));
     $size = (int) ($file['size'] ?? 0);
     $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-    $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
     $allowedMimes = [
         'jpg' => ['image/jpeg'],
         'jpeg' => ['image/jpeg'],
         'png' => ['image/png'],
         'pdf' => ['application/pdf'],
-        'doc' => ['application/msword', 'application/octet-stream'],
+        'doc' => ['application/msword', 'application/vnd.ms-office', 'application/x-ole-storage', 'application/octet-stream'],
         'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/octet-stream'],
+        'xls' => ['application/vnd.ms-excel', 'application/x-msexcel', 'application/vnd.ms-office', 'application/x-ole-storage', 'application/octet-stream'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/zip', 'application/octet-stream'],
+        'ppt' => ['application/vnd.ms-powerpoint', 'application/mspowerpoint', 'application/vnd.ms-office', 'application/x-ole-storage', 'application/octet-stream'],
+        'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/zip', 'application/octet-stream'],
     ];
 
     if ($originalName === '' || $tmpPath === '' || !in_array($ext, $allowedExtensions, true)) {
-        return ['ok' => false, 'error' => 'Please upload only JPG, PNG, PDF, DOC, or DOCX files.'];
+        return ['ok' => false, 'error' => 'Please upload only JPG, PNG, PDF, DOC, DOCX, XLS, XLSX, PPT, or PPTX files.'];
     }
     if ($size <= 0 || $size > ticket_chat_attachment_max_bytes()) {
         return ['ok' => false, 'error' => 'Chat attachments must be 10 MB or smaller.'];
@@ -1939,7 +1953,7 @@ function ticket_chat_store_attachment(array $file): array
         $mime = (string) $finfo->file($tmpPath);
         $allowed = $allowedMimes[$ext] ?? [];
         if ($mime !== '' && count($allowed) > 0 && !in_array($mime, $allowed, true)) {
-            return ['ok' => false, 'error' => 'Please upload only JPG, PNG, PDF, DOC, or DOCX files.'];
+            return ['ok' => false, 'error' => 'Please upload only JPG, PNG, PDF, DOC, DOCX, XLS, XLSX, PPT, or PPTX files.'];
         }
     }
 

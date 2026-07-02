@@ -236,6 +236,192 @@ window.TM_MESSENGER_STYLE = 'employee';
     border-bottom: 4px solid #F4C430;
 }
 
+.navbar,
+.navbar *,
+.navbar *::before,
+.navbar *::after {
+    transition: none !important;
+    animation: none !important;
+}
+
+.navbar .nav-link,
+.navbar .nav-link:hover,
+.navbar .nav-link.active,
+.navbar .notification-bell,
+.navbar .notification-bell:hover,
+.navbar .user-btn,
+.navbar .user-btn:hover {
+    transform: none !important;
+}
+
+@media (min-width: 769px) {
+    .navbar {
+        display: grid !important;
+        grid-template-columns: 306px minmax(0, 1fr) !important;
+        align-items: center !important;
+        column-gap: 18px !important;
+        padding: 14px 42px 14px 40px !important;
+    }
+
+    .navbar .nav-left {
+        width: 306px !important;
+        min-width: 306px !important;
+        max-width: 306px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+    }
+
+    .navbar .brand-name {
+        font-size: 18px !important;
+        line-height: 1.18 !important;
+        max-width: none !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .navbar .navbar-collapse {
+        min-width: 0 !important;
+        width: 100% !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 250px !important;
+        align-items: center !important;
+        column-gap: 18px !important;
+    }
+
+    .navbar .nav-center {
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-evenly !important;
+        gap: 6px !important;
+    }
+
+    .navbar .nav-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        text-align: center;
+        line-height: 1.15;
+        min-height: 40px;
+        padding: 8px 10px !important;
+        border: 1px solid transparent;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        box-sizing: border-box !important;
+    }
+
+    .navbar .nav-right {
+        width: 250px !important;
+        min-width: 250px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 14px !important;
+        padding-right: 22px !important;
+    }
+
+    .navbar .notification-wrapper {
+        margin-right: 0;
+    }
+
+    .navbar .user-btn {
+        padding: 8px 16px !important;
+    }
+
+    .navbar .user-btn-name {
+        max-width: 128px !important;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1280px) {
+    .navbar {
+        grid-template-columns: 268px minmax(0, 1fr) !important;
+        column-gap: 12px !important;
+        padding-inline: 22px !important;
+    }
+
+    .navbar .nav-left {
+        width: 268px !important;
+        min-width: 268px !important;
+        max-width: 268px !important;
+    }
+
+    .navbar .brand-name {
+        font-size: 16px !important;
+    }
+
+    .navbar .nav-center {
+        gap: 4px !important;
+    }
+
+    .navbar .nav-link {
+        min-height: 36px;
+        padding-inline: 6px !important;
+        font-size: 12px !important;
+    }
+
+    .navbar .nav-right {
+        width: 220px !important;
+        min-width: 220px !important;
+        gap: 10px !important;
+        padding-right: 4px !important;
+    }
+
+    .navbar .user-btn-name {
+        max-width: 104px !important;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1100px) {
+    .navbar {
+        grid-template-columns: 232px minmax(0, 1fr) !important;
+        column-gap: 10px !important;
+        padding-inline: 18px !important;
+    }
+
+    .navbar .nav-left {
+        width: 232px !important;
+        min-width: 232px !important;
+        max-width: 232px !important;
+    }
+
+    .navbar .brand-name {
+        font-size: 13px !important;
+    }
+
+    .navbar .nav-center {
+        gap: 4px !important;
+    }
+
+    .navbar .nav-link {
+        min-height: 34px;
+        padding-inline: 6px !important;
+        font-size: 11px !important;
+    }
+
+    .navbar .navbar-collapse {
+        column-gap: 10px !important;
+    }
+
+    .navbar .nav-right {
+        width: 184px !important;
+        min-width: 184px !important;
+        gap: 8px !important;
+        padding-right: 4px !important;
+    }
+
+    .navbar .user-btn {
+        padding-inline: 10px !important;
+    }
+
+    .navbar .user-btn-name {
+        max-width: 86px !important;
+    }
+}
+
 /* Notification Styles */
 .notification-wrapper {
     position: relative;
@@ -355,7 +541,7 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-item.variant-high::before { --notif-accent: #ef4444; }
 .notif-item.variant-critical::before { --notif-accent: #E53935; }
 .notif-item.variant-update::before { --notif-accent: #0f766e; }
-.notif-item.variant-booking::before { --notif-accent: #0f7a3a; }
+.notif-item.variant-booking::before { --notif-accent: #0f766e; }
 .notif-item.variant-reassign::before { --notif-accent: #9333ea; }
 
 .notif-item:hover {
@@ -689,7 +875,7 @@ window.TM_MESSENGER_STYLE = 'employee';
     align-items: center;
     gap: 8px;
     align-self: flex-start;
-    background: #e9f7ef;
+    background: #f0fdfa;
     border-radius: 8px;
     padding: 8px;
     flex: 0 0 auto;
@@ -700,11 +886,11 @@ window.TM_MESSENGER_STYLE = 'employee';
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: #0f7a3a;
+    color: #0f766e;
     font-size: 16px;
 }
 .notif-item.booking-created-card .pill-label {
-    color: #0f7a3a;
+    color: #0f766e;
     font-weight: 600;
     font-size: 0.86rem;
 }
@@ -1650,6 +1836,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             : '';
                         currentSection = sectionLabel;
                         const actionType = (n.action_type || '').toString().toLowerCase() || (function (legacyType) {
+                            if (legacyType === 'ticket_claimed' || legacyType === 'claim_ticket') return 'claim';
                             if (legacyType === 'dept_assigned' || legacyType === 'new_ticket') return 'assign';
                             if (legacyType === 'reassigned') return 'reassign';
                             if (legacyType === 'ticket_closed') return 'close';
@@ -1663,7 +1850,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             ? escalationPriorityFromMessage(n.message)
                             : (allowed.includes(rawPriority) ? rawPriority : '');
                         const typeKey = (n.type || '').toString();
-                        const titleText = getNotificationTitle(actionType, typeKey, priorityKey);
+                        const isResolvedStatus = (actionType === 'update' || typeKey === 'status_update') && /\bresolved\b/i.test(String(n.message || ''));
+                        let titleText = getNotificationTitle(actionType, typeKey, priorityKey);
+                        if (isResolvedStatus) {
+                            titleText = 'Ticket Resolved';
+                        }
                         if (typeKey === 'conference_booking_created') {
                             const payload = parseBookingPayload(n.message);
                             const email = payload.user_email || 'Someone';
@@ -1721,6 +1912,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             variantClass = 'variant-low';
                             pillText = 'Low';
                             pillIcon = 'fa-arrow-down';
+                        } else if (actionType === 'claim' || typeKey === 'ticket_claimed') {
+                            variantClass = 'variant-assign';
+                            pillText = 'Claimed';
+                            pillIcon = 'fa-user-check';
                         } else if (actionType === 'assign') {
                             variantClass = 'variant-assign';
                             pillText = 'Assigned';
@@ -1822,6 +2017,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (type === 'conference_booking_created') return 'Conference Booking Created';
         if (type === 'conference_booking_cancelled') return 'Conference Booking Cancelled';
         if (type === 'conference_booking_deleted') return 'Conference Booking Deleted';
+        if (type === 'ticket_claimed' || actionType === 'claim') return 'Ticket Claimed';
         if (actionType === 'assign') return 'Ticket Assigned';
         if (actionType === 'reassign') return 'Ticket Reassigned';
         if (actionType === 'close') return 'Ticket Closed';
@@ -1857,17 +2053,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function highlightNotificationMessage(text) {
         const safe = escapeHtml(text);
-        return safe.replace(/\b(in progress|reassigned|assigned|resolved|closed|open)\b/gi, (match) => {
+        return safe.replace(/\b(in progress|resolved|closed|open)\b/gi, (match) => {
             const token = match.toLowerCase().replace(/\s+/g, ' ').trim();
             let className = 'notif-keyword-generic';
-            if (token === 'resolved' || token === 'closed') {
+            if (token === 'in progress') {
                 className = 'notif-keyword-success';
-            } else if (token === 'in progress' || token === 'open') {
+            } else if (token === 'resolved') {
                 className = 'notif-keyword-info';
-            } else if (token === 'assigned') {
-                className = 'notif-keyword-assign';
-            } else if (token === 'reassigned') {
-                className = 'notif-keyword-reassign';
+            } else if (token === 'closed') {
+                className = 'notif-keyword-success';
+            } else if (token === 'open') {
+                className = 'notif-keyword-info';
             }
             return `<span class="notif-keyword ${className}">${match}</span>`;
         });

@@ -1263,9 +1263,13 @@ body.admin-sidebar-preload .admin-nav-icon {
 }
 .notif-item.admin-booking-created .notif-title {
     margin-bottom: 6px;
+    flex-wrap: nowrap;
+    align-items: center;
 }
 .notif-item.admin-booking-created .notif-title-text {
     font-weight: 800;
+    white-space: nowrap;
+    min-width: 0;
 }
 .notif-item.admin-booking-created .admin-booking-subtitle {
     color: #1f2937;
@@ -1792,6 +1796,7 @@ function fetchAdminNotifications() {
                         : '';
                     currentSection = sectionLabel;
                     const actionType = (n.action_type || '').toString().toLowerCase() || (function (legacyType) {
+                        if (legacyType === 'ticket_claimed' || legacyType === 'claim_ticket') return 'claim';
                         if (legacyType === 'dept_assigned' || legacyType === 'new_ticket') return 'assign';
                         if (legacyType === 'reassigned') return 'reassign';
                         if (legacyType === 'ticket_closed') return 'close';
@@ -1805,7 +1810,8 @@ function fetchAdminNotifications() {
                         ? escalationPriorityFromMessage(n.message)
                         : (allowed.includes(rawPriority) ? rawPriority : '');
                     const notificationType = (n.type || '').toString();
-                    const titleText = getNotificationTitle(actionType, notificationType, priorityKey, (n.title || '').toString());
+                    const isResolvedStatus = (actionType === 'update' || notificationType === 'status_update') && /\bresolved\b/i.test(String(n.message || ''));
+                    const titleText = getNotificationTitle(actionType, notificationType, priorityKey, (n.title || '').toString(), n.message || '');
                     const isFollowUp = notificationType === 'follow_up';
                     const isChatPending = notificationType === 'hr_chat_pending';
                     let variantClass = 'variant-update';
@@ -1837,6 +1843,10 @@ function fetchAdminNotifications() {
                         variantClass = 'variant-low';
                         pillText = 'Low';
                         pillIcon = 'fa-arrow-down';
+                    } else if (actionType === 'claim' || notificationType === 'ticket_claimed') {
+                        variantClass = 'variant-assign';
+                        pillText = 'Claimed';
+                        pillIcon = 'fa-user-check';
                     } else if (actionType === 'assign') {
                         variantClass = 'variant-assign';
                         pillText = 'Assigned';
@@ -2007,10 +2017,16 @@ function getPriorityNotificationTitle(priorityKey) {
     return 'Ticket Update';
 }
 
-function getNotificationTitle(actionType, type, priorityKey, customTitle) {
+function getNotificationTitle(actionType, type, priorityKey, customTitle, message) {
+    const isResolvedStatus = (actionType === 'update' || type === 'status_update') && /\bresolved\b/i.test(String(message || ''));
+    if (isResolvedStatus) return 'Ticket Resolved';
     if ((customTitle || '').trim() !== '') return customTitle;
     if (type === 'priority_escalated') return getPriorityNotificationTitle(priorityKey);
+    if (type === 'conference_booking_created') return 'Conference Booking Created';
+    if (type === 'conference_booking_cancelled') return 'Conference Booking Cancelled';
+    if (type === 'conference_booking_deleted') return 'Conference Booking Deleted';
     if (type === 'conference_booking') return 'Conference Booking';
+    if (type === 'ticket_claimed' || actionType === 'claim') return 'Ticket Claimed';
     if (actionType === 'assign') return 'Ticket Assigned';
     if (actionType === 'reassign') return 'Ticket Reassigned';
     if (actionType === 'close') return 'Ticket Closed';
@@ -2045,17 +2061,17 @@ function escalationTransitionLabel(message) {
 
 function highlightNotificationMessage(text) {
     const safe = escapeHtml(text);
-    return safe.replace(/\b(in progress|reassigned|assigned|resolved|closed|open)\b/gi, (match) => {
+    return safe.replace(/\b(in progress|resolved|closed|open)\b/gi, (match) => {
         const token = match.toLowerCase().replace(/\s+/g, ' ').trim();
         let className = 'notif-keyword-generic';
-        if (token === 'resolved' || token === 'closed') {
+        if (token === 'in progress') {
             className = 'notif-keyword-success';
-        } else if (token === 'in progress' || token === 'open') {
+        } else if (token === 'resolved') {
             className = 'notif-keyword-info';
-        } else if (token === 'assigned') {
-            className = 'notif-keyword-assign';
-        } else if (token === 'reassigned') {
-            className = 'notif-keyword-reassign';
+        } else if (token === 'closed') {
+            className = 'notif-keyword-success';
+        } else if (token === 'open') {
+            className = 'notif-keyword-info';
         }
         return `<span class="notif-keyword ${className}">${match}</span>`;
     });

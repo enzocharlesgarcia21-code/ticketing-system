@@ -71,7 +71,13 @@ if ($company === '' || !array_key_exists($company, $companyOptions)) {
 }
 
 $departmentMap = ticket_company_group_map();
-$allowedDepartments = array_values(array_map('strval', $departmentMap[$company] ?? []));
+$departmentCompany = '';
+if ($company === '@leadsagri.com' || $company === 'LAPC') {
+    $departmentCompany = $company;
+} elseif ($company === '@malvedaholdings.com' || $company === 'MHC') {
+    $departmentCompany = $company;
+}
+$allowedDepartments = array_values(array_map('strval', $departmentCompany !== '' ? ($departmentMap[$departmentCompany] ?? []) : []));
 if (count($allowedDepartments) > 0) {
     if ($department === '') {
         edit_user_json_error('Department is required.');

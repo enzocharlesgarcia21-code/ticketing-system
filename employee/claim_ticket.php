@@ -124,6 +124,21 @@ if ($activityStmt) {
     $activityStmt->close();
 }
 
+$ticketNumber = notif_ticket_number($ticketId);
+$claimDepartment = trim((string) ($userContext['department'] ?? ($_SESSION['department'] ?? '')));
+$claimedByLabel = $userName !== '' ? $userName : ('User #' . $currentUserId);
+$claimerLabel = $claimedByLabel . ($claimDepartment !== '' ? ' (' . $claimDepartment . ')' : '');
+$claimNotificationMessage = 'Ticket #' . $ticketNumber . ' has been claimed by ' . $claimerLabel . ' and is now in progress.';
+$claimNotificationTitle = 'Ticket Claimed';
+$ticketForClaimNotification = notif_ticket_data($conn, $ticketId);
+if ($ticketForClaimNotification) {
+    $claimRecipientIds = notif_requester_user_ids($conn, $ticketForClaimNotification);
+    foreach ($claimRecipientIds as $claimRecipientId) {
+        notif_insert_system($conn, (int) $claimRecipientId, $ticketId, $claimNotificationMessage, 'ticket_claimed', 86400, 'claim', $claimNotificationTitle);
+    }
+}
+notif_insert_admins($conn, $ticketId, $claimNotificationMessage, 'ticket_claimed', 'claim', $claimNotificationTitle);
+
 if ((string) ($ticket['status'] ?? '') === 'Open') {
     $statusActivityStmt = $conn->prepare("
         INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at)

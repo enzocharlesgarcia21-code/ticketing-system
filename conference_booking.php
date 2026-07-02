@@ -1021,6 +1021,30 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.12);
         }
 
+        body.conference-booking-public-page .select-wrapper .form-control:focus {
+            border-color: #dbe2ea;
+            box-shadow: none;
+        }
+
+        body.conference-booking-public-page .select-wrapper .form-control option:checked {
+            background: #166534;
+            color: #ffffff;
+        }
+
+        body.conference-booking-public-page .select-wrapper .form-control option:disabled {
+            color: #9ca3af;
+        }
+
+        body.conference-booking-public-page .custom-select-wrapper .custom-native-select {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
         body.conference-booking-public-page .room-select-wrapper {
             position: relative;
         }
@@ -1055,12 +1079,18 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
 
         body.conference-booking-public-page .room-select-button:focus {
             outline: none;
-            border-color: var(--booking-green);
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.12);
+            border-color: #dbe2ea;
+            box-shadow: none;
         }
 
         body.conference-booking-public-page .room-select-button.is-placeholder {
             color: #6b7280;
+        }
+
+        body.conference-booking-public-page .room-select-button .custom-select-label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         body.conference-booking-public-page .room-select-button:disabled {
@@ -1100,6 +1130,28 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             border-radius: 12px;
             background: #ffffff;
             box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16);
+            scrollbar-width: thin;
+            scrollbar-color: #9ca3af #f3f4f6;
+        }
+
+        body.conference-booking-public-page .room-select-menu::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        body.conference-booking-public-page .room-select-menu::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 999px;
+            margin: 8px 0;
+        }
+
+        body.conference-booking-public-page .room-select-menu::-webkit-scrollbar-thumb {
+            background: #9ca3af;
+            border-radius: 999px;
+            border: 2px solid #f3f4f6;
+        }
+
+        body.conference-booking-public-page .room-select-menu::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
         }
 
         body.conference-booking-public-page .room-select-menu[hidden] {
@@ -1123,15 +1175,48 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             cursor: pointer;
         }
 
-        body.conference-booking-public-page .room-select-option:hover,
+        body.conference-booking-public-page .room-select-option:hover {
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
         body.conference-booking-public-page .room-select-option.is-selected {
-            background: #f0fdf4;
+            background: #166534;
+            color: #ffffff;
+        }
+
+        body.conference-booking-public-page .room-select-option.is-selected:hover {
+            background: #166534;
+            color: #ffffff;
         }
 
         body.conference-booking-public-page .time-group {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 10px;
+        }
+
+        body.conference-booking-public-page .time-group .custom-select-wrapper {
+            position: relative;
+        }
+
+        body.conference-booking-public-page .time-group .room-select-button {
+            min-height: 44px;
+            height: 44px;
+            padding: 0 28px 0 12px;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        body.conference-booking-public-page .time-group .room-select-menu {
+            min-width: 100%;
+            max-height: 260px;
+            padding: 4px;
+        }
+
+        body.conference-booking-public-page .time-group .room-select-option {
+            justify-content: center;
+            padding: 7px 8px;
         }
 
         body.conference-booking-public-page .booking-rule-tooltip {
@@ -1301,7 +1386,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             width: 100%;
             min-height: 52px;
             padding: 0 44px 0 18px;
-            border: 2px solid #5fa463;
+            border: 1px solid #d1d5db;
             border-radius: 16px;
             background: #ffffff;
             color: #0f172a;
@@ -1313,7 +1398,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             position: relative;
             display: flex;
             align-items: center;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
             transition: border-color 0.16s ease, box-shadow 0.16s ease;
         }
 
@@ -1331,8 +1416,8 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .availability-filter.is-open .availability-select-trigger {
-            border-color: #166534;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.14);
+            border-color: #d1d5db;
+            box-shadow: none;
         }
 
         body.conference-booking-public-page .availability-filter.is-open .availability-select-trigger::after {
@@ -1351,7 +1436,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             overflow-y: auto;
             padding: 7px 0;
             background: #ffffff;
-            border: 2px solid #5fa463;
+            border: 1px solid #d1d5db;
             border-radius: 15px;
             box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
             scrollbar-width: thin;
@@ -1395,8 +1480,17 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             align-items: center;
         }
 
-        body.conference-booking-public-page .availability-select-option:hover,
+        body.conference-booking-public-page .availability-select-option:hover {
+            background: #f3f4f6;
+            color: #0f172a;
+        }
+
         body.conference-booking-public-page .availability-select-option.is-selected {
+            background: #166534;
+            color: #ffffff;
+        }
+
+        body.conference-booking-public-page .availability-select-option.is-selected:hover {
             background: #166534;
             color: #ffffff;
         }
@@ -2129,7 +2223,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             grid-template-columns: 44px minmax(0, 1fr) 44px;
             gap: 8px;
             align-items: center;
-            width: min(100%, 1320px);
+            width: 100%;
             margin: 0 auto;
         }
 
@@ -3001,8 +3095,8 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .content-wrapper {
-            width: min(100%, 1280px);
-            max-width: 1280px;
+            width: 100%;
+            max-width: none;
             margin: 0 auto;
         }
 
@@ -3035,15 +3129,16 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         }
 
         body.conference-booking-public-page .back-link {
-            min-height: 54px;
-            padding: 0 18px;
+            min-height: 36px;
+            height: 36px;
+            padding: 0 12px;
             background: #166534;
             border: 1px solid #166534;
             color: #ffffff;
-            font-size: 15px;
-            font-weight: 800;
-            gap: 10px;
-            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 600;
+            gap: 7px;
+            border-radius: 9px;
             box-shadow: 0 10px 24px rgba(22, 101, 52, 0.2);
             transition: background-color 0.2s ease, color 0.2s ease,
                 border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
@@ -3148,7 +3243,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             margin-top: 0;
             padding-bottom: 22px;
             width: 100%;
-            max-width: 1220px;
+            max-width: none;
             margin-left: auto;
             margin-right: auto;
         }
@@ -3219,9 +3314,9 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
         body.conference-booking-public-page .week-nav {
             position: relative;
             background: #ffffff;
-            border: 2px solid #5fa463;
+            border: 1px solid #d1d5db;
             border-radius: 16px;
-            box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.08);
+            box-shadow: none;
             padding: 1px 4px;
             gap: 3px;
             flex: 0 0 auto;
@@ -4546,7 +4641,7 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                     <div class="topbar-side left">
                         <a href="index.php" class="back-link">
                             <span class="back-link-icon" aria-hidden="true"><i class="fas fa-arrow-left"></i></span>
-                            <span>Back to Home</span>
+                            <span>Back</span>
                         </a>
                     </div>
                     <div class="topbar-side right">
@@ -4899,9 +4994,9 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
 
                                     <div class="form-group">
                                         <label for="booker_company">COMPANY<span class="required-asterisk">*</span></label>
-                                        <div class="icon-field select-wrapper">
+                                        <div class="icon-field select-wrapper custom-select-wrapper">
                                             <span class="field-icon"><i class="far fa-building"></i></span>
-                                            <select id="booker_company" name="booker_company" class="form-control" required>
+                                            <select id="booker_company" name="booker_company" class="form-control custom-native-select" required>
                                                 <option value="" disabled <?= (string) $form['booker_company'] === '' ? 'selected' : ''; ?> hidden>Select company</option>
                                                 <?php foreach ($companyOptions as $companyOption): ?>
                                                     <option value="<?= htmlspecialchars($companyOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (string) $form['booker_company'] === (string) $companyOption ? 'selected' : ''; ?>>
@@ -4909,17 +5004,25 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
+                                            <button type="button" class="room-select-button is-placeholder" id="companySelectButton" aria-haspopup="listbox" aria-expanded="false">
+                                                <span class="custom-select-label">Select company</span>
+                                            </button>
+                                            <div class="room-select-menu" id="companySelectMenu" role="listbox" hidden></div>
                                             <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
                                         </div>
                                     </div>
 
                                     <div class="form-group">
                                         <label for="booker_department">DEPARTMENT<span id="bookerDepartmentAsterisk" class="required-asterisk">*</span></label>
-                                        <div class="icon-field select-wrapper">
+                                        <div class="icon-field select-wrapper custom-select-wrapper">
                                             <span class="field-icon"><i class="fas fa-users"></i></span>
-                                            <select id="booker_department" name="booker_department" class="form-control">
+                                            <select id="booker_department" name="booker_department" class="form-control custom-native-select">
                                                 <option value="" selected>Select company first</option>
                                             </select>
+                                            <button type="button" class="room-select-button is-placeholder" id="departmentSelectButton" aria-haspopup="listbox" aria-expanded="false">
+                                                <span class="custom-select-label">Select company first</span>
+                                            </button>
+                                            <div class="room-select-menu" id="departmentSelectMenu" role="listbox" hidden></div>
                                             <span class="select-icon"><i class="fas fa-chevron-down"></i></span>
                                         </div>
                                     </div>
@@ -5110,6 +5213,10 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             const endHourSelect = document.querySelector('select[name="end_hour"]');
             const endMinuteSelect = document.querySelector('select[name="end_minute"]');
             const endPeriodSelect = document.querySelector('select[name="end_period"]');
+            const companySelectButton = document.getElementById('companySelectButton');
+            const companySelectMenu = document.getElementById('companySelectMenu');
+            const departmentSelectButton = document.getElementById('departmentSelectButton');
+            const departmentSelectMenu = document.getElementById('departmentSelectMenu');
             const availabilityRoomFilter = document.getElementById('availabilityRoomFilter');
             const openWeekPickerBtn = document.getElementById('openWeekPickerBtn');
             const weekNavDatePicker = document.getElementById('weekNavDatePicker');
@@ -5144,6 +5251,124 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                     }[char];
                 });
             }
+
+            function createCustomSelect(nativeSelect, triggerButton, menu, placeholderText) {
+                if (!nativeSelect || !triggerButton || !menu) {
+                    return null;
+                }
+
+                const triggerLabel = triggerButton.querySelector('.custom-select-label');
+
+                function closeMenu() {
+                    menu.hidden = true;
+                    triggerButton.setAttribute('aria-expanded', 'false');
+                }
+
+                function openMenu() {
+                    if (nativeSelect.disabled) {
+                        return;
+                    }
+
+                    menu.hidden = false;
+                    triggerButton.setAttribute('aria-expanded', 'true');
+                }
+
+                function refresh() {
+                    const selectedOption = nativeSelect.options[nativeSelect.selectedIndex];
+                    const selectedValue = String(nativeSelect.value || '');
+                    const selectedLabel = selectedOption && selectedValue !== ''
+                        ? selectedOption.textContent.trim()
+                        : placeholderText;
+
+                    if (triggerLabel) {
+                        triggerLabel.textContent = selectedLabel;
+                    }
+
+                    triggerButton.disabled = nativeSelect.disabled;
+                    triggerButton.classList.toggle('is-placeholder', selectedValue === '');
+                    menu.innerHTML = Array.from(nativeSelect.options).filter(function (option) {
+                        return !option.hidden && !option.disabled;
+                    }).map(function (option, index) {
+                        const optionIndex = Array.prototype.indexOf.call(nativeSelect.options, option);
+                        const isSelected = optionIndex === nativeSelect.selectedIndex && String(option.value || '') !== '';
+                        return '<button type="button" class="room-select-option' + (isSelected ? ' is-selected' : '') + '" role="option" data-index="' + optionIndex + '" aria-selected="' + (isSelected ? 'true' : 'false') + '">' + escapeHtml(option.textContent.trim()) + '</button>';
+                    }).join('');
+                }
+
+                triggerButton.addEventListener('click', function () {
+                    if (menu.hidden) {
+                        openMenu();
+                    } else {
+                        closeMenu();
+                    }
+                });
+
+                menu.addEventListener('click', function (event) {
+                    const optionButton = event.target.closest('.room-select-option');
+                    if (!optionButton) {
+                        return;
+                    }
+
+                    const optionIndex = Number(optionButton.getAttribute('data-index'));
+                    if (!Number.isFinite(optionIndex) || !nativeSelect.options[optionIndex]) {
+                        return;
+                    }
+
+                    nativeSelect.selectedIndex = optionIndex;
+                    nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    refresh();
+                    closeMenu();
+                    triggerButton.focus();
+                });
+
+                document.addEventListener('click', function (event) {
+                    if (triggerButton.contains(event.target) || menu.contains(event.target)) {
+                        return;
+                    }
+
+                    closeMenu();
+                });
+
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape') {
+                        closeMenu();
+                    }
+                });
+
+                refresh();
+
+                return {
+                    refresh: refresh,
+                    close: closeMenu
+                };
+            }
+
+            const customTimeSelects = Array.from(document.querySelectorAll('.time-group .select-wrapper select.form-control')).map(function (nativeSelect, index) {
+                const wrapper = nativeSelect.closest('.select-wrapper');
+                if (!wrapper) {
+                    return null;
+                }
+
+                wrapper.classList.add('custom-select-wrapper');
+                nativeSelect.classList.add('custom-native-select');
+
+                const triggerButton = document.createElement('button');
+                triggerButton.type = 'button';
+                triggerButton.className = 'room-select-button';
+                triggerButton.setAttribute('aria-haspopup', 'listbox');
+                triggerButton.setAttribute('aria-expanded', 'false');
+                triggerButton.innerHTML = '<span class="custom-select-label"></span>';
+
+                const menu = document.createElement('div');
+                menu.className = 'room-select-menu';
+                menu.setAttribute('role', 'listbox');
+                menu.hidden = true;
+
+                nativeSelect.insertAdjacentElement('afterend', triggerButton);
+                triggerButton.insertAdjacentElement('afterend', menu);
+
+                return createCustomSelect(nativeSelect, triggerButton, menu, '');
+            }).filter(Boolean);
 
             if (roomSelect && roomSelectButton && roomSelectMenu) {
                 const roomSelectLabel = roomSelectButton.querySelector('.room-select-label');
@@ -5358,6 +5583,9 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 document.body.classList.remove('modal-open');
             }
 
+            const customCompanySelect = createCustomSelect(companySelect, companySelectButton, companySelectMenu, 'Select company');
+            const customDepartmentSelect = createCustomSelect(departmentSelect, departmentSelectButton, departmentSelectMenu, 'Select company first');
+
             function resetDepartment(label) {
                 departmentSelect.innerHTML = '';
                 const option = document.createElement('option');
@@ -5366,6 +5594,9 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 option.selected = true;
                 option.disabled = true;
                 departmentSelect.appendChild(option);
+                if (customDepartmentSelect) {
+                    customDepartmentSelect.refresh();
+                }
             }
 
             function populateDepartmentOptions(companyValue) {
@@ -5377,6 +5608,9 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                     departmentSelect.disabled = true;
                     departmentSelect.removeAttribute('required');
                     if (departmentAsterisk) departmentAsterisk.style.display = 'none';
+                    if (customDepartmentSelect) {
+                        customDepartmentSelect.refresh();
+                    }
                     return;
                 }
 
@@ -5385,6 +5619,9 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                     departmentSelect.disabled = true;
                     departmentSelect.removeAttribute('required');
                     if (departmentAsterisk) departmentAsterisk.style.display = 'none';
+                    if (customDepartmentSelect) {
+                        customDepartmentSelect.refresh();
+                    }
                     return;
                 }
 
@@ -5411,15 +5648,24 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 departmentSelect.disabled = false;
                 departmentSelect.setAttribute('required', 'required');
                 if (departmentAsterisk) departmentAsterisk.style.display = 'inline';
+                if (customDepartmentSelect) {
+                    customDepartmentSelect.refresh();
+                }
             }
 
             companySelect.addEventListener('change', function () {
                 departmentSelect.setAttribute('data-selected', '');
                 populateDepartmentOptions(companySelect.value);
+                if (customCompanySelect) {
+                    customCompanySelect.refresh();
+                }
             });
 
             departmentSelect.setAttribute('data-selected', selectedDepartment);
             populateDepartmentOptions(companySelect.value);
+            if (customCompanySelect) {
+                customCompanySelect.refresh();
+            }
 
             if (openBookingModalBtn) {
                 openBookingModalBtn.addEventListener('click', openBookingModal);
@@ -5762,6 +6008,9 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
 
                     if (companySelect) {
                         companySelect.value = '';
+                        if (customCompanySelect) {
+                            customCompanySelect.refresh();
+                        }
                     }
 
                     if (departmentSelect) {
@@ -5787,6 +6036,9 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                     if (endHourSelect) endHourSelect.value = '6';
                     if (endMinuteSelect) endMinuteSelect.value = '00';
                     if (endPeriodSelect) endPeriodSelect.value = 'PM';
+                    customTimeSelects.forEach(function (customSelect) {
+                        customSelect.refresh();
+                    });
 
                     openBookingModal();
 

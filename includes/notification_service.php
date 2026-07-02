@@ -99,6 +99,9 @@ function notif_action_type_from_legacy_type(string $type): string
 {
     $type = trim($type);
     switch ($type) {
+        case 'ticket_claimed':
+        case 'claim_ticket':
+            return 'claim';
         case 'dept_assigned':
         case 'new_ticket':
             return 'assign';
@@ -121,7 +124,7 @@ function notif_action_type_from_legacy_type(string $type): string
 function notif_normalize_action_type(string $actionType, string $legacyType = ''): string
 {
     $actionType = strtolower(trim($actionType));
-    if (in_array($actionType, ['assign', 'reassign', 'update', 'close'], true)) {
+    if (in_array($actionType, ['assign', 'reassign', 'update', 'close', 'claim'], true)) {
         return $actionType;
     }
     return notif_action_type_from_legacy_type($legacyType);
@@ -2465,25 +2468,23 @@ function notif_message_highlight_html(string $message): string
     }
 
     return (string) preg_replace_callback(
-        '/\b(in progress|reassigned|assigned|resolved|closed|open)\b/i',
+        '/\b(in progress|resolved|closed|open)\b/i',
         static function (array $matches): string {
             $token = strtolower(preg_replace('/\s+/', ' ', trim((string) ($matches[1] ?? ''))));
             $class = 'notif-keyword-generic';
 
             switch ($token) {
+                case 'in progress':
+                    $class = 'notif-keyword-success';
+                    break;
                 case 'resolved':
+                    $class = 'notif-keyword-info';
+                    break;
                 case 'closed':
                     $class = 'notif-keyword-success';
                     break;
-                case 'in progress':
                 case 'open':
                     $class = 'notif-keyword-info';
-                    break;
-                case 'assigned':
-                    $class = 'notif-keyword-assign';
-                    break;
-                case 'reassigned':
-                    $class = 'notif-keyword-reassign';
                     break;
             }
 

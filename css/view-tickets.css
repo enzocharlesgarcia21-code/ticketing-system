@@ -2773,21 +2773,23 @@
 }
 .chat-bubble.me .chat-sender {
     text-align: right;
-    color: #ffffff;
+    color: #166534;
 }
 
 .chat-bubble.other {
     align-self: flex-start;
-    background: #f1f5f9;
+    background: #eef9f2;
     color: #0f172a;
-    border-color: #e2e8f0;
+    border-color: #cfeede;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
 .chat-bubble.me {
     align-self: flex-end;
-    background: #dcfce7;
-    color: #14532d;
-    border-color: #bbf7d0;
+    background: #dff4e9;
+    color: #0f172a;
+    border-color: #bfe7d0;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
 .chat-time {
@@ -2892,6 +2894,47 @@
     color: #2563eb;
 }
 
+.chat-status-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    width: 100%;
+    padding: 8px 12px 10px;
+    border-top: 1px dashed #e5e7eb;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+}
+.chat-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+}
+.chat-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #1877f2;
+    box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.12);
+}
+.chat-legend-read {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    line-height: 1;
+}
+.chat-legend-read.seen {
+    color: #2563eb;
+}
+.chat-legend-read.delivered {
+    color: #6b7280;
+}
+
 .chat-bubble .chat-meta {
     display: flex;
     align-items: center;
@@ -2937,6 +2980,7 @@
     padding: 0;
     cursor: pointer;
     font: inherit;
+    font-weight: 500;
     color: #2563eb;
     text-decoration: underline;
     text-underline-offset: 2px;
@@ -2948,6 +2992,11 @@
 
 .chat-bubble .chat-meta .chat-edited:hover {
     color: #1d4ed8;
+}
+
+.chat-bubble.me .tm-chat-attachment-icon {
+    background: rgba(22, 101, 52, 0.14);
+    color: #166534;
 }
 
 .tm-message-history-overlay {
@@ -2962,13 +3011,13 @@
 }
 
 .tm-message-history-box {
-    width: min(520px, 92vw);
-    max-height: min(620px, 86vh);
+    width: min(560px, 90vw);
+    max-height: min(520px, 82vh);
     overflow: hidden;
     background: #ffffff;
-    border: 1px solid #dbe4ee;
-    border-radius: 18px;
-    box-shadow: 0 28px 72px rgba(15, 23, 42, 0.26);
+    border: 1px solid #d1d5db;
+    border-radius: 20px;
+    box-shadow: 0 16px 38px rgba(15, 23, 42, 0.14);
     display: flex;
     flex-direction: column;
 }
@@ -2978,54 +3027,61 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 16px 18px;
+    padding: 24px 30px;
     border-bottom: 1px solid #e5e7eb;
 }
 
 .tm-message-history-title {
-    font-size: 16px;
+    font-size: 24px;
     font-weight: 900;
     color: #0f172a;
+    letter-spacing: 0;
+    line-height: 1.15;
 }
 
 .tm-message-history-close {
-    width: 34px;
-    height: 34px;
+    width: 42px;
+    height: 42px;
     border: none;
-    border-radius: 10px;
-    background: #f1f5f9;
-    color: #334155;
+    border-radius: 14px;
+    background: #f3f4f6;
+    color: #0f172a;
     cursor: pointer;
-    font-size: 24px;
+    font-size: 32px;
+    font-weight: 300;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .tm-message-history-list {
     overflow: auto;
-    padding: 14px 18px 18px;
+    padding: 22px 30px 30px;
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
 
 .tm-message-history-item {
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    background: #f8fafc;
-    padding: 12px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 16px;
+    background: #ffffff;
+    padding: 18px 22px;
 }
 
 .tm-message-history-meta {
     color: #64748b;
-    font-size: 12px;
-    font-weight: 800;
-    margin-bottom: 8px;
+    font-size: 16px;
+    font-weight: 900;
+    margin-bottom: 18px;
+    line-height: 1.25;
 }
 
 .tm-message-history-text {
     color: #0f172a;
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 18px;
+    line-height: 1.45;
     white-space: pre-wrap;
     word-break: break-word;
 }

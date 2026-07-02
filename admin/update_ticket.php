@@ -29,6 +29,7 @@ ticket_ensure_chat_tables($conn);
     $new_status = isset($_POST['status']) ? trim($_POST['status']) : '';
     $new_department = isset($_POST['assigned_department']) ? trim($_POST['assigned_department']) : '';
     $new_company = isset($_POST['assigned_company']) ? trim($_POST['assigned_company']) : '';
+    $requested_assigned_user_id = isset($_POST['assigned_user_id']) ? (int) $_POST['assigned_user_id'] : 0;
     $admin_note = isset($_POST['admin_note']) ? trim($_POST['admin_note']) : null;
 
     if (isset($_GET['debug_status'])) {
@@ -99,7 +100,17 @@ ticket_ensure_chat_tables($conn);
     $assigned_user_id = $oldAssignedUserId > 0 ? $oldAssignedUserId : null;
     $assigned_to = isset($old_data['assigned_to']) ? (int) $old_data['assigned_to'] : null;
     $assigneeIds = [];
+    $availableDepartmentUsers = [];
+    if ($newCompanyNorm !== '' && (!$effective_company_requires_department || $newDeptNorm !== '')) {
+        $availableDepartmentUsers = ticket_find_department_user_options($conn, $newCompanyNorm, $newDeptNorm);
+    }
+    $availableDepartmentUserIds = array_values(array_filter(array_map(static function ($userRow) {
+        return (int) ($userRow['id'] ?? 0);
+    }, $availableDepartmentUsers), static function ($userId) {
+        return $userId > 0;
+    }));
     $assignmentChanged = ($newCompanyNorm !== $oldCompany) || ($newDeptNorm !== $oldDept);
+    $requestedAssigneeMatchesOld = ($requested_assigned_user_id <= 0 || $requested_assigned_user_id === $oldAssignedUserId);
     if ($assignmentChanged && $newCompanyNorm !== '') {
         if (!ticket_is_valid_company($newCompanyNorm) || ($effective_company_requires_department && !ticket_is_valid_group_for_company($newCompanyNorm, $newDeptNorm))) {
             $_SESSION['error'] = 'Invalid company/group selection.';
@@ -115,16 +126,30 @@ ticket_ensure_chat_tables($conn);
             exit();
         }
         $assigned_user_id = null;
+        if ($requested_assigned_user_id > 0 && in_array($requested_assigned_user_id, $availableDepartmentUserIds, true)) {
+            $assigned_user_id = $requested_assigned_user_id;
+            $assigneeIds = [$requested_assigned_user_id];
+        }
+    } elseif ($requested_assigned_user_id > 0) {
+        if (!in_array($requested_assigned_user_id, $availableDepartmentUserIds, true)) {
+            $_SESSION['error'] = 'Invalid department user selected.';
+            header("Location: all_tickets.php");
+            exit();
+        }
+        $assigned_user_id = $requested_assigned_user_id;
+        $assigneeIds = [$requested_assigned_user_id];
     }
-    $assignmentChanged = $assignmentChanged || ((int) $assigned_user_id !== $oldAssignedUserId);
-    $requesterAssignmentChanged = $assignmentChanged;
-    if ($assignmentChanged) {
+    $explicitUserAssignmentChanged = !$assignmentChanged
+        && $requested_assigned_user_id > 0
+        && $requested_assigned_user_id !== $oldAssignedUserId;
+    $requesterAssignmentChanged = $assignmentChanged || $explicitUserAssignmentChanged;
+    if ($assignmentChanged || $explicitUserAssignmentChanged) {
         $assigned_to = null;
     }
     if ($new_status === 'Open') {
         $assigned_to = null;
     }
-    if ($new_status === $oldStatus && $newCompanyNorm === $oldCompany && $newDeptNorm === $oldDept && trim($newNoteNorm) === trim($oldNote)) {
+    if ($new_status === $oldStatus && $newCompanyNorm === $oldCompany && $newDeptNorm === $oldDept && trim($newNoteNorm) === trim($oldNote) && $requestedAssigneeMatchesOld) {
         $_SESSION['success'] = "No changes were made.";
         header("Location: all_tickets.php");
         exit();

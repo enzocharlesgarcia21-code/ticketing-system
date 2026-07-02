@@ -21,7 +21,7 @@ $analyticsHtml = ob_get_clean();
 $employeeAnalyticsAdminParity = <<<'HTML'
 <style id="employeeAnalyticsAdminParity">
 body.employee-analytics-page .admin-page,
-body.employee-analytics-page .admin-page *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
+body.employee-analytics-page .admin-page *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.analytics-title) {
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
 }
 
@@ -30,21 +30,48 @@ body.employee-analytics-page .navbar *:not(i):not(.fa):not(.fa-solid):not(.fa-re
     font-family: 'Segoe UI', sans-serif !important;
 }
 
-body.employee-analytics-page .navbar {
-    padding: 15px 40px;
-}
+@media (min-width: 769px) {
+    body.employee-analytics-page .navbar {
+        display: grid !important;
+        grid-template-columns: 306px minmax(0, 1fr) !important;
+        align-items: center !important;
+        column-gap: 18px !important;
+        padding: 14px 42px 14px 40px !important;
+    }
 
-body.employee-analytics-page .nav-center {
-    gap: 10px;
-}
+    body.employee-analytics-page .navbar .nav-left {
+        width: 306px !important;
+        min-width: 306px !important;
+        max-width: 306px !important;
+    }
 
-body.employee-analytics-page .nav-link {
-    padding: 8px 20px;
-    white-space: nowrap;
-}
+    body.employee-analytics-page .navbar .navbar-collapse {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 250px !important;
+        align-items: center !important;
+        column-gap: 18px !important;
+    }
 
-body.employee-analytics-page .brand-name {
-    white-space: normal;
+    body.employee-analytics-page .navbar .nav-center {
+        justify-content: space-evenly !important;
+        gap: 6px !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-link {
+        min-height: 40px !important;
+        padding: 8px 10px !important;
+        font-size: 13px !important;
+        line-height: 1.15 !important;
+        border: 1px solid transparent !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-right {
+        width: 250px !important;
+        min-width: 250px !important;
+        justify-content: flex-end !important;
+        gap: 14px !important;
+        padding-right: 22px !important;
+    }
 }
 
 body.employee-analytics-page .admin-container {
@@ -61,6 +88,38 @@ body.employee-analytics-page .admin-content {
     width: 100%;
     max-width: 1460px;
     padding-top: 10px;
+}
+
+body.employee-analytics-page .admin-page-header {
+    align-items: flex-start;
+}
+
+body.employee-analytics-page .analytics-heading {
+    max-width: 860px;
+}
+
+body.employee-analytics-page .admin-page .admin-page-header .analytics-heading .admin-page-title.analytics-title {
+    color: #1B5E20 !important;
+    font-family: 'Segoe UI', sans-serif !important;
+    font-size: 28px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    letter-spacing: 0 !important;
+}
+
+body.employee-analytics-page .analytics-subtitle {
+    color: #6B7280;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.45;
+}
+
+body.employee-analytics-page .analytics-header-actions {
+    margin-top: 24px;
+}
+
+body.employee-analytics-page .analytics-filters {
+    grid-template-columns: minmax(330px, 1.35fr) minmax(220px, 1fr) minmax(220px, 1fr) !important;
 }
 
 body.employee-analytics-page .analytics-toolbar,
@@ -521,6 +580,200 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 HTML;
 
+$employeeAnalyticsNavbarFinalFix = <<<'HTML'
+<style id="employeeAnalyticsNavbarFinalFix">
+@media (min-width: 769px) {
+    body.employee-analytics-page .navbar {
+        display: grid !important;
+        grid-template-columns: 306px minmax(0, 1fr) !important;
+        align-items: center !important;
+        column-gap: 18px !important;
+        padding: 14px 42px 14px 40px !important;
+        border-bottom: 4px solid #F4C430 !important;
+    }
+
+    body.employee-analytics-page .navbar,
+    body.employee-analytics-page .navbar *,
+    body.employee-analytics-page .navbar *::before,
+    body.employee-analytics-page .navbar *::after {
+        transition: none !important;
+        animation: none !important;
+    }
+
+    body.employee-analytics-page .navbar .logo-icon {
+        width: 56px !important;
+        height: 56px !important;
+        max-width: 56px !important;
+        flex: 0 0 56px !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-left {
+        width: 306px !important;
+        min-width: 306px !important;
+        max-width: 306px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+    }
+
+    body.employee-analytics-page .navbar .brand-name {
+        font-size: 18px !important;
+        line-height: 1.18 !important;
+        max-width: none !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    body.employee-analytics-page .navbar .navbar-collapse {
+        min-width: 0 !important;
+        width: 100% !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 250px !important;
+        align-items: center !important;
+        column-gap: 18px !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-center {
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-evenly !important;
+        gap: 6px !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-link {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: 40px !important;
+        padding: 8px 10px !important;
+        border: 1px solid transparent !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        line-height: 1.15 !important;
+        white-space: nowrap !important;
+        text-align: center !important;
+        box-sizing: border-box !important;
+        transform: none !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-right {
+        width: 250px !important;
+        min-width: 250px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 14px !important;
+        padding-right: 22px !important;
+    }
+
+    body.employee-analytics-page .navbar .notification-wrapper {
+        margin-right: 0 !important;
+    }
+
+    body.employee-analytics-page .navbar .notification-bell {
+        font-size: 1.2rem !important;
+        padding: 8px !important;
+        transform: none !important;
+    }
+
+    body.employee-analytics-page .navbar .user-btn {
+        padding: 8px 16px !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        transform: none !important;
+    }
+
+    body.employee-analytics-page .navbar .user-btn-name {
+        max-width: 128px !important;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1280px) {
+    body.employee-analytics-page .navbar {
+        grid-template-columns: 268px minmax(0, 1fr) !important;
+        column-gap: 12px !important;
+        padding-inline: 22px !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-left {
+        width: 268px !important;
+        min-width: 268px !important;
+        max-width: 268px !important;
+    }
+
+    body.employee-analytics-page .navbar .brand-name {
+        font-size: 16px !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-center {
+        gap: 4px !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-link {
+        min-height: 36px !important;
+        padding-inline: 6px !important;
+        font-size: 12px !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-right {
+        width: 220px !important;
+        min-width: 220px !important;
+        gap: 10px !important;
+        padding-right: 4px !important;
+    }
+
+    body.employee-analytics-page .navbar .user-btn-name {
+        max-width: 104px !important;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1100px) {
+    body.employee-analytics-page .navbar {
+        grid-template-columns: 232px minmax(0, 1fr) !important;
+        column-gap: 10px !important;
+        padding-inline: 18px !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-left {
+        width: 232px !important;
+        min-width: 232px !important;
+        max-width: 232px !important;
+    }
+
+    body.employee-analytics-page .navbar .brand-name {
+        font-size: 13px !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-link {
+        min-height: 34px !important;
+        padding-inline: 6px !important;
+        font-size: 11px !important;
+    }
+
+    body.employee-analytics-page .navbar .navbar-collapse {
+        column-gap: 10px !important;
+    }
+
+    body.employee-analytics-page .navbar .nav-right {
+        width: 184px !important;
+        min-width: 184px !important;
+        gap: 8px !important;
+        padding-right: 4px !important;
+    }
+
+    body.employee-analytics-page .navbar .user-btn {
+        padding-inline: 10px !important;
+    }
+
+    body.employee-analytics-page .navbar .user-btn-name {
+        max-width: 86px !important;
+    }
+}
+</style>
+HTML;
+
 $analyticsHtml = str_replace(
     "const analyticsChartTextWeight = isEmployeeAnalyticsView ? '400' : '800';",
     "const analyticsChartTextWeight = '800';",
@@ -549,10 +802,12 @@ if (stripos($analyticsHtml, '</head>') !== false) {
     $analyticsHtml = $employeeAnalyticsAdminParity . "\n" . $analyticsHtml;
 }
 
+$employeeAnalyticsBodyExtras = $employeeMarketingChartDropdown . "\n" . $employeeAnalyticsNavbarFinalFix;
+
 if (stripos($analyticsHtml, '</body>') !== false) {
-    $analyticsHtml = preg_replace('/<\/body>/i', $employeeMarketingChartDropdown . "\n</body>", $analyticsHtml, 1);
+    $analyticsHtml = preg_replace('/<\/body>/i', $employeeAnalyticsBodyExtras . "\n</body>", $analyticsHtml, 1);
 } else {
-    $analyticsHtml .= "\n" . $employeeMarketingChartDropdown;
+    $analyticsHtml .= "\n" . $employeeAnalyticsBodyExtras;
 }
 
 echo $analyticsHtml;

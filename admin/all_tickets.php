@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/user_permissions.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -10,6 +11,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 ticket_ensure_assignment_columns($conn);
 ticket_apply_sla_priority($conn);
+$isSuperAdmin = user_permissions_is_super_admin($conn, (int) ($_SESSION['user_id'] ?? 0));
 
 function admin_sla_display_label(string $slaLevel): string
 {
@@ -1168,6 +1170,8 @@ window.TM_CURRENT_USER = <?php echo json_encode([
     'role' => $_SESSION['role'] ?? null
 ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 window.TM_HIDE_QUICK_TAGS = true;
+window.TM_SHOW_DEPARTMENT_USER_SELECT = <?= $isSuperAdmin ? 'true' : 'false'; ?>;
+window.TM_DEPARTMENT_USERS_ENDPOINT = 'ajax_department_users.php';
 </script>
 <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
 <script>
