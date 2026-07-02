@@ -57,7 +57,7 @@ function dashboard_company_aliases(string $value): array
     return array_values(array_unique(array_filter(array_map('trim', $aliases), static function ($x) { return $x !== ''; })));
 }
 
-function dashboard_assigned_query_parts(int $user_id, string $user_email, string $user_company, string $user_department, string $user_created_at): array
+function dashboard_assigned_query_parts(int $user_id, string $user_email, string $user_company, string $user_department): array
 {
     $companyAliases = dashboard_company_aliases($user_company);
     if (count($companyAliases) === 0) {
@@ -87,15 +87,7 @@ function dashboard_assigned_query_parts(int $user_id, string $user_email, string
         : "0=1";
     $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
     $requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
-    $lapcSharedCreatedCond = "1=1";
-    $userCompanyNorm = strtolower(trim($user_company));
-    $userCreatedAtValue = trim($user_created_at);
-
-    if ($userCompanyNorm === '@leadsagri.com' && $userCreatedAtValue !== '') {
-        $lapcSharedCreatedCond = "(t.created_at >= ?)";
-    }
-
-    $condition = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND $lapcSharedCreatedCond AND COALESCE(t.assigned_user_id, 0) = 0 AND (t.assigned_to IS NULL OR t.assigned_to = 0) AND LOWER(TRIM(COALESCE(t.status, ''))) NOT IN ('resolved', 'closed') AND ((NOT $requiresGroupCond) OR $groupCond)))";
+    $condition = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND ((NOT $requiresGroupCond) OR $groupCond)))";
     $params = [
         $user_id,
         $user_id,
@@ -109,10 +101,6 @@ function dashboard_assigned_query_parts(int $user_id, string $user_email, string
 
     foreach ($companyAliases as $companyAlias) {
         $params[] = $companyAlias;
-        $types .= "s";
-    }
-    if ($userCompanyNorm === '@leadsagri.com' && $userCreatedAtValue !== '') {
-        $params[] = $userCreatedAtValue;
         $types .= "s";
     }
     foreach ($departmentAliases as $departmentAlias) {
@@ -132,8 +120,7 @@ function dashboard_assigned_query_parts(int $user_id, string $user_email, string
 $company = (string) ($_SESSION['company'] ?? '');
 $user_department = (string) ($_SESSION['department'] ?? '');
 $user_email = (string) ($_SESSION['email'] ?? '');
-$user_created_at = (string) ($_SESSION['user_created_at'] ?? '');
-$userQuery = $conn->query("SELECT company, department, email, created_at FROM users WHERE id = $user_id");
+$userQuery = $conn->query("SELECT company, department, email FROM users WHERE id = $user_id");
 if ($userQuery && $row = $userQuery->fetch_assoc()) {
     $company = (string) ($row['company'] ?? '');
     if ($company !== '') {
@@ -146,10 +133,6 @@ if ($userQuery && $row = $userQuery->fetch_assoc()) {
     if ($user_email === '') {
         $user_email = (string) ($row['email'] ?? '');
         if ($user_email !== '') $_SESSION['email'] = $user_email;
-    }
-    if ($user_created_at === '') {
-        $user_created_at = (string) ($row['created_at'] ?? '');
-        if ($user_created_at !== '') $_SESSION['user_created_at'] = $user_created_at;
     }
 }
 
@@ -261,7 +244,7 @@ $assignedStatusCounts = [
     'Closed' => 0,
 ];
 
-$assignedQueryParts = dashboard_assigned_query_parts($user_id, $user_email, $company, $user_department, $user_created_at);
+$assignedQueryParts = dashboard_assigned_query_parts($user_id, $user_email, $company, $user_department);
 $assignedCond = (string) $assignedQueryParts['condition'];
 $assignedParams = $assignedQueryParts['params'];
 $assignedTypes = (string) $assignedQueryParts['types'];
@@ -276,6 +259,7 @@ $assignedCountStmt = $conn->prepare("
     FROM employee_tickets t
     JOIN users u ON t.user_id = u.id
     WHERE $assignedCond
+      AND COALESCE(NULLIF(t.status,''),'') <> 'Trash'
 ");
 if ($assignedCountStmt) {
     $assignedCountStmt->bind_param($assignedTypes, ...$assignedParams);
@@ -300,6 +284,7 @@ $receivedStmt = $conn->prepare("
     FROM employee_tickets t
     JOIN users u ON u.id = t.user_id
     WHERE $assignedCond
+      AND COALESCE(NULLIF(t.status,''),'') <> 'Trash'
     ORDER BY
         CASE LOWER(TRIM(COALESCE(t.status, '')))
             WHEN 'resolved' THEN 1

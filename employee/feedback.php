@@ -935,8 +935,8 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                     </div>
                     <div>
                         <h1>My Support Feedback</h1>
-                        <p>This feedback is only for your own ticket-handling performance as an individual support assignee.</p>
-                        <p>Review how requestors rated the tickets you handled, with newest responses shown first.</p>
+                        <p>Review ratings and feedback from requestors on the tickets you handled.</p>
+                        
                     </div>
                 </section>
 

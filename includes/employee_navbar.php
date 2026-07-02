@@ -236,6 +236,192 @@ window.TM_MESSENGER_STYLE = 'employee';
     border-bottom: 4px solid #F4C430;
 }
 
+.navbar,
+.navbar *,
+.navbar *::before,
+.navbar *::after {
+    transition: none !important;
+    animation: none !important;
+}
+
+.navbar .nav-link,
+.navbar .nav-link:hover,
+.navbar .nav-link.active,
+.navbar .notification-bell,
+.navbar .notification-bell:hover,
+.navbar .user-btn,
+.navbar .user-btn:hover {
+    transform: none !important;
+}
+
+@media (min-width: 769px) {
+    .navbar {
+        display: grid !important;
+        grid-template-columns: 306px minmax(0, 1fr) !important;
+        align-items: center !important;
+        column-gap: 18px !important;
+        padding: 14px 42px 14px 40px !important;
+    }
+
+    .navbar .nav-left {
+        width: 306px !important;
+        min-width: 306px !important;
+        max-width: 306px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+    }
+
+    .navbar .brand-name {
+        font-size: 18px !important;
+        line-height: 1.18 !important;
+        max-width: none !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .navbar .navbar-collapse {
+        min-width: 0 !important;
+        width: 100% !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) 250px !important;
+        align-items: center !important;
+        column-gap: 18px !important;
+    }
+
+    .navbar .nav-center {
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-evenly !important;
+        gap: 6px !important;
+    }
+
+    .navbar .nav-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        text-align: center;
+        line-height: 1.15;
+        min-height: 40px;
+        padding: 8px 10px !important;
+        border: 1px solid transparent;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        box-sizing: border-box !important;
+    }
+
+    .navbar .nav-right {
+        width: 250px !important;
+        min-width: 250px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 14px !important;
+        padding-right: 22px !important;
+    }
+
+    .navbar .notification-wrapper {
+        margin-right: 0;
+    }
+
+    .navbar .user-btn {
+        padding: 8px 16px !important;
+    }
+
+    .navbar .user-btn-name {
+        max-width: 128px !important;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1280px) {
+    .navbar {
+        grid-template-columns: 268px minmax(0, 1fr) !important;
+        column-gap: 12px !important;
+        padding-inline: 22px !important;
+    }
+
+    .navbar .nav-left {
+        width: 268px !important;
+        min-width: 268px !important;
+        max-width: 268px !important;
+    }
+
+    .navbar .brand-name {
+        font-size: 16px !important;
+    }
+
+    .navbar .nav-center {
+        gap: 4px !important;
+    }
+
+    .navbar .nav-link {
+        min-height: 36px;
+        padding-inline: 6px !important;
+        font-size: 12px !important;
+    }
+
+    .navbar .nav-right {
+        width: 220px !important;
+        min-width: 220px !important;
+        gap: 10px !important;
+        padding-right: 4px !important;
+    }
+
+    .navbar .user-btn-name {
+        max-width: 104px !important;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1100px) {
+    .navbar {
+        grid-template-columns: 232px minmax(0, 1fr) !important;
+        column-gap: 10px !important;
+        padding-inline: 18px !important;
+    }
+
+    .navbar .nav-left {
+        width: 232px !important;
+        min-width: 232px !important;
+        max-width: 232px !important;
+    }
+
+    .navbar .brand-name {
+        font-size: 13px !important;
+    }
+
+    .navbar .nav-center {
+        gap: 4px !important;
+    }
+
+    .navbar .nav-link {
+        min-height: 34px;
+        padding-inline: 6px !important;
+        font-size: 11px !important;
+    }
+
+    .navbar .navbar-collapse {
+        column-gap: 10px !important;
+    }
+
+    .navbar .nav-right {
+        width: 184px !important;
+        min-width: 184px !important;
+        gap: 8px !important;
+        padding-right: 4px !important;
+    }
+
+    .navbar .user-btn {
+        padding-inline: 10px !important;
+    }
+
+    .navbar .user-btn-name {
+        max-width: 86px !important;
+    }
+}
+
 /* Notification Styles */
 .notification-wrapper {
     position: relative;
