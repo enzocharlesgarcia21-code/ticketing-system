@@ -251,6 +251,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             t.company,
             t.status,
             t.started_at,
+            COALESCE(NULLIF(t.requester_name, ''), requester.name) AS requester_name,
             COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email,
             assignee.name AS assignee_name,
             assignee.email AS assignee_email,
@@ -335,7 +336,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $sql .= ") AND t.status IN ('Open', 'In Progress', 'Resolved', 'Closed') ";
 
     $sql .= "
-        GROUP BY t.id, t.subject, t.category, t.user_id, t.assigned_user_id, t.assigned_to, t.assigned_company, t.assigned_group, t.assigned_department, t.company, t.status, t.started_at, assignee.name, assignee.email, assignee.department, handler.name
+        GROUP BY t.id, t.subject, t.category, t.user_id, t.assigned_user_id, t.assigned_to, t.assigned_company, t.assigned_group, t.assigned_department, t.company, t.status, t.started_at, t.requester_name, t.requester_email, requester.name, requester.email, assignee.name, assignee.email, assignee.department, handler.name
         HAVING COUNT(tm.id) > 0
         ORDER BY COALESCE(MAX(tm.created_at), MAX(t.created_at)) DESC
         LIMIT 50
@@ -414,6 +415,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             'subject' => (string) $r['subject'],
             'subject_display' => $subjectDisplay,
             'status' => (string) $r['status'],
+            'requester_name' => (string) ($r['requester_name'] ?? ''),
             'requester_email' => (string) $r['requester_email'],
             'last_message_time' => $lastMessageTime,
             'ticket_created_at' => (string) $r['ticket_created_at'],

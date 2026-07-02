@@ -1123,6 +1123,25 @@ function conference_booking_insert_user_notification(
     return (bool) $ok;
 }
 
+function conference_booking_user_is_admin(mysqli $conn, int $userId): bool
+{
+    if ($userId <= 0) {
+        return false;
+    }
+
+    $stmt = $conn->prepare("SELECT role FROM users WHERE id = ? LIMIT 1");
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    return strcasecmp((string) ($row['role'] ?? ''), 'admin') === 0;
+}
+
 function conference_booking_email_template(string $title, string $email, string $introText, array $booking, array $options = []): array
 {
     $bookedBy = trim((string) ($booking['booked_by_name'] ?? ''));
@@ -1484,17 +1503,7 @@ function conference_booking_cancel(mysqli $conn, int $bookingId): array
         $booking['status'] = 'Cancelled';
         $conn->commit();
 
-         
-
         $emailed = $affected > 0 ? conference_booking_send_cancel_email($booking) : false;
-
-
-        $emailed = $affected > 0 ? conference_booking_send_cancel_email($booking) : false;
-
-
-
-        $emailed = $affected > 0 ? conference_booking_send_cancel_email($booking) : false;
-
 
         if ($affected > 0) {
             $message = conference_booking_cancel_notification_message($booking);
@@ -1506,9 +1515,6 @@ function conference_booking_cancel(mysqli $conn, int $bookingId): array
                 'conference_booking_cancelled'
             );
         }
-
-
-
 
         return [
             'ok' => true,
@@ -1675,13 +1681,16 @@ function conference_booking_create(
             'purpose' => $purpose,
         ];
         $message = conference_booking_create_notification_message($notificationBooking);
-        conference_booking_insert_user_notification(
-            $conn,
-            (int) ($notificationBooking['user_id'] ?? 0),
-            $message,
-            'Conference Booking Created',
-            'conference_booking_created'
-        );
+        $notificationUserId = (int) ($notificationBooking['user_id'] ?? 0);
+        if (!conference_booking_user_is_admin($conn, $notificationUserId)) {
+            conference_booking_insert_user_notification(
+                $conn,
+                $notificationUserId,
+                $message,
+                'Conference Booking Created',
+                'conference_booking_created'
+            );
+        }
         $emailed = conference_booking_send_create_email($createdBooking ?: [
             'id' => $bookingId,
             'booked_by_email' => $bookerEmail,

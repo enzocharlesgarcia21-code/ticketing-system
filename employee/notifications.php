@@ -461,7 +461,7 @@ function notif_priority_from_message(string $message): string
             display: block;
         }
         .notif-item-row.booking-created::before {
-            background: #0f7a3a;
+            background: #0f766e;
         }
         .notif-item-row.booking-created .booking-header {
             display: flex;
@@ -476,8 +476,8 @@ function notif_priority_from_message(string $message): string
             align-items: center;
             gap: 0;
             align-self: flex-start;
-            background: #e9f7ef;
-            border: 2px solid #0f7a3a;
+            background: #f0fdfa;
+            border: 2px solid #0f766e;
             border-radius: 11px;
             padding: 0;
             overflow: hidden;
@@ -494,7 +494,7 @@ function notif_priority_from_message(string $message): string
             font-size: 13px;
         }
         .notif-item-row.booking-created .pill-label {
-            color: #0f7a3a;
+            color: #0f766e;
             font-weight: 800;
             font-size: 11px;
             line-height: 1;
@@ -1013,7 +1013,7 @@ function notif_priority_from_message(string $message): string
                                 $colorClass = '#ffffff';
                                 $accentColor = '#9333ea';
                                 $dotColor = '#9333ea';
-                            } elseif ($actionType === 'update' && $typeJs !== 'note_added') {
+                            } elseif ($actionType === 'update' && $typeJs !== 'note_added' && $priorityKey === '') {
                                 $iconClass = 'fa-rotate';
                                 $bgClass = 'linear-gradient(135deg, #34d399, #0f766e)';
                                 $colorClass = '#ffffff';
@@ -1024,12 +1024,15 @@ function notif_priority_from_message(string $message): string
                             $isFollowUp = $typeJs === 'follow_up';
                             $isChatPending = $typeJs === 'hr_chat_pending';
                             $isPriorityEscalation = $typeJs === 'priority_escalated';
+                            $isResolvedStatus = ($actionType === 'update' || $typeJs === 'status_update') && preg_match('/\bresolved\b/i', $displayMessage);
 
                             $titleText = 'Ticket Update';
                             if ($isPriorityEscalation && in_array($priorityKey, ['medium', 'high', 'critical'], true)) $titleText = 'Priority Escalation';
                             elseif ($typeJs === 'conference_booking_created') $titleText = 'Conference Booking Created';
                             elseif ($typeJs === 'conference_booking_cancelled') $titleText = 'Conference Booking Cancelled';
                             elseif ($typeJs === 'conference_booking_deleted') $titleText = 'Conference Booking Deleted';
+                            elseif ($isResolvedStatus) $titleText = 'Ticket Resolved';
+                            elseif ($typeJs === 'ticket_claimed' || $actionType === 'claim') $titleText = 'Ticket Claimed';
                             elseif ($actionType === 'assign') $titleText = 'Ticket Assigned';
                             elseif ($actionType === 'reassign') $titleText = 'Ticket Reassigned';
                             elseif ($actionType === 'close') $titleText = 'Ticket Closed';
@@ -1069,6 +1072,10 @@ function notif_priority_from_message(string $message): string
                                 $pillVariantClass = 'variant-low';
                                 $pillText = 'Low';
                                 $pillIconClass = 'fa-arrow-down';
+                            } elseif ($actionType === 'claim' || $typeJs === 'ticket_claimed') {
+                                $pillVariantClass = 'variant-assign';
+                                $pillText = 'Claimed';
+                                $pillIconClass = 'fa-user-check';
                             } elseif ($actionType === 'assign') {
                                 $pillVariantClass = 'variant-assign';
                                 $pillText = 'Assigned';
@@ -1095,6 +1102,12 @@ function notif_priority_from_message(string $message): string
                                     : 'At Risk -> Breach';
                                 $pillIconClass = 'fa-stopwatch';
                                 $pillExtraClass = trim($pillExtraClass . ' notif-priority-breach-pill');
+                            }
+                            if ($actionType === 'reassign') {
+                                $pillVariantClass = 'variant-reassign';
+                                $pillExtraClass = '';
+                                $pillText = 'Reassigned';
+                                $pillIconClass = 'fa-retweet';
                             }
                         ?>
                         <?php if ($sectionLabel !== $currentSection): ?>

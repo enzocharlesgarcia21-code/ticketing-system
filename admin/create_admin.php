@@ -1283,6 +1283,18 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             border-color: #cbd5e1;
             box-shadow: none;
         }
+        #editUserModal .add-user-modal-card {
+            min-height: 410px;
+        }
+        #editUserModal .mgmt-card-body {
+            padding: 18px 24px 16px;
+        }
+        #editUserModal .form-grid {
+            gap: 14px 18px;
+        }
+        #editUserModal .access-modal-actions {
+            margin-top: 16px;
+        }
         .btn {
             border: 1px solid transparent;
             border-radius: 14px;
@@ -3471,8 +3483,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                                 </div>
                             </div>
 
-                            <div class="form-label">Department</div>
-                            <div class="form-field-stack">
+                            <div class="form-label" id="editUserDepartmentLabel">Department</div>
+                            <div class="form-field-stack" id="editUserDepartmentField">
                                 <div class="edit-select-wrap" data-edit-select="department">
                                     <select class="domain-select" name="department" id="editUserDepartment" aria-label="Department" tabindex="-1">
                                         <option value="">No Department</option>
@@ -3666,7 +3678,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         "@lingapleads.org": [],
         "@leadsav.com": []
     };
-    var editCompanyDepartments = <?php echo json_encode($edit_user_department_options, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+    var editCompanyDepartments = companyDepartments;
     var tmUsersState = { page: 1, limit: window.TM_USERS_PAGE_SIZE, total: 0, totalPages: 1 };
     var tmItState = { page: 1, limit: window.TM_IT_PAGE_SIZE, total: 0, totalPages: 1 };
     var tmItAdminsState = { page: 1, limit: window.TM_IT_ADMINS_PAGE_SIZE, total: 0, totalPages: 1 };
@@ -4140,6 +4152,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         var editUserEmail = document.getElementById('editUserEmail');
         var editUserCompany = document.getElementById('editUserCompany');
         var editUserDepartment = document.getElementById('editUserDepartment');
+        var editUserDepartmentLabel = document.getElementById('editUserDepartmentLabel');
+        var editUserDepartmentField = document.getElementById('editUserDepartmentField');
         var saveEditUserBtn = document.getElementById('saveEditUser');
         var accessModal = document.getElementById('userAccessModal');
         var accessForm = document.getElementById('userAccessForm');
@@ -4378,13 +4392,15 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             var company = normalizeEditCompany(editUserCompany.value);
             var departments = editCompanyDepartments[company] || [];
             if (!departments.length) {
-                editUserDepartment.innerHTML = '<option value="">No Department</option>';
+                editUserDepartment.innerHTML = '<option value="">No Departments Available</option>';
                 editUserDepartment.value = '';
                 editUserDepartment.disabled = false;
+                editUserDepartment.required = false;
                 refreshEditSelect(editUserDepartment);
                 return;
             }
             editUserDepartment.disabled = false;
+            editUserDepartment.required = true;
             editUserDepartment.innerHTML = departments.map(function (department) {
                 return '<option value="' + escapeHtml(String(department)) + '">' + escapeHtml(String(department)) + '</option>';
             }).join('');

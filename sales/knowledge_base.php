@@ -1012,9 +1012,10 @@ if ($showCategoryView) {
 
         .categories-title {
             margin: 0 0 14px;
-            color: #111827;
+            color: #1B5E20;
             font-size: 20px;
-            font-weight: 800;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-weight: 500;
             text-align: left;
         }
 
@@ -1106,8 +1107,9 @@ if ($showCategoryView) {
         }
 
         .home-departments .category-info h4 {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             font-size: 18px;
-            font-weight: 500;
+            font-weight: 400;
         }
 
         .category-info p {

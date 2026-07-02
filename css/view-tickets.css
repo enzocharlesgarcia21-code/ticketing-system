@@ -2773,21 +2773,23 @@
 }
 .chat-bubble.me .chat-sender {
     text-align: right;
-    color: #ffffff;
+    color: #166534;
 }
 
 .chat-bubble.other {
     align-self: flex-start;
-    background: #f1f5f9;
+    background: #eef9f2;
     color: #0f172a;
-    border-color: #e2e8f0;
+    border-color: #cfeede;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
 .chat-bubble.me {
     align-self: flex-end;
-    background: #dcfce7;
-    color: #14532d;
-    border-color: #bbf7d0;
+    background: #dff4e9;
+    color: #0f172a;
+    border-color: #bfe7d0;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
 .chat-time {
@@ -2892,6 +2894,47 @@
     color: #2563eb;
 }
 
+.chat-status-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    width: 100%;
+    padding: 8px 12px 10px;
+    border-top: 1px dashed #e5e7eb;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+}
+.chat-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+}
+.chat-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #1877f2;
+    box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.12);
+}
+.chat-legend-read {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    line-height: 1;
+}
+.chat-legend-read.seen {
+    color: #2563eb;
+}
+.chat-legend-read.delivered {
+    color: #6b7280;
+}
+
 .chat-bubble .chat-meta {
     display: flex;
     align-items: center;
@@ -2948,6 +2991,11 @@
 
 .chat-bubble .chat-meta .chat-edited:hover {
     color: #1d4ed8;
+}
+
+.chat-bubble.me .tm-chat-attachment-icon {
+    background: rgba(22, 101, 52, 0.14);
+    color: #166534;
 }
 
 .tm-message-history-overlay {
