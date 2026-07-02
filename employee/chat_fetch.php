@@ -66,17 +66,15 @@ function normalize_domain(string $value): string
     return $v;
 }
 
-function has_unread_hr_chat_reminder(mysqli $conn, int $userId, int $ticketId): bool
+function pending_chat_reminder_cap_reached_today(mysqli $conn, int $userId, int $ticketId): bool
 {
     $stmt = $conn->prepare("
-        SELECT id
+        SELECT COUNT(*) AS sent_count
         FROM notifications
         WHERE user_id = ?
           AND ticket_id = ?
           AND type = 'hr_chat_pending'
-          AND is_read = 0
-          AND created_at >= (NOW() - INTERVAL 5 MINUTE)
-        LIMIT 1
+          AND created_at >= CURDATE()
     ");
     if (!$stmt) {
         return false;
@@ -84,9 +82,33 @@ function has_unread_hr_chat_reminder(mysqli $conn, int $userId, int $ticketId): 
     $stmt->bind_param("ii", $userId, $ticketId);
     $stmt->execute();
     $res = $stmt->get_result();
-    $exists = $res && $res->fetch_assoc();
+    $row = $res ? $res->fetch_assoc() : null;
     $stmt->close();
-    return (bool) $exists;
+    return (int) ($row['sent_count'] ?? 0) >= 3;
+}
+
+function pending_chat_reminder_status_today(mysqli $conn, int $userId, int $ticketId): array
+{
+    $stmt = $conn->prepare("
+        SELECT COUNT(*) AS sent_count, MAX(created_at) AS last_sent_at
+        FROM notifications
+        WHERE user_id = ?
+          AND ticket_id = ?
+          AND type = 'hr_chat_pending'
+          AND created_at >= CURDATE()
+    ");
+    if (!$stmt) {
+        return ['count' => 0, 'last_sent_at' => ''];
+    }
+    $stmt->bind_param("ii", $userId, $ticketId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+    return [
+        'count' => (int) ($row['sent_count'] ?? 0),
+        'last_sent_at' => trim((string) ($row['last_sent_at'] ?? '')),
+    ];
 }
 
 function chat_user_has_reassignment_history(mysqli $conn, int $ticketId, int $userId, array $historyAliases): bool
@@ -165,7 +187,7 @@ function maybe_send_hr_chat_reminder(mysqli $conn, int $ticketId, int $viewerUse
         return;
     }
 
-    $thresholdSeconds = 5 * 60;
+    $thresholdSeconds = 60 * 60;
     $stmt = $conn->prepare("
         SELECT
             t.id,
@@ -210,7 +232,18 @@ function maybe_send_hr_chat_reminder(mysqli $conn, int $ticketId, int $viewerUse
         return;
     }
 
-    if (has_unread_hr_chat_reminder($conn, $viewerUserId, $ticketId)) {
+    if (pending_chat_reminder_cap_reached_today($conn, $viewerUserId, $ticketId)) {
+        return;
+    }
+
+    $reminderStatus = pending_chat_reminder_status_today($conn, $viewerUserId, $ticketId);
+    $sentToday = (int) ($reminderStatus['count'] ?? 0);
+    $lastSentAt = trim((string) ($reminderStatus['last_sent_at'] ?? ''));
+    $lastSentTs = $lastSentAt !== '' ? strtotime($lastSentAt) : false;
+    $canSendReminder = $sentToday === 0
+        || ($sentToday === 1 && $lastSentTs !== false && $lastSentTs <= time() - (30 * 60))
+        || ($sentToday === 2 && $lastSentTs !== false && $lastSentTs <= time() - (15 * 60));
+    if ($sentToday >= 3 || !$canSendReminder) {
         return;
     }
 
@@ -221,8 +254,7 @@ function maybe_send_hr_chat_reminder(mysqli $conn, int $ticketId, int $viewerUse
         $message = 'You have a pending chat reply on ticket #' . $ticketNumber . ' (' . $subject . ').';
     }
 
-    notif_insert_system($conn, $viewerUserId, $ticketId, $message, 'hr_chat_pending', 300, 'update', 'Pending Chat');
-    if (has_unread_hr_chat_reminder($conn, $viewerUserId, $ticketId)) {
+    if (notif_insert_system($conn, $viewerUserId, $ticketId, $message, 'hr_chat_pending', 300, 'update', 'Pending Chat')) {
         notif_send_pending_chat_email($conn, $viewerUserId, $ticketId, $subject);
     }
 }
@@ -256,6 +288,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             assignee.name AS assignee_name,
             assignee.email AS assignee_email,
             assignee.department AS assignee_department,
+            requester.last_seen_at AS requester_last_seen_at,
+            handler.last_seen_at AS handler_last_seen_at,
             handler.name AS assigned_to_name,
             MAX(tm.created_at) AS last_message_time,
             COALESCE(SUM(CASE WHEN tm.id IS NOT NULL AND tm.is_read = 0 AND tm.sender_id <> ? THEN 1 ELSE 0 END), 0) AS unread_count,
@@ -336,7 +370,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $sql .= ") AND t.status IN ('Open', 'In Progress', 'Resolved', 'Closed') ";
 
     $sql .= "
-        GROUP BY t.id, t.subject, t.category, t.user_id, t.assigned_user_id, t.assigned_to, t.assigned_company, t.assigned_group, t.assigned_department, t.company, t.status, t.started_at, t.requester_name, t.requester_email, requester.name, requester.email, assignee.name, assignee.email, assignee.department, handler.name
+        GROUP BY t.id, t.subject, t.category, t.user_id, t.assigned_user_id, t.assigned_to, t.assigned_company, t.assigned_group, t.assigned_department, t.company, t.status, t.started_at, t.requester_name, t.requester_email, requester.name, requester.email, requester.last_seen_at, assignee.name, assignee.email, assignee.department, handler.name, handler.last_seen_at
         HAVING COUNT(tm.id) > 0
         ORDER BY COALESCE(MAX(tm.created_at), MAX(t.created_at)) DESC
         LIMIT 50
@@ -368,6 +402,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
         $canViewLockedHistory = !$canChat && $historyThreadId > 0;
         $isRequesterForRow = ticket_user_matches_requester($ticketRow, $current_user_id, $userContext);
         $canViewVisibleMessages = $canChat || $isRequesterForRow || $canViewLockedHistory;
+        $partnerLastSeenAt = ((int) ($r['user_id'] ?? 0) === $current_user_id)
+            ? (string) ($r['handler_last_seen_at'] ?? '')
+            : (string) ($r['requester_last_seen_at'] ?? '');
         $lastMessageTime = (string) $r['last_message_time'];
         $lastMessage = (string) $r['last_message'];
         $lastSenderName = (string) $r['last_sender_name'];
@@ -403,20 +440,17 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             }
         }
         $category = trim((string) ($r['category'] ?? ''));
-        $assignedCompany = strtolower(trim((string) ($r['assigned_company'] ?? '')));
-        $assignedGroup = trim((string) ($r['assigned_group'] ?? ($r['assigned_department'] ?? '')));
-        $subjectDisplay = ($assignedCompany === '@leadsagri.com'
-            && $assignedGroup === 'HR'
-            && in_array($category, ['Leave Concern', 'Others'], true))
-            ? $category
-            : (string) ($r['subject'] ?? '');
+        $subjectDisplay = $category !== '' ? $category : (string) ($r['subject'] ?? '');
         $rows[] = [
             'id' => (int) $r['id'],
-            'subject' => (string) $r['subject'],
+            'subject' => $subjectDisplay,
+            'original_subject' => (string) $r['subject'],
             'subject_display' => $subjectDisplay,
             'status' => (string) $r['status'],
             'requester_name' => (string) ($r['requester_name'] ?? ''),
             'requester_email' => (string) $r['requester_email'],
+            'assigned_to_name' => (string) ($ticketRow['assigned_to_name'] ?? $r['assigned_to_name'] ?? ''),
+            'chat_partner_last_seen_at' => $partnerLastSeenAt,
             'last_message_time' => $lastMessageTime,
             'ticket_created_at' => (string) $r['ticket_created_at'],
             'unread_count_raw' => $canViewLockedHistory ? 0 : (int) $r['unread_count'],
@@ -594,6 +628,7 @@ while ($row = $result->fetch_assoc()) {
             'is_image' => ticket_chat_attachment_is_image((string) $row['attachment_stored_name']),
         ] : null,
         'created_at' => date('H:i', strtotime($row['created_at'])),
+        'created_at_full' => date('Y-m-d H:i:s', strtotime($row['created_at'])),
         'is_read' => ((int) ($row['is_read'] ?? 0) === 1),
         'is_edited' => !empty($row['edited_at']),
         'edited_at' => !empty($row['edited_at']) ? date('H:i', strtotime($row['edited_at'])) : '',

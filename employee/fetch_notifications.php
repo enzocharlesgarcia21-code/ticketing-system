@@ -40,7 +40,7 @@ function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
         return;
     }
 
-    $thresholdSeconds = 5 * 60;
+    $thresholdSeconds = 60 * 60;
     $stmt = $conn->prepare("
         SELECT
             t.id,
@@ -55,7 +55,7 @@ function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
           AND (t.user_id = ? OR t.assigned_user_id = ? OR t.assigned_to = ?)
         GROUP BY t.id, t.subject
         HAVING last_unread_message_at IS NOT NULL
-           AND TIMESTAMPDIFF(SECOND, last_unread_message_at, NOW()) >= ?
+            AND TIMESTAMPDIFF(SECOND, last_unread_message_at, NOW()) >= ?
     ");
     if (!$stmt) {
         return;
@@ -73,23 +73,29 @@ function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
         $dueTicketIds[$ticketId] = true;
 
         $existsStmt = $conn->prepare("
-            SELECT id
+            SELECT COUNT(*) AS sent_count, MAX(created_at) AS last_sent_at
             FROM notifications
             WHERE user_id = ?
               AND ticket_id = ?
               AND type = 'hr_chat_pending'
-              AND created_at >= (NOW() - INTERVAL 5 MINUTE)
-            LIMIT 1
+              AND created_at >= CURDATE()
         ");
-        $hasCurrentReminder = false;
+        $sentToday = 0;
+        $lastSentAt = '';
         if ($existsStmt) {
             $existsStmt->bind_param("ii", $userId, $ticketId);
             $existsStmt->execute();
             $existsRes = $existsStmt->get_result();
-            $hasCurrentReminder = (bool) ($existsRes && $existsRes->fetch_assoc());
+            $existsRow = $existsRes ? $existsRes->fetch_assoc() : null;
+            $sentToday = (int) ($existsRow['sent_count'] ?? 0);
+            $lastSentAt = trim((string) ($existsRow['last_sent_at'] ?? ''));
             $existsStmt->close();
         }
-        if ($hasCurrentReminder) {
+        $lastSentTs = $lastSentAt !== '' ? strtotime($lastSentAt) : false;
+        $canSendReminder = $sentToday === 0
+            || ($sentToday === 1 && $lastSentTs !== false && $lastSentTs <= time() - (30 * 60))
+            || ($sentToday === 2 && $lastSentTs !== false && $lastSentTs <= time() - (15 * 60));
+        if ($sentToday >= 3 || !$canSendReminder) {
             continue;
         }
 
@@ -100,25 +106,8 @@ function employee_send_due_hr_chat_reminders(mysqli $conn, int $userId): void
             $message = 'You have a pending chat reply on ticket #' . $ticketNumber . ' (' . $subject . ').';
         }
 
-        notif_insert_system($conn, $userId, $ticketId, $message, 'hr_chat_pending', 300, 'update', 'Pending Chat');
-        $verifyStmt = $conn->prepare("
-            SELECT id
-            FROM notifications
-            WHERE user_id = ?
-              AND ticket_id = ?
-              AND type = 'hr_chat_pending'
-              AND is_read = 0
-            LIMIT 1
-        ");
-        if ($verifyStmt) {
-            $verifyStmt->bind_param("ii", $userId, $ticketId);
-            $verifyStmt->execute();
-            $verifyRes = $verifyStmt->get_result();
-            $hasReminderNow = (bool) ($verifyRes && $verifyRes->fetch_assoc());
-            $verifyStmt->close();
-            if ($hasReminderNow) {
-                notif_send_pending_chat_email($conn, $userId, $ticketId, $subject);
-            }
+        if (notif_insert_system($conn, $userId, $ticketId, $message, 'hr_chat_pending', 300, 'update', 'Pending Chat')) {
+            notif_send_pending_chat_email($conn, $userId, $ticketId, $subject);
         }
     }
     $stmt->close();

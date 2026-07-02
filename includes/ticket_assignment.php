@@ -637,7 +637,7 @@ function ticket_notification_department_email_map(): array
             // 'HR' => ['hr@leadsagri.com'],
             'HR' => ['matthewpascua052203@gmail.com'],
             'IT' => [''],
-
+ // it it@malvedaholdings.com
         
         ],
         'LINGAP' => [

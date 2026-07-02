@@ -2980,6 +2980,7 @@
     padding: 0;
     cursor: pointer;
     font: inherit;
+    font-weight: 500;
     color: #2563eb;
     text-decoration: underline;
     text-underline-offset: 2px;
@@ -3010,13 +3011,13 @@
 }
 
 .tm-message-history-box {
-    width: min(520px, 92vw);
-    max-height: min(620px, 86vh);
+    width: min(560px, 90vw);
+    max-height: min(520px, 82vh);
     overflow: hidden;
     background: #ffffff;
-    border: 1px solid #dbe4ee;
-    border-radius: 18px;
-    box-shadow: 0 28px 72px rgba(15, 23, 42, 0.26);
+    border: 1px solid #d1d5db;
+    border-radius: 20px;
+    box-shadow: 0 16px 38px rgba(15, 23, 42, 0.14);
     display: flex;
     flex-direction: column;
 }
@@ -3026,54 +3027,61 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 16px 18px;
+    padding: 24px 30px;
     border-bottom: 1px solid #e5e7eb;
 }
 
 .tm-message-history-title {
-    font-size: 16px;
+    font-size: 24px;
     font-weight: 900;
     color: #0f172a;
+    letter-spacing: 0;
+    line-height: 1.15;
 }
 
 .tm-message-history-close {
-    width: 34px;
-    height: 34px;
+    width: 42px;
+    height: 42px;
     border: none;
-    border-radius: 10px;
-    background: #f1f5f9;
-    color: #334155;
+    border-radius: 14px;
+    background: #f3f4f6;
+    color: #0f172a;
     cursor: pointer;
-    font-size: 24px;
+    font-size: 32px;
+    font-weight: 300;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .tm-message-history-list {
     overflow: auto;
-    padding: 14px 18px 18px;
+    padding: 22px 30px 30px;
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
 
 .tm-message-history-item {
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    background: #f8fafc;
-    padding: 12px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 16px;
+    background: #ffffff;
+    padding: 18px 22px;
 }
 
 .tm-message-history-meta {
     color: #64748b;
-    font-size: 12px;
-    font-weight: 800;
-    margin-bottom: 8px;
+    font-size: 16px;
+    font-weight: 900;
+    margin-bottom: 18px;
+    line-height: 1.25;
 }
 
 .tm-message-history-text {
     color: #0f172a;
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 18px;
+    line-height: 1.45;
     white-space: pre-wrap;
     word-break: break-word;
 }

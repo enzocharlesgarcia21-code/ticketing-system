@@ -155,12 +155,32 @@ function kb_ticket_categories_for_department(string $department): array
             'Software',
             'Technical Support',
         ],
+        'Accounting' => [
+            'Documentation',
+        ],
         'Marketing' => [
             'Marketing Request',
+        ],
+        'Marketing Creatives' => [
+            'Documentation',
+        ],
+        'Diagnostics / Lingap' => [
+            'Documentation',
+        ],
+        'Management' => [
+            'Documentation',
+        ],
+        'Technical' => [
+            'Documentation',
         ],
     ];
 
     return $map[$department] ?? $defaultCategories;
+}
+
+function kb_department_uses_documentation_only(string $department): bool
+{
+    return in_array($department, ['Accounting', 'Marketing Creatives', 'Diagnostics / Lingap', 'Management', 'Technical'], true);
 }
 
 function kb_ticket_category_icon(string $category): string
@@ -397,6 +417,10 @@ if ($showCategoryView) {
     foreach ($categoryArticles as $articleForBreakdown) {
         $rawBreakdownCategory = trim((string) ($articleForBreakdown['category'] ?? ''));
         $rawBreakdownSubCategory = trim((string) ($articleForBreakdown['sub_category'] ?? ''));
+        if (kb_department_uses_documentation_only($activeCategory)) {
+            $departmentBreakdown['Documentation']++;
+            continue;
+        }
         if ($rawBreakdownSubCategory !== '' && isset($departmentBreakdown[$rawBreakdownSubCategory])) {
             $departmentBreakdown[$rawBreakdownSubCategory]++;
             continue;
@@ -1301,7 +1325,9 @@ if ($showCategoryView) {
                                     $articleSubCategory = trim((string) ($categoryArticle['sub_category'] ?? ''));
                                     $badgeText = $activeCategory === 'Others'
                                         ? ($articleSubCategory !== '' ? $articleSubCategory : kb_others_subcategory_name($categoryArticle))
-                                        : ($articleSubCategory !== '' ? $articleSubCategory : kb_category_label($articleCategory));
+                                        : (kb_department_uses_documentation_only($activeCategory)
+                                            ? 'Documentation'
+                                            : ($articleSubCategory !== '' ? $articleSubCategory : kb_category_label($articleCategory)));
                                     ?>
                                     <a href="view_article.php?id=<?= (int) $categoryArticle['id'] ?>" class="department-article">
                                         <div class="department-article-main">
