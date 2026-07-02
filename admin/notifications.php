@@ -47,6 +47,7 @@ $total_res = $conn->query("
     WHERE n.user_id = $user_id
       AND n.type <> 'chat_message'
       AND n.type <> 'hr_chat_pending'
+      AND n.type <> 'conference_booking_created'
       AND (n.type <> 'note_added' OR t.user_id = n.user_id)
 ");
 if (!$total_res) {
@@ -64,6 +65,7 @@ $sql = "
     WHERE n.user_id = ?
       AND n.type <> 'chat_message'
       AND n.type <> 'hr_chat_pending'
+      AND n.type <> 'conference_booking_created'
       AND (n.type <> 'note_added' OR t.user_id = n.user_id)
     ORDER BY n.created_at DESC
     LIMIT ? OFFSET ?
@@ -386,7 +388,7 @@ function admin_conference_booking_summary(string $message): array
         }
         .notif-item-row.admin-booking-created::before {
             width: 7px;
-            background: #0f9f5a;
+            background: #0f766e;
         }
         .notif-item-row.admin-booking-created .admin-booking-pill {
             display: inline-flex;
@@ -394,11 +396,11 @@ function admin_conference_booking_summary(string $message): array
             min-width: 0;
             min-height: 26px;
             height: 26px;
-            border: 2px solid #16a34a;
+            border: 2px solid #0f766e;
             border-radius: 11px;
             overflow: hidden;
             background: #ffffff;
-            color: #0f7a3a;
+            color: #0f766e;
             flex: 0 0 auto;
         }
         .notif-item-row.admin-booking-created .admin-booking-icon {
@@ -406,7 +408,7 @@ function admin_conference_booking_summary(string $message): array
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: #0f9f5a;
+            background: linear-gradient(135deg, #34d399, #0f766e);
             color: #ffffff;
             font-size: 13px;
         }
@@ -419,7 +421,7 @@ function admin_conference_booking_summary(string $message): array
             font-weight: 800;
             font-size: 11px;
             line-height: 1;
-            color: #0f7a3a;
+            color: #0f766e;
         }
         .notif-item-row.admin-booking-created .admin-booking-body {
             min-width: 0;
@@ -657,6 +659,21 @@ function admin_conference_booking_summary(string $message): array
                                     $accentColor = '#d4a017';
                                     $dotColor = '#d4a017';
                                     $titleText = 'Follow Up Request';
+                                } elseif ($typeKey === 'conference_booking_deleted') {
+                                    $iconClass = 'fa-calendar-xmark';
+                                    $accentColor = '#0f766e';
+                                    $dotColor = '#0f766e';
+                                    $titleText = 'Conference Booking Deleted';
+                                } elseif ($typeKey === 'conference_booking_cancelled') {
+                                    $iconClass = 'fa-calendar-xmark';
+                                    $accentColor = '#0f766e';
+                                    $dotColor = '#0f766e';
+                                    $titleText = 'Conference Booking Cancelled';
+                                } elseif ($typeKey === 'conference_booking_created') {
+                                    $iconClass = 'fa-calendar-check';
+                                    $accentColor = '#0f766e';
+                                    $dotColor = '#0f766e';
+                                    $titleText = 'Conference Booking Created';
                                 } elseif ($typeKey === 'conference_booking') {
                                     $iconClass = 'fa-calendar-check';
                                     $accentColor = '#0f766e';
@@ -673,8 +690,10 @@ function admin_conference_booking_summary(string $message): array
                                     }
                                 } elseif ($actionType === 'update') {
                                     $iconClass = 'fa-rotate';
-                                    $accentColor = '#0f766e';
-                                    $dotColor = '#0f766e';
+                                    if ($priorityKey === '') {
+                                        $accentColor = '#0f766e';
+                                        $dotColor = '#0f766e';
+                                    }
                                     $titleText = 'Status Update';
                                 } elseif ($actionType === 'close') {
                                     if ($priorityKey === '') {
@@ -713,8 +732,16 @@ function admin_conference_booking_summary(string $message): array
                                         } else {
                                             $titleText = 'Ticket Update';
                                         }
+                                    } elseif ($typeKey === 'conference_booking_deleted') {
+                                        $titleText = 'Conference Booking Deleted';
+                                    } elseif ($typeKey === 'conference_booking_cancelled') {
+                                        $titleText = 'Conference Booking Cancelled';
+                                    } elseif ($typeKey === 'conference_booking_created') {
+                                        $titleText = 'Conference Booking Created';
                                     } elseif ($typeKey === 'conference_booking') {
                                         $titleText = 'Conference Booking';
+                                    } elseif ($typeKey === 'ticket_claimed' || $actionType === 'claim') {
+                                        $titleText = 'Ticket Claimed';
                                     } elseif ($actionType === 'assign') {
                                         $titleText = 'Ticket Assigned';
                                     } elseif ($actionType === 'reassign') {
@@ -730,6 +757,10 @@ function admin_conference_booking_summary(string $message): array
                                     } else {
                                         $titleText = 'Ticket Update';
                                     }
+                                }
+                                $isResolvedStatus = ($actionType === 'update' || $typeKey === 'status_update') && preg_match('/\bresolved\b/i', (string) ($row['message'] ?? ''));
+                                if ($isResolvedStatus) {
+                                    $titleText = 'Ticket Resolved';
                                 }
                                 $pillVariantClass = 'variant-update';
                                 $pillText = 'Update';
@@ -762,6 +793,10 @@ function admin_conference_booking_summary(string $message): array
                                     $pillVariantClass = 'variant-low';
                                     $pillText = 'Low';
                                     $pillIconClass = 'fa-arrow-down';
+                                } elseif ($actionType === 'claim' || $typeKey === 'ticket_claimed') {
+                                    $pillVariantClass = 'variant-assign';
+                                    $pillText = 'Claimed';
+                                    $pillIconClass = 'fa-user-check';
                                 } elseif ($actionType === 'assign') {
                                     $pillVariantClass = 'variant-assign';
                                     $pillText = 'Assigned';
@@ -778,6 +813,11 @@ function admin_conference_booking_summary(string $message): array
                                     $pillVariantClass = 'variant-note';
                                     $pillText = 'Note';
                                     $pillIconClass = 'fa-plus';
+                                }
+                                if ($actionType === 'reassign') {
+                                    $pillVariantClass = 'variant-reassign';
+                                    $pillText = 'Reassigned';
+                                    $pillIconClass = 'fa-retweet';
                                 }
                                 $displayMessage = notif_display_message($typeKey, (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
                                 $notificationHref = $typeKey === 'conference_booking'

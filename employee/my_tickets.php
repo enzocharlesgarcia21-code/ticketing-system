@@ -2946,6 +2946,7 @@ $successMessage = '';
 
             <div class="page-header">
                 <h1 class="page-title">My Submitted Tickets</h1>
+                <p class="page-subtitle">Keep track of your submitted requests and their latest updates.</p>
             </div>
 
             <?php if ($myTicketsFlash !== null): ?>

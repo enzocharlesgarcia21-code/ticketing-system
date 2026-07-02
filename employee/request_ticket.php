@@ -15,6 +15,7 @@ ticket_receiving_availability_ensure_table($conn);
 $lapcDepartments = ticket_receiving_available_departments($conn, '@leadsagri.com');
 $mhcDepartments = ticket_receiving_available_departments($conn, '@malvedaholdings.com');
 $requestTicketCompanyOptions = ticket_receiving_available_company_options($conn);
+asort($requestTicketCompanyOptions, SORT_NATURAL | SORT_FLAG_CASE);
 $requestTicketCompanies = array_keys($requestTicketCompanyOptions);
 $selectedAssignedCompany = trim((string) ($_POST['assigned_company'] ?? ''));
 if ($selectedAssignedCompany === '' && count($requestTicketCompanyOptions) === 1) {

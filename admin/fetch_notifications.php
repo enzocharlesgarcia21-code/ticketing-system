@@ -40,6 +40,7 @@ $count_result = $conn->query("
       AND n.is_read = 0
       AND n.type <> 'chat_message'
       AND n.type <> 'hr_chat_pending'
+      AND n.type <> 'conference_booking_created'
       AND (n.type <> 'note_added' OR t.user_id = n.user_id)
 ");
 $unread_count = 0;
@@ -58,6 +59,7 @@ $query = "SELECT n.*, t.priority, TIMESTAMPDIFF(SECOND, n.created_at, NOW()) as 
           WHERE n.user_id = $user_id
             AND n.type <> 'chat_message'
             AND n.type <> 'hr_chat_pending'
+            AND n.type <> 'conference_booking_created'
             AND (n.type <> 'note_added' OR t.user_id = n.user_id)
           ORDER BY n.created_at DESC LIMIT 25";
 $result = $conn->query($query);

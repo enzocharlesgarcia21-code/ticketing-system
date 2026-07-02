@@ -355,7 +355,7 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-item.variant-high::before { --notif-accent: #ef4444; }
 .notif-item.variant-critical::before { --notif-accent: #E53935; }
 .notif-item.variant-update::before { --notif-accent: #0f766e; }
-.notif-item.variant-booking::before { --notif-accent: #0f7a3a; }
+.notif-item.variant-booking::before { --notif-accent: #0f766e; }
 .notif-item.variant-reassign::before { --notif-accent: #9333ea; }
 
 .notif-item:hover {
@@ -689,7 +689,7 @@ window.TM_MESSENGER_STYLE = 'employee';
     align-items: center;
     gap: 8px;
     align-self: flex-start;
-    background: #e9f7ef;
+    background: #f0fdfa;
     border-radius: 8px;
     padding: 8px;
     flex: 0 0 auto;
@@ -700,11 +700,11 @@ window.TM_MESSENGER_STYLE = 'employee';
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: #0f7a3a;
+    color: #0f766e;
     font-size: 16px;
 }
 .notif-item.booking-created-card .pill-label {
-    color: #0f7a3a;
+    color: #0f766e;
     font-weight: 600;
     font-size: 0.86rem;
 }
@@ -1650,6 +1650,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             : '';
                         currentSection = sectionLabel;
                         const actionType = (n.action_type || '').toString().toLowerCase() || (function (legacyType) {
+                            if (legacyType === 'ticket_claimed' || legacyType === 'claim_ticket') return 'claim';
                             if (legacyType === 'dept_assigned' || legacyType === 'new_ticket') return 'assign';
                             if (legacyType === 'reassigned') return 'reassign';
                             if (legacyType === 'ticket_closed') return 'close';
@@ -1663,7 +1664,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             ? escalationPriorityFromMessage(n.message)
                             : (allowed.includes(rawPriority) ? rawPriority : '');
                         const typeKey = (n.type || '').toString();
-                        const titleText = getNotificationTitle(actionType, typeKey, priorityKey);
+                        const isResolvedStatus = (actionType === 'update' || typeKey === 'status_update') && /\bresolved\b/i.test(String(n.message || ''));
+                        let titleText = getNotificationTitle(actionType, typeKey, priorityKey);
+                        if (isResolvedStatus) {
+                            titleText = 'Ticket Resolved';
+                        }
                         if (typeKey === 'conference_booking_created') {
                             const payload = parseBookingPayload(n.message);
                             const email = payload.user_email || 'Someone';
@@ -1721,6 +1726,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             variantClass = 'variant-low';
                             pillText = 'Low';
                             pillIcon = 'fa-arrow-down';
+                        } else if (actionType === 'claim' || typeKey === 'ticket_claimed') {
+                            variantClass = 'variant-assign';
+                            pillText = 'Claimed';
+                            pillIcon = 'fa-user-check';
                         } else if (actionType === 'assign') {
                             variantClass = 'variant-assign';
                             pillText = 'Assigned';
@@ -1822,6 +1831,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (type === 'conference_booking_created') return 'Conference Booking Created';
         if (type === 'conference_booking_cancelled') return 'Conference Booking Cancelled';
         if (type === 'conference_booking_deleted') return 'Conference Booking Deleted';
+        if (type === 'ticket_claimed' || actionType === 'claim') return 'Ticket Claimed';
         if (actionType === 'assign') return 'Ticket Assigned';
         if (actionType === 'reassign') return 'Ticket Reassigned';
         if (actionType === 'close') return 'Ticket Closed';
@@ -1857,17 +1867,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function highlightNotificationMessage(text) {
         const safe = escapeHtml(text);
-        return safe.replace(/\b(in progress|reassigned|assigned|resolved|closed|open)\b/gi, (match) => {
+        return safe.replace(/\b(in progress|resolved|closed|open)\b/gi, (match) => {
             const token = match.toLowerCase().replace(/\s+/g, ' ').trim();
             let className = 'notif-keyword-generic';
-            if (token === 'resolved' || token === 'closed') {
+            if (token === 'in progress') {
                 className = 'notif-keyword-success';
-            } else if (token === 'in progress' || token === 'open') {
+            } else if (token === 'resolved') {
                 className = 'notif-keyword-info';
-            } else if (token === 'assigned') {
-                className = 'notif-keyword-assign';
-            } else if (token === 'reassigned') {
-                className = 'notif-keyword-reassign';
+            } else if (token === 'closed') {
+                className = 'notif-keyword-success';
+            } else if (token === 'open') {
+                className = 'notif-keyword-info';
             }
             return `<span class="notif-keyword ${className}">${match}</span>`;
         });

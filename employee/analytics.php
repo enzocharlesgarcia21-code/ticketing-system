@@ -21,7 +21,7 @@ $analyticsHtml = ob_get_clean();
 $employeeAnalyticsAdminParity = <<<'HTML'
 <style id="employeeAnalyticsAdminParity">
 body.employee-analytics-page .admin-page,
-body.employee-analytics-page .admin-page *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
+body.employee-analytics-page .admin-page *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.analytics-title) {
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
 }
 
@@ -61,6 +61,38 @@ body.employee-analytics-page .admin-content {
     width: 100%;
     max-width: 1460px;
     padding-top: 10px;
+}
+
+body.employee-analytics-page .admin-page-header {
+    align-items: flex-start;
+}
+
+body.employee-analytics-page .analytics-heading {
+    max-width: 860px;
+}
+
+body.employee-analytics-page .admin-page .admin-page-header .analytics-heading .admin-page-title.analytics-title {
+    color: #1B5E20 !important;
+    font-family: 'Segoe UI', sans-serif !important;
+    font-size: 28px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    letter-spacing: 0 !important;
+}
+
+body.employee-analytics-page .analytics-subtitle {
+    color: #6B7280;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.45;
+}
+
+body.employee-analytics-page .analytics-header-actions {
+    margin-top: 24px;
+}
+
+body.employee-analytics-page .analytics-filters {
+    grid-template-columns: minmax(330px, 1.35fr) minmax(220px, 1fr) minmax(220px, 1fr) !important;
 }
 
 body.employee-analytics-page .analytics-toolbar,

@@ -2822,18 +2822,16 @@ if ($ticketsStmt) {
             <div class="admin-page-header">
                 <div class="analytics-heading">
                     <h1 class="admin-page-title analytics-title">Analytics</h1>
-                    <p class="analytics-subtitle">Provides an overview of ticket analytics, performance trends, department activity, and resolution progress to help administrators monitor and manage support operations effectively.</p>
+                    <p class="analytics-subtitle"><?= $analyticsIsEmployeeView ? 'Track ticket analytics, performance trends, department activity, and resolution progress.' : 'Provides an overview of ticket analytics, performance trends, department activity, and resolution progress to help administrators monitor and manage support operations effectively.' ?></p>
                 </div>
-                <?php if (!$analyticsIsEmployeeView): ?>
-                    <div class="analytics-header-actions">
-                        <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">
-                            <i class="fa-regular fa-file-pdf"></i> PDF
-                        </a>
-                        <a href="<?= htmlspecialchars($analyticsExcelHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-excel" target="_blank">
-                            <i class="fa-regular fa-file-excel"></i> Excel
-                        </a>
-                    </div>
-                <?php endif; ?>
+                <div class="analytics-header-actions">
+                    <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">
+                        <i class="fa-regular fa-file-pdf"></i> PDF
+                    </a>
+                    <a href="<?= htmlspecialchars($analyticsExcelHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-excel" target="_blank">
+                        <i class="fa-regular fa-file-excel"></i> Excel
+                    </a>
+                </div>
             </div>
 
             <div class="analytics-toolbar">
@@ -2905,19 +2903,6 @@ if ($ticketsStmt) {
                                 <a href="<?= htmlspecialchars(basename($_SERVER['PHP_SELF']), ENT_QUOTES, 'UTF-8') ?>" class="analytics-inline-clear">Clear</a>
                             </div>
                         </div>
-                        <?php if ($analyticsIsEmployeeView): ?>
-                            <div class="analytics-export-filter">
-                                <div class="analytics-export-actions">
-                                    <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">
-                                        <i class="fa-regular fa-file-pdf"></i> PDF
-                                    </a>
-                                    <a href="<?= htmlspecialchars($analyticsExcelHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-excel" target="_blank">
-                                        <i class="fa-regular fa-file-excel"></i> Excel
-                                    </a>
-                                </div>
-                                <div class="analytics-export-note">Select a date range first before generating PDF or Excel files.</div>
-                            </div>
-                        <?php endif; ?>
                     </div>
 
                 </form>

@@ -437,8 +437,7 @@ if ($showCategoryView) {
         /* Knowledge Base Specific Styles */
         body {
             background-image:
-                linear-gradient(rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.72)),
-                url('../assets/img/kbkb.jpg');
+               
             background-repeat: no-repeat;
             background-position: center top;
             background-attachment: fixed;
@@ -821,9 +820,10 @@ if ($showCategoryView) {
 
         .categories-title {
             margin: 0 0 14px;
-            color: #111827;
+            color: var(--primary-green);
             font-size: 20px;
-            font-weight: 800;
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: 500;
             text-align: left;
         }
 
@@ -915,8 +915,9 @@ if ($showCategoryView) {
         }
 
         .home-departments .category-info h4 {
+            font-family: 'Segoe UI', sans-serif;
             font-size: 18px;
-            font-weight: 500;
+            font-weight: 400;
         }
 
         .category-info p {
