@@ -74,6 +74,10 @@ $showSharedMobileSidebar = in_array($currentEmployeePage, $sharedMobileSidebarPa
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style id="employee-navbar-critical-logo-styles">
+.navbar {
+    border-bottom: 4px solid #F4C430;
+}
+
 .navbar .logo-icon {
     width: 56px;
     height: 56px;
@@ -90,8 +94,92 @@ $showSharedMobileSidebar = in_array($currentEmployeePage, $sharedMobileSidebarPa
 }
 
 .mobile-sidebar,
-.mobile-sidebar-overlay {
+.mobile-sidebar-overlay,
+.notification-dropdown {
     display: none;
+}
+
+@media (min-width: 769px) {
+    .navbar,
+    body.employee-analytics-page .navbar {
+        display: grid !important;
+        grid-template-columns: 282px minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        column-gap: 12px !important;
+        padding: 14px 56px 14px 28px !important;
+    }
+
+    .navbar .nav-left,
+    body.employee-analytics-page .navbar .nav-left {
+        width: 282px !important;
+        min-width: 282px !important;
+        max-width: 282px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+    }
+
+    .navbar .brand-name,
+    body.employee-analytics-page .navbar .brand-name {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .navbar .navbar-collapse,
+    body.employee-analytics-page .navbar .navbar-collapse {
+        min-width: 0 !important;
+        width: 100% !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        column-gap: 14px !important;
+        grid-column: 2 / 4 !important;
+    }
+
+    .navbar .nav-center,
+    body.employee-analytics-page .navbar .nav-center {
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: clamp(8px, 1vw, 18px) !important;
+    }
+
+    .navbar .nav-link,
+    body.employee-analytics-page .navbar .nav-link {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        white-space: nowrap !important;
+        min-height: 40px !important;
+        padding: 8px 10px !important;
+        font-size: 13px !important;
+        line-height: 1.15 !important;
+        box-sizing: border-box !important;
+    }
+
+    .navbar .nav-right,
+    body.employee-analytics-page .navbar .nav-right {
+        width: auto !important;
+        min-width: 188px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 18px !important;
+        padding-right: 0 !important;
+    }
+
+    .navbar .notification-wrapper,
+    body.employee-analytics-page .navbar .notification-wrapper {
+        position: relative !important;
+        margin-right: 0 !important;
+    }
+
+    .navbar .user-btn-name,
+    body.employee-analytics-page .navbar .user-btn-name {
+        max-width: 120px !important;
+    }
 }
 
 .tm-global-chat-fab,
@@ -257,16 +345,16 @@ window.TM_MESSENGER_STYLE = 'employee';
 @media (min-width: 769px) {
     .navbar {
         display: grid !important;
-        grid-template-columns: 306px minmax(0, 1fr) !important;
+        grid-template-columns: 282px minmax(0, 1fr) auto !important;
         align-items: center !important;
-        column-gap: 18px !important;
-        padding: 14px 42px 14px 40px !important;
+        column-gap: 12px !important;
+        padding: 14px 56px 14px 28px !important;
     }
 
     .navbar .nav-left {
-        width: 306px !important;
-        min-width: 306px !important;
-        max-width: 306px !important;
+        width: 282px !important;
+        min-width: 282px !important;
+        max-width: 282px !important;
         display: flex !important;
         align-items: center !important;
         gap: 12px !important;
@@ -285,17 +373,18 @@ window.TM_MESSENGER_STYLE = 'employee';
         min-width: 0 !important;
         width: 100% !important;
         display: grid !important;
-        grid-template-columns: minmax(0, 1fr) 250px !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
         align-items: center !important;
-        column-gap: 18px !important;
+        column-gap: 14px !important;
+        grid-column: 2 / 4 !important;
     }
 
     .navbar .nav-center {
         min-width: 0 !important;
         display: flex !important;
         align-items: center !important;
-        justify-content: space-evenly !important;
-        gap: 6px !important;
+        justify-content: flex-start !important;
+        gap: clamp(8px, 1vw, 18px) !important;
     }
 
     .navbar .nav-link {
@@ -314,13 +403,13 @@ window.TM_MESSENGER_STYLE = 'employee';
     }
 
     .navbar .nav-right {
-        width: 250px !important;
-        min-width: 250px !important;
+        width: auto !important;
+        min-width: 188px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: flex-end !important;
-        gap: 14px !important;
-        padding-right: 22px !important;
+        gap: 18px !important;
+        padding-right: 0 !important;
     }
 
     .navbar .notification-wrapper {
@@ -332,21 +421,21 @@ window.TM_MESSENGER_STYLE = 'employee';
     }
 
     .navbar .user-btn-name {
-        max-width: 128px !important;
+        max-width: 120px !important;
     }
 }
 
 @media (min-width: 769px) and (max-width: 1280px) {
     .navbar {
-        grid-template-columns: 268px minmax(0, 1fr) !important;
-        column-gap: 12px !important;
-        padding-inline: 22px !important;
+        grid-template-columns: 238px minmax(0, 1fr) auto !important;
+        column-gap: 10px !important;
+        padding: 14px 40px 14px 22px !important;
     }
 
     .navbar .nav-left {
-        width: 268px !important;
-        min-width: 268px !important;
-        max-width: 268px !important;
+        width: 238px !important;
+        min-width: 238px !important;
+        max-width: 238px !important;
     }
 
     .navbar .brand-name {
@@ -354,7 +443,7 @@ window.TM_MESSENGER_STYLE = 'employee';
     }
 
     .navbar .nav-center {
-        gap: 4px !important;
+        gap: clamp(6px, 0.75vw, 12px) !important;
     }
 
     .navbar .nav-link {
@@ -364,10 +453,9 @@ window.TM_MESSENGER_STYLE = 'employee';
     }
 
     .navbar .nav-right {
-        width: 220px !important;
-        min-width: 220px !important;
-        gap: 10px !important;
-        padding-right: 4px !important;
+        min-width: 176px !important;
+        gap: 14px !important;
+        padding-right: 0 !important;
     }
 
     .navbar .user-btn-name {
@@ -377,15 +465,15 @@ window.TM_MESSENGER_STYLE = 'employee';
 
 @media (min-width: 769px) and (max-width: 1100px) {
     .navbar {
-        grid-template-columns: 232px minmax(0, 1fr) !important;
+        grid-template-columns: 210px minmax(0, 1fr) auto !important;
         column-gap: 10px !important;
-        padding-inline: 18px !important;
+        padding: 14px 30px 14px 18px !important;
     }
 
     .navbar .nav-left {
-        width: 232px !important;
-        min-width: 232px !important;
-        max-width: 232px !important;
+        width: 210px !important;
+        min-width: 210px !important;
+        max-width: 210px !important;
     }
 
     .navbar .brand-name {
@@ -393,7 +481,7 @@ window.TM_MESSENGER_STYLE = 'employee';
     }
 
     .navbar .nav-center {
-        gap: 4px !important;
+        gap: 6px !important;
     }
 
     .navbar .nav-link {
@@ -407,10 +495,10 @@ window.TM_MESSENGER_STYLE = 'employee';
     }
 
     .navbar .nav-right {
-        width: 184px !important;
-        min-width: 184px !important;
-        gap: 8px !important;
-        padding-right: 4px !important;
+        width: auto !important;
+        min-width: 164px !important;
+        gap: 10px !important;
+        padding-right: 0 !important;
     }
 
     .navbar .user-btn {
