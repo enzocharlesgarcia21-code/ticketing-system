@@ -454,11 +454,11 @@ window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSO
 }
 
 .admin-topbar-kicker {
-    color: #78907a;
+    color: var(--admin-shell-green);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 12px;
-    font-weight: 400;
-    letter-spacing: 0.08em;
+    font-weight: 700;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     line-height: 1.2;
 }
