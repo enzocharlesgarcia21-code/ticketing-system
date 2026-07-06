@@ -302,9 +302,9 @@ function request_ticket_blank_sap_report(): array
     return [
         'name' => '',
         'position' => '',
-        'immediate_head' => '',
+        'address' => '',
         'department' => '',
-        'company' => '',
+        'tin' => '',
     ];
 }
 
@@ -322,9 +322,9 @@ function request_ticket_extract_sap_reports(array $source): array
             $normalizedReport = [
                 'name' => trim((string) ($report['name'] ?? '')),
                 'position' => trim((string) ($report['position'] ?? '')),
-                'immediate_head' => trim((string) ($report['immediate_head'] ?? '')),
+                'address' => trim((string) ($report['address'] ?? '')),
                 'department' => trim((string) ($report['department'] ?? '')),
-                'company' => trim((string) ($report['company'] ?? '')),
+                'tin' => trim((string) ($report['tin'] ?? '')),
             ];
 
             if (implode('', $normalizedReport) === '') {
@@ -339,9 +339,9 @@ function request_ticket_extract_sap_reports(array $source): array
         $legacyReport = [
             'name' => trim((string) ($source['sap_name'] ?? '')),
             'position' => trim((string) ($source['sap_position'] ?? '')),
-            'immediate_head' => trim((string) ($source['sap_immediate_head'] ?? '')),
+            'address' => trim((string) ($source['sap_address'] ?? '')),
             'department' => trim((string) ($source['sap_department'] ?? '')),
-            'company' => trim((string) ($source['sap_company'] ?? '')),
+            'tin' => trim((string) ($source['sap_tin'] ?? '')),
         ];
 
         if (implode('', $legacyReport) !== '') {
@@ -536,9 +536,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $sap_reports = request_ticket_extract_sap_reports($_POST);
     $sap_name = $sap_reports[0]['name'] ?? trim((string) ($_POST['sap_name'] ?? ''));
     $sap_position = $sap_reports[0]['position'] ?? trim((string) ($_POST['sap_position'] ?? ''));
-    $sap_immediate_head = $sap_reports[0]['immediate_head'] ?? trim((string) ($_POST['sap_immediate_head'] ?? ''));
+    $sap_address = $sap_reports[0]['address'] ?? trim((string) ($_POST['sap_address'] ?? ''));
     $sap_department = $sap_reports[0]['department'] ?? trim((string) ($_POST['sap_department'] ?? ''));
-    $sap_company = $sap_reports[0]['company'] ?? trim((string) ($_POST['sap_company'] ?? ''));
+    $sap_tin = $sap_reports[0]['tin'] ?? trim((string) ($_POST['sap_tin'] ?? ''));
     $priority = trim((string) ($_POST['priority'] ?? ''));
     $company = $_SESSION['company'] ?? '';
     if (empty($company)) {
@@ -944,13 +944,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         foreach ($sap_reports as $sap_report) {
-            $sapCompanyRequiresDepartment = ($sap_report['company'] === '@leadsagri.com');
             if (
                 $sap_report['name'] === ''
-                || $sap_report['position'] === ''
-                || $sap_report['immediate_head'] === ''
-                || $sap_report['company'] === ''
-                || ($sapCompanyRequiresDepartment && $sap_report['department'] === '')
             ) {
                 if ($isAjax) {
                     header('Content-Type: application/json; charset=utf-8');
@@ -968,11 +963,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $description = "SAP Form";
         foreach ($sap_reports as $index => $sap_report) {
             $description .= "\n\nEmployee Details " . ($index + 1) . "\n"
-                . "Full Name: " . $sap_report['name'] . "\n"
+                . "Name: " . $sap_report['name'] . "\n"
                 . "Position: " . $sap_report['position'] . "\n"
-                . "Immediate Supervisor: " . $sap_report['immediate_head'] . "\n"
+                . "Address: " . $sap_report['address'] . "\n"
                 . "Department: " . $sap_report['department'] . "\n"
-                . "Company: " . $sap_report['company'];
+                . "TIN: " . $sap_report['tin'];
         }
     }
 
@@ -1419,9 +1414,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($isLapcItSapRequest) {
         $ticketMeta['sap_name'] = $sap_name;
         $ticketMeta['sap_position'] = $sap_position;
-        $ticketMeta['sap_immediate_head'] = $sap_immediate_head;
+        $ticketMeta['sap_address'] = $sap_address;
         $ticketMeta['sap_department'] = $sap_department;
-        $ticketMeta['sap_company'] = $sap_company;
+        $ticketMeta['sap_tin'] = $sap_tin;
         $ticketMeta['sap_reports'] = json_encode($sap_reports, JSON_UNESCAPED_UNICODE);
     }
     if ($isLapcItEmailRequest) {
@@ -4472,13 +4467,13 @@ if (count($sapFormEntries) === 0) {
                                     <div class="sap-request-inline-row">
                                         <section class="sap-request-field">
                                             <div class="form-group">
-                                                <label for="sap_name_<?= $sapIndex; ?>">Full Name <span class="required-asterisk">*</span></label>
+                                                <label for="sap_name_<?= $sapIndex; ?>">Name <span class="required-asterisk">*</span></label>
                                                 <input type="text" name="sap_reports[<?= $sapIndex; ?>][name]" id="sap_name_<?= $sapIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($sapEntry['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="name">
                                             </div>
                                         </section>
                                         <section class="sap-request-field">
                                             <div class="form-group">
-                                                <label for="sap_position_<?= $sapIndex; ?>">Position <span class="required-asterisk">*</span></label>
+                                                <label for="sap_position_<?= $sapIndex; ?>">Position</label>
                                                 <input type="text" name="sap_reports[<?= $sapIndex; ?>][position]" id="sap_position_<?= $sapIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($sapEntry['position'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="position">
                                             </div>
                                         </section>
@@ -4486,42 +4481,22 @@ if (count($sapFormEntries) === 0) {
                                     <div class="sap-request-inline-row">
                                         <section class="sap-request-field">
                                             <div class="form-group">
-                                                <label for="sap_immediate_head_<?= $sapIndex; ?>">Immediate Supervisor <span class="required-asterisk">*</span></label>
-                                                <input type="text" name="sap_reports[<?= $sapIndex; ?>][immediate_head]" id="sap_immediate_head_<?= $sapIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($sapEntry['immediate_head'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="immediate_head">
+                                                <label for="sap_address_<?= $sapIndex; ?>">Address</label>
+                                                <input type="text" name="sap_reports[<?= $sapIndex; ?>][address]" id="sap_address_<?= $sapIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($sapEntry['address'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="address">
                                             </div>
                                         </section>
                                         <section class="sap-request-field">
                                             <div class="form-group">
-                                                <label for="sap_company_<?= $sapIndex; ?>">Company <span class="required-asterisk">*</span></label>
-                                                <div class="select-wrapper">
-                                                    <select name="sap_reports[<?= $sapIndex; ?>][company]" id="sap_company_<?= $sapIndex; ?>" class="form-control" data-sap-field="company">
-                                                        <option value="" disabled <?= (($sapEntry['company'] ?? '') === '') ? 'selected' : ''; ?>>Select a company</option>
-                                                        <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
-                                                            <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (($sapEntry['company'] ?? '') === $companyValue) ? 'selected' : ''; ?>>
-                                                                <?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?>
-                                                            </option>
-                                                        <?php endforeach; ?>
-                                                    </select>
-                                                    <i class="fas fa-chevron-down select-icon"></i>
-                                                </div>
+                                                <label for="sap_department_<?= $sapIndex; ?>">Department</label>
+                                                <input type="text" name="sap_reports[<?= $sapIndex; ?>][department]" id="sap_department_<?= $sapIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($sapEntry['department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="department">
                                             </div>
                                         </section>
                                     </div>
-                                    <div class="sap-request-company-row">
-                                        <section class="sap-request-field sap-request-department-wrap <?= (($sapEntry['company'] ?? '') === '@leadsagri.com') ? 'is-visible' : ''; ?>" data-sap-department-wrap>
+                                    <div class="sap-request-inline-row">
+                                        <section class="sap-request-field">
                                             <div class="form-group">
-                                                <label for="sap_department_<?= $sapIndex; ?>">Department <span class="required-asterisk">*</span></label>
-                                                <div class="select-wrapper sap-request-department-field <?= (($sapEntry['company'] ?? '') === '@leadsagri.com') ? 'is-visible' : ''; ?>" data-sap-department-field>
-                                                    <select name="sap_reports[<?= $sapIndex; ?>][department]" id="sap_department_<?= $sapIndex; ?>" class="form-control" data-sap-field="department">
-                                                        <option value="" disabled <?= (($sapEntry['department'] ?? '') === '') ? 'selected' : ''; ?>>Choose department</option>
-                                                        <?php foreach ($lapcDepartments as $sapDepartmentOption): ?>
-                                                            <option value="<?= htmlspecialchars($sapDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($sapEntry['department'] ?? '') === $sapDepartmentOption) ? 'selected' : ''; ?>>
-                                                                <?= htmlspecialchars($sapDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>
-                                                            </option>
-                                                        <?php endforeach; ?>
-                                                    </select>
-                                                    <i class="fas fa-chevron-down select-icon"></i>
-                                                </div>
+                                                <label for="sap_tin_<?= $sapIndex; ?>">TIN</label>
+                                                <input type="text" name="sap_reports[<?= $sapIndex; ?>][tin]" id="sap_tin_<?= $sapIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($sapEntry['tin'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="tin">
                                             </div>
                                         </section>
                                     </div>
@@ -4550,13 +4525,13 @@ if (count($sapFormEntries) === 0) {
                             <div class="sap-request-inline-row">
                                 <section class="sap-request-field">
                                     <div class="form-group">
-                                        <label for="sap_name___INDEX__">Full Name <span class="required-asterisk">*</span></label>
+                                        <label for="sap_name___INDEX__">Name <span class="required-asterisk">*</span></label>
                                         <input type="text" name="sap_reports[__INDEX__][name]" id="sap_name___INDEX__" class="form-control" value="" placeholder="Your answer" data-sap-field="name">
                                     </div>
                                 </section>
                                 <section class="sap-request-field">
                                     <div class="form-group">
-                                        <label for="sap_position___INDEX__">Position <span class="required-asterisk">*</span></label>
+                                        <label for="sap_position___INDEX__">Position</label>
                                         <input type="text" name="sap_reports[__INDEX__][position]" id="sap_position___INDEX__" class="form-control" value="" placeholder="Your answer" data-sap-field="position">
                                     </div>
                                 </section>
@@ -4564,42 +4539,22 @@ if (count($sapFormEntries) === 0) {
                             <div class="sap-request-inline-row">
                                 <section class="sap-request-field">
                                     <div class="form-group">
-                                        <label for="sap_immediate_head___INDEX__">Immediate Supervisor <span class="required-asterisk">*</span></label>
-                                        <input type="text" name="sap_reports[__INDEX__][immediate_head]" id="sap_immediate_head___INDEX__" class="form-control" value="" placeholder="Your answer" data-sap-field="immediate_head">
+                                        <label for="sap_address___INDEX__">Address</label>
+                                        <input type="text" name="sap_reports[__INDEX__][address]" id="sap_address___INDEX__" class="form-control" value="" placeholder="Your answer" data-sap-field="address">
                                     </div>
                                 </section>
                                 <section class="sap-request-field">
                                     <div class="form-group">
-                                        <label for="sap_company___INDEX__">Company <span class="required-asterisk">*</span></label>
-                                        <div class="select-wrapper">
-                                            <select name="sap_reports[__INDEX__][company]" id="sap_company___INDEX__" class="form-control" data-sap-field="company">
-                                                <option value="" disabled selected>Select a company</option>
-                                                <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
-                                                    <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>">
-                                                        <?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <i class="fas fa-chevron-down select-icon"></i>
-                                        </div>
+                                        <label for="sap_department___INDEX__">Department</label>
+                                        <input type="text" name="sap_reports[__INDEX__][department]" id="sap_department___INDEX__" class="form-control" value="" placeholder="Your answer" data-sap-field="department">
                                     </div>
                                 </section>
                             </div>
-                            <div class="sap-request-company-row">
-                                <section class="sap-request-field sap-request-department-wrap" data-sap-department-wrap>
+                            <div class="sap-request-inline-row">
+                                <section class="sap-request-field">
                                     <div class="form-group">
-                                        <label for="sap_department___INDEX__">Department <span class="required-asterisk">*</span></label>
-                                        <div class="select-wrapper sap-request-department-field" data-sap-department-field>
-                                            <select name="sap_reports[__INDEX__][department]" id="sap_department___INDEX__" class="form-control" data-sap-field="department">
-                                                <option value="" disabled selected>Choose department</option>
-                                                <?php foreach ($lapcDepartments as $sapDepartmentOption): ?>
-                                                    <option value="<?= htmlspecialchars($sapDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>">
-                                                        <?= htmlspecialchars($sapDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <i class="fas fa-chevron-down select-icon"></i>
-                                        </div>
+                                        <label for="sap_tin___INDEX__">TIN</label>
+                                        <input type="text" name="sap_reports[__INDEX__][tin]" id="sap_tin___INDEX__" class="form-control" value="" placeholder="Your answer" data-sap-field="tin">
                                     </div>
                                 </section>
                             </div>
@@ -6267,7 +6222,7 @@ if (count($sapFormEntries) === 0) {
             return Array.from(sapRequestList.querySelectorAll('[data-sap-card]'));
         }
         function getSapCardValues(card) {
-            const fieldNames = ['name', 'position', 'immediate_head', 'department', 'company'];
+            const fieldNames = ['name', 'position', 'address', 'department', 'tin'];
             const values = {};
             fieldNames.forEach(function(fieldName) {
                 const input = card ? card.querySelector('[data-sap-field="' + fieldName + '"]') : null;
@@ -6319,35 +6274,11 @@ if (count($sapFormEntries) === 0) {
                 removeButtons.forEach(function(button) {
                     button.style.display = sapCards.length > 1 ? '' : 'none';
                 });
-                syncSapDepartmentVisibility(card);
             });
             if (activeSapCardIndex > sapCards.length - 1) {
                 activeSapCardIndex = Math.max(0, sapCards.length - 1);
             }
             setActiveSapCard(activeSapCardIndex);
-        }
-        function syncSapDepartmentVisibility(card) {
-            if (!card) return;
-            const companyInput = card.querySelector('[data-sap-field="company"]');
-            const departmentWrap = card.querySelector('[data-sap-department-wrap]');
-            const departmentField = card.querySelector('[data-sap-department-field]');
-            const departmentInput = card.querySelector('[data-sap-field="department"]');
-            const shouldShowDepartment = companyInput && String(companyInput.value || '') === '@leadsagri.com';
-            if (departmentWrap) {
-                departmentWrap.classList.toggle('is-visible', shouldShowDepartment);
-            }
-            if (departmentField) {
-                departmentField.classList.toggle('is-visible', shouldShowDepartment);
-            }
-            if (departmentInput) {
-                departmentInput.disabled = !shouldShowDepartment;
-                if (shouldShowDepartment) {
-                    departmentInput.setAttribute('required', 'required');
-                } else {
-                    departmentInput.removeAttribute('required');
-                    departmentInput.value = '';
-                }
-            }
         }
         function addSapCard() {
             if (!sapRequestList || !sapRequestTemplate) return;
@@ -6365,7 +6296,7 @@ if (count($sapFormEntries) === 0) {
             }
         }
         function findFirstEmptySapInput(card) {
-            const orderedFields = ['name', 'position', 'immediate_head', 'department', 'company'];
+            const orderedFields = ['name'];
             for (let i = 0; i < orderedFields.length; i++) {
                 const input = card ? card.querySelector('[data-sap-field="' + orderedFields[i] + '"]') : null;
                 if (input && !input.disabled && !String(input.value || '').trim()) {
@@ -6403,14 +6334,6 @@ if (count($sapFormEntries) === 0) {
                 }
             });
             sapRequestList.addEventListener('change', function(event) {
-                const target = event.target;
-                if (!(target instanceof Element)) return;
-                if (target.matches('[data-sap-field="company"]')) {
-                    const card = target.closest('[data-sap-card]');
-                    syncSapDepartmentVisibility(card);
-                }
-            });
-            sapRequestList.addEventListener('input', function(event) {
                 const target = event.target;
                 if (!(target instanceof Element)) return;
                 if (target.matches('[data-sap-field="name"]')) {
@@ -6682,7 +6605,7 @@ if (count($sapFormEntries) === 0) {
             if (sapRequestList) {
                 Array.from(sapRequestList.querySelectorAll('[data-sap-field]')).forEach(function(input) {
                     if (!input) return;
-                    if (shouldShowSapRequest) input.setAttribute('required', 'required');
+                    if (shouldShowSapRequest && String(input.getAttribute('data-sap-field') || '') === 'name') input.setAttribute('required', 'required');
                     else input.removeAttribute('required');
                 });
             }
@@ -8012,18 +7935,11 @@ if (count($sapFormEntries) === 0) {
                         if (filledSapFields === 0) {
                             continue;
                         }
-                        if (filledSapFields < 5) {
-                            const departmentVisible = sapCards[sapIndex].querySelector('[data-sap-department-field]')?.classList.contains('is-visible');
-                            if (!departmentVisible && filledSapFields === 4) {
-                                hasCompleteSapEntry = true;
-                                continue;
-                            }
+                        const sapNameInput = sapCards[sapIndex].querySelector('[data-sap-field="name"]');
+                        if (!sapNameInput || !String(sapNameInput.value || '').trim()) {
                             e.preventDefault();
                             setInlineFormError('Please complete each SAP employee report before submitting.');
-                            const firstEmptySapInput = findFirstEmptySapInput(sapCards[sapIndex]);
-                            if (firstEmptySapInput) {
-                                firstEmptySapInput.focus();
-                            }
+                            if (sapNameInput) sapNameInput.focus();
                             return;
                         }
                         hasCompleteSapEntry = true;

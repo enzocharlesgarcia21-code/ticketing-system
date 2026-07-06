@@ -838,11 +838,11 @@ function parseSapReportsFromMeta(data) {
     return decoded.map(function (report, index) {
         if (!report || typeof report !== 'object') return null;
         const fields = {
-            'full name': String(report.name || '').trim(),
+            'name': String(report.name || '').trim(),
             'position': String(report.position || '').trim(),
-            'immediate supervisor': String(report.immediate_head || report.immediate_supervisor || '').trim(),
-            'company': String(report.company || '').trim(),
-            'department': String(report.department || '').trim()
+            'address': String(report.address || '').trim(),
+            'department': String(report.department || '').trim(),
+            'tin': String(report.tin || '').trim()
         };
         const hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
         if (!hasValue) return null;
@@ -864,26 +864,6 @@ function dashIfUnknown(value) {
     return (!text || text.toLowerCase() === 'unknown') ? '-' : text;
 }
 
-function formatSapCompanyValue(value, departmentValue) {
-    let company = String(value || '').trim();
-    const department = String(departmentValue || '').trim();
-    if (!company && department && department !== '-' && department.toLowerCase() !== 'unknown') company = '@leadsagri.com';
-    if (!company) return '-';
-    const labels = {
-        '@leads-farmex.com': 'FARMEX (@leads-farmex.com)',
-        '@farmasee.ph': 'FARMASEE (@farmasee.ph)',
-        '@gpsci.net': 'GPSCI (@gpsci.net)',
-        '@leadsagri.com': 'LAPC (@leadsagri.com)',
-        '@leadsav.com': 'LAV (@leadsav.com)',
-        '@leadstech-corp.com': 'LTC (@leadstech-corp.com)',
-        '@lingapleads.org': 'LINGAP (@lingapleads.org)',
-        '@malvedaholdings.com': 'MHC (@malvedaholdings.com)',
-        '@malvedaproperties.com': 'MPDC (@malvedaproperties.com)',
-        '@primestocks.ph': 'PCC (@primestocks.ph)'
-    };
-    return labels[company.toLowerCase()] || company;
-}
-
 function renderSapDescriptionHtml(data, descriptionText) {
     if (!isSapTicket(data, descriptionText)) return '';
     let reports = parseSapReportsFromMeta(data);
@@ -891,27 +871,22 @@ function renderSapDescriptionHtml(data, descriptionText) {
     if (!reports.length) return '';
     const carouselId = `tmSapDisplay-${++sapDisplaySeq}`;
     const fieldConfig = [
-        { key: 'full name', label: 'Full Name' },
+        { key: 'name', label: 'Name' },
         { key: 'position', label: 'Position' },
-        { key: 'immediate supervisor', label: 'Supervisor' },
-        { key: 'company', label: 'Company' },
-        { key: 'department', label: 'Department', wide: true }
+        { key: 'address', label: 'Address' },
+        { key: 'department', label: 'Department' },
+        { key: 'tin', label: 'TIN' }
     ];
     return `
         <div class="tm-sap-display">
             <div class="tm-sap-carousel" id="${carouselId}" data-index="0">
             ${reports.map(function (report, reportIndex) {
-                const rawDepartmentValue = getSapFieldValue(report, ['department', 'dept']);
-                const departmentValue = dashIfUnknown(rawDepartmentValue);
-                const companyValue = formatSapCompanyValue(getSapFieldValue(report, ['company', 'company name', 'company domain']), rawDepartmentValue);
                 return `
                     <div class="tm-sap-card${reportIndex === 0 ? ' is-active' : ''}" data-index="${reportIndex}" aria-hidden="${reportIndex === 0 ? 'false' : 'true'}">
                         <div class="tm-sap-card-title">Employee Details${reports.length > 1 ? ' ' + escapeHtml(report.index) : ''}</div>
                         <div class="tm-sap-field-grid">
                             ${fieldConfig.map(function (field) {
-                                const value = field.key === 'company'
-                                    ? companyValue
-                                    : (field.key === 'department' ? departmentValue : (getSapFieldValue(report, [field.key]) || '-'));
+                                const value = getSapFieldValue(report, [field.key]) || '-';
                                 return `
                                     <div class="tm-sap-field${field.wide ? ' is-wide' : ''}">
                                         <div class="tm-sap-label">${escapeHtml(field.label)}</div>

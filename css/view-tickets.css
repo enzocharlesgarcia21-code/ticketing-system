@@ -1860,9 +1860,10 @@
 
 .tm-sap-card-title {
     margin-bottom: 14px;
-    color: #334155;
-    font-size: 15px;
-    font-weight: 800;
+    color: #0f172a;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.6;
 }
 
 .tm-sap-field-grid {

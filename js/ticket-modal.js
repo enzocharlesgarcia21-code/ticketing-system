@@ -1339,11 +1339,11 @@ var TMTicketModal = (function () {
     return decoded.map(function (report, index) {
       if (!report || typeof report !== 'object') return null;
       var fields = {
-        'full name': String(report.name || '').trim(),
+        'name': String(report.name || '').trim(),
         'position': String(report.position || '').trim(),
-        'immediate supervisor': String(report.immediate_head || report.immediate_supervisor || '').trim(),
-        'company': String(report.company || '').trim(),
-        'department': String(report.department || '').trim()
+        'address': String(report.address || '').trim(),
+        'department': String(report.department || '').trim(),
+        'tin': String(report.tin || '').trim()
       };
       var hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
       if (!hasValue) return null;
@@ -1362,26 +1362,6 @@ var TMTicketModal = (function () {
     var text = String(value == null ? '' : value).trim();
     return (!text || text.toLowerCase() === 'unknown') ? '-' : text;
   }
-  function formatSapCompanyValue(value, departmentValue) {
-    var company = String(value || '').trim();
-    var department = String(departmentValue || '').trim();
-    if (!company && department && department !== '-' && department.toLowerCase() !== 'unknown') company = '@leadsagri.com';
-    if (!company) return '-';
-    var normalized = company.toLowerCase();
-    var labels = {
-      '@leads-farmex.com': 'FARMEX / LAV',
-      '@farmasee.ph': 'FARMASEE',
-      '@gpsci.net': 'GPSCI',
-      '@leadsagri.com': 'LAPC',
-      '@leadsav.com': 'FARMEX / LAV',
-      '@leadstech-corp.com': 'LTC',
-      '@lingapleads.org': 'LINGAP',
-      '@malvedaholdings.com': 'MHC',
-      '@malvedaproperties.com': 'MPDC',
-      '@primestocks.ph': 'PCC'
-    };
-    return labels[normalized] || company;
-  }
   function renderSapDescriptionHtml(data, descriptionText) {
     if (!isSapTicket(data, descriptionText)) return '';
     var reports = parseSapReportsFromMeta(data);
@@ -1389,25 +1369,22 @@ var TMTicketModal = (function () {
     if (!reports.length) return '';
     var carouselId = 'tmSapDisplay-' + String(++sapDisplaySeq);
     var fieldConfig = [
-      { key: 'full name', label: 'Full Name' },
+      { key: 'name', label: 'Name' },
       { key: 'position', label: 'Position' },
-      { key: 'immediate supervisor', label: 'Supervisor' },
-      { key: 'company', label: 'Company' },
-      { key: 'department', label: 'Department', wide: true }
+      { key: 'address', label: 'Address' },
+      { key: 'department', label: 'Department' },
+      { key: 'tin', label: 'TIN' }
     ];
     return '<div class="tm-sap-display">' +
       '<div class="tm-sap-carousel" id="' + carouselId + '" data-index="0">' +
       reports.map(function (report, reportIndex) {
-        var rawDepartmentValue = getSapFieldValue(report, ['department', 'dept']);
-        var departmentValue = dashIfUnknown(rawDepartmentValue);
-        var companyValue = formatSapCompanyValue(getSapFieldValue(report, ['company', 'company name', 'company domain']), rawDepartmentValue);
         return '<div class="tm-sap-card' + (reportIndex === 0 ? ' is-active' : '') + '" data-index="' + String(reportIndex) + '" aria-hidden="' + (reportIndex === 0 ? 'false' : 'true') + '">' +
           '<div class="tm-sap-card-title">Employee Details' + (reports.length > 1 ? ' ' + escapeHtml(report.index) : '') + '</div>' +
           '<div class="tm-sap-field-grid">' +
           fieldConfig.map(function (field) {
-            var value = field.key === 'company'
-              ? companyValue
-              : (field.key === 'department' ? departmentValue : (getSapFieldValue(report, [field.key]) || '-'));
+            var value = field.key === 'department'
+              ? dashIfUnknown(getSapFieldValue(report, ['department', 'dept']))
+              : (getSapFieldValue(report, [field.key]) || '-');
             return '<div class="tm-sap-field' + (field.wide ? ' is-wide' : '') + '">' +
               '<div class="tm-sap-label">' + escapeHtml(field.label) + '</div>' +
               '<div class="tm-sap-value">' + escapeHtml(value) + '</div>' +

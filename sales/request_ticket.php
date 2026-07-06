@@ -205,9 +205,9 @@ function sales_request_blank_sap_report(): array
     return [
         'name' => '',
         'position' => '',
-        'immediate_head' => '',
+        'address' => '',
         'department' => '',
-        'company' => '',
+        'tin' => '',
     ];
 }
 
@@ -225,9 +225,9 @@ function sales_request_extract_sap_reports(array $source): array
             $normalizedReport = [
                 'name' => trim((string) ($report['name'] ?? '')),
                 'position' => trim((string) ($report['position'] ?? '')),
-                'immediate_head' => trim((string) ($report['immediate_head'] ?? '')),
+                'address' => trim((string) ($report['address'] ?? '')),
                 'department' => trim((string) ($report['department'] ?? '')),
-                'company' => trim((string) ($report['company'] ?? '')),
+                'tin' => trim((string) ($report['tin'] ?? '')),
             ];
 
             if (implode('', $normalizedReport) === '') {
@@ -242,9 +242,9 @@ function sales_request_extract_sap_reports(array $source): array
         $legacyReport = [
             'name' => trim((string) ($source['sap_name'] ?? '')),
             'position' => trim((string) ($source['sap_position'] ?? '')),
-            'immediate_head' => trim((string) ($source['sap_immediate_head'] ?? '')),
+            'address' => trim((string) ($source['sap_address'] ?? '')),
             'department' => trim((string) ($source['sap_department'] ?? '')),
-            'company' => trim((string) ($source['sap_company'] ?? '')),
+            'tin' => trim((string) ($source['sap_tin'] ?? '')),
         ];
 
         if (implode('', $legacyReport) !== '') {
@@ -606,9 +606,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $sap_reports = sales_request_extract_sap_reports($_POST);
     $sap_name = $sap_reports[0]['name'] ?? trim((string) ($_POST['sap_name'] ?? ''));
     $sap_position = $sap_reports[0]['position'] ?? trim((string) ($_POST['sap_position'] ?? ''));
-    $sap_immediate_head = $sap_reports[0]['immediate_head'] ?? trim((string) ($_POST['sap_immediate_head'] ?? ''));
+    $sap_address = $sap_reports[0]['address'] ?? trim((string) ($_POST['sap_address'] ?? ''));
     $sap_department = $sap_reports[0]['department'] ?? trim((string) ($_POST['sap_department'] ?? ''));
-    $sap_company = $sap_reports[0]['company'] ?? trim((string) ($_POST['sap_company'] ?? ''));
+    $sap_tin = $sap_reports[0]['tin'] ?? trim((string) ($_POST['sap_tin'] ?? ''));
 
     $name = $full_name !== '' ? $full_name : derive_name_from_email($email);
     $company = $company_id;
@@ -855,17 +855,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } else {
             $sap_name = $sap_reports[0]['name'] ?? $sap_name;
             $sap_position = $sap_reports[0]['position'] ?? $sap_position;
-            $sap_immediate_head = $sap_reports[0]['immediate_head'] ?? $sap_immediate_head;
+            $sap_address = $sap_reports[0]['address'] ?? $sap_address;
             $sap_department = $sap_reports[0]['department'] ?? $sap_department;
-            $sap_company = $sap_reports[0]['company'] ?? $sap_company;
+            $sap_tin = $sap_reports[0]['tin'] ?? $sap_tin;
             foreach ($sap_reports as $sap_report) {
-                $sapCompanyRequiresDepartment = ($sap_report['company'] === '@leadsagri.com');
                 if (
                     $sap_report['name'] === ''
-                    || $sap_report['position'] === ''
-                    || $sap_report['immediate_head'] === ''
-                    || $sap_report['company'] === ''
-                    || ($sapCompanyRequiresDepartment && $sap_report['department'] === '')
                 ) {
                     $error_msg = "Please complete each SAP employee report before submitting.";
                     break;
@@ -877,11 +872,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $description = "SAP Form";
             foreach ($sap_reports as $index => $sap_report) {
                 $description .= "\n\nEmployee Details " . ($index + 1) . "\n"
-                    . "Full Name: " . $sap_report['name'] . "\n"
+                    . "Name: " . $sap_report['name'] . "\n"
                     . "Position: " . $sap_report['position'] . "\n"
-                    . "Immediate Supervisor: " . $sap_report['immediate_head'] . "\n"
+                    . "Address: " . $sap_report['address'] . "\n"
                     . "Department: " . $sap_report['department'] . "\n"
-                    . "Company: " . $sap_report['company'];
+                    . "TIN: " . $sap_report['tin'];
             }
         }
     }
@@ -1313,9 +1308,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($isLapcItSapRequest) {
                     $ticketMeta['sap_name'] = $sap_name;
                     $ticketMeta['sap_position'] = $sap_position;
-                    $ticketMeta['sap_immediate_head'] = $sap_immediate_head;
+                    $ticketMeta['sap_address'] = $sap_address;
                     $ticketMeta['sap_department'] = $sap_department;
-                    $ticketMeta['sap_company'] = $sap_company;
+                    $ticketMeta['sap_tin'] = $sap_tin;
                     $ticketMeta['sap_reports'] = json_encode($sap_reports, JSON_UNESCAPED_UNICODE);
                 }
                 if ($isLapcItEmailRequest) {
@@ -4903,9 +4898,9 @@ document.addEventListener('DOMContentLoaded', function () {
                             <?php $savedSapEntry = $sapFormEntries[$savedSapIndex]; ?>
                             <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][name]" value="<?= htmlspecialchars((string) ($savedSapEntry['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                             <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][position]" value="<?= htmlspecialchars((string) ($savedSapEntry['position'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                            <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][immediate_head]" value="<?= htmlspecialchars((string) ($savedSapEntry['immediate_head'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
-                            <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][company]" value="<?= htmlspecialchars((string) ($savedSapEntry['company'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][address]" value="<?= htmlspecialchars((string) ($savedSapEntry['address'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                             <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][department]" value="<?= htmlspecialchars((string) ($savedSapEntry['department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <input type="hidden" name="sap_reports[<?= $savedSapIndex; ?>][tin]" value="<?= htmlspecialchars((string) ($savedSapEntry['tin'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                         <?php endfor; ?>
                     </div>
                     <section class="sap-request-card sap-employee-card is-active" data-sap-card>
@@ -4919,13 +4914,13 @@ document.addEventListener('DOMContentLoaded', function () {
                             <div class="sap-request-inline-row">
                                 <section class="sap-request-field">
                                     <div class="form-group">
-                                        <label for="sap_name_current">Full Name <span class="required-asterisk">*</span></label>
+                                        <label for="sap_name_current">Name <span class="required-asterisk">*</span></label>
                                         <input type="text" name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][name]" id="sap_name_current" class="form-control" value="<?= htmlspecialchars((string) ($visibleSapEntry['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="name">
                                     </div>
                                 </section>
                                 <section class="sap-request-field">
                                     <div class="form-group">
-                                        <label for="sap_position_current">Position <span class="required-asterisk">*</span></label>
+                                        <label for="sap_position_current">Position</label>
                                         <input type="text" name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][position]" id="sap_position_current" class="form-control" value="<?= htmlspecialchars((string) ($visibleSapEntry['position'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="position">
                                     </div>
                                 </section>
@@ -4933,42 +4928,22 @@ document.addEventListener('DOMContentLoaded', function () {
                             <div class="sap-request-inline-row">
                                 <section class="sap-request-field">
                                     <div class="form-group">
-                                        <label for="sap_immediate_head_current">Immediate Supervisor <span class="required-asterisk">*</span></label>
-                                        <input type="text" name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][immediate_head]" id="sap_immediate_head_current" class="form-control" value="<?= htmlspecialchars((string) ($visibleSapEntry['immediate_head'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="immediate_head">
+                                        <label for="sap_address_current">Address</label>
+                                        <input type="text" name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][address]" id="sap_address_current" class="form-control" value="<?= htmlspecialchars((string) ($visibleSapEntry['address'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="address">
                                     </div>
                                 </section>
                                 <section class="sap-request-field">
                                     <div class="form-group">
-                                        <label for="sap_company_current">Company <span class="required-asterisk">*</span></label>
-                                        <div class="select-wrapper">
-                                            <select name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][company]" id="sap_company_current" class="form-control" data-sap-field="company">
-                                                <option value="" disabled <?= (($visibleSapEntry['company'] ?? '') === '') ? 'selected' : ''; ?>>Select a company</option>
-                                                <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
-                                                    <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= (($visibleSapEntry['company'] ?? '') === $companyValue) ? 'selected' : ''; ?>>
-                                                        <?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <i class="fas fa-chevron-down select-icon"></i>
-                                        </div>
+                                        <label for="sap_department_current">Department</label>
+                                        <input type="text" name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][department]" id="sap_department_current" class="form-control" value="<?= htmlspecialchars((string) ($visibleSapEntry['department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="department">
                                     </div>
                                 </section>
                             </div>
-                            <div class="sap-request-company-row">
-                                <section class="sap-request-field sap-request-department-wrap <?= (($visibleSapEntry['company'] ?? '') === '@leadsagri.com') ? 'is-visible' : ''; ?>" data-sap-department-wrap>
+                            <div class="sap-request-inline-row">
+                                <section class="sap-request-field">
                                     <div class="form-group">
-                                        <label for="sap_department_current">Department <span class="required-asterisk">*</span></label>
-                                        <div class="select-wrapper sap-request-department-field <?= (($visibleSapEntry['company'] ?? '') === '@leadsagri.com') ? 'is-visible' : ''; ?>" data-sap-department-field>
-                                            <select name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][department]" id="sap_department_current" class="form-control" data-sap-field="department" <?= (($visibleSapEntry['company'] ?? '') === '@leadsagri.com') ? '' : 'disabled'; ?>>
-                                                <option value="" disabled <?= (($visibleSapEntry['department'] ?? '') === '') ? 'selected' : ''; ?>>Choose department</option>
-                                                <?php foreach ($lapcDepartments as $sapDepartmentOption): ?>
-                                                    <option value="<?= htmlspecialchars($sapDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($visibleSapEntry['department'] ?? '') === $sapDepartmentOption) ? 'selected' : ''; ?>>
-                                                        <?= htmlspecialchars($sapDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                            <i class="fas fa-chevron-down select-icon"></i>
-                                        </div>
+                                        <label for="sap_tin_current">TIN</label>
+                                        <input type="text" name="sap_reports[<?= max(0, count($sapFormEntries) - 1); ?>][tin]" id="sap_tin_current" class="form-control" value="<?= htmlspecialchars((string) ($visibleSapEntry['tin'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-sap-field="tin">
                                     </div>
                                 </section>
                             </div>
@@ -5490,13 +5465,12 @@ function getSapField(fieldName) {
 }
 
 function getCurrentSapReportValues() {
-    var departmentInput = getSapField('department');
     return {
         name: String((getSapField('name') || {}).value || '').trim(),
         position: String((getSapField('position') || {}).value || '').trim(),
-        immediate_head: String((getSapField('immediate_head') || {}).value || '').trim(),
-        company: String((getSapField('company') || {}).value || '').trim(),
-        department: String((departmentInput && departmentInput.value) || '').trim()
+        address: String((getSapField('address') || {}).value || '').trim(),
+        department: String((getSapField('department') || {}).value || '').trim(),
+        tin: String((getSapField('tin') || {}).value || '').trim()
     };
 }
 
@@ -5505,32 +5479,21 @@ function cloneSapReport(report) {
     return {
         name: String(source.name || ''),
         position: String(source.position || ''),
-        immediate_head: String(source.immediate_head || ''),
-        company: String(source.company || ''),
-        department: String(source.department || '')
+        address: String(source.address || ''),
+        department: String(source.department || ''),
+        tin: String(source.tin || '')
     };
 }
 
 function getFirstIncompleteCurrentSapField() {
     var currentCard = getCurrentSapCard();
     if (!currentCard) return null;
-    var fieldOrder = ['name', 'position', 'immediate_head', 'company'];
+    var fieldOrder = ['name'];
     for (var index = 0; index < fieldOrder.length; index += 1) {
         var input = currentCard.querySelector('[data-sap-field="' + fieldOrder[index] + '"]');
         if (input && !String(input.value || '').trim()) {
             return input;
         }
-    }
-    var companyInput = currentCard.querySelector('[data-sap-field="company"]');
-    var departmentInput = currentCard.querySelector('[data-sap-field="department"]');
-    if (
-        companyInput
-        && String(companyInput.value || '') === '@leadsagri.com'
-        && departmentInput
-        && !departmentInput.disabled
-        && !String(departmentInput.value || '').trim()
-    ) {
-        return departmentInput;
     }
     return null;
 }
@@ -5559,9 +5522,9 @@ function renderSavedSapReports() {
     savedSapReports.forEach(function(report, index) {
         createHiddenSapInput(index, 'name', report.name);
         createHiddenSapInput(index, 'position', report.position);
-        createHiddenSapInput(index, 'immediate_head', report.immediate_head);
-        createHiddenSapInput(index, 'company', report.company);
+        createHiddenSapInput(index, 'address', report.address);
         createHiddenSapInput(index, 'department', report.department);
+        createHiddenSapInput(index, 'tin', report.tin);
     });
 }
 
@@ -5569,25 +5532,20 @@ function setCurrentSapReportValues(report) {
     var safeReport = report || {};
     var nameInput = getSapField('name');
     var positionInput = getSapField('position');
-    var immediateHeadInput = getSapField('immediate_head');
-    var companyInput = getSapField('company');
+    var addressInput = getSapField('address');
     var departmentInput = getSapField('department');
+    var tinInput = getSapField('tin');
 
     if (nameInput) nameInput.value = String(safeReport.name || '');
     if (positionInput) positionInput.value = String(safeReport.position || '');
-    if (immediateHeadInput) immediateHeadInput.value = String(safeReport.immediate_head || '');
-    if (companyInput) companyInput.value = String(safeReport.company || '');
-
-    syncSapDepartmentVisibility(getCurrentSapCard());
-
-    if (departmentInput) {
-        departmentInput.value = String(safeReport.department || '');
-    }
+    if (addressInput) addressInput.value = String(safeReport.address || '');
+    if (departmentInput) departmentInput.value = String(safeReport.department || '');
+    if (tinInput) tinInput.value = String(safeReport.tin || '');
 }
 
 function updateCurrentSapFieldNames() {
     var currentIndex = savedSapReports.length;
-    ['name', 'position', 'immediate_head', 'company', 'department'].forEach(function(fieldName) {
+    ['name', 'position', 'address', 'department', 'tin'].forEach(function(fieldName) {
         var input = getSapField(fieldName);
         if (input) {
             input.name = 'sap_reports[' + currentIndex + '][' + fieldName + ']';
@@ -5596,47 +5554,13 @@ function updateCurrentSapFieldNames() {
 }
 
 function clearCurrentSapForm() {
-    ['name', 'position', 'immediate_head', 'company'].forEach(function(fieldName) {
+    ['name', 'position', 'address', 'department', 'tin'].forEach(function(fieldName) {
         var input = getSapField(fieldName);
         if (input) {
             input.value = '';
         }
     });
-    var departmentInput = getSapField('department');
-    if (departmentInput) {
-        departmentInput.value = '';
-    }
-    syncSapDepartmentVisibility(getCurrentSapCard());
     currentSapDraft = cloneSapReport(getCurrentSapReportValues());
-}
-
-function syncCurrentSapDepartment() {
-    syncSapDepartmentVisibility(getCurrentSapCard());
-}
-
-function syncSapDepartmentVisibility(card) {
-    if (!card) return;
-    var companyInput = card.querySelector('[data-sap-field="company"]');
-    var departmentWrap = card.querySelector('[data-sap-department-wrap]');
-    var departmentField = card.querySelector('[data-sap-department-field]');
-    var departmentInput = card.querySelector('[data-sap-field="department"]');
-    var sapSectionActive = !sapRequestSection || sapRequestSection.classList.contains('is-visible');
-    var shouldShowDepartment = sapSectionActive && companyInput && String(companyInput.value || '') === '@leadsagri.com';
-    if (departmentWrap) {
-        departmentWrap.classList.toggle('is-visible', shouldShowDepartment);
-    }
-    if (departmentField) {
-        departmentField.classList.toggle('is-visible', shouldShowDepartment);
-    }
-    if (departmentInput) {
-        departmentInput.disabled = !shouldShowDepartment;
-        if (shouldShowDepartment) {
-            departmentInput.setAttribute('required', 'required');
-        } else {
-            departmentInput.removeAttribute('required');
-            departmentInput.value = '';
-        }
-    }
 }
 
 function syncSapCardState() {
@@ -5679,7 +5603,6 @@ function syncSapCardState() {
         removeButtons.forEach(function(button) {
             button.style.display = savedSapReports.length > 0 ? '' : 'none';
         });
-        syncSapDepartmentVisibility(currentCard);
     }
     updateCurrentSapFieldNames();
 }
@@ -5688,12 +5611,12 @@ function initializeSavedSapReportsFromDom() {
     if (!sapSavedReportsHost) return;
     var grouped = {};
     Array.from(sapSavedReportsHost.querySelectorAll('input[type="hidden"]')).forEach(function(input) {
-        var match = input.name.match(/^sap_reports\[(\d+)\]\[(name|position|immediate_head|company|department)\]$/);
+        var match = input.name.match(/^sap_reports\[(\d+)\]\[(name|position|address|department|tin)\]$/);
         if (!match) return;
         var index = match[1];
         var fieldName = match[2];
         if (!grouped[index]) {
-            grouped[index] = { name: '', position: '', immediate_head: '', company: '', department: '' };
+            grouped[index] = { name: '', position: '', address: '', department: '', tin: '' };
         }
         grouped[index][fieldName] = input.value || '';
     });
@@ -6886,10 +6809,10 @@ function toggleHrExtraFields() {
     if (sapRequestList) {
         Array.from(sapRequestList.querySelectorAll('[data-sap-field]')).forEach(function(input) {
             if (!(input instanceof HTMLElement)) return;
-            if (shouldShowSapRequest) input.setAttribute('required', 'required');
+            var fieldName = String(input.getAttribute('data-sap-field') || '');
+            if (shouldShowSapRequest && fieldName === 'name') input.setAttribute('required', 'required');
             else input.removeAttribute('required');
         });
-        syncSapDepartmentVisibility(getCurrentSapCard());
     }
     if (emailRequestTypeSelect) {
         if (shouldShowEmailRequest) {
@@ -7241,8 +7164,7 @@ if (sapRequestList) {
         var target = event.target;
         if (!(target instanceof Element)) return;
         currentSapViewKey = 'current';
-        if (target.matches('[data-sap-field="company"]')) {
-            syncSapDepartmentVisibility(target.closest('[data-sap-card]'));
+        if (target.matches('[data-sap-field="name"]')) {
             syncSapCardState();
         }
     });
@@ -7907,7 +7829,7 @@ if (formEl) {
             var sapCards = getSapCards();
             for (var sapIndex = 0; sapIndex < sapCards.length; sapIndex += 1) {
                 var sapCard = sapCards[sapIndex];
-                var requiredSapFields = ['name', 'position', 'immediate_head', 'company'];
+                var requiredSapFields = ['name'];
                 for (var fieldIndex = 0; fieldIndex < requiredSapFields.length; fieldIndex += 1) {
                     var fieldName = requiredSapFields[fieldIndex];
                     var sapInput = sapCard ? sapCard.querySelector('[data-sap-field="' + fieldName + '"]') : null;
@@ -7917,19 +7839,6 @@ if (formEl) {
                         try { sapInput.focus(); } catch (focusError) {}
                         return;
                     }
-                }
-                var sapCompanyInput = sapCard ? sapCard.querySelector('[data-sap-field="company"]') : null;
-                var sapDepartmentInput = sapCard ? sapCard.querySelector('[data-sap-field="department"]') : null;
-                if (
-                    sapCompanyInput
-                    && String(sapCompanyInput.value || '') === '@leadsagri.com'
-                    && sapDepartmentInput
-                    && !String(sapDepartmentInput.value || '').trim()
-                ) {
-                    e.preventDefault();
-                    setInlineFormError('Please complete each SAP employee report before submitting.');
-                    try { sapDepartmentInput.focus(); } catch (focusError) {}
-                    return;
                 }
             }
         }
@@ -8002,12 +7911,12 @@ if (formEl) {
         function getSavedReports() {
             var grouped = {};
             Array.from(sapSavedHost.querySelectorAll('input[type="hidden"]')).forEach(function(input) {
-                var match = String(input.name || '').match(/^sap_reports\[(\d+)\]\[(name|position|immediate_head|company|department)\]$/);
+                var match = String(input.name || '').match(/^sap_reports\[(\d+)\]\[(name|position|address|department|tin)\]$/);
                 if (!match) return;
                 var index = match[1];
                 var field = match[2];
                 if (!grouped[index]) {
-                    grouped[index] = { name: '', position: '', immediate_head: '', company: '', department: '' };
+                    grouped[index] = { name: '', position: '', address: '', department: '', tin: '' };
                 }
                 grouped[index][field] = input.value || '';
             });
@@ -8021,7 +7930,7 @@ if (formEl) {
         function renderSavedReports(reports) {
             sapSavedHost.innerHTML = '';
             reports.forEach(function(report, index) {
-                ['name', 'position', 'immediate_head', 'company', 'department'].forEach(function(field) {
+                ['name', 'position', 'address', 'department', 'tin'].forEach(function(field) {
                     var input = document.createElement('input');
                     input.type = 'hidden';
                     input.name = 'sap_reports[' + index + '][' + field + ']';
@@ -8035,25 +7944,20 @@ if (formEl) {
             var safeReport = report || {};
             var nameInput = getField('name');
             var positionInput = getField('position');
-            var immediateHeadInput = getField('immediate_head');
-            var companyInput = getField('company');
+            var addressInput = getField('address');
             var departmentInput = getField('department');
+            var tinInput = getField('tin');
 
             if (nameInput) nameInput.value = String(safeReport.name || '');
             if (positionInput) positionInput.value = String(safeReport.position || '');
-            if (immediateHeadInput) immediateHeadInput.value = String(safeReport.immediate_head || '');
-            if (companyInput) companyInput.value = String(safeReport.company || '');
-
-            syncDepartmentVisibility();
-
-            if (departmentInput) {
-                departmentInput.value = String(safeReport.department || '');
-            }
+            if (addressInput) addressInput.value = String(safeReport.address || '');
+            if (departmentInput) departmentInput.value = String(safeReport.department || '');
+            if (tinInput) tinInput.value = String(safeReport.tin || '');
         }
 
         function syncCurrentFieldNames(savedReports) {
             var currentIndex = savedReports.length;
-            ['name', 'position', 'immediate_head', 'company', 'department'].forEach(function(field) {
+            ['name', 'position', 'address', 'department', 'tin'].forEach(function(field) {
                 var input = getField(field);
                 if (input) {
                     input.name = 'sap_reports[' + currentIndex + '][' + field + ']';
@@ -8061,37 +7965,13 @@ if (formEl) {
             });
         }
 
-        function syncDepartmentVisibility() {
-            var companyInput = getField('company');
-            var departmentInput = getField('department');
-            var departmentWrap = currentCard.querySelector('[data-sap-department-wrap]');
-            var departmentField = currentCard.querySelector('[data-sap-department-field]');
-            var shouldShowDepartment = !!companyInput && String(companyInput.value || '') === '@leadsagri.com';
-
-            if (departmentWrap) {
-                departmentWrap.classList.toggle('is-visible', shouldShowDepartment);
-            }
-            if (departmentField) {
-                departmentField.classList.toggle('is-visible', shouldShowDepartment);
-            }
-            if (departmentInput) {
-                departmentInput.disabled = !shouldShowDepartment;
-                if (shouldShowDepartment) {
-                    departmentInput.setAttribute('required', 'required');
-                } else {
-                    departmentInput.removeAttribute('required');
-                    departmentInput.value = '';
-                }
-            }
-        }
-
         function getCurrentValues() {
             return {
                 name: String((getField('name') || {}).value || '').trim(),
                 position: String((getField('position') || {}).value || '').trim(),
-                immediate_head: String((getField('immediate_head') || {}).value || '').trim(),
-                company: String((getField('company') || {}).value || '').trim(),
-                department: String((getField('department') || {}).value || '').trim()
+                address: String((getField('address') || {}).value || '').trim(),
+                department: String((getField('department') || {}).value || '').trim(),
+                tin: String((getField('tin') || {}).value || '').trim()
             };
         }
 
@@ -8100,20 +7980,19 @@ if (formEl) {
             return {
                 name: String(source.name || ''),
                 position: String(source.position || ''),
-                immediate_head: String(source.immediate_head || ''),
-                company: String(source.company || ''),
-                department: String(source.department || '')
+                address: String(source.address || ''),
+                department: String(source.department || ''),
+                tin: String(source.tin || '')
             };
         }
 
         function clearCurrentValues() {
-            ['name', 'position', 'immediate_head', 'company', 'department'].forEach(function(field) {
+            ['name', 'position', 'address', 'department', 'tin'].forEach(function(field) {
                 var input = getField(field);
                 if (input) {
                     input.value = '';
                 }
             });
-            syncDepartmentVisibility();
             currentDraft = cloneReport(getCurrentValues());
         }
 
@@ -8136,23 +8015,12 @@ if (formEl) {
         }
 
         function getFirstIncompleteField() {
-            var requiredFields = ['name', 'position', 'immediate_head', 'company'];
+            var requiredFields = ['name'];
             for (var i = 0; i < requiredFields.length; i += 1) {
                 var input = getField(requiredFields[i]);
                 if (input && !String(input.value || '').trim()) {
                     return input;
                 }
-            }
-            var companyInput = getField('company');
-            var departmentInput = getField('department');
-            if (
-                companyInput
-                && String(companyInput.value || '') === '@leadsagri.com'
-                && departmentInput
-                && !departmentInput.disabled
-                && !String(departmentInput.value || '').trim()
-            ) {
-                return departmentInput;
             }
             return null;
         }
@@ -8200,7 +8068,6 @@ if (formEl) {
             }
 
             syncCurrentFieldNames(savedReports);
-            syncDepartmentVisibility();
         }
 
         addButton.addEventListener('click', function(event) {
@@ -8278,7 +8145,7 @@ if (formEl) {
             });
         }
 
-        ['name', 'position', 'immediate_head', 'company', 'department'].forEach(function(field) {
+        ['name', 'position', 'address', 'department', 'tin'].forEach(function(field) {
             var input = getField(field);
             if (!input) return;
             input.addEventListener('input', function() {
