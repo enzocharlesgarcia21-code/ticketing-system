@@ -1192,13 +1192,13 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-table th:nth-child(5),
         .conference-table td:nth-child(5) {
-            width: 13%;
-            min-width: 118px;
+            width: 16%;
+            min-width: 156px;
         }
         .conference-table th:nth-child(6),
         .conference-table td:nth-child(6) {
-            width: 15%;
-            min-width: 148px;
+            width: 12%;
+            min-width: 132px;
             text-align: center;
         }
         .conference-table th:nth-child(7),
@@ -1292,38 +1292,120 @@ function conference_admin_booking_status_text(string $status): string
         }
         .purpose-copy {
             max-width: none;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
+            display: block;
             color: #0f172a;
             font-size: 15px;
             font-weight: 400;
-            line-height: 1.6;
-            word-break: break-word;
+            line-height: 1.5;
+            word-break: normal;
+            overflow-wrap: break-word;
         }
+        .purpose-copy-text,
+        .purpose-copy-preview,
+        .purpose-copy-full {
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
+        }
+        .purpose-copy-preview,
         .purpose-copy-text {
-            display: block;
-        }
-        .purpose-copy.is-collapsed .purpose-copy-text {
             display: -webkit-box;
             -webkit-box-orient: vertical;
-            -webkit-line-clamp: 3;
+            -webkit-line-clamp: 2;
             overflow: hidden;
         }
+        .purpose-copy-full {
+            display: none;
+        }
         .purpose-see-more {
-            margin-top: 4px;
+            margin: -2px 0 0;
             padding: 0;
             border: none;
             background: transparent;
             color: #166534;
             font-size: 13px;
             font-weight: 700;
-            line-height: 1.3;
+            line-height: 1.2;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
         }
         .purpose-see-more:hover {
             color: #14532d;
             text-decoration: underline;
+        }
+        .purpose-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(15, 23, 42, 0.44);
+            backdrop-filter: blur(3px);
+            z-index: 1300;
+        }
+        .purpose-modal.is-open {
+            display: flex;
+        }
+        .purpose-modal-card {
+            width: min(100%, 440px);
+            background: #ffffff;
+            border: 1px solid #dce7dd;
+            border-radius: 24px;
+            box-shadow: 0 28px 48px rgba(15, 23, 42, 0.22);
+            padding: 28px 28px 24px;
+            text-align: center;
+        }
+        .purpose-modal-icon {
+            width: 58px;
+            height: 58px;
+            margin: 0 auto 16px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #ecfdf3;
+            color: #15803d;
+            box-shadow: 0 12px 24px rgba(34, 197, 94, 0.16);
+            font-size: 24px;
+        }
+        .purpose-modal-title {
+            margin: 0 0 14px;
+            color: #111827;
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+        }
+        .purpose-modal-text {
+            margin: 0;
+            color: #374151;
+            font-size: 15px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-break: normal;
+            overflow-wrap: break-word;
+        }
+        .purpose-modal-divider {
+            height: 1px;
+            margin: 22px 0 18px;
+            background: #e5e7eb;
+        }
+        .purpose-modal-close {
+            min-width: 96px;
+            height: 42px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #166534, #15803d);
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 12px 24px rgba(22, 101, 52, 0.18);
+        }
+        .purpose-modal-close:hover {
+            background: linear-gradient(135deg, #14532d, #166534);
         }
         .status-chip {
             display: inline-flex;
@@ -3193,10 +3275,15 @@ function conference_admin_booking_status_text(string $status): string
                                                 <div class="booking-schedule-date"><?php echo htmlspecialchars($bookingDateDisplay, ENT_QUOTES, 'UTF-8'); ?></div>
                                                 <div class="booking-schedule-time"><?php echo htmlspecialchars($scheduleTimeDisplay, ENT_QUOTES, 'UTF-8'); ?></div>
                                             </td>
-                                            <td class="purpose-copy <?php echo $isLongPurpose ? 'is-collapsed' : ''; ?>">
-                                                <span class="purpose-copy-text"><?php echo htmlspecialchars($purposeDisplayText, ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <td class="purpose-copy">
+                                                <span class="<?php echo $isLongPurpose ? 'purpose-copy-preview' : 'purpose-copy-text'; ?>"><?php echo htmlspecialchars($purposeDisplayText, ENT_QUOTES, 'UTF-8'); ?></span>
                                                 <?php if ($isLongPurpose): ?>
-                                                    <button type="button" class="purpose-see-more" data-purpose-toggle aria-expanded="false">See More</button>
+                                                    <button
+                                                        type="button"
+                                                        class="purpose-see-more"
+                                                        data-purpose-toggle
+                                                        data-purpose-text="<?php echo htmlspecialchars($purposeDisplayText, ENT_QUOTES, 'UTF-8'); ?>"
+                                                    >See More</button>
                                                 <?php endif; ?>
                                             </td>
                                             <td>
@@ -3453,6 +3540,16 @@ function conference_admin_booking_status_text(string $status): string
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div id="purposePreviewModal" class="purpose-modal" aria-hidden="true">
+        <div class="purpose-modal-card" role="dialog" aria-modal="true" aria-labelledby="purposePreviewTitle">
+            <div class="purpose-modal-icon" aria-hidden="true"><i class="far fa-calendar-check"></i></div>
+            <h3 class="purpose-modal-title" id="purposePreviewTitle">Purpose</h3>
+            <p class="purpose-modal-text" id="purposePreviewText"></p>
+            <div class="purpose-modal-divider" aria-hidden="true"></div>
+            <button type="button" class="purpose-modal-close" id="purposePreviewClose">Close</button>
         </div>
     </div>
 
@@ -3871,6 +3968,10 @@ function conference_admin_booking_status_text(string $status): string
             const bookingDeleteConfirmCopy = document.getElementById('bookingDeleteConfirmCopy');
             const bookingDeleteConfirmSubmit = document.getElementById('bookingDeleteConfirmSubmit');
             const bookingDeleteConfirmCancel = document.getElementById('bookingDeleteConfirmCancel');
+            const purposeToggleButtons = document.querySelectorAll('[data-purpose-toggle]');
+            const purposePreviewModal = document.getElementById('purposePreviewModal');
+            const purposePreviewText = document.getElementById('purposePreviewText');
+            const purposePreviewClose = document.getElementById('purposePreviewClose');
             const bookingSearchInput = document.getElementById('bookingSearchInput');
             const bookingDateFilter = document.getElementById('bookingDateFilter');
             const bookingStatusFilter = document.getElementById('bookingStatusFilter');
@@ -3880,7 +3981,6 @@ function conference_admin_booking_status_text(string $status): string
             const conferencePaginationSummary = document.getElementById('conferencePaginationSummary');
             const conferencePaginationControls = document.getElementById('conferencePaginationControls');
             const bookingRows = Array.from(document.querySelectorAll('.conference-booking-row'));
-            const purposeToggleButtons = document.querySelectorAll('[data-purpose-toggle]');
             const roomFilterButtons = document.querySelectorAll('.room-filter-trigger');
             const bookingsPerPage = 5;
             let currentBookingPage = 1;
@@ -4039,7 +4139,8 @@ function conference_admin_booking_status_text(string $status): string
                     bookingEditModal.classList.contains('is-open') ||
                     deleteConfirm.classList.contains('is-open') ||
                     unavailableReasonConfirm.classList.contains('is-open') ||
-                    bookingDeleteConfirm.classList.contains('is-open');
+                    bookingDeleteConfirm.classList.contains('is-open') ||
+                    (purposePreviewModal && purposePreviewModal.classList.contains('is-open'));
                 if (hasOpenOverlay) {
                     const currentCompensation = document.body.style.getPropertyValue('--modal-scrollbar-compensation');
                     const scrollbarWidth = currentCompensation
@@ -4131,6 +4232,26 @@ function conference_admin_booking_status_text(string $status): string
                 closeBookingEditSelects();
                 bookingEditModal.classList.remove('is-open');
                 bookingEditModal.setAttribute('aria-hidden', 'true');
+                syncBodyModalState();
+            }
+
+            function openPurposePreview(text) {
+                if (!purposePreviewModal || !purposePreviewText) {
+                    return;
+                }
+                closeBookingActionMenus();
+                purposePreviewText.textContent = String(text || '').trim();
+                purposePreviewModal.classList.add('is-open');
+                purposePreviewModal.setAttribute('aria-hidden', 'false');
+                syncBodyModalState();
+            }
+
+            function closePurposePreview() {
+                if (!purposePreviewModal) {
+                    return;
+                }
+                purposePreviewModal.classList.remove('is-open');
+                purposePreviewModal.setAttribute('aria-hidden', 'true');
                 syncBodyModalState();
             }
 
@@ -4768,16 +4889,21 @@ function conference_admin_booking_status_text(string $status): string
 
             purposeToggleButtons.forEach(function (button) {
                 button.addEventListener('click', function () {
-                    const purposeCell = button.closest('.purpose-copy');
-                    if (!purposeCell) {
-                        return;
-                    }
-                    const willExpand = purposeCell.classList.contains('is-collapsed');
-                    purposeCell.classList.toggle('is-collapsed', !willExpand);
-                    button.textContent = willExpand ? 'See Less' : 'See More';
-                    button.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
+                    openPurposePreview(button.getAttribute('data-purpose-text') || '');
                 });
             });
+
+            if (purposePreviewClose) {
+                purposePreviewClose.addEventListener('click', closePurposePreview);
+            }
+
+            if (purposePreviewModal) {
+                purposePreviewModal.addEventListener('click', function (event) {
+                    if (event.target === purposePreviewModal) {
+                        closePurposePreview();
+                    }
+                });
+            }
 
             document.querySelectorAll('.room-status-toggle-form').forEach(function (form) {
                 form.addEventListener('submit', function (event) {
@@ -4982,6 +5108,10 @@ function conference_admin_booking_status_text(string $status): string
                 }
                 if (event.key === 'Escape' && unavailableReasonConfirm.classList.contains('is-open')) {
                     closeUnavailableReasonConfirm();
+                    return;
+                }
+                if (event.key === 'Escape' && purposePreviewModal && purposePreviewModal.classList.contains('is-open')) {
+                    closePurposePreview();
                     return;
                 }
                 if (event.key === 'Escape' && modal.classList.contains('is-open')) {
