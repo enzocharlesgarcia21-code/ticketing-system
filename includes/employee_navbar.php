@@ -402,6 +402,14 @@ window.TM_MESSENGER_STYLE = 'employee';
         box-sizing: border-box !important;
     }
 
+    .navbar .nav-link.active {
+        border: 1px solid #F4C430 !important;
+        border-radius: 999px !important;
+        padding: 8px 18px !important;
+        color: #F4C430 !important;
+        background: rgba(165, 214, 167, 0.18) !important;
+    }
+
     .navbar .nav-right {
         width: auto !important;
         min-width: 188px !important;

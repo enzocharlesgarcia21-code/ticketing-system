@@ -32,6 +32,11 @@ if (!isset($_POST['ticket_id'])) {
 $ticket_id = (int)$_POST['ticket_id'];
 $message = trim((string) ($_POST['message'] ?? ''));
 $sender_id = $_SESSION['user_id'];
+$reply_to_message_id = isset($_POST['reply_to_message_id']) ? (int) $_POST['reply_to_message_id'] : 0;
+$reply_to_sender_name = trim((string) ($_POST['reply_to_sender_name'] ?? ''));
+$reply_to_text = trim((string) ($_POST['reply_to_text'] ?? ''));
+$reply_to_attachment = trim((string) ($_POST['reply_to_attachment'] ?? ''));
+$reply_to_attachment_stored_name = trim((string) ($_POST['reply_to_attachment_stored_name'] ?? ''));
 
 function chat_uploaded_files_from_field(string $field): array
 {
@@ -168,7 +173,7 @@ if ($sender_id !== $requesterId && $sender_id !== $handlerId) {
 
 $chatThreadId = ticket_chat_current_thread_id($conn, $ticket_id);
 $messageGroupId = function_exists('random_bytes') ? bin2hex(random_bytes(8)) : uniqid('chat_', true);
-$stmt = $conn->prepare("INSERT INTO ticket_messages (ticket_id, chat_thread_id, sender_id, message, message_group_id, attachment_stored_name, attachment_original_name, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, 0)");
+$stmt = $conn->prepare("INSERT INTO ticket_messages (ticket_id, chat_thread_id, sender_id, message, message_group_id, reply_to_message_id, reply_to_sender_name, reply_to_text, reply_to_attachment, reply_to_attachment_stored_name, attachment_stored_name, attachment_original_name, is_read) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)");
 if (!$stmt) {
     http_response_code(500);
     echo json_encode(['error' => 'Database Error']);
@@ -180,7 +185,12 @@ foreach ($insertRows as $index => $upload) {
     $rowMessage = ((int) $index === 0) ? $message : '';
     $storedAttachment = is_array($upload) ? (string) ($upload['stored_name'] ?? '') : null;
     $originalAttachment = is_array($upload) ? (string) ($upload['original_name'] ?? '') : null;
-    $stmt->bind_param("iiissss", $ticket_id, $chatThreadId, $sender_id, $rowMessage, $messageGroupId, $storedAttachment, $originalAttachment);
+    $replyMessageIdForRow = $reply_to_message_id > 0 ? $reply_to_message_id : null;
+    $replySenderForRow = $reply_to_sender_name !== '' ? $reply_to_sender_name : null;
+    $replyTextForRow = $reply_to_text !== '' ? $reply_to_text : null;
+    $replyAttachmentForRow = $reply_to_attachment !== '' ? $reply_to_attachment : null;
+    $replyAttachmentStoredForRow = $reply_to_attachment_stored_name !== '' ? $reply_to_attachment_stored_name : null;
+    $stmt->bind_param("iiississssss", $ticket_id, $chatThreadId, $sender_id, $rowMessage, $messageGroupId, $replyMessageIdForRow, $replySenderForRow, $replyTextForRow, $replyAttachmentForRow, $replyAttachmentStoredForRow, $storedAttachment, $originalAttachment);
     if (!$stmt->execute()) {
         $insertedAll = false;
         break;
