@@ -141,6 +141,18 @@ function conference_booking_ensure_tables(mysqli $conn): void
     conference_booking_seed_default_rooms($conn);
 }
 
+function conference_booking_sync_completed_statuses(mysqli $conn): void
+{
+    conference_booking_ensure_tables($conn);
+
+    $conn->query("
+        UPDATE conference_bookings
+        SET status = 'Completed'
+        WHERE UPPER(TRIM(COALESCE(status, ''))) NOT IN ('COMPLETED', 'DONE', 'FINISHED', 'CANCELLED')
+          AND TIMESTAMP(booking_date, end_time) < NOW()
+    ");
+}
+
 function conference_booking_seed_default_rooms(mysqli $conn): void
 {
     conference_booking_migrate_default_room_names($conn);
@@ -1718,6 +1730,7 @@ function conference_booking_create(
 function conference_booking_user_bookings(mysqli $conn, int $userId, int $limit = 8): array
 {
     conference_booking_ensure_tables($conn);
+    conference_booking_sync_completed_statuses($conn);
     if ($userId <= 0) {
         return [];
     }
@@ -1764,6 +1777,7 @@ function conference_booking_user_bookings(mysqli $conn, int $userId, int $limit 
 function conference_booking_schedule_for_date(mysqli $conn, string $bookingDate, int $limit = 20): array
 {
     conference_booking_ensure_tables($conn);
+    conference_booking_sync_completed_statuses($conn);
 
     $bookingDate = trim($bookingDate);
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bookingDate)) {
@@ -1814,6 +1828,7 @@ function conference_booking_schedule_for_date(mysqli $conn, string $bookingDate,
 function conference_booking_schedule_between(mysqli $conn, string $startDate, string $endDate, int $roomId = 0): array
 {
     conference_booking_ensure_tables($conn);
+    conference_booking_sync_completed_statuses($conn);
 
     $startDate = trim($startDate);
     $endDate = trim($endDate);
@@ -1884,6 +1899,7 @@ function conference_booking_schedule_between(mysqli $conn, string $startDate, st
 function conference_booking_recent_visible(mysqli $conn, int $limit = 20): array
 {
     conference_booking_ensure_tables($conn);
+    conference_booking_sync_completed_statuses($conn);
 
     $limit = max(1, $limit);
     $stmt = $conn->prepare("
@@ -1934,6 +1950,7 @@ function conference_booking_recent_visible(mysqli $conn, int $limit = 20): array
 function conference_booking_admin_bookings(mysqli $conn): array
 {
     conference_booking_ensure_tables($conn);
+    conference_booking_sync_completed_statuses($conn);
 
     $rows = [];
     $res = $conn->query("
