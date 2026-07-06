@@ -584,7 +584,7 @@ if ($clearReminder) {
 
 // Fetch messages
 $messageSql = "
-    SELECT tm.id, tm.ticket_id, tm.sender_id, tm.message, tm.message_group_id, tm.attachment_stored_name, tm.attachment_original_name, tm.is_read, tm.created_at, tm.edited_at, u.name as sender_name, u.role as sender_role
+    SELECT tm.id, tm.ticket_id, tm.sender_id, tm.message, tm.message_group_id, tm.reply_to_message_id, tm.reply_to_sender_name, tm.reply_to_text, tm.reply_to_attachment, tm.reply_to_attachment_stored_name, tm.attachment_stored_name, tm.attachment_original_name, tm.is_read, tm.created_at, tm.edited_at, u.name as sender_name, u.role as sender_role
     FROM ticket_messages tm
     JOIN users u ON tm.sender_id = u.id
     WHERE tm.ticket_id = ?" . ($fetchAllTicketThreads ? "" : " AND tm.chat_thread_id = ?") . "
@@ -621,6 +621,13 @@ while ($row = $result->fetch_assoc()) {
         'sender_id' => $row['sender_id'],
         'sender_name' => $row['sender_name'],
         'message_group_id' => (string) ($row['message_group_id'] ?? ''),
+        'reply_to' => (((int) ($row['reply_to_message_id'] ?? 0) > 0) || trim((string) ($row['reply_to_text'] ?? '')) !== '' || trim((string) ($row['reply_to_attachment'] ?? '')) !== '') ? [
+            'message_id' => (int) ($row['reply_to_message_id'] ?? 0),
+            'sender_name' => (string) ($row['reply_to_sender_name'] ?? ''),
+            'text' => (string) ($row['reply_to_text'] ?? ''),
+            'attachment' => (string) ($row['reply_to_attachment'] ?? ''),
+            'attachment_stored_name' => (string) ($row['reply_to_attachment_stored_name'] ?? ''),
+        ] : null,
         'message' => $row['message'],
         'attachment' => !empty($row['attachment_stored_name']) ? [
             'stored_name' => (string) $row['attachment_stored_name'],

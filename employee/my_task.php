@@ -548,12 +548,115 @@ $showing_to = min($offset + $limit, (int) $total_records);
             font-weight: 700;
         }
 
-        body.employee-my-task-page .department-filter-wrap.is-hidden {
+        body.employee-my-task-page .my-tickets-filter-card {
+            background: #ffffff;
+            border: 1px solid #eef2f7;
+            border-radius: 16px;
+            box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+            padding: 24px 18px;
+            margin-bottom: 22px;
+        }
+
+        body.employee-my-task-page .my-tickets-filter-form {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 170px 170px 150px 124px;
+            gap: 16px;
+            align-items: center;
+            width: 100%;
+        }
+
+        body.employee-my-task-page .my-tickets-filter-form.has-department-filter {
+            grid-template-columns: minmax(0, 1fr) 170px 170px 170px 150px 124px;
+        }
+
+        body.employee-my-task-page .my-tickets-search-wrapper {
+            position: relative;
+            min-width: 0;
+        }
+
+        body.employee-my-task-page .my-tickets-search-icon {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #8fa1bd;
+            font-size: 18px;
+            pointer-events: none;
+        }
+
+        body.employee-my-task-page .my-tickets-search-input,
+        body.employee-my-task-page .my-tickets-filter-select {
+            width: 100%;
+            height: 48px;
+            border: 1px solid #dbe3ef;
+            border-radius: 9px;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        body.employee-my-task-page .my-tickets-search-input {
+            padding: 0 16px 0 50px;
+        }
+
+        body.employee-my-task-page .my-tickets-filter-select {
+            padding: 0 40px 0 16px;
+            appearance: none;
+            cursor: pointer;
+        }
+
+        body.employee-my-task-page .my-tickets-filter-select-wrap {
+            position: relative;
+            width: 100%;
+            min-width: 0;
+        }
+
+        body.employee-my-task-page .my-tickets-filter-select-wrap.is-hidden {
             display: none;
         }
 
+        body.employee-my-task-page .my-tickets-filter-select-wrap::after {
+            content: "\f078";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #8fa1bd;
+            font-size: 12px;
+            pointer-events: none;
+        }
+
+        body.employee-my-task-page .my-tickets-search-input:focus,
+        body.employee-my-task-page .my-tickets-filter-select:focus {
+            border-color: #94a3b8;
+            box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+        }
+
+        body.employee-my-task-page .my-tickets-clear-btn {
+            height: 48px;
+            border: 1px solid #e2e8f0;
+            border-radius: 9px;
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 14px;
+            font-weight: 700;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+        }
+
+        body.employee-my-task-page .my-tickets-clear-btn:hover {
+            background: #e2e8f0;
+        }
+
         @media (max-width: 768px) {
-            body.employee-my-task-page .filter-card {
+            body.employee-my-task-page .my-tickets-filter-card {
                 padding: 16px;
                 border-radius: 14px;
             }
@@ -570,55 +673,13 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 overflow: visible;
             }
 
-            body.employee-my-task-page .filter-form {
-                display: flex;
-                flex-direction: column;
-                align-items: stretch;
-                gap: 12px;
+            body.employee-my-task-page .my-tickets-filter-form,
+            body.employee-my-task-page .my-tickets-filter-form.has-department-filter {
+                grid-template-columns: 1fr;
             }
 
-            body.employee-my-task-page .search-wrapper {
+            body.employee-my-task-page .my-tickets-clear-btn {
                 width: 100%;
-                min-width: 0;
-            }
-
-            body.employee-my-task-page .search-input {
-                width: 100%;
-                height: 46px;
-                padding: 0 14px 0 40px;
-                border-radius: 12px;
-                font-size: 14px;
-            }
-
-            body.employee-my-task-page .filters-wrapper {
-                display: flex;
-                flex-direction: column;
-                align-items: stretch;
-                gap: 10px;
-                width: 100%;
-            }
-
-            body.employee-my-task-page .select-wrapper.small {
-                width: 100%;
-                min-width: 0;
-            }
-
-            body.employee-my-task-page .filter-form .filter-select {
-                width: 100%;
-                height: 46px;
-                padding: 0 36px 0 12px;
-                border-radius: 12px;
-                font-size: 14px;
-            }
-
-            body.employee-my-task-page .filter-form .clear-btn {
-                width: 100%;
-                min-height: 46px;
-                padding: 10px 14px;
-                border-radius: 12px;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
             }
 
             body.employee-my-task-page .tm-global-chat-fab {
@@ -1154,62 +1215,62 @@ $showing_to = min($offset + $limit, (int) $total_records);
             </div>
 
             <!-- FILTERS CARD -->
-            <div class="filter-card">
-                <form method="GET" id="filterForm" class="filter-form">
-                    
-                    <div class="search-wrapper">
-                        <i class="fas fa-search search-icon"></i>
-                        <input type="text"
-                               name="search"
-                               id="searchInput"
-                               class="search-input"
-                               placeholder="Search by ID, name, email or category..."
-                               autocomplete="off"
-                               value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>">
+            <div class="my-tickets-filter-card">
+                <?php $has_visible_department_filter = $show_department_filter && array_key_exists($company_email, $allowed_departments_by_company); ?>
+                <form method="GET" action="my_task.php" id="filterForm" class="my-tickets-filter-form <?= $has_visible_department_filter ? 'has-department-filter' : ''; ?>">
+                    <div class="my-tickets-search-wrapper">
+                        <i class="fas fa-search my-tickets-search-icon" aria-hidden="true"></i>
+                        <input
+                            type="search"
+                            name="search"
+                            id="searchInput"
+                            class="my-tickets-search-input"
+                            placeholder="Search by ID, name, email or category..."
+                            autocomplete="off"
+                            value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>"
+                        >
                     </div>
 
-                    <div class="filters-wrapper">
-                        <div class="select-wrapper small">
-                            <select name="company_email" class="filter-select" id="filterCompany">
-                                <option value="" <?= $company_email === '' ? 'selected' : '' ?> hidden>All Company</option>
-                                <?php foreach ($company_filter_options as $companyValue => $companyLabel): ?>
-                                    <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $company_email === $companyValue ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <?php if ($show_department_filter): ?>
-                        <?php $department_filter_options = $allowed_departments_by_company[$company_email] ?? []; ?>
-                        <div class="select-wrapper small department-filter-wrap <?= array_key_exists($company_email, $allowed_departments_by_company) ? '' : 'is-hidden' ?>" id="filterDepartmentWrap">
-                            <select name="department" class="filter-select" id="filterDepartment" <?= array_key_exists($company_email, $allowed_departments_by_company) ? '' : 'disabled' ?>>
-                                <option value="" <?= $department === '' ? 'selected' : '' ?>>All Department</option>
-                                <?php foreach ($department_filter_options as $d): ?>
-                                    <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $department === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <?php endif; ?>
-
-                        <div class="select-wrapper small">
-                            <select name="status" class="filter-select" id="filterStatus">
-                                <option value=""disabled selected hidden <?= $status === '' ? 'selected' : '' ?>>All Status</option>
-                                <?php foreach ($allowed_statuses as $s): ?>
-                                    <option value="<?= htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>" <?= $status === $s ? 'selected' : '' ?>><?= htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <div class="select-wrapper small">
-                            <select name="sla" class="filter-select" id="filterSla">
-                                <option value="" <?= $sla === '' ? 'selected' : '' ?> hidden>All SLA</option>
-                                <?php foreach ($allowed_slas as $slaOption): ?>
-                                    <option value="<?= htmlspecialchars($slaOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $sla === $slaOption ? 'selected' : '' ?>><?= htmlspecialchars($slaOption, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <a href="my_task.php" class="clear-btn">Clear Filters</a>
+                    <div class="my-tickets-filter-select-wrap">
+                        <select name="company_email" class="my-tickets-filter-select" id="filterCompany">
+                            <option value="" <?= $company_email === '' ? 'selected' : '' ?> hidden>All Company</option>
+                            <?php foreach ($company_filter_options as $companyValue => $companyLabel): ?>
+                                <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $company_email === $companyValue ? 'selected' : '' ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
+
+                    <?php if ($show_department_filter): ?>
+                    <?php $department_filter_options = $allowed_departments_by_company[$company_email] ?? []; ?>
+                    <div class="my-tickets-filter-select-wrap <?= $has_visible_department_filter ? '' : 'is-hidden' ?>" id="filterDepartmentWrap">
+                        <select name="department" class="my-tickets-filter-select" id="filterDepartment" <?= $has_visible_department_filter ? '' : 'disabled' ?>>
+                            <option value="" <?= $department === '' ? 'selected' : '' ?>>All Department</option>
+                            <?php foreach ($department_filter_options as $d): ?>
+                                <option value="<?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?>" <?= $department === $d ? 'selected' : '' ?>><?= htmlspecialchars($d, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="my-tickets-filter-select-wrap">
+                        <select name="status" class="my-tickets-filter-select" id="filterStatus">
+                            <option value="" <?= $status === '' ? 'selected' : '' ?> hidden>All Status</option>
+                            <?php foreach ($allowed_statuses as $s): ?>
+                                <option value="<?= htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>" <?= $status === $s ? 'selected' : '' ?>><?= htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="my-tickets-filter-select-wrap">
+                        <select name="sla" class="my-tickets-filter-select" id="filterSla">
+                            <option value="" <?= $sla === '' ? 'selected' : '' ?> hidden>All SLA</option>
+                            <?php foreach ($allowed_slas as $slaOption): ?>
+                                <option value="<?= htmlspecialchars($slaOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $sla === $slaOption ? 'selected' : '' ?>><?= htmlspecialchars($slaOption, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <a href="my_task.php" class="my-tickets-clear-btn">Clear Filters</a>
                 </form>
             </div>
 
@@ -1495,6 +1556,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
         };
 
         function syncTaskDepartmentFilter() {
+            var formEl = document.getElementById('filterForm');
             var companyEl = document.getElementById('filterCompany');
             var departmentEl = document.getElementById('filterDepartment');
             var departmentWrapEl = document.getElementById('filterDepartmentWrap');
@@ -1518,6 +1580,9 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 departmentEl.value = '';
             }
             departmentWrapEl.classList.toggle('is-hidden', !hasDepartmentFilter);
+            if (formEl) {
+                formEl.classList.toggle('has-department-filter', hasDepartmentFilter);
+            }
             departmentEl.disabled = !hasDepartmentFilter;
         }
 

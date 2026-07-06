@@ -2265,22 +2265,22 @@ function dashboard_priority_badge_html(array $row): string
                         <button type="button" class="card-filter-trigger" id="dashboardCardFilter" aria-haspopup="true" aria-expanded="false">
                             <span class="card-filter-trigger-label">
                                 <i class="fas fa-file-lines card-filter-trigger-icon" aria-hidden="true"></i>
-                                <span id="dashboardCardFilterText">My Submitted Tickets</span>
+                                <span id="dashboardCardFilterText">Assigned Tickets</span>
                             </span>
                             <i class="fas fa-chevron-down card-filter-trigger-caret" aria-hidden="true"></i>
                         </button>
                         <div class="card-filter-menu" id="dashboardCardFilterMenu" hidden>
-                            <button type="button" class="card-filter-option is-active" data-card-filter-value="submitted" data-card-filter-label="My Submitted Tickets" data-card-filter-icon="fa-file-lines">
-                                <span class="card-filter-option-label">
-                                    <i class="fas fa-file-lines card-filter-option-icon" aria-hidden="true"></i>
-                                    <span>My Submitted Tickets</span>
-                                </span>
-                                <i class="fas fa-check card-filter-option-check" aria-hidden="true"></i>
-                            </button>
-                            <button type="button" class="card-filter-option" data-card-filter-value="assigned" data-card-filter-label="Assigned Tickets" data-card-filter-icon="fa-user-check">
+                            <button type="button" class="card-filter-option is-active" data-card-filter-value="assigned" data-card-filter-label="Assigned Tickets" data-card-filter-icon="fa-user-check">
                                 <span class="card-filter-option-label">
                                     <i class="fas fa-user-check card-filter-option-icon" aria-hidden="true"></i>
                                     <span>Assigned Tickets</span>
+                                </span>
+                                <i class="fas fa-check card-filter-option-check" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="card-filter-option" data-card-filter-value="submitted" data-card-filter-label="My Submitted Tickets" data-card-filter-icon="fa-file-lines">
+                                <span class="card-filter-option-label">
+                                    <i class="fas fa-file-lines card-filter-option-icon" aria-hidden="true"></i>
+                                    <span>My Submitted Tickets</span>
                                 </span>
                                 <i class="fas fa-check card-filter-option-check" aria-hidden="true"></i>
                             </button>
@@ -2289,7 +2289,7 @@ function dashboard_priority_badge_html(array $row): string
                 </div>
 
                 <?php foreach ($dashboardStatSets as $setKey => $stats): ?>
-                    <div class="stats-grid" data-card-set="<?= htmlspecialchars($setKey, ENT_QUOTES, 'UTF-8') ?>" <?= $setKey === 'submitted' ? '' : 'hidden' ?>>
+                    <div class="stats-grid" data-card-set="<?= htmlspecialchars($setKey, ENT_QUOTES, 'UTF-8') ?>" <?= $setKey === 'assigned' ? '' : 'hidden' ?>>
                         <?php foreach ($stats as $stat): ?>
                             <a class="stat-card <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>" href="<?= htmlspecialchars($stat['href'], ENT_QUOTES, 'UTF-8') ?>" aria-label="View <?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?> tickets">
                                 <div class="stat-main">
