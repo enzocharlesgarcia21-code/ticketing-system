@@ -1307,18 +1307,20 @@ function conference_admin_booking_status_text(string $status): string
             word-break: normal;
             overflow-wrap: break-word;
         }
-        .purpose-copy-preview,
         .purpose-copy-text {
+            display: block;
+        }
+        .purpose-copy-preview {
             display: -webkit-box;
             -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
+            -webkit-line-clamp: 1;
             overflow: hidden;
         }
         .purpose-copy-full {
             display: none;
         }
         .purpose-see-more {
-            margin: -2px 0 0;
+            margin: 0;
             padding: 0;
             border: none;
             background: transparent;
@@ -1327,7 +1329,7 @@ function conference_admin_booking_status_text(string $status): string
             font-weight: 700;
             line-height: 1.2;
             cursor: pointer;
-            display: inline-flex;
+            display: block;
             align-items: center;
         }
         .purpose-see-more:hover {
@@ -1349,12 +1351,12 @@ function conference_admin_booking_status_text(string $status): string
             display: flex;
         }
         .purpose-modal-card {
-            width: min(100%, 440px);
+            width: min(100%, 520px);
             background: #ffffff;
             border: 1px solid #dce7dd;
             border-radius: 24px;
             box-shadow: 0 28px 48px rgba(15, 23, 42, 0.22);
-            padding: 28px 28px 24px;
+            padding: 24px 28px 20px;
             text-align: center;
         }
         .purpose-modal-icon {
@@ -1371,7 +1373,7 @@ function conference_admin_booking_status_text(string $status): string
             font-size: 24px;
         }
         .purpose-modal-title {
-            margin: 0 0 14px;
+            margin: 0 0 10px;
             color: #111827;
             font-size: 32px;
             font-weight: 700;
@@ -1382,14 +1384,14 @@ function conference_admin_booking_status_text(string $status): string
             margin: 0;
             color: #374151;
             font-size: 15px;
-            line-height: 1.7;
+            line-height: 1.6;
             white-space: pre-wrap;
             word-break: normal;
             overflow-wrap: break-word;
         }
         .purpose-modal-divider {
             height: 1px;
-            margin: 22px 0 18px;
+            margin: 18px 0 16px;
             background: #e5e7eb;
         }
         .purpose-modal-close {

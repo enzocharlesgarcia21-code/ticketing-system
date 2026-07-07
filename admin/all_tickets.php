@@ -748,7 +748,7 @@ $result = $stmt->get_result();
                         </thead>
                         <tbody id="ticketsTbody">
                             <?php while($row = $result->fetch_assoc()) { ?>
-                            <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer; <?= $row['is_read'] == 0 ? 'background:rgba(27, 94, 32, 0.08);' : ''; ?>">
+                            <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer; <?= ticket_admin_new_badge_visible($row) ? 'background:rgba(27, 94, 32, 0.08);' : ''; ?>">
                                 <td data-label="ID">#<?= str_pad($row['id'], 6, '0', STR_PAD_LEFT); ?></td>
                                 <td data-label="Requested By">
                                     <div class="user-info">
@@ -775,7 +775,7 @@ $result = $stmt->get_result();
                                     <span class="status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
                                         <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
                                     </span>
-                                    <?php if($row['is_read'] == 0): ?>
+                                    <?php if (ticket_admin_new_badge_visible($row)): ?>
                                         <span class="new-badge">NEW</span>
                                     <?php endif; ?>
                                 </td>
@@ -1175,12 +1175,28 @@ window.TM_DEPARTMENT_USERS_ENDPOINT = 'ajax_department_users.php';
 </script>
 <script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
 <script>
+function clearAdminNewBadge(row) {
+    if (!row) return;
+    row.style.background = '';
+    var badge = row.querySelector('.new-badge');
+    if (badge && badge.parentNode) {
+        badge.parentNode.removeChild(badge);
+    }
+}
+
+function clearAdminNewBadgeByTicketId(ticketId) {
+    if (!ticketId) return;
+    var row = document.querySelector('.ticket-row[data-id="' + String(ticketId).replace(/"/g, '\\"') + '"]');
+    if (row) clearAdminNewBadge(row);
+}
+
 document.addEventListener('click', function (e) {
     var target = e.target;
     var row = target && target.closest ? target.closest('.ticket-row') : null;
     if (row && row.getAttribute) {
         var ticketId = row.getAttribute('data-id');
         if (ticketId && typeof TMTicketModal !== 'undefined' && typeof TMTicketModal.open === 'function') {
+            clearAdminNewBadge(row);
             TMTicketModal.open(ticketId);
         }
     }
@@ -1290,6 +1306,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const ticketIdParam = urlParams.get('ticket_id') || urlParams.get('id');
 if (ticketIdParam) {
     if (typeof TMTicketModal !== 'undefined' && typeof TMTicketModal.open === 'function') {
+        clearAdminNewBadgeByTicketId(ticketIdParam);
         TMTicketModal.open(ticketIdParam);
     }
 }

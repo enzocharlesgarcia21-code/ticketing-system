@@ -1268,6 +1268,7 @@ function ticket_ensure_assignment_columns(mysqli $conn): void
         'assigned_group' => "VARCHAR(255) NULL",
         'assigned_user_id' => "INT NULL",
         'assigned_to' => "INT NULL",
+        'admin_viewed_at' => "DATETIME NULL",
     ];
     $existing = [];
     $res = $conn->query("SHOW COLUMNS FROM employee_tickets");
@@ -1304,6 +1305,55 @@ function ticket_ensure_assignment_columns(mysqli $conn): void
             $conn->query("ALTER TABLE employee_tickets MODIFY COLUMN $col $ddl");
         }
     }
+}
+
+function ticket_admin_new_badge_visible(array $ticket): bool
+{
+    $adminViewedAt = trim((string) ($ticket['admin_viewed_at'] ?? ''));
+    if ($adminViewedAt !== '') {
+        return false;
+    }
+
+    $createdAt = trim((string) ($ticket['created_at'] ?? ''));
+    if ($createdAt === '') {
+        return false;
+    }
+
+    try {
+        $created = new DateTimeImmutable($createdAt);
+        $now = new DateTimeImmutable('now');
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    if ($created > $now) {
+        return false;
+    }
+
+    return ($now->getTimestamp() - $created->getTimestamp()) < 86400;
+}
+
+function ticket_mark_admin_viewed(mysqli $conn, int $ticketId): void
+{
+    if ($ticketId <= 0) {
+        return;
+    }
+
+    ticket_ensure_assignment_columns($conn);
+
+    $stmt = $conn->prepare("
+        UPDATE employee_tickets
+        SET admin_viewed_at = NOW()
+        WHERE id = ?
+          AND admin_viewed_at IS NULL
+    ");
+    if (!$stmt) {
+        return;
+    }
+
+    $stmt->bind_param("i", $ticketId);
+    $stmt->execute();
+    $stmt->close();
 }
 
 function ticket_allowed_urgencies(): array

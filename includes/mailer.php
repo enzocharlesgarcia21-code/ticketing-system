@@ -189,6 +189,14 @@ function smtp_generate_message_id(int $ticketId): string
     return '<ticket-' . $ticketId . '-' . $suffix . '@' . smtp_message_id_domain() . '>';
 }
 
+function smtp_ticket_thread_reference_id(int $ticketId): string
+{
+    if ($ticketId <= 0) {
+        return '';
+    }
+    return '<ticket-thread-' . str_pad((string) $ticketId, 6, '0', STR_PAD_LEFT) . '@' . smtp_message_id_domain() . '>';
+}
+
 function smtp_generate_context_message_id(string $context, int $recordId): string
 {
     $context = strtolower(preg_replace('/[^a-z0-9-]+/', '-', $context) ?? $context);
@@ -262,6 +270,11 @@ function smtp_prepare_ticket_threading(int $ticketId, string $subject): ?array
         $normalizedThreadSubject = $subject;
     }
 
+    $stableRootMessageId = smtp_ticket_thread_reference_id($ticketId);
+    if ($stableRootMessageId !== '') {
+        $rootMessageId = $stableRootMessageId;
+    }
+
     if ($rootMessageId === '') {
         $rootMessageId = smtp_generate_message_id($ticketId);
         $threadSubject = $normalizedThreadSubject;
@@ -274,11 +287,12 @@ function smtp_prepare_ticket_threading(int $ticketId, string $subject): ?array
         }
     }
 
-    if ($threadSubject !== $normalizedThreadSubject) {
+    if ($threadSubject !== $normalizedThreadSubject || $stableRootMessageId !== '' || $lastMessageId === '') {
         $threadSubject = $normalizedThreadSubject;
-        $update = $conn->prepare("UPDATE employee_tickets SET thread_subject = ? WHERE id = ?");
+        $lastMessageIdForStore = $lastMessageId !== '' ? $lastMessageId : $rootMessageId;
+        $update = $conn->prepare("UPDATE employee_tickets SET root_message_id = ?, last_message_id = ?, thread_subject = ? WHERE id = ?");
         if ($update) {
-            $update->bind_param("si", $threadSubject, $ticketId);
+            $update->bind_param("sssi", $rootMessageId, $lastMessageIdForStore, $threadSubject, $ticketId);
             $update->execute();
             $update->close();
         }
@@ -487,16 +501,10 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
                     $mail->MessageID = (string) $threading['message_id'];
                     if (empty($threading['is_root'])) {
                         $rootMessageId = (string) $threading['root_message_id'];
-                        $replyToMessageId = trim((string) ($threading['last_message_id'] ?? ''));
-                        if ($replyToMessageId === '') {
-                            $replyToMessageId = $rootMessageId;
+                        if ($rootMessageId !== '') {
+                            $mail->addCustomHeader('In-Reply-To', $rootMessageId);
+                            $mail->addCustomHeader('References', $rootMessageId);
                         }
-                        $mail->addCustomHeader('In-Reply-To', $replyToMessageId);
-                        $references = $rootMessageId;
-                        if ($replyToMessageId !== '' && $replyToMessageId !== $rootMessageId) {
-                            $references .= ' ' . $replyToMessageId;
-                        }
-                        $mail->addCustomHeader('References', trim($references));
                     }
                 }
                 if ($textBody !== '') {

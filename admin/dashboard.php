@@ -216,7 +216,8 @@ $recentRes = $conn->query("
         t.priority,
         t.status,
         t.created_at,
-        t.is_read
+        t.is_read,
+        t.admin_viewed_at
     FROM employee_tickets t
     JOIN users u ON t.user_id = u.id
     WHERE COALESCE(NULLIF(t.status,''),'') <> 'Trash'
@@ -730,7 +731,7 @@ if ($recentRes) {
                                                     <span class="status-<?= htmlspecialchars($statusSlug) ?>">
                                                         <?= htmlspecialchars($statusValue) ?>
                                                     </span>
-                                                    <?php if (!empty($t['is_read']) && (int) $t['is_read'] === 0): ?>
+                                                    <?php if (ticket_admin_new_badge_visible($t)): ?>
                                                         <span class="new-badge">NEW</span>
                                                     <?php endif; ?>
                                                 </td>
