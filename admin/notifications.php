@@ -231,6 +231,7 @@ function admin_conference_booking_summary(string $message): array
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notifications | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -1181,14 +1182,6 @@ function admin_conference_booking_summary(string $message): array
                                 $departmentFilterValue = strtolower(trim((string) (($row['assigned_group'] ?? '') !== '' ? $row['assigned_group'] : (($row['assigned_department'] ?? '') !== '' ? $row['assigned_department'] : ($row['ticket_department'] ?? '')))));
                                 $searchBlob = strtolower(trim($titleText . ' ' . strip_tags($displayMessage) . ' ' . $pillText . ' ' . $departmentFilterValue));
                                 $isOverdueFilter = ($typeKey === 'priority_escalated' || in_array($priorityKey, ['critical', 'high'], true) || preg_match('/\b(breach|overdue|past due)\b/i', (string) ($row['message'] ?? '')));
-                                $rowActionText = 'View Details';
-                                if ($typeKey === 'conference_booking') {
-                                    $rowActionText = 'View Details';
-                                } elseif ($ticketIdJs !== null) {
-                                    $rowActionText = 'View Ticket';
-                                } elseif (strpos($typeKey, 'knowledge') !== false || strpos($typeKey, 'article') !== false) {
-                                    $rowActionText = 'View Article';
-                                }
                             ?>
                             <?php if ($sectionLabel !== $currentSection): ?>
                                 <?php if ($currentSection !== null): ?>
@@ -1231,7 +1224,6 @@ function admin_conference_booking_summary(string $message): array
                                         <div class="notif-text"><?= htmlspecialchars($bookingSubtitle, ENT_QUOTES, 'UTF-8') ?></div>
                                         <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
                                     </div>
-                                    <span class="notif-row-action">View Details</span>
                                 </a>
                                 <?php continue; ?>
                             <?php endif; ?>
@@ -1258,7 +1250,6 @@ function admin_conference_booking_summary(string $message): array
                                     <div class="notif-text"><?= notif_message_highlight_html($displayMessage) ?></div>
                                     <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
                                 </div>
-                                <span class="notif-row-action"><?= htmlspecialchars($rowActionText, ENT_QUOTES, 'UTF-8') ?></span>
                             </a>
                         <?php endwhile; ?>
                         <?php if ($currentSection !== null): ?>
@@ -1463,6 +1454,7 @@ function handleNotificationRowClick(event, element) {
     const ticketId = ticketIdValue === '' ? null : Number(ticketIdValue);
     const notificationType = element.getAttribute('data-notification-type') || '';
 
+    element.classList.remove('unread');
     markAsRead(notificationId, ticketId, notificationType, element.getAttribute('href') || 'notifications.php');
     return false;
 }
@@ -1474,6 +1466,8 @@ function markAsRead(id, ticketId, type, fallbackHref) {
     formData.append('id', id);
     if (CSRF_TOKEN) formData.append('csrf_token', CSRF_TOKEN);
 
+    const isConferenceBooking = (type || '').toString() === 'conference_booking';
+    const shouldOpenTicketModal = !isConferenceBooking && !!ticketId;
     const dest = fallbackHref || ((type || '').toString() === 'conference_booking'
         ? 'conference_bookings.php'
         : (ticketId ? `all_tickets.php?ticket_id=${ticketId}` : 'notifications.php'));
@@ -1484,10 +1478,41 @@ function markAsRead(id, ticketId, type, fallbackHref) {
     }).catch(() => {
         // Still open the target page even if the read update fails.
     }).finally(() => {
+        if (shouldOpenTicketModal && typeof TMTicketModal !== 'undefined' && typeof TMTicketModal.open === 'function') {
+            TMTicketModal.open(ticketId);
+            return;
+        }
         window.location.href = dest;
     });
 }
 </script>
+<!-- Ticket Details Modal -->
+<div id="ticketModal" class="modal-overlay">
+    <div class="modal-content" id="modalContent">
+        <!-- Content injected via JS -->
+    </div>
+</div>
+
+<div id="imagePreviewModal" class="image-preview-modal" onclick="TMTicketModal.closeImagePreview(event)">
+    <div class="preview-content">
+        <button type="button" class="preview-close" onclick="TMTicketModal.closeImagePreview(event)" aria-label="Close preview">X</button>
+        <button type="button" class="preview-nav preview-prev" onclick="TMTicketModal.stepImagePreview(-1)" aria-label="Previous attachment"><i class="fas fa-chevron-left"></i></button>
+        <img id="previewImage" src="" alt="Preview" class="preview-image">
+        <button type="button" class="preview-nav preview-next" onclick="TMTicketModal.stepImagePreview(1)" aria-label="Next attachment"><i class="fas fa-chevron-right"></i></button>
+    </div>
+</div>
+<script>
+window.TM_CURRENT_USER = <?php echo json_encode([
+    'id' => $_SESSION['user_id'] ?? null,
+    'name' => $_SESSION['name'] ?? null,
+    'email' => $_SESSION['email'] ?? null,
+    'department' => $_SESSION['department'] ?? null,
+    'company' => $_SESSION['company'] ?? null,
+    'role' => $_SESSION['role'] ?? null
+], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+window.TM_HIDE_QUICK_TAGS = true;
+</script>
+<script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
 <script src="../js/admin.js"></script>
 </body>
 </html>

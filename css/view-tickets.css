@@ -180,6 +180,36 @@
     z-index: 3;
 }
 
+#ticketModal.modal-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: none;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: 16px !important;
+    overflow-y: auto !important;
+    background: rgba(15, 23, 42, 0.6) !important;
+    backdrop-filter: blur(4px) !important;
+    z-index: 10020 !important;
+}
+
+#ticketModal .modal-content:not(.tm-unavailable-modal) {
+    width: min(96vw, 1220px) !important;
+    max-width: 1220px !important;
+    height: min(92vh, 760px) !important;
+    min-height: 0 !important;
+    max-height: 92vh !important;
+    margin: auto !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border-radius: 22px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+}
+
 .modal-content.tm-unavailable-modal {
     width: min(100%, 760px);
     max-width: 760px;

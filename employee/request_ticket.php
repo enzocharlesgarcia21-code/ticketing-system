@@ -368,6 +368,8 @@ function request_ticket_clean_string_array($value): array
 function request_ticket_blank_email_creation(): array
 {
     return [
+        'subsidiary' => '',
+        'target_department' => '',
         'name' => '',
         'department' => '',
         'designation' => '',
@@ -386,6 +388,8 @@ function request_ticket_extract_email_creations(array $source): array
             }
 
             $normalizedEntry = [
+                'subsidiary' => trim((string) ($entry['subsidiary'] ?? '')),
+                'target_department' => trim((string) ($entry['target_department'] ?? '')),
                 'name' => trim((string) ($entry['name'] ?? '')),
                 'department' => trim((string) ($entry['department'] ?? '')),
                 'designation' => trim((string) ($entry['designation'] ?? '')),
@@ -401,6 +405,8 @@ function request_ticket_extract_email_creations(array $source): array
 
     if (count($entries) === 0) {
         $legacyEntry = [
+            'subsidiary' => trim((string) ($source['email_creation_subsidiary'] ?? '')),
+            'target_department' => trim((string) ($source['email_creation_target_department'] ?? '')),
             'name' => trim((string) ($source['email_creation_name'] ?? '')),
             'department' => trim((string) ($source['email_creation_department'] ?? '')),
             'designation' => trim((string) ($source['email_creation_designation'] ?? '')),
@@ -670,6 +676,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $assigned_department = $requiresDepartment ? $routing_group : 'IT';
     $description = trim((string) ($_POST['description'] ?? ''));
     $email_request_type = trim((string) ($_POST['email_request_type'] ?? ''));
+    $email_creation_subsidiary = $email_creations[0]['subsidiary'] ?? trim((string) ($_POST['email_creation_subsidiary'] ?? ''));
+    $email_creation_target_department = $email_creations[0]['target_department'] ?? trim((string) ($_POST['email_creation_target_department'] ?? ''));
     $email_creation_name = $email_creations[0]['name'] ?? trim((string) ($_POST['email_creation_name'] ?? ''));
     $email_creation_department = $email_creations[0]['department'] ?? trim((string) ($_POST['email_creation_department'] ?? ''));
     $email_creation_designation = $email_creations[0]['designation'] ?? trim((string) ($_POST['email_creation_designation'] ?? ''));
@@ -742,7 +750,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($email_request_type === 'creation of email') {
             foreach ($email_creations as $email_creation) {
                 if (
-                    $email_creation['name'] === ''
+                    $email_creation['subsidiary'] === ''
+                    || $email_creation['target_department'] === ''
+                    || $email_creation['name'] === ''
                     || $email_creation['department'] === ''
                     || $email_creation['designation'] === ''
                 ) {
@@ -855,7 +865,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $description = "Email Request\n"
             . "Email Request Type: Creation of email";
         foreach ($email_creations as $index => $email_creation) {
+            $emailCreationSubsidiaryLabel = $requestTicketCompanyOptions[$email_creation['subsidiary']]
+                ?? (ticket_company_display_name((string) $email_creation['subsidiary']) ?: $email_creation['subsidiary']);
             $description .= "\n\nEmail " . ($index + 1) . "\n"
+                . "Subsidiaries: " . $emailCreationSubsidiaryLabel . "\n"
+                . "Selected Department: " . $email_creation['target_department'] . "\n"
                 . "Name: " . $email_creation['name'] . "\n"
                 . "Department: " . $email_creation['department'] . "\n"
                 . "Designation: " . $email_creation['designation'];
@@ -1494,6 +1508,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($isLapcItEmailRequest) {
         $ticketMeta['email_request_type'] = $email_request_type;
         if ($email_request_type === 'creation of email') {
+            $ticketMeta['email_creation_subsidiary'] = $email_creation_subsidiary;
+            $ticketMeta['email_creation_target_department'] = $email_creation_target_department;
             $ticketMeta['email_creation_name'] = $email_creation_name;
             $ticketMeta['email_creation_department'] = $email_creation_department;
             $ticketMeta['email_creation_designation'] = $email_creation_designation;
@@ -2501,12 +2517,19 @@ if (count($emailCreationEntries) === 0) {
             justify-items: start;
             text-align: left;
         }
-        body.employee-request-ticket-page .sap-request-counter,
-        body.employee-request-ticket-page .email-request-counter {
+        body.employee-request-ticket-page .email-request-panel-title {
             margin: 0;
             color: #0f172a;
             font-size: 18px;
-            font-weight: 800;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+        body.employee-request-ticket-page .sap-request-counter,
+        body.employee-request-ticket-page .email-request-counter {
+            margin: 0;
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 700;
             line-height: 1.3;
         }
         body.employee-request-ticket-page .sap-request-panel-tools,
@@ -2599,11 +2622,11 @@ if (count($emailCreationEntries) === 0) {
             box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
         }
         body.employee-request-ticket-page .email-request-card {
-            border: 1px solid #dbe4ef;
-            border-radius: 14px;
-            background: #ffffff;
-            padding: 24px 30px;
-            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            padding: 0;
+            box-shadow: none;
         }
         body.employee-request-ticket-page .email-request-card .form-group {
             margin: 0;
@@ -2638,11 +2661,11 @@ if (count($emailCreationEntries) === 0) {
             gap: 14px;
         }
         body.employee-request-ticket-page .email-creation-card {
-            border: 0;
-            border-radius: 0;
-            background: transparent;
-            padding: 0;
-            box-shadow: none;
+            border: 1px solid #dbe4ef;
+            border-radius: 18px;
+            background: #ffffff;
+            padding: 20px 24px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
         }
         body.employee-request-ticket-page .email-creation-card[data-email-card] {
             display: none;
@@ -2710,7 +2733,8 @@ if (count($emailCreationEntries) === 0) {
             display: flex;
             justify-content: flex-end;
             align-items: center;
-            padding: 20px 0 0;
+            gap: 14px;
+            padding: 18px 0 0;
             margin-top: 0;
             min-height: 44px;
         }
@@ -4627,6 +4651,7 @@ if (count($emailCreationEntries) === 0) {
                                 <div class="email-creation-fields" id="emailCreationFields">
                                     <div class="email-request-panel-head">
                                         <div class="email-request-panel-copy">
+                                            <h4 class="email-request-panel-title">Creation of Email</h4>
                                             <p class="email-request-counter" id="emailRequestCounter">Email 1 of <?= count($emailCreationEntries); ?></p>
                                         </div>
                                         <div class="email-request-panel-tools">
@@ -4646,6 +4671,17 @@ if (count($emailCreationEntries) === 0) {
                                     </div>
                                     <div id="emailRequestList">
                                         <?php foreach ($emailCreationEntries as $emailIndex => $emailEntry): ?>
+                                            <?php
+                                                $emailEntrySubsidiary = (string) ($emailEntry['subsidiary'] ?? '');
+                                                $emailEntryTargetDepartments = [];
+                                                if ($emailEntrySubsidiary === '@leadsagri.com') {
+                                                    $emailEntryTargetDepartments = $lapcDepartments;
+                                                } elseif ($emailEntrySubsidiary === '@malvedaholdings.com') {
+                                                    $emailEntryTargetDepartments = $mhcDepartments;
+                                                } elseif ($emailEntrySubsidiary !== '') {
+                                                    $emailEntryTargetDepartments = ['IT'];
+                                                }
+                                            ?>
                                             <section class="email-creation-card <?= $emailIndex === 0 ? 'is-active' : ''; ?>" data-email-card>
                                                 <div class="email-creation-card-top">
                                                     <h4 class="email-creation-card-title" data-email-card-title>Email Details</h4>
@@ -4653,6 +4689,26 @@ if (count($emailCreationEntries) === 0) {
                                                         <i class="fas fa-trash-alt" aria-hidden="true"></i>
                                                         <span>Remove</span>
                                                     </button>
+                                                </div>
+                                                <div class="email-creation-inline-row">
+                                                    <div class="form-group">
+                                                        <label for="email_creation_subsidiary_<?= $emailIndex; ?>">Subsidiaries <span class="required-asterisk">*</span></label>
+                                                        <select name="email_creations[<?= $emailIndex; ?>][subsidiary]" id="email_creation_subsidiary_<?= $emailIndex; ?>" class="form-control" data-email-field="subsidiary" data-email-subsidiary-select>
+                                                            <option value="" disabled <?= $emailEntrySubsidiary === '' ? 'selected' : ''; ?> hidden>Select a company</option>
+                                                            <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
+                                                                <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $emailEntrySubsidiary === $companyValue ? 'selected' : ''; ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label for="email_creation_target_department_<?= $emailIndex; ?>">Department <span class="required-asterisk">*</span></label>
+                                                        <select name="email_creations[<?= $emailIndex; ?>][target_department]" id="email_creation_target_department_<?= $emailIndex; ?>" class="form-control" data-email-field="target_department" data-email-target-department-select>
+                                                            <option value="" disabled <?= (($emailEntry['target_department'] ?? '') === '') ? 'selected' : ''; ?> hidden>Choose department</option>
+                                                            <?php foreach ($emailEntryTargetDepartments as $departmentOption): ?>
+                                                                <option value="<?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($emailEntry['target_department'] ?? '') === $departmentOption) ? 'selected' : ''; ?>><?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8'); ?></option>
+                                                            <?php endforeach; ?>
+                                                        </select>
+                                                    </div>
                                                 </div>
                                                 <div class="email-creation-inline-row">
                                                     <div class="form-group">
@@ -4668,14 +4724,14 @@ if (count($emailCreationEntries) === 0) {
                                                     <label for="email_creation_designation_<?= $emailIndex; ?>">Designation <span class="required-asterisk">*</span></label>
                                                     <input type="text" name="email_creations[<?= $emailIndex; ?>][designation]" id="email_creation_designation_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['designation'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="designation">
                                                 </div>
+                                                <div class="email-request-actions">
+                                                    <button type="button" class="email-request-add-btn" data-add-email-card>
+                                                        <i class="fas fa-plus"></i>
+                                                        <span>Add Email</span>
+                                                    </button>
+                                                </div>
                                             </section>
                                         <?php endforeach; ?>
-                                    </div>
-                                    <div class="email-request-actions">
-                                        <button type="button" class="email-request-add-btn" id="emailAddCreationBtn">
-                                            <i class="fas fa-plus"></i>
-                                            <span>Add Email</span>
-                                        </button>
                                     </div>
                                 </div>
                             </section>
@@ -4692,6 +4748,23 @@ if (count($emailCreationEntries) === 0) {
                             </div>
                             <div class="email-creation-inline-row">
                                 <div class="form-group">
+                                    <label for="email_creation_subsidiary___INDEX__">Subsidiaries <span class="required-asterisk">*</span></label>
+                                    <select name="email_creations[__INDEX__][subsidiary]" id="email_creation_subsidiary___INDEX__" class="form-control" data-email-field="subsidiary" data-email-subsidiary-select>
+                                        <option value="" disabled selected hidden>Select a company</option>
+                                        <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
+                                            <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="email_creation_target_department___INDEX__">Department <span class="required-asterisk">*</span></label>
+                                    <select name="email_creations[__INDEX__][target_department]" id="email_creation_target_department___INDEX__" class="form-control" data-email-field="target_department" data-email-target-department-select>
+                                        <option value="" disabled selected hidden>Choose department</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="email-creation-inline-row">
+                                <div class="form-group">
                                     <label for="email_creation_name___INDEX__">Name <span class="required-asterisk">*</span></label>
                                     <input type="text" name="email_creations[__INDEX__][name]" id="email_creation_name___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="name">
                                 </div>
@@ -4703,6 +4776,12 @@ if (count($emailCreationEntries) === 0) {
                             <div class="form-group">
                                 <label for="email_creation_designation___INDEX__">Designation <span class="required-asterisk">*</span></label>
                                 <input type="text" name="email_creations[__INDEX__][designation]" id="email_creation_designation___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="designation">
+                            </div>
+                            <div class="email-request-actions">
+                                <button type="button" class="email-request-add-btn" data-add-email-card>
+                                    <i class="fas fa-plus"></i>
+                                    <span>Add Email</span>
+                                </button>
                             </div>
                         </section>
                     </template>
@@ -5310,7 +5389,6 @@ if (count($emailCreationEntries) === 0) {
         const emailCreationFields = document.getElementById('emailCreationFields');
         const emailRequestList = document.getElementById('emailRequestList');
         const emailCreationTemplate = document.getElementById('emailCreationTemplate');
-        const emailAddCreationBtn = document.getElementById('emailAddCreationBtn');
         const emailEmployeeSwitcher = document.getElementById('emailEmployeeSwitcher');
         const emailRequestCounter = document.getElementById('emailRequestCounter');
         const sapRequestSection = document.getElementById('sapRequestSection');
@@ -5391,6 +5469,10 @@ if (count($emailCreationEntries) === 0) {
         const sssUploadState = {};
         const lapcDepartments = <?= json_encode(array_values($lapcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mhcDepartments = <?= json_encode(array_values($mhcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const emailCreationDepartmentOptionsBySubsidiary = {
+            '@leadsagri.com': lapcDepartments,
+            '@malvedaholdings.com': mhcDepartments
+        };
         const defaultCategories = <?= json_encode(['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mpdcCategories = <?= json_encode(['Engineerings', 'Client Based'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lingapCategories = <?= json_encode(['Lakbay Kalusugan Request (Medical Mission)'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
@@ -6342,9 +6424,9 @@ if (count($emailCreationEntries) === 0) {
                 emailCreationFields.classList.toggle('is-visible', shouldShowEmailCreation);
             }
             applyEmailCreationInputState();
-            if (emailAddCreationBtn) {
-                emailAddCreationBtn.disabled = !shouldShowEmailCreation;
-            }
+            getEmailCreationAddButtons().forEach(function(button) {
+                button.disabled = !shouldShowEmailCreation;
+            });
         }
         function applyEmailCreationInputState() {
             const shouldShowEmailCreation = emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === 'creation of email';
@@ -6365,8 +6447,12 @@ if (count($emailCreationEntries) === 0) {
             if (!emailRequestList) return [];
             return Array.from(emailRequestList.querySelectorAll('[data-email-card]'));
         }
+        function getEmailCreationAddButtons() {
+            if (!emailRequestList) return [];
+            return Array.from(emailRequestList.querySelectorAll('[data-add-email-card]'));
+        }
         function getEmailCreationCardValues(card) {
-            const fieldNames = ['name', 'department', 'designation'];
+            const fieldNames = ['subsidiary', 'target_department', 'name', 'department', 'designation'];
             const values = {};
             fieldNames.forEach(function(fieldName) {
                 const input = card ? card.querySelector('[data-email-field="' + fieldName + '"]') : null;
@@ -6374,13 +6460,48 @@ if (count($emailCreationEntries) === 0) {
             });
             return values;
         }
+        function getEmailCreationDepartmentOptions(subsidiaryValue) {
+            const normalizedValue = String(subsidiaryValue || '').trim().toLowerCase();
+            if (Object.prototype.hasOwnProperty.call(emailCreationDepartmentOptionsBySubsidiary, normalizedValue)) {
+                return emailCreationDepartmentOptionsBySubsidiary[normalizedValue] || [];
+            }
+            return normalizedValue !== '' ? ['IT'] : [];
+        }
+        function syncEmailCreationDepartmentSelect(card, keepExistingValue) {
+            const subsidiarySelect = card ? card.querySelector('[data-email-subsidiary-select]') : null;
+            const departmentSelect = card ? card.querySelector('[data-email-target-department-select]') : null;
+            if (!departmentSelect) return;
+            const currentValue = keepExistingValue ? String(departmentSelect.value || '').trim() : '';
+            const options = getEmailCreationDepartmentOptions(subsidiarySelect ? subsidiarySelect.value : '');
+            departmentSelect.innerHTML = '<option value="" disabled selected hidden>Choose department</option>';
+            options.forEach(function(optionValue) {
+                const option = document.createElement('option');
+                option.value = optionValue;
+                option.textContent = optionValue;
+                if (currentValue !== '' && currentValue === optionValue) {
+                    option.selected = true;
+                }
+                departmentSelect.appendChild(option);
+            });
+            if (currentValue !== '' && !options.includes(currentValue)) {
+                departmentSelect.value = '';
+            }
+            if (currentValue === '' && options.length === 1) {
+                departmentSelect.value = options[0];
+            }
+        }
+        function syncAllEmailCreationDepartmentSelects() {
+            getEmailCreationCards().forEach(function(card) {
+                syncEmailCreationDepartmentSelect(card, true);
+            });
+        }
         function getEmailCreationCardDisplayName(card, index) {
             const nameInput = card ? card.querySelector('[data-email-field="name"]') : null;
             const displayName = nameInput ? String(nameInput.value || '').trim() : '';
             return displayName !== '' ? displayName : ('Email ' + (index + 1));
         }
         let activeEmailCardIndex = 0;
-        function setActiveEmailCreationCard(index) {
+        function setActiveEmailCard(index) {
             const emailCards = getEmailCreationCards();
             if (emailCards.length === 0) {
                 activeEmailCardIndex = 0;
@@ -6410,6 +6531,7 @@ if (count($emailCreationEntries) === 0) {
         }
         function syncEmailCreationCardState() {
             const emailCards = getEmailCreationCards();
+            syncAllEmailCreationDepartmentSelects();
             emailCards.forEach(function(card, index) {
                 const title = card.querySelector('[data-email-card-title]');
                 if (title) {
@@ -6422,7 +6544,7 @@ if (count($emailCreationEntries) === 0) {
             if (activeEmailCardIndex > emailCards.length - 1) {
                 activeEmailCardIndex = Math.max(0, emailCards.length - 1);
             }
-            setActiveEmailCreationCard(activeEmailCardIndex);
+            setActiveEmailCard(activeEmailCardIndex);
         }
         function addEmailCreationCard() {
             if (!emailRequestList || !emailCreationTemplate) return;
@@ -6434,12 +6556,12 @@ if (count($emailCreationEntries) === 0) {
             const emailCards = getEmailCreationCards();
             const newestCardIndex = emailCards.length - 1;
             const newestCard = emailCards[newestCardIndex] || null;
-            setActiveEmailCreationCard(newestCardIndex);
+            setActiveEmailCard(newestCardIndex);
             const firstInput = newestCard ? newestCard.querySelector('[data-email-field="name"]') : null;
             if (firstInput) firstInput.focus();
         }
         function findFirstIncompleteEmailCreationInput(card) {
-            const orderedFields = ['name', 'department', 'designation'];
+            const orderedFields = ['subsidiary', 'target_department', 'name', 'department', 'designation'];
             for (let i = 0; i < orderedFields.length; i++) {
                 const input = card ? card.querySelector('[data-email-field="' + orderedFields[i] + '"]') : null;
                 if (input && !input.disabled && !String(input.value || '').trim()) {
@@ -6448,20 +6570,20 @@ if (count($emailCreationEntries) === 0) {
             }
             return null;
         }
-        if (emailAddCreationBtn) {
-            emailAddCreationBtn.addEventListener('click', function() {
-                addEmailCreationCard();
-            });
-        }
         if (emailEmployeeSwitcher) {
             emailEmployeeSwitcher.addEventListener('change', function() {
-                setActiveEmailCreationCard(parseInt(String(emailEmployeeSwitcher.value || '0'), 10) || 0);
+                setActiveEmailCard(parseInt(String(emailEmployeeSwitcher.value || '0'), 10) || 0);
             });
         }
         if (emailRequestList) {
             emailRequestList.addEventListener('click', function(event) {
                 const target = event.target;
                 if (!(target instanceof Element)) return;
+                const addButton = target.closest('[data-add-email-card]');
+                if (addButton) {
+                    addEmailCreationCard();
+                    return;
+                }
                 const removeButton = target.closest('[data-remove-email-card]');
                 if (!removeButton) return;
                 const emailCards = getEmailCreationCards();
@@ -6480,8 +6602,11 @@ if (count($emailCreationEntries) === 0) {
             emailRequestList.addEventListener('change', function(event) {
                 const target = event.target;
                 if (!(target instanceof Element)) return;
+                if (target.matches('[data-email-subsidiary-select]')) {
+                    syncEmailCreationDepartmentSelect(target.closest('[data-email-card]'), false);
+                }
                 if (target.matches('[data-email-field="name"]')) {
-                    setActiveEmailCreationCard(activeEmailCardIndex);
+                    setActiveEmailCard(activeEmailCardIndex);
                 }
             });
         }

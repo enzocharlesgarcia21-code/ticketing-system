@@ -277,7 +277,16 @@ $groupCond = count($userDepartmentAliases) > 0
     : "0=1";
 $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
 $requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
-$assignedTaskCond = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND ((NOT $requiresGroupCond) OR $groupCond)))";
+$linkedItTaskCond = "0=1";
+$normalizedUserCompany = ticket_normalize_company((string) $user_company);
+if ($userDepartmentKey === 'IT') {
+    if ($normalizedUserCompany === '@malvedaholdings.com') {
+        $linkedItTaskCond = "(LOWER($companyCol) IN ('@leadsagri.com', 'lapc', 'leads agri', 'leads agricultural products corporation') AND UPPER($taskDeptExpr) = 'IT')";
+    } elseif ($normalizedUserCompany === '@leadsagri.com') {
+        $linkedItTaskCond = "(LOWER($companyCol) IN ('@malvedaholdings.com', 'mhc', 'malveda holdings', 'malveda holdings corporation') AND UPPER($taskDeptExpr) = 'IT')";
+    }
+}
+$assignedTaskCond = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND (($companyCond AND ((NOT $requiresGroupCond) OR $groupCond)) OR $linkedItTaskCond)))";
 $reassignedActivityCond = count($reassignedHistoryAliases) > 0
     ? "EXISTS (SELECT 1 FROM ticket_activity ta WHERE ta.ticket_id = t.id AND ta.activity_type IN ('department_change', 'company_change') AND (" . implode(' OR ', array_fill(0, count($reassignedHistoryAliases), "UPPER(ta.description) LIKE ?")) . "))"
     : "0=1";

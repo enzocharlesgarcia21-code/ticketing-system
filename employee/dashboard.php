@@ -87,7 +87,16 @@ function dashboard_assigned_query_parts(int $user_id, string $user_email, string
         : "0=1";
     $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
     $requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
-    $condition = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND ((NOT $requiresGroupCond) OR $groupCond)))";
+    $linkedItCond = "0=1";
+    $normalizedUserCompany = ticket_normalize_company($user_company);
+    if ($departmentKey === 'IT') {
+        if ($normalizedUserCompany === '@malvedaholdings.com') {
+            $linkedItCond = "(LOWER($companyCol) IN ('@leadsagri.com', 'lapc', 'leads agri', 'leads agricultural products corporation') AND UPPER($taskDeptExpr) = 'IT')";
+        } elseif ($normalizedUserCompany === '@leadsagri.com') {
+            $linkedItCond = "(LOWER($companyCol) IN ('@malvedaholdings.com', 'mhc', 'malveda holdings', 'malveda holdings corporation') AND UPPER($taskDeptExpr) = 'IT')";
+        }
+    }
+    $condition = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND (($companyCond AND ((NOT $requiresGroupCond) OR $groupCond)) OR $linkedItCond)))";
     $params = [
         $user_id,
         $user_id,

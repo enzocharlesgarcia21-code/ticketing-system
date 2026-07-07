@@ -146,6 +146,13 @@ foreach ($adminNavSections as $items) {
 window.TM_CSRF_TOKEN = <?php echo json_encode($csrfToken, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 window.TM_HIDE_ADMIN_CHAT = true;
 window.ADMIN_BASE_URL = <?php echo json_encode($adminBaseUrl, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+window.TM_CURRENT_USER = <?php echo json_encode([
+    'id' => $_SESSION['user_id'] ?? null,
+    'name' => $_SESSION['name'] ?? null,
+    'email' => $_SESSION['email'] ?? null,
+    'department' => $_SESSION['department'] ?? null,
+    'company' => $_SESSION['company'] ?? null,
+], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 </script>
 
 <button type="button" id="globalChatFab" class="tm-global-chat-fab" onclick="window.TMGlobalChat && window.TMGlobalChat.open()" hidden aria-hidden="true">
@@ -1518,13 +1525,36 @@ body .tm-global-chat-fab,
 (function () {
     window.TM_CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
     function ensureTicketModalScript() {
-        if (window.TMTicketModal) return;
-        if (document.getElementById('tmTicketModalScript')) return;
-        const s = document.createElement('script');
-        s.id = 'tmTicketModalScript';
-        s.src = '../js/ticket-modal.js?v=' + Date.now();
-        document.body.appendChild(s);
+        if (window.TMTicketModal) return Promise.resolve(window.TMTicketModal);
+        if (window.TM_TICKET_MODAL_SCRIPT_PROMISE) return window.TM_TICKET_MODAL_SCRIPT_PROMISE;
+
+        window.TM_TICKET_MODAL_SCRIPT_PROMISE = new Promise(function(resolve, reject) {
+            let s = document.getElementById('tmTicketModalScript');
+            const finish = function() {
+                if (window.TMTicketModal) {
+                    resolve(window.TMTicketModal);
+                } else {
+                    reject(new Error('Ticket modal script loaded without TMTicketModal.'));
+                }
+            };
+
+            if (s) {
+                s.addEventListener('load', finish, { once: true });
+                s.addEventListener('error', reject, { once: true });
+                return;
+            }
+
+            s = document.createElement('script');
+            s.id = 'tmTicketModalScript';
+            s.src = '../js/ticket-modal.js?v=' + Date.now();
+            s.addEventListener('load', finish, { once: true });
+            s.addEventListener('error', reject, { once: true });
+            document.body.appendChild(s);
+        });
+
+        return window.TM_TICKET_MODAL_SCRIPT_PROMISE;
     }
+    window.TMEnsureTicketModalScript = ensureTicketModalScript;
 
     window.TMGlobalChat = {
         open: function() {
@@ -1948,11 +1978,56 @@ function notificationTargetHref(ticketId, type) {
     return id > 0 ? adminNavUrl(`all_tickets.php?ticket_id=${id}`) : adminNavUrl('notifications.php');
 }
 
+function shouldOpenAdminTicketModal(ticketId, type) {
+    if ((type || '').toString() === 'conference_booking') {
+        return false;
+    }
+    return (parseInt(String(ticketId || 0), 10) || 0) > 0;
+}
+
+function openAdminNotificationTarget(ticketId, type, destination) {
+    const notifMenu = document.getElementById('notifDropdown');
+    if (notifMenu) notifMenu.classList.remove('show');
+
+    if (shouldOpenAdminTicketModal(ticketId, type)) {
+        const id = parseInt(String(ticketId || 0), 10);
+        const openTicketModal = function() {
+            if (window.TMTicketModal && typeof window.TMTicketModal.open === 'function') {
+                window.TMTicketModal.open(id);
+                return true;
+            }
+            return false;
+        };
+
+        if (openTicketModal()) {
+            return;
+        }
+
+        if (typeof window.TMEnsureTicketModalScript === 'function') {
+            window.TMEnsureTicketModalScript()
+                .then(function() {
+                    if (!openTicketModal()) {
+                        window.location.href = destination;
+                    }
+                })
+                .catch(function() {
+                    window.location.href = destination;
+                });
+            return;
+        }
+
+        window.location.href = destination;
+        return;
+    }
+
+    window.location.href = destination;
+}
+
 function handleNotificationClick(notifId, ticketId, type, targetHref) {
     const destination = targetHref || notificationTargetHref(ticketId, type);
     const notifItem = document.querySelector('.notif-item[data-notif-id="' + String(notifId) + '"]');
     if (notifItem && notifItem.getAttribute('data-marking-read') === '1') {
-        window.location.href = destination;
+        openAdminNotificationTarget(ticketId, type, destination);
         return;
     }
     if (notifItem) notifItem.setAttribute('data-marking-read', '1');
@@ -1968,7 +2043,7 @@ function handleNotificationClick(notifId, ticketId, type, targetHref) {
         keepalive: true
     }).catch(function () {});
 
-    window.location.href = destination;
+    openAdminNotificationTarget(ticketId, type, destination);
 }
 
 function escapeHtml(text) {
