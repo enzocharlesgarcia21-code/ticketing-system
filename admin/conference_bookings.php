@@ -1789,6 +1789,9 @@ function conference_admin_booking_status_text(string $status): string
             gap: 10px;
             background: #ffffff;
         }
+        #bookingDeleteConfirm .room-delete-confirm-actions {
+            justify-content: center;
+        }
         .room-delete-confirm-btn {
             min-width: 132px;
             min-height: 40px;

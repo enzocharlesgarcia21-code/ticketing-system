@@ -799,6 +799,79 @@ var TMTicketModal = (function () {
     }
     return requestType ? formatEmailRequestType(requestType) : '';
   }
+  function isEmailCreationTicket(data, descriptionText) {
+    if (!data || String(data.category || '').trim().toLowerCase() !== 'email') return false;
+    var assignedDept = String(data.assigned_group || data.assigned_department || '').trim().toUpperCase();
+    if (assignedDept !== 'IT') return false;
+    var requestType = getEmailRequestTypeDisplay(data).toLowerCase();
+    var text = String(descriptionText || data.description || '').trim().toLowerCase();
+    return requestType === 'creation of email'
+      || text.indexOf('email request') === 0 && text.indexOf('email request type: creation of email') !== -1;
+  }
+  function parseEmailCreationsFromMeta(data) {
+    var raw = data && data.request_meta ? data.request_meta.email_creations : '';
+    var decoded = null;
+    if (raw) {
+      try {
+        decoded = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      } catch (e) {
+        decoded = null;
+      }
+    }
+    if (!Array.isArray(decoded)) decoded = [];
+    var entries = decoded.map(function (entry, index) {
+      if (!entry || typeof entry !== 'object') return null;
+      var fields = {
+        name: String(entry.name || '').trim(),
+        department: String(entry.department || '').trim(),
+        designation: String(entry.designation || '').trim()
+      };
+      var hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
+      return hasValue ? { index: String(index + 1), fields: fields } : null;
+    }).filter(function (entry) { return !!entry; });
+    if (!entries.length && data && data.request_meta) {
+      var legacyFields = {
+        name: String(data.request_meta.email_creation_name || '').trim(),
+        department: String(data.request_meta.email_creation_department || '').trim(),
+        designation: String(data.request_meta.email_creation_designation || '').trim()
+      };
+      var hasLegacyValue = Object.keys(legacyFields).some(function (key) { return legacyFields[key] !== ''; });
+      if (hasLegacyValue) entries.push({ index: '1', fields: legacyFields });
+    }
+    return entries;
+  }
+  function parseEmailCreationDescription(descriptionText) {
+    var lines = String(descriptionText || '').split(/\r?\n/).map(function (line) {
+      return String(line || '').trim();
+    }).filter(function (line) { return line !== ''; });
+    var entries = [];
+    var current = null;
+    lines.forEach(function (line) {
+      if (/^email request$/i.test(line) || /^email request type:/i.test(line)) return;
+      var emailMatch = line.match(/^Email Details(?:\s+(\d+))?$/i);
+      if (emailMatch) {
+        current = { index: emailMatch[1] || String(entries.length + 1), fields: {} };
+        entries.push(current);
+        return;
+      }
+      var colonIndex = line.indexOf(':');
+      if (colonIndex > 0) {
+        if (!current) {
+          current = { index: String(entries.length + 1), fields: {} };
+          entries.push(current);
+        }
+        var label = line.slice(0, colonIndex).trim().toLowerCase();
+        var value = line.slice(colonIndex + 1).trim();
+        if (label === 'name' || label === 'department' || label === 'designation') {
+          current.fields[label] = value;
+        }
+      }
+    });
+    return entries.filter(function (entry) {
+      var fields = entry && entry.fields ? entry.fields : {};
+      return String(fields.name || fields.department || fields.designation || '').trim() !== '';
+    });
+  }
   function renderTimeline(ticket) {
     var maxVisibleTimelineItems = 5;
     var createdAt = ticket.created_at ? new Date(ticket.created_at) : null;
@@ -1434,6 +1507,43 @@ var TMTicketModal = (function () {
       '</div>' +
       '</div>';
   }
+  function renderEmailCreationDescriptionHtml(data, descriptionText) {
+    if (!isEmailCreationTicket(data, descriptionText)) return '';
+    var entries = parseEmailCreationsFromMeta(data);
+    if (!entries.length) entries = parseEmailCreationDescription(descriptionText);
+    if (!entries.length) return '';
+    var carouselId = 'tmEmailDisplay-' + String(++sapDisplaySeq);
+    var fieldConfig = [
+      { key: 'name', label: 'Name' },
+      { key: 'department', label: 'Department' },
+      { key: 'designation', label: 'Designation', wide: true }
+    ];
+    return '<div class="tm-sap-display tm-email-display">' +
+      '<div class="tm-sap-carousel" id="' + carouselId + '" data-index="0">' +
+      entries.map(function (entry, entryIndex) {
+        return '<div class="tm-sap-card' + (entryIndex === 0 ? ' is-active' : '') + '" data-index="' + String(entryIndex) + '" aria-hidden="' + (entryIndex === 0 ? 'false' : 'true') + '">' +
+          '<div class="tm-sap-card-title">Email Details' + (entries.length > 1 ? ' ' + escapeHtml(entry.index) : '') + '</div>' +
+          '<div class="tm-sap-field-grid">' +
+          fieldConfig.map(function (field) {
+            var value = entry && entry.fields ? String(entry.fields[field.key] || '').trim() : '';
+            return '<div class="tm-sap-field' + (field.wide ? ' is-wide' : '') + '">' +
+              '<div class="tm-sap-label">' + escapeHtml(field.label) + '</div>' +
+              '<div class="tm-sap-value">' + escapeHtml(value || '-') + '</div>' +
+              '</div>';
+          }).join('') +
+          '</div>' +
+          '</div>';
+      }).join('') +
+      (entries.length > 1
+        ? '<div class="tm-sap-actions">' +
+          '<button type="button" class="tm-sap-nav-btn" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', -1)">Previous</button>' +
+          '<span class="tm-sap-counter" data-sap-counter>1 of ' + String(entries.length) + '</span>' +
+          '<button type="button" class="tm-sap-nav-btn primary" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', 1)">Next</button>' +
+          '</div>'
+        : '') +
+      '</div>' +
+      '</div>';
+  }
   function stepSapDisplay(id, delta) {
     var root = document.getElementById(String(id || ''));
     if (!root) return;
@@ -1856,8 +1966,12 @@ var TMTicketModal = (function () {
     var descriptionText = String((data && data.description) || '');
     var descriptionHtml = '';
     if (descriptionText) {
-      var sapDescriptionHtml = renderSapDescriptionHtml(data, descriptionText);
-      if (sapDescriptionHtml) {
+      var emailCreationHtml = renderEmailCreationDescriptionHtml(data, descriptionText);
+      var sapDescriptionHtml = emailCreationHtml ? '' : renderSapDescriptionHtml(data, descriptionText);
+      if (emailCreationHtml) {
+        title = 'Creation of Email';
+        descriptionHtml = emailCreationHtml;
+      } else if (sapDescriptionHtml) {
         title = 'SAP Form';
         descriptionHtml = sapDescriptionHtml;
       } else {

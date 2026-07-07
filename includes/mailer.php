@@ -157,6 +157,9 @@ function smtp_extract_ticket_id_from_subject(string $subject): int
     if (preg_match('/\(#0*(\d+)\)/', $subject, $m)) {
         return (int) $m[1];
     }
+    if (preg_match('/\bTicket(?:\s+ID)?\s*#?0*(\d+)\b/i', $subject, $m)) {
+        return (int) $m[1];
+    }
     return 0;
 }
 
@@ -271,30 +274,35 @@ function smtp_prepare_ticket_threading(int $ticketId, string $subject): ?array
     }
 
     $stableRootMessageId = smtp_ticket_thread_reference_id($ticketId);
-    if ($stableRootMessageId !== '') {
+    if ($rootMessageId === '' && $stableRootMessageId !== '') {
         $rootMessageId = $stableRootMessageId;
+    }
+
+    if ($lastMessageId === '') {
+        $isRoot = true;
     }
 
     if ($rootMessageId === '') {
         $rootMessageId = smtp_generate_message_id($ticketId);
-        $threadSubject = $normalizedThreadSubject;
         $isRoot = true;
-        $update = $conn->prepare("UPDATE employee_tickets SET root_message_id = ?, last_message_id = ?, thread_subject = ? WHERE id = ?");
-        if ($update) {
-            $update->bind_param("sssi", $rootMessageId, $rootMessageId, $threadSubject, $ticketId);
-            $update->execute();
-            $update->close();
-        }
     }
 
-    if ($threadSubject !== $normalizedThreadSubject || $stableRootMessageId !== '' || $lastMessageId === '') {
+    if ($threadSubject !== $normalizedThreadSubject || $rootMessageId !== '') {
         $threadSubject = $normalizedThreadSubject;
-        $lastMessageIdForStore = $lastMessageId !== '' ? $lastMessageId : $rootMessageId;
-        $update = $conn->prepare("UPDATE employee_tickets SET root_message_id = ?, last_message_id = ?, thread_subject = ? WHERE id = ?");
-        if ($update) {
-            $update->bind_param("sssi", $rootMessageId, $lastMessageIdForStore, $threadSubject, $ticketId);
-            $update->execute();
-            $update->close();
+        if ($lastMessageId !== '') {
+            $update = $conn->prepare("UPDATE employee_tickets SET root_message_id = ?, last_message_id = ?, thread_subject = ? WHERE id = ?");
+            if ($update) {
+                $update->bind_param("sssi", $rootMessageId, $lastMessageId, $threadSubject, $ticketId);
+                $update->execute();
+                $update->close();
+            }
+        } else {
+            $update = $conn->prepare("UPDATE employee_tickets SET root_message_id = ?, thread_subject = ? WHERE id = ?");
+            if ($update) {
+                $update->bind_param("ssi", $rootMessageId, $threadSubject, $ticketId);
+                $update->execute();
+                $update->close();
+            }
         }
     }
 
@@ -499,11 +507,18 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
                 $mail->Body = $htmlBody;
                 if ($threading) {
                     $mail->MessageID = (string) $threading['message_id'];
+                    $mail->addCustomHeader('X-Ticket-ID', str_pad((string) ((int) ($threading['ticket_id'] ?? 0)), 6, '0', STR_PAD_LEFT));
+                    $mail->addCustomHeader('X-Ticket-Thread-ID', 'ticket-' . str_pad((string) ((int) ($threading['ticket_id'] ?? 0)), 6, '0', STR_PAD_LEFT));
                     if (empty($threading['is_root'])) {
                         $rootMessageId = (string) $threading['root_message_id'];
+                        $lastMessageId = (string) ($threading['last_message_id'] ?? '');
                         if ($rootMessageId !== '') {
-                            $mail->addCustomHeader('In-Reply-To', $rootMessageId);
-                            $mail->addCustomHeader('References', $rootMessageId);
+                            $mail->addCustomHeader('In-Reply-To', $lastMessageId !== '' ? $lastMessageId : $rootMessageId);
+                            $references = [$rootMessageId];
+                            if ($lastMessageId !== '' && $lastMessageId !== $rootMessageId) {
+                                $references[] = $lastMessageId;
+                            }
+                            $mail->addCustomHeader('References', implode(' ', $references));
                         }
                     }
                 }
