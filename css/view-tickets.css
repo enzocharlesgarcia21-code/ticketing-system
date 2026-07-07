@@ -2765,6 +2765,8 @@
     position: relative;
     overflow: visible;
     word-break: break-word;
+    display: flex;
+    flex-direction: column;
 }
 .chat-sender {
     font-size: 11px;
@@ -2938,17 +2940,23 @@
 
 .chat-bubble .chat-meta {
     display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 6px;
-    align-self: flex-end;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 2px;
+    margin-top: 2px;
     max-width: 100%;
-    white-space: nowrap;
+    white-space: normal;
+}
+
+.chat-bubble.me .chat-meta {
+    align-items: flex-end;
+    align-self: flex-end;
 }
 
 .chat-bubble.other .chat-meta {
     align-self: flex-start;
+    align-items: flex-start;
     justify-content: flex-start;
 }
 
@@ -2971,6 +2979,40 @@
 
 .chat-bubble .chat-meta .chat-time {
     color: rgba(17, 24, 39, 0.9);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    text-align: left;
+}
+
+.chat-bubble.me .chat-meta .chat-time {
+    align-self: flex-end;
+    text-align: right;
+}
+
+.chat-delivery-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.chat-delivery-label {
+    margin: 0;
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: #64748b;
+    line-height: 1;
+    white-space: nowrap;
+    align-self: flex-start;
+    text-align: left;
+}
+
+.chat-bubble.me .chat-delivery-label {
+    align-self: flex-end;
+    text-align: right;
 }
 
 .chat-bubble .chat-meta .chat-edited {
