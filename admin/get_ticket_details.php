@@ -19,6 +19,7 @@ $id = (int)$_GET['id'];
 $currentUserId = (int) ($_SESSION['user_id'] ?? 0);
 
 ticket_ensure_assignment_columns($conn);
+ticket_mark_admin_viewed($conn, $id);
 
 function parseLegacyRequesterInfo($text) {
     if (!is_string($text) || $text === '') {
