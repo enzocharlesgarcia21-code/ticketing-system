@@ -341,118 +341,148 @@ var TMTicketModal = (function () {
       if (typeof chatModalInput.setSelectionRange === 'function') chatModalInput.setSelectionRange(chatLength, chatLength);
     }
   }
+  function canReplyToMessage(ticketId, msg) {
+    var context = buildReplyContext(msg);
+    if (!context || !ticketId) return false;
+    var messengerTicketIdEl = qs('tmMessengerTicketId');
+    var messengerInput = qs('tmMessengerInput');
+    if (messengerTicketIdEl && String(messengerTicketIdEl.value || '') === String(ticketId || '') && messengerInput && !messengerInput.disabled && !messengerInput.readOnly && messengerPermissionState.canChat === true) {
+      return true;
+    }
+    var chatModalTicketIdEl = qs('chatModalTicketId');
+    var chatModalInput = qs('chatModalInput');
+    if (chatModalTicketIdEl && String(chatModalTicketIdEl.value || '') === String(ticketId || '') && chatModalInput && !chatModalInput.disabled && !chatModalInput.readOnly && chatPermissionState.canChat === true) {
+      return true;
+    }
+    return false;
+  }
   function createMessageActionsNode(msg, ticketId, onDone) {
-    if (!msg || !ticketId) return null;
-    var canEdit = msg.can_edit === true;
-    var hasCopyableMessage = String(msg.message || '').trim() !== '';
-    var imageAttachment = messagePrimaryImageAttachment(msg);
-    if (!canEdit && !hasCopyableMessage && !imageAttachment) return null;
-    bindMessageActionMenuCloser();
+    if (!canReplyToMessage(ticketId, msg)) return null;
 
     var wrap = document.createElement('div');
     wrap.className = 'tm-msg-actions';
 
-    var toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'tm-msg-actions-toggle';
-    toggle.setAttribute('aria-label', 'Message actions');
-    toggle.innerHTML = '<i class="fas fa-ellipsis-v"></i>';
+    if (msg && msg.is_me === true) {
+      var canEdit = msg.can_edit === true;
+      var hasCopyableMessage = String(msg.message || '').trim() !== '';
+      var imageAttachment = messagePrimaryImageAttachment(msg);
+      if (!canEdit && !hasCopyableMessage && !imageAttachment) return null;
+      bindMessageActionMenuCloser();
 
-    var menu = document.createElement('div');
-    menu.className = 'tm-msg-actions-menu';
-    menu.addEventListener('click', function (e) { e.stopPropagation(); });
+      var toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'tm-msg-actions-toggle';
+      toggle.setAttribute('aria-label', 'Message actions');
+      toggle.innerHTML = '<i class="fas fa-ellipsis-v"></i>';
 
-    var replyBtn = document.createElement('button');
-    replyBtn.type = 'button';
-    replyBtn.className = 'tm-msg-actions-item';
-    replyBtn.textContent = 'Reply';
-    replyBtn.addEventListener('click', function () {
-      menu.classList.remove('show');
-      focusReplyComposer(ticketId, msg);
-    });
-    menu.appendChild(replyBtn);
+      var menu = document.createElement('div');
+      menu.className = 'tm-msg-actions-menu';
+      menu.addEventListener('click', function (e) { e.stopPropagation(); });
 
-    if (hasCopyableMessage) {
-      var copyBtn = document.createElement('button');
-      copyBtn.type = 'button';
-      copyBtn.className = 'tm-msg-actions-item';
-      copyBtn.textContent = 'Copy message';
-      copyBtn.addEventListener('click', function () {
+      var replyMenuBtn = document.createElement('button');
+      replyMenuBtn.type = 'button';
+      replyMenuBtn.className = 'tm-msg-actions-item';
+      replyMenuBtn.textContent = 'Reply';
+      replyMenuBtn.addEventListener('click', function () {
         menu.classList.remove('show');
-        copyTextToClipboard(String(msg.message || ''));
+        focusReplyComposer(ticketId, msg);
       });
-      menu.appendChild(copyBtn);
-    }
+      menu.appendChild(replyMenuBtn);
 
-    if (imageAttachment) {
-      var copyImageBtn = document.createElement('button');
-      copyImageBtn.type = 'button';
-      copyImageBtn.className = 'tm-msg-actions-item';
-      copyImageBtn.textContent = 'Copy image';
-      copyImageBtn.addEventListener('click', function () {
-        menu.classList.remove('show');
-        copyImageAttachmentToClipboard(imageAttachment);
-      });
-      menu.appendChild(copyImageBtn);
-    }
+      if (hasCopyableMessage) {
+        var copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'tm-msg-actions-item';
+        copyBtn.textContent = 'Copy message';
+        copyBtn.addEventListener('click', function () {
+          menu.classList.remove('show');
+          copyTextToClipboard(String(msg.message || ''));
+        });
+        menu.appendChild(copyBtn);
+      }
 
-    if (canEdit) {
-      var editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className = 'tm-msg-actions-item';
-      editBtn.textContent = 'Edit';
-      editBtn.addEventListener('click', function () {
-        menu.classList.remove('show');
-        var current = String(msg.message || '');
-        showMessengerMessageEditor({
-          value: current,
-          hasAttachment: !!(msg && msg.attachment && msg.attachment.stored_name),
-          onSubmit: function (updated, done, unlock) {
-            var fd = new FormData();
-            fd.append('ticket_id', String(ticketId));
-            fd.append('message_id', String(msg.id || ''));
-            fd.append('message', updated);
-            var t = getCsrfToken();
-            if (t) fd.append('csrf_token', t);
-            postJson('chat_message_update.php', fd)
-              .then(function (res) {
-                if (!(res && res.success)) {
+      if (imageAttachment) {
+        var copyImageBtn = document.createElement('button');
+        copyImageBtn.type = 'button';
+        copyImageBtn.className = 'tm-msg-actions-item';
+        copyImageBtn.textContent = 'Copy image';
+        copyImageBtn.addEventListener('click', function () {
+          menu.classList.remove('show');
+          copyImageAttachmentToClipboard(imageAttachment);
+        });
+        menu.appendChild(copyImageBtn);
+      }
+
+      if (canEdit) {
+        var editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'tm-msg-actions-item';
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', function () {
+          menu.classList.remove('show');
+          var current = String(msg.message || '');
+          showMessengerMessageEditor({
+            value: current,
+            hasAttachment: !!(msg && msg.attachment && msg.attachment.stored_name),
+            onSubmit: function (updated, done, unlock) {
+              var fd = new FormData();
+              fd.append('ticket_id', String(ticketId));
+              fd.append('message_id', String(msg.id || ''));
+              fd.append('message', updated);
+              var t = getCsrfToken();
+              if (t) fd.append('csrf_token', t);
+              postJson('chat_message_update.php', fd)
+                .then(function (res) {
+                  if (!(res && res.success)) {
+                    unlock();
+                    showMessengerConfirm({
+                      title: 'Edit Failed',
+                      message: (res && res.error) ? String(res.error) : 'Unable to edit this message.',
+                      confirmText: 'OK',
+                      hideCancel: true
+                    });
+                    return;
+                  }
+                  done();
+                  if (typeof onDone === 'function') onDone();
+                })
+                .catch(function () {
                   unlock();
                   showMessengerConfirm({
                     title: 'Edit Failed',
-                    message: (res && res.error) ? String(res.error) : 'Unable to edit this message.',
+                    message: 'Unable to edit this message.',
                     confirmText: 'OK',
                     hideCancel: true
                   });
-                  return;
-                }
-                done();
-                if (typeof onDone === 'function') onDone();
-              })
-              .catch(function () {
-                unlock();
-                showMessengerConfirm({
-                  title: 'Edit Failed',
-                  message: 'Unable to edit this message.',
-                  confirmText: 'OK',
-                  hideCancel: true
                 });
-              });
-          }
+            }
+          });
         });
+        menu.appendChild(editBtn);
+      }
+
+      toggle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var openMenus = document.querySelectorAll('.tm-msg-actions-menu.show');
+        openMenus.forEach(function (m) { if (m !== menu) m.classList.remove('show'); });
+        menu.classList.toggle('show');
       });
-      menu.appendChild(editBtn);
+
+      wrap.appendChild(toggle);
+      wrap.appendChild(menu);
+      return wrap;
     }
 
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'tm-msg-actions-toggle';
+    toggle.setAttribute('aria-label', 'Reply to message');
+    toggle.innerHTML = '<i class="fas fa-reply"></i>';
     toggle.addEventListener('click', function (e) {
       e.stopPropagation();
-      var openMenus = document.querySelectorAll('.tm-msg-actions-menu.show');
-      openMenus.forEach(function (m) { if (m !== menu) m.classList.remove('show'); });
-      menu.classList.toggle('show');
+      focusReplyComposer(ticketId, msg);
     });
-
     wrap.appendChild(toggle);
-    wrap.appendChild(menu);
     return wrap;
   }
   function createMessageEditedNode(msg) {
@@ -516,7 +546,7 @@ var TMTicketModal = (function () {
     var editedNode = createMessageEditedNode(msg);
     var timeDiv = document.createElement('div');
     timeDiv.classList.add('chat-time');
-    setMessageTimeWithStatus(timeDiv, msg, timeText);
+    var deliveryLabel = setMessageTimeWithStatus(timeDiv, msg, timeText);
     if (editedNode) {
       timeDiv.insertBefore(editedNode, timeDiv.firstChild);
       var dot = document.createElement('span');
@@ -525,6 +555,7 @@ var TMTicketModal = (function () {
       timeDiv.insertBefore(dot, editedNode.nextSibling);
     }
     meta.appendChild(timeDiv);
+    if (deliveryLabel) meta.appendChild(deliveryLabel);
     return meta;
   }
   function setMessageTimeWithStatus(timeDiv, msg, timeText) {
@@ -534,7 +565,7 @@ var TMTicketModal = (function () {
     timeSpan.className = 'chat-time-text';
     timeSpan.textContent = String(timeText || '');
     timeDiv.appendChild(timeSpan);
-    if (!(msg && msg.is_me)) return;
+    if (!(msg && msg.is_me)) return null;
     var deliveryStatus = document.createElement('span');
     deliveryStatus.className = 'chat-delivery-status';
     var status = document.createElement('span');
@@ -545,11 +576,11 @@ var TMTicketModal = (function () {
       ? '<svg viewBox="0 0 22 16" aria-hidden="true" focusable="false"><path d="M1.5 8.6l3.7 3.7L12.8 2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.7 11.9L10 13.2 20.5 2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
       : '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 8.4l3.5 3.5L14 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     deliveryStatus.appendChild(status);
+    timeDiv.appendChild(deliveryStatus);
     var label = document.createElement('span');
     label.className = 'chat-delivery-label ' + (seen ? 'seen' : 'delivered');
     label.textContent = seen ? 'Seen' : 'Delivered';
-    deliveryStatus.appendChild(label);
-    timeDiv.appendChild(deliveryStatus);
+    return label;
   }
   function ensureMessageEditHistoryExists() {
     if (qs('tmMessageEditHistory')) return;
@@ -4053,11 +4084,11 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-time{justify-content:flex-start;}' +
         '.tm-messenger-overlay .chat-bubble.has-edited-meta.other .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta.other .chat-edited{width:auto;text-align:left;}' +
         '.tm-messenger-overlay .chat-bubble.me .chat-edited{color:#60a5fa;}' +
-        '.tm-messenger-overlay .chat-delivery-status{display:inline-flex;align-items:center;gap:8px;margin-left:auto;white-space:nowrap;flex:0 0 auto;}' +
+        '.tm-messenger-overlay .chat-delivery-status{display:inline-flex;align-items:center;gap:6px;margin-left:0;white-space:nowrap;flex:0 0 auto;}' +
         '.tm-messenger-overlay .chat-read-status{display:inline-flex;align-items:center;margin-left:0;font-size:11px;font-weight:900;letter-spacing:-1px;line-height:1;color:#4b5563;white-space:nowrap;flex-shrink:0;}' +
         '.tm-messenger-overlay .chat-read-status svg{width:15px;height:15px;display:block;}' +
         '.tm-messenger-overlay .chat-read-status.seen{color:#2563eb;}' +
-        '.tm-messenger-overlay .chat-delivery-label{position:static;margin:0;display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:500;letter-spacing:0;color:#64748b;text-align:right;line-height:1;white-space:nowrap;flex-shrink:0;}' +
+        '.tm-messenger-overlay .chat-delivery-label{position:static;margin:0;display:block;font-size:11px;font-weight:500;letter-spacing:0;color:#64748b;text-align:right;line-height:1;white-space:nowrap;align-self:flex-end;}' +
         '.tm-messenger-overlay .chat-delivery-label.seen{color:#64748b;}' +
         '.tm-messenger-overlay .chat-date-separator{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;margin:8px 0 2px;color:#94a3b8;font-size:12px;font-weight:500;line-height:1;}' +
         '.tm-messenger-overlay .chat-date-separator span{height:1px;background:#e5e7eb;}' +
@@ -4068,9 +4099,11 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay .chat-legend-read{display:inline-flex;align-items:center;font-size:12px;font-weight:900;letter-spacing:-1px;line-height:1;}' +
         '.tm-messenger-overlay .chat-legend-read.seen{color:#2563eb;}' +
         '.tm-messenger-overlay .chat-legend-read.delivered{color:#6b7280;}' +
-        '.tm-messenger-overlay .chat-bubble .chat-meta{display:flex;align-items:center;justify-content:flex-start;gap:8px;margin-top:6px;align-self:stretch;min-width:max-content;max-width:100%;white-space:nowrap;}' +
-        '.tm-messenger-overlay .chat-bubble.other .chat-meta{align-self:stretch;justify-content:flex-start;}' +
-        '.tm-messenger-overlay .chat-bubble .chat-meta .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-meta .chat-time{position:static;width:auto;text-align:left;margin:0;padding:0;min-width:max-content;max-width:100%;overflow:visible;text-overflow:clip;}' +
+        '.tm-messenger-overlay .chat-bubble .chat-meta{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:2px;margin-top:6px;align-self:stretch;min-width:0;max-width:100%;white-space:normal;}' +
+        '.tm-messenger-overlay .chat-bubble.me .chat-meta{align-items:flex-end;}' +
+        '.tm-messenger-overlay .chat-bubble.other .chat-meta{align-self:stretch;align-items:flex-start;justify-content:flex-start;}' +
+        '.tm-messenger-overlay .chat-bubble .chat-meta .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-meta .chat-time{position:static;width:auto;text-align:left;margin:0;padding:0;min-width:max-content;max-width:100%;overflow:visible;text-overflow:clip;display:inline-flex;align-items:center;gap:6px;align-self:flex-start;}' +
+        '.tm-messenger-overlay .chat-bubble.me .chat-meta .chat-time{text-align:right;align-self:flex-end;}' +
         '.tm-messenger-overlay .chat-bubble.other .chat-meta .chat-time{text-align:left;}' +
         '.tm-messenger-overlay .chat-bubble .chat-meta .chat-edited,.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-meta .chat-edited,.tm-messenger-overlay .chat-bubble.other .chat-meta .chat-edited{position:static;inset:auto;width:auto;text-align:inherit;margin:0;}' +
         '.tm-messenger-overlay .chat-bubble{margin-bottom:18px;}' +
@@ -4210,18 +4243,20 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-time{justify-content:flex-start;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta.other .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta.other .chat-edited{width:auto;text-align:left;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-edited{color:#60a5fa;}' +
-        '.tm-messenger-overlay.employee-style .chat-delivery-status{display:inline-flex;align-items:center;gap:8px;margin-left:auto;white-space:nowrap;flex:0 0 auto;}' +
+        '.tm-messenger-overlay.employee-style .chat-delivery-status{display:inline-flex;align-items:center;gap:6px;margin-left:0;white-space:nowrap;flex:0 0 auto;}' +
         '.tm-messenger-overlay.employee-style .chat-read-status{display:inline-flex;align-items:center;margin-left:0;font-size:11px;font-weight:900;letter-spacing:-1px;line-height:1;color:#4b5563;white-space:nowrap;flex-shrink:0;}' +
         '.tm-messenger-overlay.employee-style .chat-read-status svg{width:16px;height:16px;display:block;}' +
         '.tm-messenger-overlay.employee-style .chat-read-status.seen{color:#2563eb;}' +
-        '.tm-messenger-overlay.employee-style .chat-delivery-label{position:static;margin:0;display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:500;letter-spacing:0;color:#64748b;text-align:right;line-height:1;white-space:nowrap;flex-shrink:0;}' +
+        '.tm-messenger-overlay.employee-style .chat-delivery-label{position:static;margin:0;display:block;font-size:11px;font-weight:500;letter-spacing:0;color:#64748b;text-align:right;line-height:1;white-space:nowrap;align-self:flex-end;}' +
         '.tm-messenger-overlay.employee-style .chat-delivery-label.seen{color:#64748b;}' +
         '.tm-messenger-overlay.employee-style .chat-date-separator{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;margin:8px 0 2px;color:#94a3b8;font-size:12px;font-weight:500;line-height:1;}' +
         '.tm-messenger-overlay.employee-style .chat-date-separator span{height:1px;background:#e5e7eb;}' +
         '.tm-messenger-overlay.employee-style .chat-date-separator strong{font:inherit;color:inherit;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta{display:flex;align-items:center;justify-content:flex-start;gap:8px;margin-top:6px;align-self:stretch;min-width:max-content;max-width:100%;white-space:nowrap;position:static;z-index:1;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta{align-self:stretch;justify-content:flex-start;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-meta .chat-time{position:static;width:auto;text-align:left;margin:0;padding:0;min-width:max-content;max-width:100%;overflow:visible;text-overflow:clip;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:2px;margin-top:6px;align-self:stretch;min-width:0;max-width:100%;white-space:normal;position:static;z-index:1;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-meta{align-items:flex-end;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta{align-self:stretch;align-items:flex-start;justify-content:flex-start;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-meta .chat-time{position:static;width:auto;text-align:left;margin:0;padding:0;min-width:max-content;max-width:100%;overflow:visible;text-overflow:clip;display:inline-flex;align-items:center;gap:6px;align-self:flex-start;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-meta .chat-time{text-align:right;align-self:flex-end;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta .chat-time{text-align:left;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-edited,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-meta .chat-edited,.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta .chat-edited{position:static;inset:auto;width:auto;text-align:inherit;margin:0;padding:0;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble{margin-bottom:18px;}' +
@@ -4360,14 +4395,16 @@ var TMTicketModal = (function () {
       alignmentStyle.textContent =
         '.tm-messenger-overlay.employee-style .chat-bubble.me{padding-bottom:14px!important;margin-bottom:18px!important;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .chat-message-text{display:block!important;min-height:18px!important;line-height:1.45!important;word-break:break-word!important;padding:0 0 6px!important;margin:0!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta{display:flex!important;height:auto!important;margin:6px 0 0!important;padding:0!important;gap:8px!important;position:static!important;align-items:center!important;justify-content:flex-start!important;align-self:stretch!important;min-width:max-content!important;max-width:100%!important;white-space:nowrap!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time{position:static!important;display:flex!important;flex-wrap:nowrap!important;align-items:center!important;justify-content:flex-start!important;gap:8px!important;line-height:1!important;white-space:nowrap!important;text-align:left!important;min-width:max-content!important;max-width:100%!important;overflow:visible!important;text-overflow:clip!important;align-self:stretch!important;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta{display:flex!important;height:auto!important;margin:6px 0 0!important;padding:0!important;gap:2px!important;position:static!important;align-items:flex-start!important;justify-content:flex-start!important;align-self:stretch!important;min-width:0!important;max-width:100%!important;white-space:normal!important;flex-direction:column!important;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-meta{align-items:flex-end!important;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time{position:static!important;display:inline-flex!important;flex-wrap:nowrap!important;align-items:center!important;justify-content:flex-start!important;gap:6px!important;line-height:1!important;white-space:nowrap!important;text-align:left!important;min-width:max-content!important;max-width:100%!important;overflow:visible!important;text-overflow:clip!important;align-self:flex-start!important;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-meta .chat-time{text-align:right!important;align-self:flex-end!important;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time .chat-edited{position:static!important;inset:auto!important;width:auto!important;min-width:max-content!important;margin:0!important;padding:0!important;line-height:1!important;text-align:inherit!important;white-space:nowrap!important;}' +
         '.tm-messenger-overlay.employee-style .chat-time-text{display:inline-block!important;max-width:none!important;overflow:visible!important;text-overflow:clip!important;white-space:nowrap!important;flex:0 0 auto!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-delivery-status{display:inline-flex!important;align-items:center!important;gap:8px!important;margin-left:auto!important;white-space:nowrap!important;flex:0 0 auto!important;}' +
+        '.tm-messenger-overlay.employee-style .chat-delivery-status{display:inline-flex!important;align-items:center!important;gap:6px!important;margin-left:0!important;white-space:nowrap!important;flex:0 0 auto!important;}' +
         '.tm-messenger-overlay.employee-style .chat-read-status{display:inline-flex!important;align-items:center!important;margin-left:0!important;white-space:nowrap!important;flex-shrink:0!important;}' +
         '.tm-messenger-overlay.employee-style .chat-edited-separator{color:#94a3b8!important;font-weight:600!important;line-height:1!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-delivery-label{position:static!important;margin:0!important;display:inline-flex!important;align-items:center!important;gap:8px!important;line-height:1!important;text-align:right!important;white-space:nowrap!important;flex-shrink:0!important;}';
+        '.tm-messenger-overlay.employee-style .chat-delivery-label{position:static!important;margin:0!important;display:block!important;line-height:1!important;text-align:right!important;white-space:nowrap!important;align-self:flex-end!important;}';
       document.head.appendChild(alignmentStyle);
     }
 
