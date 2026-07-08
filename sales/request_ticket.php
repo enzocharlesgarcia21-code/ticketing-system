@@ -776,7 +776,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             foreach ($email_creations as $email_creation) {
                 if (
                     $email_creation['subsidiary'] === ''
-                    || $email_creation['target_department'] === ''
                     || $email_creation['name'] === ''
                     || $email_creation['department'] === ''
                     || $email_creation['designation'] === ''
@@ -1055,14 +1054,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $description = "Email Request\n"
             . "Email Request Type: Creation of email";
         foreach ($email_creations as $index => $email_creation) {
-            $emailCreationSubsidiaryLabel = $requestTicketCompanyOptions[$email_creation['subsidiary']]
-                ?? (ticket_company_display_name((string) $email_creation['subsidiary']) ?: $email_creation['subsidiary']);
             $description .= "\n\nEmail Details " . ($index + 1) . "\n"
-                . "Subsidiaries: " . $emailCreationSubsidiaryLabel . "\n"
-                . "Selected Department: " . $email_creation['target_department'] . "\n"
                 . "Name: " . $email_creation['name'] . "\n"
-                . "Department: " . $email_creation['department'] . "\n"
-                . "Designation: " . $email_creation['designation'];
+                . "Designation: " . $email_creation['designation'] . "\n"
+                . "Company: " . $email_creation['subsidiary'] . "\n"
+                . "Department: " . $email_creation['department'];
         }
     }
     if ($error_msg === '' && ($requiresKamiAttachment || $isHrMedicalCashAdvance)) {
@@ -2116,6 +2112,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         body.sales-request-ticket-page .select-wrapper.department-dropdown,
         body.sales-request-ticket-page .select-wrapper.admin-legal-request-for-dropdown,
         body.sales-request-ticket-page .select-wrapper.category-dropdown,
+        body.sales-request-ticket-page .select-wrapper.email-request-type-dropdown,
         body.sales-request-ticket-page .select-wrapper.marketing-subcategory-dropdown,
         body.sales-request-ticket-page .select-wrapper.priority-dropdown {
             overflow: visible;
@@ -2158,6 +2155,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         body.sales-request-ticket-page .department-native-select,
         body.sales-request-ticket-page .admin-legal-request-for-native-select,
         body.sales-request-ticket-page .category-native-select,
+        body.sales-request-ticket-page .email-request-type-native-select,
         body.sales-request-ticket-page .marketing-subcategory-native-select,
         body.sales-request-ticket-page .priority-native-select {
             position: absolute;
@@ -2169,6 +2167,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         }
         body.sales-request-ticket-page .recipient-dropdown-trigger,
         body.sales-request-ticket-page .department-dropdown-trigger,
+        body.sales-request-ticket-page .email-request-type-dropdown-trigger,
         body.sales-request-ticket-page .priority-dropdown-trigger {
             width: 100%;
             min-height: 50px;
@@ -2186,11 +2185,13 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         }
         body.sales-request-ticket-page .recipient-dropdown-trigger:not(.is-placeholder),
         body.sales-request-ticket-page .department-dropdown-trigger:not(.is-placeholder),
+        body.sales-request-ticket-page .email-request-type-dropdown-trigger:not(.is-placeholder),
         body.sales-request-ticket-page .priority-dropdown-trigger:not(.is-placeholder) {
             font-weight: 400;
         }
         body.sales-request-ticket-page .recipient-dropdown-trigger:focus,
         body.sales-request-ticket-page .department-dropdown-trigger:focus,
+        body.sales-request-ticket-page .email-request-type-dropdown-trigger:focus,
         body.sales-request-ticket-page .priority-dropdown-trigger:focus {
             outline: none;
             border-color: #1B5E20;
@@ -2198,11 +2199,13 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         }
         body.sales-request-ticket-page .recipient-dropdown-trigger.is-placeholder,
         body.sales-request-ticket-page .department-dropdown-trigger.is-placeholder,
+        body.sales-request-ticket-page .email-request-type-dropdown-trigger.is-placeholder,
         body.sales-request-ticket-page .priority-dropdown-trigger.is-placeholder {
             color: #334155;
         }
         body.sales-request-ticket-page .recipient-dropdown-trigger:disabled,
         body.sales-request-ticket-page .department-dropdown-trigger:disabled,
+        body.sales-request-ticket-page .email-request-type-dropdown-trigger:disabled,
         body.sales-request-ticket-page .priority-dropdown-trigger:disabled {
             background: #f8fafc;
             color: #94a3b8;
@@ -2261,6 +2264,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         }
         body.sales-request-ticket-page .recipient-dropdown-menu,
         body.sales-request-ticket-page .department-dropdown-menu,
+        body.sales-request-ticket-page .email-request-type-dropdown-menu,
         body.sales-request-ticket-page .priority-dropdown-menu {
             position: absolute;
             top: calc(100% + 8px);
@@ -2278,6 +2282,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         }
         body.sales-request-ticket-page .recipient-dropdown-menu.is-open,
         body.sales-request-ticket-page .department-dropdown-menu.is-open,
+        body.sales-request-ticket-page .email-request-type-dropdown-menu.is-open,
         body.sales-request-ticket-page .priority-dropdown-menu.is-open {
             display: block;
         }
@@ -2305,6 +2310,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         }
         body.sales-request-ticket-page .recipient-dropdown-option,
         body.sales-request-ticket-page .department-dropdown-option,
+        body.sales-request-ticket-page .email-request-type-dropdown-option,
         body.sales-request-ticket-page .admin-legal-request-for-dropdown-option,
         body.sales-request-ticket-page .category-dropdown-option,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-option,
@@ -2324,6 +2330,8 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         body.sales-request-ticket-page .recipient-dropdown-option:focus,
         body.sales-request-ticket-page .department-dropdown-option:hover,
         body.sales-request-ticket-page .department-dropdown-option:focus,
+        body.sales-request-ticket-page .email-request-type-dropdown-option:hover,
+        body.sales-request-ticket-page .email-request-type-dropdown-option:focus,
         body.sales-request-ticket-page .admin-legal-request-for-dropdown-option:hover,
         body.sales-request-ticket-page .admin-legal-request-for-dropdown-option:focus,
         body.sales-request-ticket-page .category-dropdown-option:hover,
@@ -2338,6 +2346,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
 
         body.sales-request-ticket-page .recipient-dropdown-option.is-selected,
         body.sales-request-ticket-page .department-dropdown-option.is-selected,
+        body.sales-request-ticket-page .email-request-type-dropdown-option.is-selected,
         body.sales-request-ticket-page .admin-legal-request-for-dropdown-option.is-selected,
         body.sales-request-ticket-page .category-dropdown-option.is-selected,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-option.is-selected,
@@ -3162,6 +3171,13 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             font-weight: 700;
             line-height: 1.3;
         }
+        body.sales-request-ticket-page .email-request-copy {
+            margin: 0;
+            padding: 0;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.6;
+        }
         body.sales-request-ticket-page .email-request-counter {
             margin: 0;
             color: #64748b;
@@ -3242,7 +3258,10 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         body.sales-request-ticket-page .email-creation-inline-row {
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            gap: 14px;
+            gap: 26px 14px;
+        }
+        body.sales-request-ticket-page .email-creation-inline-row + .email-creation-inline-row {
+            margin-top: 24px;
         }
         body.sales-request-ticket-page .email-creation-card .form-control {
             border: 2px solid #73a66f;
@@ -5436,22 +5455,24 @@ document.addEventListener('DOMContentLoaded', function () {
                     <section class="email-request-card">
                         <div class="form-group">
                             <label for="email_request_type">Email Request Type <span class="required-asterisk">*</span></label>
-                            <div class="select-wrapper">
-                                <select name="email_request_type" id="email_request_type" class="form-control" data-selected="<?= htmlspecialchars((string) ($_POST['email_request_type'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                            <div class="select-wrapper email-request-type-dropdown" id="emailRequestTypeDropdown">
+                                <select name="email_request_type" id="email_request_type" class="form-control email-request-type-native-select" data-selected="<?= htmlspecialchars((string) ($_POST['email_request_type'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                     <option value="" disabled selected hidden>Choose email request type</option>
                                     <option value="creation of email" <?= (($_POST['email_request_type'] ?? '') === 'creation of email') ? 'selected' : ''; ?>>Creation of email</option>
                                     <option value="forgot password" <?= (($_POST['email_request_type'] ?? '') === 'forgot password') ? 'selected' : ''; ?>>Forgot password</option>
                                     <option value="backup of email" <?= (($_POST['email_request_type'] ?? '') === 'backup of email') ? 'selected' : ''; ?>>Backup of email</option>
                                 </select>
+                                <button type="button" class="email-request-type-dropdown-trigger is-placeholder" id="emailRequestTypeDropdownTrigger" aria-haspopup="listbox" aria-expanded="false">Choose email request type</button>
                                 <i class="fas fa-chevron-down select-icon"></i>
+                                <div class="email-request-type-dropdown-menu" id="emailRequestTypeDropdownMenu" role="listbox"></div>
                             </div>
                         </div>
                         <div class="email-description-host" id="emailDescriptionHost"></div>
                         <div class="email-creation-fields" id="emailCreationFields">
                             <div class="email-request-panel-head">
                                 <div class="email-request-panel-copy">
-                                    <h4 class="email-request-panel-title">Creation of Email</h4>
                                     <p class="email-request-counter" id="emailRequestCounter">Email 1 of <?= count($emailCreationEntries); ?></p>
+                                    <p class="email-request-copy">Request one or more company email accounts under a single ticket.</p>
                                 </div>
                                 <div class="email-request-panel-tools">
                                     <div class="select-wrapper email-request-switcher">
@@ -5470,17 +5491,6 @@ document.addEventListener('DOMContentLoaded', function () {
                             </div>
                             <div id="emailRequestList">
                                 <?php foreach ($emailCreationEntries as $emailIndex => $emailEntry): ?>
-                                    <?php
-                                        $emailEntrySubsidiary = (string) ($emailEntry['subsidiary'] ?? '');
-                                        $emailEntryTargetDepartments = [];
-                                        if ($emailEntrySubsidiary === '@leadsagri.com') {
-                                            $emailEntryTargetDepartments = $lapcDepartments;
-                                        } elseif ($emailEntrySubsidiary === '@malvedaholdings.com') {
-                                            $emailEntryTargetDepartments = $mhcDepartments;
-                                        } elseif ($emailEntrySubsidiary !== '') {
-                                            $emailEntryTargetDepartments = ['IT'];
-                                        }
-                                    ?>
                                     <section class="email-creation-card <?= $emailIndex === 0 ? 'is-active' : ''; ?>" data-email-card>
                                         <div class="email-creation-card-top">
                                             <h4 class="email-creation-card-title" data-email-card-title>Email Details</h4>
@@ -5491,37 +5501,23 @@ document.addEventListener('DOMContentLoaded', function () {
                                         </div>
                                         <div class="email-creation-inline-row">
                                             <div class="form-group">
-                                                <label for="email_creation_subsidiary_<?= $emailIndex; ?>">Subsidiaries <span class="required-asterisk">*</span></label>
-                                                <select name="email_creations[<?= $emailIndex; ?>][subsidiary]" id="email_creation_subsidiary_<?= $emailIndex; ?>" class="form-control" data-email-field="subsidiary" data-email-subsidiary-select>
-                                                    <option value="" disabled <?= $emailEntrySubsidiary === '' ? 'selected' : ''; ?> hidden>Select a company</option>
-                                                    <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
-                                                        <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $emailEntrySubsidiary === $companyValue ? 'selected' : ''; ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
+                                                <label for="email_creation_name_<?= $emailIndex; ?>">Name <span class="required-asterisk">*</span></label>
+                                                <input type="text" name="email_creations[<?= $emailIndex; ?>][name]" id="email_creation_name_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="name">
                                             </div>
                                             <div class="form-group">
-                                                <label for="email_creation_target_department_<?= $emailIndex; ?>">Department <span class="required-asterisk">*</span></label>
-                                                <select name="email_creations[<?= $emailIndex; ?>][target_department]" id="email_creation_target_department_<?= $emailIndex; ?>" class="form-control" data-email-field="target_department" data-email-target-department-select>
-                                                    <option value="" disabled <?= (($emailEntry['target_department'] ?? '') === '') ? 'selected' : ''; ?> hidden>Choose department</option>
-                                                    <?php foreach ($emailEntryTargetDepartments as $departmentOption): ?>
-                                                        <option value="<?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($emailEntry['target_department'] ?? '') === $departmentOption) ? 'selected' : ''; ?>><?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8'); ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
+                                                <label for="email_creation_designation_<?= $emailIndex; ?>">Designation <span class="required-asterisk">*</span></label>
+                                                <input type="text" name="email_creations[<?= $emailIndex; ?>][designation]" id="email_creation_designation_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['designation'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="designation">
                                             </div>
                                         </div>
                                         <div class="email-creation-inline-row">
                                             <div class="form-group">
-                                                <label for="email_creation_name_<?= $emailIndex; ?>">Name <span class="required-asterisk">*</span></label>
-                                                <input type="text" name="email_creations[<?= $emailIndex; ?>][name]" id="email_creation_name_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="name">
+                                                <label for="email_creation_subsidiary_<?= $emailIndex; ?>">Company <span class="required-asterisk">*</span></label>
+                                                <input type="text" name="email_creations[<?= $emailIndex; ?>][subsidiary]" id="email_creation_subsidiary_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['subsidiary'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="subsidiary">
                                             </div>
                                             <div class="form-group">
                                                 <label for="email_creation_department_<?= $emailIndex; ?>">Department <span class="required-asterisk">*</span></label>
                                                 <input type="text" name="email_creations[<?= $emailIndex; ?>][department]" id="email_creation_department_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="department">
                                             </div>
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="email_creation_designation_<?= $emailIndex; ?>">Designation <span class="required-asterisk">*</span></label>
-                                            <input type="text" name="email_creations[<?= $emailIndex; ?>][designation]" id="email_creation_designation_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['designation'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="designation">
                                         </div>
                                         <div class="email-request-actions">
                                             <button type="button" class="email-request-add-btn" data-add-email-card>
@@ -5547,34 +5543,23 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                     <div class="email-creation-inline-row">
                         <div class="form-group">
-                            <label for="email_creation_subsidiary___INDEX__">Subsidiaries <span class="required-asterisk">*</span></label>
-                            <select name="email_creations[__INDEX__][subsidiary]" id="email_creation_subsidiary___INDEX__" class="form-control" data-email-field="subsidiary" data-email-subsidiary-select>
-                                <option value="" disabled selected hidden>Select a company</option>
-                                <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
-                                    <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <label for="email_creation_name___INDEX__">Name <span class="required-asterisk">*</span></label>
+                            <input type="text" name="email_creations[__INDEX__][name]" id="email_creation_name___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="name">
                         </div>
                         <div class="form-group">
-                            <label for="email_creation_target_department___INDEX__">Department <span class="required-asterisk">*</span></label>
-                            <select name="email_creations[__INDEX__][target_department]" id="email_creation_target_department___INDEX__" class="form-control" data-email-field="target_department" data-email-target-department-select>
-                                <option value="" disabled selected hidden>Choose department</option>
-                            </select>
+                            <label for="email_creation_designation___INDEX__">Designation <span class="required-asterisk">*</span></label>
+                            <input type="text" name="email_creations[__INDEX__][designation]" id="email_creation_designation___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="designation">
                         </div>
                     </div>
                     <div class="email-creation-inline-row">
                         <div class="form-group">
-                            <label for="email_creation_name___INDEX__">Name <span class="required-asterisk">*</span></label>
-                            <input type="text" name="email_creations[__INDEX__][name]" id="email_creation_name___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="name">
+                            <label for="email_creation_subsidiary___INDEX__">Company <span class="required-asterisk">*</span></label>
+                            <input type="text" name="email_creations[__INDEX__][subsidiary]" id="email_creation_subsidiary___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="subsidiary">
                         </div>
                         <div class="form-group">
                             <label for="email_creation_department___INDEX__">Department <span class="required-asterisk">*</span></label>
                             <input type="text" name="email_creations[__INDEX__][department]" id="email_creation_department___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="department">
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="email_creation_designation___INDEX__">Designation <span class="required-asterisk">*</span></label>
-                        <input type="text" name="email_creations[__INDEX__][designation]" id="email_creation_designation___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="designation">
                     </div>
                     <div class="email-request-actions">
                         <button type="button" class="email-request-add-btn" data-add-email-card>
@@ -5724,6 +5709,9 @@ var sapRequestCounter = document.getElementById('sapRequestCounter');
 var emailRequestSection = document.getElementById('emailRequestSection');
 var emailDescriptionHost = document.getElementById('emailDescriptionHost');
 var emailRequestTypeSelect = document.getElementById('email_request_type');
+var emailRequestTypeDropdown = document.getElementById('emailRequestTypeDropdown');
+var emailRequestTypeTrigger = document.getElementById('emailRequestTypeDropdownTrigger');
+var emailRequestTypeMenu = document.getElementById('emailRequestTypeDropdownMenu');
 var emailCreationFields = document.getElementById('emailCreationFields');
 var emailRequestList = document.getElementById('emailRequestList');
 var emailCreationTemplate = document.getElementById('emailCreationTemplate');
@@ -6132,6 +6120,12 @@ function closePriorityDropdown() {
     priorityTrigger.setAttribute('aria-expanded', 'false');
 }
 
+function closeEmailRequestTypeDropdown() {
+    if (!emailRequestTypeMenu || !emailRequestTypeTrigger) return;
+    emailRequestTypeMenu.classList.remove('is-open');
+    emailRequestTypeTrigger.setAttribute('aria-expanded', 'false');
+}
+
 function closeRecipientDropdown() {
     if (!recipientMenu || !recipientTrigger) return;
     recipientMenu.classList.remove('is-open');
@@ -6332,6 +6326,54 @@ function chooseMarketingSubcategory(optionValue, shouldDispatchChange) {
     if (shouldDispatchChange) {
         marketingSubcategorySelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
+}
+
+function syncEmailRequestTypeTriggerLabel() {
+    if (!emailRequestTypeTrigger || !emailRequestTypeSelect) return;
+    var selectedOption = emailRequestTypeSelect.options[emailRequestTypeSelect.selectedIndex];
+    var label = selectedOption && selectedOption.value ? selectedOption.textContent : 'Choose email request type';
+    emailRequestTypeTrigger.textContent = label;
+    emailRequestTypeTrigger.classList.toggle('is-placeholder', !(selectedOption && selectedOption.value));
+}
+
+function chooseEmailRequestType(optionValue, shouldDispatchChange) {
+    if (!emailRequestTypeSelect) return;
+    emailRequestTypeSelect.value = optionValue;
+    emailRequestTypeSelect.setAttribute('data-selected', optionValue);
+    syncEmailRequestTypeTriggerLabel();
+    if (emailRequestTypeMenu) {
+        Array.from(emailRequestTypeMenu.querySelectorAll('.email-request-type-dropdown-option')).forEach(function(button) {
+            var isSelected = String(button.getAttribute('data-value') || '') === optionValue;
+            button.classList.toggle('is-selected', isSelected);
+            button.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        });
+    }
+    closeEmailRequestTypeDropdown();
+    if (shouldDispatchChange) {
+        emailRequestTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
+function renderEmailRequestTypeDropdownOptions() {
+    if (!emailRequestTypeSelect || !emailRequestTypeMenu) return;
+    var selectedValue = String(emailRequestTypeSelect.getAttribute('data-selected') || emailRequestTypeSelect.value || '');
+    emailRequestTypeMenu.innerHTML = '';
+    Array.from(emailRequestTypeSelect.options).forEach(function(option) {
+        var optionValue = String(option.value || '');
+        if (optionValue === '') return;
+        var optionButton = document.createElement('button');
+        optionButton.type = 'button';
+        optionButton.className = 'email-request-type-dropdown-option' + (selectedValue === optionValue ? ' is-selected' : '');
+        optionButton.setAttribute('data-value', optionValue);
+        optionButton.setAttribute('role', 'option');
+        optionButton.setAttribute('aria-selected', selectedValue === optionValue ? 'true' : 'false');
+        optionButton.textContent = option.textContent || optionValue;
+        optionButton.addEventListener('click', function() {
+            chooseEmailRequestType(optionValue, true);
+        });
+        emailRequestTypeMenu.appendChild(optionButton);
+    });
+    syncEmailRequestTypeTriggerLabel();
 }
 
 function syncPriorityTriggerLabel() {
@@ -7110,7 +7152,7 @@ function addEmailCreationCard() {
 }
 
 function findFirstIncompleteEmailCreationInput(card) {
-    var orderedFields = ['subsidiary', 'target_department', 'name', 'department', 'designation'];
+    var orderedFields = ['name', 'designation', 'subsidiary', 'department'];
     for (var i = 0; i < orderedFields.length; i += 1) {
         var input = card ? card.querySelector('[data-email-field="' + orderedFields[i] + '"]') : null;
         if (input && !input.disabled && !String(input.value || '').trim()) {
@@ -7499,6 +7541,7 @@ if (recipientTrigger) {
         closeCategoryDropdown();
         closeMarketingSubcategoryDropdown();
         closePriorityDropdown();
+        closeEmailRequestTypeDropdown();
         recipientMenu.classList.add('is-open');
         recipientTrigger.setAttribute('aria-expanded', 'true');
     });
@@ -7516,6 +7559,7 @@ if (departmentTrigger) {
         closeAdminLegalRequestForDropdown();
         closeMarketingSubcategoryDropdown();
         closePriorityDropdown();
+        closeEmailRequestTypeDropdown();
         departmentMenu.classList.add('is-open');
         departmentTrigger.setAttribute('aria-expanded', 'true');
     });
@@ -7534,6 +7578,7 @@ if (adminLegalRequestForTrigger) {
         closeCategoryDropdown();
         closeMarketingSubcategoryDropdown();
         closePriorityDropdown();
+        closeEmailRequestTypeDropdown();
         adminLegalRequestForMenu.classList.add('is-open');
         adminLegalRequestForTrigger.setAttribute('aria-expanded', 'true');
     });
@@ -7552,6 +7597,7 @@ if (categoryTrigger) {
         closeAdminLegalRequestForDropdown();
         closeMarketingSubcategoryDropdown();
         closePriorityDropdown();
+        closeEmailRequestTypeDropdown();
         categoryMenu.classList.add('is-open');
         categoryTrigger.setAttribute('aria-expanded', 'true');
     });
@@ -7569,6 +7615,7 @@ if (marketingSubcategoryTrigger) {
         closeCategoryDropdown();
         closeAdminLegalRequestForDropdown();
         closePriorityDropdown();
+        closeEmailRequestTypeDropdown();
         marketingSubcategoryMenu.classList.add('is-open');
         marketingSubcategoryTrigger.setAttribute('aria-expanded', 'true');
     });
@@ -7587,9 +7634,37 @@ if (priorityTrigger) {
         closeCategoryDropdown();
         closeAdminLegalRequestForDropdown();
         closeMarketingSubcategoryDropdown();
+        closeEmailRequestTypeDropdown();
         priorityMenu.classList.add('is-open');
         priorityTrigger.setAttribute('aria-expanded', 'true');
     });
+}
+if (emailRequestTypeTrigger) {
+    emailRequestTypeTrigger.addEventListener('click', function() {
+        if (emailRequestTypeTrigger.disabled || !emailRequestTypeMenu) return;
+        renderEmailRequestTypeDropdownOptions();
+        var nextState = !emailRequestTypeMenu.classList.contains('is-open');
+        if (!nextState) {
+            closeEmailRequestTypeDropdown();
+            return;
+        }
+        closeRecipientDropdown();
+        closeDepartmentDropdown();
+        closeCategoryDropdown();
+        closeAdminLegalRequestForDropdown();
+        closeMarketingSubcategoryDropdown();
+        closePriorityDropdown();
+        emailRequestTypeMenu.classList.add('is-open');
+        emailRequestTypeTrigger.setAttribute('aria-expanded', 'true');
+    });
+}
+if (emailRequestTypeSelect) {
+    emailRequestTypeSelect.addEventListener('change', function() {
+        emailRequestTypeSelect.setAttribute('data-selected', String(emailRequestTypeSelect.value || ''));
+        syncEmailRequestTypeTriggerLabel();
+        renderEmailRequestTypeDropdownOptions();
+    });
+    renderEmailRequestTypeDropdownOptions();
 }
 if (priorityMenu) {
     priorityMenu.addEventListener('click', function(event) {
@@ -7599,7 +7674,7 @@ if (priorityMenu) {
     });
 }
 document.addEventListener('click', function(event) {
-    if (!recipientDropdown && !departmentDropdown && !adminLegalRequestForDropdown && !categoryDropdown && !marketingSubcategoryDropdown && !priorityDropdown) return;
+    if (!recipientDropdown && !departmentDropdown && !adminLegalRequestForDropdown && !categoryDropdown && !marketingSubcategoryDropdown && !priorityDropdown && !emailRequestTypeDropdown) return;
     if (
         (recipientDropdown && recipientDropdown.contains(event.target))
         || (departmentDropdown && departmentDropdown.contains(event.target))
@@ -7607,6 +7682,7 @@ document.addEventListener('click', function(event) {
         || (categoryDropdown && categoryDropdown.contains(event.target))
         || (marketingSubcategoryDropdown && marketingSubcategoryDropdown.contains(event.target))
         || (priorityDropdown && priorityDropdown.contains(event.target))
+        || (emailRequestTypeDropdown && emailRequestTypeDropdown.contains(event.target))
     ) return;
     closeRecipientDropdown();
     closeDepartmentDropdown();
@@ -7614,6 +7690,7 @@ document.addEventListener('click', function(event) {
     closeCategoryDropdown();
     closeMarketingSubcategoryDropdown();
     closePriorityDropdown();
+    closeEmailRequestTypeDropdown();
 });
 if (departmentSelect) departmentSelect.addEventListener('change', function() {
     syncDepartmentTriggerLabel();

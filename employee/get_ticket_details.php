@@ -783,6 +783,21 @@ if ($row = $result->fetch_assoc()) {
         }
         $activityStmt->close();
     }
+    $row['action_history'] = [];
+    foreach ($row['ticket_activity'] as $activityItem) {
+        $activityType = strtolower(trim((string) ($activityItem['activity_type'] ?? '')));
+        if (!in_array($activityType, ['action_history', 'note_added'], true)) {
+            continue;
+        }
+        $noteText = trim((string) ($activityItem['description'] ?? ''));
+        if ($noteText === '') {
+            continue;
+        }
+        $row['action_history'][] = [
+            'note' => $noteText,
+            'created_at' => (string) ($activityItem['created_at'] ?? ''),
+        ];
+    }
     $existingActivityTypes = [];
     foreach ($row['ticket_activity'] as $activityItem) {
         $existingActivityTypes[strtolower((string) ($activityItem['activity_type'] ?? ''))] = true;

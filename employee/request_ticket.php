@@ -751,7 +751,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             foreach ($email_creations as $email_creation) {
                 if (
                     $email_creation['subsidiary'] === ''
-                    || $email_creation['target_department'] === ''
                     || $email_creation['name'] === ''
                     || $email_creation['department'] === ''
                     || $email_creation['designation'] === ''
@@ -865,14 +864,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $description = "Email Request\n"
             . "Email Request Type: Creation of email";
         foreach ($email_creations as $index => $email_creation) {
-            $emailCreationSubsidiaryLabel = $requestTicketCompanyOptions[$email_creation['subsidiary']]
-                ?? (ticket_company_display_name((string) $email_creation['subsidiary']) ?: $email_creation['subsidiary']);
             $description .= "\n\nEmail " . ($index + 1) . "\n"
-                . "Subsidiaries: " . $emailCreationSubsidiaryLabel . "\n"
-                . "Selected Department: " . $email_creation['target_department'] . "\n"
                 . "Name: " . $email_creation['name'] . "\n"
-                . "Department: " . $email_creation['department'] . "\n"
-                . "Designation: " . $email_creation['designation'];
+                . "Designation: " . $email_creation['designation'] . "\n"
+                . "Company: " . $email_creation['subsidiary'] . "\n"
+                . "Department: " . $email_creation['department'];
         }
     }
 
@@ -1839,6 +1835,7 @@ if (count($emailCreationEntries) === 0) {
             margin-top: 0;
             z-index: 90;
         }
+        body.employee-request-ticket-page #emailRequestTypeWrapper .custom-select-menu,
         body.employee-request-ticket-page #areaCodeWrapper .custom-select-menu,
         body.employee-request-ticket-page #marketingDepartmentWrapper .custom-select-menu,
         body.employee-request-ticket-page #requestedMaterialsGroup .custom-select-menu,
@@ -2524,6 +2521,13 @@ if (count($emailCreationEntries) === 0) {
             font-weight: 700;
             line-height: 1.3;
         }
+        body.employee-request-ticket-page .email-request-copy {
+            margin: 0;
+            padding: 0;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.6;
+        }
         body.employee-request-ticket-page .sap-request-counter,
         body.employee-request-ticket-page .email-request-counter {
             margin: 0;
@@ -2658,7 +2662,10 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page .email-creation-inline-row {
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            gap: 14px;
+            gap: 26px 14px;
+        }
+        body.employee-request-ticket-page .email-creation-inline-row + .email-creation-inline-row {
+            margin-top: 24px;
         }
         body.employee-request-ticket-page .email-creation-card {
             border: 1px solid #dbe4ef;
@@ -4637,22 +4644,26 @@ if (count($emailCreationEntries) === 0) {
                             <section class="email-request-card">
                                 <div class="form-group">
                                     <label for="email_request_type">Email Request Type <span class="required-asterisk">*</span></label>
-                                    <div class="select-wrapper">
-                                        <select name="email_request_type" id="email_request_type" class="form-control" data-selected="<?= htmlspecialchars((string) ($_POST['email_request_type'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                    <div class="select-wrapper" id="emailRequestTypeWrapper">
+                                        <select name="email_request_type" id="email_request_type" class="form-control custom-select-native" data-selected="<?= htmlspecialchars((string) ($_POST['email_request_type'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                             <option value="" disabled selected hidden>Choose email request type</option>
                                             <option value="creation of email" <?= (($_POST['email_request_type'] ?? '') === 'creation of email') ? 'selected' : ''; ?>>Creation of email</option>
                                             <option value="forgot password" <?= (($_POST['email_request_type'] ?? '') === 'forgot password') ? 'selected' : ''; ?>>Forgot password</option>
                                             <option value="backup of email" <?= (($_POST['email_request_type'] ?? '') === 'backup of email') ? 'selected' : ''; ?>>Backup of email</option>
                                         </select>
+                                        <button type="button" class="form-control custom-select-trigger" id="emailRequestTypeTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                            <span class="custom-select-value" id="emailRequestTypeTriggerValue">Choose email request type</span>
+                                        </button>
                                         <i class="fas fa-chevron-down select-icon"></i>
+                                        <div class="custom-select-menu" id="emailRequestTypeMenu" role="listbox" hidden></div>
                                     </div>
                                 </div>
                                 <div class="email-description-host" id="emailDescriptionHost"></div>
                                 <div class="email-creation-fields" id="emailCreationFields">
                                     <div class="email-request-panel-head">
                                         <div class="email-request-panel-copy">
-                                            <h4 class="email-request-panel-title">Creation of Email</h4>
                                             <p class="email-request-counter" id="emailRequestCounter">Email 1 of <?= count($emailCreationEntries); ?></p>
+                                            <p class="email-request-copy">Request one or more company email accounts under a single ticket.</p>
                                         </div>
                                         <div class="email-request-panel-tools">
                                             <div class="select-wrapper email-request-switcher">
@@ -4671,17 +4682,6 @@ if (count($emailCreationEntries) === 0) {
                                     </div>
                                     <div id="emailRequestList">
                                         <?php foreach ($emailCreationEntries as $emailIndex => $emailEntry): ?>
-                                            <?php
-                                                $emailEntrySubsidiary = (string) ($emailEntry['subsidiary'] ?? '');
-                                                $emailEntryTargetDepartments = [];
-                                                if ($emailEntrySubsidiary === '@leadsagri.com') {
-                                                    $emailEntryTargetDepartments = $lapcDepartments;
-                                                } elseif ($emailEntrySubsidiary === '@malvedaholdings.com') {
-                                                    $emailEntryTargetDepartments = $mhcDepartments;
-                                                } elseif ($emailEntrySubsidiary !== '') {
-                                                    $emailEntryTargetDepartments = ['IT'];
-                                                }
-                                            ?>
                                             <section class="email-creation-card <?= $emailIndex === 0 ? 'is-active' : ''; ?>" data-email-card>
                                                 <div class="email-creation-card-top">
                                                     <h4 class="email-creation-card-title" data-email-card-title>Email Details</h4>
@@ -4692,37 +4692,23 @@ if (count($emailCreationEntries) === 0) {
                                                 </div>
                                                 <div class="email-creation-inline-row">
                                                     <div class="form-group">
-                                                        <label for="email_creation_subsidiary_<?= $emailIndex; ?>">Subsidiaries <span class="required-asterisk">*</span></label>
-                                                        <select name="email_creations[<?= $emailIndex; ?>][subsidiary]" id="email_creation_subsidiary_<?= $emailIndex; ?>" class="form-control" data-email-field="subsidiary" data-email-subsidiary-select>
-                                                            <option value="" disabled <?= $emailEntrySubsidiary === '' ? 'selected' : ''; ?> hidden>Select a company</option>
-                                                            <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
-                                                                <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>" <?= $emailEntrySubsidiary === $companyValue ? 'selected' : ''; ?>><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
-                                                            <?php endforeach; ?>
-                                                        </select>
+                                                        <label for="email_creation_name_<?= $emailIndex; ?>">Name <span class="required-asterisk">*</span></label>
+                                                        <input type="text" name="email_creations[<?= $emailIndex; ?>][name]" id="email_creation_name_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="name">
                                                     </div>
                                                     <div class="form-group">
-                                                        <label for="email_creation_target_department_<?= $emailIndex; ?>">Department <span class="required-asterisk">*</span></label>
-                                                        <select name="email_creations[<?= $emailIndex; ?>][target_department]" id="email_creation_target_department_<?= $emailIndex; ?>" class="form-control" data-email-field="target_department" data-email-target-department-select>
-                                                            <option value="" disabled <?= (($emailEntry['target_department'] ?? '') === '') ? 'selected' : ''; ?> hidden>Choose department</option>
-                                                            <?php foreach ($emailEntryTargetDepartments as $departmentOption): ?>
-                                                                <option value="<?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($emailEntry['target_department'] ?? '') === $departmentOption) ? 'selected' : ''; ?>><?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8'); ?></option>
-                                                            <?php endforeach; ?>
-                                                        </select>
+                                                        <label for="email_creation_designation_<?= $emailIndex; ?>">Designation <span class="required-asterisk">*</span></label>
+                                                        <input type="text" name="email_creations[<?= $emailIndex; ?>][designation]" id="email_creation_designation_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['designation'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="designation">
                                                     </div>
                                                 </div>
                                                 <div class="email-creation-inline-row">
                                                     <div class="form-group">
-                                                        <label for="email_creation_name_<?= $emailIndex; ?>">Name <span class="required-asterisk">*</span></label>
-                                                        <input type="text" name="email_creations[<?= $emailIndex; ?>][name]" id="email_creation_name_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="name">
+                                                        <label for="email_creation_subsidiary_<?= $emailIndex; ?>">Company <span class="required-asterisk">*</span></label>
+                                                        <input type="text" name="email_creations[<?= $emailIndex; ?>][subsidiary]" id="email_creation_subsidiary_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['subsidiary'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="subsidiary">
                                                     </div>
                                                     <div class="form-group">
                                                         <label for="email_creation_department_<?= $emailIndex; ?>">Department <span class="required-asterisk">*</span></label>
                                                         <input type="text" name="email_creations[<?= $emailIndex; ?>][department]" id="email_creation_department_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="department">
                                                     </div>
-                                                </div>
-                                                <div class="form-group">
-                                                    <label for="email_creation_designation_<?= $emailIndex; ?>">Designation <span class="required-asterisk">*</span></label>
-                                                    <input type="text" name="email_creations[<?= $emailIndex; ?>][designation]" id="email_creation_designation_<?= $emailIndex; ?>" class="form-control" value="<?= htmlspecialchars((string) ($emailEntry['designation'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Your answer" data-email-field="designation">
                                                 </div>
                                                 <div class="email-request-actions">
                                                     <button type="button" class="email-request-add-btn" data-add-email-card>
@@ -4748,34 +4734,23 @@ if (count($emailCreationEntries) === 0) {
                             </div>
                             <div class="email-creation-inline-row">
                                 <div class="form-group">
-                                    <label for="email_creation_subsidiary___INDEX__">Subsidiaries <span class="required-asterisk">*</span></label>
-                                    <select name="email_creations[__INDEX__][subsidiary]" id="email_creation_subsidiary___INDEX__" class="form-control" data-email-field="subsidiary" data-email-subsidiary-select>
-                                        <option value="" disabled selected hidden>Select a company</option>
-                                        <?php foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel): ?>
-                                            <option value="<?= htmlspecialchars($companyValue, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($companyLabel, ENT_QUOTES, 'UTF-8'); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                    <label for="email_creation_name___INDEX__">Name <span class="required-asterisk">*</span></label>
+                                    <input type="text" name="email_creations[__INDEX__][name]" id="email_creation_name___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="name">
                                 </div>
                                 <div class="form-group">
-                                    <label for="email_creation_target_department___INDEX__">Department <span class="required-asterisk">*</span></label>
-                                    <select name="email_creations[__INDEX__][target_department]" id="email_creation_target_department___INDEX__" class="form-control" data-email-field="target_department" data-email-target-department-select>
-                                        <option value="" disabled selected hidden>Choose department</option>
-                                    </select>
+                                    <label for="email_creation_designation___INDEX__">Designation <span class="required-asterisk">*</span></label>
+                                    <input type="text" name="email_creations[__INDEX__][designation]" id="email_creation_designation___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="designation">
                                 </div>
                             </div>
                             <div class="email-creation-inline-row">
                                 <div class="form-group">
-                                    <label for="email_creation_name___INDEX__">Name <span class="required-asterisk">*</span></label>
-                                    <input type="text" name="email_creations[__INDEX__][name]" id="email_creation_name___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="name">
+                                    <label for="email_creation_subsidiary___INDEX__">Company <span class="required-asterisk">*</span></label>
+                                    <input type="text" name="email_creations[__INDEX__][subsidiary]" id="email_creation_subsidiary___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="subsidiary">
                                 </div>
                                 <div class="form-group">
                                     <label for="email_creation_department___INDEX__">Department <span class="required-asterisk">*</span></label>
                                     <input type="text" name="email_creations[__INDEX__][department]" id="email_creation_department___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="department">
                                 </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="email_creation_designation___INDEX__">Designation <span class="required-asterisk">*</span></label>
-                                <input type="text" name="email_creations[__INDEX__][designation]" id="email_creation_designation___INDEX__" class="form-control" value="" placeholder="Your answer" data-email-field="designation">
                             </div>
                             <div class="email-request-actions">
                                 <button type="button" class="email-request-add-btn" data-add-email-card>
@@ -5386,6 +5361,10 @@ if (count($emailCreationEntries) === 0) {
         const certificateLeavePurposeOtherInput = document.getElementById('certificate_leave_purpose_other');
         const emailRequestSection = document.getElementById('emailRequestSection');
         const emailRequestTypeSelect = document.getElementById('email_request_type');
+        const emailRequestTypeWrapper = document.getElementById('emailRequestTypeWrapper');
+        const emailRequestTypeTrigger = document.getElementById('emailRequestTypeTrigger');
+        const emailRequestTypeTriggerValue = document.getElementById('emailRequestTypeTriggerValue');
+        const emailRequestTypeMenu = document.getElementById('emailRequestTypeMenu');
         const emailCreationFields = document.getElementById('emailCreationFields');
         const emailRequestList = document.getElementById('emailRequestList');
         const emailCreationTemplate = document.getElementById('emailCreationTemplate');
@@ -5939,6 +5918,53 @@ if (count($emailCreationEntries) === 0) {
             marketingSubcategoryTrigger.setAttribute('aria-expanded', 'false');
             marketingSubcategoryMenu.hidden = true;
         }
+        function closeEmailRequestTypeDropdown() {
+            if (!emailRequestTypeWrapper || !emailRequestTypeTrigger || !emailRequestTypeMenu) return;
+            emailRequestTypeWrapper.classList.remove('is-open');
+            emailRequestTypeTrigger.setAttribute('aria-expanded', 'false');
+            emailRequestTypeMenu.hidden = true;
+        }
+        function syncEmailRequestTypeTriggerLabel() {
+            if (!emailRequestTypeSelect || !emailRequestTypeTriggerValue) return;
+            const selectedOption = emailRequestTypeSelect.options[emailRequestTypeSelect.selectedIndex];
+            const placeholderOption = emailRequestTypeSelect.querySelector('option[value=""]');
+            const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
+                ? String(selectedOption.textContent || '').trim()
+                : String((placeholderOption && placeholderOption.textContent) || 'Choose email request type').trim();
+            emailRequestTypeTriggerValue.textContent = nextLabel || 'Choose email request type';
+        }
+        function renderEmailRequestTypeDropdownOptions() {
+            if (!emailRequestTypeSelect || !emailRequestTypeMenu || !emailRequestTypeTrigger) return;
+            const currentValue = String(emailRequestTypeSelect.value || '');
+            const options = Array.from(emailRequestTypeSelect.options).filter(function(option) {
+                return String(option.value || '') !== '';
+            });
+            emailRequestTypeMenu.innerHTML = '';
+            options.forEach(function(option) {
+                const optionValue = String(option.value || '');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option' + (currentValue === optionValue ? ' is-selected' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', currentValue === optionValue ? 'true' : 'false');
+                item.textContent = String(option.textContent || optionValue);
+                item.addEventListener('click', function() {
+                    emailRequestTypeSelect.value = optionValue;
+                    emailRequestTypeSelect.setAttribute('data-selected', optionValue);
+                    syncEmailRequestTypeTriggerLabel();
+                    renderEmailRequestTypeDropdownOptions();
+                    closeEmailRequestTypeDropdown();
+                    emailRequestTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    emailRequestTypeTrigger.focus();
+                });
+                emailRequestTypeMenu.appendChild(item);
+            });
+            syncEmailRequestTypeTriggerLabel();
+            emailRequestTypeTrigger.disabled = !!emailRequestTypeSelect.disabled;
+            if (emailRequestTypeSelect.disabled) {
+                closeEmailRequestTypeDropdown();
+            }
+        }
         function syncMarketingSubcategoryTriggerLabel() {
             if (!marketingSubcategorySelect || !marketingSubcategoryTriggerValue) return;
             const selectedOption = marketingSubcategorySelect.options[marketingSubcategorySelect.selectedIndex];
@@ -6452,7 +6478,7 @@ if (count($emailCreationEntries) === 0) {
             return Array.from(emailRequestList.querySelectorAll('[data-add-email-card]'));
         }
         function getEmailCreationCardValues(card) {
-            const fieldNames = ['subsidiary', 'target_department', 'name', 'department', 'designation'];
+            const fieldNames = ['name', 'designation', 'subsidiary', 'department'];
             const values = {};
             fieldNames.forEach(function(fieldName) {
                 const input = card ? card.querySelector('[data-email-field="' + fieldName + '"]') : null;
@@ -6561,7 +6587,7 @@ if (count($emailCreationEntries) === 0) {
             if (firstInput) firstInput.focus();
         }
         function findFirstIncompleteEmailCreationInput(card) {
-            const orderedFields = ['subsidiary', 'target_department', 'name', 'department', 'designation'];
+            const orderedFields = ['name', 'designation', 'subsidiary', 'department'];
             for (let i = 0; i < orderedFields.length; i++) {
                 const input = card ? card.querySelector('[data-email-field="' + orderedFields[i] + '"]') : null;
                 if (input && !input.disabled && !String(input.value || '').trim()) {
@@ -7496,6 +7522,41 @@ if (count($emailCreationEntries) === 0) {
                 }
             });
             renderMarketingSubcategoryDropdownOptions();
+        }
+        if (emailRequestTypeSelect) {
+            emailRequestTypeSelect.addEventListener('change', function() {
+                emailRequestTypeSelect.setAttribute('data-selected', String(emailRequestTypeSelect.value || ''));
+                syncEmailRequestTypeTriggerLabel();
+                renderEmailRequestTypeDropdownOptions();
+            });
+        }
+        if (emailRequestTypeTrigger && emailRequestTypeMenu && emailRequestTypeWrapper) {
+            emailRequestTypeTrigger.addEventListener('click', function() {
+                if (emailRequestTypeTrigger.disabled) return;
+                const shouldOpen = emailRequestTypeMenu.hidden;
+                closeEmailRequestTypeDropdown();
+                if (!shouldOpen) return;
+                closeRecipientDropdown();
+                closeDepartmentDropdown();
+                closeCategoryDropdown();
+                closeAdminLegalRequestForDropdown();
+                closeMarketingSubcategoryDropdown();
+                closeUrgencyDropdown();
+                emailRequestTypeWrapper.classList.add('is-open');
+                emailRequestTypeTrigger.setAttribute('aria-expanded', 'true');
+                emailRequestTypeMenu.hidden = false;
+            });
+            document.addEventListener('click', function(event) {
+                if (!emailRequestTypeWrapper.contains(event.target)) {
+                    closeEmailRequestTypeDropdown();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeEmailRequestTypeDropdown();
+                }
+            });
+            renderEmailRequestTypeDropdownOptions();
         }
         if (urgencySelect) {
             urgencySelect.addEventListener('change', function() {
