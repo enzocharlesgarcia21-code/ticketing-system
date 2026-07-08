@@ -680,7 +680,7 @@ function openModal(id, mode = 'full') {
                     : String(data.description || '');
                 const emailCreationHtml = (!hr && descriptionText) ? renderEmailCreationDescriptionHtml(data, descriptionText) : '';
                 const sapDescriptionHtml = (!hr && descriptionText && !emailCreationHtml) ? renderSapDescriptionHtml(data, descriptionText) : '';
-                const descriptionTitle = emailCreationHtml ? 'Creation of Email' : (sapDescriptionHtml ? 'SAP Form' : (hr && hr.request_section_title ? hr.request_section_title : 'Description'));
+                const descriptionTitle = emailCreationHtml ? 'Email Request' : (sapDescriptionHtml ? 'SAP Form' : (hr && hr.request_section_title ? hr.request_section_title : 'Description'));
                 const hrAttachmentGroups = hr && Array.isArray(hr.attachment_groups) ? hr.attachment_groups : [];
                 const summaryFields = hr && Array.isArray(hr.summary_fields) ? hr.summary_fields : [];
                 html += `
@@ -874,8 +874,9 @@ function parseEmailCreationsFromMeta(data) {
         if (!entry || typeof entry !== 'object') return null;
         const fields = {
             name: String(entry.name || '').trim(),
-            department: String(entry.department || '').trim(),
-            designation: String(entry.designation || '').trim()
+            designation: String(entry.designation || '').trim(),
+            company: String(entry.company || entry.subsidiary || '').trim(),
+            department: String(entry.department || entry.target_department || '').trim()
         };
         const hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
         return hasValue ? { index: String(index + 1), fields: fields } : null;
@@ -883,8 +884,9 @@ function parseEmailCreationsFromMeta(data) {
     if (!entries.length && data && data.request_meta) {
         const legacyFields = {
             name: String(data.request_meta.email_creation_name || '').trim(),
-            department: String(data.request_meta.email_creation_department || '').trim(),
-            designation: String(data.request_meta.email_creation_designation || '').trim()
+            designation: String(data.request_meta.email_creation_designation || '').trim(),
+            company: String(data.request_meta.email_creation_company || data.request_meta.email_creation_subsidiary || '').trim(),
+            department: String(data.request_meta.email_creation_department || data.request_meta.email_creation_target_department || '').trim()
         };
         const hasLegacyValue = Object.keys(legacyFields).some(function (key) { return legacyFields[key] !== ''; });
         if (hasLegacyValue) entries.push({ index: '1', fields: legacyFields });
@@ -902,7 +904,7 @@ function parseEmailCreationDescription(descriptionText) {
     let current = null;
     lines.forEach(function (line) {
         if (/^email request$/i.test(line) || /^email request type:/i.test(line)) return;
-        const emailMatch = line.match(/^Email Details(?:\s+(\d+))?$/i);
+        const emailMatch = line.match(/^Email(?: Details)?(?:\s+(\d+))?$/i);
         if (emailMatch) {
             current = { index: emailMatch[1] || String(entries.length + 1), fields: {} };
             entries.push(current);
@@ -916,14 +918,18 @@ function parseEmailCreationDescription(descriptionText) {
             }
             const label = line.slice(0, colonIndex).trim().toLowerCase();
             const value = line.slice(colonIndex + 1).trim();
-            if (label === 'name' || label === 'department' || label === 'designation') {
+            if (label === 'name' || label === 'designation' || label === 'company' || label === 'department') {
                 current.fields[label] = value;
+            } else if (label === 'subsidiaries' || label === 'subsidiary') {
+                current.fields.company = value;
+            } else if ((label === 'selected department' || label === 'assigned department') && !current.fields.department) {
+                current.fields.department = value;
             }
         }
     });
     return entries.filter(function (entry) {
         const fields = entry && entry.fields ? entry.fields : {};
-        return String(fields.name || fields.department || fields.designation || '').trim() !== '';
+        return String(fields.name || fields.designation || fields.company || fields.department || '').trim() !== '';
     });
 }
 
@@ -1020,16 +1026,21 @@ function renderEmailCreationDescriptionHtml(data, descriptionText) {
     const carouselId = `tmEmailDisplay-${++sapDisplaySeq}`;
     const fieldConfig = [
         { key: 'name', label: 'Name' },
-        { key: 'department', label: 'Department' },
-        { key: 'designation', label: 'Designation', wide: true }
+        { key: 'designation', label: 'Designation' },
+        { key: 'company', label: 'Company' },
+        { key: 'department', label: 'Department' }
     ];
     return `
+        <div class="tm-desc-row">
+            <span class="tm-desc-label">EMAIL REQUEST TYPE:</span>
+            <span class="tm-desc-value">Creation of email</span>
+        </div>
         <div class="tm-sap-display tm-email-display">
             <div class="tm-sap-carousel" id="${carouselId}" data-index="0">
                 ${entries.map(function (entry, entryIndex) {
                     return `
                         <div class="tm-sap-card${entryIndex === 0 ? ' is-active' : ''}" data-index="${entryIndex}" aria-hidden="${entryIndex === 0 ? 'false' : 'true'}">
-                            <div class="tm-sap-card-title">Email Details${entries.length > 1 ? ' ' + escapeHtml(entry.index) : ''}</div>
+                            <div class="tm-sap-card-title">Email Details ${escapeHtml(entry.index)}</div>
                             <div class="tm-sap-field-grid">
                                 ${fieldConfig.map(function (field) {
                                     const value = entry && entry.fields ? String(entry.fields[field.key] || '').trim() : '';

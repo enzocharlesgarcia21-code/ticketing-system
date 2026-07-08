@@ -2095,6 +2095,7 @@ function getPriorityNotificationTitle(priorityKey) {
 function getNotificationTitle(actionType, type, priorityKey, customTitle, message) {
     const isResolvedStatus = (actionType === 'update' || type === 'status_update') && /\bresolved\b/i.test(String(message || ''));
     if (isResolvedStatus) return 'Ticket Resolved';
+    if (type === 'follow_up') return 'Ticket Follow-up';
     if ((customTitle || '').trim() !== '') return customTitle;
     if (type === 'priority_escalated') return getPriorityNotificationTitle(priorityKey);
     if (type === 'conference_booking_created') return 'Conference Booking Created';
@@ -2105,7 +2106,6 @@ function getNotificationTitle(actionType, type, priorityKey, customTitle, messag
     if (actionType === 'assign') return 'Ticket Assigned';
     if (actionType === 'reassign') return 'Ticket Reassigned';
     if (actionType === 'close') return 'Ticket Closed';
-    if (type === 'follow_up') return 'Follow Up Request';
     if (actionType === 'update' && type === 'note_added') return 'Ticket Note';
     if (actionType === 'update') return 'Status Update';
     return 'Ticket Update';

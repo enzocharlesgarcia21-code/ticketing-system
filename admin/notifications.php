@@ -38,17 +38,94 @@ if (isset($_POST['mark_all_read'])) {
 
 /* Get notifications */
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$limit = 20;
+$allowedPageSizes = [10, 25, 50, 100];
+$limit = isset($_GET['per_page']) ? (int) $_GET['per_page'] : 10;
+if (!in_array($limit, $allowedPageSizes, true)) {
+    $limit = 10;
+}
+$allowedNotificationTabs = ['all', 'unread', 'tickets', 'bookings', 'overdue'];
+$activeNotificationTab = strtolower(trim((string) ($_GET['filter'] ?? 'all')));
+if (!in_array($activeNotificationTab, $allowedNotificationTabs, true)) {
+    $activeNotificationTab = 'all';
+}
+$activePriorityFilter = strtolower(trim((string) ($_GET['priority'] ?? '')));
+if (!in_array($activePriorityFilter, ['low', 'medium', 'high'], true)) {
+    $activePriorityFilter = '';
+}
+$activeStatusFilter = strtolower(trim((string) ($_GET['status'] ?? '')));
+if (!in_array($activeStatusFilter, ['open', 'in progress', 'resolved'], true)) {
+    $activeStatusFilter = '';
+}
+
+$notificationBaseWhere = "
+    n.user_id = $user_id
+    AND n.type <> 'chat_message'
+    AND n.type <> 'hr_chat_pending'
+    AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+";
+$notificationTabWhere = "1=1";
+if ($activeNotificationTab === 'unread') {
+    $notificationTabWhere = "n.is_read = 0";
+} elseif ($activeNotificationTab === 'tickets') {
+    $notificationTabWhere = "(
+        n.type NOT LIKE 'conference_booking%'
+        AND (
+            n.ticket_id IS NOT NULL
+            OR n.type IN ('dept_assigned', 'new_ticket', 'ticket_claimed', 'claim_ticket', 'priority_escalated', 'follow_up', 'status_update', 'note_added', 'reassigned')
+            OR n.type LIKE '%ticket%'
+        )
+    )";
+} elseif ($activeNotificationTab === 'bookings') {
+    $notificationTabWhere = "n.type LIKE 'conference_booking%'";
+} elseif ($activeNotificationTab === 'overdue') {
+    $notificationTabWhere = "(
+        n.type = 'priority_escalated'
+        OR LOWER(COALESCE(t.priority, '')) IN ('high', 'critical')
+        OR LOWER(COALESCE(n.message, '')) REGEXP 'breach|overdue|past due'
+    )";
+}
+$notificationPriorityWhere = "1=1";
+if ($activePriorityFilter === 'high') {
+    $notificationPriorityWhere = "(LOWER(COALESCE(t.priority, '')) IN ('high', 'critical') OR n.type = 'priority_escalated')";
+} elseif ($activePriorityFilter !== '') {
+    $notificationPriorityWhere = "LOWER(COALESCE(t.priority, '')) = '" . $conn->real_escape_string($activePriorityFilter) . "'";
+}
+$notificationStatusWhere = $activeStatusFilter !== ''
+    ? "LOWER(COALESCE(t.status, '')) = '" . $conn->real_escape_string($activeStatusFilter) . "'"
+    : "1=1";
+
+function admin_notifications_page_url(int $page, string $filter, string $priority = '', string $status = '', ?int $perPage = null): string
+{
+    global $limit;
+    $perPage = $perPage !== null ? $perPage : (int) $limit;
+    $params = [];
+    if ($page > 1) {
+        $params['page'] = $page;
+    }
+    if ($filter !== '' && $filter !== 'all') {
+        $params['filter'] = $filter;
+    }
+    if ($priority !== '') {
+        $params['priority'] = $priority;
+    }
+    if ($status !== '') {
+        $params['status'] = $status;
+    }
+    if ($perPage !== 10) {
+        $params['per_page'] = $perPage;
+    }
+    $query = http_build_query($params);
+    return 'notifications.php' . ($query !== '' ? ('?' . $query) : '');
+}
 
 $total_res = $conn->query("
     SELECT COUNT(*) as c
     FROM notifications n
     LEFT JOIN employee_tickets t ON n.ticket_id = t.id
-    WHERE n.user_id = $user_id
-      AND n.type <> 'chat_message'
-      AND n.type <> 'hr_chat_pending'
-      AND n.type <> 'conference_booking_created'
-      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+    WHERE $notificationBaseWhere
+      AND $notificationTabWhere
+      AND $notificationPriorityWhere
+      AND $notificationStatusWhere
 ");
 if (!$total_res) {
     die("SQL Error: " . $conn->error);
@@ -57,16 +134,17 @@ $total = $total_res->fetch_assoc()['c'];
 $total_pages = max(1, (int) ceil($total / $limit));
 $page = max(1, min($page, $total_pages));
 $offset = ($page - 1) * $limit;
+$showingFrom = $total > 0 ? ($offset + 1) : 0;
+$showingTo = $total > 0 ? min($offset + $limit, (int) $total) : 0;
 
 $sql = "
-    SELECT n.*, t.priority, t.assigned_department, t.assigned_group, t.department AS ticket_department
+    SELECT n.*, t.priority, t.status AS ticket_status, t.assigned_department, t.assigned_group, t.department AS ticket_department
     FROM notifications n
     LEFT JOIN employee_tickets t ON n.ticket_id = t.id
-    WHERE n.user_id = ?
-      AND n.type <> 'chat_message'
-      AND n.type <> 'hr_chat_pending'
-      AND n.type <> 'conference_booking_created'
-      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+    WHERE $notificationBaseWhere
+      AND $notificationTabWhere
+      AND $notificationPriorityWhere
+      AND $notificationStatusWhere
     ORDER BY n.created_at DESC
     LIMIT ? OFFSET ?
 ";
@@ -75,17 +153,9 @@ $stmt = $conn->prepare($sql);
 if (!$stmt) {
     die("SQL Error: " . $conn->error);
 }
-$stmt->bind_param("iii", $user_id, $limit, $offset);
+$stmt->bind_param("ii", $limit, $offset);
 $stmt->execute();
 $result = $stmt->get_result();
-
-$notificationBaseWhere = "
-    n.user_id = $user_id
-    AND n.type <> 'chat_message'
-    AND n.type <> 'hr_chat_pending'
-    AND n.type <> 'conference_booking_created'
-    AND (n.type <> 'note_added' OR t.user_id = n.user_id)
-";
 
 function admin_notification_scalar(mysqli $conn, string $sql): int
 {
@@ -114,19 +184,18 @@ $summaryHighPriority = admin_notification_scalar($conn, "
         OR LOWER(COALESCE(n.message, '')) LIKE '%breach%'
       )
 ");
-$summaryUnassigned = admin_notification_scalar($conn, "
+$summaryUnclaimed = admin_notification_scalar($conn, "
     SELECT COUNT(*) AS c
     FROM employee_tickets
     WHERE LOWER(TRIM(COALESCE(status, ''))) NOT IN ('resolved', 'closed', 'trash')
       AND (assigned_to IS NULL OR assigned_to = 0)
-      AND (assigned_user_id IS NULL OR assigned_user_id = 0)
 ");
-$summaryOverdue = admin_notification_scalar($conn, "
+$summaryFollowUpRequests = admin_notification_scalar($conn, "
     SELECT COUNT(*) AS c
-    FROM employee_tickets
-    WHERE created_at IS NOT NULL
-      AND DATEDIFF(CURDATE(), DATE(created_at)) >= 6
-      AND LOWER(TRIM(COALESCE(status, ''))) NOT IN ('resolved', 'closed', 'trash')
+    FROM notifications n
+    LEFT JOIN employee_tickets t ON n.ticket_id = t.id
+    WHERE $notificationBaseWhere
+      AND n.type = 'follow_up'
 ");
 
 $departmentOptions = [];
@@ -389,9 +458,10 @@ function admin_conference_booking_summary(string $message): array
             border: 1px solid #cbdbea;
             border-radius: 9px;
             background: #ffffff;
-            color: #0f172a;
+            color: #334155;
             font-size: 13px;
             font-weight: 800;
+            line-height: 1.2;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -448,12 +518,13 @@ function admin_conference_booking_summary(string $message): array
             border: 0;
             border-radius: 0;
             background: transparent;
-            color: #0f172a;
+            color: #334155;
             display: flex;
             align-items: center;
             padding: 0 12px;
             font-size: 13px;
-            font-weight: 700;
+            font-weight: 800;
+            line-height: 1.2;
             text-align: left;
             cursor: pointer;
         }
@@ -468,7 +539,8 @@ function admin_conference_booking_summary(string $message): array
             background: #f8fafc;
             color: #334155;
             font-size: 13px;
-            font-weight: 900;
+            font-weight: 800;
+            line-height: 1.2;
             cursor: pointer;
             white-space: nowrap;
             transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
@@ -505,6 +577,7 @@ function admin_conference_booking_summary(string $message): array
             border-bottom: 2px solid transparent;
             font-size: 13px;
             font-weight: 800;
+            line-height: 1.2;
             white-space: nowrap;
         }
         .notif-tab.active {
@@ -713,25 +786,62 @@ function admin_conference_booking_summary(string $message): array
             color: #cbd5e1;
         }
         .pagination-glass {
-            display: flex;
-            justify-content: center;
+            display: grid;
+            grid-template-columns: minmax(220px, 0.8fr) minmax(240px, 0.9fr) minmax(520px, 1.3fr);
             align-items: center;
             gap: 10px;
-            flex-wrap: wrap;
             margin-top: 24px;
-            padding: 0 6px 10px;
+            padding: 22px 6px 4px;
+            border-top: 1px solid #eef3f8;
+        }
+        .pagination-size,
+        .pagination-summary {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .pagination-size select {
+            width: 96px;
+            height: 40px;
+            border: 1px solid #dfe8f1;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 700;
+            padding: 0 14px;
+            outline: none;
+            cursor: pointer;
+        }
+        .pagination-summary {
+            justify-content: center;
+            text-align: center;
+        }
+        .pagination-controls {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: nowrap;
+            min-width: 0;
+            white-space: nowrap;
         }
         .page-numbers {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
+            min-width: 0;
         }
         .page-btn {
             min-width: 40px;
             height: 40px;
-            padding: 0 15px;
+            padding: 0 13px;
             border: 1px solid #d7e2ea;
             border-radius: 999px;
             text-decoration: none;
@@ -764,7 +874,7 @@ function admin_conference_booking_summary(string $message): array
         }
         .page-btn.prev,
         .page-btn.next {
-            padding: 0 18px;
+            padding: 0 16px;
         }
         .page-ellipsis {
             color: #94a3b8;
@@ -824,7 +934,13 @@ function admin_conference_booking_summary(string $message): array
                 gap: 8px;
             }
             .pagination-glass {
-                justify-content: flex-start;
+                grid-template-columns: 1fr;
+            }
+            .pagination-size,
+            .pagination-summary,
+            .pagination-controls {
+                justify-content: center;
+                width: 100%;
             }
             .page-btn.prev,
             .page-btn.next {
@@ -881,17 +997,17 @@ function admin_conference_booking_summary(string $message): array
                     <article class="notif-summary-card card-unassigned">
                         <span class="notif-summary-icon icon-unassigned"><i class="far fa-user"></i></span>
                         <div>
-                            <p class="notif-summary-label">Unassigned Tickets</p>
-                            <div class="notif-summary-value"><?= number_format($summaryUnassigned) ?></div>
-                            <div class="notif-summary-subtitle">Need assignment</div>
+                            <p class="notif-summary-label">Unclaimed Tickets</p>
+                            <div class="notif-summary-value"><?= number_format($summaryUnclaimed) ?></div>
+                            <div class="notif-summary-subtitle">Waiting assignment</div>
                         </div>
                     </article>
                     <article class="notif-summary-card card-overdue">
                         <span class="notif-summary-icon icon-overdue"><i class="far fa-clock"></i></span>
                         <div>
-                            <p class="notif-summary-label">Overdue / SLA Alerts</p>
-                            <div class="notif-summary-value"><?= number_format($summaryOverdue) ?></div>
-                            <div class="notif-summary-subtitle">Past due</div>
+                            <p class="notif-summary-label">Follow Up Requests</p>
+                            <div class="notif-summary-value"><?= number_format($summaryFollowUpRequests) ?></div>
+                            <div class="notif-summary-subtitle">Pending review</div>
                         </div>
                     </article>
                 </section>
@@ -902,48 +1018,44 @@ function admin_conference_booking_summary(string $message): array
                         <input type="search" id="notifSearchInput" class="notif-search-input" placeholder="Search notifications..." autocomplete="off">
                     </label>
                     <div class="notif-tabs" role="tablist" aria-label="Notification category">
-                        <button type="button" class="notif-tab active" data-filter-tab="all">All</button>
-                        <button type="button" class="notif-tab" data-filter-tab="unread">Unread</button>
-                        <button type="button" class="notif-tab" data-filter-tab="tickets">Tickets</button>
-                        <button type="button" class="notif-tab" data-filter-tab="bookings">Bookings</button>
-                        <button type="button" class="notif-tab" data-filter-tab="overdue">Overdue</button>
+                        <button type="button" class="notif-tab <?= $activeNotificationTab === 'all' ? 'active' : ''; ?>" data-filter-tab="all" data-filter-url="<?= htmlspecialchars(admin_notifications_page_url(1, 'all', $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>">All</button>
+                        <button type="button" class="notif-tab <?= $activeNotificationTab === 'unread' ? 'active' : ''; ?>" data-filter-tab="unread" data-filter-url="<?= htmlspecialchars(admin_notifications_page_url(1, 'unread', $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>">Unread</button>
+                        <button type="button" class="notif-tab <?= $activeNotificationTab === 'tickets' ? 'active' : ''; ?>" data-filter-tab="tickets" data-filter-url="<?= htmlspecialchars(admin_notifications_page_url(1, 'tickets', $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>">Tickets</button>
+                        <button type="button" class="notif-tab <?= $activeNotificationTab === 'bookings' ? 'active' : ''; ?>" data-filter-tab="bookings" data-filter-url="<?= htmlspecialchars(admin_notifications_page_url(1, 'bookings', $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>">Bookings</button>
+                        <button type="button" class="notif-tab <?= $activeNotificationTab === 'overdue' ? 'active' : ''; ?>" data-filter-tab="overdue" data-filter-url="<?= htmlspecialchars(admin_notifications_page_url(1, 'overdue', $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>">Overdue</button>
                     </div>
                     <div class="notif-select-shell" data-select-shell>
                         <select id="notifPriorityFilter" class="notif-filter-select" aria-label="Priority">
-                            <option value="">Priority</option>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                            <option value="critical">Critical</option>
+                            <option value="" selected hidden>Priority</option>
+                            <option value="low" <?= $activePriorityFilter === 'low' ? 'selected' : ''; ?>>Low</option>
+                            <option value="medium" <?= $activePriorityFilter === 'medium' ? 'selected' : ''; ?>>Medium</option>
+                            <option value="high" <?= $activePriorityFilter === 'high' ? 'selected' : ''; ?>>High</option>
                         </select>
                         <button type="button" class="notif-select-trigger" data-select-trigger aria-haspopup="listbox" aria-expanded="false">
                             <span data-select-label>Priority</span>
                             <i class="fas fa-chevron-down"></i>
                         </button>
                         <div class="notif-select-menu" data-select-menu role="listbox">
-                            <button type="button" class="notif-select-option is-selected" data-select-value="">Priority</button>
                             <button type="button" class="notif-select-option" data-select-value="low">Low</button>
                             <button type="button" class="notif-select-option" data-select-value="medium">Medium</button>
                             <button type="button" class="notif-select-option" data-select-value="high">High</button>
-                            <button type="button" class="notif-select-option" data-select-value="critical">Critical</button>
                         </div>
                     </div>
                     <div class="notif-select-shell" data-select-shell>
-                        <select id="notifDepartmentFilter" class="notif-filter-select" aria-label="Department">
-                            <option value="">Department</option>
-                            <?php foreach ($departmentOptions as $departmentOption): ?>
-                                <option value="<?= htmlspecialchars(strtolower($departmentOption), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8') ?></option>
-                            <?php endforeach; ?>
+                        <select id="notifStatusFilter" class="notif-filter-select" aria-label="Status">
+                            <option value="" selected hidden>Status</option>
+                            <option value="open" <?= $activeStatusFilter === 'open' ? 'selected' : ''; ?>>Open</option>
+                            <option value="in progress" <?= $activeStatusFilter === 'in progress' ? 'selected' : ''; ?>>In Progress</option>
+                            <option value="resolved" <?= $activeStatusFilter === 'resolved' ? 'selected' : ''; ?>>Resolved</option>
                         </select>
                         <button type="button" class="notif-select-trigger" data-select-trigger aria-haspopup="listbox" aria-expanded="false">
-                            <span data-select-label>Department</span>
+                            <span data-select-label>Status</span>
                             <i class="fas fa-chevron-down"></i>
                         </button>
                         <div class="notif-select-menu" data-select-menu role="listbox">
-                            <button type="button" class="notif-select-option is-selected" data-select-value="">Department</button>
-                            <?php foreach ($departmentOptions as $departmentOption): ?>
-                                <button type="button" class="notif-select-option" data-select-value="<?= htmlspecialchars(strtolower($departmentOption), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8') ?></button>
-                            <?php endforeach; ?>
+                            <button type="button" class="notif-select-option" data-select-value="open">Open</button>
+                            <button type="button" class="notif-select-option" data-select-value="in progress">In Progress</button>
+                            <button type="button" class="notif-select-option" data-select-value="resolved">Resolved</button>
                         </div>
                     </div>
                     <button type="button" class="notif-clear-btn" id="notifClearFilters">Clear Filters</button>
@@ -1006,7 +1118,7 @@ function admin_conference_booking_summary(string $message): array
                                     $iconClass = 'fa-rotate';
                                     $accentColor = '#d4a017';
                                     $dotColor = '#d4a017';
-                                    $titleText = 'Follow Up Request';
+                                    $titleText = 'Ticket Follow-up';
                                 } elseif ($typeKey === 'conference_booking_deleted') {
                                     $iconClass = 'fa-calendar-xmark';
                                     $accentColor = '#0f766e';
@@ -1022,7 +1134,7 @@ function admin_conference_booking_summary(string $message): array
                                     $accentColor = '#0f766e';
                                     $dotColor = '#0f766e';
                                     $titleText = 'Conference Booking Created';
-                                } elseif ($typeKey === 'conference_booking') {
+                                } elseif (strpos($typeKey, 'conference_booking') === 0) {
                                     $iconClass = 'fa-calendar-check';
                                     $accentColor = '#0f766e';
                                     $dotColor = '#0f766e';
@@ -1097,7 +1209,7 @@ function admin_conference_booking_summary(string $message): array
                                     } elseif ($actionType === 'close') {
                                         $titleText = 'Ticket Closed';
                                     } elseif ($typeKey === 'follow_up') {
-                                        $titleText = 'Follow Up Request';
+                                        $titleText = 'Ticket Follow-up';
                                     } elseif ($actionType === 'update' && $typeKey === 'note_added') {
                                         $titleText = 'Ticket Note';
                                     } elseif ($actionType === 'update') {
@@ -1105,6 +1217,9 @@ function admin_conference_booking_summary(string $message): array
                                     } else {
                                         $titleText = 'Ticket Update';
                                     }
+                                }
+                                if ($typeKey === 'ticket_claimed' || $actionType === 'claim') {
+                                    $titleText = 'Ticket Claimed';
                                 }
                                 $isResolvedStatus = ($actionType === 'update' || $typeKey === 'status_update') && preg_match('/\bresolved\b/i', (string) ($row['message'] ?? ''));
                                 if ($isResolvedStatus) {
@@ -1168,7 +1283,7 @@ function admin_conference_booking_summary(string $message): array
                                     $pillIconClass = 'fa-retweet';
                                 }
                                 $displayMessage = notif_display_message($typeKey, (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
-                                $notificationHref = $typeKey === 'conference_booking'
+                                $notificationHref = strpos($typeKey, 'conference_booking') === 0
                                     ? 'conference_bookings.php'
                                     : ($ticketIdJs ? ('all_tickets.php?ticket_id=' . (int) $ticketIdJs) : 'notifications.php');
                                 $filterCategory = 'system';
@@ -1180,7 +1295,8 @@ function admin_conference_booking_summary(string $message): array
                                     $filterCategory = 'users';
                                 }
                                 $departmentFilterValue = strtolower(trim((string) (($row['assigned_group'] ?? '') !== '' ? $row['assigned_group'] : (($row['assigned_department'] ?? '') !== '' ? $row['assigned_department'] : ($row['ticket_department'] ?? '')))));
-                                $searchBlob = strtolower(trim($titleText . ' ' . strip_tags($displayMessage) . ' ' . $pillText . ' ' . $departmentFilterValue));
+                                $statusFilterValue = strtolower(trim((string) ($row['ticket_status'] ?? '')));
+                                $searchBlob = strtolower(trim($titleText . ' ' . strip_tags($displayMessage) . ' ' . $pillText . ' ' . $departmentFilterValue . ' ' . $statusFilterValue));
                                 $isOverdueFilter = ($typeKey === 'priority_escalated' || in_array($priorityKey, ['critical', 'high'], true) || preg_match('/\b(breach|overdue|past due)\b/i', (string) ($row['message'] ?? '')));
                             ?>
                             <?php if ($sectionLabel !== $currentSection): ?>
@@ -1191,7 +1307,7 @@ function admin_conference_booking_summary(string $message): array
                                 <div class="notif-section-card">
                                 <?php $currentSection = $sectionLabel; ?>
                             <?php endif; ?>
-                            <?php if ($typeKey === 'conference_booking'): ?>
+                            <?php if (strpos($typeKey, 'conference_booking') === 0): ?>
                                 <?php
                                     $bookingSummary = admin_conference_booking_summary((string) ($row['message'] ?? ''));
                                     $bookingSubtitle = $bookingSummary['booker'] . ' booked ' . $bookingSummary['room'];
@@ -1209,6 +1325,7 @@ function admin_conference_booking_summary(string $message): array
                                    data-filter-category="bookings"
                                    data-filter-priority="<?= htmlspecialchars(strtolower($priorityKey), ENT_QUOTES, 'UTF-8') ?>"
                                    data-filter-department="<?= htmlspecialchars($departmentFilterValue, ENT_QUOTES, 'UTF-8') ?>"
+                                   data-filter-status="<?= htmlspecialchars($statusFilterValue, ENT_QUOTES, 'UTF-8') ?>"
                                    data-filter-overdue="<?= $isOverdueFilter ? '1' : '0' ?>"
                                    data-filter-search="<?= htmlspecialchars($bookingSearchBlob, ENT_QUOTES, 'UTF-8') ?>"
                                    style="--notif-accent: #0f9f5a; --notif-dot: #008a22;"
@@ -1235,6 +1352,7 @@ function admin_conference_booking_summary(string $message): array
                                data-filter-category="<?= htmlspecialchars($filterCategory, ENT_QUOTES, 'UTF-8') ?>"
                                data-filter-priority="<?= htmlspecialchars(strtolower($priorityKey), ENT_QUOTES, 'UTF-8') ?>"
                                data-filter-department="<?= htmlspecialchars($departmentFilterValue, ENT_QUOTES, 'UTF-8') ?>"
+                               data-filter-status="<?= htmlspecialchars($statusFilterValue, ENT_QUOTES, 'UTF-8') ?>"
                                data-filter-overdue="<?= $isOverdueFilter ? '1' : '0' ?>"
                                data-filter-search="<?= htmlspecialchars($searchBlob, ENT_QUOTES, 'UTF-8') ?>"
                                style="--notif-accent: <?= htmlspecialchars($accentColor, ENT_QUOTES, 'UTF-8') ?>; --notif-dot: <?= htmlspecialchars($dotColor, ENT_QUOTES, 'UTF-8') ?>;"
@@ -1261,38 +1379,67 @@ function admin_conference_booking_summary(string $message): array
                             <p>No notifications found.</p>
                         </div>
                     <?php endif; ?>
-                </div>
-
-                <?php if($total_pages > 1): ?>
+                <?php if($total > 0): ?>
                 <div class="pagination-glass">
-                    <a href="?page=<?= max(1, $page - 1); ?>" class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">&lsaquo; Previous</a>
-                    <div class="page-numbers">
-                        <?php
-                            $window = 2;
-                            $start_page = max(1, $page - $window);
-                            $end_page = min($total_pages, $page + $window);
-                            if ($start_page > 1):
-                        ?>
-                            <a href="?page=1" class="page-btn <?= ($page == 1) ? 'active' : ''; ?>">1</a>
-                            <?php if ($start_page > 2): ?>
-                                <span class="page-ellipsis">...</span>
-                            <?php endif; ?>
-                        <?php endif; ?>
-
-                        <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
-                            <a href="?page=<?= $i; ?>" class="page-btn <?= ($i == $page) ? 'active' : ''; ?>"><?= $i; ?></a>
-                        <?php endfor; ?>
-
-                        <?php if ($end_page < $total_pages): ?>
-                            <?php if ($end_page < ($total_pages - 1)): ?>
-                                <span class="page-ellipsis">...</span>
-                            <?php endif; ?>
-                            <a href="?page=<?= $total_pages; ?>" class="page-btn <?= ($page == $total_pages) ? 'active' : ''; ?>"><?= $total_pages; ?></a>
-                        <?php endif; ?>
+                    <div class="pagination-size">
+                        <span>SHOW</span>
+                        <select id="notifPageSize" aria-label="Notifications per page">
+                            <?php foreach ($allowedPageSizes as $pageSize): ?>
+                                <option value="<?= (int) $pageSize; ?>" <?= $limit === $pageSize ? 'selected' : ''; ?>><?= (int) $pageSize; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span>ENTRIES</span>
                     </div>
-                    <a href="?page=<?= min($total_pages, $page + 1); ?>" class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">Next &rsaquo;</a>
+                    <div class="pagination-summary">
+                        Showing <?= number_format($showingFrom); ?>-<?= number_format($showingTo); ?> of <?= number_format((int) $total); ?> notifications
+                    </div>
+                    <div class="pagination-controls">
+                        <a href="<?= htmlspecialchars(admin_notifications_page_url(max(1, $page - 1), $activeNotificationTab, $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>" class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">&lsaquo; Previous</a>
+                        <div class="page-numbers">
+                            <?php
+                                $paginationPages = [];
+                                if ($total_pages <= 5) {
+                                    for ($i = 1; $i <= $total_pages; $i++) {
+                                        $paginationPages[] = $i;
+                                    }
+                                } else {
+                                    $paginationPages[] = 1;
+                                    $windowStart = max(2, $page - 1);
+                                    $windowEnd = min($total_pages - 1, $page + 1);
+
+                                    if ($page <= 3) {
+                                        $windowStart = 2;
+                                        $windowEnd = 3;
+                                    } elseif ($page >= $total_pages - 2) {
+                                        $windowStart = $total_pages - 2;
+                                        $windowEnd = $total_pages - 1;
+                                    }
+
+                                    if ($windowStart > 2) {
+                                        $paginationPages[] = 'ellipsis';
+                                    }
+                                    for ($i = $windowStart; $i <= $windowEnd; $i++) {
+                                        $paginationPages[] = $i;
+                                    }
+                                    if ($windowEnd < $total_pages - 1) {
+                                        $paginationPages[] = 'ellipsis';
+                                    }
+                                    $paginationPages[] = $total_pages;
+                                }
+                            ?>
+                            <?php foreach ($paginationPages as $paginationItem): ?>
+                                <?php if ($paginationItem === 'ellipsis'): ?>
+                                    <span class="page-ellipsis">...</span>
+                                <?php else: ?>
+                                    <a href="<?= htmlspecialchars(admin_notifications_page_url((int) $paginationItem, $activeNotificationTab, $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>" class="page-btn <?= ((int) $paginationItem === $page) ? 'active' : ''; ?>"><?= (int) $paginationItem; ?></a>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
+                        <a href="<?= htmlspecialchars(admin_notifications_page_url(min($total_pages, $page + 1), $activeNotificationTab, $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>" class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">Next &rsaquo;</a>
+                    </div>
                 </div>
                 <?php endif; ?>
+                </div>
 
             </div>
         </div>
@@ -1325,11 +1472,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const searchInput = document.getElementById('notifSearchInput');
     const prioritySelect = document.getElementById('notifPriorityFilter');
-    const departmentSelect = document.getElementById('notifDepartmentFilter');
+    const statusSelect = document.getElementById('notifStatusFilter');
+    const pageSizeSelect = document.getElementById('notifPageSize');
     const clearBtn = document.getElementById('notifClearFilters');
     const tabs = Array.from(document.querySelectorAll('.notif-tab[data-filter-tab]'));
     const rows = Array.from(document.querySelectorAll('.notif-item-row[data-filter-search]'));
-    let activeTab = 'all';
+    let activeTab = <?= json_encode($activeNotificationTab); ?>;
+    const currentFilterUrl = <?= json_encode(admin_notifications_page_url(1, $activeNotificationTab)); ?>;
 
     function syncCustomSelect(select) {
         if (!select) return;
@@ -1337,31 +1486,36 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!shell) return;
         const label = shell.querySelector('[data-select-label]');
         const options = Array.from(shell.querySelectorAll('[data-select-value]'));
-        const selectedOption = options.find(option => (option.getAttribute('data-select-value') || '') === select.value) || options[0];
-        if (label && selectedOption) label.textContent = selectedOption.textContent.trim();
+        const selectedOption = options.find(option => (option.getAttribute('data-select-value') || '') === select.value) || null;
+        const selectedNativeOption = select.options[select.selectedIndex] || null;
+        if (label) {
+            label.textContent = selectedOption
+                ? selectedOption.textContent.trim()
+                : String((selectedNativeOption && selectedNativeOption.textContent) || '').trim();
+        }
         options.forEach(option => option.classList.toggle('is-selected', option === selectedOption));
     }
 
     function applyNotificationFilters() {
         const search = (searchInput ? searchInput.value : '').trim().toLowerCase();
         const priority = prioritySelect ? prioritySelect.value : '';
-        const department = departmentSelect ? departmentSelect.value : '';
+        const status = statusSelect ? statusSelect.value : '';
 
         rows.forEach(row => {
             const rowText = row.getAttribute('data-filter-search') || '';
             const rowPriority = row.getAttribute('data-filter-priority') || '';
-            const rowDepartment = row.getAttribute('data-filter-department') || '';
+            const rowStatus = row.getAttribute('data-filter-status') || '';
             const rowCategory = row.getAttribute('data-filter-category') || 'system';
             const rowOverdue = row.getAttribute('data-filter-overdue') === '1';
             const matchesSearch = !search || rowText.includes(search);
             const matchesPriority = !priority || rowPriority === priority || (priority === 'high' && rowPriority === 'critical');
-            const matchesDepartment = !department || rowDepartment === department;
+            const matchesStatus = !status || rowStatus === status;
             const matchesTab = activeTab === 'all'
                 || (activeTab === 'unread' && row.classList.contains('unread'))
                 || (activeTab === 'overdue' && rowOverdue)
                 || rowCategory === activeTab;
 
-            row.style.display = (matchesSearch && matchesPriority && matchesDepartment && matchesTab) ? '' : 'none';
+            row.style.display = (matchesSearch && matchesPriority && matchesStatus && matchesTab) ? '' : 'none';
         });
 
         document.querySelectorAll('.notif-section-card').forEach(section => {
@@ -1376,21 +1530,66 @@ document.addEventListener('DOMContentLoaded', function() {
 
     tabs.forEach(tab => {
         tab.addEventListener('click', function() {
+            const nextUrl = this.getAttribute('data-filter-url') || '';
+            if (nextUrl) {
+                window.location.href = nextUrl;
+                return;
+            }
             activeTab = this.getAttribute('data-filter-tab') || 'all';
             tabs.forEach(item => item.classList.toggle('active', item === this));
             applyNotificationFilters();
         });
     });
     if (searchInput) searchInput.addEventListener('input', applyNotificationFilters);
-    if (prioritySelect) prioritySelect.addEventListener('change', applyNotificationFilters);
-    if (departmentSelect) departmentSelect.addEventListener('change', applyNotificationFilters);
+    function redirectWithServerFilters() {
+        const url = new URL(currentFilterUrl, window.location.href);
+        const priority = prioritySelect ? String(prioritySelect.value || '') : '';
+        const status = statusSelect ? String(statusSelect.value || '') : '';
+        if (priority) {
+            url.searchParams.set('priority', priority);
+        } else {
+            url.searchParams.delete('priority');
+        }
+        if (status) {
+            url.searchParams.set('status', status);
+        } else {
+            url.searchParams.delete('status');
+        }
+        url.searchParams.delete('page');
+        window.location.href = url.pathname + url.search;
+    }
+    if (prioritySelect) prioritySelect.addEventListener('change', redirectWithServerFilters);
+    if (statusSelect) statusSelect.addEventListener('change', redirectWithServerFilters);
+    if (pageSizeSelect) {
+        pageSizeSelect.addEventListener('change', function() {
+            const url = new URL(currentFilterUrl, window.location.href);
+            const pageSize = String(this.value || '10');
+            const priority = prioritySelect ? String(prioritySelect.value || '') : '';
+            const status = statusSelect ? String(statusSelect.value || '') : '';
+            if (priority) url.searchParams.set('priority', priority);
+            if (status) url.searchParams.set('status', status);
+            if (pageSize && pageSize !== '10') {
+                url.searchParams.set('per_page', pageSize);
+            } else {
+                url.searchParams.delete('per_page');
+            }
+            url.searchParams.delete('page');
+            window.location.href = url.pathname + url.search;
+        });
+    }
+    syncCustomSelect(prioritySelect);
+    syncCustomSelect(statusSelect);
     if (clearBtn) {
         clearBtn.addEventListener('click', function() {
+            if (activeTab !== 'all' || (prioritySelect && prioritySelect.value) || (statusSelect && statusSelect.value)) {
+                window.location.href = <?= json_encode(admin_notifications_page_url(1, 'all')); ?>;
+                return;
+            }
             if (searchInput) searchInput.value = '';
             if (prioritySelect) prioritySelect.value = '';
-            if (departmentSelect) departmentSelect.value = '';
+            if (statusSelect) statusSelect.value = '';
             syncCustomSelect(prioritySelect);
-            syncCustomSelect(departmentSelect);
+            syncCustomSelect(statusSelect);
             activeTab = 'all';
             tabs.forEach(tab => tab.classList.toggle('active', tab.getAttribute('data-filter-tab') === 'all'));
             applyNotificationFilters();
@@ -1466,9 +1665,9 @@ function markAsRead(id, ticketId, type, fallbackHref) {
     formData.append('id', id);
     if (CSRF_TOKEN) formData.append('csrf_token', CSRF_TOKEN);
 
-    const isConferenceBooking = (type || '').toString() === 'conference_booking';
+    const isConferenceBooking = (type || '').toString().indexOf('conference_booking') === 0;
     const shouldOpenTicketModal = !isConferenceBooking && !!ticketId;
-    const dest = fallbackHref || ((type || '').toString() === 'conference_booking'
+    const dest = fallbackHref || ((type || '').toString().indexOf('conference_booking') === 0
         ? 'conference_bookings.php'
         : (ticketId ? `all_tickets.php?ticket_id=${ticketId}` : 'notifications.php'));
 

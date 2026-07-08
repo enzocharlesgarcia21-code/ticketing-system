@@ -341,148 +341,118 @@ var TMTicketModal = (function () {
       if (typeof chatModalInput.setSelectionRange === 'function') chatModalInput.setSelectionRange(chatLength, chatLength);
     }
   }
-  function canReplyToMessage(ticketId, msg) {
-    var context = buildReplyContext(msg);
-    if (!context || !ticketId) return false;
-    var messengerTicketIdEl = qs('tmMessengerTicketId');
-    var messengerInput = qs('tmMessengerInput');
-    if (messengerTicketIdEl && String(messengerTicketIdEl.value || '') === String(ticketId || '') && messengerInput && !messengerInput.disabled && !messengerInput.readOnly && messengerPermissionState.canChat === true) {
-      return true;
-    }
-    var chatModalTicketIdEl = qs('chatModalTicketId');
-    var chatModalInput = qs('chatModalInput');
-    if (chatModalTicketIdEl && String(chatModalTicketIdEl.value || '') === String(ticketId || '') && chatModalInput && !chatModalInput.disabled && !chatModalInput.readOnly && chatPermissionState.canChat === true) {
-      return true;
-    }
-    return false;
-  }
   function createMessageActionsNode(msg, ticketId, onDone) {
-    if (!canReplyToMessage(ticketId, msg)) return null;
+    if (!msg || !ticketId) return null;
+    var canEdit = msg.can_edit === true;
+    var hasCopyableMessage = String(msg.message || '').trim() !== '';
+    var imageAttachment = messagePrimaryImageAttachment(msg);
+    if (!canEdit && !hasCopyableMessage && !imageAttachment) return null;
+    bindMessageActionMenuCloser();
 
     var wrap = document.createElement('div');
     wrap.className = 'tm-msg-actions';
 
-    if (msg && msg.is_me === true) {
-      var canEdit = msg.can_edit === true;
-      var hasCopyableMessage = String(msg.message || '').trim() !== '';
-      var imageAttachment = messagePrimaryImageAttachment(msg);
-      if (!canEdit && !hasCopyableMessage && !imageAttachment) return null;
-      bindMessageActionMenuCloser();
-
-      var toggle = document.createElement('button');
-      toggle.type = 'button';
-      toggle.className = 'tm-msg-actions-toggle';
-      toggle.setAttribute('aria-label', 'Message actions');
-      toggle.innerHTML = '<i class="fas fa-ellipsis-v"></i>';
-
-      var menu = document.createElement('div');
-      menu.className = 'tm-msg-actions-menu';
-      menu.addEventListener('click', function (e) { e.stopPropagation(); });
-
-      var replyMenuBtn = document.createElement('button');
-      replyMenuBtn.type = 'button';
-      replyMenuBtn.className = 'tm-msg-actions-item';
-      replyMenuBtn.textContent = 'Reply';
-      replyMenuBtn.addEventListener('click', function () {
-        menu.classList.remove('show');
-        focusReplyComposer(ticketId, msg);
-      });
-      menu.appendChild(replyMenuBtn);
-
-      if (hasCopyableMessage) {
-        var copyBtn = document.createElement('button');
-        copyBtn.type = 'button';
-        copyBtn.className = 'tm-msg-actions-item';
-        copyBtn.textContent = 'Copy message';
-        copyBtn.addEventListener('click', function () {
-          menu.classList.remove('show');
-          copyTextToClipboard(String(msg.message || ''));
-        });
-        menu.appendChild(copyBtn);
-      }
-
-      if (imageAttachment) {
-        var copyImageBtn = document.createElement('button');
-        copyImageBtn.type = 'button';
-        copyImageBtn.className = 'tm-msg-actions-item';
-        copyImageBtn.textContent = 'Copy image';
-        copyImageBtn.addEventListener('click', function () {
-          menu.classList.remove('show');
-          copyImageAttachmentToClipboard(imageAttachment);
-        });
-        menu.appendChild(copyImageBtn);
-      }
-
-      if (canEdit) {
-        var editBtn = document.createElement('button');
-        editBtn.type = 'button';
-        editBtn.className = 'tm-msg-actions-item';
-        editBtn.textContent = 'Edit';
-        editBtn.addEventListener('click', function () {
-          menu.classList.remove('show');
-          var current = String(msg.message || '');
-          showMessengerMessageEditor({
-            value: current,
-            hasAttachment: !!(msg && msg.attachment && msg.attachment.stored_name),
-            onSubmit: function (updated, done, unlock) {
-              var fd = new FormData();
-              fd.append('ticket_id', String(ticketId));
-              fd.append('message_id', String(msg.id || ''));
-              fd.append('message', updated);
-              var t = getCsrfToken();
-              if (t) fd.append('csrf_token', t);
-              postJson('chat_message_update.php', fd)
-                .then(function (res) {
-                  if (!(res && res.success)) {
-                    unlock();
-                    showMessengerConfirm({
-                      title: 'Edit Failed',
-                      message: (res && res.error) ? String(res.error) : 'Unable to edit this message.',
-                      confirmText: 'OK',
-                      hideCancel: true
-                    });
-                    return;
-                  }
-                  done();
-                  if (typeof onDone === 'function') onDone();
-                })
-                .catch(function () {
-                  unlock();
-                  showMessengerConfirm({
-                    title: 'Edit Failed',
-                    message: 'Unable to edit this message.',
-                    confirmText: 'OK',
-                    hideCancel: true
-                  });
-                });
-            }
-          });
-        });
-        menu.appendChild(editBtn);
-      }
-
-      toggle.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var openMenus = document.querySelectorAll('.tm-msg-actions-menu.show');
-        openMenus.forEach(function (m) { if (m !== menu) m.classList.remove('show'); });
-        menu.classList.toggle('show');
-      });
-
-      wrap.appendChild(toggle);
-      wrap.appendChild(menu);
-      return wrap;
-    }
-
     var toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'tm-msg-actions-toggle';
-    toggle.setAttribute('aria-label', 'Reply to message');
-    toggle.innerHTML = '<i class="fas fa-reply"></i>';
-    toggle.addEventListener('click', function (e) {
-      e.stopPropagation();
+    toggle.setAttribute('aria-label', 'Message actions');
+    toggle.innerHTML = '<i class="fas fa-ellipsis-v"></i>';
+
+    var menu = document.createElement('div');
+    menu.className = 'tm-msg-actions-menu';
+    menu.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    var replyBtn = document.createElement('button');
+    replyBtn.type = 'button';
+    replyBtn.className = 'tm-msg-actions-item';
+    replyBtn.textContent = 'Reply';
+    replyBtn.addEventListener('click', function () {
+      menu.classList.remove('show');
       focusReplyComposer(ticketId, msg);
     });
+    menu.appendChild(replyBtn);
+
+    if (hasCopyableMessage) {
+      var copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'tm-msg-actions-item';
+      copyBtn.textContent = 'Copy message';
+      copyBtn.addEventListener('click', function () {
+        menu.classList.remove('show');
+        copyTextToClipboard(String(msg.message || ''));
+      });
+      menu.appendChild(copyBtn);
+    }
+
+    if (imageAttachment) {
+      var copyImageBtn = document.createElement('button');
+      copyImageBtn.type = 'button';
+      copyImageBtn.className = 'tm-msg-actions-item';
+      copyImageBtn.textContent = 'Copy image';
+      copyImageBtn.addEventListener('click', function () {
+        menu.classList.remove('show');
+        copyImageAttachmentToClipboard(imageAttachment);
+      });
+      menu.appendChild(copyImageBtn);
+    }
+
+    if (canEdit) {
+      var editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'tm-msg-actions-item';
+      editBtn.textContent = 'Edit';
+      editBtn.addEventListener('click', function () {
+        menu.classList.remove('show');
+        var current = String(msg.message || '');
+        showMessengerMessageEditor({
+          value: current,
+          hasAttachment: !!(msg && msg.attachment && msg.attachment.stored_name),
+          onSubmit: function (updated, done, unlock) {
+            var fd = new FormData();
+            fd.append('ticket_id', String(ticketId));
+            fd.append('message_id', String(msg.id || ''));
+            fd.append('message', updated);
+            var t = getCsrfToken();
+            if (t) fd.append('csrf_token', t);
+            postJson('chat_message_update.php', fd)
+              .then(function (res) {
+                if (!(res && res.success)) {
+                  unlock();
+                  showMessengerConfirm({
+                    title: 'Edit Failed',
+                    message: (res && res.error) ? String(res.error) : 'Unable to edit this message.',
+                    confirmText: 'OK',
+                    hideCancel: true
+                  });
+                  return;
+                }
+                done();
+                if (typeof onDone === 'function') onDone();
+              })
+              .catch(function () {
+                unlock();
+                showMessengerConfirm({
+                  title: 'Edit Failed',
+                  message: 'Unable to edit this message.',
+                  confirmText: 'OK',
+                  hideCancel: true
+                });
+              });
+          }
+        });
+      });
+      menu.appendChild(editBtn);
+    }
+
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var openMenus = document.querySelectorAll('.tm-msg-actions-menu.show');
+      openMenus.forEach(function (m) { if (m !== menu) m.classList.remove('show'); });
+      menu.classList.toggle('show');
+    });
+
     wrap.appendChild(toggle);
+    wrap.appendChild(menu);
     return wrap;
   }
   function createMessageEditedNode(msg) {
@@ -546,7 +516,7 @@ var TMTicketModal = (function () {
     var editedNode = createMessageEditedNode(msg);
     var timeDiv = document.createElement('div');
     timeDiv.classList.add('chat-time');
-    var deliveryLabel = setMessageTimeWithStatus(timeDiv, msg, timeText);
+    setMessageTimeWithStatus(timeDiv, msg, timeText);
     if (editedNode) {
       timeDiv.insertBefore(editedNode, timeDiv.firstChild);
       var dot = document.createElement('span');
@@ -555,7 +525,6 @@ var TMTicketModal = (function () {
       timeDiv.insertBefore(dot, editedNode.nextSibling);
     }
     meta.appendChild(timeDiv);
-    if (deliveryLabel) meta.appendChild(deliveryLabel);
     return meta;
   }
   function setMessageTimeWithStatus(timeDiv, msg, timeText) {
@@ -565,9 +534,7 @@ var TMTicketModal = (function () {
     timeSpan.className = 'chat-time-text';
     timeSpan.textContent = String(timeText || '');
     timeDiv.appendChild(timeSpan);
-    if (!(msg && msg.is_me)) return null;
-    var deliveryStatus = document.createElement('span');
-    deliveryStatus.className = 'chat-delivery-status';
+    if (!(msg && msg.is_me)) return;
     var status = document.createElement('span');
     var seen = msg.is_read === true;
     status.className = 'chat-read-status' + (seen ? ' seen' : ' delivered');
@@ -575,12 +542,11 @@ var TMTicketModal = (function () {
     status.innerHTML = seen
       ? '<svg viewBox="0 0 22 16" aria-hidden="true" focusable="false"><path d="M1.5 8.6l3.7 3.7L12.8 2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.7 11.9L10 13.2 20.5 2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
       : '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 8.4l3.5 3.5L14 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    deliveryStatus.appendChild(status);
-    timeDiv.appendChild(deliveryStatus);
+    timeDiv.appendChild(status);
     var label = document.createElement('span');
     label.className = 'chat-delivery-label ' + (seen ? 'seen' : 'delivered');
     label.textContent = seen ? 'Seen' : 'Delivered';
-    return label;
+    timeDiv.appendChild(label);
   }
   function ensureMessageEditHistoryExists() {
     if (qs('tmMessageEditHistory')) return;
@@ -799,79 +765,6 @@ var TMTicketModal = (function () {
     }
     return requestType ? formatEmailRequestType(requestType) : '';
   }
-  function isEmailCreationTicket(data, descriptionText) {
-    if (!data || String(data.category || '').trim().toLowerCase() !== 'email') return false;
-    var assignedDept = String(data.assigned_group || data.assigned_department || '').trim().toUpperCase();
-    if (assignedDept !== 'IT') return false;
-    var requestType = getEmailRequestTypeDisplay(data).toLowerCase();
-    var text = String(descriptionText || data.description || '').trim().toLowerCase();
-    return requestType === 'creation of email'
-      || text.indexOf('email request') === 0 && text.indexOf('email request type: creation of email') !== -1;
-  }
-  function parseEmailCreationsFromMeta(data) {
-    var raw = data && data.request_meta ? data.request_meta.email_creations : '';
-    var decoded = null;
-    if (raw) {
-      try {
-        decoded = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      } catch (e) {
-        decoded = null;
-      }
-    }
-    if (!Array.isArray(decoded)) decoded = [];
-    var entries = decoded.map(function (entry, index) {
-      if (!entry || typeof entry !== 'object') return null;
-      var fields = {
-        name: String(entry.name || '').trim(),
-        department: String(entry.department || '').trim(),
-        designation: String(entry.designation || '').trim()
-      };
-      var hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
-      return hasValue ? { index: String(index + 1), fields: fields } : null;
-    }).filter(function (entry) { return !!entry; });
-    if (!entries.length && data && data.request_meta) {
-      var legacyFields = {
-        name: String(data.request_meta.email_creation_name || '').trim(),
-        department: String(data.request_meta.email_creation_department || '').trim(),
-        designation: String(data.request_meta.email_creation_designation || '').trim()
-      };
-      var hasLegacyValue = Object.keys(legacyFields).some(function (key) { return legacyFields[key] !== ''; });
-      if (hasLegacyValue) entries.push({ index: '1', fields: legacyFields });
-    }
-    return entries;
-  }
-  function parseEmailCreationDescription(descriptionText) {
-    var lines = String(descriptionText || '').split(/\r?\n/).map(function (line) {
-      return String(line || '').trim();
-    }).filter(function (line) { return line !== ''; });
-    var entries = [];
-    var current = null;
-    lines.forEach(function (line) {
-      if (/^email request$/i.test(line) || /^email request type:/i.test(line)) return;
-      var emailMatch = line.match(/^Email Details(?:\s+(\d+))?$/i);
-      if (emailMatch) {
-        current = { index: emailMatch[1] || String(entries.length + 1), fields: {} };
-        entries.push(current);
-        return;
-      }
-      var colonIndex = line.indexOf(':');
-      if (colonIndex > 0) {
-        if (!current) {
-          current = { index: String(entries.length + 1), fields: {} };
-          entries.push(current);
-        }
-        var label = line.slice(0, colonIndex).trim().toLowerCase();
-        var value = line.slice(colonIndex + 1).trim();
-        if (label === 'name' || label === 'department' || label === 'designation') {
-          current.fields[label] = value;
-        }
-      }
-    });
-    return entries.filter(function (entry) {
-      var fields = entry && entry.fields ? entry.fields : {};
-      return String(fields.name || fields.department || fields.designation || '').trim() !== '';
-    });
-  }
   function renderTimeline(ticket) {
     var maxVisibleTimelineItems = 5;
     var createdAt = ticket.created_at ? new Date(ticket.created_at) : null;
@@ -885,6 +778,7 @@ var TMTicketModal = (function () {
 
     activityItems.forEach(function (item) {
       var type = String((item && item.activity_type) || '').trim().toLowerCase();
+      if (type === 'action_history') return;
       var raw = String((item && item.description) || '').trim();
       var when = item && item.created_at ? new Date(item.created_at) : fallbackWhen;
       var title = formatTimelineActivityTitle(raw);
@@ -970,6 +864,57 @@ var TMTicketModal = (function () {
         '</div>'
       : '';
     return '<div class="tm-timeline">' + timelineItemsHtml + toggleHtml + '</div>';
+  }
+  function getActionHistoryItems(ticket) {
+    var directItems = Array.isArray(ticket && ticket.action_history) ? ticket.action_history : [];
+    var items = directItems.map(function (item) {
+      return {
+        note: String((item && (item.note || item.description)) || '').trim(),
+        created_at: String((item && item.created_at) || '').trim()
+      };
+    }).filter(function (item) {
+      return item.note !== '';
+    });
+    if (!items.length) {
+      var activityItems = Array.isArray(ticket && ticket.ticket_activity) ? ticket.ticket_activity : [];
+      items = activityItems.map(function (item) {
+        var type = String((item && item.activity_type) || '').trim().toLowerCase();
+        if (type !== 'action_history' && type !== 'note_added') return null;
+        var note = String((item && item.description) || '').trim();
+        if (!note) return null;
+        return {
+          note: note,
+          created_at: String((item && item.created_at) || '').trim()
+        };
+      }).filter(function (item) { return !!item; });
+    }
+    items.sort(function (a, b) {
+      var aTime = a && a.created_at ? new Date(a.created_at).getTime() : 0;
+      var bTime = b && b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (!isFinite(aTime)) aTime = 0;
+      if (!isFinite(bTime)) bTime = 0;
+      return aTime - bTime;
+    });
+    return items;
+  }
+  function renderActionHistoryHtml(ticket) {
+    var items = getActionHistoryItems(ticket);
+    if (!items.length) {
+      return '<div class="tm-info-value" style="padding:18px;border:1px dashed #d8e1ec;border-radius:16px;background:#fbfdff;color:#64748b;">No action comments have been submitted yet.</div>';
+    }
+    var actionLabels = ['First Action', 'Second Action', 'Third Action', 'Fourth Action', 'Fifth Action', 'Sixth Action', 'Seventh Action', 'Eighth Action', 'Ninth Action', 'Tenth Action'];
+    return '<div class="tm-action-history-list" style="display:flex;flex-direction:column;gap:12px;">' +
+      items.map(function (item, index) {
+        var actionLabel = actionLabels[index] || ('Action ' + String(index + 1));
+        return '<article class="tm-action-history-item" style="border:1px solid #dfe7f1;border-radius:16px;background:#ffffff;box-shadow:0 10px 24px rgba(15,23,42,.05);padding:16px 18px;">' +
+          '<div class="tm-action-history-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:9px;">' +
+          '<div class="tm-action-history-label" style="display:inline-flex;align-items:center;border-radius:999px;background:#dcfce7;color:#166534;font-size:12px;font-weight:700;line-height:1.2;padding:6px 12px;white-space:nowrap;">' + escapeHtml(actionLabel) + '</div>' +
+          '<div class="tm-action-history-time" style="color:#64748b;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;text-align:right;white-space:nowrap;line-height:1.35;">' + escapeHtml(formatTimelineTime(item.created_at)) + '</div>' +
+          '</div>' +
+          '<div class="tm-action-history-note" style="color:#0f172a;font-size:14px;font-weight:600;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;">' + escapeHtml(item.note) + '</div>' +
+          '</article>';
+      }).join('') +
+      '</div>';
   }
   function toggleTimeline(button) {
     if (!button || !button.closest) return;
@@ -1443,16 +1388,97 @@ var TMTicketModal = (function () {
     return decoded.map(function (report, index) {
       if (!report || typeof report !== 'object') return null;
       var fields = {
-        'name': String(report.name || '').trim(),
+        'full name': String(report.name || '').trim(),
         'position': String(report.position || '').trim(),
-        'address': String(report.address || '').trim(),
-        'department': String(report.department || '').trim(),
-        'tin': String(report.tin || '').trim()
+        'immediate supervisor': String(report.immediate_head || report.immediate_supervisor || '').trim(),
+        'company': String(report.company || '').trim(),
+        'department': String(report.department || '').trim()
       };
       var hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
       if (!hasValue) return null;
       return { index: String(index + 1), fields: fields };
     }).filter(function (report) { return !!report; });
+  }
+  function isEmailCreationTicket(data, descriptionText) {
+    if (!data || String(data.category || '').trim().toLowerCase() !== 'email') return false;
+    var assignedGroup = String((data.assigned_group || data.assigned_department) || '').trim().toUpperCase();
+    if (assignedGroup !== 'IT') return false;
+    var requestType = getEmailRequestTypeDisplay(data).toLowerCase();
+    var text = String(descriptionText || data.description || '').trim().toLowerCase();
+    return requestType === 'creation of email'
+      || (text.indexOf('email request') === 0 && text.indexOf('email request type: creation of email') !== -1);
+  }
+  function parseEmailCreationsFromMeta(data) {
+    var raw = data && data.request_meta ? data.request_meta.email_creations : '';
+    var decoded = null;
+    if (raw) {
+      try {
+        decoded = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      } catch (e) {
+        decoded = null;
+      }
+    }
+    if (!Array.isArray(decoded)) decoded = [];
+    var entries = decoded.map(function (entry, index) {
+      if (!entry || typeof entry !== 'object') return null;
+      var fields = {
+        name: String(entry.name || '').trim(),
+        designation: String(entry.designation || '').trim(),
+        company: String(entry.company || entry.subsidiary || '').trim(),
+        department: String(entry.department || entry.target_department || '').trim()
+      };
+      var hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
+      return hasValue ? { index: String(index + 1), fields: fields } : null;
+    }).filter(function (entry) { return !!entry; });
+    if (!entries.length && data && data.request_meta) {
+      var legacyFields = {
+        name: String(data.request_meta.email_creation_name || '').trim(),
+        designation: String(data.request_meta.email_creation_designation || '').trim(),
+        company: String(data.request_meta.email_creation_company || data.request_meta.email_creation_subsidiary || '').trim(),
+        department: String(data.request_meta.email_creation_department || data.request_meta.email_creation_target_department || '').trim()
+      };
+      var hasLegacyValue = Object.keys(legacyFields).some(function (key) { return legacyFields[key] !== ''; });
+      if (hasLegacyValue) entries.push({ index: '1', fields: legacyFields });
+    }
+    return entries;
+  }
+  function parseEmailCreationDescription(descriptionText) {
+    var lines = String(descriptionText || '').split(/\r?\n/).map(function (line) {
+      return String(line || '').trim();
+    }).filter(function (line) {
+      return line !== '';
+    });
+    var entries = [];
+    var current = null;
+    lines.forEach(function (line) {
+      if (/^email request$/i.test(line) || /^email request type:/i.test(line)) return;
+      var emailMatch = line.match(/^Email(?: Details)?(?:\s+(\d+))?$/i);
+      if (emailMatch) {
+        current = { index: emailMatch[1] || String(entries.length + 1), fields: {} };
+        entries.push(current);
+        return;
+      }
+      var colonIndex = line.indexOf(':');
+      if (colonIndex > 0) {
+        if (!current) {
+          current = { index: String(entries.length + 1), fields: {} };
+          entries.push(current);
+        }
+        var label = line.slice(0, colonIndex).trim().toLowerCase();
+        var value = line.slice(colonIndex + 1).trim();
+        if (label === 'name' || label === 'designation' || label === 'company' || label === 'department') {
+          current.fields[label] = value;
+        } else if (label === 'subsidiaries' || label === 'subsidiary') {
+          current.fields.company = value;
+        } else if ((label === 'selected department' || label === 'assigned department') && !current.fields.department) {
+          current.fields.department = value;
+        }
+      }
+    });
+    return entries.filter(function (entry) {
+      var fields = entry && entry.fields ? entry.fields : {};
+      return String(fields.name || fields.designation || fields.company || fields.department || '').trim() !== '';
+    });
   }
   function getSapFieldValue(report, keys) {
     var fields = report && report.fields ? report.fields : {};
@@ -1466,6 +1492,26 @@ var TMTicketModal = (function () {
     var text = String(value == null ? '' : value).trim();
     return (!text || text.toLowerCase() === 'unknown') ? '-' : text;
   }
+  function formatSapCompanyValue(value, departmentValue) {
+    var company = String(value || '').trim();
+    var department = String(departmentValue || '').trim();
+    if (!company && department && department !== '-' && department.toLowerCase() !== 'unknown') company = '@leadsagri.com';
+    if (!company) return '-';
+    var normalized = company.toLowerCase();
+    var labels = {
+      '@leads-farmex.com': 'FARMEX / LAV',
+      '@farmasee.ph': 'FARMASEE',
+      '@gpsci.net': 'GPSCI',
+      '@leadsagri.com': 'LAPC',
+      '@leadsav.com': 'FARMEX / LAV',
+      '@leadstech-corp.com': 'LTC',
+      '@lingapleads.org': 'LINGAP',
+      '@malvedaholdings.com': 'MHC',
+      '@malvedaproperties.com': 'MPDC',
+      '@primestocks.ph': 'PCC'
+    };
+    return labels[normalized] || company;
+  }
   function renderSapDescriptionHtml(data, descriptionText) {
     if (!isSapTicket(data, descriptionText)) return '';
     var reports = parseSapReportsFromMeta(data);
@@ -1473,22 +1519,25 @@ var TMTicketModal = (function () {
     if (!reports.length) return '';
     var carouselId = 'tmSapDisplay-' + String(++sapDisplaySeq);
     var fieldConfig = [
-      { key: 'name', label: 'Name' },
+      { key: 'full name', label: 'Full Name' },
       { key: 'position', label: 'Position' },
-      { key: 'address', label: 'Address' },
-      { key: 'department', label: 'Department' },
-      { key: 'tin', label: 'TIN' }
+      { key: 'immediate supervisor', label: 'Supervisor' },
+      { key: 'company', label: 'Company' },
+      { key: 'department', label: 'Department', wide: true }
     ];
     return '<div class="tm-sap-display">' +
       '<div class="tm-sap-carousel" id="' + carouselId + '" data-index="0">' +
       reports.map(function (report, reportIndex) {
+        var rawDepartmentValue = getSapFieldValue(report, ['department', 'dept']);
+        var departmentValue = dashIfUnknown(rawDepartmentValue);
+        var companyValue = formatSapCompanyValue(getSapFieldValue(report, ['company', 'company name', 'company domain']), rawDepartmentValue);
         return '<div class="tm-sap-card' + (reportIndex === 0 ? ' is-active' : '') + '" data-index="' + String(reportIndex) + '" aria-hidden="' + (reportIndex === 0 ? 'false' : 'true') + '">' +
           '<div class="tm-sap-card-title">Employee Details' + (reports.length > 1 ? ' ' + escapeHtml(report.index) : '') + '</div>' +
           '<div class="tm-sap-field-grid">' +
           fieldConfig.map(function (field) {
-            var value = field.key === 'department'
-              ? dashIfUnknown(getSapFieldValue(report, ['department', 'dept']))
-              : (getSapFieldValue(report, [field.key]) || '-');
+            var value = field.key === 'company'
+              ? companyValue
+              : (field.key === 'department' ? departmentValue : (getSapFieldValue(report, [field.key]) || '-'));
             return '<div class="tm-sap-field' + (field.wide ? ' is-wide' : '') + '">' +
               '<div class="tm-sap-label">' + escapeHtml(field.label) + '</div>' +
               '<div class="tm-sap-value">' + escapeHtml(value) + '</div>' +
@@ -1515,18 +1564,23 @@ var TMTicketModal = (function () {
     var carouselId = 'tmEmailDisplay-' + String(++sapDisplaySeq);
     var fieldConfig = [
       { key: 'name', label: 'Name' },
-      { key: 'department', label: 'Department' },
-      { key: 'designation', label: 'Designation', wide: true }
+      { key: 'designation', label: 'Designation' },
+      { key: 'company', label: 'Company' },
+      { key: 'department', label: 'Department' }
     ];
-    return '<div class="tm-sap-display tm-email-display">' +
+    return '<div class="tm-desc-row">' +
+      '<span class="tm-desc-label">EMAIL REQUEST TYPE:</span>' +
+      '<span class="tm-desc-value">Creation of email</span>' +
+      '</div>' +
+      '<div class="tm-sap-display tm-email-display">' +
       '<div class="tm-sap-carousel" id="' + carouselId + '" data-index="0">' +
       entries.map(function (entry, entryIndex) {
         return '<div class="tm-sap-card' + (entryIndex === 0 ? ' is-active' : '') + '" data-index="' + String(entryIndex) + '" aria-hidden="' + (entryIndex === 0 ? 'false' : 'true') + '">' +
-          '<div class="tm-sap-card-title">Email Details' + (entries.length > 1 ? ' ' + escapeHtml(entry.index) : '') + '</div>' +
+          '<div class="tm-sap-card-title">Email Details ' + escapeHtml(entry.index) + '</div>' +
           '<div class="tm-sap-field-grid">' +
           fieldConfig.map(function (field) {
             var value = entry && entry.fields ? String(entry.fields[field.key] || '').trim() : '';
-            return '<div class="tm-sap-field' + (field.wide ? ' is-wide' : '') + '">' +
+            return '<div class="tm-sap-field">' +
               '<div class="tm-sap-label">' + escapeHtml(field.label) + '</div>' +
               '<div class="tm-sap-value">' + escapeHtml(value || '-') + '</div>' +
               '</div>';
@@ -1969,7 +2023,7 @@ var TMTicketModal = (function () {
       var emailCreationHtml = renderEmailCreationDescriptionHtml(data, descriptionText);
       var sapDescriptionHtml = emailCreationHtml ? '' : renderSapDescriptionHtml(data, descriptionText);
       if (emailCreationHtml) {
-        title = 'Creation of Email';
+        title = 'Email Request';
         descriptionHtml = emailCreationHtml;
       } else if (sapDescriptionHtml) {
         title = 'SAP Form';
@@ -2982,12 +3036,26 @@ var TMTicketModal = (function () {
     var assignedUserIdValue = '';
     var selectedDeptKey = normalizeDepartmentKey(assignedDeptValue);
     var canShowDepartmentUserSelect = showDepartmentUserSelect && assignedCompanyUsesDepartment(assignedCompanyValue) && selectedDeptKey !== '';
-    var noteValue = data && data.admin_note != null ? String(data.admin_note) : '';
-    var trimmedNoteValue = noteValue.trim();
-    var requesterAdminNoteHtml = (isRequesterPOV && trimmedNoteValue !== '')
+    var noteValue = '';
+    var requesterActionItems = getActionHistoryItems(data);
+    if (!requesterActionItems.length && data && data.admin_note != null && String(data.admin_note).trim() !== '') {
+      requesterActionItems = [{
+        note: String(data.admin_note).trim(),
+        created_at: String((data && (data.updated_at || data.created_at)) || '')
+      }];
+    }
+    var requesterNotesHtml = requesterActionItems.map(function (item) {
+      var noteText = String((item && item.note) || '').trim();
+      if (!noteText) return '';
+      return '<article class="tm-requestor-note-entry" style="border:1px solid #dfe7f1;border-radius:14px;background:#ffffff;padding:13px 14px;box-shadow:0 8px 18px rgba(15,23,42,.04);">' +
+        '<div class="tm-requestor-note-time" style="color:#64748b;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">' + escapeHtml(formatTimelineTime(item.created_at)) + '</div>' +
+        '<div class="tm-requestor-note-text" style="color:#0f172a;font-size:14px;font-weight:600;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;">' + renderLinkedText(noteText) + '</div>' +
+        '</article>';
+    }).filter(function (html) { return html !== ''; }).join('');
+    var requesterAdminNoteHtml = (isRequesterPOV && requesterNotesHtml !== '')
       ? (
-        '      <div class="tm-card tm-card-admin-notes"><div class="tm-card-header"><div class="tm-card-header-actions"><span class="tm-card-title">Action Taken/Comments</span></div></div><div class="tm-card-body">' +
-        '        <div class="tm-requestor-note">' + renderLinkedText(noteValue) + '</div>' +
+        '      <div class="tm-card tm-card-admin-notes" style="height:420px;max-height:420px;display:flex;flex-direction:column;overflow:hidden;align-self:stretch;"><div class="tm-card-header" style="flex:0 0 auto;"><div class="tm-card-header-actions"><span class="tm-card-title">Action Taken/Comments</span></div></div><div class="tm-card-body" style="flex:1 1 auto;min-height:0;overflow-y:auto;">' +
+        '        <div class="tm-requestor-note-list" style="display:flex;flex-direction:column;gap:12px;">' + requesterNotesHtml + '</div>' +
         '      </div></div>'
       )
       : '';
@@ -3039,6 +3107,7 @@ var TMTicketModal = (function () {
       '  <div class="tm-tab active" data-tab="info" onclick="TMTicketModal.switchTab(\'info\')">Information</div>' +
       (hideUpdateTab ? '' : '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Update</div>') +
       (hideConversationTab ? '' : '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Go to Chat</div>') +
+      (hideUpdateTab ? '' : '  <div class="tm-tab" data-tab="action-history" onclick="TMTicketModal.switchTab(\'action-history\')">Action History</div>') +
       claimButtonHtml +
       '</div>' +
       '<div class="tm-body">' +
@@ -3067,6 +3136,11 @@ var TMTicketModal = (function () {
       '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card tm-card-impact"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
       '    </div>' +
       '  </div>' +
+      (hideUpdateTab ? '' : '  <div id="tab-action-history" class="tm-tab-content">' +
+      '    <div class="tm-card tm-card-action-history"><div class="tm-card-header"><span class="tm-card-title">Action History</span></div><div class="tm-card-body">' +
+      renderActionHistoryHtml(data) +
+      '    </div></div>' +
+      '  </div>') +
       (hideUpdateTab ? '' : '  <div id="tab-actions" class="tm-tab-content">' +
       '    <div class="tm-card tm-card-ticket-update"><div class="tm-card-header"><span class="tm-card-title">Ticket Update</span></div><div class="tm-card-body">' +
       '    <form id="ticketUpdateForm" method="POST" action="update_ticket.php" class="tm-actions-form">' +
@@ -3333,6 +3407,10 @@ var TMTicketModal = (function () {
     var tab = document.querySelector('.tm-tab[data-tab="' + tabName + '"]');
     if (content) content.classList.add('active');
     if (tab) tab.classList.add('active');
+    if (tabName === 'actions') {
+      var noteEl = qs('tmAdminNote');
+      if (noteEl) noteEl.value = '';
+    }
     if (tabName === 'chat') { /* no-op: chat now opens in separate modal */ }
   }
   function claimTicket(ticketId, buttonEl) {
@@ -4183,26 +4261,28 @@ var TMTicketModal = (function () {
         '.tm-chat-attachment-group .tm-chat-attachment-link:not(.tm-chat-attachment-button) .tm-chat-attachment-name{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;line-height:1.25;}' +
         '.tm-messenger-send{border:none;background:#1B5E20;color:#fff;border-radius:12px;padding:12px 14px;font-weight:900;cursor:pointer;min-width:86px;}' +
         '.tm-messenger-send:disabled{opacity:.6;cursor:not-allowed;}' +
-        '.tm-messenger-overlay .chat-bubble{max-width:80%;padding:10px 14px 12px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;display:flex;flex-direction:column;gap:2px;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:visible;margin-bottom:18px;}' +
-        '.tm-messenger-overlay .chat-bubble.has-edited-meta{margin-bottom:18px;}' +
+        '.tm-messenger-overlay .chat-bubble{max-width:80%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;display:flex;flex-direction:column;gap:2px;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:visible;margin-bottom:12px;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta{margin-bottom:44px;}' +
         '.tm-messenger-overlay .chat-bubble.me{align-self:flex-end;background:#dff4e9;color:#0f172a;border:1px solid #bfe7d0;border-bottom-right-radius:4px;}' +
         '.tm-messenger-overlay .chat-bubble.other{align-self:flex-start;background:#eef9f2;color:#0f172a;border:1px solid #cfeede;border-bottom-left-radius:4px;}' +
         '.tm-messenger-overlay .chat-sender{font-size:12px;font-weight:800;opacity:.9;}' +
         '.tm-messenger-overlay .chat-bubble.me .chat-sender{color:#166534;}' +
         '.tm-messenger-overlay .chat-bubble.other .chat-sender{color:#475569;}' +
-        '.tm-messenger-overlay .chat-time{position:static;z-index:2;font-size:10px;font-weight:400;color:#111827;opacity:1;margin-top:0;align-self:stretch;text-shadow:none;display:flex;align-items:center;justify-content:flex-start;gap:8px;white-space:nowrap;flex-wrap:nowrap;min-width:max-content;max-width:100%;overflow:visible;text-overflow:clip;}' +
-        '.tm-messenger-overlay .chat-bubble.other .chat-time{color:#111827;}' +
-        '.tm-messenger-overlay .chat-time-text{display:inline-block;max-width:none;overflow:visible;text-overflow:clip;white-space:nowrap;flex:0 0 auto;}' +
-        '.tm-messenger-overlay .chat-edited{position:static;z-index:2;font-size:11px;font-weight:800;color:#2563eb;line-height:1.2;align-self:auto;text-shadow:none;}' +
-        '.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-edited{width:auto;text-align:left;}' +
+        '.tm-messenger-overlay .chat-time{position:absolute;left:10px;right:10px;bottom:-19px;z-index:2;font-size:10px;font-weight:400;color:#111827;opacity:1;margin-top:0;align-self:auto;text-shadow:none;display:flex;align-items:center;justify-content:flex-start;gap:4px;white-space:nowrap;flex-wrap:nowrap;}' +
+        '.tm-messenger-overlay .chat-bubble.other .chat-time{left:10px;right:10px;color:#111827;}' +
+        '.tm-messenger-overlay .chat-edited{position:absolute;right:10px;bottom:-35px;z-index:2;font-size:11px;font-weight:800;color:#2563eb;line-height:1.2;align-self:auto;text-shadow:none;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-edited{right:auto;left:10px;width:auto;text-align:left;}' +
         '.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-time{justify-content:flex-start;}' +
-        '.tm-messenger-overlay .chat-bubble.has-edited-meta.other .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta.other .chat-edited{width:auto;text-align:left;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-time{bottom:-19px;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-edited{bottom:-35px;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta.other .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta.other .chat-edited{right:auto;left:10px;}' +
+        '.tm-messenger-overlay .chat-bubble.other .chat-edited{right:auto;left:10px;}' +
         '.tm-messenger-overlay .chat-bubble.me .chat-edited{color:#60a5fa;}' +
-        '.tm-messenger-overlay .chat-delivery-status{display:inline-flex;align-items:center;gap:6px;margin-left:0;white-space:nowrap;flex:0 0 auto;}' +
-        '.tm-messenger-overlay .chat-read-status{display:inline-flex;align-items:center;margin-left:0;font-size:11px;font-weight:900;letter-spacing:-1px;line-height:1;color:#4b5563;white-space:nowrap;flex-shrink:0;}' +
+        '.tm-messenger-overlay .chat-read-status{display:inline-flex;align-items:center;margin-left:auto;font-size:11px;font-weight:900;letter-spacing:-1px;line-height:1;color:#4b5563;}' +
         '.tm-messenger-overlay .chat-read-status svg{width:15px;height:15px;display:block;}' +
         '.tm-messenger-overlay .chat-read-status.seen{color:#2563eb;}' +
-        '.tm-messenger-overlay .chat-delivery-label{position:static;margin:0;display:block;font-size:11px;font-weight:500;letter-spacing:0;color:#64748b;text-align:right;line-height:1;white-space:nowrap;align-self:flex-end;}' +
+        '.tm-messenger-overlay .chat-time{flex-wrap:nowrap;}' +
+        '.tm-messenger-overlay .chat-delivery-label{position:static;margin:0;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;letter-spacing:0;color:#64748b;text-align:right;line-height:1;white-space:nowrap;}' +
         '.tm-messenger-overlay .chat-delivery-label.seen{color:#64748b;}' +
         '.tm-messenger-overlay .chat-date-separator{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;margin:8px 0 2px;color:#94a3b8;font-size:12px;font-weight:500;line-height:1;}' +
         '.tm-messenger-overlay .chat-date-separator span{height:1px;background:#e5e7eb;}' +
@@ -4213,15 +4293,13 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay .chat-legend-read{display:inline-flex;align-items:center;font-size:12px;font-weight:900;letter-spacing:-1px;line-height:1;}' +
         '.tm-messenger-overlay .chat-legend-read.seen{color:#2563eb;}' +
         '.tm-messenger-overlay .chat-legend-read.delivered{color:#6b7280;}' +
-        '.tm-messenger-overlay .chat-bubble .chat-meta{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:2px;margin-top:6px;align-self:stretch;min-width:0;max-width:100%;white-space:normal;}' +
-        '.tm-messenger-overlay .chat-bubble.me .chat-meta{align-items:flex-end;}' +
-        '.tm-messenger-overlay .chat-bubble.other .chat-meta{align-self:stretch;align-items:flex-start;justify-content:flex-start;}' +
-        '.tm-messenger-overlay .chat-bubble .chat-meta .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-meta .chat-time{position:static;width:auto;text-align:left;margin:0;padding:0;min-width:max-content;max-width:100%;overflow:visible;text-overflow:clip;display:inline-flex;align-items:center;gap:6px;align-self:flex-start;}' +
-        '.tm-messenger-overlay .chat-bubble.me .chat-meta .chat-time{text-align:right;align-self:flex-end;}' +
-        '.tm-messenger-overlay .chat-bubble.other .chat-meta .chat-time{text-align:left;}' +
+        '.tm-messenger-overlay .chat-bubble .chat-meta{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:2px;align-self:flex-end;max-width:100%;white-space:nowrap;}' +
+        '.tm-messenger-overlay .chat-bubble.other .chat-meta{align-self:flex-start;justify-content:flex-start;}' +
+        '.tm-messenger-overlay .chat-bubble .chat-meta .chat-time,.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-meta .chat-time{position:absolute;left:10px;right:10px;bottom:-19px;width:auto;text-align:left;margin:0;padding:0;}' +
+        '.tm-messenger-overlay .chat-bubble.other .chat-meta .chat-time{left:10px;right:10px;text-align:left;}' +
         '.tm-messenger-overlay .chat-bubble .chat-meta .chat-edited,.tm-messenger-overlay .chat-bubble.has-edited-meta .chat-meta .chat-edited,.tm-messenger-overlay .chat-bubble.other .chat-meta .chat-edited{position:static;inset:auto;width:auto;text-align:inherit;margin:0;}' +
-        '.tm-messenger-overlay .chat-bubble{margin-bottom:18px;}' +
-        '.tm-messenger-overlay .chat-bubble.has-edited-meta{margin-bottom:18px;}' +
+        '.tm-messenger-overlay .chat-bubble{margin-bottom:12px;}' +
+        '.tm-messenger-overlay .chat-bubble.has-edited-meta{margin-bottom:42px;}' +
         '.tm-messenger-overlay .chat-bubble .chat-meta .chat-edited{appearance:none;-webkit-appearance:none;border:none;background:transparent;padding:0;cursor:pointer;font:inherit;font-weight:500;color:#2563eb;text-decoration:underline;text-underline-offset:2px;}' +
         '.tm-messenger-overlay .chat-bubble.me .chat-meta .chat-edited{color:#60a5fa;}' +
         '.tm-message-history-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(15,23,42,.52);z-index:2147483647;}' +
@@ -4321,8 +4399,8 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay.employee-style .tm-messenger-menu{top:calc(100% + 10px);min-width:208px;border-radius:18px;padding:10px;box-shadow:0 20px 46px rgba(15,23,42,.16);}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-menu-item{padding:12px 14px;font-size:14px;font-weight:400;border-radius:12px;}' +
         '.tm-messenger-overlay.employee-style .tm-messenger-messages{padding:20px 22px 16px;background:linear-gradient(180deg,#ffffff 0%,#fbfbfd 100%);gap:6px;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble{position:relative;overflow:visible;display:flex;flex-direction:column;max-width:min(68%,460px);margin-top:24px;margin-bottom:18px;padding:16px 20px 14px;border-radius:24px;border:1px solid #e6edf3;box-shadow:0 16px 34px rgba(15,23,42,.08);gap:2px;backdrop-filter:blur(2px);transition:transform .18s ease,box-shadow .18s ease;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta{margin-bottom:18px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble{position:relative;overflow:visible;display:flex;flex-direction:column;max-width:min(68%,460px);margin-top:24px;margin-bottom:14px;padding:16px 20px 24px;border-radius:24px;border:1px solid #e6edf3;box-shadow:0 16px 34px rgba(15,23,42,.08);gap:2px;backdrop-filter:blur(2px);transition:transform .18s ease,box-shadow .18s ease;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta{margin-bottom:50px;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble:hover{transform:translateY(-1px);}' +
         '.tm-messenger-overlay.employee-style .chat-bubble::after{content:"";position:absolute;bottom:10px;width:18px;height:18px;border-radius:0 0 16px 0;transform:rotate(45deg);z-index:0;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.other{background:linear-gradient(180deg,#f6fff9 0%,#eef9f2 100%);color:#0f172a;border-color:#cfeede;border-bottom-left-radius:12px;}' +
@@ -4348,33 +4426,33 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay.employee-style .chat-bubble .chat-message-text,.tm-messenger-overlay.employee-style .chat-bubble > div:not(.chat-sender):not(.chat-time):not(.tm-msg-actions):not(.tm-chat-attachment){position:relative;z-index:1;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .chat-message-text{white-space:pre-wrap;word-break:break-word;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .tm-chat-attachment{position:relative;z-index:1;margin-top:4px;}' +
-        '.tm-messenger-overlay.employee-style .chat-time{position:static;z-index:2;font-size:11px;font-weight:400;opacity:1;align-self:stretch;margin-top:0;letter-spacing:.01em;padding:0;color:#111827;text-shadow:none;display:flex;align-items:center;justify-content:flex-start;gap:8px;white-space:nowrap;flex-wrap:nowrap;min-width:max-content;max-width:100%;overflow:visible;text-overflow:clip;}' +
+        '.tm-messenger-overlay.employee-style .chat-time{position:absolute;left:10px;right:10px;bottom:-19px;z-index:2;font-size:11px;font-weight:400;opacity:1;align-self:auto;margin-top:0;letter-spacing:.01em;padding:0;color:#111827;text-shadow:none;display:flex;align-items:center;justify-content:flex-start;gap:4px;white-space:nowrap;flex-wrap:nowrap;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-time{color:#111827;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-time{color:#111827;}' +
-        '.tm-messenger-overlay.employee-style .chat-time-text{display:inline-block;max-width:none;overflow:visible;text-overflow:clip;white-space:nowrap;flex:0 0 auto;}' +
-        '.tm-messenger-overlay.employee-style .chat-edited{position:static;z-index:2;font-size:12px;font-weight:900;color:#2563eb;line-height:1.2;align-self:auto;text-shadow:none;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-edited{width:auto;text-align:left;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-time{right:10px;left:10px;color:#111827;}' +
+        '.tm-messenger-overlay.employee-style .chat-edited{position:absolute;right:12px;bottom:-42px;z-index:2;font-size:12px;font-weight:900;color:#2563eb;line-height:1.2;align-self:auto;text-shadow:none;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-edited{right:auto;left:12px;width:auto;text-align:left;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-time{justify-content:flex-start;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta.other .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta.other .chat-edited{width:auto;text-align:left;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-time{bottom:-24px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-edited{bottom:-42px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta.other .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta.other .chat-edited{right:auto;left:12px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-edited{right:auto;left:12px;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-edited{color:#60a5fa;}' +
-        '.tm-messenger-overlay.employee-style .chat-delivery-status{display:inline-flex;align-items:center;gap:6px;margin-left:0;white-space:nowrap;flex:0 0 auto;}' +
-        '.tm-messenger-overlay.employee-style .chat-read-status{display:inline-flex;align-items:center;margin-left:0;font-size:11px;font-weight:900;letter-spacing:-1px;line-height:1;color:#4b5563;white-space:nowrap;flex-shrink:0;}' +
+        '.tm-messenger-overlay.employee-style .chat-read-status{display:inline-flex;align-items:center;margin-left:auto;font-size:11px;font-weight:900;letter-spacing:-1px;line-height:1;color:#4b5563;}' +
         '.tm-messenger-overlay.employee-style .chat-read-status svg{width:16px;height:16px;display:block;}' +
         '.tm-messenger-overlay.employee-style .chat-read-status.seen{color:#2563eb;}' +
-        '.tm-messenger-overlay.employee-style .chat-delivery-label{position:static;margin:0;display:block;font-size:11px;font-weight:500;letter-spacing:0;color:#64748b;text-align:right;line-height:1;white-space:nowrap;align-self:flex-end;}' +
+        '.tm-messenger-overlay.employee-style .chat-time{flex-wrap:nowrap;}' +
+        '.tm-messenger-overlay.employee-style .chat-delivery-label{position:static;margin:0;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;letter-spacing:0;color:#64748b;text-align:right;line-height:1;white-space:nowrap;}' +
         '.tm-messenger-overlay.employee-style .chat-delivery-label.seen{color:#64748b;}' +
         '.tm-messenger-overlay.employee-style .chat-date-separator{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;margin:8px 0 2px;color:#94a3b8;font-size:12px;font-weight:500;line-height:1;}' +
         '.tm-messenger-overlay.employee-style .chat-date-separator span{height:1px;background:#e5e7eb;}' +
         '.tm-messenger-overlay.employee-style .chat-date-separator strong{font:inherit;color:inherit;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:2px;margin-top:6px;align-self:stretch;min-width:0;max-width:100%;white-space:normal;position:static;z-index:1;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-meta{align-items:flex-end;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta{align-self:stretch;align-items:flex-start;justify-content:flex-start;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-meta .chat-time{position:static;width:auto;text-align:left;margin:0;padding:0;min-width:max-content;max-width:100%;overflow:visible;text-overflow:clip;display:inline-flex;align-items:center;gap:6px;align-self:flex-start;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-meta .chat-time{text-align:right;align-self:flex-end;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta .chat-time{text-align:left;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:2px;align-self:flex-end;max-width:100%;white-space:nowrap;position:static;z-index:1;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta{align-self:flex-start;justify-content:flex-start;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-meta .chat-time{position:absolute;left:10px;right:10px;bottom:-19px;width:auto;text-align:left;margin:0;padding:0;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta .chat-time{left:10px;right:10px;text-align:left;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-edited,.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta .chat-meta .chat-edited,.tm-messenger-overlay.employee-style .chat-bubble.other .chat-meta .chat-edited{position:static;inset:auto;width:auto;text-align:inherit;margin:0;padding:0;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble{margin-bottom:18px;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta{margin-bottom:18px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble{margin-bottom:14px;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.has-edited-meta{margin-bottom:48px;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time{color:rgba(17,24,39,.9);}' +
         '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-meta .chat-time{color:rgba(17,24,39,.9);}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-edited{appearance:none;-webkit-appearance:none;border:none;background:transparent;cursor:pointer;font:inherit;font-weight:500;color:#2563eb;text-decoration:underline;text-underline-offset:2px;}' +
@@ -4497,7 +4575,7 @@ var TMTicketModal = (function () {
         '.tm-messenger-overlay.employee-style .tm-messenger-mobile-tabs{display:none;}' +
         '@media (min-width:769px){.tm-messenger-overlay.employee-style{inset:0;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;z-index:20000;}.tm-messenger-overlay.employee-style .tm-messenger-panel{width:min(96vw,1220px);height:min(92vh,760px);max-height:92vh;}}' +
         '@media (max-width:768px){.tm-messenger-overlay.employee-style .tm-messenger-panel::before{content:none;display:none}.tm-messenger-overlay.employee-style .tm-messenger-left-header{height:58px}.tm-messenger-overlay.employee-style .tm-messenger-right-header,.tm-messenger-overlay.employee-style .chat-panel-header{min-height:106px;height:auto;padding:18px 16px 12px}.tm-messenger-overlay.employee-style .tm-messenger-title-sub,.tm-messenger-overlay.employee-style .chat-ticket-meta{margin-top:14px;white-space:normal}.tm-messenger-overlay.employee-style .tm-messenger-header-actions,.tm-messenger-overlay.employee-style .chat-header-actions{top:8px;right:12px;gap:8px}.tm-messenger-overlay.employee-style .tm-messenger-messages{margin-top:0;padding:16px 14px}.tm-messenger-overlay.employee-style .tm-messenger-left-title{font-size:17px}.tm-messenger-overlay.employee-style .tm-messenger-title-main,.tm-messenger-overlay.employee-style .chat-ticket-title{font-size:17px;padding-right:104px}.tm-messenger-overlay.employee-style .tm-messenger-menu-btn,.tm-messenger-overlay.employee-style .tm-messenger-close{width:42px;height:42px}.tm-messenger-overlay.employee-style .tm-messenger-empty{min-height:180px;font-size:16px}.tm-messenger-overlay.employee-style .tm-messenger-empty.no-messages::before{width:54px;height:44px;font-size:21px;margin-bottom:14px}}' +
-        '@media (max-width:768px){.tm-messenger-overlay.employee-style{padding:10px 8px calc(env(safe-area-inset-bottom,0px) + 10px);align-items:center;justify-content:center;box-sizing:border-box;}.tm-messenger-overlay.employee-style .tm-messenger-panel{width:calc(100vw - 16px);height:calc(100dvh - 28px);max-height:calc(100dvh - 28px);border-radius:18px;display:flex;flex-direction:column;overflow:hidden;}.tm-messenger-overlay.employee-style .tm-messenger-mobile-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px;background:#0f4f25;border-bottom:1px solid rgba(255,255,255,.12);}.tm-messenger-overlay.employee-style .tm-messenger-mobile-tab{appearance:none;-webkit-appearance:none;border:1px solid rgba(255,255,255,.24);border-radius:13px;background:rgba(255,255,255,.10);color:#d8f3df;height:38px;font-size:13px;font-weight:850;}.tm-messenger-overlay.employee-style .tm-messenger-mobile-tab.active{background:#ffffff;color:#14532d;border-color:#ffffff;box-shadow:0 8px 18px rgba(15,23,42,.16);}.tm-messenger-overlay.employee-style .tm-messenger-left{width:100%;min-width:0;max-width:none;height:auto;flex:1 1 auto;min-height:0;max-height:none;border-right:0;border-bottom:0;background:#ffffff;}.tm-messenger-overlay.employee-style .tm-messenger-right{height:auto;flex:1 1 auto;min-height:0;background:#ffffff;}.tm-messenger-overlay.employee-style.tm-mobile-view-list .tm-messenger-left{display:flex;}.tm-messenger-overlay.employee-style.tm-mobile-view-list .tm-messenger-right{display:none;}.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-left{display:none;}.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-right{display:flex;}.tm-messenger-overlay.employee-style .tm-messenger-left-header{height:56px;padding:0 16px;gap:12px;}.tm-messenger-overlay.employee-style .tm-messenger-left-icon{width:40px;height:40px;min-width:40px;border-radius:13px;font-size:17px;}.tm-messenger-overlay.employee-style .tm-messenger-left-title{font-size:19px;line-height:1.1;}.tm-messenger-overlay.employee-style .tm-messenger-search{padding:10px 12px;background:#ffffff;border-bottom:0;}.tm-messenger-overlay.employee-style .tm-messenger-search::before{left:26px;top:50%;font-size:14px;}.tm-messenger-overlay.employee-style .tm-messenger-search::after{right:26px;top:50%;font-size:14px;}.tm-messenger-overlay.employee-style .tm-messenger-search input{height:44px;border-radius:12px;padding:0 40px;font-size:14px;box-shadow:0 4px 12px rgba(15,23,42,.045);}.tm-messenger-overlay.employee-style .tm-messenger-filters{padding:0 12px 10px;gap:6px;overflow-x:auto;scrollbar-width:none;}.tm-messenger-overlay.employee-style .tm-messenger-filters::-webkit-scrollbar{display:none;}.tm-messenger-overlay.employee-style .tm-messenger-filter-btn{height:32px;padding:0 11px;border-radius:14px;font-size:11px;font-weight:800;}.tm-messenger-overlay.employee-style .tm-messenger-list{padding:10px 12px 16px;gap:13px;background:#f8fafb;}.tm-messenger-overlay.employee-style .tm-messenger-item{position:relative;min-height:70px;padding:14px 12px 14px 68px;border-radius:15px;gap:8px;box-shadow:0 5px 12px rgba(15,23,42,.045);}.tm-messenger-overlay.employee-style .tm-messenger-item.tm-has-letter-avatar{padding-left:68px!important;}.tm-messenger-overlay.employee-style .tm-messenger-item.tm-has-letter-avatar::before{left:14px;width:42px;height:42px;font-size:14px;}.tm-messenger-overlay.employee-style .tm-messenger-item-top{gap:10px;align-items:flex-start;}.tm-messenger-overlay.employee-style .tm-messenger-item-subject{font-size:14px;line-height:1.35;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}.tm-messenger-overlay.employee-style .tm-messenger-item-time{font-size:12px;line-height:1.2;padding-top:1px;}.tm-messenger-overlay.employee-style .tm-messenger-item-preview{margin-top:8px;font-size:13px;line-height:1.42;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:clip;}.tm-messenger-overlay.employee-style .tm-messenger-item-preview.locked{display:flex;align-items:flex-start;gap:8px;max-width:100%;overflow:hidden;white-space:normal;line-height:1.42;}.tm-messenger-overlay.employee-style .tm-messenger-item-preview.locked .lock-icon{flex:0 0 auto;margin-top:1px;}.tm-messenger-overlay.employee-style .tm-messenger-preview-text{min-width:0;overflow:hidden;text-overflow:ellipsis;}.tm-messenger-overlay.employee-style .tm-messenger-item-preview.locked .tm-messenger-preview-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal;}.tm-messenger-overlay.employee-style .tm-messenger-right-header,.tm-messenger-overlay.employee-style .chat-panel-header{min-height:78px;padding:12px 12px 10px;border-bottom:1px solid #e5e7eb!important;}.tm-messenger-overlay.employee-style .chat-panel-title-row{gap:4px;}.tm-messenger-overlay.employee-style .tm-messenger-title-main,.tm-messenger-overlay.employee-style .chat-ticket-title{font-size:14px;line-height:1.22;padding-right:90px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}.tm-messenger-overlay.employee-style .tm-messenger-title-sub,.tm-messenger-overlay.employee-style .chat-ticket-meta{margin-top:7px;font-size:11px;gap:6px;line-height:1.2;white-space:normal;}.tm-messenger-overlay.employee-style .tm-messenger-status-pill{height:24px;padding:0 10px;font-size:11px;}.tm-messenger-overlay.employee-style .tm-messenger-header-actions,.tm-messenger-overlay.employee-style .chat-header-actions{top:8px;right:10px;gap:7px;}.tm-messenger-overlay.employee-style .tm-messenger-menu-btn,.tm-messenger-overlay.employee-style .tm-messenger-close{width:36px;height:36px;border-radius:12px;font-size:20px;}.tm-messenger-overlay.employee-style .tm-messenger-close{font-size:24px;}.tm-messenger-overlay.employee-style .tm-messenger-messages{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 12px 10px;background:#ffffff;gap:6px;}.tm-messenger-overlay.employee-style .chat-bubble{max-width:calc(100% - 46px);padding:10px 12px 12px!important;border-radius:17px;font-size:13px;line-height:1.42;margin-top:20px!important;margin-bottom:18px!important;gap:2px;box-shadow:0 8px 18px rgba(15,23,42,.06);}.tm-messenger-overlay.employee-style .chat-bubble.other.tm-has-letter-avatar{margin-left:40px;}.tm-messenger-overlay.employee-style .chat-bubble.me.tm-has-letter-avatar{margin-right:40px;}.tm-messenger-overlay.employee-style .chat-bubble.other.tm-has-letter-avatar::before,.tm-messenger-overlay.employee-style .chat-bubble.me.tm-has-letter-avatar::before{width:28px;height:28px;font-size:10px;}.tm-messenger-overlay.employee-style .chat-bubble.other.tm-has-letter-avatar::before{left:-40px;}.tm-messenger-overlay.employee-style .chat-bubble.me.tm-has-letter-avatar::before{right:-40px;}.tm-messenger-overlay.employee-style .chat-bubble::after{width:12px;height:12px;bottom:8px;}.tm-messenger-overlay.employee-style .chat-sender{top:-24px;font-size:11px;max-width:190px;overflow:hidden;text-overflow:ellipsis;}.tm-messenger-overlay.employee-style .chat-time{font-size:10px;min-width:max-content;max-width:100%;overflow:visible;text-overflow:clip;}.tm-messenger-overlay.employee-style .chat-bubble .chat-meta{gap:8px;margin-top:6px;}.tm-messenger-overlay.employee-style .tm-messenger-compose{margin:7px 10px calc(env(safe-area-inset-bottom,0px) + 8px);padding:8px;grid-template-columns:38px minmax(0,1fr) 74px;grid-template-rows:38px;border-radius:18px;gap:8px;border-width:1.5px;box-shadow:0 8px 18px rgba(15,23,42,.07);}.tm-messenger-overlay.employee-style .tm-messenger-compose:not(.has-attachment){padding:8px;grid-template-rows:38px;}.tm-messenger-overlay.employee-style .tm-messenger-compose.has-attachment{margin-top:48px;}.tm-messenger-overlay.employee-style .tm-messenger-attach{width:38px;height:38px;border-radius:12px;font-size:15px;}.tm-messenger-overlay.employee-style .tm-messenger-compose input{min-height:38px;height:38px;border-radius:18px;padding:8px 12px;font-size:13px;line-height:18px;}.tm-messenger-overlay.employee-style .tm-messenger-send{min-width:74px;min-height:38px;height:38px;border-radius:18px;font-size:13px;padding:0 10px;}.tm-messenger-overlay.employee-style #tmMessengerAttachmentName.tm-chat-attachment-selected{top:-43px;height:38px;gap:8px;padding-right:2px;}.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment{height:36px;min-height:36px;}.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-image{width:44px;min-width:44px;max-width:44px;}.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-image .tm-selected-attachment-thumb{width:42px;height:34px;}.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-file{width:136px;min-width:136px;max-width:136px;}.tm-messenger-overlay.employee-style .tm-messenger-empty{min-height:120px;font-size:13px;padding:16px 10px;}}' +
+        '@media (max-width:768px){.tm-messenger-overlay.employee-style{padding:10px 8px calc(env(safe-area-inset-bottom,0px) + 10px);align-items:center;justify-content:center;box-sizing:border-box;}.tm-messenger-overlay.employee-style .tm-messenger-panel{width:calc(100vw - 16px);height:calc(100dvh - 28px);max-height:calc(100dvh - 28px);border-radius:18px;display:flex;flex-direction:column;overflow:hidden;}.tm-messenger-overlay.employee-style .tm-messenger-mobile-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px;background:#0f4f25;border-bottom:1px solid rgba(255,255,255,.12);}.tm-messenger-overlay.employee-style .tm-messenger-mobile-tab{appearance:none;-webkit-appearance:none;border:1px solid rgba(255,255,255,.24);border-radius:13px;background:rgba(255,255,255,.10);color:#d8f3df;height:38px;font-size:13px;font-weight:850;}.tm-messenger-overlay.employee-style .tm-messenger-mobile-tab.active{background:#ffffff;color:#14532d;border-color:#ffffff;box-shadow:0 8px 18px rgba(15,23,42,.16);}.tm-messenger-overlay.employee-style .tm-messenger-left{width:100%;min-width:0;max-width:none;height:auto;flex:1 1 auto;min-height:0;max-height:none;border-right:0;border-bottom:0;background:#ffffff;}.tm-messenger-overlay.employee-style .tm-messenger-right{height:auto;flex:1 1 auto;min-height:0;background:#ffffff;}.tm-messenger-overlay.employee-style.tm-mobile-view-list .tm-messenger-left{display:flex;}.tm-messenger-overlay.employee-style.tm-mobile-view-list .tm-messenger-right{display:none;}.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-left{display:none;}.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-right{display:flex;}.tm-messenger-overlay.employee-style .tm-messenger-left-header{height:56px;padding:0 16px;gap:12px;}.tm-messenger-overlay.employee-style .tm-messenger-left-icon{width:40px;height:40px;min-width:40px;border-radius:13px;font-size:17px;}.tm-messenger-overlay.employee-style .tm-messenger-left-title{font-size:19px;line-height:1.1;}.tm-messenger-overlay.employee-style .tm-messenger-search{padding:10px 12px;background:#ffffff;border-bottom:0;}.tm-messenger-overlay.employee-style .tm-messenger-search::before{left:26px;top:50%;font-size:14px;}.tm-messenger-overlay.employee-style .tm-messenger-search::after{right:26px;top:50%;font-size:14px;}.tm-messenger-overlay.employee-style .tm-messenger-search input{height:44px;border-radius:12px;padding:0 40px;font-size:14px;box-shadow:0 4px 12px rgba(15,23,42,.045);}.tm-messenger-overlay.employee-style .tm-messenger-filters{padding:0 12px 10px;gap:6px;overflow-x:auto;scrollbar-width:none;}.tm-messenger-overlay.employee-style .tm-messenger-filters::-webkit-scrollbar{display:none;}.tm-messenger-overlay.employee-style .tm-messenger-filter-btn{height:32px;padding:0 11px;border-radius:14px;font-size:11px;font-weight:800;}.tm-messenger-overlay.employee-style .tm-messenger-list{padding:10px 12px 16px;gap:13px;background:#f8fafb;}.tm-messenger-overlay.employee-style .tm-messenger-item{position:relative;min-height:70px;padding:14px 12px 14px 68px;border-radius:15px;gap:8px;box-shadow:0 5px 12px rgba(15,23,42,.045);}.tm-messenger-overlay.employee-style .tm-messenger-item.tm-has-letter-avatar{padding-left:68px!important;}.tm-messenger-overlay.employee-style .tm-messenger-item.tm-has-letter-avatar::before{left:14px;width:42px;height:42px;font-size:14px;}.tm-messenger-overlay.employee-style .tm-messenger-item-top{gap:10px;align-items:flex-start;}.tm-messenger-overlay.employee-style .tm-messenger-item-subject{font-size:14px;line-height:1.35;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}.tm-messenger-overlay.employee-style .tm-messenger-item-time{font-size:12px;line-height:1.2;padding-top:1px;}.tm-messenger-overlay.employee-style .tm-messenger-item-preview{margin-top:8px;font-size:13px;line-height:1.42;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:clip;}.tm-messenger-overlay.employee-style .tm-messenger-item-preview.locked{display:flex;align-items:flex-start;gap:8px;max-width:100%;overflow:hidden;white-space:normal;line-height:1.42;}.tm-messenger-overlay.employee-style .tm-messenger-item-preview.locked .lock-icon{flex:0 0 auto;margin-top:1px;}.tm-messenger-overlay.employee-style .tm-messenger-preview-text{min-width:0;overflow:hidden;text-overflow:ellipsis;}.tm-messenger-overlay.employee-style .tm-messenger-item-preview.locked .tm-messenger-preview-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal;}.tm-messenger-overlay.employee-style .tm-messenger-right-header,.tm-messenger-overlay.employee-style .chat-panel-header{min-height:78px;padding:12px 12px 10px;border-bottom:1px solid #e5e7eb!important;}.tm-messenger-overlay.employee-style .chat-panel-title-row{gap:4px;}.tm-messenger-overlay.employee-style .tm-messenger-title-main,.tm-messenger-overlay.employee-style .chat-ticket-title{font-size:14px;line-height:1.22;padding-right:90px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}.tm-messenger-overlay.employee-style .tm-messenger-title-sub,.tm-messenger-overlay.employee-style .chat-ticket-meta{margin-top:7px;font-size:11px;gap:6px;line-height:1.2;white-space:normal;}.tm-messenger-overlay.employee-style .tm-messenger-status-pill{height:24px;padding:0 10px;font-size:11px;}.tm-messenger-overlay.employee-style .tm-messenger-header-actions,.tm-messenger-overlay.employee-style .chat-header-actions{top:8px;right:10px;gap:7px;}.tm-messenger-overlay.employee-style .tm-messenger-menu-btn,.tm-messenger-overlay.employee-style .tm-messenger-close{width:36px;height:36px;border-radius:12px;font-size:20px;}.tm-messenger-overlay.employee-style .tm-messenger-close{font-size:24px;}.tm-messenger-overlay.employee-style .tm-messenger-messages{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 12px 10px;background:#ffffff;gap:6px;}.tm-messenger-overlay.employee-style .chat-bubble{max-width:calc(100% - 46px);padding:10px 12px;border-radius:17px;font-size:13px;line-height:1.42;margin-top:20px!important;margin-bottom:14px!important;gap:2px;box-shadow:0 8px 18px rgba(15,23,42,.06);}.tm-messenger-overlay.employee-style .chat-bubble.other.tm-has-letter-avatar{margin-left:40px;}.tm-messenger-overlay.employee-style .chat-bubble.me.tm-has-letter-avatar{margin-right:40px;}.tm-messenger-overlay.employee-style .chat-bubble.other.tm-has-letter-avatar::before,.tm-messenger-overlay.employee-style .chat-bubble.me.tm-has-letter-avatar::before{width:28px;height:28px;font-size:10px;}.tm-messenger-overlay.employee-style .chat-bubble.other.tm-has-letter-avatar::before{left:-40px;}.tm-messenger-overlay.employee-style .chat-bubble.me.tm-has-letter-avatar::before{right:-40px;}.tm-messenger-overlay.employee-style .chat-bubble::after{width:12px;height:12px;bottom:8px;}.tm-messenger-overlay.employee-style .chat-sender{top:-24px;font-size:11px;max-width:190px;overflow:hidden;text-overflow:ellipsis;}.tm-messenger-overlay.employee-style .chat-time{font-size:10px;bottom:-18px;}.tm-messenger-overlay.employee-style .chat-bubble .chat-meta{gap:6px;margin-top:2px;}.tm-messenger-overlay.employee-style .tm-messenger-compose{margin:7px 10px calc(env(safe-area-inset-bottom,0px) + 8px);padding:8px;grid-template-columns:38px minmax(0,1fr) 74px;grid-template-rows:38px;border-radius:18px;gap:8px;border-width:1.5px;box-shadow:0 8px 18px rgba(15,23,42,.07);}.tm-messenger-overlay.employee-style .tm-messenger-compose:not(.has-attachment){padding:8px;grid-template-rows:38px;}.tm-messenger-overlay.employee-style .tm-messenger-compose.has-attachment{margin-top:48px;}.tm-messenger-overlay.employee-style .tm-messenger-attach{width:38px;height:38px;border-radius:12px;font-size:15px;}.tm-messenger-overlay.employee-style .tm-messenger-compose input{min-height:38px;height:38px;border-radius:18px;padding:8px 12px;font-size:13px;line-height:18px;}.tm-messenger-overlay.employee-style .tm-messenger-send{min-width:74px;min-height:38px;height:38px;border-radius:18px;font-size:13px;padding:0 10px;}.tm-messenger-overlay.employee-style #tmMessengerAttachmentName.tm-chat-attachment-selected{top:-43px;height:38px;gap:8px;padding-right:2px;}.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment{height:36px;min-height:36px;}.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-image{width:44px;min-width:44px;max-width:44px;}.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-image .tm-selected-attachment-thumb{width:42px;height:34px;}.tm-messenger-overlay.employee-style #tmMessengerAttachmentName .tm-selected-attachment.is-file{width:136px;min-width:136px;max-width:136px;}.tm-messenger-overlay.employee-style .tm-messenger-empty{min-height:120px;font-size:13px;padding:16px 10px;}}' +
         '@media (max-width:768px){.tm-messenger-overlay.employee-style{padding:calc(env(safe-area-inset-top,0px) + 18px) 18px calc(env(safe-area-inset-bottom,0px) + 58px)!important;}.tm-messenger-overlay.employee-style .tm-messenger-panel{width:min(92vw,390px)!important;height:min(82dvh,690px)!important;max-height:min(82dvh,690px)!important;border-radius:18px!important;box-shadow:0 18px 42px rgba(15,23,42,.30)!important;}.tm-messenger-overlay.employee-style .tm-messenger-mobile-tabs{padding:8px!important;gap:7px!important;}.tm-messenger-overlay.employee-style .tm-messenger-mobile-tab{height:34px!important;border-radius:12px!important;font-size:12px!important;}.tm-messenger-overlay.employee-style .tm-messenger-left-header{height:48px!important;padding:0 13px!important;gap:10px!important;}.tm-messenger-overlay.employee-style .tm-messenger-left-icon{width:34px!important;height:34px!important;min-width:34px!important;border-radius:11px!important;font-size:15px!important;}.tm-messenger-overlay.employee-style .tm-messenger-left-title{font-size:16px!important;}.tm-messenger-overlay.employee-style .tm-messenger-search{padding:8px 10px!important;}.tm-messenger-overlay.employee-style .tm-messenger-search input{height:38px!important;font-size:13px!important;border-radius:11px!important;}.tm-messenger-overlay.employee-style .tm-messenger-list{padding:8px 10px 12px!important;gap:9px!important;}.tm-messenger-overlay.employee-style .tm-messenger-item{min-height:58px!important;padding:11px 10px 11px 58px!important;border-radius:13px!important;}.tm-messenger-overlay.employee-style .tm-messenger-item.tm-has-letter-avatar{padding-left:58px!important;}.tm-messenger-overlay.employee-style .tm-messenger-item.tm-has-letter-avatar::before{left:12px!important;width:36px!important;height:36px!important;font-size:12px!important;}.tm-messenger-overlay.employee-style .tm-messenger-item-subject{font-size:13px!important;line-height:1.28!important;}.tm-messenger-overlay.employee-style .tm-messenger-item-time{font-size:11px!important;}.tm-messenger-overlay.employee-style .tm-messenger-item-preview{font-size:12px!important;margin-top:5px!important;}.tm-messenger-overlay.employee-style .tm-messenger-right-header,.tm-messenger-overlay.employee-style .chat-panel-header{min-height:66px!important;padding:10px 10px 8px!important;}.tm-messenger-overlay.employee-style .tm-messenger-title-main,.tm-messenger-overlay.employee-style .chat-ticket-title{font-size:13px!important;padding-right:82px!important;}.tm-messenger-overlay.employee-style .tm-messenger-title-sub,.tm-messenger-overlay.employee-style .chat-ticket-meta{font-size:10px!important;margin-top:5px!important;gap:5px!important;}.tm-messenger-overlay.employee-style .tm-messenger-status-pill{height:21px!important;padding:0 8px!important;font-size:10px!important;}.tm-messenger-overlay.employee-style .tm-messenger-menu-btn,.tm-messenger-overlay.employee-style .tm-messenger-close{width:32px!important;height:32px!important;border-radius:10px!important;}.tm-messenger-overlay.employee-style .tm-messenger-messages{padding:12px 10px 8px!important;gap:8px!important;}.tm-messenger-overlay.employee-style .chat-bubble{max-width:calc(100% - 38px)!important;padding:8px 10px!important;border-radius:15px!important;font-size:12px!important;line-height:1.35!important;margin-top:17px!important;margin-bottom:17px!important;}.tm-messenger-overlay.employee-style .chat-bubble.other.tm-has-letter-avatar{margin-left:34px!important;}.tm-messenger-overlay.employee-style .chat-bubble.me.tm-has-letter-avatar{margin-right:34px!important;}.tm-messenger-overlay.employee-style .chat-bubble.other.tm-has-letter-avatar::before,.tm-messenger-overlay.employee-style .chat-bubble.me.tm-has-letter-avatar::before{width:24px!important;height:24px!important;font-size:9px!important;}.tm-messenger-overlay.employee-style .chat-bubble.other.tm-has-letter-avatar::before{left:-34px!important;}.tm-messenger-overlay.employee-style .chat-bubble.me.tm-has-letter-avatar::before{right:-34px!important;}.tm-messenger-overlay.employee-style .tm-messenger-compose{margin:6px 8px calc(env(safe-area-inset-bottom,0px) + 7px)!important;padding:7px!important;grid-template-columns:34px minmax(0,1fr) 64px!important;grid-template-rows:34px!important;border-radius:16px!important;gap:7px!important;}.tm-messenger-overlay.employee-style .tm-messenger-attach{width:34px!important;height:34px!important;border-radius:11px!important;font-size:14px!important;}.tm-messenger-overlay.employee-style .tm-messenger-compose input{min-height:34px!important;height:34px!important;border-radius:17px!important;font-size:12px!important;padding:7px 10px!important;}.tm-messenger-overlay.employee-style .tm-messenger-send{min-width:64px!important;min-height:34px!important;height:34px!important;border-radius:17px!important;font-size:12px!important;padding:0 8px!important;}}' +
         '@media (max-width:768px){.tm-messenger-overlay.employee-style .tm-messenger-mobile-tabs{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 34px!important;align-items:center!important;}.tm-messenger-overlay.employee-style .tm-messenger-mobile-close{appearance:none;-webkit-appearance:none;width:34px;height:34px;border-radius:12px;border:1px solid rgba(254,202,202,.95);background:#fff7f7;color:#b91c1c;font-size:24px;line-height:1;font-weight:700;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 8px 18px rgba(15,23,42,.12);}.tm-messenger-overlay.employee-style .tm-messenger-item{height:auto!important;min-height:66px!important;overflow:hidden!important;align-items:center!important;}.tm-messenger-overlay.employee-style .tm-messenger-item-top{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important;width:100%!important;align-items:start!important;}.tm-messenger-overlay.employee-style .tm-messenger-item-subject{display:block!important;-webkit-line-clamp:unset!important;-webkit-box-orient:unset!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;word-break:break-word!important;padding-right:0!important;}.tm-messenger-overlay.employee-style .tm-messenger-item-right{display:flex!important;align-items:flex-start!important;justify-content:flex-end!important;min-width:48px!important;}.tm-messenger-overlay.employee-style .tm-messenger-item-preview{display:none!important;}.tm-messenger-overlay.employee-style .tm-messenger-preview-text{display:none!important;}.tm-messenger-overlay.employee-style.tm-mobile-view-list .tm-messenger-left{gap:0!important;}.tm-messenger-overlay.employee-style .tm-messenger-left-header{margin:0!important;border-bottom:0!important;}.tm-messenger-overlay.employee-style .tm-messenger-search{position:relative!important;top:auto!important;transform:none!important;margin:0!important;padding:8px 10px!important;min-height:0!important;border-top:0!important;}.tm-messenger-overlay.employee-style .tm-messenger-search::before,.tm-messenger-overlay.employee-style .tm-messenger-search::after{top:50%!important;}.tm-messenger-overlay.employee-style .tm-messenger-filters{display:none!important;}.tm-messenger-overlay.employee-style .tm-messenger-list{padding-top:8px!important;}}';
       document.head.appendChild(polishStyle);
@@ -4507,18 +4585,15 @@ var TMTicketModal = (function () {
       var alignmentStyle = document.createElement('style');
       alignmentStyle.id = 'tmMessengerChatAlignmentFix';
       alignmentStyle.textContent =
-        '.tm-messenger-overlay.employee-style .chat-bubble.me{padding-bottom:14px!important;margin-bottom:18px!important;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble.me{min-width:148px!important;padding-bottom:12px!important;margin-bottom:14px!important;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .chat-message-text{display:block!important;min-height:18px!important;line-height:1.45!important;word-break:break-word!important;padding:0 0 6px!important;margin:0!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta{display:flex!important;height:auto!important;margin:6px 0 0!important;padding:0!important;gap:2px!important;position:static!important;align-items:flex-start!important;justify-content:flex-start!important;align-self:stretch!important;min-width:0!important;max-width:100%!important;white-space:normal!important;flex-direction:column!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-meta{align-items:flex-end!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time{position:static!important;display:inline-flex!important;flex-wrap:nowrap!important;align-items:center!important;justify-content:flex-start!important;gap:6px!important;line-height:1!important;white-space:nowrap!important;text-align:left!important;min-width:max-content!important;max-width:100%!important;overflow:visible!important;text-overflow:clip!important;align-self:flex-start!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-bubble.me .chat-meta .chat-time{text-align:right!important;align-self:flex-end!important;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta{height:0!important;margin:0!important;padding:0!important;gap:0!important;position:static!important;}' +
+        '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time{position:absolute!important;left:10px!important;right:10px!important;bottom:-19px!important;display:flex!important;flex-wrap:nowrap!important;align-items:center!important;justify-content:flex-start!important;gap:4px!important;line-height:1!important;white-space:nowrap!important;text-align:left!important;min-width:0!important;}' +
         '.tm-messenger-overlay.employee-style .chat-bubble .chat-meta .chat-time .chat-edited{position:static!important;inset:auto!important;width:auto!important;min-width:max-content!important;margin:0!important;padding:0!important;line-height:1!important;text-align:inherit!important;white-space:nowrap!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-time-text{display:inline-block!important;max-width:none!important;overflow:visible!important;text-overflow:clip!important;white-space:nowrap!important;flex:0 0 auto!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-delivery-status{display:inline-flex!important;align-items:center!important;gap:6px!important;margin-left:0!important;white-space:nowrap!important;flex:0 0 auto!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-read-status{display:inline-flex!important;align-items:center!important;margin-left:0!important;white-space:nowrap!important;flex-shrink:0!important;}' +
+        '.tm-messenger-overlay.employee-style .chat-time-text{flex:0 0 auto!important;white-space:nowrap!important;}' +
+        '.tm-messenger-overlay.employee-style .chat-read-status{display:inline-flex!important;align-items:center!important;margin-left:auto!important;white-space:nowrap!important;}' +
         '.tm-messenger-overlay.employee-style .chat-edited-separator{color:#94a3b8!important;font-weight:600!important;line-height:1!important;}' +
-        '.tm-messenger-overlay.employee-style .chat-delivery-label{position:static!important;margin:0!important;display:block!important;line-height:1!important;text-align:right!important;white-space:nowrap!important;align-self:flex-end!important;}';
+        '.tm-messenger-overlay.employee-style .chat-delivery-label{position:static!important;margin:0!important;display:inline-flex!important;align-items:center!important;gap:4px!important;line-height:1!important;text-align:right!important;white-space:nowrap!important;}';
       document.head.appendChild(alignmentStyle);
     }
 
@@ -5185,7 +5260,10 @@ var TMTicketModal = (function () {
         if (attachmentNode) bubble.appendChild(attachmentNode);
       }
     }
-    bubble.appendChild(createMessageMetaNode({ is_me: isMe, is_read: false }, timeText || formatHHMM(new Date())));
+    var timeDiv = document.createElement('div');
+    timeDiv.classList.add('chat-time');
+    setMessageTimeWithStatus(timeDiv, { is_me: isMe, is_read: false }, timeText || formatHHMM(new Date()));
+    bubble.appendChild(timeDiv);
     container.appendChild(bubble);
     container.scrollTop = container.scrollHeight;
     return bubble;
