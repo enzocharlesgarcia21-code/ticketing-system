@@ -165,7 +165,7 @@ if ((string) ($ticket['status'] ?? '') === 'Open') {
 
         $ticketDescription = trim((string) ($ticketForNotification['description'] ?? ''));
         if ($ticketDescription !== '') {
-            $extraLines[] = "Description:\n" . $ticketDescription;
+            $extraLines[] = "Description:\n" . ticket_email_description_for_notification($ticketDescription);
         }
 
         $ticketPriority = trim((string) ($ticketForNotification['priority'] ?? ''));

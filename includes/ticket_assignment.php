@@ -2424,6 +2424,49 @@ function ticket_user_email_addresses(mysqli $conn, array $userIds): array
     return array_values(array_unique($emails));
 }
 
+function ticket_email_description_for_notification(string $description): string
+{
+    $lines = preg_split('/\r\n|\r|\n/', $description);
+    if (!is_array($lines)) {
+        return $description;
+    }
+
+    $firstContent = '';
+    foreach ($lines as $line) {
+        $trimmed = trim((string) $line);
+        if ($trimmed !== '') {
+            $firstContent = $trimmed;
+            break;
+        }
+    }
+    if (!preg_match('/^SAP Form$/i', $firstContent)) {
+        return $description;
+    }
+
+    $filtered = [];
+    $skippingEmployeeDetails = false;
+    foreach ($lines as $line) {
+        $text = (string) $line;
+        $trimmed = trim($text);
+
+        if (preg_match('/^Employee Details(?:\s+\d+)?$/i', $trimmed)) {
+            $skippingEmployeeDetails = true;
+            continue;
+        }
+
+        if ($skippingEmployeeDetails) {
+            if ($trimmed === '' || preg_match('/^(Name|Position|Address|Department|TIN)\s*:/i', $trimmed)) {
+                continue;
+            }
+            $skippingEmployeeDetails = false;
+        }
+
+        $filtered[] = $text;
+    }
+
+    return trim(implode("\n", $filtered));
+}
+
 function notifyTicketClosed(mysqli $conn, array $ticket, int $inactivitySeconds = 7200): array
 {
     $ticketId = (int) ($ticket['id'] ?? 0);

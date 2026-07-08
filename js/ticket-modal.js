@@ -343,6 +343,26 @@ var TMTicketModal = (function () {
   }
   function createMessageActionsNode(msg, ticketId, onDone) {
     if (!msg || !ticketId) return null;
+    if (msg.is_me !== true) {
+      if (!buildReplyContext(msg)) return null;
+
+      var replyWrap = document.createElement('div');
+      replyWrap.className = 'tm-msg-actions';
+
+      var replyToggle = document.createElement('button');
+      replyToggle.type = 'button';
+      replyToggle.className = 'tm-msg-actions-toggle';
+      replyToggle.setAttribute('aria-label', 'Reply to message');
+      replyToggle.innerHTML = '<i class="fas fa-reply"></i>';
+      replyToggle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        focusReplyComposer(ticketId, msg);
+      });
+
+      replyWrap.appendChild(replyToggle);
+      return replyWrap;
+    }
+
     var canEdit = msg.can_edit === true;
     var hasCopyableMessage = String(msg.message || '').trim() !== '';
     var imageAttachment = messagePrimaryImageAttachment(msg);
@@ -1388,11 +1408,14 @@ var TMTicketModal = (function () {
     return decoded.map(function (report, index) {
       if (!report || typeof report !== 'object') return null;
       var fields = {
+        'name': String(report.name || '').trim(),
         'full name': String(report.name || '').trim(),
         'position': String(report.position || '').trim(),
+        'address': String(report.address || '').trim(),
+        'department': String(report.department || '').trim(),
+        'tin': String(report.tin || '').trim(),
         'immediate supervisor': String(report.immediate_head || report.immediate_supervisor || '').trim(),
-        'company': String(report.company || '').trim(),
-        'department': String(report.department || '').trim()
+        'company': String(report.company || '').trim()
       };
       var hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
       if (!hasValue) return null;
@@ -1519,25 +1542,21 @@ var TMTicketModal = (function () {
     if (!reports.length) return '';
     var carouselId = 'tmSapDisplay-' + String(++sapDisplaySeq);
     var fieldConfig = [
-      { key: 'full name', label: 'Full Name' },
+      { key: 'name', aliases: ['full name'], label: 'Name' },
       { key: 'position', label: 'Position' },
-      { key: 'immediate supervisor', label: 'Supervisor' },
-      { key: 'company', label: 'Company' },
-      { key: 'department', label: 'Department', wide: true }
+      { key: 'address', label: 'Address' },
+      { key: 'department', label: 'Department' },
+      { key: 'tin', label: 'TIN' }
     ];
     return '<div class="tm-sap-display">' +
       '<div class="tm-sap-carousel" id="' + carouselId + '" data-index="0">' +
       reports.map(function (report, reportIndex) {
-        var rawDepartmentValue = getSapFieldValue(report, ['department', 'dept']);
-        var departmentValue = dashIfUnknown(rawDepartmentValue);
-        var companyValue = formatSapCompanyValue(getSapFieldValue(report, ['company', 'company name', 'company domain']), rawDepartmentValue);
         return '<div class="tm-sap-card' + (reportIndex === 0 ? ' is-active' : '') + '" data-index="' + String(reportIndex) + '" aria-hidden="' + (reportIndex === 0 ? 'false' : 'true') + '">' +
-          '<div class="tm-sap-card-title">Employee Details' + (reports.length > 1 ? ' ' + escapeHtml(report.index) : '') + '</div>' +
+          '<div class="tm-sap-card-title">Employee Details</div>' +
           '<div class="tm-sap-field-grid">' +
           fieldConfig.map(function (field) {
-            var value = field.key === 'company'
-              ? companyValue
-              : (field.key === 'department' ? departmentValue : (getSapFieldValue(report, [field.key]) || '-'));
+            var lookupKeys = [field.key].concat(field.aliases || []);
+            var value = getSapFieldValue(report, lookupKeys) || '-';
             return '<div class="tm-sap-field' + (field.wide ? ' is-wide' : '') + '">' +
               '<div class="tm-sap-label">' + escapeHtml(field.label) + '</div>' +
               '<div class="tm-sap-value">' + escapeHtml(value) + '</div>' +
@@ -1568,11 +1587,7 @@ var TMTicketModal = (function () {
       { key: 'company', label: 'Company' },
       { key: 'department', label: 'Department' }
     ];
-    return '<div class="tm-desc-row">' +
-      '<span class="tm-desc-label">EMAIL REQUEST TYPE:</span>' +
-      '<span class="tm-desc-value">Creation of email</span>' +
-      '</div>' +
-      '<div class="tm-sap-display tm-email-display">' +
+    return '<div class="tm-sap-display tm-email-display">' +
       '<div class="tm-sap-carousel" id="' + carouselId + '" data-index="0">' +
       entries.map(function (entry, entryIndex) {
         return '<div class="tm-sap-card' + (entryIndex === 0 ? ' is-active' : '') + '" data-index="' + String(entryIndex) + '" aria-hidden="' + (entryIndex === 0 ? 'false' : 'true') + '">' +
@@ -2023,7 +2038,7 @@ var TMTicketModal = (function () {
       var emailCreationHtml = renderEmailCreationDescriptionHtml(data, descriptionText);
       var sapDescriptionHtml = emailCreationHtml ? '' : renderSapDescriptionHtml(data, descriptionText);
       if (emailCreationHtml) {
-        title = 'Email Request';
+        title = 'Creation of Email';
         descriptionHtml = emailCreationHtml;
       } else if (sapDescriptionHtml) {
         title = 'SAP Form';
@@ -3044,14 +3059,22 @@ var TMTicketModal = (function () {
         created_at: String((data && (data.updated_at || data.created_at)) || '')
       }];
     }
-    var requesterNotesHtml = requesterActionItems.map(function (item) {
+    var requesterNotesHtmlArray = requesterActionItems.map(function (item, index) {
       var noteText = String((item && item.note) || '').trim();
       if (!noteText) return '';
-      return '<article class="tm-requestor-note-entry" style="border:1px solid #dfe7f1;border-radius:14px;background:#ffffff;padding:13px 14px;box-shadow:0 8px 18px rgba(15,23,42,.04);">' +
-        '<div class="tm-requestor-note-time" style="color:#64748b;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">' + escapeHtml(formatTimelineTime(item.created_at)) + '</div>' +
-        '<div class="tm-requestor-note-text" style="color:#0f172a;font-size:14px;font-weight:600;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;">' + renderLinkedText(noteText) + '</div>' +
-        '</article>';
-    }).filter(function (html) { return html !== ''; }).join('');
+      var actionNumber = index + 1;
+      var actionLabels = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth'];
+      var actionLabel = (actionLabels[index] || ('Action #' + actionNumber)) + ' Action';
+      var timeStr = escapeHtml(formatTimelineTime(item.created_at));
+      return '<div style="padding:14px 0;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
+        '<span class="tm-action-badge" style="background:#d1f2d1;color:#1f7a3d;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:700;text-transform:capitalize;">' + escapeHtml(actionLabel) + '</span>' +
+        '<div class="tm-requestor-note-time" style="color:#64748b;font-size:12px;font-weight:600;letter-spacing:.06em;">' + timeStr + '</div>' +
+        '</div>' +
+        '<div class="tm-requestor-note-text" style="color:#0f172a;font-size:14px;font-weight:500;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;">' + renderLinkedText(noteText) + '</div>' +
+        '</div>';
+    }).filter(function (html) { return html !== ''; });
+    var requesterNotesHtml = requesterNotesHtmlArray.join('<div style="border-top:1px solid #e2e8f0;"></div>');
     var requesterAdminNoteHtml = (isRequesterPOV && requesterNotesHtml !== '')
       ? (
         '      <div class="tm-card tm-card-admin-notes" style="height:420px;max-height:420px;display:flex;flex-direction:column;overflow:hidden;align-self:stretch;"><div class="tm-card-header" style="flex:0 0 auto;"><div class="tm-card-header-actions"><span class="tm-card-title">Action Taken/Comments</span></div></div><div class="tm-card-body" style="flex:1 1 auto;min-height:0;overflow-y:auto;">' +

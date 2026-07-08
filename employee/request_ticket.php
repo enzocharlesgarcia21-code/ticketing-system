@@ -1646,6 +1646,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $createdAtSafe = htmlspecialchars($createdAt);
     $attachments = notif_ticket_email_attachments($conn, (int) $ticket_id, (string) ($attachmentName ?? ''));
     $attachmentSummary = notif_ticket_attachment_summary($attachments);
+    $emailTicketDescription = ticket_email_description_for_notification($ticketDescription);
 
     $assigneeEmailExcludeUserId = $isLapcAdminLegalTicket ? 0 : (int) $user_id;
     $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, $assigned_group, $assigneeEmailExcludeUserId, $isLapcAdminLegalTicket);
@@ -1657,7 +1658,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             "Email: $employeeEmail",
             "Date Submitted: $createdAt",
             "Level of Urgency: $priority",
-            "Description:\n$ticketDescription"
+            "Description:\n$emailTicketDescription"
         ];
         if ($attachmentSummary !== '') {
             $assigneeLines[] = $attachmentSummary;
@@ -1675,7 +1676,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             "Email: $employeeEmail",
             "Date Submitted: $createdAt",
             "Level of Urgency: $priority",
-            "Description:\n$ticketDescription"
+            "Description:\n$emailTicketDescription"
         ];
         if ($attachmentSummary !== '') {
             $employeeLines[] = $attachmentSummary;
