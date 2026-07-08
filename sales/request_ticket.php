@@ -1512,6 +1512,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 $attachments = notif_ticket_email_attachments($conn, $ticket_id, (string) ($attachmentName ?? ''));
                 $attachmentSummary = notif_ticket_attachment_summary($attachments);
+                $emailTicketDescription = ticket_email_description_for_notification($raw_description);
 
                 $adminTpl = notif_email_simple('Ticket Submitted', [
                     "Ticket ID: #$ticketNumber",
@@ -1565,7 +1566,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         "Email: $email",
                         "Date Submitted: $ticketSubmittedAt",
                         "Level of Urgency: $priority",
-                        "Description:\n$raw_description"
+                        "Description:\n$emailTicketDescription"
                     ];
                     if ($attachmentSummary !== '') {
                         $assigneeLines[] = $attachmentSummary;
@@ -1610,7 +1611,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     "Email: $email",
                     "Date Submitted: $ticketSubmittedAt",
                     "Level of Urgency: $priority",
-                    "Description:\n$raw_description"
+                    "Description:\n$emailTicketDescription"
                 ];
                 if ($attachmentSummary !== '') {
                     $requesterLines[] = $attachmentSummary;

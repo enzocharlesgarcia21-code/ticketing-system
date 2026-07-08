@@ -347,7 +347,7 @@ ticket_ensure_chat_tables($conn);
                 $sharedUpdateLines[] = 'Category: ' . $ticketCategory;
             }
             if ($ticketDescription !== '') {
-                $sharedUpdateLines[] = "Description:\n" . $ticketDescription;
+                $sharedUpdateLines[] = "Description:\n" . ticket_email_description_for_notification($ticketDescription);
             }
             if ($ticketPriority !== '') {
                 $sharedUpdateLines[] = 'Priority: ' . $ticketPriority;

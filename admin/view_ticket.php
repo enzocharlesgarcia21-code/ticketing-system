@@ -147,7 +147,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $sharedLines[] = 'Category: ' . (string) $ticket['category'];
     }
     if (!empty($ticket['description'])) {
-        $sharedLines[] = "Description:\n" . (string) $ticket['description'];
+        $sharedLines[] = "Description:\n" . ticket_email_description_for_notification((string) $ticket['description']);
     }
     if (!empty($ticket['priority'])) {
         $sharedLines[] = 'Priority: ' . (string) $ticket['priority'];
