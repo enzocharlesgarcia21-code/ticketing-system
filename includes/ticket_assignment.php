@@ -616,7 +616,7 @@ function ticket_assignee_email_overrides(): array
 {
     return [
         '@leadsagri.com' => [
-            'IT' => 'matthew22@leadsagri.com',
+            'IT' => 'it@leadsagri.com',
         ],
     ];
 }
@@ -625,29 +625,29 @@ function ticket_notification_department_email_map(): array
 {
     return [
         'FARMASEE' => [
-        //    '_default' => ['ecommercefarmasee@farmasee.ph'],
-        '_default' => ['rachelleambayan@gmail.com'],
+           '_default' => ['ecommercefarmasee@farmasee.ph'],
+       
         ],
         'FARMEX' => [
-          //  '_default' => ['inquiries@leads-farmex.com'],
+           '_default' => ['inquiries@leads-farmex.com'],
         ],
         'LAPC' => [
-            // 'ADMIN' => ['admin@leadsagri.com'],
-            'ADMIN' => ['enzomendoza8teen@gmail.com'],
-            // 'HR' => ['hr@leadsagri.com'],
-            'HR' => ['matthewpascua052203@gmail.com'],
-            'IT' => [''],
- // it it@malvedaholdings.com
+            'ADMIN' => ['admin@leadsagri.com'],
+            
+            'HR' => ['hr@leadsagri.com'],
+           
+            'IT' => ['it@leadsagri.com, it@malvedaholdings.com'],
+
         
-        ],
+        ],  
         'LINGAP' => [
-            // '_default' => ['partnership@lingapleads.org' , 'info@lingapleads.org'],
+             '_default' => ['partnership@lingapleads.org' , 'info@lingapleads.org'],
         ],
         'LAV' => [
-            // '_default' => ['all@leadsav.com'],
+             '_default' => ['all@leadsav.com'],
         ],
         'MPDC' => [
-            // '_default' => ['all@malvedaproperties.com'],
+             '_default' => ['all@malvedaproperties.com'],
         ],
 
         
@@ -2422,49 +2422,6 @@ function ticket_user_email_addresses(mysqli $conn, array $userIds): array
     }
 
     return array_values(array_unique($emails));
-}
-
-function ticket_email_description_for_notification(string $description): string
-{
-    $lines = preg_split('/\r\n|\r|\n/', $description);
-    if (!is_array($lines)) {
-        return $description;
-    }
-
-    $firstContent = '';
-    foreach ($lines as $line) {
-        $trimmed = trim((string) $line);
-        if ($trimmed !== '') {
-            $firstContent = $trimmed;
-            break;
-        }
-    }
-    if (!preg_match('/^SAP Form$/i', $firstContent)) {
-        return $description;
-    }
-
-    $filtered = [];
-    $skippingEmployeeDetails = false;
-    foreach ($lines as $line) {
-        $text = (string) $line;
-        $trimmed = trim($text);
-
-        if (preg_match('/^Employee Details(?:\s+\d+)?$/i', $trimmed)) {
-            $skippingEmployeeDetails = true;
-            continue;
-        }
-
-        if ($skippingEmployeeDetails) {
-            if ($trimmed === '' || preg_match('/^(Name|Position|Address|Department|TIN)\s*:/i', $trimmed)) {
-                continue;
-            }
-            $skippingEmployeeDetails = false;
-        }
-
-        $filtered[] = $text;
-    }
-
-    return trim(implode("\n", $filtered));
 }
 
 function notifyTicketClosed(mysqli $conn, array $ticket, int $inactivitySeconds = 7200): array

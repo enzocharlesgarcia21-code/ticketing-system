@@ -3022,11 +3022,14 @@
     gap: 4px;
     align-self: flex-start;
     text-align: left;
+    position: relative;
 }
 
 .chat-bubble.me .chat-meta .chat-time {
     align-self: flex-end;
     text-align: right;
+    width: 100%;
+    justify-content: flex-end;
 }
 
 .chat-delivery-status {
@@ -3046,6 +3049,9 @@
     white-space: nowrap;
     align-self: flex-start;
     text-align: left;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
 }
 
 .chat-bubble.me .chat-delivery-label {
