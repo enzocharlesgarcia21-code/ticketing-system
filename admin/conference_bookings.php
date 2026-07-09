@@ -675,7 +675,7 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-layout {
             display: grid;
-            grid-template-columns: 220px minmax(0, 1fr);
+            grid-template-columns: minmax(0, 1fr);
             gap: 14px;
             align-items: start;
         }
@@ -713,6 +713,7 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-room-list {
             display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 12px;
             padding: 0 6px;
         }
@@ -804,6 +805,7 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-card-head-copy {
             min-width: 0;
+            padding-left: 14px;
         }
         .conference-card-head-tools {
             display: flex;
@@ -1174,38 +1176,52 @@ function conference_admin_booking_status_text(string $status): string
         .conference-table td:nth-child(1) {
             width: 10%;
             min-width: 96px;
+            text-align: center;
         }
         .conference-table th:nth-child(2),
         .conference-table td:nth-child(2) {
-            width: 22%;
+            width: 20%;
             min-width: 180px;
         }
         .conference-table th:nth-child(3),
         .conference-table td:nth-child(3) {
             width: 12%;
             min-width: 104px;
+            text-align: center;
         }
         .conference-table th:nth-child(4),
         .conference-table td:nth-child(4) {
-            width: 20%;
+            width: 18%;
             min-width: 170px;
         }
         .conference-table th:nth-child(5),
         .conference-table td:nth-child(5) {
-            width: 16%;
-            min-width: 156px;
+            width: 22.5%;
+            min-width: 220px;
+            padding-left: 8px;
+            padding-right: 6px;
         }
-        .conference-table th:nth-child(6),
-        .conference-table td:nth-child(6) {
-            width: 12%;
+        .conference-table th:nth-child(6) {
+            width: 12.5%;
             min-width: 132px;
-            text-align: center;
+            text-align: left;
+            padding-left: 26px;
+            padding-right: 0;
+        }
+        .conference-table td:nth-child(6) {
+            width: 12.5%;
+            min-width: 132px;
+            text-align: left;
+            padding-left: 0;
+            padding-right: 26px;
         }
         .conference-table th:nth-child(7),
         .conference-table td:nth-child(7) {
-            width: 8%;
+            width: 7%;
             min-width: 82px;
             text-align: center;
+            padding-left: 6px;
+            padding-right: 12px;
         }
         .conference-booking-id {
             display: inline-flex;
@@ -1225,7 +1241,7 @@ function conference_admin_booking_status_text(string $status): string
         .booking-id-stack {
             display: flex;
             flex-direction: column;
-            align-items: flex-start;
+            align-items: center;
             gap: 0;
         }
         .booking-primary {
@@ -1272,8 +1288,9 @@ function conference_admin_booking_status_text(string $status): string
             white-space: nowrap;
         }
         .booking-room-cell {
-            display: inline-flex;
+            display: flex;
             align-items: center;
+            justify-content: center;
         }
         .booking-schedule-date {
             color: #111827;
@@ -1292,29 +1309,35 @@ function conference_admin_booking_status_text(string $status): string
         }
         .purpose-copy {
             max-width: none;
-            display: block;
+            display: flex;
+            align-items: flex-end;
+            gap: 6px;
             color: #0f172a;
             font-size: 15px;
             font-weight: 400;
-            line-height: 1.5;
-            word-break: normal;
-            overflow-wrap: break-word;
+            line-height: 1.35;
+            min-width: 0;
+            width: 100%;
         }
         .purpose-copy-text,
         .purpose-copy-preview,
         .purpose-copy-full {
-            white-space: normal;
-            word-break: normal;
-            overflow-wrap: break-word;
+            min-width: 0;
+            width: 100%;
         }
         .purpose-copy-text {
             display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .purpose-copy-preview {
             display: -webkit-box;
+            flex: 1 1 auto;
             -webkit-box-orient: vertical;
-            -webkit-line-clamp: 1;
+            -webkit-line-clamp: 2;
             overflow: hidden;
+            max-height: calc(1.35em * 2);
         }
         .purpose-copy-full {
             display: none;
@@ -1329,8 +1352,10 @@ function conference_admin_booking_status_text(string $status): string
             font-weight: 700;
             line-height: 1.2;
             cursor: pointer;
-            display: block;
+            display: inline-flex;
             align-items: center;
+            flex: 0 0 auto;
+            white-space: nowrap;
         }
         .purpose-see-more:hover {
             color: #14532d;

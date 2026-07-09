@@ -2944,7 +2944,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             margin: 0;
             color: #0f172a;
             font-size: 18px;
-            font-weight: 800;
+            font-weight: 400;
             line-height: 1.3;
         }
         body.sales-request-ticket-page .sap-request-panel-tools {
@@ -3374,7 +3374,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             margin: 0;
             color: #0f172a;
             font-size: 18px;
-            font-weight: 600;
+            font-weight: 400;
             line-height: 1.3;
         }
         body.sales-request-ticket-page .sap-request-card-delete {
