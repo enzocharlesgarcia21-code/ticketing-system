@@ -87,7 +87,16 @@ function dashboard_assigned_query_parts(int $user_id, string $user_email, string
         : "0=1";
     $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
     $requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
-    $condition = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND ((NOT $requiresGroupCond) OR $groupCond)))";
+    $linkedItCond = "0=1";
+    $normalizedUserCompany = ticket_normalize_company($user_company);
+    if ($departmentKey === 'IT') {
+        if ($normalizedUserCompany === '@malvedaholdings.com') {
+            $linkedItCond = "(LOWER($companyCol) IN ('@leadsagri.com', 'lapc', 'leads agri', 'leads agricultural products corporation') AND UPPER($taskDeptExpr) = 'IT')";
+        } elseif ($normalizedUserCompany === '@leadsagri.com') {
+            $linkedItCond = "(LOWER($companyCol) IN ('@malvedaholdings.com', 'mhc', 'malveda holdings', 'malveda holdings corporation') AND UPPER($taskDeptExpr) = 'IT')";
+        }
+    }
+    $condition = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND (($companyCond AND ((NOT $requiresGroupCond) OR $groupCond)) OR $linkedItCond)))";
     $params = [
         $user_id,
         $user_id,
@@ -2263,22 +2272,22 @@ function dashboard_priority_badge_html(array $row): string
                         <button type="button" class="card-filter-trigger" id="dashboardCardFilter" aria-haspopup="true" aria-expanded="false">
                             <span class="card-filter-trigger-label">
                                 <i class="fas fa-file-lines card-filter-trigger-icon" aria-hidden="true"></i>
-                                <span id="dashboardCardFilterText">My Submitted Tickets</span>
+                                <span id="dashboardCardFilterText">Assigned Tickets</span>
                             </span>
                             <i class="fas fa-chevron-down card-filter-trigger-caret" aria-hidden="true"></i>
                         </button>
                         <div class="card-filter-menu" id="dashboardCardFilterMenu" hidden>
-                            <button type="button" class="card-filter-option is-active" data-card-filter-value="submitted" data-card-filter-label="My Submitted Tickets" data-card-filter-icon="fa-file-lines">
-                                <span class="card-filter-option-label">
-                                    <i class="fas fa-file-lines card-filter-option-icon" aria-hidden="true"></i>
-                                    <span>My Submitted Tickets</span>
-                                </span>
-                                <i class="fas fa-check card-filter-option-check" aria-hidden="true"></i>
-                            </button>
-                            <button type="button" class="card-filter-option" data-card-filter-value="assigned" data-card-filter-label="Assigned Tickets" data-card-filter-icon="fa-user-check">
+                            <button type="button" class="card-filter-option is-active" data-card-filter-value="assigned" data-card-filter-label="Assigned Tickets" data-card-filter-icon="fa-user-check">
                                 <span class="card-filter-option-label">
                                     <i class="fas fa-user-check card-filter-option-icon" aria-hidden="true"></i>
                                     <span>Assigned Tickets</span>
+                                </span>
+                                <i class="fas fa-check card-filter-option-check" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="card-filter-option" data-card-filter-value="submitted" data-card-filter-label="My Submitted Tickets" data-card-filter-icon="fa-file-lines">
+                                <span class="card-filter-option-label">
+                                    <i class="fas fa-file-lines card-filter-option-icon" aria-hidden="true"></i>
+                                    <span>My Submitted Tickets</span>
                                 </span>
                                 <i class="fas fa-check card-filter-option-check" aria-hidden="true"></i>
                             </button>
@@ -2287,7 +2296,7 @@ function dashboard_priority_badge_html(array $row): string
                 </div>
 
                 <?php foreach ($dashboardStatSets as $setKey => $stats): ?>
-                    <div class="stats-grid" data-card-set="<?= htmlspecialchars($setKey, ENT_QUOTES, 'UTF-8') ?>" <?= $setKey === 'submitted' ? '' : 'hidden' ?>>
+                    <div class="stats-grid" data-card-set="<?= htmlspecialchars($setKey, ENT_QUOTES, 'UTF-8') ?>" <?= $setKey === 'assigned' ? '' : 'hidden' ?>>
                         <?php foreach ($stats as $stat): ?>
                             <a class="stat-card <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>" href="<?= htmlspecialchars($stat['href'], ENT_QUOTES, 'UTF-8') ?>" aria-label="View <?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?> tickets">
                                 <div class="stat-main">

@@ -180,6 +180,36 @@
     z-index: 3;
 }
 
+#ticketModal.modal-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: none;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding: 16px !important;
+    overflow-y: auto !important;
+    background: rgba(15, 23, 42, 0.6) !important;
+    backdrop-filter: blur(4px) !important;
+    z-index: 10020 !important;
+}
+
+#ticketModal .modal-content:not(.tm-unavailable-modal) {
+    width: min(96vw, 1220px) !important;
+    max-width: 1220px !important;
+    height: min(92vh, 760px) !important;
+    min-height: 0 !important;
+    max-height: 92vh !important;
+    margin: auto !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border-radius: 22px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+}
+
 .modal-content.tm-unavailable-modal {
     width: min(100%, 760px);
     max-width: 760px;
@@ -737,21 +767,21 @@
     background: #f9fafb;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 18px;
     scroll-behavior: smooth;
 }
 
 .chat-bubble {
     max-width: 80%;
-    padding: 10px 14px;
+    padding: 14px 18px;
     border-radius: 16px;
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
     position: relative;
     word-wrap: break-word;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
 }
 
 .chat-bubble.me {
@@ -1860,9 +1890,10 @@
 
 .tm-sap-card-title {
     margin-bottom: 14px;
-    color: #334155;
-    font-size: 15px;
-    font-weight: 800;
+    color: #0f172a;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.6;
 }
 
 .tm-sap-field-grid {
@@ -2758,18 +2789,28 @@
 
 .chat-bubble {
     max-width: 70%;
-    padding: 10px 14px;
+    padding: 14px 18px;
     border-radius: 12px;
     border: 1px solid transparent;
     position: relative;
     overflow: visible;
     word-break: break-word;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    line-height: 1.6;
+}
+
+.chat-message-text {
+    line-height: 1.6;
+    padding: 2px 0;
+    overflow-wrap: anywhere;
 }
 .chat-sender {
     font-size: 11px;
     font-weight: 700;
     color: #475569;
-    margin-bottom: 6px;
+    margin-bottom: 10px;
 }
 .chat-bubble.me .chat-sender {
     text-align: right;
@@ -2813,11 +2854,11 @@
 
 .chat-bubble {
     overflow: visible;
-    margin-bottom: 24px;
+    margin-bottom: 18px;
 }
 
 .chat-bubble.has-edited-meta {
-    margin-bottom: 44px;
+    margin-bottom: 28px;
 }
 
 .chat-bubble .chat-time,
@@ -2937,17 +2978,23 @@
 
 .chat-bubble .chat-meta {
     display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 6px;
     margin-top: 6px;
-    align-self: flex-end;
     max-width: 100%;
-    white-space: nowrap;
+    white-space: normal;
+}
+
+.chat-bubble.me .chat-meta {
+    align-items: flex-end;
+    align-self: flex-end;
 }
 
 .chat-bubble.other .chat-meta {
     align-self: flex-start;
+    align-items: flex-start;
     justify-content: flex-start;
 }
 
@@ -2965,11 +3012,45 @@
 }
 
 .chat-bubble.has-edited-meta {
-    margin-bottom: 24px;
+    margin-bottom: 28px;
 }
 
 .chat-bubble .chat-meta .chat-time {
     color: rgba(17, 24, 39, 0.9);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    text-align: left;
+}
+
+.chat-bubble.me .chat-meta .chat-time {
+    align-self: flex-end;
+    text-align: right;
+}
+
+.chat-delivery-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.chat-delivery-label {
+    margin: 0;
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: #64748b;
+    line-height: 1;
+    white-space: nowrap;
+    align-self: flex-start;
+    text-align: left;
+}
+
+.chat-bubble.me .chat-delivery-label {
+    align-self: flex-end;
+    text-align: right;
 }
 
 .chat-bubble .chat-meta .chat-edited {

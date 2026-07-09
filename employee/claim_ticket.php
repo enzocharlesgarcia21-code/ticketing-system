@@ -151,8 +151,7 @@ if ((string) ($ticket['status'] ?? '') === 'Open') {
     }
 
     $ticketForNotification = notif_ticket_data($conn, $ticketId);
-    $sharedRequesterEmail = trim((string) ($ticketForNotification['requester_email'] ?? ''));
-    if ($ticketForNotification && $sharedRequesterEmail !== '') {
+    if ($ticketForNotification) {
         $currentAssignedCompany = ticket_normalize_company((string) ($ticketForNotification['assigned_company'] ?? ($ticket['assigned_company'] ?? '')));
         $currentAssignedGroup = trim((string) ($ticketForNotification['assigned_group'] ?? ($ticketForNotification['assigned_department'] ?? ($ticket['assigned_group'] ?? $ticket['assigned_department'] ?? ''))));
         $attachments = notif_ticket_email_attachments($conn, $ticketId, (string) ($ticketForNotification['attachment'] ?? ''));
@@ -166,7 +165,7 @@ if ((string) ($ticket['status'] ?? '') === 'Open') {
 
         $ticketDescription = trim((string) ($ticketForNotification['description'] ?? ''));
         if ($ticketDescription !== '') {
-            $extraLines[] = "Description:\n" . $ticketDescription;
+            $extraLines[] = "Description:\n" . ticket_email_description_for_notification($ticketDescription);
         }
 
         $ticketPriority = trim((string) ($ticketForNotification['priority'] ?? ''));

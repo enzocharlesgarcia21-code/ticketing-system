@@ -676,8 +676,9 @@ function openModal(id, mode = 'full') {
                 const descriptionText = hr && typeof hr.detail_text !== 'undefined'
                     ? String(hr.detail_text || '')
                     : String(data.description || '');
-                const sapDescriptionHtml = (!hr && descriptionText) ? renderSapDescriptionHtml(data, descriptionText) : '';
-                const descriptionTitle = sapDescriptionHtml ? 'SAP Form' : (hr && hr.request_section_title ? hr.request_section_title : 'Description');
+                const emailCreationHtml = (!hr && descriptionText) ? renderEmailCreationDescriptionHtml(data, descriptionText) : '';
+                const sapDescriptionHtml = (!hr && descriptionText && !emailCreationHtml) ? renderSapDescriptionHtml(data, descriptionText) : '';
+                const descriptionTitle = emailCreationHtml ? 'Email Request' : (sapDescriptionHtml ? 'SAP Form' : (hr && hr.request_section_title ? hr.request_section_title : 'Description'));
                 const hrAttachmentGroups = hr && Array.isArray(hr.attachment_groups) ? hr.attachment_groups : [];
                 const summaryFields = hr && Array.isArray(hr.summary_fields) ? hr.summary_fields : [];
                 html += `
@@ -699,7 +700,7 @@ function openModal(id, mode = 'full') {
                                     <div class="modal-info-value">${escapeHtml(descriptionText).replace(/\n/g, '<br>')}</div>
                                 </div>
                             ` : ''}
-                        ` : (sapDescriptionHtml || (descriptionText ? `<div class="modal-description-text">${escapeHtml(descriptionText).replace(/\n/g, '<br>')}</div>` : ''))}
+                        ` : (emailCreationHtml || sapDescriptionHtml || (descriptionText ? `<div class="modal-description-text">${escapeHtml(descriptionText).replace(/\n/g, '<br>')}</div>` : ''))}
                         ${(hrAttachmentGroups.length ? renderHrAttachmentCategoryCarousel(hrAttachmentGroups) : structuredAttachments)}
                     </div>
                 </div>
@@ -793,6 +794,39 @@ function isSapTicket(data, descriptionText) {
         && (category === 'sap' || subject === 'sap' || text.indexOf('sap form') === 0);
 }
 
+function formatEmailRequestType(value) {
+    const key = value == null ? '' : String(value).trim().toLowerCase();
+    const labels = {
+        'creation of email': 'Creation of email',
+        'forgot password': 'Forgot password',
+        'backup of email': 'Backup of email'
+    };
+    return labels[key] || String(value || '').trim();
+}
+
+function getEmailRequestTypeDisplay(data) {
+    if (!data || String(data.category || '').trim().toLowerCase() !== 'email') return '';
+    const assignedGroup = String((data.assigned_group || data.assigned_department) || '').trim().toUpperCase();
+    if (assignedGroup !== 'IT') return '';
+    const meta = data.request_meta && typeof data.request_meta === 'object' ? data.request_meta : {};
+    let requestType = String(meta.email_request_type || data.email_request_type || '').trim();
+    if (!requestType && data.description) {
+        const match = String(data.description).match(/^\s*Email Request Type:\s*(.+)$/im);
+        requestType = match && match[1] ? String(match[1]).trim() : '';
+    }
+    return requestType ? formatEmailRequestType(requestType) : '';
+}
+
+function isEmailCreationTicket(data, descriptionText) {
+    if (!data || String(data.category || '').trim().toLowerCase() !== 'email') return false;
+    const assignedGroup = String((data.assigned_group || data.assigned_department) || '').trim().toUpperCase();
+    if (assignedGroup !== 'IT') return false;
+    const requestType = getEmailRequestTypeDisplay(data).toLowerCase();
+    const text = String(descriptionText || data.description || '').trim().toLowerCase();
+    return requestType === 'creation of email'
+        || (text.indexOf('email request') === 0 && text.indexOf('email request type: creation of email') !== -1);
+}
+
 function parseSapDescription(descriptionText) {
     const lines = String(descriptionText || '').split(/\r?\n/).map(function (line) {
         return String(line || '').trim();
@@ -823,6 +857,80 @@ function parseSapDescription(descriptionText) {
     return reports;
 }
 
+function parseEmailCreationsFromMeta(data) {
+    const raw = data && data.request_meta ? data.request_meta.email_creations : '';
+    let decoded = null;
+    if (raw) {
+        try {
+            decoded = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        } catch (e) {
+            decoded = null;
+        }
+    }
+    if (!Array.isArray(decoded)) decoded = [];
+    const entries = decoded.map(function (entry, index) {
+        if (!entry || typeof entry !== 'object') return null;
+        const fields = {
+            name: String(entry.name || '').trim(),
+            designation: String(entry.designation || '').trim(),
+            company: String(entry.company || entry.subsidiary || '').trim(),
+            department: String(entry.department || entry.target_department || '').trim()
+        };
+        const hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
+        return hasValue ? { index: String(index + 1), fields: fields } : null;
+    }).filter(function (entry) { return !!entry; });
+    if (!entries.length && data && data.request_meta) {
+        const legacyFields = {
+            name: String(data.request_meta.email_creation_name || '').trim(),
+            designation: String(data.request_meta.email_creation_designation || '').trim(),
+            company: String(data.request_meta.email_creation_company || data.request_meta.email_creation_subsidiary || '').trim(),
+            department: String(data.request_meta.email_creation_department || data.request_meta.email_creation_target_department || '').trim()
+        };
+        const hasLegacyValue = Object.keys(legacyFields).some(function (key) { return legacyFields[key] !== ''; });
+        if (hasLegacyValue) entries.push({ index: '1', fields: legacyFields });
+    }
+    return entries;
+}
+
+function parseEmailCreationDescription(descriptionText) {
+    const lines = String(descriptionText || '').split(/\r?\n/).map(function (line) {
+        return String(line || '').trim();
+    }).filter(function (line) {
+        return line !== '';
+    });
+    const entries = [];
+    let current = null;
+    lines.forEach(function (line) {
+        if (/^email request$/i.test(line) || /^email request type:/i.test(line)) return;
+        const emailMatch = line.match(/^Email(?: Details)?(?:\s+(\d+))?$/i);
+        if (emailMatch) {
+            current = { index: emailMatch[1] || String(entries.length + 1), fields: {} };
+            entries.push(current);
+            return;
+        }
+        const colonIndex = line.indexOf(':');
+        if (colonIndex > 0) {
+            if (!current) {
+                current = { index: String(entries.length + 1), fields: {} };
+                entries.push(current);
+            }
+            const label = line.slice(0, colonIndex).trim().toLowerCase();
+            const value = line.slice(colonIndex + 1).trim();
+            if (label === 'name' || label === 'designation' || label === 'company' || label === 'department') {
+                current.fields[label] = value;
+            } else if (label === 'subsidiaries' || label === 'subsidiary') {
+                current.fields.company = value;
+            } else if ((label === 'selected department' || label === 'assigned department') && !current.fields.department) {
+                current.fields.department = value;
+            }
+        }
+    });
+    return entries.filter(function (entry) {
+        const fields = entry && entry.fields ? entry.fields : {};
+        return String(fields.name || fields.designation || fields.company || fields.department || '').trim() !== '';
+    });
+}
+
 function parseSapReportsFromMeta(data) {
     const raw = data && data.request_meta ? data.request_meta.sap_reports : '';
     if (!raw) return [];
@@ -836,11 +944,11 @@ function parseSapReportsFromMeta(data) {
     return decoded.map(function (report, index) {
         if (!report || typeof report !== 'object') return null;
         const fields = {
-            'full name': String(report.name || '').trim(),
+            'name': String(report.name || '').trim(),
             'position': String(report.position || '').trim(),
-            'immediate supervisor': String(report.immediate_head || report.immediate_supervisor || '').trim(),
-            'company': String(report.company || '').trim(),
-            'department': String(report.department || '').trim()
+            'address': String(report.address || '').trim(),
+            'department': String(report.department || '').trim(),
+            'tin': String(report.tin || '').trim()
         };
         const hasValue = Object.keys(fields).some(function (key) { return fields[key] !== ''; });
         if (!hasValue) return null;
@@ -862,26 +970,6 @@ function dashIfUnknown(value) {
     return (!text || text.toLowerCase() === 'unknown') ? '-' : text;
 }
 
-function formatSapCompanyValue(value, departmentValue) {
-    let company = String(value || '').trim();
-    const department = String(departmentValue || '').trim();
-    if (!company && department && department !== '-' && department.toLowerCase() !== 'unknown') company = '@leadsagri.com';
-    if (!company) return '-';
-    const labels = {
-        '@leads-farmex.com': 'FARMEX (@leads-farmex.com)',
-        '@farmasee.ph': 'FARMASEE (@farmasee.ph)',
-        '@gpsci.net': 'GPSCI (@gpsci.net)',
-        '@leadsagri.com': 'LAPC (@leadsagri.com)',
-        '@leadsav.com': 'LAV (@leadsav.com)',
-        '@leadstech-corp.com': 'LTC (@leadstech-corp.com)',
-        '@lingapleads.org': 'LINGAP (@lingapleads.org)',
-        '@malvedaholdings.com': 'MHC (@malvedaholdings.com)',
-        '@malvedaproperties.com': 'MPDC (@malvedaproperties.com)',
-        '@primestocks.ph': 'PCC (@primestocks.ph)'
-    };
-    return labels[company.toLowerCase()] || company;
-}
-
 function renderSapDescriptionHtml(data, descriptionText) {
     if (!isSapTicket(data, descriptionText)) return '';
     let reports = parseSapReportsFromMeta(data);
@@ -889,27 +977,22 @@ function renderSapDescriptionHtml(data, descriptionText) {
     if (!reports.length) return '';
     const carouselId = `tmSapDisplay-${++sapDisplaySeq}`;
     const fieldConfig = [
-        { key: 'full name', label: 'Full Name' },
+        { key: 'name', label: 'Name' },
         { key: 'position', label: 'Position' },
-        { key: 'immediate supervisor', label: 'Supervisor' },
-        { key: 'company', label: 'Company' },
-        { key: 'department', label: 'Department', wide: true }
+        { key: 'address', label: 'Address' },
+        { key: 'department', label: 'Department' },
+        { key: 'tin', label: 'TIN' }
     ];
     return `
         <div class="tm-sap-display">
             <div class="tm-sap-carousel" id="${carouselId}" data-index="0">
             ${reports.map(function (report, reportIndex) {
-                const rawDepartmentValue = getSapFieldValue(report, ['department', 'dept']);
-                const departmentValue = dashIfUnknown(rawDepartmentValue);
-                const companyValue = formatSapCompanyValue(getSapFieldValue(report, ['company', 'company name', 'company domain']), rawDepartmentValue);
                 return `
                     <div class="tm-sap-card${reportIndex === 0 ? ' is-active' : ''}" data-index="${reportIndex}" aria-hidden="${reportIndex === 0 ? 'false' : 'true'}">
                         <div class="tm-sap-card-title">Employee Details${reports.length > 1 ? ' ' + escapeHtml(report.index) : ''}</div>
                         <div class="tm-sap-field-grid">
                             ${fieldConfig.map(function (field) {
-                                const value = field.key === 'company'
-                                    ? companyValue
-                                    : (field.key === 'department' ? departmentValue : (getSapFieldValue(report, [field.key]) || '-'));
+                                const value = getSapFieldValue(report, [field.key]) || '-';
                                 return `
                                     <div class="tm-sap-field${field.wide ? ' is-wide' : ''}">
                                         <div class="tm-sap-label">${escapeHtml(field.label)}</div>
@@ -928,6 +1011,55 @@ function renderSapDescriptionHtml(data, descriptionText) {
                     <button type="button" class="tm-sap-nav-btn primary" onclick="stepSapDisplay('${carouselId}', 1)">Next</button>
                 </div>
             ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function renderEmailCreationDescriptionHtml(data, descriptionText) {
+    if (!isEmailCreationTicket(data, descriptionText)) return '';
+    let entries = parseEmailCreationsFromMeta(data);
+    if (!entries.length) entries = parseEmailCreationDescription(descriptionText);
+    if (!entries.length) return '';
+    const carouselId = `tmEmailDisplay-${++sapDisplaySeq}`;
+    const fieldConfig = [
+        { key: 'name', label: 'Name' },
+        { key: 'designation', label: 'Designation' },
+        { key: 'company', label: 'Company' },
+        { key: 'department', label: 'Department' }
+    ];
+    return `
+        <div class="tm-desc-row">
+            <span class="tm-desc-label">EMAIL REQUEST TYPE:</span>
+            <span class="tm-desc-value">Creation of email</span>
+        </div>
+        <div class="tm-sap-display tm-email-display">
+            <div class="tm-sap-carousel" id="${carouselId}" data-index="0">
+                ${entries.map(function (entry, entryIndex) {
+                    return `
+                        <div class="tm-sap-card${entryIndex === 0 ? ' is-active' : ''}" data-index="${entryIndex}" aria-hidden="${entryIndex === 0 ? 'false' : 'true'}">
+                            <div class="tm-sap-card-title">Email Details ${escapeHtml(entry.index)}</div>
+                            <div class="tm-sap-field-grid">
+                                ${fieldConfig.map(function (field) {
+                                    const value = entry && entry.fields ? String(entry.fields[field.key] || '').trim() : '';
+                                    return `
+                                        <div class="tm-sap-field${field.wide ? ' is-wide' : ''}">
+                                            <div class="tm-sap-label">${escapeHtml(field.label)}</div>
+                                            <div class="tm-sap-value">${escapeHtml(value || '-')}</div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+                ${entries.length > 1 ? `
+                    <div class="tm-sap-actions">
+                        <button type="button" class="tm-sap-nav-btn" onclick="stepSapDisplay('${carouselId}', -1)">Previous</button>
+                        <span class="tm-sap-counter" data-sap-counter>1 of ${entries.length}</span>
+                        <button type="button" class="tm-sap-nav-btn primary" onclick="stepSapDisplay('${carouselId}', 1)">Next</button>
+                    </div>
+                ` : ''}
             </div>
         </div>
     `;

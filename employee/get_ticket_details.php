@@ -486,6 +486,11 @@ if ($checkResult->num_rows > 0) {
     );
     $ticketRequiresDepartment = ticket_company_requires_department(ticket_normalize_company($ticketAssignedCompany));
     $departmentAccessOk = $companyOk && (!$ticketRequiresDepartment || $groupOk);
+    $linkedDepartmentAccessOk = ticket_user_is_linked_department_candidate($ticketData, [
+        'department' => $dept,
+        'company' => $company,
+        'email' => $userEmail,
+    ]);
     $historyAliases = $deptAliases;
     foreach (company_aliases((string) $company) as $companyAlias) {
         $companyAlias = strtoupper(trim((string) $companyAlias));
@@ -495,7 +500,7 @@ if ($checkResult->num_rows > 0) {
     }
     $reassignedHistoryAccess = ticket_user_has_reassignment_history($conn, $id, $currentUserId, $historyAliases)
         || ticket_chat_latest_participated_thread_id($conn, $id, $currentUserId) > 0;
-    $reassignedViewOnlyAccess = !$isRequester && ($assigneeOk || $departmentAccessOk || $reassignedHistoryAccess);
+    $reassignedViewOnlyAccess = !$isRequester && ($assigneeOk || $departmentAccessOk || $linkedDepartmentAccessOk || $reassignedHistoryAccess);
 }
 
 $sql = "
@@ -777,6 +782,21 @@ if ($row = $result->fetch_assoc()) {
             ];
         }
         $activityStmt->close();
+    }
+    $row['action_history'] = [];
+    foreach ($row['ticket_activity'] as $activityItem) {
+        $activityType = strtolower(trim((string) ($activityItem['activity_type'] ?? '')));
+        if (!in_array($activityType, ['action_history', 'note_added'], true)) {
+            continue;
+        }
+        $noteText = trim((string) ($activityItem['description'] ?? ''));
+        if ($noteText === '') {
+            continue;
+        }
+        $row['action_history'][] = [
+            'note' => $noteText,
+            'created_at' => (string) ($activityItem['created_at'] ?? ''),
+        ];
     }
     $existingActivityTypes = [];
     foreach ($row['ticket_activity'] as $activityItem) {

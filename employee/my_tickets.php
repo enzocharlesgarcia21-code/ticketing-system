@@ -839,7 +839,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
     }
 
     $ticketNumber = notif_ticket_number($ticketId);
-    $title = 'Ticket Follow Up';
+    $title = 'Ticket Follow-up';
     $requestorName = trim((string) ($ticket['creator_name'] ?? ''));
     if ($requestorName === '') {
         $requestorName = 'the requestor';
@@ -864,13 +864,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string) ($_POST['action'] ?? '') =
     }
 
     $recipients = follow_up_recipients($conn, $ticket, $user_id);
-    if (count($recipients['user_ids']) === 0) {
+    $notificationRecipientIds = notif_unique_user_ids(array_merge($recipients['user_ids'], notif_admin_user_ids($conn)));
+    if (count($notificationRecipientIds) === 0) {
         http_response_code(404);
         echo json_encode(['ok' => false, 'error' => 'No recipients available for this follow up request.']);
         exit;
     }
 
-    $inserted = follow_up_insert_notifications($conn, $recipients['user_ids'], $ticketId, $message, $title);
+    $inserted = follow_up_insert_notifications($conn, $notificationRecipientIds, $ticketId, $message, $title);
     if ($inserted <= 0) {
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'Unable to process follow up right now.']);

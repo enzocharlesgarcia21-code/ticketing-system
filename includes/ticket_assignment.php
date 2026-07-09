@@ -680,6 +680,30 @@ function ticket_uses_specific_email_route(string $company, string $group): bool
     return count(ticket_department_override_notification_emails($company, $group)) > 0;
 }
 
+function ticket_linked_department_notification_targets(string $company, string $group): array
+{
+    $company = ticket_normalize_company($company);
+    $groupKey = ticket_department_key_from_value($group);
+
+    if ($groupKey !== 'IT') {
+        return [];
+    }
+
+    if ($company === '@leadsagri.com') {
+        return [
+            ['company' => '@malvedaholdings.com', 'group' => 'IT'],
+        ];
+    }
+
+    if ($company === '@malvedaholdings.com') {
+        return [
+            ['company' => '@leadsagri.com', 'group' => 'IT'],
+        ];
+    }
+
+    return [];
+}
+
 function ticket_users_table_has_column(mysqli $conn, string $column): bool
 {
     static $cache = [];
@@ -876,6 +900,12 @@ function ticket_assignee_notification_emails(mysqli $conn, array $assignedUserId
         }
     }
     $emails = array_merge($emails, ticket_registered_department_notification_emails($conn, $company, $group, $excludeUserId));
+    foreach (ticket_linked_department_notification_targets($company, $group) as $linkedTarget) {
+        $linkedCompany = (string) ($linkedTarget['company'] ?? '');
+        $linkedGroup = (string) ($linkedTarget['group'] ?? '');
+        $emails = array_merge($emails, ticket_department_override_notification_emails($linkedCompany, $linkedGroup));
+        $emails = array_merge($emails, ticket_registered_department_notification_emails($conn, $linkedCompany, $linkedGroup, $excludeUserId));
+    }
 
     return array_values(array_unique(array_filter(array_map(static function ($email) {
         return strtolower(trim((string) $email));
@@ -1092,7 +1122,7 @@ function ticket_find_department_user_options(mysqli $conn, string $company, stri
     return $users;
 }
 
-function ticket_find_assignee_ids(mysqli $conn, string $company, string $group): array
+function ticket_find_assignee_ids(mysqli $conn, string $company, string $group, bool $includeLinkedTargets = true): array
 {
     $company = ticket_normalize_company($company);
     $group = trim($group);
@@ -1215,11 +1245,51 @@ function ticket_find_assignee_ids(mysqli $conn, string $company, string $group):
     $stmt->close();
 
     $ids = array_values(array_filter(array_unique($ids), static function ($v) { return (int) $v > 0; }));
-    if (count($ids) > 0) return $ids;
+    if (count($ids) > 0) {
+        if ($includeLinkedTargets) {
+            foreach (ticket_linked_department_notification_targets($company, $group) as $linkedTarget) {
+                $ids = array_merge($ids, ticket_find_assignee_ids(
+                    $conn,
+                    (string) ($linkedTarget['company'] ?? ''),
+                    (string) ($linkedTarget['group'] ?? ''),
+                    false
+                ));
+            }
+            $ids = array_values(array_filter(array_unique($ids), static function ($v) { return (int) $v > 0; }));
+        }
+        return $ids;
+    }
 
-    if (!$isLapcCompany) return [];
+    if (!$isLapcCompany) {
+        if ($includeLinkedTargets) {
+            foreach (ticket_linked_department_notification_targets($company, $group) as $linkedTarget) {
+                $ids = array_merge($ids, ticket_find_assignee_ids(
+                    $conn,
+                    (string) ($linkedTarget['company'] ?? ''),
+                    (string) ($linkedTarget['group'] ?? ''),
+                    false
+                ));
+            }
+            $ids = array_values(array_filter(array_unique($ids), static function ($v) { return (int) $v > 0; }));
+        }
+        return $ids;
+    }
     $adminId = ticket_find_department_admin_id($conn, $deptAliases);
-    if ($adminId) return [$adminId];
+    if ($adminId) {
+        $ids = [$adminId];
+        if ($includeLinkedTargets) {
+            foreach (ticket_linked_department_notification_targets($company, $group) as $linkedTarget) {
+                $ids = array_merge($ids, ticket_find_assignee_ids(
+                    $conn,
+                    (string) ($linkedTarget['company'] ?? ''),
+                    (string) ($linkedTarget['group'] ?? ''),
+                    false
+                ));
+            }
+            $ids = array_values(array_filter(array_unique($ids), static function ($v) { return (int) $v > 0; }));
+        }
+        return $ids;
+    }
 
     // LAPC fallback: route the ticket to the LAPC IT team when the
     // selected department has no registered assignee yet so submissions
@@ -1244,11 +1314,34 @@ function ticket_find_assignee_ids(mysqli $conn, string $company, string $group):
         $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
         if ($row && (int) ($row['id'] ?? 0) > 0) {
-            return [(int) $row['id']];
+            $ids = [(int) $row['id']];
+            if ($includeLinkedTargets) {
+                foreach (ticket_linked_department_notification_targets($company, $group) as $linkedTarget) {
+                    $ids = array_merge($ids, ticket_find_assignee_ids(
+                        $conn,
+                        (string) ($linkedTarget['company'] ?? ''),
+                        (string) ($linkedTarget['group'] ?? ''),
+                        false
+                    ));
+                }
+                $ids = array_values(array_filter(array_unique($ids), static function ($v) { return (int) $v > 0; }));
+            }
+            return $ids;
         }
     }
 
-    return [];
+    if ($includeLinkedTargets) {
+        foreach (ticket_linked_department_notification_targets($company, $group) as $linkedTarget) {
+            $ids = array_merge($ids, ticket_find_assignee_ids(
+                $conn,
+                (string) ($linkedTarget['company'] ?? ''),
+                (string) ($linkedTarget['group'] ?? ''),
+                false
+            ));
+        }
+    }
+
+    return array_values(array_filter(array_unique($ids), static function ($v) { return (int) $v > 0; }));
 }
 
 function ticket_find_assignee_id(mysqli $conn, string $company, string $group): ?int
@@ -1268,6 +1361,7 @@ function ticket_ensure_assignment_columns(mysqli $conn): void
         'assigned_group' => "VARCHAR(255) NULL",
         'assigned_user_id' => "INT NULL",
         'assigned_to' => "INT NULL",
+        'admin_viewed_at' => "DATETIME NULL",
     ];
     $existing = [];
     $res = $conn->query("SHOW COLUMNS FROM employee_tickets");
@@ -1304,6 +1398,55 @@ function ticket_ensure_assignment_columns(mysqli $conn): void
             $conn->query("ALTER TABLE employee_tickets MODIFY COLUMN $col $ddl");
         }
     }
+}
+
+function ticket_admin_new_badge_visible(array $ticket): bool
+{
+    $adminViewedAt = trim((string) ($ticket['admin_viewed_at'] ?? ''));
+    if ($adminViewedAt !== '') {
+        return false;
+    }
+
+    $createdAt = trim((string) ($ticket['created_at'] ?? ''));
+    if ($createdAt === '') {
+        return false;
+    }
+
+    try {
+        $created = new DateTimeImmutable($createdAt);
+        $now = new DateTimeImmutable('now');
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    if ($created > $now) {
+        return false;
+    }
+
+    return ($now->getTimestamp() - $created->getTimestamp()) < 86400;
+}
+
+function ticket_mark_admin_viewed(mysqli $conn, int $ticketId): void
+{
+    if ($ticketId <= 0) {
+        return;
+    }
+
+    ticket_ensure_assignment_columns($conn);
+
+    $stmt = $conn->prepare("
+        UPDATE employee_tickets
+        SET admin_viewed_at = NOW()
+        WHERE id = ?
+          AND admin_viewed_at IS NULL
+    ");
+    if (!$stmt) {
+        return;
+    }
+
+    $stmt->bind_param("i", $ticketId);
+    $stmt->execute();
+    $stmt->close();
 }
 
 function ticket_allowed_urgencies(): array
@@ -1419,6 +1562,32 @@ function ticket_company_matches_user(string $ticketCompany, string $userCompany,
     return false;
 }
 
+function ticket_user_is_linked_department_candidate(array $ticket, array $userContext): bool
+{
+    $ticketCompany = (string) ($ticket['assigned_company'] ?? ($ticket['company'] ?? ''));
+    $ticketGroup = (string) ($ticket['assigned_group'] ?? ($ticket['assigned_department'] ?? ''));
+    $userGroup = ticket_department_key_from_value((string) ($userContext['department'] ?? ''));
+    $userCompany = (string) ($userContext['company'] ?? '');
+    $userEmail = (string) ($userContext['email'] ?? '');
+
+    if ($ticketCompany === '' || $ticketGroup === '' || $userGroup === '') {
+        return false;
+    }
+
+    foreach (ticket_linked_department_notification_targets($ticketCompany, $ticketGroup) as $linkedTarget) {
+        $linkedCompany = (string) ($linkedTarget['company'] ?? '');
+        $linkedGroup = ticket_department_key_from_value((string) ($linkedTarget['group'] ?? ''));
+        if ($linkedCompany === '' || $linkedGroup === '') {
+            continue;
+        }
+        if ($linkedGroup === $userGroup && ticket_company_matches_user($linkedCompany, $userCompany, $userEmail)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function ticket_user_is_handler_candidate(array $ticket, int $userId, array $userContext): bool
 {
     $requesterId = isset($ticket['user_id']) ? (int) $ticket['user_id'] : 0;
@@ -1435,6 +1604,7 @@ function ticket_user_is_handler_candidate(array $ticket, int $userId, array $use
     if ($assignedUserId > 0 && $assignedUserId === $userId) return true;
     if ($handlerId > 0 && $handlerId === $userId) return true;
     if ($userId === $requesterId) return false;
+    if (ticket_user_is_linked_department_candidate($ticket, $userContext)) return true;
     if ($normalizedTicketCompany !== '' && !ticket_company_requires_department($normalizedTicketCompany)) {
         return false;
     }
@@ -1458,6 +1628,7 @@ function ticket_user_is_claim_candidate(array $ticket, int $userId, array $userC
 
     if ($userId <= 0) return false;
     if ($userId === $requesterId) return false;
+    if (ticket_user_is_linked_department_candidate($ticket, $userContext)) return true;
     if ($normalizedTicketCompany !== '' && !ticket_company_requires_department($normalizedTicketCompany)) {
         return ticket_company_matches_user($ticketCompany, $userCompany, $userEmail);
     }
@@ -1695,6 +1866,11 @@ function ticket_ensure_chat_tables(mysqli $conn): void
                 sender_id INT NOT NULL,
                 message TEXT NOT NULL,
                 message_group_id VARCHAR(64) NULL,
+                reply_to_message_id INT NULL,
+                reply_to_sender_name VARCHAR(255) NULL,
+                reply_to_text TEXT NULL,
+                reply_to_attachment VARCHAR(32) NULL,
+                reply_to_attachment_stored_name VARCHAR(255) NULL,
                 attachment_stored_name VARCHAR(255) NULL,
                 attachment_original_name VARCHAR(255) NULL,
                 is_read TINYINT(1) NOT NULL DEFAULT 0,
@@ -1713,6 +1889,11 @@ function ticket_ensure_chat_tables(mysqli $conn): void
         'sender_id' => "INT NOT NULL",
         'message' => "TEXT NOT NULL",
         'message_group_id' => "VARCHAR(64) NULL",
+        'reply_to_message_id' => "INT NULL",
+        'reply_to_sender_name' => "VARCHAR(255) NULL",
+        'reply_to_text' => "TEXT NULL",
+        'reply_to_attachment' => "VARCHAR(32) NULL",
+        'reply_to_attachment_stored_name' => "VARCHAR(255) NULL",
         'attachment_stored_name' => "VARCHAR(255) NULL",
         'attachment_original_name' => "VARCHAR(255) NULL",
         'is_read' => "TINYINT(1) NOT NULL DEFAULT 0",
@@ -2241,6 +2422,49 @@ function ticket_user_email_addresses(mysqli $conn, array $userIds): array
     }
 
     return array_values(array_unique($emails));
+}
+
+function ticket_email_description_for_notification(string $description): string
+{
+    $lines = preg_split('/\r\n|\r|\n/', $description);
+    if (!is_array($lines)) {
+        return $description;
+    }
+
+    $firstContent = '';
+    foreach ($lines as $line) {
+        $trimmed = trim((string) $line);
+        if ($trimmed !== '') {
+            $firstContent = $trimmed;
+            break;
+        }
+    }
+    if (!preg_match('/^SAP Form$/i', $firstContent)) {
+        return $description;
+    }
+
+    $filtered = [];
+    $skippingEmployeeDetails = false;
+    foreach ($lines as $line) {
+        $text = (string) $line;
+        $trimmed = trim($text);
+
+        if (preg_match('/^Employee Details(?:\s+\d+)?$/i', $trimmed)) {
+            $skippingEmployeeDetails = true;
+            continue;
+        }
+
+        if ($skippingEmployeeDetails) {
+            if ($trimmed === '' || preg_match('/^(Name|Position|Address|Department|TIN)\s*:/i', $trimmed)) {
+                continue;
+            }
+            $skippingEmployeeDetails = false;
+        }
+
+        $filtered[] = $text;
+    }
+
+    return trim(implode("\n", $filtered));
 }
 
 function notifyTicketClosed(mysqli $conn, array $ticket, int $inactivitySeconds = 7200): array

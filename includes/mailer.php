@@ -157,6 +157,9 @@ function smtp_extract_ticket_id_from_subject(string $subject): int
     if (preg_match('/\(#0*(\d+)\)/', $subject, $m)) {
         return (int) $m[1];
     }
+    if (preg_match('/\bTicket(?:\s+ID)?\s*#?0*(\d+)\b/i', $subject, $m)) {
+        return (int) $m[1];
+    }
     return 0;
 }
 
@@ -187,6 +190,14 @@ function smtp_generate_message_id(int $ticketId): string
 {
     $suffix = function_exists('random_bytes') ? bin2hex(random_bytes(8)) : str_replace('.', '', uniqid('', true));
     return '<ticket-' . $ticketId . '-' . $suffix . '@' . smtp_message_id_domain() . '>';
+}
+
+function smtp_ticket_thread_reference_id(int $ticketId): string
+{
+    if ($ticketId <= 0) {
+        return '';
+    }
+    return '<ticket-thread-' . str_pad((string) $ticketId, 6, '0', STR_PAD_LEFT) . '@' . smtp_message_id_domain() . '>';
 }
 
 function smtp_generate_context_message_id(string $context, int $recordId): string
@@ -262,25 +273,36 @@ function smtp_prepare_ticket_threading(int $ticketId, string $subject): ?array
         $normalizedThreadSubject = $subject;
     }
 
-    if ($rootMessageId === '') {
-        $rootMessageId = smtp_generate_message_id($ticketId);
-        $threadSubject = $normalizedThreadSubject;
-        $isRoot = true;
-        $update = $conn->prepare("UPDATE employee_tickets SET root_message_id = ?, last_message_id = ?, thread_subject = ? WHERE id = ?");
-        if ($update) {
-            $update->bind_param("sssi", $rootMessageId, $rootMessageId, $threadSubject, $ticketId);
-            $update->execute();
-            $update->close();
-        }
+    $stableRootMessageId = smtp_ticket_thread_reference_id($ticketId);
+    if ($rootMessageId === '' && $stableRootMessageId !== '') {
+        $rootMessageId = $stableRootMessageId;
     }
 
-    if ($threadSubject !== $normalizedThreadSubject) {
+    if ($lastMessageId === '') {
+        $isRoot = true;
+    }
+
+    if ($rootMessageId === '') {
+        $rootMessageId = smtp_generate_message_id($ticketId);
+        $isRoot = true;
+    }
+
+    if ($threadSubject !== $normalizedThreadSubject || $rootMessageId !== '') {
         $threadSubject = $normalizedThreadSubject;
-        $update = $conn->prepare("UPDATE employee_tickets SET thread_subject = ? WHERE id = ?");
-        if ($update) {
-            $update->bind_param("si", $threadSubject, $ticketId);
-            $update->execute();
-            $update->close();
+        if ($lastMessageId !== '') {
+            $update = $conn->prepare("UPDATE employee_tickets SET root_message_id = ?, last_message_id = ?, thread_subject = ? WHERE id = ?");
+            if ($update) {
+                $update->bind_param("sssi", $rootMessageId, $lastMessageId, $threadSubject, $ticketId);
+                $update->execute();
+                $update->close();
+            }
+        } else {
+            $update = $conn->prepare("UPDATE employee_tickets SET root_message_id = ?, thread_subject = ? WHERE id = ?");
+            if ($update) {
+                $update->bind_param("ssi", $rootMessageId, $threadSubject, $ticketId);
+                $update->execute();
+                $update->close();
+            }
         }
     }
 
@@ -485,18 +507,19 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
                 $mail->Body = $htmlBody;
                 if ($threading) {
                     $mail->MessageID = (string) $threading['message_id'];
+                    $mail->addCustomHeader('X-Ticket-ID', str_pad((string) ((int) ($threading['ticket_id'] ?? 0)), 6, '0', STR_PAD_LEFT));
+                    $mail->addCustomHeader('X-Ticket-Thread-ID', 'ticket-' . str_pad((string) ((int) ($threading['ticket_id'] ?? 0)), 6, '0', STR_PAD_LEFT));
                     if (empty($threading['is_root'])) {
                         $rootMessageId = (string) $threading['root_message_id'];
-                        $replyToMessageId = trim((string) ($threading['last_message_id'] ?? ''));
-                        if ($replyToMessageId === '') {
-                            $replyToMessageId = $rootMessageId;
+                        $lastMessageId = (string) ($threading['last_message_id'] ?? '');
+                        if ($rootMessageId !== '') {
+                            $mail->addCustomHeader('In-Reply-To', $lastMessageId !== '' ? $lastMessageId : $rootMessageId);
+                            $references = [$rootMessageId];
+                            if ($lastMessageId !== '' && $lastMessageId !== $rootMessageId) {
+                                $references[] = $lastMessageId;
+                            }
+                            $mail->addCustomHeader('References', implode(' ', $references));
                         }
-                        $mail->addCustomHeader('In-Reply-To', $replyToMessageId);
-                        $references = $rootMessageId;
-                        if ($replyToMessageId !== '' && $replyToMessageId !== $rootMessageId) {
-                            $references .= ' ' . $replyToMessageId;
-                        }
-                        $mail->addCustomHeader('References', trim($references));
                     }
                 }
                 if ($textBody !== '') {

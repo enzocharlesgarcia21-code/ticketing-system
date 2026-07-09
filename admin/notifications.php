@@ -38,17 +38,94 @@ if (isset($_POST['mark_all_read'])) {
 
 /* Get notifications */
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$limit = 20;
+$allowedPageSizes = [10, 25, 50, 100];
+$limit = isset($_GET['per_page']) ? (int) $_GET['per_page'] : 10;
+if (!in_array($limit, $allowedPageSizes, true)) {
+    $limit = 10;
+}
+$allowedNotificationTabs = ['all', 'unread', 'tickets', 'bookings', 'overdue'];
+$activeNotificationTab = strtolower(trim((string) ($_GET['filter'] ?? 'all')));
+if (!in_array($activeNotificationTab, $allowedNotificationTabs, true)) {
+    $activeNotificationTab = 'all';
+}
+$activePriorityFilter = strtolower(trim((string) ($_GET['priority'] ?? '')));
+if (!in_array($activePriorityFilter, ['low', 'medium', 'high'], true)) {
+    $activePriorityFilter = '';
+}
+$activeStatusFilter = strtolower(trim((string) ($_GET['status'] ?? '')));
+if (!in_array($activeStatusFilter, ['open', 'in progress', 'resolved'], true)) {
+    $activeStatusFilter = '';
+}
+
+$notificationBaseWhere = "
+    n.user_id = $user_id
+    AND n.type <> 'chat_message'
+    AND n.type <> 'hr_chat_pending'
+    AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+";
+$notificationTabWhere = "1=1";
+if ($activeNotificationTab === 'unread') {
+    $notificationTabWhere = "n.is_read = 0";
+} elseif ($activeNotificationTab === 'tickets') {
+    $notificationTabWhere = "(
+        n.type NOT LIKE 'conference_booking%'
+        AND (
+            n.ticket_id IS NOT NULL
+            OR n.type IN ('dept_assigned', 'new_ticket', 'ticket_claimed', 'claim_ticket', 'priority_escalated', 'follow_up', 'status_update', 'note_added', 'reassigned')
+            OR n.type LIKE '%ticket%'
+        )
+    )";
+} elseif ($activeNotificationTab === 'bookings') {
+    $notificationTabWhere = "n.type LIKE 'conference_booking%'";
+} elseif ($activeNotificationTab === 'overdue') {
+    $notificationTabWhere = "(
+        n.type = 'priority_escalated'
+        OR LOWER(COALESCE(t.priority, '')) IN ('high', 'critical')
+        OR LOWER(COALESCE(n.message, '')) REGEXP 'breach|overdue|past due'
+    )";
+}
+$notificationPriorityWhere = "1=1";
+if ($activePriorityFilter === 'high') {
+    $notificationPriorityWhere = "(LOWER(COALESCE(t.priority, '')) IN ('high', 'critical') OR n.type = 'priority_escalated')";
+} elseif ($activePriorityFilter !== '') {
+    $notificationPriorityWhere = "LOWER(COALESCE(t.priority, '')) = '" . $conn->real_escape_string($activePriorityFilter) . "'";
+}
+$notificationStatusWhere = $activeStatusFilter !== ''
+    ? "LOWER(COALESCE(t.status, '')) = '" . $conn->real_escape_string($activeStatusFilter) . "'"
+    : "1=1";
+
+function admin_notifications_page_url(int $page, string $filter, string $priority = '', string $status = '', ?int $perPage = null): string
+{
+    global $limit;
+    $perPage = $perPage !== null ? $perPage : (int) $limit;
+    $params = [];
+    if ($page > 1) {
+        $params['page'] = $page;
+    }
+    if ($filter !== '' && $filter !== 'all') {
+        $params['filter'] = $filter;
+    }
+    if ($priority !== '') {
+        $params['priority'] = $priority;
+    }
+    if ($status !== '') {
+        $params['status'] = $status;
+    }
+    if ($perPage !== 10) {
+        $params['per_page'] = $perPage;
+    }
+    $query = http_build_query($params);
+    return 'notifications.php' . ($query !== '' ? ('?' . $query) : '');
+}
 
 $total_res = $conn->query("
     SELECT COUNT(*) as c
     FROM notifications n
     LEFT JOIN employee_tickets t ON n.ticket_id = t.id
-    WHERE n.user_id = $user_id
-      AND n.type <> 'chat_message'
-      AND n.type <> 'hr_chat_pending'
-      AND n.type <> 'conference_booking_created'
-      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+    WHERE $notificationBaseWhere
+      AND $notificationTabWhere
+      AND $notificationPriorityWhere
+      AND $notificationStatusWhere
 ");
 if (!$total_res) {
     die("SQL Error: " . $conn->error);
@@ -57,16 +134,17 @@ $total = $total_res->fetch_assoc()['c'];
 $total_pages = max(1, (int) ceil($total / $limit));
 $page = max(1, min($page, $total_pages));
 $offset = ($page - 1) * $limit;
+$showingFrom = $total > 0 ? ($offset + 1) : 0;
+$showingTo = $total > 0 ? min($offset + $limit, (int) $total) : 0;
 
 $sql = "
-    SELECT n.*, t.priority
+    SELECT n.*, t.priority, t.status AS ticket_status, t.assigned_department, t.assigned_group, t.department AS ticket_department
     FROM notifications n
     LEFT JOIN employee_tickets t ON n.ticket_id = t.id
-    WHERE n.user_id = ?
-      AND n.type <> 'chat_message'
-      AND n.type <> 'hr_chat_pending'
-      AND n.type <> 'conference_booking_created'
-      AND (n.type <> 'note_added' OR t.user_id = n.user_id)
+    WHERE $notificationBaseWhere
+      AND $notificationTabWhere
+      AND $notificationPriorityWhere
+      AND $notificationStatusWhere
     ORDER BY n.created_at DESC
     LIMIT ? OFFSET ?
 ";
@@ -75,9 +153,66 @@ $stmt = $conn->prepare($sql);
 if (!$stmt) {
     die("SQL Error: " . $conn->error);
 }
-$stmt->bind_param("iii", $user_id, $limit, $offset);
+$stmt->bind_param("ii", $limit, $offset);
 $stmt->execute();
 $result = $stmt->get_result();
+
+function admin_notification_scalar(mysqli $conn, string $sql): int
+{
+    $res = $conn->query($sql);
+    if (!$res) return 0;
+    $row = $res->fetch_assoc();
+    $res->free();
+    return (int) ($row['c'] ?? 0);
+}
+
+$summaryUnread = admin_notification_scalar($conn, "
+    SELECT COUNT(*) AS c
+    FROM notifications n
+    LEFT JOIN employee_tickets t ON n.ticket_id = t.id
+    WHERE $notificationBaseWhere
+      AND n.is_read = 0
+");
+$summaryHighPriority = admin_notification_scalar($conn, "
+    SELECT COUNT(*) AS c
+    FROM notifications n
+    LEFT JOIN employee_tickets t ON n.ticket_id = t.id
+    WHERE $notificationBaseWhere
+      AND (
+        LOWER(COALESCE(t.priority, '')) IN ('high', 'critical')
+        OR n.type = 'priority_escalated'
+        OR LOWER(COALESCE(n.message, '')) LIKE '%breach%'
+      )
+");
+$summaryUnclaimed = admin_notification_scalar($conn, "
+    SELECT COUNT(*) AS c
+    FROM employee_tickets
+    WHERE LOWER(TRIM(COALESCE(status, ''))) NOT IN ('resolved', 'closed', 'trash')
+      AND (assigned_to IS NULL OR assigned_to = 0)
+");
+$summaryFollowUpRequests = admin_notification_scalar($conn, "
+    SELECT COUNT(*) AS c
+    FROM notifications n
+    LEFT JOIN employee_tickets t ON n.ticket_id = t.id
+    WHERE $notificationBaseWhere
+      AND n.type = 'follow_up'
+");
+
+$departmentOptions = [];
+$departmentRes = $conn->query("
+    SELECT DISTINCT TRIM(COALESCE(NULLIF(assigned_group, ''), NULLIF(assigned_department, ''), NULLIF(department, ''))) AS dept
+    FROM employee_tickets
+    WHERE TRIM(COALESCE(NULLIF(assigned_group, ''), NULLIF(assigned_department, ''), NULLIF(department, ''))) <> ''
+    ORDER BY dept ASC
+    LIMIT 30
+");
+if ($departmentRes) {
+    while ($deptRow = $departmentRes->fetch_assoc()) {
+        $dept = trim((string) ($deptRow['dept'] ?? ''));
+        if ($dept !== '') $departmentOptions[] = $dept;
+    }
+    $departmentRes->free();
+}
 
 function time_elapsed_string($datetime, $full = false) {
     $now = new DateTime;
@@ -165,8 +300,16 @@ function admin_conference_booking_summary(string $message): array
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notifications | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/view-tickets.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        :root {
+            --notif-green: #0f6b3a;
+            --notif-soft-border: #e5edf4;
+            --notif-text: #0f172a;
+            --notif-muted: #64748b;
+            --notif-page: #f6f8fb;
+        }
         .admin-page {
             display: flex;
             min-height: 100vh;
@@ -174,57 +317,314 @@ function admin_conference_booking_summary(string $message): array
         }
         .admin-container {
             flex: 1;
-            padding: 20px;
-            background-color: #f8fafc;
+            padding: 28px 32px 40px;
+            background: var(--notif-page);
         }
         .admin-content {
-            max-width: 1000px;
+            max-width: 1280px;
             margin: 0 auto;
+        }
+        .notif-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 22px;
+            margin: 0 0 26px;
+        }
+        .notif-summary-card {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            min-height: 108px;
+            padding: 22px 24px;
+            background: #ffffff;
+            border: 1px solid var(--notif-soft-border);
+            border-radius: 12px;
+            box-shadow: 0 14px 38px rgba(15, 23, 42, 0.06);
+        }
+        .notif-summary-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 25px;
+            flex: 0 0 auto;
+        }
+        .notif-summary-icon.icon-unread { color: #16a34a; background: #dcfce7; }
+        .notif-summary-icon.icon-high { color: #ef4444; background: #fee2e2; }
+        .notif-summary-icon.icon-unassigned { color: #eab308; background: #fef3c7; }
+        .notif-summary-icon.icon-overdue { color: #f97316; background: #ffedd5; }
+        .notif-summary-label {
+            margin: 0 0 4px;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .notif-summary-value {
+            color: var(--notif-green);
+            font-size: 28px;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .notif-summary-card.card-high .notif-summary-value { color: #ef4444; }
+        .notif-summary-card.card-unassigned .notif-summary-value { color: #eab308; }
+        .notif-summary-card.card-overdue .notif-summary-value { color: #f97316; }
+        .notif-summary-subtitle {
+            margin-top: 7px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 18px;
+            margin: 0 0 22px;
+        }
+        .page-title {
+            margin: 0;
+            color: var(--notif-text);
+            font-size: 32px;
+            font-weight: 900;
+            letter-spacing: 0;
+        }
+        .mark-read-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: transparent;
+            border: none;
+            color: #12833b;
+            font-weight: 800;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        .mark-read-btn:hover {
+            color: #0f6b3a;
+        }
+        .notif-toolbar {
+            display: grid;
+            grid-template-columns: minmax(260px, 1.05fr) minmax(360px, 1.35fr) 160px 170px 124px;
+            align-items: center;
+            gap: 14px;
+            padding: 16px;
+            margin: 0 0 16px;
+            background: #ffffff;
+            border: 1px solid #e8eef5;
+            border-radius: 14px;
+            box-shadow: 0 14px 34px rgba(15, 23, 42, 0.055);
+        }
+        .notif-search-wrap {
+            position: relative;
+            min-width: 0;
+        }
+        .notif-search-wrap i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748b;
+            font-size: 14px;
+        }
+        .notif-search-input {
+            width: 100%;
+            height: 42px;
+            border: 1px solid #dfe8f1;
+            border-radius: 9px;
+            background: #ffffff;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 650;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .notif-search-input {
+            padding: 0 14px 0 38px;
+        }
+        .notif-select-shell {
+            position: relative;
+            min-width: 0;
+        }
+        .notif-filter-select {
+            display: none;
+        }
+        .notif-select-trigger {
+            width: 100%;
+            height: 42px;
+            border: 1px solid #cbdbea;
+            border-radius: 9px;
+            background: #ffffff;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 0 14px;
+            cursor: pointer;
+            box-sizing: border-box;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease;
+        }
+        .notif-select-trigger i {
+            color: #0f6b3a;
+            font-size: 12px;
+            transition: transform 0.18s ease;
+        }
+        .notif-select-shell.open .notif-select-trigger {
+            border-color: #8bb8d8;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.08);
+        }
+        .notif-select-shell.open .notif-select-trigger i {
+            transform: rotate(180deg);
+        }
+        .notif-select-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            z-index: 30;
+            display: none;
+            max-height: 248px;
+            overflow-y: auto;
+            padding: 6px;
+            border: 1px solid #cbdbea;
+            border-radius: 10px;
+            background: #ffffff;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+        }
+        .notif-select-shell.open .notif-select-menu {
+            display: block;
+        }
+        .notif-select-menu::-webkit-scrollbar {
+            width: 9px;
+        }
+        .notif-select-menu::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 999px;
+        }
+        .notif-select-menu::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 999px;
+        }
+        .notif-select-option {
+            width: 100%;
+            min-height: 36px;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            color: #334155;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.2;
+            text-align: left;
+            cursor: pointer;
+        }
+        .notif-select-option:hover,
+        .notif-select-option.is-selected {
+            background: #eaf6ee;
+        }
+        .notif-clear-btn {
+            height: 42px;
+            border: 1px solid #dfe8f1;
+            border-radius: 9px;
+            background: #f8fafc;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.2;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        }
+        .notif-clear-btn:hover {
+            background: #eef6f0;
+            border-color: #bbf7d0;
+            color: #0f6b3a;
+        }
+        .notif-search-input:focus,
+        .notif-select-trigger:focus {
+            border-color: #86efac;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
+            outline: none;
+        }
+        .notif-tabs {
+            display: flex;
+            align-items: center;
+            gap: 22px;
+            min-width: 0;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .notif-tabs::-webkit-scrollbar {
+            display: none;
+        }
+        .notif-tab {
+            appearance: none;
+            border: none;
+            background: transparent;
+            color: #475569;
+            cursor: pointer;
+            padding: 10px 0;
+            border-bottom: 2px solid transparent;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+        .notif-tab.active {
+            color: #0f6b3a;
+            border-bottom-color: #16a34a;
         }
         .notif-list-page {
-            background: transparent;
-            border-radius: 0;
-            box-shadow: none;
-            overflow: visible;
-            max-width: 860px;
-            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid #e8eef5;
+            border-radius: 16px;
+            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
+            overflow: hidden;
+            padding: 14px;
         }
         .notif-section-label {
-            font-size: 1.08rem;
-            font-weight: 700;
-            color: #374151;
-            margin: 0 0 16px;
-            padding-left: 4px;
+            font-size: 0.83rem;
+            font-weight: 900;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin: 10px 4px 12px;
         }
         .notif-section-card {
-            background: transparent;
-            border-radius: 0;
-            box-shadow: none;
-            border: 0;
-            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
             margin-bottom: 18px;
         }
         .notif-item-row {
             position: relative;
-            padding: 16px 24px 16px 22px;
-            border-bottom: 1px solid #eef2f7;
-            border-radius: 16px;
-            display: flex;
-            align-items: flex-start;
-            gap: 0;
-            transition: background 0.2s ease;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto 12px;
+            align-items: center;
+            gap: 18px;
+            min-height: 82px;
+            padding: 18px 22px 18px 30px;
+            border: 1px solid #e8eef5;
+            border-radius: 14px;
             cursor: pointer;
             text-decoration: none;
             color: inherit;
             background: #ffffff;
-            margin-bottom: 10px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.045);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
         }
         .notif-item-row > * {
             pointer-events: none;
-        }
-        .notif-item-row:last-child {
-            border-bottom: 1px solid #eef2f7;
-            margin-bottom: 0;
         }
         .notif-item-row::before {
             content: "";
@@ -232,119 +632,132 @@ function admin_conference_booking_summary(string $message): array
             left: 0;
             top: 0;
             bottom: 0;
-            width: 7px;
+            width: 6px;
+            border-radius: 14px 0 0 14px;
             background: var(--notif-accent, #cbd5e1);
         }
         .notif-item-row:hover {
-            background-color: #fbfdff;
-        }
-        .notif-item-row.notif-chat-pending {
-            border-left: 7px solid #1B5E20;
-        }
-        .notif-item-row.notif-chat-pending::before {
-            display: none;
-        }
-        .notif-item-row.unread {
-            background-color: #ffffff;
+            transform: translateY(-1px);
+            border-color: rgba(22, 163, 74, 0.28);
+            box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
         }
         .notif-item-row.unread::after {
             content: "";
-            position: absolute;
-            right: 16px;
-            top: 22px;
             width: 11px;
             height: 11px;
             border-radius: 50%;
-            background: var(--notif-dot, #5aa364);
-            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.96);
+            background: var(--notif-dot, #16a34a);
+            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.96);
+            grid-column: 3;
+            justify-self: center;
         }
-
-        .notif-list-page .notif-content {
-            flex-grow: 1;
+        .notif-item-row:not(.unread)::after {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #cbd5e1;
+            grid-column: 3;
+            justify-self: center;
+        }
+        .notif-item-row.notif-chat-pending::before {
+            background: #1B5E20;
+        }
+        .notif-content {
             min-width: 0;
         }
-        .notif-list-page .notif-text {
-            font-size: 0.92rem;
-            color: #1f2937;
-            margin-bottom: 8px;
-            line-height: 1.4;
-        }
-        .notif-list-page .notif-title {
+        .notif-title {
             display: flex;
             align-items: center;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 5px;
+            gap: 18px;
+            min-width: 0;
+            margin-bottom: 7px;
         }
-        .notif-list-page .notif-title-text {
-            font-size: 0.92rem;
-            font-weight: 700;
-            color: #111827;
-            line-height: 1.3;
+        .notif-title-text {
+            color: #0f172a;
+            font-size: 15px;
+            font-weight: 900;
+            line-height: 1.25;
         }
-        .notif-list-page .notif-pill {
-            min-height: 26px;
-            border-radius: 11px;
+        .notif-text {
+            color: #334155;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.45;
+            margin-bottom: 7px;
+        }
+        .notif-date {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 650;
+        }
+        .notif-row-action {
+            grid-column: 2;
+            min-width: 112px;
+            height: 36px;
+            border: 1px solid #22c55e;
+            border-radius: 8px;
+            color: #12833b;
+            background: #ffffff;
+            font-size: 12px;
+            font-weight: 900;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+        }
+        .notif-pill,
+        .admin-booking-pill {
+            display: inline-flex;
+            align-items: stretch;
+            height: 32px;
+            border-radius: 9px;
             border: 2px solid currentColor;
             background: #ffffff;
+            overflow: hidden;
+            flex: 0 0 auto;
+            color: #0f766e;
         }
-        .notif-list-page .notif-pill-icon {
-            width: 28px;
-            height: 26px;
-            font-size: 13px;
+        .notif-pill-icon,
+        .admin-booking-icon {
+            width: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            background: currentColor;
+            font-size: 14px;
         }
-        .notif-list-page .notif-pill-text {
-            padding: 0 16px 0 12px;
+        .notif-pill-icon i,
+        .admin-booking-icon i {
+            color: #ffffff;
+        }
+        .notif-pill-text,
+        .admin-booking-label {
+            display: inline-flex;
+            align-items: center;
+            padding: 0 14px 0 10px;
             font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.01em;
+            font-weight: 900;
             line-height: 1;
         }
-        .notif-list-page .notif-pill.notif-priority-breach-pill {
-            min-height: 26px;
-            border-radius: 11px;
-            border: 2px solid currentColor;
-            background: #ffffff;
-        }
-        .notif-list-page .notif-pill.notif-priority-breach-pill .notif-pill-icon {
-            width: 28px;
-            height: 26px;
-            font-size: 13px;
-        }
-        .notif-list-page .notif-pill.notif-priority-breach-pill .notif-pill-text {
-            padding: 0 16px 0 12px;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.01em;
-        }
-        .notif-list-page .notif-pill.variant-booking {
-            color: #0f766e;
-            background: #f0fdfa;
-        }
-        .notif-list-page .notif-pill.variant-booking .notif-pill-icon {
-            background: linear-gradient(135deg, #34d399, #0f766e);
-        }
+        .notif-pill.variant-low,
+        .notif-pill.variant-close { color: #22c55e; }
+        .notif-pill.variant-medium,
+        .notif-pill.variant-follow-up { color: #eab308; }
+        .notif-pill.variant-high,
+        .notif-pill.variant-critical { color: #ef4444; }
+        .notif-pill.variant-reassign { color: #9333ea; }
+        .notif-pill.variant-assign,
+        .notif-pill.variant-update { color: #0ea5e9; }
+        .notif-pill.variant-note { color: #f97316; }
+        .notif-pill.variant-booking,
+        .admin-booking-pill { color: #0f766e; }
         .notif-item-row.notif-priority-escalation {
-            background: linear-gradient(180deg, #fffafa 0%, #fff5f5 100%);
-            border-color: #fecaca;
-        }
-        .notif-item-row.notif-priority-escalation:hover {
-            background: linear-gradient(180deg, #fff7f7 0%, #feecec 100%);
+            background: #fffafa;
         }
         .notif-item-row.notif-follow-up {
-            background: linear-gradient(180deg, #fffdf4 0%, #fff9e7 100%);
-        }
-        .notif-item-row.notif-follow-up::before {
-            background: #f4c542;
-        }
-        .notif-item-row.notif-follow-up.unread::after {
-            background: #f4c542;
-        }
-        .notif-item-row.notif-follow-up .notif-title-text {
-            color: #111827;
-        }
-        .notif-item-row.notif-follow-up .notif-text strong {
-            color: #8a5b00;
+            background: #fffdf4;
         }
         .notif-keyword {
             display: inline-flex;
@@ -352,153 +765,83 @@ function admin_conference_booking_summary(string $message): array
             padding: 0.08rem 0.45rem;
             border-radius: 999px;
             font-size: 0.83em;
-            font-weight: 700;
+            font-weight: 800;
             line-height: 1.2;
             margin: 0 0.08rem;
             vertical-align: baseline;
         }
-        .notif-keyword-success {
-            background: #dcfce7;
-            color: #166534;
-        }
-        .notif-keyword-info {
-            background: #dbeafe;
-            color: #1d4ed8;
-        }
-        .notif-keyword-assign {
-            background: #e0f2fe;
-            color: #0284c7;
-        }
-        .notif-keyword-reassign {
-            background: #f3e8ff;
-            color: #7e22ce;
-        }
-        .notif-keyword-generic {
-            background: #e2e8f0;
-            color: #475569;
-        }
-        .notif-list-page .notif-date {
-            font-size: 0.8rem;
+        .notif-keyword-success { background: #dcfce7; color: #166534; }
+        .notif-keyword-info { background: #dbeafe; color: #1d4ed8; }
+        .notif-keyword-assign { background: #e0f2fe; color: #0284c7; }
+        .notif-keyword-reassign { background: #f3e8ff; color: #7e22ce; }
+        .notif-keyword-generic { background: #e2e8f0; color: #475569; }
+        .empty-notifications {
+            padding: 56px 20px;
+            text-align: center;
             color: #94a3b8;
         }
-        .notif-item-row.admin-booking-created {
-            align-items: flex-start;
-            gap: 12px;
-            padding: 16px 24px 16px 22px;
-        }
-        .notif-item-row.admin-booking-created::before {
-            width: 7px;
-            background: #0f766e;
-        }
-        .notif-item-row.admin-booking-created .admin-booking-pill {
-            display: inline-flex;
-            align-items: stretch;
-            min-width: 0;
-            min-height: 26px;
-            height: 26px;
-            border: 2px solid #0f766e;
-            border-radius: 11px;
-            overflow: hidden;
-            background: #ffffff;
-            color: #0f766e;
-            flex: 0 0 auto;
-        }
-        .notif-item-row.admin-booking-created .admin-booking-icon {
-            width: 28px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #34d399, #0f766e);
-            color: #ffffff;
-            font-size: 13px;
-        }
-        .notif-item-row.admin-booking-created .admin-booking-label {
-            flex: 1;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 16px 0 12px;
-            font-weight: 800;
-            font-size: 11px;
-            line-height: 1;
-            color: #0f766e;
-        }
-        .notif-item-row.admin-booking-created .admin-booking-body {
-            min-width: 0;
-            flex: 1;
-        }
-        .notif-item-row.admin-booking-created .admin-booking-title {
-            margin: 0 0 6px;
-            font-size: 0.92rem;
-            line-height: 1.25;
-            font-weight: 800;
-            color: #0f172a;
-        }
-        .notif-item-row.admin-booking-created .admin-booking-subtitle {
-            color: #1f2937;
-            font-size: 0.92rem;
-            line-height: 1.35;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .notif-item-row.admin-booking-created .admin-booking-time {
-            margin-top: 8px;
-            display: block;
-            color: #94a3b8;
-            font-size: 0.8rem;
-            font-weight: 400;
-        }
-        .pagination {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            padding: 20px;
-            flex-wrap: wrap;
-        }
-        .page-link {
-            min-width: 40px;
-            height: 40px;
-            padding: 0 15px;
-            border: 1px solid #d7e2ea;
-            border-radius: 999px;
-            text-decoration: none;
-            color: #1f2937;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: #ffffff;
-            font-weight: 600;
-            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
-            transition: all 0.2s ease;
-        }
-        .page-link:hover { background: #f8fafc; transform: translateY(-1px); border-color: #cbd5e1; }
-        .page-link.active {
-            background-color: #166534;
-            color: white;
-            border-color: #166534;
-            box-shadow: 0 10px 18px rgba(22, 101, 52, 0.22);
+        .empty-notifications i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: #cbd5e1;
         }
         .pagination-glass {
-            display: flex;
-            justify-content: center;
+            display: grid;
+            grid-template-columns: minmax(220px, 0.8fr) minmax(240px, 0.9fr) minmax(520px, 1.3fr);
             align-items: center;
             gap: 10px;
-            flex-wrap: wrap;
             margin-top: 24px;
-            padding: 0 6px 10px;
+            padding: 22px 6px 4px;
+            border-top: 1px solid #eef3f8;
+        }
+        .pagination-size,
+        .pagination-summary {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+        .pagination-size select {
+            width: 96px;
+            height: 40px;
+            border: 1px solid #dfe8f1;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 700;
+            padding: 0 14px;
+            outline: none;
+            cursor: pointer;
+        }
+        .pagination-summary {
+            justify-content: center;
+            text-align: center;
+        }
+        .pagination-controls {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: nowrap;
+            min-width: 0;
+            white-space: nowrap;
         }
         .page-numbers {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
+            min-width: 0;
         }
         .page-btn {
             min-width: 40px;
             height: 40px;
-            padding: 0 15px;
+            padding: 0 13px;
             border: 1px solid #d7e2ea;
             border-radius: 999px;
             text-decoration: none;
@@ -508,7 +851,7 @@ function admin_conference_booking_summary(string $message): array
             justify-content: center;
             background: #ffffff;
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 700;
             box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
             transition: all 0.2s ease;
             white-space: nowrap;
@@ -531,7 +874,7 @@ function admin_conference_booking_summary(string $message): array
         }
         .page-btn.prev,
         .page-btn.next {
-            padding: 0 18px;
+            padding: 0 16px;
         }
         .page-ellipsis {
             color: #94a3b8;
@@ -539,32 +882,65 @@ function admin_conference_booking_summary(string $message): array
             padding: 0 4px;
             user-select: none;
         }
-        .mark-read-btn {
-            background: none;
-            border: none;
-            color: #1f6f3f;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 0.9rem;
+        @media (max-width: 1180px) {
+            .notif-summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .notif-toolbar {
+                grid-template-columns: minmax(260px, 1fr) minmax(0, 1fr) 150px 150px 124px;
+            }
         }
-        .mark-read-btn:hover {
-            text-decoration: underline;
+        @media (max-width: 900px) {
+            .admin-container {
+                padding: 22px 16px 34px;
+            }
+            .notif-toolbar {
+                grid-template-columns: 1fr;
+            }
+            .notif-tabs {
+                order: 2;
+            }
+            .notif-item-row {
+                grid-template-columns: minmax(0, 1fr);
+                padding: 18px 18px 18px 26px;
+            }
+            .notif-row-action {
+                grid-column: 1;
+                justify-self: flex-start;
+                margin-top: 4px;
+            }
+            .notif-item-row.unread::after,
+            .notif-item-row:not(.unread)::after {
+                position: absolute;
+                right: 18px;
+                top: 22px;
+            }
         }
-        .page-header {
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            max-width: 860px;
-            width: 100%;
-            gap: 16px;
-            margin: 0 auto 20px;
-        }
-        .page-title {
-            margin: 0;
-        }
-        @media (max-width: 768px) {
+        @media (max-width: 640px) {
+            .notif-summary-grid {
+                grid-template-columns: 1fr;
+                gap: 14px;
+            }
+            .page-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .page-title {
+                font-size: 28px;
+            }
+            .notif-title {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 8px;
+            }
             .pagination-glass {
-                justify-content: flex-start;
+                grid-template-columns: 1fr;
+            }
+            .pagination-size,
+            .pagination-summary,
+            .pagination-controls {
+                justify-content: center;
+                width: 100%;
             }
             .page-btn.prev,
             .page-btn.next {
@@ -599,6 +975,90 @@ function admin_conference_booking_summary(string $message): array
                         </button>
                     </form>
                     <?php endif; ?>
+                </div>
+
+                <section class="notif-summary-grid" aria-label="Notification summary">
+                    <article class="notif-summary-card">
+                        <span class="notif-summary-icon icon-unread"><i class="far fa-bell"></i></span>
+                        <div>
+                            <p class="notif-summary-label">Unread Notifications</p>
+                            <div class="notif-summary-value"><?= number_format($summaryUnread) ?></div>
+                            <div class="notif-summary-subtitle">New items</div>
+                        </div>
+                    </article>
+                    <article class="notif-summary-card card-high">
+                        <span class="notif-summary-icon icon-high"><i class="fas fa-exclamation-triangle"></i></span>
+                        <div>
+                            <p class="notif-summary-label">High Priority</p>
+                            <div class="notif-summary-value"><?= number_format($summaryHighPriority) ?></div>
+                            <div class="notif-summary-subtitle">Requires attention</div>
+                        </div>
+                    </article>
+                    <article class="notif-summary-card card-unassigned">
+                        <span class="notif-summary-icon icon-unassigned"><i class="far fa-user"></i></span>
+                        <div>
+                            <p class="notif-summary-label">Unclaimed Tickets</p>
+                            <div class="notif-summary-value"><?= number_format($summaryUnclaimed) ?></div>
+                            <div class="notif-summary-subtitle">Waiting assignment</div>
+                        </div>
+                    </article>
+                    <article class="notif-summary-card card-overdue">
+                        <span class="notif-summary-icon icon-overdue"><i class="far fa-clock"></i></span>
+                        <div>
+                            <p class="notif-summary-label">Follow Up Requests</p>
+                            <div class="notif-summary-value"><?= number_format($summaryFollowUpRequests) ?></div>
+                            <div class="notif-summary-subtitle">Pending review</div>
+                        </div>
+                    </article>
+                </section>
+
+                <div class="notif-toolbar" aria-label="Notification filters">
+                    <label class="notif-search-wrap">
+                        <i class="fas fa-search"></i>
+                        <input type="search" id="notifSearchInput" class="notif-search-input" placeholder="Search notifications..." autocomplete="off">
+                    </label>
+                    <div class="notif-tabs" role="tablist" aria-label="Notification category">
+                        <button type="button" class="notif-tab <?= $activeNotificationTab === 'all' ? 'active' : ''; ?>" data-filter-tab="all" data-filter-url="<?= htmlspecialchars(admin_notifications_page_url(1, 'all', $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>">All</button>
+                        <button type="button" class="notif-tab <?= $activeNotificationTab === 'unread' ? 'active' : ''; ?>" data-filter-tab="unread" data-filter-url="<?= htmlspecialchars(admin_notifications_page_url(1, 'unread', $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>">Unread</button>
+                        <button type="button" class="notif-tab <?= $activeNotificationTab === 'tickets' ? 'active' : ''; ?>" data-filter-tab="tickets" data-filter-url="<?= htmlspecialchars(admin_notifications_page_url(1, 'tickets', $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>">Tickets</button>
+                        <button type="button" class="notif-tab <?= $activeNotificationTab === 'bookings' ? 'active' : ''; ?>" data-filter-tab="bookings" data-filter-url="<?= htmlspecialchars(admin_notifications_page_url(1, 'bookings', $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>">Bookings</button>
+                        <button type="button" class="notif-tab <?= $activeNotificationTab === 'overdue' ? 'active' : ''; ?>" data-filter-tab="overdue" data-filter-url="<?= htmlspecialchars(admin_notifications_page_url(1, 'overdue', $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>">Overdue</button>
+                    </div>
+                    <div class="notif-select-shell" data-select-shell>
+                        <select id="notifPriorityFilter" class="notif-filter-select" aria-label="Priority">
+                            <option value="" selected hidden>Priority</option>
+                            <option value="low" <?= $activePriorityFilter === 'low' ? 'selected' : ''; ?>>Low</option>
+                            <option value="medium" <?= $activePriorityFilter === 'medium' ? 'selected' : ''; ?>>Medium</option>
+                            <option value="high" <?= $activePriorityFilter === 'high' ? 'selected' : ''; ?>>High</option>
+                        </select>
+                        <button type="button" class="notif-select-trigger" data-select-trigger aria-haspopup="listbox" aria-expanded="false">
+                            <span data-select-label>Priority</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="notif-select-menu" data-select-menu role="listbox">
+                            <button type="button" class="notif-select-option" data-select-value="low">Low</button>
+                            <button type="button" class="notif-select-option" data-select-value="medium">Medium</button>
+                            <button type="button" class="notif-select-option" data-select-value="high">High</button>
+                        </div>
+                    </div>
+                    <div class="notif-select-shell" data-select-shell>
+                        <select id="notifStatusFilter" class="notif-filter-select" aria-label="Status">
+                            <option value="" selected hidden>Status</option>
+                            <option value="open" <?= $activeStatusFilter === 'open' ? 'selected' : ''; ?>>Open</option>
+                            <option value="in progress" <?= $activeStatusFilter === 'in progress' ? 'selected' : ''; ?>>In Progress</option>
+                            <option value="resolved" <?= $activeStatusFilter === 'resolved' ? 'selected' : ''; ?>>Resolved</option>
+                        </select>
+                        <button type="button" class="notif-select-trigger" data-select-trigger aria-haspopup="listbox" aria-expanded="false">
+                            <span data-select-label>Status</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="notif-select-menu" data-select-menu role="listbox">
+                            <button type="button" class="notif-select-option" data-select-value="open">Open</button>
+                            <button type="button" class="notif-select-option" data-select-value="in progress">In Progress</button>
+                            <button type="button" class="notif-select-option" data-select-value="resolved">Resolved</button>
+                        </div>
+                    </div>
+                    <button type="button" class="notif-clear-btn" id="notifClearFilters">Clear Filters</button>
                 </div>
 
                 <div class="notif-list-page">
@@ -658,7 +1118,7 @@ function admin_conference_booking_summary(string $message): array
                                     $iconClass = 'fa-rotate';
                                     $accentColor = '#d4a017';
                                     $dotColor = '#d4a017';
-                                    $titleText = 'Follow Up Request';
+                                    $titleText = 'Ticket Follow-up';
                                 } elseif ($typeKey === 'conference_booking_deleted') {
                                     $iconClass = 'fa-calendar-xmark';
                                     $accentColor = '#0f766e';
@@ -674,7 +1134,7 @@ function admin_conference_booking_summary(string $message): array
                                     $accentColor = '#0f766e';
                                     $dotColor = '#0f766e';
                                     $titleText = 'Conference Booking Created';
-                                } elseif ($typeKey === 'conference_booking') {
+                                } elseif (strpos($typeKey, 'conference_booking') === 0) {
                                     $iconClass = 'fa-calendar-check';
                                     $accentColor = '#0f766e';
                                     $dotColor = '#0f766e';
@@ -749,7 +1209,7 @@ function admin_conference_booking_summary(string $message): array
                                     } elseif ($actionType === 'close') {
                                         $titleText = 'Ticket Closed';
                                     } elseif ($typeKey === 'follow_up') {
-                                        $titleText = 'Follow Up Request';
+                                        $titleText = 'Ticket Follow-up';
                                     } elseif ($actionType === 'update' && $typeKey === 'note_added') {
                                         $titleText = 'Ticket Note';
                                     } elseif ($actionType === 'update') {
@@ -757,6 +1217,9 @@ function admin_conference_booking_summary(string $message): array
                                     } else {
                                         $titleText = 'Ticket Update';
                                     }
+                                }
+                                if ($typeKey === 'ticket_claimed' || $actionType === 'claim') {
+                                    $titleText = 'Ticket Claimed';
                                 }
                                 $isResolvedStatus = ($actionType === 'update' || $typeKey === 'status_update') && preg_match('/\bresolved\b/i', (string) ($row['message'] ?? ''));
                                 if ($isResolvedStatus) {
@@ -820,9 +1283,21 @@ function admin_conference_booking_summary(string $message): array
                                     $pillIconClass = 'fa-retweet';
                                 }
                                 $displayMessage = notif_display_message($typeKey, (string) ($row['message'] ?? ''), (int) ($row['ticket_id'] ?? 0));
-                                $notificationHref = $typeKey === 'conference_booking'
+                                $notificationHref = strpos($typeKey, 'conference_booking') === 0
                                     ? 'conference_bookings.php'
                                     : ($ticketIdJs ? ('all_tickets.php?ticket_id=' . (int) $ticketIdJs) : 'notifications.php');
+                                $filterCategory = 'system';
+                                if (strpos($typeKey, 'conference_booking') === 0) {
+                                    $filterCategory = 'bookings';
+                                } elseif ($ticketIdJs !== null || strpos($typeKey, 'ticket') !== false || in_array($actionType, ['assign', 'reassign', 'update', 'close', 'claim'], true)) {
+                                    $filterCategory = 'tickets';
+                                } elseif (strpos($typeKey, 'user') !== false || strpos($typeKey, 'role') !== false) {
+                                    $filterCategory = 'users';
+                                }
+                                $departmentFilterValue = strtolower(trim((string) (($row['assigned_group'] ?? '') !== '' ? $row['assigned_group'] : (($row['assigned_department'] ?? '') !== '' ? $row['assigned_department'] : ($row['ticket_department'] ?? '')))));
+                                $statusFilterValue = strtolower(trim((string) ($row['ticket_status'] ?? '')));
+                                $searchBlob = strtolower(trim($titleText . ' ' . strip_tags($displayMessage) . ' ' . $pillText . ' ' . $departmentFilterValue . ' ' . $statusFilterValue));
+                                $isOverdueFilter = ($typeKey === 'priority_escalated' || in_array($priorityKey, ['critical', 'high'], true) || preg_match('/\b(breach|overdue|past due)\b/i', (string) ($row['message'] ?? '')));
                             ?>
                             <?php if ($sectionLabel !== $currentSection): ?>
                                 <?php if ($currentSection !== null): ?>
@@ -832,7 +1307,7 @@ function admin_conference_booking_summary(string $message): array
                                 <div class="notif-section-card">
                                 <?php $currentSection = $sectionLabel; ?>
                             <?php endif; ?>
-                            <?php if ($typeKey === 'conference_booking'): ?>
+                            <?php if (strpos($typeKey, 'conference_booking') === 0): ?>
                                 <?php
                                     $bookingSummary = admin_conference_booking_summary((string) ($row['message'] ?? ''));
                                     $bookingSubtitle = $bookingSummary['booker'] . ' booked ' . $bookingSummary['room'];
@@ -840,12 +1315,19 @@ function admin_conference_booking_summary(string $message): array
                                         $bookingSubtitle .= ' on ' . trim((string) $bookingSummary['date']);
                                     }
                                     $bookingSubtitle .= '.';
+                                    $bookingSearchBlob = strtolower(trim('Conference Booking Created Booking ' . $bookingSubtitle . ' ' . $departmentFilterValue));
                                 ?>
                                 <a class="notif-item-row admin-booking-created <?= $row['is_read'] == 0 ? 'unread' : '' ?>"
                                    href="<?= htmlspecialchars($notificationHref, ENT_QUOTES, 'UTF-8') ?>"
                                    data-notification-id="<?= (int) $row['id'] ?>"
                                    data-ticket-id="<?= $ticketIdJs !== null ? (int) $ticketIdJs : '' ?>"
                                    data-notification-type="<?= htmlspecialchars($typeKey, ENT_QUOTES, 'UTF-8') ?>"
+                                   data-filter-category="bookings"
+                                   data-filter-priority="<?= htmlspecialchars(strtolower($priorityKey), ENT_QUOTES, 'UTF-8') ?>"
+                                   data-filter-department="<?= htmlspecialchars($departmentFilterValue, ENT_QUOTES, 'UTF-8') ?>"
+                                   data-filter-status="<?= htmlspecialchars($statusFilterValue, ENT_QUOTES, 'UTF-8') ?>"
+                                   data-filter-overdue="<?= $isOverdueFilter ? '1' : '0' ?>"
+                                   data-filter-search="<?= htmlspecialchars($bookingSearchBlob, ENT_QUOTES, 'UTF-8') ?>"
                                    style="--notif-accent: #0f9f5a; --notif-dot: #008a22;"
                                    onclick="return handleNotificationRowClick(event, this);">
                                     <div class="notif-content">
@@ -867,6 +1349,12 @@ function admin_conference_booking_summary(string $message): array
                                data-notification-id="<?= (int) $row['id'] ?>"
                                data-ticket-id="<?= $ticketIdJs !== null ? (int) $ticketIdJs : '' ?>"
                                data-notification-type="<?= htmlspecialchars($typeKey, ENT_QUOTES, 'UTF-8') ?>"
+                               data-filter-category="<?= htmlspecialchars($filterCategory, ENT_QUOTES, 'UTF-8') ?>"
+                               data-filter-priority="<?= htmlspecialchars(strtolower($priorityKey), ENT_QUOTES, 'UTF-8') ?>"
+                               data-filter-department="<?= htmlspecialchars($departmentFilterValue, ENT_QUOTES, 'UTF-8') ?>"
+                               data-filter-status="<?= htmlspecialchars($statusFilterValue, ENT_QUOTES, 'UTF-8') ?>"
+                               data-filter-overdue="<?= $isOverdueFilter ? '1' : '0' ?>"
+                               data-filter-search="<?= htmlspecialchars($searchBlob, ENT_QUOTES, 'UTF-8') ?>"
                                style="--notif-accent: <?= htmlspecialchars($accentColor, ENT_QUOTES, 'UTF-8') ?>; --notif-dot: <?= htmlspecialchars($dotColor, ENT_QUOTES, 'UTF-8') ?>;"
                                onclick="return handleNotificationRowClick(event, this);">
                                 <div class="notif-content">
@@ -886,43 +1374,72 @@ function admin_conference_booking_summary(string $message): array
                             </div>
                         <?php endif; ?>
                     <?php else: ?>
-                        <div style="padding: 40px; text-align: center; color: #94a3b8;">
-                            <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i>
+                        <div class="empty-notifications">
+                            <i class="fas fa-bell-slash"></i>
                             <p>No notifications found.</p>
                         </div>
                     <?php endif; ?>
-                </div>
-
-                <?php if($total_pages > 1): ?>
+                <?php if($total > 0): ?>
                 <div class="pagination-glass">
-                    <a href="?page=<?= max(1, $page - 1); ?>" class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">&lsaquo; Previous</a>
-                    <div class="page-numbers">
-                        <?php
-                            $window = 2;
-                            $start_page = max(1, $page - $window);
-                            $end_page = min($total_pages, $page + $window);
-                            if ($start_page > 1):
-                        ?>
-                            <a href="?page=1" class="page-btn <?= ($page == 1) ? 'active' : ''; ?>">1</a>
-                            <?php if ($start_page > 2): ?>
-                                <span class="page-ellipsis">...</span>
-                            <?php endif; ?>
-                        <?php endif; ?>
-
-                        <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
-                            <a href="?page=<?= $i; ?>" class="page-btn <?= ($i == $page) ? 'active' : ''; ?>"><?= $i; ?></a>
-                        <?php endfor; ?>
-
-                        <?php if ($end_page < $total_pages): ?>
-                            <?php if ($end_page < ($total_pages - 1)): ?>
-                                <span class="page-ellipsis">...</span>
-                            <?php endif; ?>
-                            <a href="?page=<?= $total_pages; ?>" class="page-btn <?= ($page == $total_pages) ? 'active' : ''; ?>"><?= $total_pages; ?></a>
-                        <?php endif; ?>
+                    <div class="pagination-size">
+                        <span>SHOW</span>
+                        <select id="notifPageSize" aria-label="Notifications per page">
+                            <?php foreach ($allowedPageSizes as $pageSize): ?>
+                                <option value="<?= (int) $pageSize; ?>" <?= $limit === $pageSize ? 'selected' : ''; ?>><?= (int) $pageSize; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span>ENTRIES</span>
                     </div>
-                    <a href="?page=<?= min($total_pages, $page + 1); ?>" class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">Next &rsaquo;</a>
+                    <div class="pagination-summary">
+                        Showing <?= number_format($showingFrom); ?>-<?= number_format($showingTo); ?> of <?= number_format((int) $total); ?> notifications
+                    </div>
+                    <div class="pagination-controls">
+                        <a href="<?= htmlspecialchars(admin_notifications_page_url(max(1, $page - 1), $activeNotificationTab, $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>" class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">&lsaquo; Previous</a>
+                        <div class="page-numbers">
+                            <?php
+                                $paginationPages = [];
+                                if ($total_pages <= 5) {
+                                    for ($i = 1; $i <= $total_pages; $i++) {
+                                        $paginationPages[] = $i;
+                                    }
+                                } else {
+                                    $paginationPages[] = 1;
+                                    $windowStart = max(2, $page - 1);
+                                    $windowEnd = min($total_pages - 1, $page + 1);
+
+                                    if ($page <= 3) {
+                                        $windowStart = 2;
+                                        $windowEnd = 3;
+                                    } elseif ($page >= $total_pages - 2) {
+                                        $windowStart = $total_pages - 2;
+                                        $windowEnd = $total_pages - 1;
+                                    }
+
+                                    if ($windowStart > 2) {
+                                        $paginationPages[] = 'ellipsis';
+                                    }
+                                    for ($i = $windowStart; $i <= $windowEnd; $i++) {
+                                        $paginationPages[] = $i;
+                                    }
+                                    if ($windowEnd < $total_pages - 1) {
+                                        $paginationPages[] = 'ellipsis';
+                                    }
+                                    $paginationPages[] = $total_pages;
+                                }
+                            ?>
+                            <?php foreach ($paginationPages as $paginationItem): ?>
+                                <?php if ($paginationItem === 'ellipsis'): ?>
+                                    <span class="page-ellipsis">...</span>
+                                <?php else: ?>
+                                    <a href="<?= htmlspecialchars(admin_notifications_page_url((int) $paginationItem, $activeNotificationTab, $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>" class="page-btn <?= ((int) $paginationItem === $page) ? 'active' : ''; ?>"><?= (int) $paginationItem; ?></a>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
+                        <a href="<?= htmlspecialchars(admin_notifications_page_url(min($total_pages, $page + 1), $activeNotificationTab, $activePriorityFilter, $activeStatusFilter), ENT_QUOTES, 'UTF-8'); ?>" class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">Next &rsaquo;</a>
+                    </div>
                 </div>
                 <?php endif; ?>
+                </div>
 
             </div>
         </div>
@@ -952,6 +1469,172 @@ function updateRelativeTimesList() {
 document.addEventListener('DOMContentLoaded', function() {
     updateRelativeTimesList();
     setInterval(updateRelativeTimesList, 60000);
+
+    const searchInput = document.getElementById('notifSearchInput');
+    const prioritySelect = document.getElementById('notifPriorityFilter');
+    const statusSelect = document.getElementById('notifStatusFilter');
+    const pageSizeSelect = document.getElementById('notifPageSize');
+    const clearBtn = document.getElementById('notifClearFilters');
+    const tabs = Array.from(document.querySelectorAll('.notif-tab[data-filter-tab]'));
+    const rows = Array.from(document.querySelectorAll('.notif-item-row[data-filter-search]'));
+    let activeTab = <?= json_encode($activeNotificationTab); ?>;
+    const currentFilterUrl = <?= json_encode(admin_notifications_page_url(1, $activeNotificationTab)); ?>;
+
+    function syncCustomSelect(select) {
+        if (!select) return;
+        const shell = select.closest('[data-select-shell]');
+        if (!shell) return;
+        const label = shell.querySelector('[data-select-label]');
+        const options = Array.from(shell.querySelectorAll('[data-select-value]'));
+        const selectedOption = options.find(option => (option.getAttribute('data-select-value') || '') === select.value) || null;
+        const selectedNativeOption = select.options[select.selectedIndex] || null;
+        if (label) {
+            label.textContent = selectedOption
+                ? selectedOption.textContent.trim()
+                : String((selectedNativeOption && selectedNativeOption.textContent) || '').trim();
+        }
+        options.forEach(option => option.classList.toggle('is-selected', option === selectedOption));
+    }
+
+    function applyNotificationFilters() {
+        const search = (searchInput ? searchInput.value : '').trim().toLowerCase();
+        const priority = prioritySelect ? prioritySelect.value : '';
+        const status = statusSelect ? statusSelect.value : '';
+
+        rows.forEach(row => {
+            const rowText = row.getAttribute('data-filter-search') || '';
+            const rowPriority = row.getAttribute('data-filter-priority') || '';
+            const rowStatus = row.getAttribute('data-filter-status') || '';
+            const rowCategory = row.getAttribute('data-filter-category') || 'system';
+            const rowOverdue = row.getAttribute('data-filter-overdue') === '1';
+            const matchesSearch = !search || rowText.includes(search);
+            const matchesPriority = !priority || rowPriority === priority || (priority === 'high' && rowPriority === 'critical');
+            const matchesStatus = !status || rowStatus === status;
+            const matchesTab = activeTab === 'all'
+                || (activeTab === 'unread' && row.classList.contains('unread'))
+                || (activeTab === 'overdue' && rowOverdue)
+                || rowCategory === activeTab;
+
+            row.style.display = (matchesSearch && matchesPriority && matchesStatus && matchesTab) ? '' : 'none';
+        });
+
+        document.querySelectorAll('.notif-section-card').forEach(section => {
+            const hasVisibleRows = Array.from(section.querySelectorAll('.notif-item-row')).some(row => row.style.display !== 'none');
+            section.style.display = hasVisibleRows ? '' : 'none';
+            const label = section.previousElementSibling;
+            if (label && label.classList.contains('notif-section-label')) {
+                label.style.display = hasVisibleRows ? '' : 'none';
+            }
+        });
+    }
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            const nextUrl = this.getAttribute('data-filter-url') || '';
+            if (nextUrl) {
+                window.location.href = nextUrl;
+                return;
+            }
+            activeTab = this.getAttribute('data-filter-tab') || 'all';
+            tabs.forEach(item => item.classList.toggle('active', item === this));
+            applyNotificationFilters();
+        });
+    });
+    if (searchInput) searchInput.addEventListener('input', applyNotificationFilters);
+    function redirectWithServerFilters() {
+        const url = new URL(currentFilterUrl, window.location.href);
+        const priority = prioritySelect ? String(prioritySelect.value || '') : '';
+        const status = statusSelect ? String(statusSelect.value || '') : '';
+        if (priority) {
+            url.searchParams.set('priority', priority);
+        } else {
+            url.searchParams.delete('priority');
+        }
+        if (status) {
+            url.searchParams.set('status', status);
+        } else {
+            url.searchParams.delete('status');
+        }
+        url.searchParams.delete('page');
+        window.location.href = url.pathname + url.search;
+    }
+    if (prioritySelect) prioritySelect.addEventListener('change', redirectWithServerFilters);
+    if (statusSelect) statusSelect.addEventListener('change', redirectWithServerFilters);
+    if (pageSizeSelect) {
+        pageSizeSelect.addEventListener('change', function() {
+            const url = new URL(currentFilterUrl, window.location.href);
+            const pageSize = String(this.value || '10');
+            const priority = prioritySelect ? String(prioritySelect.value || '') : '';
+            const status = statusSelect ? String(statusSelect.value || '') : '';
+            if (priority) url.searchParams.set('priority', priority);
+            if (status) url.searchParams.set('status', status);
+            if (pageSize && pageSize !== '10') {
+                url.searchParams.set('per_page', pageSize);
+            } else {
+                url.searchParams.delete('per_page');
+            }
+            url.searchParams.delete('page');
+            window.location.href = url.pathname + url.search;
+        });
+    }
+    syncCustomSelect(prioritySelect);
+    syncCustomSelect(statusSelect);
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            if (activeTab !== 'all' || (prioritySelect && prioritySelect.value) || (statusSelect && statusSelect.value)) {
+                window.location.href = <?= json_encode(admin_notifications_page_url(1, 'all')); ?>;
+                return;
+            }
+            if (searchInput) searchInput.value = '';
+            if (prioritySelect) prioritySelect.value = '';
+            if (statusSelect) statusSelect.value = '';
+            syncCustomSelect(prioritySelect);
+            syncCustomSelect(statusSelect);
+            activeTab = 'all';
+            tabs.forEach(tab => tab.classList.toggle('active', tab.getAttribute('data-filter-tab') === 'all'));
+            applyNotificationFilters();
+        });
+    }
+
+    document.querySelectorAll('[data-select-shell]').forEach(shell => {
+        const select = shell.querySelector('select');
+        const trigger = shell.querySelector('[data-select-trigger]');
+        const label = shell.querySelector('[data-select-label]');
+        const options = Array.from(shell.querySelectorAll('[data-select-value]'));
+        if (!select || !trigger || !label) return;
+
+        trigger.addEventListener('click', function(event) {
+            event.stopPropagation();
+            const isOpen = shell.classList.toggle('open');
+            trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            document.querySelectorAll('[data-select-shell].open').forEach(otherShell => {
+                if (otherShell === shell) return;
+                otherShell.classList.remove('open');
+                const otherTrigger = otherShell.querySelector('[data-select-trigger]');
+                if (otherTrigger) otherTrigger.setAttribute('aria-expanded', 'false');
+            });
+        });
+
+        options.forEach(option => {
+            option.addEventListener('click', function(event) {
+                event.stopPropagation();
+                select.value = option.getAttribute('data-select-value') || '';
+                label.textContent = option.textContent.trim();
+                options.forEach(item => item.classList.toggle('is-selected', item === option));
+                shell.classList.remove('open');
+                trigger.setAttribute('aria-expanded', 'false');
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        });
+    });
+
+    document.addEventListener('click', function() {
+        document.querySelectorAll('[data-select-shell].open').forEach(shell => {
+            shell.classList.remove('open');
+            const trigger = shell.querySelector('[data-select-trigger]');
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        });
+    });
 });
 
 const CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
@@ -970,6 +1653,7 @@ function handleNotificationRowClick(event, element) {
     const ticketId = ticketIdValue === '' ? null : Number(ticketIdValue);
     const notificationType = element.getAttribute('data-notification-type') || '';
 
+    element.classList.remove('unread');
     markAsRead(notificationId, ticketId, notificationType, element.getAttribute('href') || 'notifications.php');
     return false;
 }
@@ -981,7 +1665,9 @@ function markAsRead(id, ticketId, type, fallbackHref) {
     formData.append('id', id);
     if (CSRF_TOKEN) formData.append('csrf_token', CSRF_TOKEN);
 
-    const dest = fallbackHref || ((type || '').toString() === 'conference_booking'
+    const isConferenceBooking = (type || '').toString().indexOf('conference_booking') === 0;
+    const shouldOpenTicketModal = !isConferenceBooking && !!ticketId;
+    const dest = fallbackHref || ((type || '').toString().indexOf('conference_booking') === 0
         ? 'conference_bookings.php'
         : (ticketId ? `all_tickets.php?ticket_id=${ticketId}` : 'notifications.php'));
 
@@ -991,10 +1677,41 @@ function markAsRead(id, ticketId, type, fallbackHref) {
     }).catch(() => {
         // Still open the target page even if the read update fails.
     }).finally(() => {
+        if (shouldOpenTicketModal && typeof TMTicketModal !== 'undefined' && typeof TMTicketModal.open === 'function') {
+            TMTicketModal.open(ticketId);
+            return;
+        }
         window.location.href = dest;
     });
 }
 </script>
+<!-- Ticket Details Modal -->
+<div id="ticketModal" class="modal-overlay">
+    <div class="modal-content" id="modalContent">
+        <!-- Content injected via JS -->
+    </div>
+</div>
+
+<div id="imagePreviewModal" class="image-preview-modal" onclick="TMTicketModal.closeImagePreview(event)">
+    <div class="preview-content">
+        <button type="button" class="preview-close" onclick="TMTicketModal.closeImagePreview(event)" aria-label="Close preview">X</button>
+        <button type="button" class="preview-nav preview-prev" onclick="TMTicketModal.stepImagePreview(-1)" aria-label="Previous attachment"><i class="fas fa-chevron-left"></i></button>
+        <img id="previewImage" src="" alt="Preview" class="preview-image">
+        <button type="button" class="preview-nav preview-next" onclick="TMTicketModal.stepImagePreview(1)" aria-label="Next attachment"><i class="fas fa-chevron-right"></i></button>
+    </div>
+</div>
+<script>
+window.TM_CURRENT_USER = <?php echo json_encode([
+    'id' => $_SESSION['user_id'] ?? null,
+    'name' => $_SESSION['name'] ?? null,
+    'email' => $_SESSION['email'] ?? null,
+    'department' => $_SESSION['department'] ?? null,
+    'company' => $_SESSION['company'] ?? null,
+    'role' => $_SESSION['role'] ?? null
+], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+window.TM_HIDE_QUICK_TAGS = true;
+</script>
+<script src="../js/ticket-modal.js?v=<?php echo time(); ?>"></script>
 <script src="../js/admin.js"></script>
 </body>
 </html>

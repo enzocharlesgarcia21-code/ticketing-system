@@ -694,6 +694,7 @@ function conference_admin_booking_status_text(string $status): string
         .conference-bookings-card {
             display: flex;
             flex-direction: column;
+            min-height: 680px;
         }
         .conference-rooms-head {
             padding: 0 12px 14px;
@@ -773,6 +774,10 @@ function conference_admin_booking_status_text(string $status): string
             font-size: 15px;
         }
         .conference-bookings-shell {
+            display: flex;
+            flex: 1 1 auto;
+            flex-direction: column;
+            min-height: 560px;
             padding: 8px 10px 20px;
             background: linear-gradient(180deg, #fcfbfd 0%, #fbfcfe 100%);
         }
@@ -801,55 +806,29 @@ function conference_admin_booking_status_text(string $status): string
             min-width: 0;
         }
         .conference-card-head-tools {
-            display: grid;
-            grid-template-columns: minmax(260px, 1fr) max-content;
-            column-gap: 10px;
+            display: flex;
             align-items: stretch;
+            gap: 12px;
+            flex-wrap: wrap;
             width: 100%;
+        }
+        .conference-search {
+            position: relative;
+            min-width: min(320px, 100%);
+            flex: 1 1 340px;
+            display: block;
             border: 1px solid #e8e8ef;
             border-radius: 22px;
             background: #ffffff;
-            overflow: visible;
+            overflow: hidden;
             box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
         }
         .conference-filter-actions {
             display: flex;
-            align-items: center;
+            align-items: stretch;
             gap: 10px;
-            padding: 0 8px 0 0;
-        }
-        .conference-filter-reset {
-            min-width: 78px;
-            height: 44px;
-            border-radius: 13px;
-            border: 2px solid #d8e2ec;
-            background: #ffffff;
-            color: #166534;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: none;
-            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-        }
-        .conference-filter-reset:hover {
-            border-color: #cbd5e1;
-            color: #14532d;
-            background: #f8fff9;
-            box-shadow: none;
-        }
-        .conference-search {
-            position: relative;
-            min-width: 0;
-        }
-        .conference-search::after {
-            content: "";
-            position: absolute;
-            top: 12px;
-            right: 0;
-            bottom: 12px;
-            width: 1px;
-            background: #ececf2;
+            flex: 0 0 auto;
+            flex-wrap: wrap;
         }
         .conference-search i {
             position: absolute;
@@ -861,37 +840,34 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-search input {
             width: 100%;
-            min-height: 44px;
+            min-height: 46px;
             border: none;
             background: transparent;
             padding: 10px 18px 10px 48px;
             color: #0f172a;
             font-size: 14px;
         }
-        .conference-search input:focus,
-        .conference-filter-select:focus {
+        .conference-search input:focus {
             outline: none;
         }
-        .conference-search:focus-within,
-        .conference-filter-pill:focus-within,
-        .conference-date-filter:focus-within {
+        .conference-search:focus-within {
             box-shadow: none;
         }
         .conference-date-filter {
             position: relative;
             display: inline-flex;
             align-items: center;
-            min-height: 44px;
+            min-height: 46px;
             min-width: 168px;
-            border: 2px solid #d8e2ec;
-            border-radius: 13px;
+            border: 1px solid #d8e2ec;
+            border-radius: 16px;
             background: #ffffff;
             overflow: hidden;
-            box-shadow: none;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
         }
         .conference-date-input {
             width: 100%;
-            min-height: 44px;
+            min-height: 46px;
             border: none;
             background: transparent;
             color: #1f2937;
@@ -943,25 +919,22 @@ function conference_admin_booking_status_text(string $status): string
             position: relative;
             display: flex;
             align-items: stretch;
-            min-height: 44px;
+            min-height: 46px;
             color: #1f2937;
             background: #ffffff;
-            min-width: 158px;
-            border: 2px solid #d8e2ec;
-            border-radius: 13px;
+            min-width: 148px;
+            border: 1px solid #d8e2ec;
+            border-radius: 16px;
             z-index: 2;
             overflow: visible;
-            box-shadow: none;
-        }
-        .conference-filter-pill::before {
-            content: none;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
         }
         .conference-filter-select {
             display: none;
         }
         .conference-filter-trigger {
             width: 100%;
-            min-height: 44px;
+            min-height: 46px;
             padding: 0 42px 0 14px;
             border: none;
             background: #ffffff;
@@ -974,7 +947,7 @@ function conference_admin_booking_status_text(string $status): string
             font-weight: 400;
             cursor: pointer;
             text-align: left;
-            border-radius: 13px;
+            border-radius: 16px;
             position: relative;
         }
         .conference-filter-trigger:hover {
@@ -1003,7 +976,7 @@ function conference_admin_booking_status_text(string $status): string
             right: 0;
             padding: 7px 0;
             border-radius: 15px;
-            border: 2px solid #d8e2ec;
+            border: 1px solid #d8e2ec;
             background: #ffffff;
             box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
             display: none;
@@ -1045,15 +1018,34 @@ function conference_admin_booking_status_text(string $status): string
             cursor: pointer;
             transition: background 0.2s ease, color 0.2s ease;
         }
-        .conference-filter-option + .conference-filter-option {
-            border-top: none;
-        }
         .conference-filter-option:hover,
         .conference-filter-option.is-active {
             background: #166534;
             color: #ffffff;
         }
+        .conference-filter-reset {
+            min-width: 78px;
+            min-height: 46px;
+            padding: 0 16px;
+            border-radius: 16px;
+            border: 1px solid #d8e2ec;
+            background: #ffffff;
+            color: #166534;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+        }
+        .conference-filter-reset:hover {
+            border-color: #cbd5e1;
+            color: #14532d;
+            background: #f8fff9;
+        }
         .conference-table-wrap {
+            flex: 1 1 auto;
+            min-height: 460px;
             overflow: visible;
             border-radius: 28px;
             border: 1px solid #ece8f1;
@@ -1200,13 +1192,13 @@ function conference_admin_booking_status_text(string $status): string
         }
         .conference-table th:nth-child(5),
         .conference-table td:nth-child(5) {
-            width: 13%;
-            min-width: 118px;
+            width: 16%;
+            min-width: 156px;
         }
         .conference-table th:nth-child(6),
         .conference-table td:nth-child(6) {
-            width: 15%;
-            min-width: 148px;
+            width: 12%;
+            min-width: 132px;
             text-align: center;
         }
         .conference-table th:nth-child(7),
@@ -1300,11 +1292,122 @@ function conference_admin_booking_status_text(string $status): string
         }
         .purpose-copy {
             max-width: none;
+            display: block;
             color: #0f172a;
             font-size: 15px;
             font-weight: 400;
+            line-height: 1.5;
+            word-break: normal;
+            overflow-wrap: break-word;
+        }
+        .purpose-copy-text,
+        .purpose-copy-preview,
+        .purpose-copy-full {
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
+        }
+        .purpose-copy-text {
+            display: block;
+        }
+        .purpose-copy-preview {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 1;
+            overflow: hidden;
+        }
+        .purpose-copy-full {
+            display: none;
+        }
+        .purpose-see-more {
+            margin: 0;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: #166534;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.2;
+            cursor: pointer;
+            display: block;
+            align-items: center;
+        }
+        .purpose-see-more:hover {
+            color: #14532d;
+            text-decoration: underline;
+        }
+        .purpose-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(15, 23, 42, 0.44);
+            backdrop-filter: blur(3px);
+            z-index: 1300;
+        }
+        .purpose-modal.is-open {
+            display: flex;
+        }
+        .purpose-modal-card {
+            width: min(100%, 520px);
+            background: #ffffff;
+            border: 1px solid #dce7dd;
+            border-radius: 24px;
+            box-shadow: 0 28px 48px rgba(15, 23, 42, 0.22);
+            padding: 24px 28px 20px;
+            text-align: center;
+        }
+        .purpose-modal-icon {
+            width: 58px;
+            height: 58px;
+            margin: 0 auto 16px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #ecfdf3;
+            color: #15803d;
+            box-shadow: 0 12px 24px rgba(34, 197, 94, 0.16);
+            font-size: 24px;
+        }
+        .purpose-modal-title {
+            margin: 0 0 10px;
+            color: #111827;
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+        }
+        .purpose-modal-text {
+            margin: 0;
+            color: #374151;
+            font-size: 15px;
             line-height: 1.6;
-            word-break: break-word;
+            white-space: pre-wrap;
+            word-break: normal;
+            overflow-wrap: break-word;
+        }
+        .purpose-modal-divider {
+            height: 1px;
+            margin: 18px 0 16px;
+            background: #e5e7eb;
+        }
+        .purpose-modal-close {
+            min-width: 96px;
+            height: 42px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #166534, #15803d);
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 12px 24px rgba(22, 101, 52, 0.18);
+        }
+        .purpose-modal-close:hover {
+            background: linear-gradient(135deg, #14532d, #166534);
         }
         .status-chip {
             display: inline-flex;
@@ -1685,6 +1788,9 @@ function conference_admin_booking_status_text(string $status): string
             justify-content: flex-end;
             gap: 10px;
             background: #ffffff;
+        }
+        #bookingDeleteConfirm .room-delete-confirm-actions {
+            justify-content: center;
         }
         .room-delete-confirm-btn {
             min-width: 132px;
@@ -2779,16 +2885,6 @@ function conference_admin_booking_status_text(string $status): string
             .conference-layout {
                 grid-template-columns: 1fr;
             }
-            .conference-card-head-tools {
-                grid-template-columns: 1fr;
-            }
-            .conference-search::after,
-            .conference-filter-pill::before {
-                display: none;
-            }
-            .conference-filter-pill {
-                border-top: 1px solid #ececf2;
-            }
         }
         @media (max-width: 760px) {
             .conference-admin-header {
@@ -2833,21 +2929,23 @@ function conference_admin_booking_status_text(string $status): string
             .conference-bookings-card {
                 border-radius: 22px;
             }
+            .conference-bookings-card {
+                min-height: 0;
+            }
             .conference-card-head,
             .conference-bookings-shell {
                 padding-left: 18px;
                 padding-right: 18px;
             }
+            .conference-bookings-shell,
+            .conference-table-wrap {
+                min-height: 0;
+            }
             .conference-card-head h2 {
                 font-size: 19px;
             }
-            .conference-search input,
-            .conference-filter-pill,
-            .conference-date-filter {
+            .conference-search input {
                 min-height: 58px;
-            }
-            .conference-filter-reset {
-                width: auto;
             }
             .conference-table th,
             .conference-table td {
@@ -3052,7 +3150,7 @@ function conference_admin_booking_status_text(string $status): string
                     <div class="conference-card-head-tools">
                         <label class="conference-search" for="bookingSearchInput">
                             <i class="fas fa-magnifying-glass"></i>
-                            <input type="search" id="bookingSearchInput" placeholder="Search email or room...">
+                            <input type="search" id="bookingSearchInput" placeholder="Search booking ID, email or room">
                         </label>
                         <div class="conference-filter-actions">
                             <label class="conference-date-filter is-empty" for="bookingDateFilter">
@@ -3063,7 +3161,6 @@ function conference_admin_booking_status_text(string $status): string
                                 <select id="bookingStatusFilter" class="conference-filter-select">
                                     <option value="all">Status</option>
                                     <option value="scheduled">Scheduled</option>
-                                    <option value="pending">Ongoing</option>
                                     <option value="completed">Completed</option>
                                     <option value="cancelled">Cancelled</option>
                                 </select>
@@ -3073,7 +3170,6 @@ function conference_admin_booking_status_text(string $status): string
                                 </button>
                                 <div class="conference-filter-menu" role="listbox">
                                     <button type="button" class="conference-filter-option" data-filter-value="scheduled">Scheduled</button>
-                                    <button type="button" class="conference-filter-option" data-filter-value="pending">Ongoing</button>
                                     <button type="button" class="conference-filter-option" data-filter-value="completed">Completed</button>
                                     <button type="button" class="conference-filter-option" data-filter-value="cancelled">Cancelled</button>
                                 </div>
@@ -3111,6 +3207,10 @@ function conference_admin_booking_status_text(string $status): string
                                             $bookedByDepartment = trim((string) ($booking['booked_by_department'] ?? ''));
                                             $bookedByCompany = conference_booking_company_short_label((string) ($booking['booked_by_company'] ?? ''));
                                             $purposeText = trim((string) ($booking['purpose'] ?? ''));
+                                            $purposeDisplayText = $purposeText !== '' ? $purposeText : 'No purpose provided';
+                                            $isLongPurpose = function_exists('mb_strlen')
+                                                ? mb_strlen($purposeDisplayText) > 120
+                                                : strlen($purposeDisplayText) > 120;
                                             $bookingDateValue = trim((string) ($booking['booking_date'] ?? ''));
                                             $startTimeValue = trim((string) ($booking['start_time'] ?? ''));
                                             $endTimeValue = trim((string) ($booking['end_time'] ?? ''));
@@ -3136,6 +3236,8 @@ function conference_admin_booking_status_text(string $status): string
                                             }
 
                                             $searchHaystack = implode(' ', array_filter([
+                                                '#' . $bookingId,
+                                                (string) $bookingId,
                                                 $roomName,
                                                 $bookedByName,
                                                 $bookedByEmail,
@@ -3179,7 +3281,15 @@ function conference_admin_booking_status_text(string $status): string
                                                 <div class="booking-schedule-time"><?php echo htmlspecialchars($scheduleTimeDisplay, ENT_QUOTES, 'UTF-8'); ?></div>
                                             </td>
                                             <td class="purpose-copy">
-                                                <?php echo htmlspecialchars($purposeText !== '' ? $purposeText : 'No purpose provided', ENT_QUOTES, 'UTF-8'); ?>
+                                                <span class="<?php echo $isLongPurpose ? 'purpose-copy-preview' : 'purpose-copy-text'; ?>"><?php echo htmlspecialchars($purposeDisplayText, ENT_QUOTES, 'UTF-8'); ?></span>
+                                                <?php if ($isLongPurpose): ?>
+                                                    <button
+                                                        type="button"
+                                                        class="purpose-see-more"
+                                                        data-purpose-toggle
+                                                        data-purpose-text="<?php echo htmlspecialchars($purposeDisplayText, ENT_QUOTES, 'UTF-8'); ?>"
+                                                    >See More</button>
+                                                <?php endif; ?>
                                             </td>
                                             <td>
                                                 <span class="status-chip <?php echo $statusClass; ?>">
@@ -3435,6 +3545,16 @@ function conference_admin_booking_status_text(string $status): string
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div id="purposePreviewModal" class="purpose-modal" aria-hidden="true">
+        <div class="purpose-modal-card" role="dialog" aria-modal="true" aria-labelledby="purposePreviewTitle">
+            <div class="purpose-modal-icon" aria-hidden="true"><i class="far fa-calendar-check"></i></div>
+            <h3 class="purpose-modal-title" id="purposePreviewTitle">Purpose</h3>
+            <p class="purpose-modal-text" id="purposePreviewText"></p>
+            <div class="purpose-modal-divider" aria-hidden="true"></div>
+            <button type="button" class="purpose-modal-close" id="purposePreviewClose">Close</button>
         </div>
     </div>
 
@@ -3853,6 +3973,10 @@ function conference_admin_booking_status_text(string $status): string
             const bookingDeleteConfirmCopy = document.getElementById('bookingDeleteConfirmCopy');
             const bookingDeleteConfirmSubmit = document.getElementById('bookingDeleteConfirmSubmit');
             const bookingDeleteConfirmCancel = document.getElementById('bookingDeleteConfirmCancel');
+            const purposeToggleButtons = document.querySelectorAll('[data-purpose-toggle]');
+            const purposePreviewModal = document.getElementById('purposePreviewModal');
+            const purposePreviewText = document.getElementById('purposePreviewText');
+            const purposePreviewClose = document.getElementById('purposePreviewClose');
             const bookingSearchInput = document.getElementById('bookingSearchInput');
             const bookingDateFilter = document.getElementById('bookingDateFilter');
             const bookingStatusFilter = document.getElementById('bookingStatusFilter');
@@ -4020,7 +4144,8 @@ function conference_admin_booking_status_text(string $status): string
                     bookingEditModal.classList.contains('is-open') ||
                     deleteConfirm.classList.contains('is-open') ||
                     unavailableReasonConfirm.classList.contains('is-open') ||
-                    bookingDeleteConfirm.classList.contains('is-open');
+                    bookingDeleteConfirm.classList.contains('is-open') ||
+                    (purposePreviewModal && purposePreviewModal.classList.contains('is-open'));
                 if (hasOpenOverlay) {
                     const currentCompensation = document.body.style.getPropertyValue('--modal-scrollbar-compensation');
                     const scrollbarWidth = currentCompensation
@@ -4044,6 +4169,45 @@ function conference_admin_booking_status_text(string $status): string
                     if (trigger) {
                         trigger.setAttribute('aria-expanded', 'false');
                     }
+                });
+            }
+
+            function closeFilterDropdowns(exceptDropdown) {
+                document.querySelectorAll('[data-filter-dropdown]').forEach(function (dropdown) {
+                    if (exceptDropdown && dropdown === exceptDropdown) {
+                        return;
+                    }
+
+                    const trigger = dropdown.querySelector('[data-filter-trigger]');
+                    const menu = dropdown.querySelector('.conference-filter-menu');
+                    if (trigger) {
+                        trigger.setAttribute('aria-expanded', 'false');
+                    }
+                    if (menu) {
+                        menu.classList.remove('is-open');
+                    }
+                });
+            }
+
+            function syncFilterDropdown(dropdown) {
+                if (!dropdown) {
+                    return;
+                }
+
+                const select = dropdown.querySelector('.conference-filter-select');
+                const current = dropdown.querySelector('[data-filter-current]');
+                if (!select || !current) {
+                    return;
+                }
+
+                const selectedOption = select.options[select.selectedIndex];
+                const fixedLabel = current.getAttribute('data-filter-label');
+                current.textContent = fixedLabel !== null && fixedLabel !== ''
+                    ? fixedLabel
+                    : (selectedOption ? selectedOption.textContent : '');
+
+                dropdown.querySelectorAll('.conference-filter-option').forEach(function (optionButton) {
+                    optionButton.classList.toggle('is-active', optionButton.getAttribute('data-filter-value') === select.value);
                 });
             }
 
@@ -4073,6 +4237,26 @@ function conference_admin_booking_status_text(string $status): string
                 closeBookingEditSelects();
                 bookingEditModal.classList.remove('is-open');
                 bookingEditModal.setAttribute('aria-hidden', 'true');
+                syncBodyModalState();
+            }
+
+            function openPurposePreview(text) {
+                if (!purposePreviewModal || !purposePreviewText) {
+                    return;
+                }
+                closeBookingActionMenus();
+                purposePreviewText.textContent = String(text || '').trim();
+                purposePreviewModal.classList.add('is-open');
+                purposePreviewModal.setAttribute('aria-hidden', 'false');
+                syncBodyModalState();
+            }
+
+            function closePurposePreview() {
+                if (!purposePreviewModal) {
+                    return;
+                }
+                purposePreviewModal.classList.remove('is-open');
+                purposePreviewModal.setAttribute('aria-hidden', 'true');
                 syncBodyModalState();
             }
 
@@ -4296,45 +4480,6 @@ function conference_admin_booking_status_text(string $status): string
                 roomFormActiveValue.value = String(String(data.is_active || '0') === '1' || Number(data.is_active || 0) === 1 ? '1' : '0');
                 setRoomColorSelection(data.room_color || 'green');
                 syncRoomPreview();
-            }
-
-            function closeFilterDropdowns(exceptDropdown) {
-                document.querySelectorAll('[data-filter-dropdown]').forEach(function (dropdown) {
-                    if (exceptDropdown && dropdown === exceptDropdown) {
-                        return;
-                    }
-
-                    const trigger = dropdown.querySelector('[data-filter-trigger]');
-                    const menu = dropdown.querySelector('.conference-filter-menu');
-                    if (trigger) {
-                        trigger.setAttribute('aria-expanded', 'false');
-                    }
-                    if (menu) {
-                        menu.classList.remove('is-open');
-                    }
-                });
-            }
-
-            function syncFilterDropdown(dropdown) {
-                if (!dropdown) {
-                    return;
-                }
-
-                const select = dropdown.querySelector('.conference-filter-select');
-                const current = dropdown.querySelector('[data-filter-current]');
-                if (!select || !current) {
-                    return;
-                }
-
-                const selectedOption = select.options[select.selectedIndex];
-                const fixedLabel = current.getAttribute('data-filter-label');
-                current.textContent = fixedLabel !== null && fixedLabel !== ''
-                    ? fixedLabel
-                    : (selectedOption ? selectedOption.textContent : '');
-
-                dropdown.querySelectorAll('.conference-filter-option').forEach(function (optionButton) {
-                    optionButton.classList.toggle('is-active', optionButton.getAttribute('data-filter-value') === select.value);
-                });
             }
 
             function showRoomModalFlash(message, isError) {
@@ -4747,6 +4892,24 @@ function conference_admin_booking_status_text(string $status): string
                 });
             });
 
+            purposeToggleButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    openPurposePreview(button.getAttribute('data-purpose-text') || '');
+                });
+            });
+
+            if (purposePreviewClose) {
+                purposePreviewClose.addEventListener('click', closePurposePreview);
+            }
+
+            if (purposePreviewModal) {
+                purposePreviewModal.addEventListener('click', function (event) {
+                    if (event.target === purposePreviewModal) {
+                        closePurposePreview();
+                    }
+                });
+            }
+
             document.querySelectorAll('.room-status-toggle-form').forEach(function (form) {
                 form.addEventListener('submit', function (event) {
                     const actionInput = form.querySelector('input[name="action"]');
@@ -4950,6 +5113,10 @@ function conference_admin_booking_status_text(string $status): string
                 }
                 if (event.key === 'Escape' && unavailableReasonConfirm.classList.contains('is-open')) {
                     closeUnavailableReasonConfirm();
+                    return;
+                }
+                if (event.key === 'Escape' && purposePreviewModal && purposePreviewModal.classList.contains('is-open')) {
+                    closePurposePreview();
                     return;
                 }
                 if (event.key === 'Escape' && modal.classList.contains('is-open')) {

@@ -213,10 +213,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $requested_assigned_user_id = 0;
     }
 
-    $newNoteNorm = (string) ($admin_note ?? '');
+    $newNoteNorm = trim((string) ($admin_note ?? ''));
+    $hasNewActionNote = $newNoteNorm !== '';
     $assignmentChanged = ($new_company !== $oldCompany) || ($new_department !== $oldDept);
     $requestedAssigneeMatchesOld = ($requested_assigned_user_id <= 0 || $requested_assigned_user_id === $oldAssignedUserId);
-    if ($new_status === $oldStatus && $new_company === $oldCompany && $new_department === $oldDept && trim($newNoteNorm) === trim($oldNote) && $requestedAssigneeMatchesOld) {
+    if ($new_status === $oldStatus && $new_company === $oldCompany && $new_department === $oldDept && !$hasNewActionNote && $requestedAssigneeMatchesOld) {
         $_SESSION['task_success'] = "No changes were made.";
         header("Location: my_task.php");
         exit();
@@ -285,7 +286,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             assigned_group = ?,
             assigned_user_id = ?,
             assigned_to = ?,
-            admin_note = ?,
             is_read = 1,
             updated_at = NOW(),
             started_at = CASE
@@ -307,7 +307,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    $update->bind_param("ssssiisissi", $new_status, $new_department, $new_company, $new_group, $assigned_user_id, $assigned_to, $admin_note, $shouldSetStartedAt, $new_status, $new_status, $id);
+    $update->bind_param("ssssiiissi", $new_status, $new_department, $new_company, $new_group, $assigned_user_id, $assigned_to, $shouldSetStartedAt, $new_status, $new_status, $id);
 
 $updateOk = false;
     $updateError = '';
@@ -413,10 +413,10 @@ $updateOk = false;
             }
         }
 
-        // Note added
-        if (!empty($admin_note) && $admin_note !== $old_data['admin_note']) {
-            $activity_desc = $_SESSION['department'] . " added a note";
-            $act = $conn->prepare("INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at) VALUES (?, 'note_added', ?, NOW())");
+        // Action history note
+        if ($hasNewActionNote) {
+            $activity_desc = $newNoteNorm;
+            $act = $conn->prepare("INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at) VALUES (?, 'action_history', ?, NOW())");
             if ($act) {
                 $act->bind_param("is", $id, $activity_desc);
                 $act->execute();
@@ -427,7 +427,7 @@ $updateOk = false;
         // --- INSERT NOTIFICATIONS ---
         $notif_user_id = notif_requester_user_id($conn, $old_data);
         $statusChanged = (string) ($old_data['status'] ?? '') !== (string) $new_status;
-        $noteChanged = !empty($admin_note) && (string) $admin_note !== (string) ($old_data['admin_note'] ?? '');
+        $noteChanged = $hasNewActionNote;
         $suppressClaimFollowupEmail = false;
         if ($noteChanged && !$statusChanged && !$requesterAssignmentChanged) {
             $recentClaimStmt = $conn->prepare("
@@ -539,7 +539,7 @@ $updateOk = false;
                 $sharedUpdateLines[] = 'Category: ' . $ticketCategory;
             }
             if ($ticketDescription !== '') {
-                $sharedUpdateLines[] = "Description:\n" . $ticketDescription;
+                $sharedUpdateLines[] = "Description:\n" . ticket_email_description_for_notification($ticketDescription);
             }
             if ($ticketPriority !== '') {
                 $sharedUpdateLines[] = 'Priority: ' . $ticketPriority;
