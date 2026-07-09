@@ -555,6 +555,17 @@ $result = $stmt->get_result();
             border-color: #e5e7eb !important;
             color: #4b5563 !important;
         }
+        .admin-table .status-open,
+        .admin-table .status-in-progress,
+        .admin-table .status-resolved,
+        .admin-table .status-closed {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            line-height: 1;
+            font-weight: 600;
+        }
         .table-card {
             overflow: hidden;
         }
