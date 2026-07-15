@@ -2582,71 +2582,77 @@ $successMessage = '';
             display: flex;
         }
         body.employee-my-tickets-page .feedback-modal-dialog {
-            width: min(100%, 780px);
+            width: min(100%, 390px);
+            height: 390px;
             max-height: calc(100vh - 44px);
             background: #ffffff;
-            border-radius: 18px;
-            box-shadow: 0 30px 90px rgba(15, 23, 42, 0.34);
+            border-radius: 12px;
+            box-shadow: 0 20px 48px rgba(15, 23, 42, 0.28);
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.75);
         }
         body.employee-my-tickets-page .feedback-modal-header {
-            padding: 26px 44px 22px;
+            padding: 0;
             background: #ffffff;
             color: #0f172a;
             position: relative;
+            min-height: 42px;
+            height: 42px;
         }
         body.employee-my-tickets-page .feedback-modal-title {
             margin: 0;
-            max-width: 680px;
-            font-size: 29px;
-            line-height: 1.15;
-            font-weight: 900;
+            max-width: 100%;
+            font-size: 12px;
+            line-height: 1.2;
+            font-weight: 700;
             letter-spacing: 0;
-            color: #0f2d63;
+            color: #64748b;
             text-shadow: none;
+            text-transform: uppercase;
         }
         body.employee-my-tickets-page .feedback-modal-subtitle {
             display: block;
-            margin: 12px 0 0;
-            font-size: 16px;
-            line-height: 1.45;
-            font-weight: 500;
-            color: #6677a4;
+            margin: 4px 0 0;
+            font-size: 13px;
+            line-height: 1.35;
+            font-weight: 800;
+            color: #0f172a;
         }
         body.employee-my-tickets-page .feedback-modal-body {
-            padding: 22px 40px 26px;
-            overflow-y: auto;
-            max-height: calc(100vh - 185px);
+            height: calc(100% - 42px);
+            padding: 0 34px 28px;
+            overflow: hidden;
+            max-height: calc(100vh - 110px);
             background: #ffffff;
+            box-sizing: border-box;
         }
         body.employee-my-tickets-page .feedback-summary-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 18px;
-            margin-bottom: 22px;
+            gap: 14px;
+            margin-bottom: 12px;
         }
         body.employee-my-tickets-page .feedback-summary-card {
             display: flex;
             align-items: center;
-            gap: 14px;
-            min-height: 72px;
-            padding: 16px 18px;
-            border-radius: 14px;
+            gap: 8px;
+            min-height: 42px;
+            padding: 0;
+            border-radius: 0;
             background: #ffffff;
-            border: 1px solid #e6ebf2;
+            border: 0;
             box-shadow: none;
         }
         body.employee-my-tickets-page .feedback-summary-icon {
-            width: 38px;
-            height: 38px;
+            width: 22px;
+            height: 22px;
             border-radius: 999px;
-            background: #ffffff;
-            color: #12b24b;
+            background: #dcfce7;
+            color: #047857;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
+            font-size: 12px;
             flex: 0 0 auto;
         }
         body.employee-my-tickets-page .feedback-summary-copy {
@@ -2661,26 +2667,28 @@ $successMessage = '';
             flex-wrap: wrap;
         }
         body.employee-my-tickets-page .feedback-summary-label {
-            font-size: 14px;
-            font-weight: 500;
+            font-size: 9px;
+            font-weight: 700;
             color: #7c8db5;
             line-height: 1.35;
+            text-transform: uppercase;
         }
         body.employee-my-tickets-page .feedback-summary-ticket {
-            font-size: 16px;
-            font-weight: 900;
-            color: #12b24b;
+            font-size: 12px;
+            font-weight: 800;
+            color: #047857;
         }
         body.employee-my-tickets-page .feedback-summary-subject,
         body.employee-my-tickets-page .feedback-summary-context {
-            font-size: 15px;
+            display: none;
+            font-size: 12px;
             color: #6677a4;
             line-height: 1.35;
         }
         body.employee-my-tickets-page .feedback-summary-name {
-            font-size: 16px;
+            font-size: 12px;
             color: #0f2d63;
-            font-weight: 900;
+            font-weight: 800;
             line-height: 1.35;
         }
         body.employee-my-tickets-page .feedback-summary-separator {
@@ -2690,7 +2698,7 @@ $successMessage = '';
             transform: translateY(-1px);
         }
         body.employee-my-tickets-page .feedback-summary-user-icon {
-            font-size: 30px;
+            font-size: 12px;
         }
         body.employee-my-tickets-page .feedback-flash {
             margin-bottom: 16px;
@@ -2711,125 +2719,296 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-form {
             display: grid;
-            gap: 24px;
-        }
-        body.employee-my-tickets-page .feedback-label {
-            display: block;
-            margin-bottom: 12px;
-            font-size: 17px;
-            font-weight: 800;
-            letter-spacing: 0;
-            color: #334155;
-            text-transform: none;
-        }
-        body.employee-my-tickets-page .feedback-label small {
-            font-size: 0.96em;
-            font-style: italic;
-            font-weight: 600;
-            color: #a0aec0;
-        }
-        body.employee-my-tickets-page .feedback-rating-question {
-            margin-bottom: 16px;
-            font-size: 18px;
-            font-weight: 800;
-            color: #334155;
-        }
-        body.employee-my-tickets-page .feedback-stars {
-            display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
-            gap: 16px;
+            height: 100%;
+            gap: 0;
         }
         body.employee-my-tickets-page .feedback-star-input {
             position: absolute;
             opacity: 0;
             pointer-events: none;
         }
-        body.employee-my-tickets-page .feedback-rating-option {
-            min-width: 0;
+        body.employee-my-tickets-page .feedback-step {
+            display: none;
+            height: 100%;
             text-align: center;
+            flex-direction: column;
+            justify-content: center;
         }
-        body.employee-my-tickets-page .feedback-star {
-            width: 100%;
-            height: 54px;
-            min-height: 54px;
-            border-radius: 13px;
-            border: 1px solid #dbe3ee;
-            background: #ffffff;
-            color: #c4ccd9;
+        body.employee-my-tickets-page .feedback-step.is-active {
+            display: flex;
+        }
+        body.employee-my-tickets-page .feedback-hero-icon {
+            width: 62px;
+            height: 62px;
+            margin: 0 auto 16px;
+            border-radius: 999px;
+            background: #e7f8ed;
+            color: #047857;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
-            cursor: pointer;
-            transition: color 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+            font-size: 30px;
         }
-        body.employee-my-tickets-page .feedback-star:hover,
-        body.employee-my-tickets-page .feedback-star:focus-visible {
-            color: #f5b301;
-            border-color: #f6d266;
-            transform: translateY(-1px);
-            box-shadow: 0 12px 22px rgba(245, 179, 1, 0.14);
+        body.employee-my-tickets-page .feedback-hero-icon.feedback-star-hero {
+            color: #047857;
+            font-size: 34px;
         }
-        body.employee-my-tickets-page .feedback-star.is-active {
-            color: #f5b301;
-            border-color: #f6d266;
-            background: #fffdf3;
+        body.employee-my-tickets-page .feedback-question-title {
+            margin: 0 0 10px;
+            color: #111827;
+            font-size: 17px;
+            line-height: 1.25;
+            font-weight: 400;
         }
-        body.employee-my-tickets-page .feedback-rating-text {
-            margin-top: 12px;
+        body.employee-my-tickets-page .feedback-question-copy {
+            max-width: 250px;
+            margin: 0 auto 22px;
+            color: #64748b;
             font-size: 13px;
-            color: #475569;
-            font-weight: 600;
+            line-height: 1.5;
+            font-weight: 400;
+        }
+        body.employee-my-tickets-page .feedback-choice-stack {
+            display: grid;
+            gap: 12px;
+            width: 100%;
+        }
+        body.employee-my-tickets-page .feedback-choice-btn,
+        body.employee-my-tickets-page .feedback-excellent-btn {
+            width: 100%;
+            min-height: 50px;
+            border-radius: 6px;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 400;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+        }
+        body.employee-my-tickets-page .feedback-choice-btn.is-primary {
+            border: 1px solid var(--primary-green);
+            background: var(--primary-green);
+            color: #ffffff;
+        }
+        body.employee-my-tickets-page .feedback-choice-btn.is-secondary {
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            color: #111827;
+        }
+        body.employee-my-tickets-page .feedback-choice-btn:hover,
+        body.employee-my-tickets-page .feedback-excellent-btn:hover {
+            transform: translateY(-1px);
+        }
+        body.employee-my-tickets-page .feedback-choice-btn:focus-visible,
+        body.employee-my-tickets-page .feedback-excellent-btn:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.1);
+        }
+        body.employee-my-tickets-page .feedback-excellent-btn {
+            max-width: 250px;
+            min-height: 76px;
+            margin: 0 auto;
+            border: 1px solid var(--primary-green);
+            background: #ffffff;
+            color: var(--primary-green);
+        }
+        body.employee-my-tickets-page .feedback-excellent-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 28px;
+            height: 28px;
+            border: 0;
+            border-radius: 999px;
+            background: transparent;
+            color: #64748b;
+            font: inherit;
+            font-size: 18px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        body.employee-my-tickets-page .feedback-excellent-close:hover,
+        body.employee-my-tickets-page .feedback-excellent-close:focus-visible {
+            color: #0f172a;
+            outline: none;
+        }
+        body.employee-my-tickets-page .feedback-step-excellent .feedback-hero-icon {
+            color: var(--primary-green);
+        }
+        body.employee-my-tickets-page .feedback-excellent-btn i {
+            font-size: 26px;
+        }
+        body.employee-my-tickets-page .feedback-excellent-copy {
+            display: grid;
+            gap: 2px;
+            text-align: left;
+        }
+        body.employee-my-tickets-page .feedback-excellent-copy strong {
+            font-size: 17px;
+            line-height: 1.1;
+            color: var(--primary-green);
+            font-weight: 400;
+        }
+        body.employee-my-tickets-page .feedback-excellent-copy span {
+            font-size: 11px;
+            line-height: 1.2;
+            color: #0f172a;
+            font-weight: 400;
+        }
+        body.employee-my-tickets-page .feedback-comment-panel {
+            margin-top: 16px;
+            padding: 12px 12px 10px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            text-align: left;
+        }
+        body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-hero-icon {
+            width: 44px;
+            height: 44px;
+            margin: 0 auto 10px;
+            font-size: 22px;
+        }
+        body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-question-title {
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-question-copy {
+            max-width: 260px;
+            margin-bottom: 12px;
+            font-size: 12px;
+            line-height: 1.35;
+        }
+        body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-comment-panel {
+            margin-top: 0;
+            padding: 10px;
+        }
+        body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-textarea {
+            min-height: 68px;
+            max-height: 68px;
+        }
+        body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-negative-actions {
+            margin-top: 12px;
+        }
+        body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-negative-cancel,
+        body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-negative-submit {
+            min-height: 44px;
+        }
+        body.employee-my-tickets-page .feedback-comment-label {
+            display: block;
+            margin: 0 0 8px;
+            color: #0f172a;
+            font-size: 12px;
+            line-height: 1.25;
+            font-weight: 400;
+        }
+        body.employee-my-tickets-page .feedback-comment-label small {
+            color: #64748b;
+            font-size: 10px;
+            font-weight: 400;
         }
         body.employee-my-tickets-page .feedback-textarea {
             width: 100%;
-            min-height: 112px;
-            padding: 16px 16px;
-            border-radius: 14px;
+            min-height: 82px;
+            max-height: 82px;
+            padding: 12px;
             border: 1px solid #dbe3ee;
+            border-radius: 6px;
             resize: none;
+            overflow-y: auto;
             font: inherit;
-            font-size: 15px;
+            font-size: 12px;
+            line-height: 1.45;
             color: #0f172a;
             background: #ffffff;
+            box-sizing: border-box;
         }
         body.employee-my-tickets-page .feedback-textarea::placeholder {
-            color: #7b8798;
+            color: #94a3b8;
         }
         body.employee-my-tickets-page .feedback-textarea:focus {
             outline: none;
-            border-color: #16a34a;
+            border-color: #047857;
+            box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.1);
+        }
+        body.employee-my-tickets-page .feedback-comment-count {
+            display: block;
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 400;
+            text-align: right;
+        }
+        body.employee-my-tickets-page .feedback-negative-actions {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+            gap: 12px;
+            margin-top: 18px;
+        }
+        body.employee-my-tickets-page .feedback-negative-cancel,
+        body.employee-my-tickets-page .feedback-negative-submit {
+            min-height: 48px;
+            border-radius: 6px;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 400;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: transform 0.16s ease, box-shadow 0.16s ease;
+        }
+        body.employee-my-tickets-page .feedback-negative-cancel {
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+            color: #0f172a;
+        }
+        body.employee-my-tickets-page .feedback-negative-submit {
+            border: 1px solid var(--primary-green);
+            background: var(--primary-green);
+            color: #ffffff;
+        }
+        body.employee-my-tickets-page .feedback-negative-cancel:hover,
+        body.employee-my-tickets-page .feedback-negative-submit:hover {
+            transform: translateY(-1px);
+        }
+        body.employee-my-tickets-page .feedback-negative-cancel:focus-visible,
+        body.employee-my-tickets-page .feedback-negative-submit:focus-visible {
+            outline: none;
             box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.1);
         }
         body.employee-my-tickets-page .feedback-actions {
             display: flex;
             align-items: center;
-            justify-content: flex-end;
+            justify-content: center;
             gap: 16px;
             flex-wrap: wrap;
-            margin-top: 0;
+            margin-top: 22px;
         }
         body.employee-my-tickets-page .feedback-footer-note {
-            display: none;
-        }
-        body.employee-my-tickets-page .feedback-footer-note-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 999px;
-            background: #ecfdf5;
-            color: #047857;
-            display: inline-flex;
-            align-items: center;
+            display: flex;
+            align-items: flex-start;
             justify-content: center;
-            font-size: 15px;
-            flex: 0 0 auto;
+            gap: 8px;
+            width: 100%;
+            max-width: 270px;
+            margin: 14px auto 0;
+            color: #64748b;
+            font-size: 11px;
+            line-height: 1.35;
+            font-weight: 400;
+            text-align: center;
         }
-        body.employee-my-tickets-page .feedback-action-buttons {
-            display: inline-flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 14px;
-            flex-wrap: wrap;
+        body.employee-my-tickets-page .feedback-footer-note i {
+            flex: 0 0 auto;
+            margin-top: 1px;
+            color: #94a3b8;
         }
         body.employee-my-tickets-page .feedback-cancel-btn,
         body.employee-my-tickets-page .feedback-submit-btn {
@@ -2866,28 +3045,12 @@ $successMessage = '';
         @media (max-width: 900px) {
             body.employee-my-tickets-page .feedback-modal-header,
             body.employee-my-tickets-page .feedback-modal-body {
-                padding-left: 20px;
-                padding-right: 20px;
-            }
-            body.employee-my-tickets-page .feedback-summary-grid {
-                grid-template-columns: 1fr;
-                gap: 16px;
-            }
-            body.employee-my-tickets-page .feedback-stars {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 12px;
+                padding-left: 28px;
+                padding-right: 28px;
             }
             body.employee-my-tickets-page .feedback-actions {
                 flex-direction: column;
                 align-items: stretch;
-            }
-            body.employee-my-tickets-page .feedback-footer-note,
-            body.employee-my-tickets-page .feedback-action-buttons {
-                max-width: none;
-                width: 100%;
-            }
-            body.employee-my-tickets-page .feedback-action-buttons {
-                justify-content: stretch;
             }
             body.employee-my-tickets-page .feedback-cancel-btn,
             body.employee-my-tickets-page .feedback-submit-btn {
@@ -2900,33 +3063,37 @@ $successMessage = '';
             }
             body.employee-my-tickets-page .feedback-modal-body,
             body.employee-my-tickets-page .feedback-modal-header {
-                padding-left: 18px;
-                padding-right: 18px;
+                padding-left: 24px;
+                padding-right: 24px;
+            }
+            body.employee-my-tickets-page .feedback-modal-dialog {
+                width: min(100%, 390px);
+                height: min(390px, calc(100vh - 24px));
+            }
+            body.employee-my-tickets-page .feedback-modal-header {
+                padding-top: 0;
+                padding-bottom: 0;
             }
             body.employee-my-tickets-page .feedback-modal-body {
-                max-height: calc(100vh - 170px);
+                height: calc(100% - 42px);
+                max-height: calc(100vh - 100px);
+                overflow: hidden;
             }
             body.employee-my-tickets-page .feedback-modal-title {
-                padding-right: 54px;
-                font-size: 23px;
-            }
-            body.employee-my-tickets-page .feedback-rating-question,
-            body.employee-my-tickets-page .feedback-label {
-                font-size: 16px;
+                padding-right: 36px;
+                font-size: 11px;
             }
             body.employee-my-tickets-page .feedback-modal-subtitle {
-                font-size: 14px;
+                font-size: 12px;
             }
-            body.employee-my-tickets-page .feedback-stars {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+            body.employee-my-tickets-page .feedback-summary-grid {
+                gap: 10px;
             }
-            body.employee-my-tickets-page .feedback-star {
-                height: 52px;
-                min-height: 52px;
-                font-size: 23px;
+            body.employee-my-tickets-page .feedback-question-title {
+                font-size: 16px;
             }
-            body.employee-my-tickets-page .feedback-action-buttons {
-                flex-direction: column;
+            body.employee-my-tickets-page .feedback-negative-actions {
+                grid-template-columns: 1fr;
             }
             body.employee-my-tickets-page .feedback-cancel-btn,
             body.employee-my-tickets-page .feedback-submit-btn {
@@ -3277,11 +3444,8 @@ $successMessage = '';
         class="feedback-modal-overlay<?= (($shouldAutoShowFeedbackModal && $feedbackModalTicket) || ($feedbackFlash && $requestedTicketId <= 0)) ? ' is-visible' : ''; ?>"
         aria-hidden="<?= (($shouldAutoShowFeedbackModal && $feedbackModalTicket) || ($feedbackFlash && $requestedTicketId <= 0)) ? 'false' : 'true'; ?>"
     >
-        <div class="feedback-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
-            <?php $feedbackAssigneeDisplay = $feedbackModalTicket ? feedback_assignee_display($feedbackModalTicket) : ['name' => 'Support Team', 'context' => '', 'display' => 'Support Team']; ?>
+        <div class="feedback-modal-dialog" role="dialog" aria-modal="true" aria-label="Support feedback">
             <div class="feedback-modal-header">
-                <h2 id="feedbackModalTitle" class="feedback-modal-title">Rate Your Support Experience</h2>
-                <p class="feedback-modal-subtitle">Your feedback helps us improve and serve you better.</p>
             </div>
             <div class="feedback-modal-body">
                 <?php if ($feedbackFlash && !empty($feedbackFlash['message'])): ?>
@@ -3291,82 +3455,69 @@ $successMessage = '';
                 <?php endif; ?>
 
                 <?php if ($feedbackModalTicket): ?>
-                    <div class="feedback-summary-grid">
-                        <div class="feedback-summary-card">
-                            <span class="feedback-summary-icon" aria-hidden="true"><i class="fas fa-hourglass-half"></i></span>
-                            <div class="feedback-summary-copy">
-                                <div class="feedback-summary-line">
-                                    <span class="feedback-summary-label">Ticket ID</span>
-                                    <span class="feedback-summary-ticket">#<?= (int) $feedbackModalTicket['id']; ?></span>
-                                </div>
-                                <div class="feedback-summary-subject"><?= htmlspecialchars((string) ($feedbackModalTicket['subject'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></div>
-                            </div>
-                        </div>
-                        <div class="feedback-summary-card">
-                            <span class="feedback-summary-icon feedback-summary-user-icon" aria-hidden="true"><i class="far fa-user"></i></span>
-                            <div class="feedback-summary-copy">
-                                <div class="feedback-summary-label">Resolved by:</div>
-                                <div class="feedback-summary-line">
-                                    <strong class="feedback-summary-name" id="feedbackResolvedByName"><?= htmlspecialchars((string) ($feedbackAssigneeDisplay['name'] ?? 'Support Team'), ENT_QUOTES, 'UTF-8'); ?></strong>
-                                    <span class="feedback-summary-separator" id="feedbackResolvedBySeparator"<?= (($feedbackAssigneeDisplay['context'] ?? '') !== '' ? '' : ' style="display:none;"'); ?>>&#8226;</span>
-                                    <span class="feedback-summary-context" id="feedbackResolvedByContext"><?= htmlspecialchars((string) ($feedbackAssigneeDisplay['context'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <form method="POST" action="submit_feedback.php" class="feedback-form" id="feedbackForm">
                         <?= csrf_field(); ?>
                         <input type="hidden" name="ticket_id" id="feedbackTicketIdInput" value="<?= (int) $feedbackModalTicket['id']; ?>">
                         <input type="hidden" name="redirect_to" value="<?= htmlspecialchars('my_tickets.php?ticket_id=' . (int) $feedbackModalTicket['id'], ENT_QUOTES, 'UTF-8'); ?>">
+                        <input type="hidden" name="rating" id="feedbackRatingInput" value="5">
+                        <input type="hidden" name="suppress_success_notice" id="feedbackSuppressNoticeInput" value="0">
 
-                        <div>
-                            <div class="feedback-rating-question">How would you rate the support?</div>
-                            <div class="feedback-stars" id="feedbackStars">
-                                <?php
-                                    $ratingLabels = [
-                                        1 => 'Very Poor',
-                                        2 => 'Poor',
-                                        3 => 'Neutral',
-                                        4 => 'Good',
-                                        5 => 'Excellent',
-                                    ];
-                                ?>
-                                <?php foreach ($ratingLabels as $rating => $ratingLabel): ?>
-                                    <div class="feedback-rating-option">
-                                        <input
-                                            class="feedback-star-input"
-                                            type="radio"
-                                            name="rating"
-                                            id="feedbackRating<?= $rating; ?>"
-                                            value="<?= $rating; ?>"
-                                            <?= ($rating === 5) ? 'required' : ''; ?>
-                                        >
-                                        <label class="feedback-star" for="feedbackRating<?= $rating; ?>" data-rating="<?= $rating; ?>" aria-label="<?= $rating; ?> star<?= $rating > 1 ? 's' : ''; ?>">
-                                            <i class="fas fa-star"></i>
-                                        </label>
-                                        <div class="feedback-rating-text"><?= htmlspecialchars($ratingLabel, ENT_QUOTES, 'UTF-8'); ?></div>
-                                    </div>
-                                <?php endforeach; ?>
+                        <div class="feedback-step feedback-step-satisfied is-active" data-feedback-step="satisfied">
+                            <div class="feedback-hero-icon" aria-hidden="true"><i class="far fa-comment-dots"></i></div>
+                            <h3 class="feedback-question-title">Are you satisfied with our support?</h3>
+                            <p class="feedback-question-copy">Your feedback helps us improve and continue delivering excellent support.</p>
+                            <div class="feedback-choice-stack">
+                                <button type="button" class="feedback-choice-btn is-primary" id="feedbackSatisfiedBtn">
+                                    <i class="far fa-thumbs-up" aria-hidden="true"></i>
+                                    Yes, I'm satisfied
+                                </button>
+                                <button type="button" class="feedback-choice-btn is-secondary" id="feedbackNotSatisfiedBtn">
+                                    <i class="far fa-thumbs-down" aria-hidden="true"></i>
+                                    No, I'm not satisfied
+                                </button>
                             </div>
-                        </div>
-
-                        <div>
-                            <label class="feedback-label" for="feedbackComment">Additional Comment <small>(optional)</small></label>
-                            <textarea
-                                id="feedbackComment"
-                                name="comment"
-                                class="feedback-textarea"
-                                placeholder="Tell us how the support experience went and anything we can improve."
-                            ></textarea>
-                        </div>
-
-                        <div class="feedback-actions">
                             <div class="feedback-footer-note">
+                                <i class="fas fa-lock" aria-hidden="true"></i>
+                                Your feedback is private and used only to improve our service.
                             </div>
-                            <div class="feedback-action-buttons">
-                                <button type="button" class="feedback-cancel-btn" id="feedbackModalDismissBtn">Close</button>
-                                <button type="submit" class="feedback-submit-btn">Submit Feedback</button>
+                        </div>
+
+                        <div class="feedback-step feedback-step-excellent" data-feedback-step="excellent">
+                            <button type="button" class="feedback-excellent-close" id="feedbackExcellentCloseBtn" aria-label="Close feedback">&times;</button>
+                            <div class="feedback-hero-icon feedback-star-hero" aria-hidden="true"><i class="fas fa-star"></i></div>
+                            <h3 class="feedback-question-title">Thank you!</h3>
+                            <p class="feedback-question-copy">We're glad to hear that you had a positive experience.</p>
+                            <button type="submit" class="feedback-excellent-btn" id="feedbackExcellentBtn">
+                                <i class="fas fa-star" aria-hidden="true"></i>
+                                <span class="feedback-excellent-copy">
+                                    <strong>Excellent</strong>
+                                    <span>Mark as Excellent</span>
+                                </span>
+                            </button>
+                        </div>
+
+                        <div class="feedback-step feedback-step-dissatisfied" data-feedback-step="dissatisfied">
+                            <div class="feedback-hero-icon" aria-hidden="true"><i class="far fa-comment-dots"></i></div>
+                            <h3 class="feedback-question-title">We're sorry to hear that.</h3>
+                            <p class="feedback-question-copy">Please share your feedback so we can improve and serve you better.</p>
+                            <div class="feedback-comment-panel">
+                                <label class="feedback-comment-label" for="feedbackComment">Additional Comments</label>
+                                <textarea
+                                    id="feedbackComment"
+                                    name="comment"
+                                    class="feedback-textarea"
+                                    maxlength="500"
+                                    required
+                                    placeholder="Type your comments here..."
+                                ></textarea>
+                                <span class="feedback-comment-count" id="feedbackCommentCount">0 / 500</span>
+                            </div>
+                            <div class="feedback-negative-actions">
+                                <button type="button" class="feedback-negative-cancel" id="feedbackNegativeCancelBtn">Cancel</button>
+                                <button type="submit" class="feedback-negative-submit" id="feedbackNegativeSubmitBtn">
+                                    Submit Feedback
+                                    <i class="far fa-paper-plane" aria-hidden="true"></i>
+                                </button>
                             </div>
                         </div>
                     </form>
@@ -3443,11 +3594,19 @@ $successMessage = '';
     var pendingCloseTicketForm = null;
     var feedbackModal = document.getElementById('feedbackModalOverlay');
     var feedbackStarsWrap = document.getElementById('feedbackStars');
-    var feedbackCloseBtn = document.getElementById('feedbackModalCloseBtn');
     var feedbackDismissBtn = document.getElementById('feedbackModalDismissBtn');
     var feedbackTicketIdInput = document.getElementById('feedbackTicketIdInput');
     var feedbackFormEl = document.getElementById('feedbackForm');
+    var feedbackRatingInput = document.getElementById('feedbackRatingInput');
+    var feedbackSuppressNoticeInput = document.getElementById('feedbackSuppressNoticeInput');
     var feedbackCommentEl = document.getElementById('feedbackComment');
+    var feedbackCommentCountEl = document.getElementById('feedbackCommentCount');
+    var feedbackSatisfiedBtn = document.getElementById('feedbackSatisfiedBtn');
+    var feedbackNotSatisfiedBtn = document.getElementById('feedbackNotSatisfiedBtn');
+    var feedbackExcellentBtn = document.getElementById('feedbackExcellentBtn');
+    var feedbackExcellentCloseBtn = document.getElementById('feedbackExcellentCloseBtn');
+    var feedbackNegativeCancelBtn = document.getElementById('feedbackNegativeCancelBtn');
+    var feedbackNegativeSubmitBtn = document.getElementById('feedbackNegativeSubmitBtn');
     var pendingFeedbackTickets = <?php echo json_encode($pendingFeedbackTickets, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?> || {};
     var shouldAutoShowFeedbackModal = <?= $shouldAutoShowFeedbackModal ? 'true' : 'false'; ?>;
 
@@ -3988,10 +4147,45 @@ $successMessage = '';
         });
     }
 
+    function setFeedbackStep(stepName) {
+        if (!feedbackModal) return;
+        feedbackModal.querySelectorAll('.feedback-step').forEach(function (stepEl) {
+            stepEl.classList.toggle('is-active', stepEl.getAttribute('data-feedback-step') === stepName);
+        });
+    }
+
+    function updateFeedbackCommentCount() {
+        if (!feedbackCommentEl || !feedbackCommentCountEl) return;
+        feedbackCommentCountEl.textContent = String(feedbackCommentEl.value.length) + ' / 500';
+    }
+
+    function setFeedbackRatingValue(value) {
+        if (feedbackRatingInput) {
+            feedbackRatingInput.value = String(value);
+        }
+    }
+
+    function setFeedbackSuppressNoticeValue(value) {
+        if (feedbackSuppressNoticeInput) {
+            feedbackSuppressNoticeInput.value = value ? '1' : '0';
+        }
+    }
+
+    function setFeedbackExcellentRating() {
+        setFeedbackRatingValue(5);
+        setFeedbackSuppressNoticeValue(true);
+    }
+
+    function setFeedbackDissatisfiedRating() {
+        setFeedbackRatingValue(1);
+        setFeedbackSuppressNoticeValue(false);
+    }
+
     function closeFeedbackModal() {
         if (!feedbackModal) return;
         feedbackModal.classList.remove('is-visible');
         feedbackModal.setAttribute('aria-hidden', 'true');
+        setFeedbackStep('satisfied');
     }
 
     function showFeedbackModalForTicket(ticketId) {
@@ -3999,40 +4193,7 @@ $successMessage = '';
         if (!ticketKey || !pendingFeedbackTickets[ticketKey] || !feedbackModal || !feedbackFormEl || !feedbackTicketIdInput) {
             return;
         }
-        var ticket = pendingFeedbackTickets[ticketKey];
-        var summaryTicket = feedbackModal.querySelector('.feedback-summary-ticket');
-        var summarySubject = feedbackModal.querySelector('.feedback-summary-subject');
-        var resolvedByName = document.getElementById('feedbackResolvedByName');
-        var resolvedByContext = document.getElementById('feedbackResolvedByContext');
-        var resolvedBySeparator = document.getElementById('feedbackResolvedBySeparator');
-        var subtitleEl = feedbackModal.querySelector('.feedback-modal-subtitle');
         var redirectInput = feedbackFormEl.querySelector('input[name="redirect_to"]');
-        if (summaryTicket) {
-            summaryTicket.textContent = '#' + ticketKey;
-        }
-        if (summarySubject) {
-            summarySubject.textContent = String(ticket.subject || '');
-        }
-        var assigneeName = 'Support Team';
-        var assigneeContext = '';
-        if (ticket.assignee_display && typeof ticket.assignee_display === 'object') {
-            assigneeName = String(ticket.assignee_display.name || ticket.assignee_display.display || 'Support Team');
-            assigneeContext = String(ticket.assignee_display.context || '');
-        } else if (ticket.assignee_name) {
-            assigneeName = String(ticket.assignee_name || 'Support Team');
-        }
-        if (resolvedByName) {
-            resolvedByName.textContent = assigneeName;
-        }
-        if (resolvedByContext) {
-            resolvedByContext.textContent = assigneeContext;
-        }
-        if (resolvedBySeparator) {
-            resolvedBySeparator.style.display = assigneeContext ? '' : 'none';
-        }
-        if (subtitleEl) {
-            subtitleEl.textContent = 'Your feedback helps us improve and serve you better.';
-        }
         feedbackTicketIdInput.value = ticketKey;
         if (redirectInput) {
             redirectInput.value = 'my_tickets.php?ticket_id=' + encodeURIComponent(ticketKey);
@@ -4043,7 +4204,11 @@ $successMessage = '';
         if (feedbackCommentEl) {
             feedbackCommentEl.value = '';
         }
+        updateFeedbackCommentCount();
+        setFeedbackRatingValue(5);
+        setFeedbackSuppressNoticeValue(false);
         paintFeedbackStars(0);
+        setFeedbackStep('satisfied');
         feedbackModal.classList.add('is-visible');
         feedbackModal.setAttribute('aria-hidden', 'false');
     }
@@ -4424,11 +4589,67 @@ $successMessage = '';
             }
         });
     }
-    if (feedbackCloseBtn) {
-        feedbackCloseBtn.addEventListener('click', closeFeedbackModal);
-    }
     if (feedbackDismissBtn) {
         feedbackDismissBtn.addEventListener('click', closeFeedbackModal);
+    }
+    if (feedbackSatisfiedBtn) {
+        feedbackSatisfiedBtn.addEventListener('click', function () {
+            setFeedbackStep('excellent');
+            window.setTimeout(function () {
+                try {
+                    if (feedbackExcellentBtn) feedbackExcellentBtn.focus();
+                } catch (e) {}
+            }, 0);
+        });
+    }
+    if (feedbackNotSatisfiedBtn) {
+        feedbackNotSatisfiedBtn.addEventListener('click', function () {
+            setFeedbackDissatisfiedRating();
+            setFeedbackStep('dissatisfied');
+            window.setTimeout(function () {
+                try {
+                    if (feedbackCommentEl) feedbackCommentEl.focus();
+                } catch (e) {}
+            }, 0);
+        });
+    }
+    if (feedbackExcellentBtn) {
+        feedbackExcellentBtn.addEventListener('click', setFeedbackExcellentRating);
+    }
+    if (feedbackExcellentCloseBtn) {
+        feedbackExcellentCloseBtn.addEventListener('click', closeFeedbackModal);
+    }
+    if (feedbackNegativeCancelBtn) {
+        feedbackNegativeCancelBtn.addEventListener('click', function () {
+            if (feedbackCommentEl) {
+                feedbackCommentEl.value = '';
+            }
+            updateFeedbackCommentCount();
+            setFeedbackRatingValue(5);
+            closeFeedbackModal();
+        });
+    }
+    if (feedbackNegativeSubmitBtn) {
+        feedbackNegativeSubmitBtn.addEventListener('click', setFeedbackDissatisfiedRating);
+    }
+    if (feedbackCommentEl) {
+        feedbackCommentEl.addEventListener('input', updateFeedbackCommentCount);
+        updateFeedbackCommentCount();
+    }
+    if (feedbackFormEl) {
+        feedbackFormEl.addEventListener('submit', function (event) {
+            var dissatisfiedStep = feedbackModal ? feedbackModal.querySelector('.feedback-step-dissatisfied.is-active') : null;
+            if (dissatisfiedStep) {
+                if (feedbackCommentEl && String(feedbackCommentEl.value || '').trim() === '') {
+                    event.preventDefault();
+                    feedbackCommentEl.focus();
+                    return;
+                }
+                setFeedbackDissatisfiedRating();
+            } else {
+                setFeedbackExcellentRating();
+            }
+        });
     }
     if (feedbackModal) {
         feedbackModal.addEventListener('click', function (event) {
