@@ -53,6 +53,26 @@ function ticket_record_activity(mysqli $conn, int $ticketId, string $activityTyp
     }
 }
 
+/**
+ * Format a ticket description for display in email notifications
+ * Escapes HTML and converts newlines to <br> tags for proper email formatting
+ */
+function ticket_email_description_for_notification(string $description): string
+{
+    $description = trim((string) $description);
+    if ($description === '') {
+        return '';
+    }
+    
+    // HTML escape the description
+    $escaped = htmlspecialchars($description, ENT_QUOTES, 'UTF-8');
+    
+    // Convert newlines to <br> tags for HTML emails
+    $formatted = nl2br($escaped);
+    
+    return $formatted;
+}
+
 function ticket_activity_actor_label(mysqli $conn, int $userId, array $session = []): string
 {
     $name = trim((string) ($session['name'] ?? ($session['full_name'] ?? '')));
@@ -195,11 +215,12 @@ function ticket_company_group_map(): array
 {
     $standard = ticket_standard_assigned_departments();
     $lapc = ticket_lapc_departments();
+    $pcc = ticket_pcc_departments();
     $mhc = ticket_mhc_departments();
     return [
         'LAPC' => $lapc,
         'GPCI' => $standard,
-        'PCC' => $standard,
+        'PCC' => $pcc,
         'MHC' => $mhc,
         'Farmex Corp' => $standard,
         'LTC' => $standard,
@@ -217,7 +238,7 @@ function ticket_company_group_map(): array
         '@malvedaproperties.com' => $standard,
         '@leadstech-corp.com' => $standard,
         '@lingapleads.org' => $standard,
-        '@primestocks.ph' => $standard,
+        '@primestocks.ph' => $pcc,
     ];
 }
 
@@ -261,6 +282,13 @@ function ticket_lapc_departments(): array
     ];
 }
 
+function ticket_pcc_departments(): array
+{
+    return [
+        'Admin & Legal',
+    ];
+}
+
 function ticket_mhc_departments(): array
 {
     return [
@@ -275,7 +303,7 @@ function ticket_mhc_departments(): array
 function ticket_company_requires_department(string $company): bool
 {
     $company = ticket_normalize_company($company);
-    return in_array($company, ['@leadsagri.com', '@malvedaholdings.com'], true);
+    return in_array($company, ['@leadsagri.com', '@malvedaholdings.com', '@primestocks.ph'], true);
 }
 
 function ticket_request_company_options(): array
@@ -512,6 +540,9 @@ function ticket_company_allowed_groups(string $company): array
     if ($company === '@leadsagri.com' || strtoupper($company) === 'LAPC') {
         return ticket_lapc_departments();
     }
+    if ($company === '@primestocks.ph' || strtoupper($company) === 'PCC') {
+        return ticket_pcc_departments();
+    }
     if ($company === '@malvedaholdings.com' || strtoupper($company) === 'MHC') {
         return ticket_mhc_departments();
     }
@@ -616,7 +647,7 @@ function ticket_assignee_email_overrides(): array
 {
     return [
         '@leadsagri.com' => [
-            'IT' => 'it@leadsagri.com',
+            'IT' => 'matthew22@leadsagri.com',
         ],
     ];
 }
@@ -625,29 +656,29 @@ function ticket_notification_department_email_map(): array
 {
     return [
         'FARMASEE' => [
-           '_default' => ['ecommercefarmasee@farmasee.ph'],
-       
+        //    '_default' => ['ecommercefarmasee@farmasee.ph'],
+        '_default' => ['rachelleambayan@gmail.com'],
         ],
         'FARMEX' => [
-           '_default' => ['inquiries@leads-farmex.com'],
+          //  '_default' => ['inquiries@leads-farmex.com'],
         ],
         'LAPC' => [
-            'ADMIN' => ['admin@leadsagri.com'],
-            
-            'HR' => ['hr@leadsagri.com'],
-           
-            'IT' => ['it@leadsagri.com, it@malvedaholdings.com'],
-
+            // 'ADMIN' => ['admin@leadsagri.com'],
+            'ADMIN' => ['enzomendoza8teen@gmail.com'],
+            // 'HR' => ['hr@leadsagri.com'],
+            'HR' => ['matthewpascua052203@gmail.com'],
+                        'IT' => ['']
+ // it it@malvedaholdings.com
         
         ],  
         'LINGAP' => [
-             '_default' => ['partnership@lingapleads.org' , 'info@lingapleads.org'],
+            // '_default' => ['partnership@lingapleads.org' , 'info@lingapleads.org'],
         ],
         'LAV' => [
-             '_default' => ['all@leadsav.com'],
+            // '_default' => ['all@leadsav.com'],
         ],
         'MPDC' => [
-             '_default' => ['all@malvedaproperties.com'],
+            // '_default' => ['all@malvedaproperties.com'],
         ],
 
         
@@ -684,6 +715,20 @@ function ticket_linked_department_notification_targets(string $company, string $
 {
     $company = ticket_normalize_company($company);
     $groupKey = ticket_department_key_from_value($group);
+
+    if ($groupKey === 'ADMIN' || strcasecmp(trim($group), 'Admin & Legal') === 0) {
+        if ($company === '@leadsagri.com') {
+            return [
+                ['company' => '@primestocks.ph', 'group' => 'Admin & Legal'],
+            ];
+        }
+
+        if ($company === '@primestocks.ph') {
+            return [
+                ['company' => '@leadsagri.com', 'group' => 'Admin & Legal'],
+            ];
+        }
+    }
 
     if ($groupKey !== 'IT') {
         return [];

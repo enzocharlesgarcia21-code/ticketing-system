@@ -13,8 +13,16 @@ require_once '../includes/pdf_thumbnail.php';
 ticket_receiving_availability_ensure_table($conn);
 
 $lapcDepartments = ticket_receiving_available_departments($conn, '@leadsagri.com');
+$pccDepartments = ticket_receiving_available_departments($conn, '@primestocks.ph');
 $mhcDepartments = ticket_receiving_available_departments($conn, '@malvedaholdings.com');
 $requestTicketCompanyOptions = ticket_receiving_available_company_options($conn);
+$requestTicketCompanyOptions = array_map(static function ($label): string {
+    $label = trim((string) $label);
+    if ($label === 'GPSCI') {
+        return 'GPCI';
+    }
+    return str_replace('Golden Primestocks Chemical Inc - GPSCI', 'Golden Primestocks Chemical Inc - GPCI', $label);
+}, $requestTicketCompanyOptions);
 asort($requestTicketCompanyOptions, SORT_NATURAL | SORT_FLAG_CASE);
 $requestTicketCompanies = array_keys($requestTicketCompanyOptions);
 $selectedAssignedCompany = trim((string) ($_POST['assigned_company'] ?? ''));
@@ -25,6 +33,8 @@ $selectedAssignedGroup = trim((string) ($_POST['assigned_group'] ?? ''));
 $initialDepartmentOptions = [];
 if ($selectedAssignedCompany === '@leadsagri.com') {
     $initialDepartmentOptions = $lapcDepartments;
+} elseif ($selectedAssignedCompany === '@primestocks.ph') {
+    $initialDepartmentOptions = $pccDepartments;
 } elseif ($selectedAssignedCompany === '@malvedaholdings.com') {
     $initialDepartmentOptions = $mhcDepartments;
 }
@@ -99,6 +109,23 @@ function request_ticket_admin_legal_selected_recipient(mysqli $conn, string $req
         'email' => $email,
         'user_id' => $userId,
     ];
+}
+
+function request_ticket_admin_legal_all_recipients(mysqli $conn): array
+{
+    $recipients = [];
+    foreach (request_ticket_admin_legal_recipient_email_map() as $name => $email) {
+        $normalizedEmail = strtolower(trim((string) $email));
+        if ($normalizedEmail === '' || !filter_var($normalizedEmail, FILTER_VALIDATE_EMAIL)) {
+            continue;
+        }
+        $recipients[] = [
+            'name' => (string) $name,
+            'email' => $normalizedEmail,
+            'user_id' => request_ticket_user_id_by_email($conn, $normalizedEmail),
+        ];
+    }
+    return $recipients;
 }
 
 function request_ticket_upload_dir(): string
@@ -528,26 +555,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     ticket_ensure_assignment_columns($conn);
 
     $user_id    = $_SESSION['user_id'];
-    $default_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'];
-    $mpdc_categories = ['Engineerings', 'Client Based'];
-    $lingap_categories = ['Lakbay Kalusugan Request (Medical Mission)'];
+    $default_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'];
+    $mpdc_categories = ['Engineerings', 'Client Based', 'Others'];
+    $lingap_categories = ['Lakbay Kalusugan Request (Medical Mission)', 'Others'];
     $lapc_department_categories = [
-        'Admin & Legal' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
-        'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request'],
-        'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
+        'Admin & Legal' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
+        'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request', 'Others'],
+        'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
         'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
-        'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
-        'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
-        'Marketing' => ['Marketing Operations', 'Channel & Campaigns'],
-        'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations'],
+        'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Others'],
+        'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
+        'Marketing' => ['Marketing Operations', 'Channel & Campaigns', 'Others'],
+        'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations', 'Others'],
     ];
     $lapc_admin_legal_request_categories = [
-        'Aimi Bing Santos (Bing)' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle'],
-        'Ace Loui Rosal (Ace)' => ['Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)'],
-        'Cherry Jane Cabote (CJ)' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
+        'Aimi Bing Santos (Bing)' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Others'],
+        'Ace Loui Rosal (Ace)' => ['Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Others'],
+        'Cherry Jane Cabote (CJ)' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
     ];
     $mhc_department_categories = [
-        'Marketing Creatives' => ['Marketing Request'],
+        'Marketing Creatives' => ['Marketing Request', 'Others'],
     ];
     $category = trim((string) ($_POST['category'] ?? ''));
     $admin_legal_request_for = trim((string) ($_POST['admin_legal_request_for'] ?? ''));
@@ -643,8 +670,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     $isLapcAdminLegalTicket = ($assigned_company === '@leadsagri.com' && $assigned_group === 'Admin & Legal');
     $adminLegalSelectedRecipient = ['name' => '', 'email' => '', 'user_id' => 0];
+    $adminLegalBroadcastRecipients = [];
     if ($isLapcAdminLegalTicket) {
-        if (!isset($lapc_admin_legal_request_categories[$admin_legal_request_for])) {
+        if ($admin_legal_request_for === 'Others') {
+            $allowed_categories = ['Others'];
+            if ($category === '') {
+                $category = 'Others';
+            }
+            $adminLegalBroadcastRecipients = request_ticket_admin_legal_all_recipients($conn);
+            if (count($adminLegalBroadcastRecipients) === 0) {
+                if ($isAjax) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    http_response_code(400);
+                    echo json_encode(['ok' => false, 'error' => 'No Admin & Legal recipients are available for this request.'], JSON_UNESCAPED_UNICODE);
+                    exit();
+                }
+                $_SESSION['error'] = 'No Admin & Legal recipients are available for this request.';
+                header("Location: request_ticket.php");
+                exit();
+            }
+        } elseif (!isset($lapc_admin_legal_request_categories[$admin_legal_request_for])) {
             if ($isAjax) {
                 header('Content-Type: application/json; charset=utf-8');
                 http_response_code(400);
@@ -655,19 +700,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             header("Location: request_ticket.php");
             exit();
         }
-        $adminLegalSelectedRecipient = request_ticket_admin_legal_selected_recipient($conn, $admin_legal_request_for);
-        if ((int) ($adminLegalSelectedRecipient['user_id'] ?? 0) <= 0) {
-            if ($isAjax) {
-                header('Content-Type: application/json; charset=utf-8');
-                http_response_code(400);
-                echo json_encode(['ok' => false, 'error' => 'The selected Admin & Legal request recipient does not have a registered account.'], JSON_UNESCAPED_UNICODE);
+        if ($admin_legal_request_for !== 'Others') {
+            $adminLegalSelectedRecipient = request_ticket_admin_legal_selected_recipient($conn, $admin_legal_request_for);
+            if ((int) ($adminLegalSelectedRecipient['user_id'] ?? 0) <= 0) {
+                if ($isAjax) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    http_response_code(400);
+                    echo json_encode(['ok' => false, 'error' => 'The selected Admin & Legal request recipient does not have a registered account.'], JSON_UNESCAPED_UNICODE);
+                    exit();
+                }
+                $_SESSION['error'] = 'The selected Admin & Legal request recipient does not have a registered account.';
+                header("Location: request_ticket.php");
                 exit();
             }
-            $_SESSION['error'] = 'The selected Admin & Legal request recipient does not have a registered account.';
-            header("Location: request_ticket.php");
-            exit();
+            $allowed_categories = $lapc_admin_legal_request_categories[$admin_legal_request_for];
         }
-        $allowed_categories = $lapc_admin_legal_request_categories[$admin_legal_request_for];
     }
     $requiresDepartment = ticket_company_requires_department($assigned_company);
     $allowedDepartments = $requiresDepartment ? ticket_company_allowed_groups($assigned_company) : [];
@@ -1264,7 +1311,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     if ($isLapcAdminLegalTicket) {
         $selectedAdminLegalUserId = (int) ($adminLegalSelectedRecipient['user_id'] ?? 0);
-        $assigned_user_ids = $selectedAdminLegalUserId > 0 ? [$selectedAdminLegalUserId] : [];
+        if ($admin_legal_request_for === 'Others') {
+            $assigned_user_ids = array_values(array_unique(array_filter(array_map(static function (array $recipient): int {
+                return (int) ($recipient['user_id'] ?? 0);
+            }, $adminLegalBroadcastRecipients))));
+        } else {
+            $assigned_user_ids = $selectedAdminLegalUserId > 0 ? [$selectedAdminLegalUserId] : [];
+        }
+        $assigned_user_ids = array_values(array_unique(array_merge(
+            $assigned_user_ids,
+            ticket_find_assignee_ids($conn, '@primestocks.ph', 'Admin & Legal', false)
+        )));
     }
     // Do not auto-assign request tickets to a specific user on creation.
     // The ticket stays routed to the target company/department and only gets
@@ -1284,7 +1341,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $companyAliasesMap = [
         'MHC' => ['MHC', 'Malveda Holdings Corporation - MHC'],
-        'GPCI' => ['GPCI', 'GPSCI', 'Golden Primestocks Chemical Inc - GPSCI', 'Golden Primestocks Chemical Inc - GPCI'],
+        'GPCI' => ['GPCI', 'GPCI', 'Golden Primestocks Chemical Inc - GPCI', 'Golden Primestocks Chemical Inc - GPCI'],
         'LAPC' => ['LAPC', 'Leads Animal Health - LAH', 'LEADS Animal Health - LAH'],
         'PCC' => ['PCC', 'Primestocks Chemical Corporation - PCC', 'FARMASEE'],
         'MPDC' => ['MPDC', 'Malveda Properties & Development Corporation - MPDC'],
@@ -1650,6 +1707,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $assigneeEmailExcludeUserId = $isLapcAdminLegalTicket ? 0 : (int) $user_id;
     $assigneeEmails = ticket_assignee_notification_emails($conn, $assigned_user_ids, $assigned_company, $assigned_group, $assigneeEmailExcludeUserId, $isLapcAdminLegalTicket);
+    if ($isLapcAdminLegalTicket && $admin_legal_request_for === 'Others') {
+        $broadcastEmails = array_values(array_unique(array_filter(array_map(static function (array $recipient): string {
+            return strtolower(trim((string) ($recipient['email'] ?? '')));
+        }, $adminLegalBroadcastRecipients), static function (string $email): bool {
+            return $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+        })));
+        $assigneeEmails = array_values(array_unique(array_merge($assigneeEmails, $broadcastEmails)));
+    }
     if (count($assigneeEmails) > 0) {
         $assigneeLines = [
             "Ticket ID: #$ticketNumber",
@@ -4327,7 +4392,7 @@ if (count($emailCreationEntries) === 0) {
                             <div class="select-wrapper" id="adminLegalRequestForWrapper">
                                 <select name="admin_legal_request_for" id="admin_legal_request_for" class="form-control custom-select-native" disabled data-selected="<?= htmlspecialchars((string) ($_POST['admin_legal_request_for'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                     <option value="" disabled selected hidden>Choose request for</option>
-                                    <?php foreach (['Aimi Bing Santos (Bing)', 'Ace Loui Rosal (Ace)', 'Cherry Jane Cabote (CJ)'] as $requestForOption): ?>
+                                    <?php foreach (['Aimi Bing Santos (Bing)', 'Ace Loui Rosal (Ace)', 'Cherry Jane Cabote (CJ)', 'Others'] as $requestForOption): ?>
                                         <option value="<?= htmlspecialchars($requestForOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($_POST['admin_legal_request_for'] ?? '') === $requestForOption) ? 'selected' : ''; ?>>
                                             <?= htmlspecialchars($requestForOption, ENT_QUOTES, 'UTF-8'); ?>
                                         </option>
@@ -4351,6 +4416,7 @@ if (count($emailCreationEntries) === 0) {
                                     <option value="Internet Concerns">Internet Concerns</option>
                                     <option value="Procurement">Procurement</option>
                                     <option value="Software">Software</option>
+                                    <option value="Others">Others</option>
                                 </select>
                                 <button type="button" class="form-control custom-select-trigger" id="categoryTrigger" aria-haspopup="listbox" aria-expanded="false">
                                     <span class="custom-select-value" id="categoryTriggerValue">Choose category</span>
@@ -5448,31 +5514,34 @@ if (count($emailCreationEntries) === 0) {
         ];
         const sssUploadState = {};
         const lapcDepartments = <?= json_encode(array_values($lapcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const pccDepartments = <?= json_encode(array_values($pccDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mhcDepartments = <?= json_encode(array_values($mhcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const emailCreationDepartmentOptionsBySubsidiary = {
             '@leadsagri.com': lapcDepartments,
+            '@primestocks.ph': pccDepartments,
             '@malvedaholdings.com': mhcDepartments
         };
-        const defaultCategories = <?= json_encode(['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const mpdcCategories = <?= json_encode(['Engineerings', 'Client Based'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const lingapCategories = <?= json_encode(['Lakbay Kalusugan Request (Medical Mission)'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const defaultCategories = <?= json_encode(['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const mpdcCategories = <?= json_encode(['Engineerings', 'Client Based', 'Others'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const lingapCategories = <?= json_encode(['Lakbay Kalusugan Request (Medical Mission)', 'Others'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lapcDepartmentCategories = <?= json_encode([
-            'Admin & Legal' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
-            'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request'],
-            'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
+            'Admin & Legal' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
+            'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request', 'Others'],
+            'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
             'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
-            'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software'],
-            'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software'],
-            'Marketing' => ['Marketing Operations', 'Channel & Campaigns'],
-            'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations'],
+            'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Others'],
+            'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
+            'Marketing' => ['Marketing Operations', 'Channel & Campaigns', 'Others'],
+            'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations', 'Others'],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lapcAdminLegalRequestCategories = <?= json_encode([
-            'Aimi Bing Santos (Bing)' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle'],
-            'Ace Loui Rosal (Ace)' => ['Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)'],
-            'Cherry Jane Cabote (CJ)' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies'],
+            'Aimi Bing Santos (Bing)' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Others'],
+            'Ace Loui Rosal (Ace)' => ['Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Others'],
+            'Cherry Jane Cabote (CJ)' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
+            'Others' => ['Others'],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mhcDepartmentCategories = <?= json_encode([
-            'Marketing Creatives' => ['Marketing Request'],
+            'Marketing Creatives' => ['Marketing Request', 'Others'],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lapcMarketingSubcategories = <?= json_encode([
             'Marketing Operations' => [
@@ -6057,9 +6126,14 @@ if (count($emailCreationEntries) === 0) {
         function toggleDepartment() {
             if (!recipientDropdown || !departmentContainer || !departmentSelect) return;
             const value = String(recipientDropdown.value || '');
-            const shouldShowDepartment = value === '@leadsagri.com' || value === '@malvedaholdings.com';
+            const shouldShowDepartment = value === '@leadsagri.com' || value === '@primestocks.ph' || value === '@malvedaholdings.com';
             if (value === '@leadsagri.com') {
                 populateDepartments(lapcDepartments);
+                departmentContainer.style.display = 'block';
+                departmentSelect.disabled = false;
+                departmentSelect.setAttribute('required', 'required');
+            } else if (value === '@primestocks.ph') {
+                populateDepartments(pccDepartments);
                 departmentContainer.style.display = 'block';
                 departmentSelect.disabled = false;
                 departmentSelect.setAttribute('required', 'required');
@@ -6131,6 +6205,7 @@ if (count($emailCreationEntries) === 0) {
             if (!recipientDropdown || !categorySelect) return;
             const adminLegalSelected = isLapcAdminLegalSelected();
             const requestForValue = adminLegalRequestForSelect ? String(adminLegalRequestForSelect.value || '') : '';
+            const adminLegalOthersSelected = adminLegalSelected && requestForValue === 'Others';
             if (categoryUrgencyRow) {
                 categoryUrgencyRow.classList.toggle('is-admin-legal-layout', adminLegalSelected);
             }
@@ -6155,6 +6230,18 @@ if (count($emailCreationEntries) === 0) {
                 categorySelect.disabled = true;
                 categorySelect.removeAttribute('required');
                 populateCategories([]);
+                toggleMarketingSubcategory();
+                toggleHrExtraFields();
+                syncRequestGridRows();
+                return;
+            }
+            if (adminLegalOthersSelected) {
+                populateCategories(['Others']);
+                categorySelect.disabled = false;
+                categorySelect.value = 'Others';
+                categorySelect.setAttribute('data-selected', 'Others');
+                categorySelect.removeAttribute('required');
+                if (categoryContainer) categoryContainer.style.display = 'none';
                 toggleMarketingSubcategory();
                 toggleHrExtraFields();
                 syncRequestGridRows();

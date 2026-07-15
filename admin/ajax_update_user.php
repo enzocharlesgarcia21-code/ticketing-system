@@ -37,8 +37,8 @@ $department = trim((string) ($_POST['department'] ?? ''));
 
 if ($id <= 0) edit_user_json_error('Invalid user id.');
 if ($name === '') edit_user_json_error('Name is required.');
-if (preg_match('/\d/', $name) || !preg_match("/^(?=.{2,100}$)[A-Za-z][A-Za-z .,'-]*[A-Za-z.]$/", $name)) {
-    edit_user_json_error('Please enter a valid name using letters only.');
+if (preg_match('/\d/', $name) || !preg_match('/^(?=.{2,100}\z)[\p{L}\s]+$/u', $name)) {
+    edit_user_json_error('Please enter a valid name using letters and spaces only.');
 }
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     edit_user_json_error('Please enter a valid email address.');
@@ -73,6 +73,8 @@ if ($company === '' || !array_key_exists($company, $companyOptions)) {
 $departmentMap = ticket_company_group_map();
 $departmentCompany = '';
 if ($company === '@leadsagri.com' || $company === 'LAPC') {
+    $departmentCompany = $company;
+} elseif ($company === '@primestocks.ph' || $company === 'PCC') {
     $departmentCompany = $company;
 } elseif ($company === '@malvedaholdings.com' || $company === 'MHC') {
     $departmentCompany = $company;

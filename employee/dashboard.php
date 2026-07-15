@@ -451,13 +451,28 @@ function dashboard_priority_badge_html(array $row): string
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
     <title>Employee Dashboard | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <!-- Optional: Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --brand-green: #19692a;
+            --brand-green-600: #145322;
+            --accent-orange: #ffb26b;
+            --accent-yellow: #f7e2a2;
+            --badge-green: #dff3e5;
+            --space-xs: 6px;
+            --space-sm: 12px;
+            --space-md: 18px;
+            --space-lg: 28px;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --text-base: 16px;
+        }
+
         body.employee-dashboard-page .feedback-modal-overlay {
             position: fixed;
             inset: 0;
@@ -2179,7 +2194,360 @@ function dashboard_priority_badge_html(array $row): string
                 text-align: center;
             }
         }
+
+        body.employee-dashboard-page {
+            font-size: var(--text-base);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body.employee-dashboard-page .dashboard-container {
+            box-sizing: border-box;
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        body.employee-dashboard-page .ticket-card {
+            box-sizing: border-box;
+        }
+
+        body.employee-dashboard-page .ticket-card__meta,
+        body.employee-dashboard-page .ticket-card__body,
+        body.employee-dashboard-page .ticket-card__badges {
+            min-width: 0;
+        }
+
+        @media (max-width: 768px) {
+            body.employee-dashboard-page {
+                overflow-x: hidden;
+            }
+
+            body.employee-dashboard-page .navbar {
+                position: sticky;
+                top: 0;
+                z-index: 1200;
+                min-height: 60px;
+                padding: 8px 14px !important;
+                box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+            }
+
+            body.employee-dashboard-page .navbar .nav-left {
+                grid-template-columns: 40px minmax(0, 1fr) 44px !important;
+                gap: var(--space-sm) !important;
+            }
+
+            body.employee-dashboard-page .navbar .logo-icon {
+                width: 40px !important;
+                height: 40px !important;
+                min-width: 40px !important;
+            }
+
+            body.employee-dashboard-page .navbar .brand-name {
+                font-size: 15px !important;
+                line-height: 1.15 !important;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            body.employee-dashboard-page .navbar .navbar-toggler {
+                width: 44px !important;
+                height: 44px !important;
+                min-width: 44px !important;
+                min-height: 44px !important;
+                border-radius: var(--radius-md) !important;
+            }
+
+            body.employee-dashboard-page .dashboard-container {
+                width: 100%;
+                max-width: 720px;
+                padding: var(--space-md) 16px calc(92px + env(safe-area-inset-bottom, 0px));
+            }
+
+            body.employee-dashboard-page .content-wrapper {
+                gap: var(--space-md);
+            }
+
+            body.employee-dashboard-page .hero-section {
+                gap: var(--space-sm);
+                padding-top: 0;
+            }
+
+            body.employee-dashboard-page .hero-title {
+                margin-bottom: var(--space-xs);
+                font-size: 21px;
+                line-height: 1.2;
+            }
+
+            body.employee-dashboard-page .hero-subtitle {
+                font-size: 15px;
+            }
+
+            body.employee-dashboard-page .create-ticket-btn {
+                display: inline-flex;
+                width: 100%;
+                min-height: 52px;
+                height: 52px;
+                padding: 0 16px;
+                border-radius: var(--radius-md);
+                background: var(--brand-green);
+                color: #ffffff;
+                font-size: 16px;
+                font-weight: 700;
+                text-align: center;
+                box-shadow: 0 10px 22px rgba(25, 105, 42, 0.22);
+            }
+
+            body.employee-dashboard-page .cards-panel,
+            body.employee-dashboard-page .dashboard-ticket-panel {
+                padding: var(--space-md);
+                border-radius: var(--radius-md);
+                box-shadow: 0 6px 18px rgba(10, 10, 20, 0.06);
+            }
+
+            body.employee-dashboard-page .stats-grid,
+            body.employee-dashboard-page .dashboard-ticket-grid {
+                grid-template-columns: 1fr;
+                align-items: stretch;
+                gap: var(--space-md);
+            }
+
+            body.employee-dashboard-page .stat-card {
+                min-height: 148px;
+                height: 100%;
+                padding: var(--space-md);
+                border-radius: var(--radius-md);
+                justify-content: space-between;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tbody {
+                display: grid;
+                grid-template-columns: 1fr;
+                align-items: stretch;
+                gap: var(--space-md);
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr)) 32px;
+                grid-template-areas:
+                    "id id id arrow"
+                    "title title title arrow"
+                    "requester requester requester arrow"
+                    "department department department arrow"
+                    "date date date arrow"
+                    "priority status sla arrow";
+                align-content: stretch;
+                gap: var(--space-xs) var(--space-sm);
+                width: 100%;
+                min-height: 224px;
+                height: 100%;
+                margin: 0;
+                padding: var(--space-md);
+                border: 1px solid #dce6ef;
+                border-radius: var(--radius-md);
+                background: #ffffff;
+                box-shadow: 0 6px 18px rgba(10, 10, 20, 0.06);
+                overflow: hidden;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-id {
+                grid-area: id;
+                color: #0f172a;
+                font-size: 14px;
+                font-weight: 800;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-category {
+                grid-area: title;
+                margin: 0;
+                color: #102033;
+                font-size: 18px;
+                font-weight: 800;
+                line-height: 1.22;
+                white-space: normal;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester {
+                grid-area: requester;
+                margin: var(--space-xs) 0 0;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester strong {
+                font-size: 16px;
+                line-height: 1.25;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester small {
+                margin-top: var(--space-xs);
+                color: #4b5563;
+                font-size: 14px;
+                line-height: 1.3;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-department {
+                grid-area: department;
+                margin: 0;
+                color: #334155;
+                font-size: 14px;
+                font-weight: 700;
+                line-height: 1.35;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-date {
+                grid-area: date;
+                margin-top: var(--space-xs);
+                color: #64748b;
+                font-size: 14px;
+                font-weight: 700;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-priority,
+            body.employee-dashboard-page .dashboard-ticket-status,
+            body.employee-dashboard-page .dashboard-ticket-sla {
+                display: flex;
+                align-self: end;
+                width: 100%;
+                margin-top: var(--space-sm);
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-priority {
+                grid-area: priority;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-status {
+                grid-area: status;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-sla {
+                grid-area: sla;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-badge,
+            body.employee-dashboard-page .dashboard-ticket-table .status-pill,
+            body.employee-dashboard-page .dashboard-ticket-sla .badge {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 100%;
+                height: 36px;
+                min-height: 36px;
+                padding: 0 12px;
+                border-radius: 999px;
+                font-size: 13px;
+                font-weight: 700;
+                line-height: 1;
+                text-align: center;
+                white-space: nowrap;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-low,
+            body.employee-dashboard-page .status-in-progress {
+                background: #e6f8ee;
+                color: #19692a;
+                border-color: #b7e6c7;
+            }
+
+            body.employee-dashboard-page .status-open,
+            body.employee-dashboard-page .dashboard-ticket-sla .badge-low {
+                background: #fff6dd;
+                color: #765000;
+                border-color: #f2d278;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-medium,
+            body.employee-dashboard-page .dashboard-ticket-sla .badge-medium {
+                background: #fff4d6;
+                color: #855400;
+                border-color: #efc66d;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-high,
+            body.employee-dashboard-page .dashboard-priority-critical,
+            body.employee-dashboard-page .dashboard-ticket-sla .badge-high,
+            body.employee-dashboard-page .dashboard-ticket-sla .badge-critical {
+                background: #ffe7d9;
+                color: #9a3412;
+                border-color: #fdba74;
+            }
+
+            body.employee-dashboard-page .status-resolved {
+                background: #e0efff;
+                color: #174ea6;
+                border-color: #b7d4ff;
+            }
+
+            body.employee-dashboard-page .status-closed {
+                background: #eef2f7;
+                color: #334155;
+                border-color: #d7dee8;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-arrow {
+                grid-area: arrow;
+                justify-self: end;
+                align-self: center;
+                width: 32px;
+                padding: 0;
+                color: #64748b;
+                font-size: 34px;
+                line-height: 1;
+            }
+
+            body.employee-dashboard-page .tm-global-chat-fab {
+                right: 12px;
+                bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+                width: 56px !important;
+                max-width: 56px !important;
+                height: 56px !important;
+                min-width: 56px !important;
+                min-height: 56px !important;
+                border-radius: 50%;
+                background: var(--brand-green) !important;
+                color: #ffffff;
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+                z-index: 9999;
+            }
+
+            body.employee-dashboard-page .tm-global-chat-fab i {
+                font-size: 19px;
+            }
+        }
+
+        @media (min-width: 480px) and (max-width: 768px) {
+            body.employee-dashboard-page .dashboard-container {
+                padding-inline: 18px;
+            }
+
+            body.employee-dashboard-page .stats-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 20px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card {
+                min-height: 212px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-category {
+                font-size: 18px;
+            }
+        }
+
+        @media (min-width: 769px) {
+            body.employee-dashboard-page .dashboard-container {
+                width: min(calc(100% - 72px), 1480px);
+                max-width: none;
+            }
+
+            body.employee-dashboard-page .stats-grid,
+            body.employee-dashboard-page .dashboard-ticket-grid {
+                align-items: stretch;
+            }
+        }
     </style>
+    <link rel="stylesheet" href="../css/dashboard-carousel.css?v=<?= (int) filemtime(__DIR__ . '/../css/dashboard-carousel.css') ?>">
 </head>
 <body class="employee-dashboard-page">
 
@@ -2260,7 +2628,7 @@ function dashboard_priority_badge_html(array $row): string
                     </div>
                     <p class="hero-subtitle">Here's an overview of your helpdesk activity.</p>
                 </div>
-                <a href="request_ticket.php" class="hero-action">
+                <a href="request_ticket.php" class="hero-action create-ticket-btn">
                     <i class="fas fa-plus-circle" aria-hidden="true"></i>
                     <span>Create Ticket</span>
                 </a>
@@ -2298,30 +2666,53 @@ function dashboard_priority_badge_html(array $row): string
                 </div>
 
                 <?php foreach ($dashboardStatSets as $setKey => $stats): ?>
-                    <div class="stats-grid" data-card-set="<?= htmlspecialchars($setKey, ENT_QUOTES, 'UTF-8') ?>" <?= $setKey === 'assigned' ? '' : 'hidden' ?>>
-                        <?php foreach ($stats as $stat): ?>
-                            <a class="stat-card <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>" href="<?= htmlspecialchars($stat['href'], ENT_QUOTES, 'UTF-8') ?>" aria-label="View <?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?> tickets">
-                                <div class="stat-main">
-                                    <div class="stat-icon">
-                                        <i class="fas <?= htmlspecialchars($stat['icon'], ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i>
+                    <?php $summarySetLabel = $setKey === 'assigned' ? 'Assigned tickets' : 'My submitted tickets'; ?>
+                    <section class="summary-carousel" data-card-set="<?= htmlspecialchars($setKey, ENT_QUOTES, 'UTF-8') ?>" role="region" aria-label="<?= htmlspecialchars($summarySetLabel, ENT_QUOTES, 'UTF-8') ?> summary carousel" tabindex="0" <?= $setKey === 'assigned' ? '' : 'hidden' ?>>
+                        <button class="carousel__nav carousel__nav--prev" aria-label="Previous summary" type="button">
+                            <span aria-hidden="true">&lsaquo;</span>
+                        </button>
+                        <div class="carousel__viewport">
+                            <div class="carousel__track" role="list">
+                                <?php foreach ($stats as $stat): ?>
+                                    <div class="carousel__slide" role="listitem" data-slide="<?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>">
+                                        <a class="stat-card summary-card <?= htmlspecialchars($stat['variant'], ENT_QUOTES, 'UTF-8') ?>" href="<?= htmlspecialchars($stat['href'], ENT_QUOTES, 'UTF-8') ?>" aria-label="View <?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?> tickets">
+                                            <div class="stat-main">
+                                                <div class="stat-icon">
+                                                    <i class="fas <?= htmlspecialchars($stat['icon'], ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i>
+                                                </div>
+                                                <div class="stat-copy">
+                                                    <div class="stat-label summary-card__label"><?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?></div>
+                                                    <div class="stat-value summary-card__value"><?= (int) $stat['value'] ?></div>
+                                                </div>
+                                            </div>
+                                            <div class="stat-subtext summary-card__desc"><?= htmlspecialchars($stat['subtitle'], ENT_QUOTES, 'UTF-8') ?></div>
+                                            <div class="stat-action">View tickets <i class="fas fa-arrow-right" aria-hidden="true"></i></div>
+                                        </a>
                                     </div>
-                                    <div class="stat-copy">
-                                        <div class="stat-label"><?= htmlspecialchars($stat['label'], ENT_QUOTES, 'UTF-8') ?></div>
-                                        <div class="stat-value"><?= (int) $stat['value'] ?></div>
-                                    </div>
-                                </div>
-                                <div class="stat-subtext"><?= htmlspecialchars($stat['subtitle'], ENT_QUOTES, 'UTF-8') ?></div>
-                                <div class="stat-action">View tickets <i class="fas fa-arrow-right" aria-hidden="true"></i></div>
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <button class="carousel__nav carousel__nav--next" aria-label="Next summary" type="button">
+                            <span aria-hidden="true">&rsaquo;</span>
+                        </button>
+                        <div class="carousel__dots" role="tablist" aria-label="Summary pagination"></div>
+                        <div class="visually-hidden carousel__announce" aria-live="polite"></div>
+                    </section>
                 <?php endforeach; ?>
+            </div>
+
+            <!-- Mobile divider: visually separates carousel from ticket lists -->
+            <div class="mobile-divider" aria-hidden="false">
+                <div class="mobile-divider__inner">
+                    <span class="mobile-divider__icon" aria-hidden="true">&#10003;</span>
+                    <span class="mobile-divider__title">Assigned Tickets</span>
+                </div>
             </div>
 
             <!-- 5ï¸âƒ£ RECENT TICKETS SECTION -->
             <div class="dashboard-ticket-grid">
                 <section class="dashboard-ticket-panel" aria-labelledby="receivedTicketsTitle">
-                    <h2 id="receivedTicketsTitle" class="dashboard-ticket-title">Assigned Tickets</h2>
+                    <h2 id="receivedTicketsTitle" class="dashboard-ticket-title mobile-heading-sr-only">Assigned Tickets</h2>
                     <table class="dashboard-ticket-table">
                         <thead>
                             <tr>
@@ -2341,23 +2732,23 @@ function dashboard_priority_badge_html(array $row): string
                                 <?php foreach ($receivedTickets as $row): ?>
                                     <?php $status = (string) ($row['status'] ?? ''); ?>
                                     <?php $requester = dashboard_requester_info($row); ?>
-                                    <tr class="ticket-row received-ticket-row" data-id="<?= (int) $row['id']; ?>">
-                                        <td class="dashboard-ticket-id">#<?= str_pad((string) (int) $row['id'], 6, '0', STR_PAD_LEFT); ?></td>
-                                        <td class="dashboard-ticket-category"><?= htmlspecialchars(dashboard_ticket_category($row), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td class="dashboard-ticket-requester">
+                                    <tr class="ticket-row ticket-card received-ticket-row" data-id="<?= (int) $row['id']; ?>">
+                                        <td class="dashboard-ticket-id ticket-card__meta">#<?= str_pad((string) (int) $row['id'], 6, '0', STR_PAD_LEFT); ?></td>
+                                        <td class="dashboard-ticket-category ticket-card__title"><?= htmlspecialchars(dashboard_ticket_category($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="dashboard-ticket-requester ticket-card__body">
                                             <strong><?= htmlspecialchars($requester['name'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                             <?php if ($requester['email'] !== ''): ?>
                                                 <small><?= htmlspecialchars($requester['email'], ENT_QUOTES, 'UTF-8'); ?></small>
                                             <?php endif; ?>
                                         </td>
-                                        <td class="dashboard-ticket-department"><?= htmlspecialchars(dashboard_source_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td class="dashboard-ticket-priority"><?= dashboard_priority_badge_html($row); ?></td>
-                                        <td>
+                                        <td class="dashboard-ticket-department ticket-card__body"><?= htmlspecialchars(dashboard_source_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="dashboard-ticket-priority ticket-card__badges"><?= dashboard_priority_badge_html($row); ?></td>
+                                        <td class="dashboard-ticket-status ticket-card__badges">
                                             <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($status), ENT_QUOTES, 'UTF-8'); ?>">
                                                 <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
                                             </span>
                                         </td>
-                                        <td class="dashboard-ticket-sla"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
+                                        <td class="dashboard-ticket-sla ticket-card__badges"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
                                         <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
                                     </tr>
@@ -2371,8 +2762,16 @@ function dashboard_priority_badge_html(array $row): string
                     </table>
                 </section>
 
+                <!-- Mobile divider: visually separates submitted ticket lists -->
+                <div class="mobile-divider mobile-divider--submitted" aria-hidden="false">
+                    <div class="mobile-divider__inner">
+                        <span class="mobile-divider__icon" aria-hidden="true">&#10003;</span>
+                        <span class="mobile-divider__title">My Submitted Tickets</span>
+                    </div>
+                </div>
+
                 <section class="dashboard-ticket-panel" aria-labelledby="raisedTicketsTitle">
-                    <h2 id="raisedTicketsTitle" class="dashboard-ticket-title">My Submitted Tickets</h2>
+                    <h2 id="raisedTicketsTitle" class="dashboard-ticket-title mobile-heading-sr-only">My Submitted Tickets</h2>
                     <table class="dashboard-ticket-table">
                         <thead>
                             <tr>
@@ -2392,23 +2791,23 @@ function dashboard_priority_badge_html(array $row): string
                                 <?php foreach ($raisedTickets as $row): ?>
                                     <?php $status = (string) ($row['status'] ?? ''); ?>
                                     <?php $requester = dashboard_requester_info($row); ?>
-                                    <tr class="ticket-row raised-ticket-row" data-id="<?= (int) $row['id']; ?>">
-                                        <td class="dashboard-ticket-id">#<?= str_pad((string) (int) $row['id'], 6, '0', STR_PAD_LEFT); ?></td>
-                                        <td class="dashboard-ticket-category"><?= htmlspecialchars(dashboard_ticket_category($row), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td class="dashboard-ticket-requester">
+                                    <tr class="ticket-row ticket-card raised-ticket-row" data-id="<?= (int) $row['id']; ?>">
+                                        <td class="dashboard-ticket-id ticket-card__meta">#<?= str_pad((string) (int) $row['id'], 6, '0', STR_PAD_LEFT); ?></td>
+                                        <td class="dashboard-ticket-category ticket-card__title"><?= htmlspecialchars(dashboard_ticket_category($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="dashboard-ticket-requester ticket-card__body">
                                             <strong><?= htmlspecialchars($requester['name'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                             <?php if ($requester['email'] !== ''): ?>
                                                 <small><?= htmlspecialchars($requester['email'], ENT_QUOTES, 'UTF-8'); ?></small>
                                             <?php endif; ?>
                                         </td>
-                                        <td class="dashboard-ticket-department"><?= htmlspecialchars(dashboard_source_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td class="dashboard-ticket-priority"><?= dashboard_priority_badge_html($row); ?></td>
-                                        <td>
+                                        <td class="dashboard-ticket-department ticket-card__body"><?= htmlspecialchars(dashboard_source_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="dashboard-ticket-priority ticket-card__badges"><?= dashboard_priority_badge_html($row); ?></td>
+                                        <td class="dashboard-ticket-status ticket-card__badges">
                                             <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($status), ENT_QUOTES, 'UTF-8'); ?>">
                                                 <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
                                             </span>
                                         </td>
-                                        <td class="dashboard-ticket-sla"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
+                                        <td class="dashboard-ticket-sla ticket-card__badges"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
                                         <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
                                     </tr>
@@ -2475,6 +2874,7 @@ function dashboard_priority_badge_html(array $row): string
 
     <!-- JS Script -->
     <script src="../js/employee-dashboard.js"></script>
+    <script src="../js/dashboard-carousel.js?v=<?= (int) filemtime(__DIR__ . '/../js/dashboard-carousel.js') ?>"></script>
     <script>
     (function () {
         var feedbackModal = document.getElementById('feedbackModalOverlay');

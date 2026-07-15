@@ -74,7 +74,7 @@ if ($users_companies_res) {
 $company_domain_options = [
     '@farmasee.ph' => 'FARMASEE',
     '@leads-farmex.com' => 'FARMEX / LAV',
-    '@gpsci.net' => 'GPSCI',
+    '@gpsci.net' => 'GPCI',
     '@leadsagri.com' => 'LAPC',
     '@leadstech-corp.com' => 'LTC',
     '@lingapleads.org' => 'LINGAP',
@@ -92,6 +92,7 @@ function company_domain_option_label(string $domain, string $label): string
 }
 
 $lapc_department_options = ticket_company_allowed_groups('@leadsagri.com');
+$pcc_department_options = ticket_company_allowed_groups('@primestocks.ph');
 $mhc_department_options = ticket_company_allowed_groups('@malvedaholdings.com');
 $edit_user_company_options = ticket_request_company_options();
 $edit_user_department_options = ticket_company_group_map();
@@ -3244,7 +3245,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                                     <div class="edit-select-menu" role="listbox"></div>
                                 </div>
                                 <div class="edit-select-wrap users-filter-select-wrap users-dept-filter-wrap" data-edit-select="users-dept">
-                                    <?php $users_dept_options = array_values(array_unique(array_filter(array_merge($lapc_department_options, $mhc_department_options)))); ?>
+                                    <?php $users_dept_options = array_values(array_unique(array_filter(array_merge($lapc_department_options, $pcc_department_options, $mhc_department_options)))); ?>
                                     <select class="domain-select users-dept-filter" id="usersDept" tabindex="-1">
                                         <option value="all" selected>All Departments</option>
                                         <?php foreach ($users_dept_options as $d): ?>
@@ -3669,7 +3670,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
     var companyDepartments = {
         "@leadsagri.com": <?php echo json_encode(array_values($lapc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
         "@gpsci.net": [],
-        "@primestocks.ph": [],
+        "@primestocks.ph": <?php echo json_encode(array_values($pcc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
         "@malvedaholdings.com": <?php echo json_encode(array_values($mhc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
         "@leads-farmex.com": [],
         "@leadstech-corp.com": [],
@@ -4640,6 +4641,10 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 }
             });
         }
+        function validEditUserName(value) {
+            var name = String(value || '');
+            return name.length >= 2 && name.length <= 100 && /^[\p{L}\s]+$/u.test(name) && !/\d/.test(name);
+        }
         function getAccessSectionUi(section) {
             var normalized = String(section || '').toLowerCase();
             if (normalized.indexOf('ticket') > -1) {
@@ -4827,11 +4832,59 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 syncEditDepartmentOptions('');
             });
         }
+        if (editUserName) {
+            editUserName.addEventListener('input', function () {
+                var current = String(editUserName.value || '');
+                var cleaned = current.replace(/\d+/g, '');
+                if (cleaned !== current) {
+                    var cursorPos = editUserName.selectionStart || cleaned.length;
+                    editUserName.value = cleaned;
+                    try {
+                        editUserName.setSelectionRange(cursorPos - (current.length - cleaned.length), cursorPos - (current.length - cleaned.length));
+                    } catch (e) {}
+                }
+            });
+            editUserName.addEventListener('paste', function () {
+                setTimeout(function () {
+                    editUserName.value = String(editUserName.value || '')
+                        .replace(/\d+/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                }, 0);
+            });
+            editUserName.addEventListener('blur', function () {
+                editUserName.value = String(editUserName.value || '')
+                    .replace(/\d+/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            });
+        }
         if (editUserForm) {
             editUserForm.addEventListener('submit', function (e) {
                 e.preventDefault();
                 if (!window.TM_CAN_MANAGE_USER_ACCESS) {
                     showAccessAlert('warning', 'Access denied', 'Only the super admin can edit users.');
+                    return;
+                }
+                var normalizedEditName = editUserName
+                    ? String(editUserName.value || '').replace(/\d+/g, '').replace(/\s+/g, ' ').trim()
+                    : '';
+                if (editUserName) {
+                    editUserName.value = normalizedEditName;
+                }
+                if (!normalizedEditName) {
+                    showAccessAlert('warning', 'Invalid full name', 'Please enter the user\'s full name.');
+                    if (editUserName) editUserName.focus();
+                    return;
+                }
+                if (/\d/.test(normalizedEditName)) {
+                    showAccessAlert('warning', 'Invalid full name', 'Numbers are not allowed in the full name.');
+                    if (editUserName) editUserName.focus();
+                    return;
+                }
+                if (!validEditUserName(normalizedEditName)) {
+                    showAccessAlert('warning', 'Invalid full name', 'Please use letters and spaces only.');
+                    if (editUserName) editUserName.focus();
                     return;
                 }
                 if (saveEditUserBtn) saveEditUserBtn.disabled = true;
@@ -4867,7 +4920,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                         });
                     })
                     .catch(function (error) {
-                        showAccessAlert('error', 'Update failed', error && error.message ? error.message : 'Failed to update user.');
+                        var message = error && error.message ? error.message : 'Failed to update user.';
+                        var isNameError = /full name|name/i.test(message);
+                        showAccessAlert(isNameError ? 'warning' : 'error', isNameError ? 'Invalid full name' : 'Update failed', message);
                     })
                     .finally(function () {
                         if (saveEditUserBtn) saveEditUserBtn.disabled = false;
@@ -5036,7 +5091,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 return fullNameEl.value;
             }
             function validFullName(value) {
-                return /^(?=.{2,100}$)[A-Za-z][A-Za-z .,'-]*[A-Za-z.]$/.test(String(value || '')) && !/\d/.test(String(value || ''));
+                var name = String(value || '');
+                return name.length >= 2 && name.length <= 100 && /^[\p{L}\s]+$/u.test(name) && !/\d/.test(name);
             }
             function validEmailLocalPart(value) {
                 var local = String(value || '').trim().toLowerCase();
@@ -5113,7 +5169,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                     return;
                 }
                 if (!validFullName(normalizedName)) {
-                    showCreateUserError('Invalid full name', 'Please use a valid name with letters only.');
+                    showCreateUserError('Invalid full name', 'Please use letters and spaces only.');
                     fullName.focus();
                     return;
                 }

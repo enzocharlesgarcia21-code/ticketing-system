@@ -1185,7 +1185,7 @@ if ($ticketSlaLevel !== '') {
 $companyOptions = [
     '@leads-farmex.com' => 'FARMEX / LAV',
     '@farmasee.ph' => 'FARMASEE',
-    '@gpsci.net' => 'GPSCI',
+    '@gpsci.net' => 'GPCI',
     '@leadsagri.com' => 'LAPC',
     '@malvedaholdings.com' => 'MHC',
     '@malvedaproperties.com' => 'MPDC',

@@ -689,7 +689,7 @@ $result = $stmt->get_result();
                                 <option value="" <?= $company_email === '' ? 'selected' : '' ?>>All Company</option>
                                 <option value="@farmasee.ph">FARMASEE</option>
                                 <option value="__farmex_lav__" <?= $company_email === '__farmex_lav__' ? 'selected' : '' ?>>FARMEX / LAV</option>
-                                <option value="@gpsci.net" <?= $company_email === '@gpsci.net' ? 'selected' : '' ?>>GPSCI</option>
+                                <option value="@gpsci.net" <?= $company_email === '@gpsci.net' ? 'selected' : '' ?>>GPCI</option>
                                 <option value="@leadsagri.com">LAPC</option>
                                 <option value="@leadstech-corp.com">LTC</option>
                                 <option value="@lingapleads.org">LINGAP</option>
