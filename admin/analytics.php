@@ -352,7 +352,7 @@ if (!in_array($trend_period, ['last_5_weekdays', 'last_month'], true)) {
 $company_options = [
     '@farmasee.ph' => 'FARMASEE',
     '__farmex_lav__' => 'FARMEX / LAV',
-    '@gpsci.net' => 'GPSCI',
+    '@gpsci.net' => 'GPCI',
     '@leadsagri.com' => 'LAPC',
     '@leadstech-corp.com' => 'LTC',
     '@lingapleads.org' => 'LINGAP',

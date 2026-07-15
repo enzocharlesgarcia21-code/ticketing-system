@@ -1,0 +1,37 @@
+Dashboard carousel mobile diagnostics
+===================================
+
+Scope inspected
+---------------
+- employee/dashboard.php
+- css/dashboard-carousel.css
+- css/employee-dashboard.css
+- js/dashboard-carousel.js
+
+Relevant findings
+-----------------
+- employee/dashboard.php:975: the base .stat-card uses overflow: hidden.
+  Its ::after pseudo-element is already explicitly disabled (content: none).
+- css/dashboard-carousel.css: multiple historic mobile rules assigned different
+  flex bases to .carousel__slide (92%, 68%, two-up at 480px, and 100%).
+  Android WebViews can apply these during a viewport resize or when their
+  reported layout width differs from the visible content width.
+- css/dashboard-carousel.css: the desktop grid layout is now excluded for
+  .is-compact carousels. No carousel radial-gradient, ellipse, or active
+  carousel pseudo-element was found.
+- css/employee-dashboard.css contains overflow rules for navigation, tables,
+  and unrelated cards; none target the dashboard summary carousel.
+
+Root cause
+----------
+The cropped left/right card fragments were caused by competing percentage-based
+slide sizing rules while the JavaScript translated by the viewport width. The
+track position and each slide width could therefore disagree on narrow Android
+layouts. This is not an oval pseudo-element.
+
+Fix
+---
+The compact carousel now gives every slide the measured viewport width in
+pixels, removes pseudo-elements only from carousel layers, and keeps clipping
+solely on .carousel__viewport. The card itself remains centered and may show
+its shadow without cutting off adjacent content.

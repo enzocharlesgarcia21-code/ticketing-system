@@ -97,8 +97,8 @@ if (preg_match('/\d/', $fullName)) {
     json_error('Full name must not contain numbers.', 400, 'name_has_number');
 }
 
-if (!preg_match("/^(?=.{2,100}$)[A-Za-z][A-Za-z .,'-]*[A-Za-z.]$/", $fullName)) {
-    json_error('Please enter a valid full name using letters only.', 400, 'name_invalid');
+if (!preg_match('/^(?=.{2,100}\z)[\p{L}\s]+$/u', $fullName)) {
+    json_error('Please enter a valid full name using letters and spaces only.', 400, 'name_invalid');
 }
 
 if ($username === '') {
@@ -160,7 +160,6 @@ $noDepartmentDomains = [
     '@leads-eh.com',
     '@leadsanimalhealth.com',
     '@leadsav.com',
-    '@primestocks.ph',
 ];
 
 $email = $username . $domain;
@@ -178,7 +177,7 @@ if (in_array($domain, $noDepartmentDomains, true)) {
     json_error('Department is required.', 400, 'department_required');
 }
 
-if ($department !== '' && in_array($domain, ['@leadsagri.com', '@malvedaholdings.com'], true)) {
+if ($department !== '' && in_array($domain, ['@leadsagri.com', '@malvedaholdings.com', '@primestocks.ph'], true)) {
     $allowedDepartments = ticket_company_allowed_groups($domain);
     if (!in_array($department, $allowedDepartments, true)) {
         json_error('Invalid department selected for this company.', 400, 'department_invalid');

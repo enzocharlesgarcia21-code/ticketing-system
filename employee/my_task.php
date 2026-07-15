@@ -29,7 +29,7 @@ function company_code(string $value): string
     if ($s === '') return '';
     if ($s === 'FARMASEE') return 'PCC';
     if (strpos($s, 'MHC') !== false) return 'MHC';
-    if (strpos($s, 'GPCI') !== false || strpos($s, 'GPSCI') !== false) return 'GPCI';
+    if (strpos($s, 'GPCI') !== false || strpos($s, 'GPCI') !== false) return 'GPCI';
     if (strpos($s, 'LAPC') !== false || strpos($s, 'LAH') !== false) return 'LAPC';
     if (strpos($s, 'PCC') !== false) return 'PCC';
     if (strpos($s, 'MPDC') !== false) return 'MPDC';
@@ -46,7 +46,7 @@ function company_aliases(string $value): array
     $code = company_code($v);
     $map = [
         'MHC' => ['MHC', 'Malveda Holdings Corporation - MHC'],
-        'GPCI' => ['GPCI', 'GPSCI', 'Golden Primestocks Chemical Inc - GPSCI', 'Golden Primestocks Chemical Inc - GPCI'],
+        'GPCI' => ['GPCI', 'GPCI', 'Golden Primestocks Chemical Inc - GPCI', 'Golden Primestocks Chemical Inc - GPCI'],
         'LAPC' => ['LAPC', 'Leads Animal Health - LAH', 'LEADS Animal Health - LAH'],
         'PCC' => ['PCC', 'Primestocks Chemical Corporation - PCC', 'FARMASEE'],
         'MPDC' => ['MPDC', 'Malveda Properties & Development Corporation - MPDC'],
@@ -138,7 +138,7 @@ $allowed_departments_by_company = [
 $company_filter_options = [
     '@farmex_lav' => 'FARMEX / LAV',
     '@farmasee.ph' => 'FARMASEE',
-    '@gpsci.net' => 'GPSCI',
+    '@gpsci.net' => 'GPCI',
     '@leadsagri.com' => 'LAPC',
     '@malvedaholdings.com' => 'MHC',
     '@malvedaproperties.com' => 'MPDC',
