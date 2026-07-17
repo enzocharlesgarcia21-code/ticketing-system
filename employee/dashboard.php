@@ -129,7 +129,13 @@ function dashboard_assigned_query_parts(int $user_id, string $user_email, string
 $company = (string) ($_SESSION['company'] ?? '');
 $user_department = (string) ($_SESSION['department'] ?? '');
 $user_email = (string) ($_SESSION['email'] ?? '');
-$userQuery = $conn->query("SELECT company, department, email FROM users WHERE id = $user_id");
+$user_region = (string) ($_SESSION['region'] ?? '');
+$hasUserRegionColumn = false;
+$regionColumnRes = $conn->query("SHOW COLUMNS FROM users LIKE 'region'");
+if ($regionColumnRes && $regionColumnRes->num_rows > 0) {
+    $hasUserRegionColumn = true;
+}
+$userQuery = $conn->query("SELECT company, department, email" . ($hasUserRegionColumn ? ", region" : "") . " FROM users WHERE id = $user_id");
 if ($userQuery && $row = $userQuery->fetch_assoc()) {
     $company = (string) ($row['company'] ?? '');
     if ($company !== '') {
@@ -142,6 +148,10 @@ if ($userQuery && $row = $userQuery->fetch_assoc()) {
     if ($user_email === '') {
         $user_email = (string) ($row['email'] ?? '');
         if ($user_email !== '') $_SESSION['email'] = $user_email;
+    }
+    if ($hasUserRegionColumn) {
+        $user_region = (string) ($row['region'] ?? '');
+        $_SESSION['region'] = $user_region;
     }
 }
 
@@ -312,6 +322,71 @@ if ($receivedStmt) {
     }
     $receivedStmt->close();
 }
+
+$isSalesManagerView = ticket_normalize_company((string) $company) === '@leadsagri.com'
+    && strcasecmp((string) $user_department, 'Sales') === 0
+    && trim((string) $user_region) !== ''
+    && (($_SESSION['employee_view_mode'] ?? 'employee') === 'manager');
+$managerSalesTickets = [];
+$managerSalesStatusCounts = [
+    'Open' => 0,
+    'In Progress' => 0,
+    'Resolved' => 0,
+    'Closed' => 0,
+];
+$managerSalesTotal = 0;
+if ($isSalesManagerView) {
+    $regionNeedle = '%Region: ' . trim((string) $user_region) . '%';
+    $managerSalesCountStmt = $conn->prepare("
+        SELECT
+            COUNT(*) AS total_count,
+            SUM(CASE WHEN t.status = 'Open' THEN 1 ELSE 0 END) AS open_count,
+            SUM(CASE WHEN t.status = 'In Progress' THEN 1 ELSE 0 END) AS progress_count,
+            SUM(CASE WHEN t.status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_count,
+            SUM(CASE WHEN t.status = 'Closed' THEN 1 ELSE 0 END) AS closed_count
+        FROM employee_tickets t
+        LEFT JOIN users u ON u.id = t.user_id
+        WHERE LOWER(TRIM(COALESCE(u.email, ''))) = 'sales_guest@leadsagri.com'
+          AND COALESCE(t.description, '') LIKE ?
+          AND COALESCE(NULLIF(t.status,''),'') <> 'Trash'
+    ");
+    if ($managerSalesCountStmt) {
+        $managerSalesCountStmt->bind_param('s', $regionNeedle);
+        $managerSalesCountStmt->execute();
+        $managerSalesCountRow = $managerSalesCountStmt->get_result()->fetch_assoc() ?: [];
+        $managerSalesTotal = (int) ($managerSalesCountRow['total_count'] ?? 0);
+        $managerSalesStatusCounts['Open'] = (int) ($managerSalesCountRow['open_count'] ?? 0);
+        $managerSalesStatusCounts['In Progress'] = (int) ($managerSalesCountRow['progress_count'] ?? 0);
+        $managerSalesStatusCounts['Resolved'] = (int) ($managerSalesCountRow['resolved_count'] ?? 0);
+        $managerSalesStatusCounts['Closed'] = (int) ($managerSalesCountRow['closed_count'] ?? 0);
+        $managerSalesCountStmt->close();
+    }
+
+    $managerSalesStmt = $conn->prepare("
+        SELECT
+            t.*,
+            u.name AS user_name,
+            u.email AS user_email,
+            u.department AS user_department,
+            u.company AS user_company
+        FROM employee_tickets t
+        LEFT JOIN users u ON u.id = t.user_id
+        WHERE LOWER(TRIM(COALESCE(u.email, ''))) = 'sales_guest@leadsagri.com'
+          AND COALESCE(t.description, '') LIKE ?
+          AND COALESCE(NULLIF(t.status,''),'') <> 'Trash'
+        ORDER BY t.created_at DESC, t.id DESC
+        LIMIT 5
+    ");
+    if ($managerSalesStmt) {
+        $managerSalesStmt->bind_param('s', $regionNeedle);
+        $managerSalesStmt->execute();
+        $managerSalesResult = $managerSalesStmt->get_result();
+        while ($managerSalesResult && ($ticketRow = $managerSalesResult->fetch_assoc())) {
+            $managerSalesTickets[] = $ticketRow;
+        }
+        $managerSalesStmt->close();
+    }
+}
 $assignedTotal = array_sum($assignedStatusCounts);
 $assignedDashboardStats = [
     [
@@ -355,10 +430,54 @@ $assignedDashboardStats = [
         'href' => 'my_task.php?status=Closed',
     ],
 ];
-$dashboardStatSets = [
-    'submitted' => $submittedDashboardStats,
-    'assigned' => $assignedDashboardStats,
+$managerSalesDashboardStats = [
+    [
+        'variant' => 'total',
+        'label' => 'Total Tickets',
+        'value' => $managerSalesTotal,
+        'subtitle' => 'All regional sales tickets',
+        'icon' => 'fa-stopwatch',
+        'href' => 'sales_submitted_tickets.php',
+    ],
+    [
+        'variant' => 'open',
+        'label' => 'Open',
+        'value' => $managerSalesStatusCounts['Open'],
+        'subtitle' => 'Awaiting response',
+        'icon' => 'fa-folder-open',
+        'href' => 'sales_submitted_tickets.php?status=Open',
+    ],
+    [
+        'variant' => 'progress',
+        'label' => 'In Progress',
+        'value' => $managerSalesStatusCounts['In Progress'],
+        'subtitle' => 'Currently being worked',
+        'icon' => 'fa-gear',
+        'href' => 'sales_submitted_tickets.php?status=In+Progress',
+    ],
+    [
+        'variant' => 'resolved',
+        'label' => 'Resolved',
+        'value' => $managerSalesStatusCounts['Resolved'],
+        'subtitle' => 'Completed tickets',
+        'icon' => 'fa-check-circle',
+        'href' => 'sales_submitted_tickets.php?status=Resolved',
+    ],
+    [
+        'variant' => 'closed',
+        'label' => 'Closed',
+        'value' => $managerSalesStatusCounts['Closed'],
+        'subtitle' => 'Confirmed by requesters',
+        'icon' => 'fa-lock',
+        'href' => 'sales_submitted_tickets.php?status=Closed',
+    ],
 ];
+$dashboardStatSets = $isSalesManagerView
+    ? ['manager' => $managerSalesDashboardStats]
+    : [
+        'submitted' => $submittedDashboardStats,
+        'assigned' => $assignedDashboardStats,
+    ];
 
 function dashboard_status_class(string $status): string
 {
@@ -420,6 +539,16 @@ function dashboard_requester_info(array $row): array
     ];
 }
 
+function dashboard_sales_position(array $row): string
+{
+    $description = preg_replace('/<br\s*\/?>/i', "\n", (string) ($row['description'] ?? '')) ?? '';
+    if ($description !== '' && preg_match('/^\s*Position:\s*(.+)$/mi', $description, $m)) {
+        $position = trim(strip_tags((string) $m[1]));
+        return $position !== '' ? $position : '-';
+    }
+    return '-';
+}
+
 function dashboard_sla_rank(string $createdAt, string $status, string $priority = ''): int
 {
     $slaLevel = ticket_effective_sla_level($createdAt, $status, $priority);
@@ -442,6 +571,16 @@ function dashboard_priority_badge_html(array $row): string
     }
     $class = dashboard_status_class($priority);
     return '<span class="dashboard-priority-badge dashboard-priority-' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($priority, ENT_QUOTES, 'UTF-8') . '</span>';
+}
+
+function dashboard_urgency_badge_html(string $priority): string
+{
+    $priority = trim($priority);
+    if ($priority === '') return '-';
+    $priorityKey = strtolower($priority);
+    $allowedKeys = ['low', 'medium', 'high', 'critical'];
+    $priorityClass = in_array($priorityKey, $allowedKeys, true) ? $priorityKey : 'low';
+    return '<span class="priority-pill priority-' . htmlspecialchars($priorityClass, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars(ucfirst($priorityKey), ENT_QUOTES, 'UTF-8') . '</span>';
 }
 ?>
 
@@ -1187,6 +1326,107 @@ function dashboard_priority_badge_html(array $row): string
             background: #f8fafc;
         }
 
+        body.employee-dashboard-page .sales-manager-table-card {
+            padding: 18px 24px 20px;
+            overflow: hidden;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+
+        body.employee-dashboard-page .sales-manager-table-card .table-responsive {
+            margin: 0;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-x: auto;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table {
+            width: 100%;
+            margin: 0;
+            border-collapse: collapse;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table th {
+            padding: 16px;
+            background: #f8fafc;
+            color: #1B5E20;
+            border-bottom: 1px solid #1B5E20;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            text-align: left;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table th:first-child {
+            border-top-left-radius: 8px;
+            border-bottom-left-radius: 8px;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table th:last-child {
+            border-top-right-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table td {
+            padding: 16px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table tr.ticket-row:hover td {
+            background-color: #f8fafc;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table .subject-cell {
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table .user-info strong {
+            color: #0f172a;
+            font-weight: 700;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table .user-info small {
+            color: #475569;
+            font-size: 12px;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table .task-ticket-sla .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            min-height: 26px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 1;
+            white-space: nowrap;
+            box-sizing: border-box;
+        }
+
+        body.employee-dashboard-page .sales-manager-admin-table .task-ticket-arrow {
+            color: #64748b;
+            font-size: 22px;
+            line-height: 1;
+            text-align: right;
+        }
+
         body.employee-dashboard-page .dashboard-ticket-id {
             width: 116px;
             color: #334155;
@@ -1301,38 +1541,54 @@ function dashboard_priority_badge_html(array $row): string
 
 
         body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
-            width: min(100%, 560px);
+            width: min(100%, 390px);
+            height: 390px;
             max-height: calc(100vh - 44px);
-            border-radius: 18px;
+            border-radius: 12px;
+            box-shadow: 0 20px 48px rgba(15, 23, 42, 0.28);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header {
-            padding: 28px 44px 24px;
+            padding: 0 34px 20px;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-success-icon {
-            width: 62px;
-            height: 62px;
-            margin-bottom: 18px;
-            font-size: 36px;
+            width: 58px;
+            height: 58px;
+            margin-bottom: 22px;
+            border-width: 2px;
+            background: #f0fbf3;
+            font-size: 30px;
+            font-weight: 400;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-title {
-            margin-bottom: 10px;
-            font-size: 28px;
-            color: #006d2c;
+            margin-bottom: 14px;
+            font-size: 23px;
+            line-height: 1.2;
+            color: #0f172a;
+            font-weight: 600;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-subtitle {
-            font-size: 16px;
+            max-width: 285px;
+            margin: 0 auto;
+            font-size: 15px;
+            line-height: 1.45;
+            color: #5b6473;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
-            padding: 22px 40px 26px;
+            margin: 0 34px;
+            padding: 24px 0 0;
             display: grid;
-            gap: 18px;
-            overflow-y: auto;
-            max-height: calc(100vh - 250px);
+            gap: 0;
+            overflow: visible;
+            max-height: none;
+            border-top: 1px solid #d9dee6;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-flash.is-success {
@@ -1357,26 +1613,34 @@ function dashboard_priority_badge_html(array $row): string
             justify-content: center;
             flex: 0 0 auto;
             background: #dcfce7;
-            color: #00a63a;
+            color: var(--brand-green);
             font-size: 24px;
         }
 
         body.employee-dashboard-page .feedback-success-message-copy strong {
             display: inline;
-            color: #006d2c;
+            color: var(--brand-green);
             font-weight: 800;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-actions {
             justify-content: center;
+            width: 100%;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-submit-btn {
-            width: auto;
-            min-width: 170px;
+            width: 190px;
+            min-width: 190px;
             min-height: 48px;
-            border-radius: 12px;
-            font-size: 15px;
+            border-radius: 999px;
+            background: #1B5E20;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 14px 28px rgba(27, 94, 32, 0.18);
+        }
+
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-submit-btn:hover {
+            background: #144a1a;
         }
 
         @media (max-width: 768px) {
@@ -1386,12 +1650,13 @@ function dashboard_priority_badge_html(array $row): string
 
             body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
                 width: min(100%, 94vw);
+                height: 390px;
             }
 
             body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header,
             body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
-                padding-left: 18px;
-                padding-right: 18px;
+                padding-left: 24px;
+                padding-right: 24px;
             }
 
             body.employee-dashboard-page .feedback-modal-dialog-success .feedback-flash.is-success {
@@ -2611,14 +2876,18 @@ function dashboard_priority_badge_html(array $row): string
                         <!-- 3ï¸âƒ£ HERO SECTION -->
             <div class="hero-section">
                 <div class="hero-copy">
-                    <h1 class="hero-title">Welcome back, <?= htmlspecialchars($_SESSION['name']); ?></h1>
+                    <h1 class="hero-title">Welcome back, <?= $isSalesManagerView ? 'Manager ' : ''; ?><?= htmlspecialchars($_SESSION['name']); ?></h1>
                     <div class="hero-dept">
                         <?php
                             $heroDepartment = trim((string) ($_SESSION['department'] ?? ''));
                             $heroCompanyLabel = ticket_company_display_name((string) $company);
+                            $heroRegion = trim((string) ($user_region ?? ($_SESSION['region'] ?? '')));
+                            $heroIsLapcSales = ticket_normalize_company((string) $company) === '@leadsagri.com'
+                                && strcasecmp($heroDepartment, 'Sales') === 0
+                                && $heroRegion !== '';
                         ?>
                         <?php if ($heroDepartment !== ''): ?>
-                            <?= htmlspecialchars($heroDepartment); ?> Department
+                            <?= htmlspecialchars($heroIsLapcSales ? $heroRegion : ($heroDepartment . ' Department')); ?>
                             <?php if ($heroCompanyLabel !== ''): ?>
                                 <span class="company-text">&bull; <?= htmlspecialchars($heroCompanyLabel); ?></span>
                             <?php endif; ?>
@@ -2626,16 +2895,19 @@ function dashboard_priority_badge_html(array $row): string
                             <?= htmlspecialchars($heroCompanyLabel); ?>
                         <?php endif; ?>
                     </div>
-                    <p class="hero-subtitle">Here's an overview of your helpdesk activity.</p>
+                    <p class="hero-subtitle"><?= $isSalesManagerView ? 'View all ticket submissions from your assigned sales region.' : "Here's an overview of your helpdesk activity."; ?></p>
                 </div>
-                <a href="request_ticket.php" class="hero-action create-ticket-btn">
-                    <i class="fas fa-plus-circle" aria-hidden="true"></i>
-                    <span>Create Ticket</span>
-                </a>
+                <?php if (!$isSalesManagerView): ?>
+                    <a href="request_ticket.php" class="hero-action create-ticket-btn">
+                        <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                        <span>Create Ticket</span>
+                    </a>
+                <?php endif; ?>
             </div>
 
             <!-- 4ï¸âƒ£ STATISTICS CARDS -->
             <div class="cards-panel">
+                <?php if (!$isSalesManagerView): ?>
                 <div class="card-filter-row">
                     <label class="card-filter-label" for="dashboardCardFilter">Show cards:</label>
                     <div class="card-filter-dropdown">
@@ -2664,10 +2936,11 @@ function dashboard_priority_badge_html(array $row): string
                         </div>
                     </div>
                 </div>
+                <?php endif; ?>
 
                 <?php foreach ($dashboardStatSets as $setKey => $stats): ?>
-                    <?php $summarySetLabel = $setKey === 'assigned' ? 'Assigned tickets' : 'My submitted tickets'; ?>
-                    <section class="summary-carousel" data-card-set="<?= htmlspecialchars($setKey, ENT_QUOTES, 'UTF-8') ?>" role="region" aria-label="<?= htmlspecialchars($summarySetLabel, ENT_QUOTES, 'UTF-8') ?> summary carousel" tabindex="0" <?= $setKey === 'assigned' ? '' : 'hidden' ?>>
+                    <?php $summarySetLabel = $setKey === 'manager' ? 'Regional sales tickets' : ($setKey === 'assigned' ? 'Assigned tickets' : 'My submitted tickets'); ?>
+                    <section class="summary-carousel" data-card-set="<?= htmlspecialchars($setKey, ENT_QUOTES, 'UTF-8') ?>" role="region" aria-label="<?= htmlspecialchars($summarySetLabel, ENT_QUOTES, 'UTF-8') ?> summary carousel" tabindex="0" <?= ($setKey === 'assigned' || $setKey === 'manager') ? '' : 'hidden' ?>>
                         <button class="carousel__nav carousel__nav--prev" aria-label="Previous summary" type="button">
                             <span aria-hidden="true">&lsaquo;</span>
                         </button>
@@ -2701,6 +2974,69 @@ function dashboard_priority_badge_html(array $row): string
                 <?php endforeach; ?>
             </div>
 
+            <?php if ($isSalesManagerView): ?>
+            <!-- Mobile divider: visually separates carousel from ticket lists -->
+            <div class="mobile-divider" aria-hidden="false">
+                <div class="mobile-divider__inner">
+                    <span class="mobile-divider__icon" aria-hidden="true">&#10003;</span>
+                    <span class="mobile-divider__title">Recent Sales Submitted Tickets</span>
+                </div>
+            </div>
+
+            <!-- Recent Sales Submitted Tickets Section -->
+            <div class="table-card sales-manager-table-card">
+                <h2 id="managerSalesTicketsTitle" class="dashboard-ticket-title">Recent Submitted Tickets</h2>
+                <div class="table-responsive">
+                    <table class="admin-table sales-manager-admin-table" aria-labelledby="managerSalesTicketsTitle">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Category</th>
+                                <th>Urgency</th>
+                                <th>Requested By</th>
+                                <th>Position</th>
+                                <th>Status</th>
+                                <th>SLA</th>
+                                <th>Date Created</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (count($managerSalesTickets) > 0): ?>
+                                <?php foreach ($managerSalesTickets as $row): ?>
+                                    <?php $status = (string) ($row['status'] ?? ''); ?>
+                                    <?php $requester = dashboard_requester_info($row); ?>
+                                    <tr class="ticket-row sales-manager-ticket-row" data-id="<?= (int) $row['id']; ?>" style="cursor:pointer;">
+                                        <td class="task-ticket-id">#<?= str_pad((string) (int) $row['id'], 6, '0', STR_PAD_LEFT); ?></td>
+                                        <td class="subject-cell task-ticket-category"><strong><?= htmlspecialchars(dashboard_ticket_category($row), ENT_QUOTES, 'UTF-8'); ?></strong></td>
+                                        <td class="task-ticket-urgency"><?= dashboard_urgency_badge_html((string) ($row['priority'] ?? '')); ?></td>
+                                        <td class="task-ticket-requester">
+                                            <div class="user-info">
+                                                <strong><?= htmlspecialchars($requester['name'], ENT_QUOTES, 'UTF-8'); ?></strong><br>
+                                                <small><?= htmlspecialchars($requester['email'], ENT_QUOTES, 'UTF-8'); ?></small>
+                                            </div>
+                                        </td>
+                                        <td class="task-ticket-department"><?= htmlspecialchars(dashboard_sales_position($row), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="task-ticket-status">
+                                            <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($status), ENT_QUOTES, 'UTF-8'); ?>">
+                                                <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
+                                            </span>
+                                        </td>
+                                        <td class="task-ticket-sla"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
+                                        <td class="task-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="9" style="text-align:center; color: #94a3b8; padding: 40px;">No submitted tickets found for this region.</td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <?php else: ?>
             <!-- Mobile divider: visually separates carousel from ticket lists -->
             <div class="mobile-divider" aria-hidden="false">
                 <div class="mobile-divider__inner">
@@ -2821,6 +3157,7 @@ function dashboard_priority_badge_html(array $row): string
                     </table>
                 </section>
             </div>
+            <?php endif; ?>
 
             <div class="recent-section" style="display:none;">
                 <div class="section-header">
@@ -3071,6 +3408,14 @@ function dashboard_priority_badge_html(array $row): string
             var id = this.getAttribute('data-id');
             if (!id) return;
             window.location.href = 'my_tickets.php?ticket_id=' + encodeURIComponent(id);
+        });
+    });
+
+    document.querySelectorAll('.sales-manager-ticket-row').forEach(function (row) {
+        row.addEventListener('click', function () {
+            var id = this.getAttribute('data-id');
+            if (!id) return;
+            window.location.href = 'sales_submitted_tickets.php?ticket_id=' + encodeURIComponent(id);
         });
     });
 

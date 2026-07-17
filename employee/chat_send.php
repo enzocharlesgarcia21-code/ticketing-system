@@ -115,6 +115,48 @@ function is_lapc_hr_ticket(array $ticket): bool
     return $company === '@leadsagri.com' && strcasecmp($group, 'HR') === 0;
 }
 
+function chat_sales_manager_recipient_ids(mysqli $conn, array $ticket): array
+{
+    if (!ticket_is_sales_request_ticket($ticket)) {
+        return [];
+    }
+    $region = ticket_description_field_value($ticket, 'Region');
+    if ($region === '') {
+        return [];
+    }
+
+    $regionColumnRes = $conn->query("SHOW COLUMNS FROM users LIKE 'region'");
+    if (!$regionColumnRes || $regionColumnRes->num_rows === 0) {
+        return [];
+    }
+
+    $stmt = $conn->prepare("
+        SELECT id
+        FROM users
+        WHERE role = 'employee'
+          AND LOWER(TRIM(company)) IN ('@leadsagri.com', 'lapc', 'lapc (@leadsagri.com)', 'leadsagri.com', 'leads agricultural products corporation - lapc')
+          AND LOWER(TRIM(department)) = 'sales'
+          AND LOWER(TRIM(region)) = LOWER(TRIM(?))
+    ");
+    if (!$stmt) {
+        return [];
+    }
+
+    $stmt->bind_param('s', $region);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $ids = [];
+    while ($res && ($row = $res->fetch_assoc())) {
+        $id = (int) ($row['id'] ?? 0);
+        if ($id > 0) {
+            $ids[] = $id;
+        }
+    }
+    $stmt->close();
+
+    return $ids;
+}
+
 $ticket = null;
 $ticketStmt = $conn->prepare("
     SELECT
@@ -126,10 +168,14 @@ $ticketStmt = $conn->prepare("
         t.assigned_group,
         t.assigned_company,
         t.company,
+        t.department,
+        t.description,
         t.subject,
         t.priority,
         t.status,
         t.started_at,
+        requester.email AS created_by_email,
+        requester.department AS user_department,
         COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email
     FROM employee_tickets t
     LEFT JOIN users requester ON requester.id = t.user_id
@@ -154,6 +200,7 @@ $userContext = ticket_build_user_context($conn, $sender_id, $_SESSION);
 $autoProgressStatusChanged = false;
 $handlerId = ticket_chat_effective_handler_id($ticket);
 $fallbackAssigneeId = (int) ($ticket['assigned_user_id'] ?? 0);
+$isSalesManagerForTicket = ticket_user_is_sales_manager_for_ticket($ticket, $userContext);
 if (ticket_chat_is_closed_by_status($ticket)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => ticket_chat_closed_status_message($ticket)]);
@@ -165,7 +212,7 @@ if (!ticket_user_can_chat($ticket, $sender_id, $userContext)) {
     exit;
 }
 
-if ($sender_id !== $requesterId && $sender_id !== $handlerId) {
+if ($sender_id !== $requesterId && $sender_id !== $handlerId && !$isSalesManagerForTicket) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'You are not allowed to send messages']);
     exit;
@@ -243,7 +290,7 @@ if ($insertedAll) {
     }
 
     $recipientIds = [];
-    if ($sender_id === $requesterId) {
+    if ($sender_id === $requesterId || $isSalesManagerForTicket) {
         if (is_lapc_hr_ticket($ticket)) {
             $recipientIds = ticket_find_assignee_ids(
                 $conn,
@@ -254,6 +301,8 @@ if ($insertedAll) {
         if (count($recipientIds) === 0) {
             $recipientIds[] = $handlerId > 0 ? $handlerId : $fallbackAssigneeId;
         }
+    } elseif (ticket_is_sales_request_ticket($ticket)) {
+        $recipientIds = chat_sales_manager_recipient_ids($conn, $ticket);
     } else {
         $recipientIds[] = $requesterId;
     }

@@ -1871,6 +1871,13 @@ $successMessage = '';
         body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-actions {
             border-top: 1px solid #e6e8ef;
         }
+        body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-cancel,
+        body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-submit,
+        body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-cancel,
+        body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-submit {
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: 600;
+        }
         body.employee-my-tickets-page .close-ticket-confirm-cancel,
         body.employee-my-tickets-page .close-ticket-confirm-submit {
             min-width: 130px;
@@ -2590,6 +2597,7 @@ $successMessage = '';
             box-shadow: 0 20px 48px rgba(15, 23, 42, 0.28);
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.75);
+            font-family: 'Segoe UI', sans-serif;
         }
         body.employee-my-tickets-page .feedback-modal-header {
             padding: 0;
@@ -2755,18 +2763,36 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-question-title {
             margin: 0 0 10px;
-            color: #111827;
-            font-size: 17px;
+            color: #0f172a;
+            font-size: 20px;
             line-height: 1.25;
-            font-weight: 400;
+            font-weight: 600;
+            letter-spacing: 0;
         }
         body.employee-my-tickets-page .feedback-question-copy {
             max-width: 250px;
             margin: 0 auto 22px;
-            color: #64748b;
-            font-size: 13px;
-            line-height: 1.5;
+            color: #5b6b80;
+            font-size: 14px;
+            line-height: 1.55;
             font-weight: 400;
+        }
+        body.employee-my-tickets-page .feedback-step-satisfied .feedback-hero-icon {
+            margin-bottom: 12px;
+        }
+        body.employee-my-tickets-page .feedback-step-satisfied .feedback-question-title {
+            margin-bottom: 10px;
+        }
+        body.employee-my-tickets-page .feedback-step-satisfied .feedback-question-copy {
+            max-width: 320px;
+            margin-bottom: 18px;
+            line-height: 1.45;
+        }
+        body.employee-my-tickets-page .feedback-step-satisfied .feedback-choice-stack {
+            gap: 10px;
+        }
+        body.employee-my-tickets-page .feedback-step-satisfied .feedback-footer-note {
+            margin-top: 10px;
         }
         body.employee-my-tickets-page .feedback-choice-stack {
             display: grid;
@@ -2777,10 +2803,10 @@ $successMessage = '';
         body.employee-my-tickets-page .feedback-excellent-btn {
             width: 100%;
             min-height: 50px;
-            border-radius: 6px;
-            font: inherit;
-            font-size: 13px;
-            font-weight: 400;
+            border-radius: 999px;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 14px;
+            font-weight: 800;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -2792,11 +2818,13 @@ $successMessage = '';
             border: 1px solid var(--primary-green);
             background: var(--primary-green);
             color: #ffffff;
+            font-weight: 600;
         }
         body.employee-my-tickets-page .feedback-choice-btn.is-secondary {
             border: 1px solid #e5e7eb;
             background: #ffffff;
             color: #111827;
+            font-weight: 600;
         }
         body.employee-my-tickets-page .feedback-choice-btn:hover,
         body.employee-my-tickets-page .feedback-excellent-btn:hover {
@@ -2808,12 +2836,14 @@ $successMessage = '';
             box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.1);
         }
         body.employee-my-tickets-page .feedback-excellent-btn {
-            max-width: 250px;
-            min-height: 76px;
+            max-width: 270px;
+            min-height: 50px;
             margin: 0 auto;
             border: 1px solid var(--primary-green);
-            background: #ffffff;
-            color: var(--primary-green);
+            border-radius: 999px;
+            background: var(--primary-green);
+            color: #ffffff;
+            box-shadow: 0 14px 26px rgba(27, 94, 32, 0.2);
         }
         body.employee-my-tickets-page .feedback-excellent-close {
             position: absolute;
@@ -2839,27 +2869,58 @@ $successMessage = '';
             outline: none;
         }
         body.employee-my-tickets-page .feedback-step-excellent .feedback-hero-icon {
+            width: 68px;
+            height: 68px;
+            margin-bottom: 18px;
             color: var(--primary-green);
+            font-size: 36px;
+        }
+        body.employee-my-tickets-page .feedback-step-excellent .feedback-question-title {
+            margin-bottom: 12px;
+            font-size: 24px;
+            line-height: 1.1;
+            font-weight: 600;
+        }
+        body.employee-my-tickets-page .feedback-step-excellent .feedback-question-copy {
+            max-width: 285px;
+            margin-bottom: 24px;
+            font-size: 17px;
+            line-height: 1.35;
+        }
+        body.employee-my-tickets-page .feedback-step-excellent .feedback-excellent-close {
+            display: none;
         }
         body.employee-my-tickets-page .feedback-excellent-btn i {
-            font-size: 26px;
+            font-size: 21px;
         }
-        body.employee-my-tickets-page .feedback-excellent-copy {
-            display: grid;
-            gap: 2px;
-            text-align: left;
-        }
-        body.employee-my-tickets-page .feedback-excellent-copy strong {
+        body.employee-my-tickets-page .feedback-excellent-btn span {
             font-size: 17px;
-            line-height: 1.1;
-            color: var(--primary-green);
-            font-weight: 400;
-        }
-        body.employee-my-tickets-page .feedback-excellent-copy span {
-            font-size: 11px;
             line-height: 1.2;
-            color: #0f172a;
-            font-weight: 400;
+            color: #ffffff;
+            font-weight: 600;
+        }
+        body.employee-my-tickets-page .feedback-excellent-support {
+            display: none;
+        }
+        body.employee-my-tickets-page .feedback-excellent-divider {
+            width: 100%;
+            max-width: 300px;
+            height: 1px;
+            margin: 0 auto 24px;
+            background: #d9dee6;
+        }
+        body.employee-my-tickets-page .feedback-excellent-note {
+            max-width: 260px;
+            margin-top: 44px;
+            color: #64748b;
+            font-size: 11px;
+            line-height: 1.4;
+            align-items: flex-start;
+        }
+        body.employee-my-tickets-page .feedback-excellent-note i {
+            color: #94a3b8;
+            font-size: 13px;
+            margin-top: 1px;
         }
         body.employee-my-tickets-page .feedback-comment-panel {
             margin-top: 16px;
@@ -2873,31 +2934,41 @@ $successMessage = '';
             height: 44px;
             margin: 0 auto 10px;
             font-size: 22px;
+            display: inline-flex;
         }
         body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-question-title {
+            display: block;
             margin-bottom: 8px;
-            font-size: 16px;
+            font-size: 20px;
         }
         body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-question-copy {
+            display: block;
             max-width: 260px;
             margin-bottom: 12px;
-            font-size: 12px;
-            line-height: 1.35;
+            font-size: 13px;
+            line-height: 1.45;
         }
         body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-comment-panel {
             margin-top: 0;
-            padding: 10px;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            position: relative;
         }
         body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-textarea {
-            min-height: 68px;
-            max-height: 68px;
+            min-height: 100px;
+            max-height: 100px;
+            padding: 13px 13px 28px;
+            border-color: #1B5E20;
+            border-radius: 7px;
         }
         body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-negative-actions {
-            margin-top: 12px;
+            margin-top: 16px;
         }
         body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-negative-cancel,
         body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-negative-submit {
             min-height: 44px;
+            border-radius: 999px;
         }
         body.employee-my-tickets-page .feedback-comment-label {
             display: block;
@@ -2905,7 +2976,7 @@ $successMessage = '';
             color: #0f172a;
             font-size: 12px;
             line-height: 1.25;
-            font-weight: 400;
+            font-weight: 700;
         }
         body.employee-my-tickets-page .feedback-comment-label small {
             color: #64748b;
@@ -2921,7 +2992,7 @@ $successMessage = '';
             border-radius: 6px;
             resize: none;
             overflow-y: auto;
-            font: inherit;
+            font-family: 'Segoe UI', sans-serif;
             font-size: 12px;
             line-height: 1.45;
             color: #0f172a;
@@ -2938,25 +3009,29 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-comment-count {
             display: block;
-            margin-top: 6px;
+            position: absolute;
+            right: 12px;
+            bottom: 10px;
+            margin-top: 0;
             color: #64748b;
             font-size: 11px;
             font-weight: 400;
             text-align: right;
+            pointer-events: none;
         }
         body.employee-my-tickets-page .feedback-negative-actions {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
-            gap: 12px;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 16px;
             margin-top: 18px;
         }
         body.employee-my-tickets-page .feedback-negative-cancel,
         body.employee-my-tickets-page .feedback-negative-submit {
             min-height: 48px;
             border-radius: 6px;
-            font: inherit;
-            font-size: 13px;
-            font-weight: 400;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
@@ -2965,7 +3040,7 @@ $successMessage = '';
             transition: transform 0.16s ease, box-shadow 0.16s ease;
         }
         body.employee-my-tickets-page .feedback-negative-cancel {
-            border: 1px solid #e5e7eb;
+            border: 1px solid #dbe4ee;
             background: #ffffff;
             color: #0f172a;
         }
@@ -3404,8 +3479,8 @@ $successMessage = '';
                     Do you want to send a follow up for this ticket?
                 </p>
                 <div class="close-ticket-confirm-actions">
-                    <button type="button" id="followUpConfirmBtn" class="close-ticket-confirm-submit">Yes</button>
                     <button type="button" id="followUpCancelBtn" class="close-ticket-confirm-cancel">No</button>
+                    <button type="button" id="followUpConfirmBtn" class="close-ticket-confirm-submit">Yes</button>
                 </div>
             </div>
         </div>
@@ -3433,8 +3508,8 @@ $successMessage = '';
                     Are you sure you want to close this ticket?<br>This will mark the issue as resolved.
                 </p>
                 <div class="close-ticket-confirm-actions">
-                    <button type="button" id="closeTicketConfirmBtn" class="close-ticket-confirm-submit">Close Ticket</button>
                     <button type="button" id="closeTicketCancelBtn" class="close-ticket-confirm-cancel">Cancel</button>
+                    <button type="button" id="closeTicketConfirmBtn" class="close-ticket-confirm-submit">Close Ticket</button>
                 </div>
             </div>
         </div>
@@ -3465,7 +3540,7 @@ $successMessage = '';
                         <div class="feedback-step feedback-step-satisfied is-active" data-feedback-step="satisfied">
                             <div class="feedback-hero-icon" aria-hidden="true"><i class="far fa-comment-dots"></i></div>
                             <h3 class="feedback-question-title">Are you satisfied with our support?</h3>
-                            <p class="feedback-question-copy">Your feedback helps us improve and continue delivering excellent support.</p>
+                            <p class="feedback-question-copy">Let us know about your support experience.<br>Your response helps us improve our service.</p>
                             <div class="feedback-choice-stack">
                                 <button type="button" class="feedback-choice-btn is-primary" id="feedbackSatisfiedBtn">
                                     <i class="far fa-thumbs-up" aria-hidden="true"></i>
@@ -3478,22 +3553,21 @@ $successMessage = '';
                             </div>
                             <div class="feedback-footer-note">
                                 <i class="fas fa-lock" aria-hidden="true"></i>
-                                Your feedback is private and used only to improve our service.
+                                Your response is private and used only to improve our service.
                             </div>
                         </div>
 
                         <div class="feedback-step feedback-step-excellent" data-feedback-step="excellent">
                             <button type="button" class="feedback-excellent-close" id="feedbackExcellentCloseBtn" aria-label="Close feedback">&times;</button>
-                            <div class="feedback-hero-icon feedback-star-hero" aria-hidden="true"><i class="fas fa-star"></i></div>
+                            <div class="feedback-hero-icon feedback-star-hero" aria-hidden="true"><i class="far fa-star"></i></div>
                             <h3 class="feedback-question-title">Thank you!</h3>
                             <p class="feedback-question-copy">We're glad to hear that you had a positive experience.</p>
+                            <div class="feedback-excellent-divider" aria-hidden="true"></div>
                             <button type="submit" class="feedback-excellent-btn" id="feedbackExcellentBtn">
-                                <i class="fas fa-star" aria-hidden="true"></i>
-                                <span class="feedback-excellent-copy">
-                                    <strong>Excellent</strong>
-                                    <span>Mark as Excellent</span>
-                                </span>
+                                <i class="far fa-star" aria-hidden="true"></i>
+                                <span>Mark as Excellent</span>
                             </button>
+                            <p class="feedback-excellent-support">Rate your support experience as excellent.</p>
                         </div>
 
                         <div class="feedback-step feedback-step-dissatisfied" data-feedback-step="dissatisfied">
@@ -3516,7 +3590,6 @@ $successMessage = '';
                                 <button type="button" class="feedback-negative-cancel" id="feedbackNegativeCancelBtn">Cancel</button>
                                 <button type="submit" class="feedback-negative-submit" id="feedbackNegativeSubmitBtn">
                                     Submit Feedback
-                                    <i class="far fa-paper-plane" aria-hidden="true"></i>
                                 </button>
                             </div>
                         </div>
@@ -4152,6 +4225,9 @@ $successMessage = '';
         feedbackModal.querySelectorAll('.feedback-step').forEach(function (stepEl) {
             stepEl.classList.toggle('is-active', stepEl.getAttribute('data-feedback-step') === stepName);
         });
+        if (feedbackCommentEl) {
+            feedbackCommentEl.required = stepName === 'dissatisfied';
+        }
     }
 
     function updateFeedbackCommentCount() {
@@ -4626,7 +4702,13 @@ $successMessage = '';
             }
             updateFeedbackCommentCount();
             setFeedbackRatingValue(5);
-            closeFeedbackModal();
+            setFeedbackSuppressNoticeValue(false);
+            setFeedbackStep('satisfied');
+            window.setTimeout(function () {
+                try {
+                    if (feedbackSatisfiedBtn) feedbackSatisfiedBtn.focus();
+                } catch (e) {}
+            }, 0);
         });
     }
     if (feedbackNegativeSubmitBtn) {

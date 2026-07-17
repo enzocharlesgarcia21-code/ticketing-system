@@ -556,13 +556,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $user_id    = $_SESSION['user_id'];
     $default_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'];
-    $mpdc_categories = ['Engineerings', 'Client Based', 'Others'];
+    $mpdc_categories = ['Engineerings', 'Client Referral', 'Others'];
     $lingap_categories = ['Lakbay Kalusugan Request (Medical Mission)', 'Others'];
     $lapc_department_categories = [
         'Admin & Legal' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
         'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request', 'Others'],
         'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
-        'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
+        'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Incident Report', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
         'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Others'],
         'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
         'Marketing' => ['Marketing Operations', 'Channel & Campaigns', 'Others'],
@@ -601,6 +601,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $certificate_leave_date = trim((string) ($_POST['certificate_leave_date'] ?? ''));
     $certificate_leave_purpose = trim((string) ($_POST['certificate_leave_purpose'] ?? ''));
     $certificate_leave_purpose_other = trim((string) ($_POST['certificate_leave_purpose_other'] ?? ''));
+    $incident_summary = trim((string) ($_POST['incident_summary'] ?? ''));
+    $incident_gdrive_link = trim((string) ($_POST['incident_gdrive_link'] ?? ''));
     $project_name = trim((string) ($_POST['project_name'] ?? ''));
     $area_code = trim((string) ($_POST['area_code'] ?? ''));
     $marketing_department = trim((string) ($_POST['marketing_department'] ?? ''));
@@ -739,6 +741,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $isHrCompanyPropertyRequest = ($isLapcHrTicket && $category === 'Request for Company Property');
     $isHrCertificateEmploymentRequest = ($isLapcHrTicket && $category === 'Certificate of Employment');
     $isHrCertificateLeaveRequest = ($isLapcHrTicket && $category === 'Certificate of Leave');
+    $isHrIncidentReport = ($isLapcHrTicket && $category === 'Incident Report');
     $isLapcItEmailRequest = ($isLapcItTicket && $category === 'Email');
     $isLapcItSapRequest = ($isLapcItTicket && $category === 'SAP');
     $isLapcMarketingTicket = ($assigned_company === '@leadsagri.com' && $assigned_group === 'Marketing' && ($category === 'Marketing Operations' || $category === 'Channel & Campaigns'));
@@ -1059,6 +1062,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             . "Date of Leave: " . $certificate_leave_date . "\n"
             . "Purpose of Leave: " . $certificateLeavePurposeLabel;
     }
+    if ($isHrIncidentReport) {
+        if ($incident_summary === '') {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'error' => 'Please complete the Incident Report form.'], JSON_UNESCAPED_UNICODE);
+                exit();
+            }
+            $_SESSION['error'] = 'Please complete the Incident Report form.';
+            header("Location: request_ticket.php");
+            exit();
+        }
+
+        $subject = 'Incident Report';
+        $description = "Incident Report\n"
+            . "Short Summary of IR: " . $incident_summary;
+        if ($incident_gdrive_link !== '') {
+            $description .= "\nGdrive Link (Video): " . $incident_gdrive_link;
+        }
+    }
     if ($isLapcItSapRequest) {
         if (count($sap_reports) === 0) {
             if ($isAjax) {
@@ -1278,7 +1301,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    if ($requiresKamiAttachment || $isHrMedicalCashAdvance) {
+    if ($requiresKamiAttachment || $isHrMedicalCashAdvance || $isHrIncidentReport) {
         $hasKamiAttachment = false;
         if (isset($_FILES['attachments']) && isset($_FILES['attachments']['error']) && is_array($_FILES['attachments']['error'])) {
             foreach ($_FILES['attachments']['error'] as $attachmentError) {
@@ -1289,9 +1312,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
         if (!$hasKamiAttachment) {
-            $attachmentRequiredMessage = $isHrMedicalCashAdvance
-                ? 'Supporting Information is required for Medical Cash Advance.'
-                : 'Attachment is required for Attendance & Timekeeping.';
+            if ($isHrMedicalCashAdvance) {
+                $attachmentRequiredMessage = 'Supporting Information is required for Medical Cash Advance.';
+            } elseif ($isHrIncidentReport) {
+                $attachmentRequiredMessage = 'Attachment is required for Incident Report.';
+            } else {
+                $attachmentRequiredMessage = 'Attachment is required for Attendance & Timekeeping.';
+            }
             if ($isAjax) {
                 header('Content-Type: application/json; charset=utf-8');
                 http_response_code(400);
@@ -1585,6 +1612,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $ticketMeta['project_deadline'] = $project_deadline;
         $ticketMeta['crop'] = json_encode($crop, JSON_UNESCAPED_UNICODE);
         $ticketMeta['crop_other'] = $crop_other;
+    }
+    if ($isHrIncidentReport && $incident_gdrive_link !== '') {
+        $ticketMeta['incident_gdrive_link'] = $incident_gdrive_link;
     }
     if (count($ticketMeta) > 0) {
         $metaStmt = $conn->prepare("INSERT INTO ticket_request_meta (ticket_id, meta_key, meta_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value)");
@@ -1906,6 +1936,7 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page #marketingDepartmentWrapper .custom-select-menu,
         body.employee-request-ticket-page #requestedMaterialsGroup .custom-select-menu,
         body.employee-request-ticket-page #cropWrapper .custom-select-menu,
+        body.employee-request-ticket-page #concernTypeWrapper .custom-select-menu,
         body.employee-request-ticket-page #urgencyWrapper .custom-select-menu {
             position: absolute;
             top: calc(100% + 8px);
@@ -2263,7 +2294,9 @@ if (count($emailCreationEntries) === 0) {
             border-radius: 22px;
             background: #ffffff;
             box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
-            overflow: hidden;
+            overflow: visible;
+            position: relative;
+            z-index: 20;
         }
         body.employee-request-ticket-page .kami-group.is-visible {
             display: block;
@@ -2283,6 +2316,8 @@ if (count($emailCreationEntries) === 0) {
             display: grid;
             gap: 14px;
             padding: 18px 24px 24px;
+            overflow: visible;
+            position: relative;
         }
         body.employee-request-ticket-page .kami-list .hr-extra-group {
             margin: 0;
@@ -2296,6 +2331,20 @@ if (count($emailCreationEntries) === 0) {
         }
         body.employee-request-ticket-page .kami-list .select-wrapper {
             max-width: 100%;
+        }
+        body.employee-request-ticket-page #concernTypeContainer {
+            position: relative;
+            z-index: 40;
+        }
+        body.employee-request-ticket-page #concernTypeWrapper {
+            position: relative;
+            z-index: 40;
+        }
+        body.employee-request-ticket-page #concernTypeWrapper.is-open {
+            z-index: 220;
+        }
+        body.employee-request-ticket-page #concernTypeWrapper .custom-select-menu {
+            z-index: 240;
         }
         body.employee-request-ticket-page .medical-cash-group {
             display: none;
@@ -2357,6 +2406,18 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page .col-request-group.is-visible {
             display: block;
         }
+        body.employee-request-ticket-page .incident-report-group {
+            display: none;
+            margin-top: 18px;
+            border: 1px solid #dbe4ef;
+            border-radius: 22px;
+            background: #ffffff;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+            overflow: hidden;
+        }
+        body.employee-request-ticket-page .incident-report-group.is-visible {
+            display: block;
+        }
         body.employee-request-ticket-page .sap-request-group {
             display: none;
             margin-top: 18px;
@@ -2410,6 +2471,17 @@ if (count($emailCreationEntries) === 0) {
             font-family: inherit;
         }
         body.employee-request-ticket-page .training-request-head {
+            margin: 0;
+            padding: 18px 24px;
+            background: #1B5E20;
+            box-shadow: inset 0 4px 0 #F4C430;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.25;
+            font-family: inherit;
+        }
+        body.employee-request-ticket-page .incident-report-head {
             margin: 0;
             padding: 18px 24px;
             background: #1B5E20;
@@ -2514,6 +2586,17 @@ if (count($emailCreationEntries) === 0) {
             gap: 14px;
             padding: 18px 24px 24px;
             background: transparent;
+        }
+        body.employee-request-ticket-page .incident-report-list {
+            display: grid;
+            gap: 14px;
+            padding: 18px 24px 24px;
+            background: transparent;
+        }
+        body.employee-request-ticket-page .incident-report-inline-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 14px;
         }
         body.employee-request-ticket-page .company-property-list {
             display: grid;
@@ -2664,6 +2747,13 @@ if (count($emailCreationEntries) === 0) {
             box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
         }
         body.employee-request-ticket-page .training-request-card {
+            border: 1px solid #dbe4ef;
+            border-radius: 14px;
+            background: #ffffff;
+            padding: 20px 24px;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+        }
+        body.employee-request-ticket-page .incident-report-card {
             border: 1px solid #dbe4ef;
             border-radius: 14px;
             background: #ffffff;
@@ -3094,6 +3184,9 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page .training-request-card .form-group {
             margin: 0;
         }
+        body.employee-request-ticket-page .incident-report-card .form-group {
+            margin: 0;
+        }
         body.employee-request-ticket-page .medical-cash-card label {
             display: block;
             margin-bottom: 10px;
@@ -3101,6 +3194,14 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page .training-request-card label {
             display: block;
             margin-bottom: 10px;
+        }
+        body.employee-request-ticket-page .incident-report-card label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        body.employee-request-ticket-page .incident-report-card .optional-label {
+            color: #64748b;
+            font-weight: 600;
         }
         body.employee-request-ticket-page .company-property-copy {
             margin: 0;
@@ -3209,6 +3310,9 @@ if (count($emailCreationEntries) === 0) {
             display: none !important;
         }
         body.employee-request-ticket-page.col-request-section-active #descriptionContainer {
+            display: none !important;
+        }
+        body.employee-request-ticket-page.incident-report-section-active #descriptionContainer {
             display: none !important;
         }
         body.employee-request-ticket-page.sap-request-section-active #descriptionContainer {
@@ -3426,6 +3530,9 @@ if (count($emailCreationEntries) === 0) {
             body.employee-request-ticket-page .training-request-inline-row {
                 grid-template-columns: 1fr;
             }
+            body.employee-request-ticket-page .incident-report-inline-row {
+                grid-template-columns: 1fr;
+            }
             body.employee-request-ticket-page .col-request-inline-row {
                 grid-template-columns: 1fr;
             }
@@ -3634,8 +3741,8 @@ if (count($emailCreationEntries) === 0) {
             align-items: center;
             justify-content: center;
             font-size: 22px;
-            font-weight: 900;
-            box-shadow: none;
+            font-weight: 600;
+            box-shadow: 0 0 0 12px rgba(187, 247, 208, 0.22), 0 0 34px rgba(74, 222, 128, 0.28);
             position: relative;
             z-index: 1;
         }
@@ -3649,8 +3756,8 @@ if (count($emailCreationEntries) === 0) {
             margin: 0 0 12px;
             padding: 0;
             font-size: 24px;
-            font-weight: 800;
-            color: #20274a;
+            font-weight: 600;
+            color: #303957;
             line-height: 1.15;
             letter-spacing: -0.03em;
             position: relative;
@@ -3880,13 +3987,13 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-progress span { width: 100% !important; }
         body.employee-request-ticket-page .ticket-modal-ticket-label,
         body.employee-request-ticket-page .ticket-modal-ticket-number {
-            font-weight: 800;
+            font-weight: 600;
         }
         body.employee-request-ticket-page .ticket-modal-ticket-label {
             color: #3f4861;
         }
         body.employee-request-ticket-page .ticket-modal-ticket-number {
-            color: #14532d;
+            color: #166534;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-progress span { background: linear-gradient(90deg, #ef4444, #f97316); }
         @keyframes follow-up-feedback-spin {
@@ -4471,8 +4578,8 @@ if (count($emailCreationEntries) === 0) {
                         <div class="kami-list">
                             <div class="form-group hr-extra-group" id="concernTypeContainer">
                                 <label>Type of Concern <span class="required-asterisk">*</span></label>
-                                <div class="select-wrapper">
-                                    <select name="hr_concern_type" id="hr_concern_type" class="form-control" data-selected="<?= htmlspecialchars((string) ($_POST['hr_concern_type'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                <div class="select-wrapper" id="concernTypeWrapper">
+                                    <select name="hr_concern_type" id="hr_concern_type" class="form-control custom-select-native" data-selected="<?= htmlspecialchars((string) ($_POST['hr_concern_type'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                         <option value="" disabled selected hidden>Choose type of concern</option>
                                         <option value="KAMI Error: Check IN/OUT">KAMI Error: Check IN/OUT</option>
                                         <option value="KAMI Error: Failed log in attempts">KAMI Error: Failed log in attempts</option>
@@ -4480,7 +4587,11 @@ if (count($emailCreationEntries) === 0) {
                                         <option value="Unpaid leave/overtime pay">Unpaid leave/overtime pay</option>
                                         <option value="Other">Other</option>
                                     </select>
+                                    <button type="button" class="form-control custom-select-trigger" id="concernTypeTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                        <span class="custom-select-value" id="concernTypeTriggerValue">Choose type of concern</span>
+                                    </button>
                                     <i class="fas fa-chevron-down select-icon"></i>
+                                    <div class="custom-select-menu" id="concernTypeMenu" role="listbox" hidden></div>
                                 </div>
                             </div>
                             <div class="form-group hr-extra-group" id="concernTypeOtherContainer">
@@ -4504,6 +4615,27 @@ if (count($emailCreationEntries) === 0) {
                                     placeholder="Enter subject/title of request"
                                 >
                             </div>
+                        </div>
+                    </section>
+
+                    <section class="incident-report-group" id="incidentReportSection">
+                        <h3 class="incident-report-head">Request Details</h3>
+                        <div class="incident-report-list">
+                            <section class="incident-report-card">
+                                <div class="form-group">
+                                    <label for="incident_summary">Short Summary of IR (Upload file with signature) <span class="required-asterisk">*</span></label>
+                                    <textarea name="incident_summary" id="incident_summary" class="form-control" placeholder="Provide a short summary of the incident report..." style="resize:none;" rows="4"><?= htmlspecialchars((string) ($_POST['incident_summary'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                </div>
+                            </section>
+                            <section class="incident-report-card">
+                                <div id="incidentReportAttachmentHost"></div>
+                            </section>
+                            <section class="incident-report-card">
+                                <div class="form-group">
+                                    <label for="incident_gdrive_link">Google Drive Link <span class="optional-label">(Optional)</span></label>
+                                    <input type="url" name="incident_gdrive_link" id="incident_gdrive_link" class="form-control" value="<?= htmlspecialchars((string) ($_POST['incident_gdrive_link'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Paste Google Drive video link">
+                                </div>
+                            </section>
                         </div>
                     </section>
 
@@ -5395,6 +5527,10 @@ if (count($emailCreationEntries) === 0) {
         const kamiBannerContainer = document.getElementById('kamiBannerContainer');
         const concernTypeContainer = document.getElementById('concernTypeContainer');
         const concernTypeSelect = document.getElementById('hr_concern_type');
+        const concernTypeWrapper = document.getElementById('concernTypeWrapper');
+        const concernTypeTrigger = document.getElementById('concernTypeTrigger');
+        const concernTypeTriggerValue = document.getElementById('concernTypeTriggerValue');
+        const concernTypeMenu = document.getElementById('concernTypeMenu');
         const concernTypeOtherContainer = document.getElementById('concernTypeOtherContainer');
         const concernTypeOtherInput = document.getElementById('hr_concern_type_other');
         const leaveSubjectContainer = document.getElementById('leaveSubjectContainer');
@@ -5404,6 +5540,10 @@ if (count($emailCreationEntries) === 0) {
         const medicalCashAmountInput = document.getElementById('medical_cash_amount');
         const medicalCashDateNeededInput = document.getElementById('medical_cash_date_needed');
         const medicalCashAttachmentHost = document.getElementById('medicalCashAttachmentHost');
+        const incidentReportSection = document.getElementById('incidentReportSection');
+        const incidentReportAttachmentHost = document.getElementById('incidentReportAttachmentHost');
+        const incidentSummaryInput = document.getElementById('incident_summary');
+        const incidentGdriveLinkInput = document.getElementById('incident_gdrive_link');
         const trainingRequestSection = document.getElementById('trainingRequestSection');
         const trainingRequestTitleInput = document.getElementById('training_request_title');
         const trainingRequestProviderInput = document.getElementById('training_request_provider');
@@ -5522,13 +5662,13 @@ if (count($emailCreationEntries) === 0) {
             '@malvedaholdings.com': mhcDepartments
         };
         const defaultCategories = <?= json_encode(['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const mpdcCategories = <?= json_encode(['Engineerings', 'Client Based', 'Others'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const mpdcCategories = <?= json_encode(['Engineerings', 'Client Referral', 'Others'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lingapCategories = <?= json_encode(['Lakbay Kalusugan Request (Medical Mission)', 'Others'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lapcDepartmentCategories = <?= json_encode([
             'Admin & Legal' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
             'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request', 'Others'],
             'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
-            'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
+            'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Incident Report', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
             'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Others'],
             'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
             'Marketing' => ['Marketing Operations', 'Channel & Campaigns', 'Others'],
@@ -6318,6 +6458,53 @@ if (count($emailCreationEntries) === 0) {
             syncUrgencyTriggerLabel();
             renderUrgencyDropdownOptions();
         }
+        function closeConcernTypeDropdown() {
+            if (!concernTypeWrapper || !concernTypeTrigger || !concernTypeMenu) return;
+            concernTypeWrapper.classList.remove('is-open');
+            concernTypeTrigger.setAttribute('aria-expanded', 'false');
+            concernTypeMenu.hidden = true;
+        }
+        function syncConcernTypeTriggerLabel() {
+            if (!concernTypeSelect || !concernTypeTriggerValue) return;
+            const selectedOption = concernTypeSelect.options[concernTypeSelect.selectedIndex];
+            const placeholderOption = concernTypeSelect.querySelector('option[value=""]');
+            const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
+                ? String(selectedOption.textContent || '').trim()
+                : String((placeholderOption && placeholderOption.textContent) || 'Choose type of concern').trim();
+            concernTypeTriggerValue.textContent = nextLabel || 'Choose type of concern';
+        }
+        function renderConcernTypeDropdownOptions() {
+            if (!concernTypeSelect || !concernTypeMenu || !concernTypeTrigger) return;
+            const currentValue = String(concernTypeSelect.value || '');
+            const options = Array.from(concernTypeSelect.options).filter(function(option) {
+                return String(option.value || '') !== '';
+            });
+            concernTypeMenu.innerHTML = '';
+            options.forEach(function(option) {
+                const optionValue = String(option.value || '');
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'custom-select-option' + (currentValue === optionValue ? ' is-selected' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', currentValue === optionValue ? 'true' : 'false');
+                item.textContent = String(option.textContent || optionValue);
+                item.addEventListener('click', function() {
+                    concernTypeSelect.value = optionValue;
+                    concernTypeSelect.setAttribute('data-selected', optionValue);
+                    syncConcernTypeTriggerLabel();
+                    renderConcernTypeDropdownOptions();
+                    closeConcernTypeDropdown();
+                    concernTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    concernTypeTrigger.focus();
+                });
+                concernTypeMenu.appendChild(item);
+            });
+            syncConcernTypeTriggerLabel();
+            concernTypeTrigger.disabled = !!concernTypeSelect.disabled;
+            if (concernTypeSelect.disabled) {
+                closeConcernTypeDropdown();
+            }
+        }
         function isLapcHrSelection() {
             const recipientValue = recipientDropdown ? String(recipientDropdown.value || '') : '';
             const departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
@@ -7011,6 +7198,7 @@ if (count($emailCreationEntries) === 0) {
             const shouldShowCompanyPropertyRequest = shouldShow && selectedCategory === 'Request for Company Property';
             const shouldShowCoeRequest = shouldShow && selectedCategory === 'Certificate of Employment';
             const shouldShowColRequest = shouldShow && selectedCategory === 'Certificate of Leave';
+            const shouldShowIncidentReport = shouldShow && selectedCategory === 'Incident Report';
             const shouldShowEmailRequest = isLapcItSelection() && selectedCategory === 'Email';
             const shouldShowEmailCreation = shouldShowEmailRequest && emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === 'creation of email';
             const shouldShowEmailDefault = shouldShowEmailRequest && emailRequestTypeSelect && String(emailRequestTypeSelect.value || '') === '';
@@ -7019,6 +7207,7 @@ if (count($emailCreationEntries) === 0) {
             const shouldShowSapRequest = isLapcItSelection() && selectedCategory === 'SAP';
             const shouldRequireKamiAttachment = shouldShowConcernType;
             const shouldRequireMedicalAttachment = shouldShowMedicalCashAdvance;
+            const shouldRequireIncidentAttachment = shouldShowIncidentReport;
             setUrgencyOptions('hr');
             document.body.classList.toggle('kami-section-active', shouldShowConcernType);
             document.body.classList.toggle('other-section-active', shouldShowOtherDetailsStyle);
@@ -7027,6 +7216,7 @@ if (count($emailCreationEntries) === 0) {
             document.body.classList.toggle('company-property-section-active', shouldShowCompanyPropertyRequest);
             document.body.classList.toggle('coe-request-section-active', shouldShowCoeRequest);
             document.body.classList.toggle('col-request-section-active', shouldShowColRequest);
+            document.body.classList.toggle('incident-report-section-active', shouldShowIncidentReport);
             document.body.classList.toggle('sap-request-section-active', shouldShowSapRequest);
             document.body.classList.toggle('email-request-section-active', shouldShowEmailRequest);
             document.body.classList.toggle('marketing-request-section-active', shouldShowMarketingRequest);
@@ -7047,6 +7237,9 @@ if (count($emailCreationEntries) === 0) {
             }
             if (colRequestSection) {
                 colRequestSection.classList.toggle('is-visible', shouldShowColRequest);
+            }
+            if (incidentReportSection) {
+                incidentReportSection.classList.toggle('is-visible', shouldShowIncidentReport);
             }
             const shouldShowCertificateLeavePurposeOther = shouldShowColRequest && certificateLeavePurposeSelect && String(certificateLeavePurposeSelect.value || '') === 'Others';
             if (emailRequestSection) {
@@ -7102,7 +7295,7 @@ if (count($emailCreationEntries) === 0) {
                 }
             });
             if (descriptionContainer) {
-                descriptionContainer.style.display = (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest || shouldShowEmailCreation) ? 'none' : '';
+                descriptionContainer.style.display = (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowIncidentReport || shouldShowSapRequest || shouldShowEmailCreation) ? 'none' : '';
             }
             if (attachmentContainer) {
                 attachmentContainer.style.display = (shouldShowSssBenefits || shouldShowSapRequest || shouldShowEmailRequest || shouldShowMarketingRequest) ? 'none' : '';
@@ -7117,10 +7310,10 @@ if (count($emailCreationEntries) === 0) {
                 attachmentFieldButton.tabIndex = (shouldShowSssBenefits || shouldShowEmailRequest || shouldShowMarketingRequest) ? -1 : 0;
             }
             if (attachmentOptionalText) {
-                attachmentOptionalText.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment) ? 'none' : '';
+                attachmentOptionalText.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment || shouldRequireIncidentAttachment) ? 'none' : '';
             }
             if (attachmentRequiredAsterisk) {
-                attachmentRequiredAsterisk.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment) ? '' : 'none';
+                attachmentRequiredAsterisk.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment || shouldRequireIncidentAttachment) ? '' : 'none';
             }
             syncAttachmentCopy(shouldShowMarketingRequest ? 'marketing' : (shouldShowMedicalCashAdvance ? 'medical' : (shouldRequireKamiAttachment ? 'kami' : 'default')));
             urgencyContainer.classList.toggle('is-visible', shouldShowUrgency);
@@ -7158,7 +7351,7 @@ if (count($emailCreationEntries) === 0) {
                 }
             }
             if (descriptionField) {
-                if (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowSapRequest || shouldShowEmailCreation) {
+                if (shouldShowSssBenefits || shouldShowMedicalCashAdvance || shouldShowTrainingRequest || shouldShowCompanyPropertyRequest || shouldShowCoeRequest || shouldShowColRequest || shouldShowIncidentReport || shouldShowSapRequest || shouldShowEmailCreation) {
                     descriptionField.removeAttribute('required');
                     if (shouldShowSssBenefits && descriptionField.value.trim() === '') {
                         descriptionField.value = sssAutoDescription;
@@ -7243,6 +7436,18 @@ if (count($emailCreationEntries) === 0) {
                     certificateLeavePurposeOtherInput.value = '';
                 }
             }
+            [incidentSummaryInput].forEach(function(input) {
+                if (!input) return;
+                if (shouldShowIncidentReport) input.setAttribute('required', 'required');
+                else input.removeAttribute('required');
+            });
+            if (incidentGdriveLinkInput) {
+                incidentGdriveLinkInput.disabled = !shouldShowIncidentReport;
+                incidentGdriveLinkInput.removeAttribute('required');
+                if (!shouldShowIncidentReport) {
+                    incidentGdriveLinkInput.value = '';
+                }
+            }
             if (emailRequestTypeSelect) {
                 if (shouldShowEmailRequest) {
                     emailRequestTypeSelect.setAttribute('required', 'required');
@@ -7307,7 +7512,9 @@ if (count($emailCreationEntries) === 0) {
                 priorityHidden.value = '';
             }
 
-            if (shouldShowMedicalCashAdvance && medicalCashAttachmentHost) {
+            if (shouldShowIncidentReport && incidentReportAttachmentHost) {
+                moveAttachmentContainer(incidentReportAttachmentHost);
+            } else if (shouldShowMedicalCashAdvance && medicalCashAttachmentHost) {
                 moveAttachmentContainer(medicalCashAttachmentHost);
             } else if (attachmentOriginalHost) {
                 moveAttachmentContainer(attachmentOriginalHost);
@@ -7683,7 +7890,40 @@ if (count($emailCreationEntries) === 0) {
                 concernTypeSelect.value = selectedConcernType;
             }
             concernTypeSelect.addEventListener('change', function() {
+                concernTypeSelect.setAttribute('data-selected', String(concernTypeSelect.value || ''));
+                syncConcernTypeTriggerLabel();
+                renderConcernTypeDropdownOptions();
                 toggleHrExtraFields();
+            });
+            renderConcernTypeDropdownOptions();
+        }
+        if (concernTypeTrigger && concernTypeMenu && concernTypeWrapper) {
+            concernTypeTrigger.addEventListener('click', function() {
+                if (concernTypeTrigger.disabled) return;
+                const shouldOpen = concernTypeMenu.hidden;
+                closeConcernTypeDropdown();
+                if (!shouldOpen) return;
+                renderConcernTypeDropdownOptions();
+                closeRecipientDropdown();
+                closeDepartmentDropdown();
+                closeCategoryDropdown();
+                closeAdminLegalRequestForDropdown();
+                closeMarketingSubcategoryDropdown();
+                closeEmailRequestTypeDropdown();
+                closeUrgencyDropdown();
+                concernTypeWrapper.classList.add('is-open');
+                concernTypeTrigger.setAttribute('aria-expanded', 'true');
+                concernTypeMenu.hidden = false;
+            });
+            document.addEventListener('click', function(event) {
+                if (!concernTypeWrapper.contains(event.target)) {
+                    closeConcernTypeDropdown();
+                }
+            });
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeConcernTypeDropdown();
+                }
             });
         }
         if (certificateLeavePurposeSelect) {
@@ -8392,6 +8632,7 @@ if (count($emailCreationEntries) === 0) {
                 var isLapcMarketingSelected = false;
                 var isMhcMarketingSelected = false;
                 var isHrSssSelected = false;
+                var isIncidentReportAttachmentRequired = false;
                 var selectedCategory = '';
                 if (recipientDropdown && departmentSelect && categorySelect) {
                     selectedCategory = String(categorySelect.value || '');
@@ -8413,6 +8654,9 @@ if (count($emailCreationEntries) === 0) {
                     isHrSssSelected =
                         isLapcHrSelected &&
                         selectedCategory === 'SSS Sickness and Benefit Concern';
+                    isIncidentReportAttachmentRequired =
+                        isLapcHrSelected &&
+                        selectedCategory === 'Incident Report';
                 }
                 setInlineFormError('');
                 var badType = Array.from(dt.files).find(function (file) {
@@ -8608,6 +8852,18 @@ if (count($emailCreationEntries) === 0) {
                     if (certificateLeavePurposeSelect && String(certificateLeavePurposeSelect.value || '') === 'Others' && certificateLeavePurposeOtherInput && !String(certificateLeavePurposeOtherInput.value || '').trim()) {
                         e.preventDefault();
                         setInlineFormError('Please complete the Certificate of Leave form.');
+                        return;
+                    }
+                }
+                if (isLapcHrSelected && selectedCategory === 'Incident Report') {
+                    if (incidentSummaryInput && !String(incidentSummaryInput.value || '').trim()) {
+                        e.preventDefault();
+                        setInlineFormError('Please complete the Incident Report form.');
+                        return;
+                    }
+                    if (isIncidentReportAttachmentRequired && dt.files.length === 0) {
+                        e.preventDefault();
+                        showError('Attachment is required for Incident Report.');
                         return;
                     }
                 }
