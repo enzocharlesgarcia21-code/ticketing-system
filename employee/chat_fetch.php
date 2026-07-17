@@ -27,6 +27,13 @@ $current_user_id = $_SESSION['user_id'];
 $userContext = ticket_build_user_context($conn, $current_user_id, $_SESSION);
 $current_user_email = strtolower(trim((string) ($userContext['email'] ?? '')));
 $current_user_department = ticket_department_key_from_value((string) ($userContext['department'] ?? ''));
+$current_user_company = ticket_normalize_company((string) ($userContext['company'] ?? ''));
+$current_user_region = trim((string) ($userContext['region'] ?? ''));
+$is_lapc_sales_user = $current_user_company === '@leadsagri.com'
+    && strcasecmp((string) ($userContext['department'] ?? ''), 'Sales') === 0
+    && $current_user_region !== '';
+$is_lapc_sales_manager_view = $is_lapc_sales_user
+    && strcasecmp((string) ($userContext['employee_view_mode'] ?? ''), 'manager') === 0;
 $companyAliases = ticket_company_aliases((string) ($userContext['company'] ?? ''));
 if (count($companyAliases) === 0) {
     $rawCompany = trim((string) ($userContext['company'] ?? ''));
@@ -281,8 +288,12 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             t.assigned_group,
             t.assigned_department,
             t.company,
+            t.department,
+            t.description,
             t.status,
             t.started_at,
+            requester.email AS created_by_email,
+            requester.department AS user_department,
             COALESCE(NULLIF(t.requester_name, ''), requester.name) AS requester_name,
             COALESCE(NULLIF(t.requester_email, ''), requester.email) AS requester_email,
             assignee.name AS assignee_name,
@@ -329,48 +340,63 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
     $params = [$current_user_id, $current_user_id, $current_user_id, $current_user_id, $current_user_id];
     $types = 'iiiii';
 
-    $sql .= " WHERE (t.user_id = ? OR t.assigned_to = ? OR t.assigned_user_id = ?";
-    $params[] = $current_user_id;
-    $types .= 'i';
-    $params[] = $current_user_id;
-    $types .= 'i';
-    $params[] = $current_user_id;
-    $types .= 'i';
-    if ($current_user_email !== '') {
-        $sql .= " OR LOWER(COALESCE(NULLIF(t.requester_email, ''), requester.email, '')) = ? ";
-        $params[] = $current_user_email;
+    if ($is_lapc_sales_manager_view) {
+        $sql .= "
+            WHERE LOWER(TRIM(COALESCE(requester.email, ''))) = 'sales_guest@leadsagri.com'
+              AND COALESCE(t.description, '') LIKE ?
+              AND t.status IN ('Open', 'In Progress', 'Resolved', 'Closed')
+        ";
+        $params[] = '%Region: ' . $current_user_region . '%';
         $types .= 's';
+    } else {
+        $sql .= " WHERE (t.user_id = ? OR t.assigned_to = ? OR t.assigned_user_id = ?";
+        $params[] = $current_user_id;
+        $types .= 'i';
+        $params[] = $current_user_id;
+        $types .= 'i';
+        $params[] = $current_user_id;
+        $types .= 'i';
+        if ($current_user_email !== '') {
+            $sql .= " OR LOWER(COALESCE(NULLIF(t.requester_email, ''), requester.email, '')) = ? ";
+            $params[] = $current_user_email;
+            $types .= 's';
+        }
+        if (!$is_lapc_sales_user) {
+            $sql .= " OR (
+                t.user_id <> ?
+                AND $companyMatchClause
+                AND ((NOT $requiresGroupClause) OR (? = '' OR $taskDeptExpr = ?))
+                AND (t.assigned_to IS NULL OR $sharedHrClause)
+            )";
+            $params[] = $current_user_id;
+            $types .= 'i';
+            $params[] = $current_user_email;
+            $types .= 's';
+            foreach ($companyAliases as $alias) {
+                $params[] = $alias;
+                $types .= 's';
+            }
+            $params[] = $current_user_department;
+            $types .= 's';
+            $params[] = $current_user_department;
+            $types .= 's';
+        }
+        $sql .= " OR EXISTS (
+            SELECT 1
+            FROM ticket_messages tm_access
+            WHERE tm_access.ticket_id = t.id
+              AND tm_access.sender_id = ?
+        )";
+        $params[] = $current_user_id;
+        $types .= 'i';
+        $sql .= ") AND t.status IN ('Open', 'In Progress', 'Resolved', 'Closed') ";
+        if ($is_lapc_sales_user) {
+            $sql .= " AND LOWER(TRIM(COALESCE(requester.email, ''))) <> 'sales_guest@leadsagri.com' ";
+        }
     }
-    $sql .= " OR (
-        t.user_id <> ?
-        AND $companyMatchClause
-        AND ((NOT $requiresGroupClause) OR (? = '' OR $taskDeptExpr = ?))
-        AND (t.assigned_to IS NULL OR $sharedHrClause)
-    )";
-    $params[] = $current_user_id;
-    $types .= 'i';
-    $params[] = $current_user_email;
-    $types .= 's';
-    foreach ($companyAliases as $alias) {
-        $params[] = $alias;
-        $types .= 's';
-    }
-    $params[] = $current_user_department;
-    $types .= 's';
-    $params[] = $current_user_department;
-    $types .= 's';
-    $sql .= " OR EXISTS (
-        SELECT 1
-        FROM ticket_messages tm_access
-        WHERE tm_access.ticket_id = t.id
-          AND tm_access.sender_id = ?
-    )";
-    $params[] = $current_user_id;
-    $types .= 'i';
-    $sql .= ") AND t.status IN ('Open', 'In Progress', 'Resolved', 'Closed') ";
 
     $sql .= "
-        GROUP BY t.id, t.subject, t.category, t.user_id, t.assigned_user_id, t.assigned_to, t.assigned_company, t.assigned_group, t.assigned_department, t.company, t.status, t.started_at, t.requester_name, t.requester_email, requester.name, requester.email, requester.last_seen_at, assignee.name, assignee.email, assignee.department, handler.name, handler.last_seen_at
+        GROUP BY t.id, t.subject, t.category, t.user_id, t.assigned_user_id, t.assigned_to, t.assigned_company, t.assigned_group, t.assigned_department, t.company, t.department, t.description, t.status, t.started_at, t.requester_name, t.requester_email, requester.name, requester.email, requester.department, requester.last_seen_at, assignee.name, assignee.email, assignee.department, handler.name, handler.last_seen_at
         HAVING COUNT(tm.id) > 0
         ORDER BY COALESCE(MAX(tm.created_at), MAX(t.created_at)) DESC
         LIMIT 50
@@ -398,10 +424,11 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
         $ticketRow = ticket_chat_apply_effective_handler($r);
         $chatClosedMessage = ticket_chat_closed_status_message($ticketRow);
         $canChat = ticket_user_can_chat($ticketRow, $current_user_id, $userContext);
+        $isSalesManagerForRow = ticket_user_is_sales_manager_for_ticket($ticketRow, $userContext);
         $historyThreadId = ticket_chat_latest_participated_thread_id($conn, (int) ($r['id'] ?? 0), $current_user_id);
         $canViewLockedHistory = !$canChat && $historyThreadId > 0;
         $isRequesterForRow = ticket_user_matches_requester($ticketRow, $current_user_id, $userContext);
-        $canViewVisibleMessages = $canChat || $isRequesterForRow || $canViewLockedHistory;
+        $canViewVisibleMessages = $canChat || $isRequesterForRow || $canViewLockedHistory || $isSalesManagerForRow;
         $partnerLastSeenAt = ((int) ($r['user_id'] ?? 0) === $current_user_id)
             ? (string) ($r['handler_last_seen_at'] ?? '')
             : (string) ($r['requester_last_seen_at'] ?? '');
@@ -454,7 +481,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'conversations') {
             'last_message_time' => $lastMessageTime,
             'ticket_created_at' => (string) $r['ticket_created_at'],
             'unread_count_raw' => $canViewLockedHistory ? 0 : (int) $r['unread_count'],
-            'unread_count' => $canChat ? (int) $r['unread_count'] : 0,
+            'unread_count' => ($canChat || $isSalesManagerForRow) ? (int) $r['unread_count'] : 0,
             'last_message' => $canViewVisibleMessages ? $lastMessage : '',
             'last_sender_name' => $canViewVisibleMessages ? $lastSenderName : '',
             'can_chat' => $canChat,
@@ -486,13 +513,18 @@ $check = $conn->prepare("
         t.assigned_group,
         t.assigned_company,
         t.company,
+        t.department,
+        t.description,
         t.status,
         t.started_at,
+        requester.email AS created_by_email,
+        requester.department AS user_department,
         assignee.name AS assignee_name,
         assignee.email AS assignee_email,
         assignee.department AS assignee_department,
         handler.name AS assigned_to_name
     FROM employee_tickets t
+    LEFT JOIN users requester ON requester.id = t.user_id
     LEFT JOIN users assignee ON assignee.id = t.assigned_user_id
     LEFT JOIN users handler ON handler.id = t.assigned_to
     WHERE t.id = ? LIMIT 1
@@ -509,11 +541,18 @@ if (!$ticket) {
     echo json_encode(['error' => 'Ticket not found']);
     exit;
 }
+$ticketRequesterEmail = strtolower(trim((string) ($ticket['created_by_email'] ?? '')));
+if ($is_lapc_sales_user && !$is_lapc_sales_manager_view && $ticketRequesterEmail === 'sales_guest@leadsagri.com') {
+    http_response_code(403);
+    echo json_encode(['error' => 'This chat is only available in manager view.']);
+    exit;
+}
 $ticket = ticket_chat_apply_effective_handler($ticket);
 $requesterId = (int) ($ticket['user_id'] ?? 0);
 $handlerId = ticket_chat_effective_handler_id($ticket);
 $handlerName = trim((string) ($ticket['assigned_to_name'] ?? ''));
 $chatClosedMessage = ticket_chat_closed_status_message($ticket);
+$isSalesManagerForTicket = ticket_user_is_sales_manager_for_ticket($ticket, $userContext);
 $canChatForTicket = ticket_user_can_chat($ticket, $current_user_id, $userContext);
 $chatThreadId = ticket_chat_current_thread_id($conn, $ticket_id);
 $historyThreadId = ticket_chat_latest_participated_thread_id($conn, $ticket_id, $current_user_id);
@@ -523,6 +562,7 @@ $canViewClosedChat = $chatClosedMessage !== '' && (
     $isRequester
     || $handlerId === $current_user_id
     || (int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id
+    || $isSalesManagerForTicket
 );
 if (!$canChatForTicket && !$canViewClosedChat && !$isHistoryOnlyView) {
     http_response_code(403);
@@ -539,7 +579,7 @@ if (!$canChatForTicket && !$canViewClosedChat && !$isHistoryOnlyView) {
 $canManageChat = $canChatForTicket;
 $isCurrentAssignee = ((int) ($ticket['assigned_to'] ?? 0) === $current_user_id)
     || ((int) ($ticket['assigned_user_id'] ?? 0) === $current_user_id);
-$fetchAllTicketThreads = $isRequester || $canChatForTicket;
+$fetchAllTicketThreads = $isRequester || $canChatForTicket || $isSalesManagerForTicket;
 if ($isHistoryOnlyView && !$fetchAllTicketThreads) {
     $chatThreadId = $historyThreadId;
 }

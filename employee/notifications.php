@@ -2,8 +2,10 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/notification_service.php';
+require_once '../includes/ticket_assignment.php';
 
 notif_ensure_action_type_column($conn);
+notif_ensure_title_column($conn);
 notif_ensure_requester_identity_columns($conn);
 
 /* Protect page */
@@ -23,10 +25,149 @@ if ($user_email === '') {
 }
 $requesterNotificationAccessSql = "(n.type <> 'note_added' OR t.user_id = n.user_id OR LOWER(TRIM(COALESCE(t.requester_email, ''))) = ?)";
 
+function employee_notifications_manager_allowed_sql(string $alias = 'n'): string
+{
+    $a = preg_replace('/[^a-z0-9_]/i', '', $alias);
+    if ($a === '') $a = 'n';
+    return "(
+        COALESCE($a.action_type, '') = 'claim'
+        OR COALESCE($a.action_type, '') = 'reassign'
+        OR $a.type IN ('ticket_claimed', 'claim_ticket', 'reassigned', 'status_update')
+    )";
+}
+
+function employee_notifications_is_sales_manager(mysqli $conn, int $userId): array
+{
+    $company = trim((string) ($_SESSION['company'] ?? ''));
+    $department = trim((string) ($_SESSION['department'] ?? ''));
+    $region = trim((string) ($_SESSION['region'] ?? ''));
+    $hasRegionColumn = false;
+    $regionColumnRes = $conn->query("SHOW COLUMNS FROM users LIKE 'region'");
+    if ($regionColumnRes && $regionColumnRes->num_rows > 0) {
+        $hasRegionColumn = true;
+    }
+
+    if ($userId > 0 && ($company === '' || $department === '' || ($hasRegionColumn && $region === ''))) {
+        $stmt = $conn->prepare("SELECT company, department" . ($hasRegionColumn ? ", region" : "") . " FROM users WHERE id = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param('i', $userId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
+            $stmt->close();
+            if ($row) {
+                $company = trim((string) ($row['company'] ?? $company));
+                $department = trim((string) ($row['department'] ?? $department));
+                if ($hasRegionColumn) {
+                    $region = trim((string) ($row['region'] ?? $region));
+                }
+                $_SESSION['company'] = $company;
+                $_SESSION['department'] = $department;
+                $_SESSION['region'] = $region;
+            }
+        }
+    }
+
+    $eligible = (($_SESSION['employee_view_mode'] ?? '') === 'manager')
+        && ticket_normalize_company($company) === '@leadsagri.com'
+        && strcasecmp($department, 'Sales') === 0
+        && $region !== '';
+
+    return [$eligible, $region];
+}
+
+function employee_notifications_is_lapc_sales_user(): bool
+{
+    return function_exists('ticket_normalize_company')
+        && ticket_normalize_company((string) ($_SESSION['company'] ?? '')) === '@leadsagri.com'
+        && strcasecmp((string) ($_SESSION['department'] ?? ''), 'Sales') === 0
+        && trim((string) ($_SESSION['region'] ?? '')) !== '';
+}
+
+function employee_notifications_sync_sales_manager(mysqli $conn, int $userId, string $region): void
+{
+    if ($userId <= 0 || $region === '') return;
+    $regionNeedle = '%Region: ' . $region . '%';
+    $allowedSql = employee_notifications_manager_allowed_sql('n');
+    $stmt = $conn->prepare("
+        SELECT n.ticket_id, n.title, n.message, n.type, n.action_type, n.created_at
+        FROM notifications n
+        INNER JOIN employee_tickets t ON t.id = n.ticket_id
+        LEFT JOIN users creator ON creator.id = t.user_id
+        WHERE n.user_id <> ?
+          AND n.type <> 'chat_message'
+          AND $allowedSql
+          AND LOWER(TRIM(COALESCE(creator.email, ''))) = 'sales_guest@leadsagri.com'
+          AND COALESCE(t.description, '') LIKE ?
+        ORDER BY n.created_at DESC, n.id DESC
+        LIMIT 200
+    ");
+    if (!$stmt) return;
+    $stmt->bind_param('is', $userId, $regionNeedle);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $rows = [];
+    while ($res && ($row = $res->fetch_assoc())) {
+        $rows[] = $row;
+    }
+    $stmt->close();
+
+    $existsStmt = $conn->prepare("SELECT id FROM notifications WHERE user_id = ? AND ticket_id = ? AND type = ? AND COALESCE(action_type, '') = COALESCE(?, '') AND COALESCE(title, '') = COALESCE(?, '') AND message = ? AND created_at = ? LIMIT 1");
+    $insertStmt = $conn->prepare("INSERT INTO notifications (user_id, ticket_id, title, message, type, action_type, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)");
+    if (!$existsStmt || !$insertStmt) {
+        if ($existsStmt) $existsStmt->close();
+        if ($insertStmt) $insertStmt->close();
+        return;
+    }
+    foreach ($rows as $row) {
+        $ticketId = (int) ($row['ticket_id'] ?? 0);
+        $title = (string) ($row['title'] ?? '');
+        $message = (string) ($row['message'] ?? '');
+        $type = (string) ($row['type'] ?? '');
+        $actionType = (string) ($row['action_type'] ?? '');
+        $createdAt = (string) ($row['created_at'] ?? '');
+        if ($ticketId <= 0 || $message === '' || $type === '' || $createdAt === '') continue;
+        $existsStmt->bind_param('iisssss', $userId, $ticketId, $type, $actionType, $title, $message, $createdAt);
+        $existsStmt->execute();
+        $existsRes = $existsStmt->get_result();
+        if ($existsRes && $existsRes->fetch_assoc()) continue;
+        $insertStmt->bind_param('iisssss', $userId, $ticketId, $title, $message, $type, $actionType, $createdAt);
+        $insertStmt->execute();
+    }
+    $existsStmt->close();
+    $insertStmt->close();
+}
+
+[$isSalesManagerNotificationView, $salesManagerNotificationRegion] = employee_notifications_is_sales_manager($conn, $user_id);
+if ($isSalesManagerNotificationView) {
+    employee_notifications_sync_sales_manager($conn, $user_id, $salesManagerNotificationRegion);
+}
+
 /* Mark all as read if requested */
 if (isset($_POST['mark_all_read'])) {
     csrf_validate();
-    $conn->query("UPDATE notifications SET is_read = 1 WHERE user_id = $user_id");
+    if ($isSalesManagerNotificationView) {
+        $regionNeedle = '%Region: ' . $salesManagerNotificationRegion . '%';
+        $allowedSql = employee_notifications_manager_allowed_sql('n');
+        $markStmt = $conn->prepare("
+            UPDATE notifications n
+            INNER JOIN employee_tickets t ON t.id = n.ticket_id
+            LEFT JOIN users creator ON creator.id = t.user_id
+            SET n.is_read = 1
+            WHERE n.user_id = ?
+              AND n.type <> 'chat_message'
+              AND $allowedSql
+              AND LOWER(TRIM(COALESCE(creator.email, ''))) = 'sales_guest@leadsagri.com'
+              AND COALESCE(t.description, '') LIKE ?
+        ");
+        if ($markStmt) {
+            $markStmt->bind_param('is', $user_id, $regionNeedle);
+            $markStmt->execute();
+            $markStmt->close();
+        }
+    } else {
+        $conn->query("UPDATE notifications SET is_read = 1 WHERE user_id = $user_id");
+    }
     $_SESSION['success'] = "All notifications marked as read.";
     header("Location: notifications.php");
     exit();
@@ -36,16 +177,43 @@ if (isset($_POST['mark_all_read'])) {
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 20;
 $offset = ($page - 1) * $limit;
+$managerRegionNeedle = '%Region: ' . $salesManagerNotificationRegion . '%';
+$managerAllowedSql = employee_notifications_manager_allowed_sql('n');
+$hideManagerSalesNotifications = !$isSalesManagerNotificationView && employee_notifications_is_lapc_sales_user();
+$managerJoinSql = $isSalesManagerNotificationView
+    ? "LEFT JOIN users creator ON creator.id = t.user_id"
+    : ($hideManagerSalesNotifications ? "LEFT JOIN users creator ON creator.id = t.user_id" : "");
+if ($isSalesManagerNotificationView) {
+    $managerWhereSql = "AND $managerAllowedSql
+       AND LOWER(TRIM(COALESCE(creator.email, ''))) = 'sales_guest@leadsagri.com'
+       AND COALESCE(t.description, '') LIKE ?";
+} elseif ($hideManagerSalesNotifications) {
+    $managerWhereSql = "AND $requesterNotificationAccessSql
+       AND NOT (
+           $managerAllowedSql
+           AND LOWER(TRIM(COALESCE(creator.email, ''))) = 'sales_guest@leadsagri.com'
+           AND COALESCE(t.description, '') LIKE ?
+       )";
+} else {
+    $managerWhereSql = "AND $requesterNotificationAccessSql";
+}
 
 $totalStmt = $conn->prepare("
     SELECT COUNT(*) as c
     FROM notifications n
     LEFT JOIN employee_tickets t ON n.ticket_id = t.id
+    $managerJoinSql
     WHERE n.user_id = ?
       AND n.type <> 'chat_message'
-      AND $requesterNotificationAccessSql
+      $managerWhereSql
 ");
-$totalStmt->bind_param("is", $user_id, $user_email);
+if ($isSalesManagerNotificationView) {
+    $totalStmt->bind_param("is", $user_id, $managerRegionNeedle);
+} elseif ($hideManagerSalesNotifications) {
+    $totalStmt->bind_param("iss", $user_id, $user_email, $managerRegionNeedle);
+} else {
+    $totalStmt->bind_param("is", $user_id, $user_email);
+}
 $totalStmt->execute();
 $total_res = $totalStmt->get_result();
 $total = $total_res->fetch_assoc()['c'];
@@ -56,13 +224,20 @@ $stmt = $conn->prepare("
     SELECT n.*, t.priority
     FROM notifications n
     LEFT JOIN employee_tickets t ON n.ticket_id = t.id
+    $managerJoinSql
     WHERE n.user_id = ?
       AND n.type <> 'chat_message'
-      AND $requesterNotificationAccessSql
+      $managerWhereSql
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?
 ");
-$stmt->bind_param("isii", $user_id, $user_email, $limit, $offset);
+if ($isSalesManagerNotificationView) {
+    $stmt->bind_param("isii", $user_id, $managerRegionNeedle, $limit, $offset);
+} elseif ($hideManagerSalesNotifications) {
+    $stmt->bind_param("issii", $user_id, $user_email, $managerRegionNeedle, $limit, $offset);
+} else {
+    $stmt->bind_param("isii", $user_id, $user_email, $limit, $offset);
+}
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -1252,6 +1427,7 @@ function notif_priority_from_message(string $message): string
     </div>
 
 <script>
+const IS_LAPC_SALES_MANAGER_NOTIFICATION_VIEW = <?php echo json_encode($isSalesManagerNotificationView); ?>;
 // Auto-update relative times every 60 seconds
 function toRelative(ts) {
     const now = new Date();
@@ -1354,6 +1530,9 @@ function employeeNotificationTargetUrl(ticketId, type) {
     const notifType = String(type || '');
     if (!ticketId) {
         return 'notifications.php';
+    }
+    if (IS_LAPC_SALES_MANAGER_NOTIFICATION_VIEW) {
+        return `sales_submitted_tickets.php?ticket_id=${ticketId}`;
     }
     if (notifType === 'hr_chat_pending') {
         return `my_task.php?ticket_id=${ticketId}&chat=1`;

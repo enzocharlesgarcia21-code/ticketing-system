@@ -2015,8 +2015,120 @@ var TMTicketModal = (function () {
       attachmentsHtml +
       '</div></div>';
   }
+  function parseSalesTicketDescriptionMeta(data) {
+    var result = { position: '', region: '', cleanedLines: [] };
+    var descriptionText = String((data && data.description) || '');
+    if (!descriptionText) return result;
+    var lines = descriptionText.split(/\r?\n/).map(function (line) {
+      return String(line || '').trim();
+    }).filter(function (line) {
+      return line !== '';
+    });
+    lines.forEach(function (line) {
+      var match = line.match(/^\s*(Position|Region)\s*:\s*(.*)$/i);
+      if (match) {
+        var label = String(match[1] || '').toLowerCase();
+        var value = String(match[2] || '').trim();
+        if (label === 'position') result.position = value;
+        if (label === 'region') result.region = value;
+        return;
+      }
+      result.cleanedLines.push(line);
+    });
+    return result;
+  }
+  function renderSalesTicketInfoHtml(data) {
+    var meta = parseSalesTicketDescriptionMeta(data);
+    var html = '';
+    if (meta.position) {
+      html += '<div class="tm-info-label">POSITION</div><div class="tm-info-value">' + escapeHtml(meta.position) + '</div>';
+    }
+    if (meta.region) {
+      html += '<div class="tm-info-label">REGION</div><div class="tm-info-value">' + escapeHtml(meta.region) + '</div>';
+    }
+    return html;
+  }
+  function isLapcHrIncidentReportTicket(data) {
+    var assignedCompany = String((data && data.assigned_company) || '').trim().toLowerCase();
+    var assignedGroup = String((data && (data.assigned_group || data.assigned_department)) || '').trim();
+    var category = String((data && data.category) || '').trim();
+    return assignedCompany === '@leadsagri.com' && assignedGroup === 'HR' && category === 'Incident Report';
+  }
+  function parseIncidentReportDisplay(data) {
+    var descriptionText = String((data && data.description) || '');
+    var meta = data && data.request_meta && typeof data.request_meta === 'object' ? data.request_meta : {};
+    var summary = '';
+    var summaryMatch = descriptionText.match(/Short Summary of IR\s*:\s*([\s\S]*?)(?:\r?\n\s*Gdrive Link \(Video\)\s*:|$)/i);
+    if (summaryMatch) {
+      summary = String(summaryMatch[1] || '').trim();
+    }
+    var gdriveLink = String(meta.incident_gdrive_link || '').trim();
+    if (!gdriveLink) {
+      var gdriveMatch = descriptionText.match(/Gdrive Link \(Video\)\s*:\s*(.+)$/im);
+      if (gdriveMatch) gdriveLink = String(gdriveMatch[1] || '').trim();
+    }
+    return { summary: summary, gdriveLink: gdriveLink };
+  }
+  function renderIncidentReportAttachmentRows(data) {
+    var list = data && Array.isArray(data.attachments) ? data.attachments : [];
+    if (!list.length) return '<div class="tm-incident-empty">No attachment available.</div>';
+    return '<div class="tm-incident-file-list">' + list.map(function (att) {
+      var n = normalizeAttachment(att);
+      if (!n.filename) return '';
+      var src = '../uploads/' + encodeURIComponent(n.filename);
+      var iconClass = n.isPdf ? 'fa-file-pdf' : (n.isWord ? 'fa-file-word' : (isImageFile(n.filename) ? 'fa-image' : 'fa-file'));
+      var labelHtml = '<span class="tm-incident-file-icon"><i class="fas ' + iconClass + '"></i></span>' +
+        '<span class="tm-incident-file-name">' + escapeHtml(String(n.displayName || n.filename)) + '</span>';
+      if (isImageFile(n.filename)) {
+        return '<button type="button" class="tm-incident-file-row" data-src="' + escapeHtml(src) + '" onclick="TMTicketModal.viewImage(this.dataset.src)">' +
+          labelHtml +
+          '</button>';
+      }
+      return '<a class="tm-incident-file-row" href="' + escapeHtml(src) + '" download>' +
+        labelHtml +
+        '</a>';
+    }).join('') + '</div>';
+  }
+  function renderIncidentReportDetailsCard(data) {
+    if (!isLapcHrIncidentReportTicket(data)) return '';
+    var incident = parseIncidentReportDisplay(data);
+    var carouselId = 'tmIncidentDisplay-' + String(++sapDisplaySeq);
+    var summaryText = incident.summary || '-';
+    var slides = [
+      '<div class="tm-sap-card tm-incident-card is-active" data-index="0" aria-hidden="false">' +
+        '<div class="tm-incident-field">' +
+          '<div class="tm-incident-label">Short Summary of IR</div>' +
+          '<div class="tm-incident-summary-box">' + escapeHtml(summaryText).replace(/\n/g, '<br>') + '</div>' +
+        '</div>' +
+      '</div>',
+      '<div class="tm-sap-card tm-incident-card is-attachments" data-index="1" aria-hidden="true">' +
+        '<div class="tm-incident-section-title">Attachment</div>' +
+        '<div class="tm-incident-section-subtitle">Images</div>' +
+        renderIncidentReportAttachmentRows(data) +
+        '<div class="tm-incident-section-title tm-incident-drive-title">GDrive Link (Video)</div>' +
+        (incident.gdriveLink
+          ? '<a class="tm-incident-drive-row" href="' + escapeHtml(incident.gdriveLink) + '" target="_blank" rel="noopener noreferrer">' +
+              '<span class="tm-incident-drive-icon"><i class="fab fa-google-drive"></i></span>' +
+              '<span class="tm-incident-drive-url">' + escapeHtml(incident.gdriveLink) + '</span>' +
+            '</a>'
+          : '<div class="tm-incident-empty">No Google Drive video link provided.</div>') +
+      '</div>'
+    ];
+    return '<div class="tm-sap-display tm-incident-display">' +
+      '<div class="tm-sap-carousel" id="' + carouselId + '" data-index="0">' +
+        '<div class="tm-incident-card-header"><span class="tm-incident-card-icon"><i class="fas fa-file-alt"></i></span><span>Incident Report Form</span></div>' +
+        slides.join('') +
+        '<div class="tm-sap-actions">' +
+          '<button type="button" class="tm-sap-nav-btn" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', -1)">Previous</button>' +
+          '<span class="tm-sap-counter" data-sap-counter>1 of 2</span>' +
+          '<button type="button" class="tm-sap-nav-btn primary" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', 1)">Next</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
   function renderDescriptionCard(data) {
     var hr = getHrDisplay(data);
+    if (isLapcHrIncidentReportTicket(data)) return '';
     if (hr && hr.is_hr_special) return '';
     var title = 'Description';
     var descriptionText = String((data && data.description) || '');
@@ -2031,7 +2143,11 @@ var TMTicketModal = (function () {
         title = 'SAP Form';
         descriptionHtml = sapDescriptionHtml;
       } else {
-      var lines = descriptionText.split(/\r?\n/).map(function (line) { return String(line || '').trim(); }).filter(function (line) { return line !== ''; });
+      var salesMeta = parseSalesTicketDescriptionMeta(data);
+      var lines = salesMeta.cleanedLines.length ? salesMeta.cleanedLines : descriptionText.split(/\r?\n/).map(function (line) { return String(line || '').trim(); }).filter(function (line) { return line !== ''; });
+      if ((data && data.is_sales_ticket === true) || (salesMeta.position || salesMeta.region)) {
+        lines = salesMeta.cleanedLines;
+      }
       var assignedCompany = String((data && data.assigned_company) || '').trim().toLowerCase();
       var assignedGroup = String((data && (data.assigned_group || data.assigned_department)) || '').trim();
       var isLapcHrTicket = assignedCompany === '@leadsagri.com' && assignedGroup === 'HR';
@@ -2906,22 +3022,25 @@ var TMTicketModal = (function () {
   }
   function buildHtml(data) {
     var hideUpdateTab = typeof window !== 'undefined' && window.TM_HIDE_UPDATE_TAB === true;
+    var hideActionHistoryTab = typeof window !== 'undefined' && window.TM_HIDE_ACTION_HISTORY_TAB === true;
     if (data && data.can_update_tab === false) hideUpdateTab = true;
     var isClosedTicket = !!(data && String(data.status || '').trim().toLowerCase() === 'closed');
     var hideAdminChat = typeof window !== 'undefined' && window.TM_HIDE_ADMIN_CHAT === true;
     var hideRequesterAdminChatButton = typeof window !== 'undefined' && window.TM_HIDE_REQUESTOR_ADMIN_CHAT_BUTTON === true;
     var isSalesTicket = !!(data && data.is_sales_ticket);
+    var isSalesManagerRegionalAccess = !!(data && data.sales_manager_regional_access === true);
+    var isSalesAssigneeChatAccess = !!(data && data.sales_assignee_chat_access === true);
     var hasActualAssignee = false;
     if (data && Object.prototype.hasOwnProperty.call(data, 'has_assignee')) {
       hasActualAssignee = data.has_assignee === true || data.has_assignee === 1 || data.has_assignee === '1';
     } else if (data) {
       hasActualAssignee = parseInt(data.assigned_to || 0, 10) > 0;
     }
-    if (isSalesTicket && !hasActualAssignee) hideUpdateTab = false;
+    if (isSalesTicket && !hasActualAssignee) hideUpdateTab = true;
     if (isClosedTicket) hideUpdateTab = true;
     var hideConversationTab = false;
     if (data && data.hide_conversation_tab === true) hideConversationTab = true;
-    if (isSalesTicket) hideConversationTab = true;
+    if (isSalesTicket && !isSalesManagerRegionalAccess && !isSalesAssigneeChatAccess) hideConversationTab = true;
     var canViewChatHistory = !!(data && data.can_view_chat_history === true);
     var isReassignedViewOnly = !!(data && data.reassigned_view_only === true);
     if (isReassignedViewOnly) {
@@ -2929,7 +3048,7 @@ var TMTicketModal = (function () {
       hideConversationTab = !canViewChatHistory;
     }
     var showClaimButton = !!(data && data.can_claim_ticket === true);
-    var hideAdminConversationButton = hideRequesterAdminChatButton || isSalesTicket;
+    var hideAdminConversationButton = hideRequesterAdminChatButton || (isSalesTicket && !isSalesManagerRegionalAccess && !isSalesAssigneeChatAccess);
     var hideQuickTags = typeof window !== 'undefined' && window.TM_HIDE_QUICK_TAGS === true;
     var showDepartmentUserSelect = typeof window !== 'undefined' && window.TM_SHOW_DEPARTMENT_USER_SELECT === true;
     var deptLabelText = (typeof window !== 'undefined' && window.TM_DEPARTMENT_LABEL_TEXT) ? String(window.TM_DEPARTMENT_LABEL_TEXT) : 'Assigned Department';
@@ -2959,6 +3078,7 @@ var TMTicketModal = (function () {
     } else if (current && current.email && data && data.created_by_email) {
       isRequesterPOV = String(current.email).toLowerCase() === String(data.created_by_email).toLowerCase();
     }
+    if (isRequesterPOV) hideActionHistoryTab = true;
     var isAssigneeOrHandlerPOV = false;
     if (current && current.id != null && data) {
       var currentUserId = String(current.id);
@@ -3034,6 +3154,7 @@ var TMTicketModal = (function () {
     var emailRequestTypeInfoHtml = emailRequestTypeDisplay
       ? ('        <div class="tm-info-label">EMAIL REQUEST TYPE</div><div class="tm-info-value">' + escapeHtml(emailRequestTypeDisplay) + '</div>')
       : '';
+    var salesTicketInfoHtml = renderSalesTicketInfoHtml(data);
     var deptOptionsHtml = buildDeptOptionsHtml(assignedCompanyValue, assignedDeptValue);
     var assignedUserIdValue = '';
     var selectedDeptKey = normalizeDepartmentKey(assignedDeptValue);
@@ -3117,7 +3238,7 @@ var TMTicketModal = (function () {
       '  <div class="tm-tab active" data-tab="info" onclick="TMTicketModal.switchTab(\'info\')">Information</div>' +
       (hideUpdateTab ? '' : '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Update</div>') +
       (hideConversationTab ? '' : '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Go to Chat</div>') +
-      (hideUpdateTab ? '' : '  <div class="tm-tab" data-tab="action-history" onclick="TMTicketModal.switchTab(\'action-history\')">Action History</div>') +
+      (hideActionHistoryTab ? '' : '  <div class="tm-tab" data-tab="action-history" onclick="TMTicketModal.switchTab(\'action-history\')">Action History</div>') +
       claimButtonHtml +
       '</div>' +
       '<div class="tm-body">' +
@@ -3128,6 +3249,7 @@ var TMTicketModal = (function () {
       '        <div class="tm-info-label">CREATED BY</div><div class="tm-info-value">' + (data.created_by_name ? escapeHtml(String(data.created_by_name)) : '-') + '</div>' +
       '        <div class="tm-info-label">EMAIL</div><div class="tm-info-value">' + (data.created_by_email ? escapeHtml(String(data.created_by_email)) : '-') + '</div>' +
       '        <div class="tm-info-label">DEPARTMENT</div><div class="tm-info-value">' + escapeHtml(dashIfUnknown(data.department)) + '</div>' +
+      salesTicketInfoHtml +
       '        <div class="tm-info-label">CATEGORY</div><div class="tm-info-value">' + (data.category ? escapeHtml(String(data.category)) : '-') + '</div>' +
       '        <div class="tm-info-label">URGENCY</div><div class="tm-info-value">' + (data.urgency ? escapeHtml(String(data.urgency)) : '-') + '</div>' +
       emailRequestTypeInfoHtml +
@@ -3139,6 +3261,7 @@ var TMTicketModal = (function () {
       '    </div>' +
       '    <div class="tm-desc-col">' +
       requesterAdminNoteHtml +
+      '      ' + renderIncidentReportDetailsCard(data) +
       '      ' + renderHrRequestDetailsCard(data) +
       '      ' + renderDescriptionCard(data) +
       '      ' + renderHrAttachmentCards(data) +
@@ -3146,7 +3269,7 @@ var TMTicketModal = (function () {
       '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card tm-card-impact"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
       '    </div>' +
       '  </div>' +
-      (hideUpdateTab ? '' : '  <div id="tab-action-history" class="tm-tab-content">' +
+      (hideActionHistoryTab ? '' : '  <div id="tab-action-history" class="tm-tab-content">' +
       '    <div class="tm-card tm-card-action-history"><div class="tm-card-header"><span class="tm-card-title">Action History</span></div><div class="tm-card-body">' +
       renderActionHistoryHtml(data) +
       '    </div></div>' +
@@ -3309,6 +3432,7 @@ var TMTicketModal = (function () {
       '      </div></div></div>' +
       '    </div>' +
       '    <div class="tm-desc-col">' +
+      '      ' + renderIncidentReportDetailsCard(safe) +
       '      ' + renderHrRequestDetailsCard(safe) +
       '      ' + renderDescriptionCard(safe) +
       '      ' + renderHrAttachmentCards(safe) +
@@ -5604,7 +5728,7 @@ var TMTicketModal = (function () {
           modalContent.innerHTML = buildFallbackHtml(data);
         }
         try {
-          if (data && data.id != null && data.hide_conversation_tab !== true && data.is_sales_ticket !== true && (data.reassigned_view_only !== true || data.can_view_chat_history === true)) {
+          if (data && data.id != null && data.hide_conversation_tab !== true && (data.is_sales_ticket !== true || data.sales_manager_regional_access === true || data.sales_assignee_chat_access === true) && (data.reassigned_view_only !== true || data.can_view_chat_history === true)) {
             var tabsEl = modalContent.querySelector('.tm-tabs');
             var existingConversationTab = tabsEl ? tabsEl.querySelector('.tm-tab[data-tab="conversation"]') : null;
             if (tabsEl && !existingConversationTab) {

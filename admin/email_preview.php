@@ -71,6 +71,61 @@ $assigneeAssignedLines = [
     'Description: chel',
 ];
 
+$salesTicketSubmittedLines = [
+    'Ticket ID: #001263',
+    'Category: Documentation',
+    'Requestor: Rachelle Ambayan',
+    'Email: rachelleambayan@gmail.com',
+    'Position: Area Supervisor',
+    'Region: CAR & Nueva Vizcaya (Area 811A)',
+    'Date Submitted: Jul 17, 2026 08:59 AM',
+    'Level of Urgency: Medium',
+    'Description: test',
+];
+
+$salesAssigneeAssignedLines = [
+    'Ticket ID: #001263',
+    'Category: Documentation',
+    'Requestor: Rachelle Ambayan',
+    'Email: rachelleambayan@gmail.com',
+    'Position: Area Supervisor',
+    'Region: CAR & Nueva Vizcaya (Area 811A)',
+    'Date Submitted: Jul 17, 2026 08:59 AM',
+    'Level of Urgency: Medium',
+    'Description: test',
+];
+
+$salesClaimedLines = [
+    'Ticket ID: #001263',
+    'Category: Documentation',
+    'Current Status: In Progress',
+    'Claimed By: Isabella Badong (LAPC-Sales)',
+    'Assignee Email: isabella@leadsagri.com',
+    'Date Submitted: Jul 17, 2026 08:59 AM',
+    'Level of Urgency: Medium',
+    "Description: Position: Area Supervisor\nRegion: CAR & Nueva Vizcaya (Area 811A)\n\ntest",
+];
+
+$salesResolvedLines = [
+    'Ticket ID: #001263',
+    'Category: Documentation',
+    'Resolved By: Isabella Badong (LAPC-Sales)',
+    'Assignee Email: isabella@leadsagri.com',
+    'Date Submitted: Jul 17, 2026 08:59 AM',
+    'Date Resolved: Jul 17, 2026 03:15 PM',
+    'Level of Urgency: Medium',
+    "Description: Position: Area Supervisor\nRegion: CAR & Nueva Vizcaya (Area 811A)\n\ntest",
+];
+
+$salesFollowUpLines = [
+    'Ticket ID: #001263',
+    'Category: Documentation',
+    'Current Status: In Progress',
+    'Requestor: Rachelle Ambayan',
+    'Email: rachelleambayan@gmail.com',
+    "Description: Position: Area Supervisor\nRegion: CAR & Nueva Vizcaya (Area 811A)\n\ntest",
+];
+
 $updateLines = [
     'Ticket has been updated.',
     'Ticket ID: #' . $sampleTicketNumber,
@@ -169,6 +224,11 @@ $conferenceBookingUpdatedSample['end_time'] = '12:00:00';
 $templates = [
     preview_template('New Ticket', 'Requester / Employee', 'Ticket Submitted (#' . $sampleTicketNumber . ')', 'Ticket Submitted', $ticketSubmittedLines, 'View Ticket', $employeeTicketUrl),
     preview_template('New Ticket', 'Assignee', 'New Ticket Assigned (#' . $sampleTicketNumber . ')', 'New Ticket Assigned', $assigneeAssignedLines, 'View Ticket', $employeeTaskUrl),
+    preview_template('Sales Ticket', 'Requester / Creator', 'Ticket Submitted (#001263)', 'Ticket Submitted', $salesTicketSubmittedLines, 'View Ticket', notif_base_url() . '/ticketing/index.php'),
+    preview_template('Sales Ticket', 'Assignee', 'New Ticket Assigned (#001263)', 'New Ticket Assigned', $salesAssigneeAssignedLines, 'View Ticket', $employeeTaskUrl),
+    preview_template('Sales Ticket', 'Requester', 'Ticket Claimed (#001263)', 'Ticket Claimed', $salesClaimedLines, 'View Ticket', $employeeTicketUrl),
+    preview_template('Sales Ticket', 'Requester', 'Ticket Resolved (#001263)', 'Ticket Resolved', $salesResolvedLines, 'View Ticket', $employeeTicketUrl),
+    preview_template('Sales Ticket', 'Assignee', 'Follow Up (#001263)', 'Ticket Follow Up', $salesFollowUpLines, 'View Ticket', $employeeTaskUrl),
 
     preview_template('Assignment / Updates', 'Requester', 'Ticket Claimed (#' . $sampleTicketNumber . ')', 'Ticket Claimed', $updateLines, 'View Ticket', $employeeTicketUrl),
     preview_template('Assignment / Updates', 'Requester', 'Ticket Reassigned (#' . $sampleTicketNumber . ')', 'Ticket Reassigned', $requesterReassignedLines, 'View Ticket', $employeeTicketUrl),

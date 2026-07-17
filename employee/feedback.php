@@ -76,6 +76,16 @@ function feedback_initials(string $name): string
 }
 
 $feedbackTotal = count($feedbackRows);
+$feedbackPerPage = 5;
+$feedbackTotalPages = max(1, (int) ceil($feedbackTotal / $feedbackPerPage));
+$feedbackPage = max(1, (int) ($_GET['page'] ?? 1));
+if ($feedbackPage > $feedbackTotalPages) {
+    $feedbackPage = $feedbackTotalPages;
+}
+$feedbackOffset = ($feedbackPage - 1) * $feedbackPerPage;
+$feedbackPageRows = array_slice($feedbackRows, $feedbackOffset, $feedbackPerPage);
+$feedbackStart = $feedbackTotal > 0 ? $feedbackOffset + 1 : 0;
+$feedbackEnd = min($feedbackTotal, $feedbackOffset + count($feedbackPageRows));
 $ratingCounts = [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0];
 $ratingSum = 0;
 foreach ($feedbackRows as $feedbackRow) {
@@ -187,7 +197,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             align-items: center;
             justify-content: center;
             background: #ecfdf5;
-            color: #047857;
+            color: #1B5E20;
             font-size: 27px;
             flex: 0 0 auto;
         }
@@ -204,13 +214,15 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             align-items: baseline;
             justify-content: flex-start;
             gap: 9px;
-            color: #047857;
+            color: #0b2540;
         }
 
         body.employee-feedback-page .feedback-score-line strong {
             font-size: 38px;
             line-height: 1;
             letter-spacing: 0;
+            color: #0b2540;
+            font-weight: 600;
         }
 
         body.employee-feedback-page .feedback-score-line span {
@@ -278,14 +290,15 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
 
         body.employee-feedback-page .feedback-table th {
             background: #fbfcfd;
-            color: #047857;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.05em;
+            color: #1B5E20;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
             text-transform: uppercase;
             padding: 13px 16px;
             text-align: left;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #1B5E20;
         }
 
         body.employee-feedback-page .feedback-table th:first-child {
@@ -302,7 +315,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             padding: 15px 16px;
             border-bottom: 1px solid #eef2f7;
             color: #334155;
-            font-size: 13px;
+            font-size: 14px;
             vertical-align: middle;
         }
 
@@ -327,7 +340,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             font-weight: 500;
             color: #0f172a;
             white-space: nowrap;
-            font-size: 14px;
+            font-size: 15px;
         }
 
         body.employee-feedback-page .feedback-ticket-link {
@@ -359,6 +372,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             font-weight: 400;
             color: #475569;
             white-space: nowrap;
+            font-size: 14px;
         }
 
         body.employee-feedback-page .feedback-category-pill i {
@@ -381,6 +395,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             min-width: 170px;
             font-weight: 400;
             color: #334155;
+            font-size: 14px;
         }
 
         body.employee-feedback-page .feedback-avatar {
@@ -401,6 +416,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             min-width: 150px;
             color: #475569;
             font-weight: 400;
+            font-size: 14px;
         }
 
         body.employee-feedback-page .feedback-rating {
@@ -441,8 +457,8 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             padding: 5px 11px;
             border-radius: 4px;
             background: #f0fdf4;
-            color: #047857;
-            font-size: 13px;
+            color: #1B5E20;
+            font-size: 14px;
             font-weight: 500;
         }
 
@@ -453,7 +469,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             background: #fff7ed;
             color: #0f172a;
             line-height: 1.4;
-            font-size: 13px;
+            font-size: 14px;
         }
 
         body.employee-feedback-page .feedback-advice-box i {
@@ -470,7 +486,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             display: block;
             margin: 3px 0 0 25px;
             color: #334155;
-            font-size: 12px;
+            font-size: 13px;
         }
 
         body.employee-feedback-page .feedback-comment.is-empty {
@@ -482,7 +498,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             white-space: nowrap;
             color: #64748b;
             font-weight: 400;
-            font-size: 13px;
+            font-size: 14px;
         }
 
         body.employee-feedback-page .feedback-empty {
@@ -537,6 +553,12 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             justify-content: center;
             background: #f1f5f9;
             color: #64748b;
+            text-decoration: none;
+        }
+
+        body.employee-feedback-page .feedback-page-button.is-disabled {
+            color: #cbd5e1;
+            pointer-events: none;
         }
 
         body.employee-feedback-page .feedback-page-current {
@@ -947,7 +969,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                                     </tr>
                                 </thead>
                                 <tbody id="feedbackTableBody">
-                                    <?php foreach ($feedbackRows as $row): ?>
+                                    <?php foreach ($feedbackPageRows as $row): ?>
                                         <?php
                                             $ticketId = (int) ($row['ticket_id'] ?? 0);
                                             $displayTicketId = '#' . $ticketId;
@@ -1000,11 +1022,19 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                             </table>
                         </div>
                         <div class="feedback-table-footer">
-                            <span>Showing 1 to <?= $feedbackTotal; ?> of <?= $feedbackTotal; ?> entr<?= $feedbackTotal === 1 ? 'y' : 'ies'; ?></span>
-                            <span class="feedback-pagination" aria-hidden="true">
-                                <span class="feedback-page-button"><i class="fas fa-chevron-left"></i></span>
-                                <span class="feedback-page-current">1</span>
-                                <span class="feedback-page-button"><i class="fas fa-chevron-right"></i></span>
+                            <span>Showing <?= $feedbackStart; ?> to <?= $feedbackEnd; ?> of <?= $feedbackTotal; ?> entr<?= $feedbackTotal === 1 ? 'y' : 'ies'; ?></span>
+                            <span class="feedback-pagination" aria-label="Feedback pagination">
+                                <?php if ($feedbackPage > 1): ?>
+                                    <a class="feedback-page-button" href="feedback.php?page=<?= $feedbackPage - 1; ?>" aria-label="Previous page"><i class="fas fa-chevron-left"></i></a>
+                                <?php else: ?>
+                                    <span class="feedback-page-button is-disabled" aria-disabled="true"><i class="fas fa-chevron-left"></i></span>
+                                <?php endif; ?>
+                                <span class="feedback-page-current"><?= $feedbackPage; ?></span>
+                                <?php if ($feedbackPage < $feedbackTotalPages): ?>
+                                    <a class="feedback-page-button" href="feedback.php?page=<?= $feedbackPage + 1; ?>" aria-label="Next page"><i class="fas fa-chevron-right"></i></a>
+                                <?php else: ?>
+                                    <span class="feedback-page-button is-disabled" aria-disabled="true"><i class="fas fa-chevron-right"></i></span>
+                                <?php endif; ?>
                             </span>
                         </div>
                     <?php else: ?>

@@ -20,6 +20,7 @@ function ensure_users_columns(mysqli $conn): void
     $cols = [
         'full_name' => "VARCHAR(255) NULL",
         'username' => "VARCHAR(255) NULL",
+        'region' => "VARCHAR(255) NULL",
         'send_credentials' => "TINYINT(1) NOT NULL DEFAULT 0",
         'force_password_change' => "TINYINT(1) NOT NULL DEFAULT 0",
     ];
@@ -88,6 +89,28 @@ $password = (string) ($_POST['password'] ?? '');
 $send_credentials = isset($_POST['send_credentials']) ? 1 : 0;
 $force_password_change = isset($_POST['force_password_change']) ? 1 : 0;
 $department = trim((string) ($_POST['department'] ?? ''));
+$region = trim((string) ($_POST['region'] ?? ''));
+$salesRegionOptions = [
+    'CAR & Nueva Vizcaya (Area 811A)',
+    'Region 1-A (Area 811B)',
+    'Region 1-B (Area 812)',
+    'Region 2-A (Area 813A)',
+    'Region 2-B (Area 813B)',
+    'Region 3-A (Area 814A)',
+    'Region 3-B (Area 814B)',
+    'Region 4 (Area 815 A&C)',
+    'Region 5 (Area 815B)',
+    'Region 6-A (Area 821A)',
+    'Region 6-B (Area 821B)',
+    'Region 6 & Palawan (Area 821C)',
+    'Region 7 (Area 822A)',
+    'Region 8 (Area 822B)',
+    'Region 10 (Area 831A)',
+    'Region 9 (Area 831B)',
+    'Region 11 & 13 (Area 832A)',
+    'Region 12 (Area 832B)',
+    'Area 833',
+];
 
 if ($fullName === '') {
     json_error('Full name is required.', 400, 'name_required');
@@ -179,9 +202,23 @@ if (in_array($domain, $noDepartmentDomains, true)) {
 
 if ($department !== '' && in_array($domain, ['@leadsagri.com', '@malvedaholdings.com', '@primestocks.ph'], true)) {
     $allowedDepartments = ticket_company_allowed_groups($domain);
+    if ($domain === '@leadsagri.com' && !in_array('Sales', $allowedDepartments, true)) {
+        $allowedDepartments[] = 'Sales';
+    }
     if (!in_array($department, $allowedDepartments, true)) {
         json_error('Invalid department selected for this company.', 400, 'department_invalid');
     }
+}
+
+if ($domain === '@leadsagri.com' && $department === 'Sales') {
+    if ($region === '') {
+        json_error('Region is required for LAPC Sales users.', 400, 'region_required');
+    }
+    if (!in_array($region, $salesRegionOptions, true)) {
+        json_error('Invalid region selected.', 400, 'region_invalid');
+    }
+} else {
+    $region = '';
 }
 
 if (trim($password) === '') {
@@ -225,20 +262,21 @@ $otp = '000000';
 $verified = 1;
 
 $insert = $conn->prepare("
-    INSERT INTO users (name, full_name, username, email, company, department, password, role, otp_code, is_verified, send_credentials, force_password_change)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (name, full_name, username, email, company, department, region, password, role, otp_code, is_verified, send_credentials, force_password_change)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ");
 if (!$insert) {
     json_error('System error. Please try again.', 500, 'system_error');
 }
 $insert->bind_param(
-    "sssssssssiii",
+    "ssssssssssiii",
     $fullName,
     $fullName,
     $username,
     $email,
     $company,
     $department,
+    $region,
     $passwordHash,
     $role,
     $otp,
@@ -263,6 +301,7 @@ $successPayload = [
         'name' => $fullName,
         'email' => $email,
         'department' => $department,
+        'region' => $region,
         'role' => $role,
         'send_credentials' => $send_credentials,
         'force_password_change' => $force_password_change

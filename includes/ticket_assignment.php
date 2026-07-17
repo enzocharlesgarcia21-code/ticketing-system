@@ -63,6 +63,12 @@ function ticket_email_description_for_notification(string $description): string
     if ($description === '') {
         return '';
     }
+
+    $normalizedDescription = preg_replace("/\r\n?/", "\n", $description);
+    if (is_string($normalizedDescription) && preg_match('/^\s*SAP Form\b/i', $normalizedDescription)) {
+        $cleanDescription = preg_replace('/\n{2,}Employee Details(?:\s+\d+)?\s*\n.*$/is', '', $normalizedDescription);
+        $description = trim(is_string($cleanDescription) && $cleanDescription !== '' ? $cleanDescription : 'SAP Form');
+    }
     
     // HTML escape the description
     $escaped = htmlspecialchars($description, ENT_QUOTES, 'UTF-8');
@@ -925,15 +931,19 @@ function ticket_assignee_notification_emails(mysqli $conn, array $assignedUserId
 {
     $company = ticket_normalize_company($company);
     $excludeUserId = (int) $excludeUserId;
-    $emails = [];
 
     if (!$skipDepartmentOverride) {
         $overrideEmails = ticket_department_override_notification_emails($company, $group);
         if (count($overrideEmails) > 0) {
-            $emails = array_merge($emails, $overrideEmails);
+            return array_values(array_unique(array_filter(array_map(static function ($email) {
+                return strtolower(trim((string) $email));
+            }, $overrideEmails), static function ($email) {
+                return $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL);
+            })));
         }
     }
 
+    $emails = [];
     foreach ($assignedUserIds as $notifyUserId) {
         $notifyUserId = (int) $notifyUserId;
         if ($notifyUserId <= 0) continue;
@@ -1553,6 +1563,8 @@ function ticket_build_user_context(mysqli $conn, int $userId, array $session = [
         'department' => (string) ($session['department'] ?? ''),
         'company' => (string) ($session['company'] ?? ''),
         'email' => (string) ($session['email'] ?? ''),
+        'region' => (string) ($session['region'] ?? ''),
+        'employee_view_mode' => (string) ($session['employee_view_mode'] ?? ''),
     ];
 
     if ($userId <= 0) return $ctx;
@@ -1724,6 +1736,46 @@ function ticket_user_matches_requester(array $ticket, int $userId, ?array $userC
     return $userEmail !== '' && $requesterEmail !== '' && $userEmail === $requesterEmail;
 }
 
+function ticket_description_field_value(array $ticket, string $field): string
+{
+    $description = preg_replace('/<br\s*\/?>/i', "\n", (string) ($ticket['description'] ?? '')) ?? '';
+    if ($description === '' || $field === '') {
+        return '';
+    }
+    $pattern = '/^\s*' . preg_quote($field, '/') . '\s*:\s*(.+)$/mi';
+    if (!preg_match($pattern, $description, $match)) {
+        return '';
+    }
+    return trim(strip_tags((string) ($match[1] ?? '')));
+}
+
+function ticket_is_sales_request_ticket(array $ticket): bool
+{
+    $requesterEmail = ticket_requester_email($ticket);
+    $requesterDepartment = strtolower(trim((string) ($ticket['department'] ?? ($ticket['user_department'] ?? ''))));
+    return $requesterEmail === 'sales_guest@leadsagri.com' || $requesterDepartment === 'sales';
+}
+
+function ticket_user_is_sales_manager_for_ticket(array $ticket, ?array $userContext = null): bool
+{
+    if ($userContext === null || !ticket_is_sales_request_ticket($ticket)) {
+        return false;
+    }
+
+    $company = ticket_normalize_company((string) ($userContext['company'] ?? ''));
+    $department = trim((string) ($userContext['department'] ?? ''));
+    $region = trim((string) ($userContext['region'] ?? ''));
+    $viewMode = trim((string) ($userContext['employee_view_mode'] ?? ''));
+    $ticketRegion = ticket_description_field_value($ticket, 'Region');
+
+    return $company === '@leadsagri.com'
+        && strcasecmp($department, 'Sales') === 0
+        && strcasecmp($viewMode, 'manager') === 0
+        && $region !== ''
+        && $ticketRegion !== ''
+        && strcasecmp($ticketRegion, $region) === 0;
+}
+
 function ticket_is_shared_lapc_hr_chat(array $ticket): bool
 {
     $ticketCompany = ticket_normalize_company((string) ($ticket['assigned_company'] ?? ($ticket['company'] ?? '')));
@@ -1838,6 +1890,9 @@ function ticket_user_can_chat(array $ticket, int $userId, ?array $userContext = 
     if ($userId <= 0) return false;
     if (ticket_user_matches_requester($ticket, $userId, $userContext)) return true;
     if ($userContext === null) return false;
+    if (ticket_user_is_sales_manager_for_ticket($ticket, $userContext)) {
+        return $handlerId > 0;
+    }
     if (ticket_requires_manual_claim($ticket)) {
         return false;
     }
