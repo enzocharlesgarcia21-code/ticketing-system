@@ -74,7 +74,7 @@ if ($users_companies_res) {
 $company_domain_options = [
     '@farmasee.ph' => 'FARMASEE',
     '@leads-farmex.com' => 'FARMEX / LAV',
-    '@gpsci.net' => 'GPSCI',
+    '@gpsci.net' => 'GPCI',
     '@leadsagri.com' => 'LAPC',
     '@leadstech-corp.com' => 'LTC',
     '@lingapleads.org' => 'LINGAP',
@@ -92,7 +92,35 @@ function company_domain_option_label(string $domain, string $label): string
 }
 
 $lapc_department_options = ticket_company_allowed_groups('@leadsagri.com');
+$add_user_lapc_department_options = $lapc_department_options;
+if (!in_array('Sales', $add_user_lapc_department_options, true)) {
+    $add_user_lapc_department_options[] = 'Sales';
+}
+natcasesort($add_user_lapc_department_options);
+$add_user_lapc_department_options = array_values($add_user_lapc_department_options);
+$pcc_department_options = ticket_company_allowed_groups('@primestocks.ph');
 $mhc_department_options = ticket_company_allowed_groups('@malvedaholdings.com');
+$sales_region_options = [
+    'CAR & Nueva Vizcaya (Area 811A)',
+    'Region 1-A (Area 811B)',
+    'Region 1-B (Area 812)',
+    'Region 2-A (Area 813A)',
+    'Region 2-B (Area 813B)',
+    'Region 3-A (Area 814A)',
+    'Region 3-B (Area 814B)',
+    'Region 4 (Area 815 A&C)',
+    'Region 5 (Area 815B)',
+    'Region 6-A (Area 821A)',
+    'Region 6-B (Area 821B)',
+    'Region 6 & Palawan (Area 821C)',
+    'Region 7 (Area 822A)',
+    'Region 8 (Area 822B)',
+    'Region 10 (Area 831A)',
+    'Region 9 (Area 831B)',
+    'Region 11 & 13 (Area 832A)',
+    'Region 12 (Area 832B)',
+    'Area 833',
+];
 $edit_user_company_options = ticket_request_company_options();
 $edit_user_department_options = ticket_company_group_map();
 $canManageUserAccess = user_permissions_can_manage($conn);
@@ -959,6 +987,16 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         .add-user-modal-card .password-row {
             grid-template-columns: minmax(0, 1fr) 390px;
         }
+        .add-user-modal-card .fullname-row.has-sales-region {
+            grid-template-columns: minmax(230px, 0.82fr) 150px minmax(250px, 1fr);
+            gap: 10px;
+        }
+        .add-user-region-wrap {
+            display: none;
+        }
+        .add-user-region-wrap.is-visible {
+            display: block;
+        }
         .fullname-row > .form-control,
         .fullname-row > .domain-select,
         .fullname-row > .edit-select-wrap,
@@ -1256,6 +1294,14 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             white-space: nowrap;
             text-overflow: ellipsis;
             line-height: 1.25;
+        }
+        .add-user-modal-card .fullname-row.has-sales-region #addUserRegionWrap .edit-select-trigger {
+            padding-right: 40px;
+            font-size: 13px;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            line-height: 1.15;
         }
         .add-user-modal-card .edit-select-wrap.is-open .edit-select-trigger {
             border-color: #cbd5e1;
@@ -3244,7 +3290,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                                     <div class="edit-select-menu" role="listbox"></div>
                                 </div>
                                 <div class="edit-select-wrap users-filter-select-wrap users-dept-filter-wrap" data-edit-select="users-dept">
-                                    <?php $users_dept_options = array_values(array_unique(array_filter(array_merge($lapc_department_options, $mhc_department_options)))); ?>
+                                    <?php $users_dept_options = array_values(array_unique(array_filter(array_merge($lapc_department_options, $pcc_department_options, $mhc_department_options)))); ?>
                                     <select class="domain-select users-dept-filter" id="usersDept" tabindex="-1">
                                         <option value="all" selected>All Departments</option>
                                         <?php foreach ($users_dept_options as $d): ?>
@@ -3362,7 +3408,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                             <div class="form-label">Email <span class="form-required">*</span></div>
                             <div class="form-field-stack">
                                 <div class="username-row">
-                                    <input type="text" class="form-control" name="username" id="username" placeholder="juan.delacruz" required>
+                                    <input type="text" class="form-control" name="username" id="username" placeholder="jdelacruz" required>
                                     <div class="edit-select-wrap" data-edit-select="add-user-domain">
                                         <select class="domain-select" name="domain" id="domain" required tabindex="-1">
                                             <option value="" disabled selected hidden>Select Company</option>
@@ -3387,6 +3433,18 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                                             <option value="">Select Company First</option>
                                         </select>
                                         <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false" disabled>Select Company First</button>
+                                        <div class="edit-select-menu" role="listbox"></div>
+                                    </div>
+                                    <div class="edit-select-wrap add-user-region-wrap" data-edit-select="add-user-region" id="addUserRegionWrap">
+                                        <select class="domain-select" name="region" id="newRegion" aria-label="Region" disabled tabindex="-1">
+                                            <option value="">Select region</option>
+                                            <?php foreach ($sales_region_options as $regionOption): ?>
+                                                <option value="<?= htmlspecialchars($regionOption, ENT_QUOTES, 'UTF-8'); ?>">
+                                                    <?= htmlspecialchars($regionOption, ENT_QUOTES, 'UTF-8'); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <button type="button" class="edit-select-trigger" aria-haspopup="listbox" aria-expanded="false" disabled>Select region</button>
                                         <div class="edit-select-menu" role="listbox"></div>
                                     </div>
                                 </div>
@@ -3669,7 +3727,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
     var companyDepartments = {
         "@leadsagri.com": <?php echo json_encode(array_values($lapc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
         "@gpsci.net": [],
-        "@primestocks.ph": [],
+        "@primestocks.ph": <?php echo json_encode(array_values($pcc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
         "@malvedaholdings.com": <?php echo json_encode(array_values($mhc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>,
         "@leads-farmex.com": [],
         "@leadstech-corp.com": [],
@@ -3678,6 +3736,10 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         "@lingapleads.org": [],
         "@leadsav.com": []
     };
+    var addUserCompanyDepartments = Object.assign({}, companyDepartments, {
+        "@leadsagri.com": <?php echo json_encode(array_values($add_user_lapc_department_options), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>
+    });
+    var usersFilterCompanyDepartments = addUserCompanyDepartments;
     var editCompanyDepartments = companyDepartments;
     var tmUsersState = { page: 1, limit: window.TM_USERS_PAGE_SIZE, total: 0, totalPages: 1 };
     var tmItState = { page: 1, limit: window.TM_IT_PAGE_SIZE, total: 0, totalPages: 1 };
@@ -3735,6 +3797,44 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
     }
 
     var lastAddUserDepartmentCompany = '';
+    function toggleAddUserRegionField(forceReset) {
+        var companyEl = document.getElementById('domain');
+        var deptEl = document.getElementById('newDept');
+        var regionEl = document.getElementById('newRegion');
+        var regionWrap = document.getElementById('addUserRegionWrap');
+        var fullNameRow = document.querySelector('#addUserForm .fullname-row');
+        if (!companyEl || !deptEl || !regionEl || !regionWrap) return;
+        var deptTrigger = deptEl.closest('.edit-select-wrap') ? deptEl.closest('.edit-select-wrap').querySelector('.edit-select-trigger') : null;
+        var departmentValue = String(deptEl.value || '').trim();
+        if (!departmentValue && deptTrigger) {
+            departmentValue = String(deptTrigger.textContent || '').trim();
+        }
+        var shouldShow = String(companyEl.value || '').trim() === '@leadsagri.com'
+            && departmentValue === 'Sales';
+        regionWrap.classList.toggle('is-visible', shouldShow);
+        if (fullNameRow) fullNameRow.classList.toggle('has-sales-region', shouldShow);
+        regionEl.disabled = !shouldShow;
+        regionEl.required = shouldShow;
+        var regionTrigger = regionWrap.querySelector('.edit-select-trigger');
+        if (regionTrigger) {
+            regionTrigger.disabled = !shouldShow;
+            if (shouldShow) {
+                regionTrigger.removeAttribute('disabled');
+            } else {
+                regionTrigger.setAttribute('disabled', 'disabled');
+                regionTrigger.setAttribute('aria-expanded', 'false');
+                regionWrap.classList.remove('is-open');
+            }
+        }
+        if (!shouldShow || forceReset) {
+            regionEl.value = '';
+            regionEl.selectedIndex = 0;
+        }
+        if (typeof refreshEditSelect === 'function') {
+            refreshEditSelect(regionEl);
+        }
+    }
+
     function updateDepartmentDropdown(forceReset) {
         var companyEl = document.getElementById('domain');
         var deptEl = document.getElementById('newDept');
@@ -3745,12 +3845,13 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             selectedCompany = String(companyEl.options[companyEl.selectedIndex].value || '').trim();
         }
 
-        var departmentKey = Object.prototype.hasOwnProperty.call(companyDepartments, selectedCompany)
+        var departmentSource = addUserCompanyDepartments || companyDepartments;
+        var departmentKey = Object.prototype.hasOwnProperty.call(departmentSource, selectedCompany)
             ? selectedCompany
-            : Object.keys(companyDepartments).find(function (key) {
+            : Object.keys(departmentSource).find(function (key) {
                 return String(key || '').toLowerCase() === selectedCompany.toLowerCase();
             });
-        var departments = departmentKey ? (companyDepartments[departmentKey] || []) : [];
+        var departments = departmentKey ? (departmentSource[departmentKey] || []) : [];
         var previousDepartment = String(deptEl.value || '').trim();
         var shouldReset = !!forceReset || selectedCompany !== lastAddUserDepartmentCompany;
         var html = '';
@@ -3784,6 +3885,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             refreshEditSelect(companyEl);
             refreshEditSelect(deptEl);
         }
+        toggleAddUserRegionField(shouldReset);
     }
 
     function renderUsers(users) {
@@ -4315,6 +4417,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 if (selectEl.id === 'usersDept' && String(option.value || '') === '') return '';
                 if (selectEl.id === 'usersDept' && String(option.value || '') === 'all') return '';
                 if (selectEl.id === 'newDept' && String(option.value || '') === '') return '';
+                if (selectEl.id === 'newRegion' && String(option.value || '') === '') return '';
                 if (option.disabled && option.hidden) return '';
                 var selected = option.selected ? ' is-selected' : '';
                 return '<div class="edit-select-option' + selected + '" role="option" aria-selected="' + (option.selected ? 'true' : 'false') + '" data-index="' + index + '" data-value="' + escapeHtml(String(option.value || '')) + '">' + escapeHtml(String(option.textContent || '')) + '</div>';
@@ -4346,6 +4449,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             refreshEditSelect(editUserDepartment);
             refreshEditSelect(document.getElementById('domain'));
             refreshEditSelect(document.getElementById('newDept'));
+            refreshEditSelect(document.getElementById('newRegion'));
             refreshEditSelect(document.getElementById('usersCompany'));
             refreshEditSelect(document.getElementById('usersDept'));
         }
@@ -4353,6 +4457,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             updateDepartmentDropdown(forceReset);
             refreshEditSelect(document.getElementById('domain'));
             refreshEditSelect(document.getElementById('newDept'));
+            refreshEditSelect(document.getElementById('newRegion'));
         }
         function initEditSelect(selectEl) {
             if (!selectEl) return;
@@ -4382,6 +4487,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 selectEl.dispatchEvent(new Event('change', { bubbles: true }));
                 if (selectEl.id === 'domain') {
                     syncAddUserDepartmentDropdown(true);
+                }
+                if (selectEl.id === 'newDept') {
+                    toggleAddUserRegionField(true);
                 }
                 refreshEditSelect(selectEl);
                 closeEditSelectMenus();
@@ -4640,6 +4748,10 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 }
             });
         }
+        function validEditUserName(value) {
+            var name = String(value || '');
+            return name.length >= 2 && name.length <= 100 && /^[\p{L}\s]+$/u.test(name) && !/\d/.test(name);
+        }
         function getAccessSectionUi(section) {
             var normalized = String(section || '').toLowerCase();
             if (normalized.indexOf('ticket') > -1) {
@@ -4801,6 +4913,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         initEditSelect(editUserDepartment);
         initEditSelect(document.getElementById('domain'));
         initEditSelect(document.getElementById('newDept'));
+        initEditSelect(document.getElementById('newRegion'));
         initEditSelect(document.getElementById('usersCompany'));
         initEditSelect(document.getElementById('usersDept'));
         refreshEditSelects();
@@ -4827,11 +4940,59 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 syncEditDepartmentOptions('');
             });
         }
+        if (editUserName) {
+            editUserName.addEventListener('input', function () {
+                var current = String(editUserName.value || '');
+                var cleaned = current.replace(/\d+/g, '');
+                if (cleaned !== current) {
+                    var cursorPos = editUserName.selectionStart || cleaned.length;
+                    editUserName.value = cleaned;
+                    try {
+                        editUserName.setSelectionRange(cursorPos - (current.length - cleaned.length), cursorPos - (current.length - cleaned.length));
+                    } catch (e) {}
+                }
+            });
+            editUserName.addEventListener('paste', function () {
+                setTimeout(function () {
+                    editUserName.value = String(editUserName.value || '')
+                        .replace(/\d+/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                }, 0);
+            });
+            editUserName.addEventListener('blur', function () {
+                editUserName.value = String(editUserName.value || '')
+                    .replace(/\d+/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            });
+        }
         if (editUserForm) {
             editUserForm.addEventListener('submit', function (e) {
                 e.preventDefault();
                 if (!window.TM_CAN_MANAGE_USER_ACCESS) {
                     showAccessAlert('warning', 'Access denied', 'Only the super admin can edit users.');
+                    return;
+                }
+                var normalizedEditName = editUserName
+                    ? String(editUserName.value || '').replace(/\d+/g, '').replace(/\s+/g, ' ').trim()
+                    : '';
+                if (editUserName) {
+                    editUserName.value = normalizedEditName;
+                }
+                if (!normalizedEditName) {
+                    showAccessAlert('warning', 'Invalid full name', 'Please enter the user\'s full name.');
+                    if (editUserName) editUserName.focus();
+                    return;
+                }
+                if (/\d/.test(normalizedEditName)) {
+                    showAccessAlert('warning', 'Invalid full name', 'Numbers are not allowed in the full name.');
+                    if (editUserName) editUserName.focus();
+                    return;
+                }
+                if (!validEditUserName(normalizedEditName)) {
+                    showAccessAlert('warning', 'Invalid full name', 'Please use letters and spaces only.');
+                    if (editUserName) editUserName.focus();
                     return;
                 }
                 if (saveEditUserBtn) saveEditUserBtn.disabled = true;
@@ -4867,7 +5028,9 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                         });
                     })
                     .catch(function (error) {
-                        showAccessAlert('error', 'Update failed', error && error.message ? error.message : 'Failed to update user.');
+                        var message = error && error.message ? error.message : 'Failed to update user.';
+                        var isNameError = /full name|name/i.test(message);
+                        showAccessAlert(isNameError ? 'warning' : 'error', isNameError ? 'Invalid full name' : 'Update failed', message);
                     })
                     .finally(function () {
                         if (saveEditUserBtn) saveEditUserBtn.disabled = false;
@@ -4889,6 +5052,12 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         if (domainSelect) {
             domainSelect.addEventListener('change', function () {
                 syncAddUserDepartmentDropdown(true);
+            });
+        }
+        var addUserDeptSelect = document.getElementById('newDept');
+        if (addUserDeptSelect) {
+            addUserDeptSelect.addEventListener('change', function () {
+                toggleAddUserRegionField(true);
             });
         }
         syncAddUserDepartmentDropdown(true);
@@ -5036,7 +5205,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 return fullNameEl.value;
             }
             function validFullName(value) {
-                return /^(?=.{2,100}$)[A-Za-z][A-Za-z .,'-]*[A-Za-z.]$/.test(String(value || '')) && !/\d/.test(String(value || ''));
+                var name = String(value || '');
+                return name.length >= 2 && name.length <= 100 && /^[\p{L}\s]+$/u.test(name) && !/\d/.test(name);
             }
             function validEmailLocalPart(value) {
                 var local = String(value || '').trim().toLowerCase();
@@ -5098,6 +5268,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 var domain = document.getElementById('domain');
                 var password = document.getElementById('newPassword');
                 var deptEl = document.getElementById('newDept');
+                var regionEl = document.getElementById('newRegion');
                 if (!fullName || !username || !domain || !password) return;
                 var normalizedName = normalizeFullName();
                 var rawUsernameValue = String(username.value || '');
@@ -5113,7 +5284,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                     return;
                 }
                 if (!validFullName(normalizedName)) {
-                    showCreateUserError('Invalid full name', 'Please use a valid name with letters only.');
+                    showCreateUserError('Invalid full name', 'Please use letters and spaces only.');
                     fullName.focus();
                     return;
                 }
@@ -5146,6 +5317,12 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                     deptEl.focus();
                     return;
                 }
+                syncEditSelectValue(regionEl);
+                if (regionEl && !regionEl.disabled && !String(regionEl.value || '').trim()) {
+                    showCreateUserError('Region required', 'Please select a region.');
+                    regionEl.focus();
+                    return;
+                }
                 if (!String(password.value || '').trim()) {
                     showCreateUserError('Password required', 'Please enter a password for the new user.');
                     password.focus();
@@ -5158,6 +5335,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                 fd.set('domain', domain.value || '');
                 fd.set('password', password.value || '');
                 if (deptEl) fd.set('department', deptEl.disabled ? '' : (deptEl.value || ''));
+                if (regionEl) fd.set('region', regionEl.disabled ? '' : (regionEl.value || ''));
 
                 var btn = document.getElementById('createUserBtn');
                 if (btn) btn.disabled = true;
@@ -5256,6 +5434,8 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                             }
                         });
                         addUserForm.reset();
+                        syncAddUserDepartmentDropdown(true);
+                        toggleAddUserRegionField(true);
                         loadUsersList();
                         closeModal();
                     })

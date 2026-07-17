@@ -152,7 +152,7 @@ if ($company !== '' && $company !== 'all') {
     }
 }
 
-if (in_array($company, ['@leadsagri.com', '@malvedaholdings.com'], true) && $department !== '' && $department !== 'all') {
+if (in_array($company, ['@leadsagri.com', '@malvedaholdings.com', '@primestocks.ph'], true) && $department !== '' && $department !== 'all') {
     $deptKey = strtoupper($department);
     $aliasMap = [
         'ADMIN & LEGAL' => ['ADMIN & LEGAL', 'ADMIN', 'ADMINISTRATION'],

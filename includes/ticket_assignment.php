@@ -53,6 +53,32 @@ function ticket_record_activity(mysqli $conn, int $ticketId, string $activityTyp
     }
 }
 
+/**
+ * Format a ticket description for display in email notifications
+ * Escapes HTML and converts newlines to <br> tags for proper email formatting
+ */
+function ticket_email_description_for_notification(string $description): string
+{
+    $description = trim((string) $description);
+    if ($description === '') {
+        return '';
+    }
+
+    $normalizedDescription = preg_replace("/\r\n?/", "\n", $description);
+    if (is_string($normalizedDescription) && preg_match('/^\s*SAP Form\b/i', $normalizedDescription)) {
+        $cleanDescription = preg_replace('/\n{2,}Employee Details(?:\s+\d+)?\s*\n.*$/is', '', $normalizedDescription);
+        $description = trim(is_string($cleanDescription) && $cleanDescription !== '' ? $cleanDescription : 'SAP Form');
+    }
+    
+    // HTML escape the description
+    $escaped = htmlspecialchars($description, ENT_QUOTES, 'UTF-8');
+    
+    // Convert newlines to <br> tags for HTML emails
+    $formatted = nl2br($escaped);
+    
+    return $formatted;
+}
+
 function ticket_activity_actor_label(mysqli $conn, int $userId, array $session = []): string
 {
     $name = trim((string) ($session['name'] ?? ($session['full_name'] ?? '')));
@@ -195,11 +221,12 @@ function ticket_company_group_map(): array
 {
     $standard = ticket_standard_assigned_departments();
     $lapc = ticket_lapc_departments();
+    $pcc = ticket_pcc_departments();
     $mhc = ticket_mhc_departments();
     return [
         'LAPC' => $lapc,
         'GPCI' => $standard,
-        'PCC' => $standard,
+        'PCC' => $pcc,
         'MHC' => $mhc,
         'Farmex Corp' => $standard,
         'LTC' => $standard,
@@ -217,7 +244,7 @@ function ticket_company_group_map(): array
         '@malvedaproperties.com' => $standard,
         '@leadstech-corp.com' => $standard,
         '@lingapleads.org' => $standard,
-        '@primestocks.ph' => $standard,
+        '@primestocks.ph' => $pcc,
     ];
 }
 
@@ -261,6 +288,13 @@ function ticket_lapc_departments(): array
     ];
 }
 
+function ticket_pcc_departments(): array
+{
+    return [
+        'Admin & Legal',
+    ];
+}
+
 function ticket_mhc_departments(): array
 {
     return [
@@ -275,7 +309,7 @@ function ticket_mhc_departments(): array
 function ticket_company_requires_department(string $company): bool
 {
     $company = ticket_normalize_company($company);
-    return in_array($company, ['@leadsagri.com', '@malvedaholdings.com'], true);
+    return in_array($company, ['@leadsagri.com', '@malvedaholdings.com', '@primestocks.ph'], true);
 }
 
 function ticket_request_company_options(): array
@@ -512,6 +546,9 @@ function ticket_company_allowed_groups(string $company): array
     if ($company === '@leadsagri.com' || strtoupper($company) === 'LAPC') {
         return ticket_lapc_departments();
     }
+    if ($company === '@primestocks.ph' || strtoupper($company) === 'PCC') {
+        return ticket_pcc_departments();
+    }
     if ($company === '@malvedaholdings.com' || strtoupper($company) === 'MHC') {
         return ticket_mhc_departments();
     }
@@ -616,7 +653,7 @@ function ticket_assignee_email_overrides(): array
 {
     return [
         '@leadsagri.com' => [
-            'IT' => 'it@leadsagri.com',
+            'IT' => 'matthew22@leadsagri.com',
         ],
     ];
 }
@@ -625,29 +662,29 @@ function ticket_notification_department_email_map(): array
 {
     return [
         'FARMASEE' => [
-           '_default' => ['ecommercefarmasee@farmasee.ph'],
-       
+        //    '_default' => ['ecommercefarmasee@farmasee.ph'],
+        '_default' => ['rachelleambayan@gmail.com'],
         ],
         'FARMEX' => [
-           '_default' => ['inquiries@leads-farmex.com'],
+          //  '_default' => ['inquiries@leads-farmex.com'],
         ],
         'LAPC' => [
-            'ADMIN' => ['admin@leadsagri.com'],
-            
-            'HR' => ['hr@leadsagri.com'],
-           
-            'IT' => ['it@leadsagri.com, it@malvedaholdings.com'],
-
+            // 'ADMIN' => ['admin@leadsagri.com'],
+            'ADMIN' => ['enzomendoza8teen@gmail.com'],
+            // 'HR' => ['hr@leadsagri.com'],
+            'HR' => ['matthewpascua052203@gmail.com'],
+                        'IT' => ['']
+ // it it@malvedaholdings.com
         
         ],  
         'LINGAP' => [
-             '_default' => ['partnership@lingapleads.org' , 'info@lingapleads.org'],
+            // '_default' => ['partnership@lingapleads.org' , 'info@lingapleads.org'],
         ],
         'LAV' => [
-             '_default' => ['all@leadsav.com'],
+            // '_default' => ['all@leadsav.com'],
         ],
         'MPDC' => [
-             '_default' => ['all@malvedaproperties.com'],
+            // '_default' => ['all@malvedaproperties.com'],
         ],
 
         
@@ -684,6 +721,20 @@ function ticket_linked_department_notification_targets(string $company, string $
 {
     $company = ticket_normalize_company($company);
     $groupKey = ticket_department_key_from_value($group);
+
+    if ($groupKey === 'ADMIN' || strcasecmp(trim($group), 'Admin & Legal') === 0) {
+        if ($company === '@leadsagri.com') {
+            return [
+                ['company' => '@primestocks.ph', 'group' => 'Admin & Legal'],
+            ];
+        }
+
+        if ($company === '@primestocks.ph') {
+            return [
+                ['company' => '@leadsagri.com', 'group' => 'Admin & Legal'],
+            ];
+        }
+    }
 
     if ($groupKey !== 'IT') {
         return [];
@@ -880,15 +931,19 @@ function ticket_assignee_notification_emails(mysqli $conn, array $assignedUserId
 {
     $company = ticket_normalize_company($company);
     $excludeUserId = (int) $excludeUserId;
-    $emails = [];
 
     if (!$skipDepartmentOverride) {
         $overrideEmails = ticket_department_override_notification_emails($company, $group);
         if (count($overrideEmails) > 0) {
-            $emails = array_merge($emails, $overrideEmails);
+            return array_values(array_unique(array_filter(array_map(static function ($email) {
+                return strtolower(trim((string) $email));
+            }, $overrideEmails), static function ($email) {
+                return $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL);
+            })));
         }
     }
 
+    $emails = [];
     foreach ($assignedUserIds as $notifyUserId) {
         $notifyUserId = (int) $notifyUserId;
         if ($notifyUserId <= 0) continue;
@@ -1508,6 +1563,8 @@ function ticket_build_user_context(mysqli $conn, int $userId, array $session = [
         'department' => (string) ($session['department'] ?? ''),
         'company' => (string) ($session['company'] ?? ''),
         'email' => (string) ($session['email'] ?? ''),
+        'region' => (string) ($session['region'] ?? ''),
+        'employee_view_mode' => (string) ($session['employee_view_mode'] ?? ''),
     ];
 
     if ($userId <= 0) return $ctx;
@@ -1679,6 +1736,46 @@ function ticket_user_matches_requester(array $ticket, int $userId, ?array $userC
     return $userEmail !== '' && $requesterEmail !== '' && $userEmail === $requesterEmail;
 }
 
+function ticket_description_field_value(array $ticket, string $field): string
+{
+    $description = preg_replace('/<br\s*\/?>/i', "\n", (string) ($ticket['description'] ?? '')) ?? '';
+    if ($description === '' || $field === '') {
+        return '';
+    }
+    $pattern = '/^\s*' . preg_quote($field, '/') . '\s*:\s*(.+)$/mi';
+    if (!preg_match($pattern, $description, $match)) {
+        return '';
+    }
+    return trim(strip_tags((string) ($match[1] ?? '')));
+}
+
+function ticket_is_sales_request_ticket(array $ticket): bool
+{
+    $requesterEmail = ticket_requester_email($ticket);
+    $requesterDepartment = strtolower(trim((string) ($ticket['department'] ?? ($ticket['user_department'] ?? ''))));
+    return $requesterEmail === 'sales_guest@leadsagri.com' || $requesterDepartment === 'sales';
+}
+
+function ticket_user_is_sales_manager_for_ticket(array $ticket, ?array $userContext = null): bool
+{
+    if ($userContext === null || !ticket_is_sales_request_ticket($ticket)) {
+        return false;
+    }
+
+    $company = ticket_normalize_company((string) ($userContext['company'] ?? ''));
+    $department = trim((string) ($userContext['department'] ?? ''));
+    $region = trim((string) ($userContext['region'] ?? ''));
+    $viewMode = trim((string) ($userContext['employee_view_mode'] ?? ''));
+    $ticketRegion = ticket_description_field_value($ticket, 'Region');
+
+    return $company === '@leadsagri.com'
+        && strcasecmp($department, 'Sales') === 0
+        && strcasecmp($viewMode, 'manager') === 0
+        && $region !== ''
+        && $ticketRegion !== ''
+        && strcasecmp($ticketRegion, $region) === 0;
+}
+
 function ticket_is_shared_lapc_hr_chat(array $ticket): bool
 {
     $ticketCompany = ticket_normalize_company((string) ($ticket['assigned_company'] ?? ($ticket['company'] ?? '')));
@@ -1793,6 +1890,9 @@ function ticket_user_can_chat(array $ticket, int $userId, ?array $userContext = 
     if ($userId <= 0) return false;
     if (ticket_user_matches_requester($ticket, $userId, $userContext)) return true;
     if ($userContext === null) return false;
+    if (ticket_user_is_sales_manager_for_ticket($ticket, $userContext)) {
+        return $handlerId > 0;
+    }
     if (ticket_requires_manual_claim($ticket)) {
         return false;
     }

@@ -29,7 +29,7 @@ function company_code(string $value): string
     if ($s === '') return '';
     if ($s === 'FARMASEE') return 'PCC';
     if (strpos($s, 'MHC') !== false) return 'MHC';
-    if (strpos($s, 'GPCI') !== false || strpos($s, 'GPSCI') !== false) return 'GPCI';
+    if (strpos($s, 'GPCI') !== false || strpos($s, 'GPCI') !== false) return 'GPCI';
     if (strpos($s, 'LAPC') !== false || strpos($s, 'LAH') !== false) return 'LAPC';
     if (strpos($s, 'PCC') !== false) return 'PCC';
     if (strpos($s, 'MPDC') !== false) return 'MPDC';
@@ -46,7 +46,7 @@ function company_aliases(string $value): array
     $code = company_code($v);
     $map = [
         'MHC' => ['MHC', 'Malveda Holdings Corporation - MHC'],
-        'GPCI' => ['GPCI', 'GPSCI', 'Golden Primestocks Chemical Inc - GPSCI', 'Golden Primestocks Chemical Inc - GPCI'],
+        'GPCI' => ['GPCI', 'GPCI', 'Golden Primestocks Chemical Inc - GPCI', 'Golden Primestocks Chemical Inc - GPCI'],
         'LAPC' => ['LAPC', 'Leads Animal Health - LAH', 'LEADS Animal Health - LAH'],
         'PCC' => ['PCC', 'Primestocks Chemical Corporation - PCC', 'FARMASEE'],
         'MPDC' => ['MPDC', 'Malveda Properties & Development Corporation - MPDC'],
@@ -138,7 +138,7 @@ $allowed_departments_by_company = [
 $company_filter_options = [
     '@farmex_lav' => 'FARMEX / LAV',
     '@farmasee.ph' => 'FARMASEE',
-    '@gpsci.net' => 'GPSCI',
+    '@gpsci.net' => 'GPCI',
     '@leadsagri.com' => 'LAPC',
     '@malvedaholdings.com' => 'MHC',
     '@malvedaproperties.com' => 'MPDC',
@@ -279,6 +279,9 @@ $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsag
 $requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
 $linkedItTaskCond = "0=1";
 $normalizedUserCompany = ticket_normalize_company((string) $user_company);
+$isLapcSalesEmployeeView = $normalizedUserCompany === '@leadsagri.com'
+    && strcasecmp((string) $user_department, 'Sales') === 0
+    && (($_SESSION['employee_view_mode'] ?? 'employee') !== 'manager');
 if ($userDepartmentKey === 'IT') {
     if ($normalizedUserCompany === '@malvedaholdings.com') {
         $linkedItTaskCond = "(LOWER($companyCol) IN ('@leadsagri.com', 'lapc', 'leads agri', 'leads agricultural products corporation') AND UPPER($taskDeptExpr) = 'IT')";
@@ -286,7 +289,9 @@ if ($userDepartmentKey === 'IT') {
         $linkedItTaskCond = "(LOWER($companyCol) IN ('@malvedaholdings.com', 'mhc', 'malveda holdings', 'malveda holdings corporation') AND UPPER($taskDeptExpr) = 'IT')";
     }
 }
-$assignedTaskCond = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND (($companyCond AND ((NOT $requiresGroupCond) OR $groupCond)) OR $linkedItTaskCond)))";
+$assignedTaskCond = $isLapcSalesEmployeeView
+    ? "((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond)"
+    : "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND (($companyCond AND ((NOT $requiresGroupCond) OR $groupCond)) OR $linkedItTaskCond)))";
 $reassignedActivityCond = count($reassignedHistoryAliases) > 0
     ? "EXISTS (SELECT 1 FROM ticket_activity ta WHERE ta.ticket_id = t.id AND ta.activity_type IN ('department_change', 'company_change') AND (" . implode(' OR ', array_fill(0, count($reassignedHistoryAliases), "UPPER(ta.description) LIKE ?")) . "))"
     : "0=1";
@@ -298,9 +303,11 @@ $reassignedNotificationCond = "EXISTS (
       AND n.type = 'dept_assigned'
       AND COALESCE(NULLIF(LOWER(TRIM(n.action_type)), ''), 'assign') IN ('assign', 'reassign')
 )";
-$reassignedTaskCond = "(NOT $requesterIsCurrentCond AND (($reassignedActivityCond) OR $reassignedNotificationCond))";
+$reassignedTaskCond = $isLapcSalesEmployeeView
+    ? "0=1"
+    : "(NOT $requesterIsCurrentCond AND (($reassignedActivityCond) OR $reassignedNotificationCond))";
 
-$addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases): void {
+$addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $isLapcSalesEmployeeView): void {
     $params[] = (int) $user_id;
     $types .= "i";
     $params[] = (int) $user_id;
@@ -309,6 +316,9 @@ $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $u
     $types .= "i";
     $params[] = strtolower((string) $user_email);
     $types .= "s";
+    if ($isLapcSalesEmployeeView) {
+        return;
+    }
     $params[] = (int) $user_id;
     $types .= "i";
     $params[] = strtolower((string) $user_email);
@@ -325,7 +335,10 @@ $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $u
     }
 };
 
-$addReassignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $reassignedHistoryAliases, $userDepartmentAliases): void {
+$addReassignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
+    if ($isLapcSalesEmployeeView) {
+        return;
+    }
     $params[] = (int) $user_id;
     $types .= "i";
     $params[] = strtolower((string) $user_email);
@@ -494,6 +507,10 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
         body.employee-my-task-page .table-responsive .admin-table {
             margin: 0;
+        }
+
+        body.employee-my-task-page .table-responsive .admin-table.is-empty th:last-child {
+            display: none;
         }
 
         body.employee-my-task-page .task-ticket-sla .badge {
@@ -1010,19 +1027,20 @@ $showing_to = min($offset + $limit, (int) $total_records);
             justify-content: center;
             background: #f6fff4;
             color: #15803d;
-            border: 3px solid #d7ebc6;
+            border: 3px solid #bbf7d0;
             box-sizing: border-box;
             font-size: 34px;
             line-height: 1;
-            font-weight: 700;
+            font-weight: 600;
+            box-shadow: 0 0 0 12px rgba(187, 247, 208, 0.22), 0 0 34px rgba(74, 222, 128, 0.28);
         }
         .task-success-title {
             margin: 0 0 10px;
             padding: 0 24px;
             font-size: 22px;
             line-height: 1.25;
-            font-weight: 800;
-            color: #20243a;
+            font-weight: 600;
+            color: #303957;
         }
         .task-success-message {
             margin: 0;
@@ -1040,8 +1058,8 @@ $showing_to = min($offset + $limit, (int) $total_records);
             display: inline;
             padding: 0;
             margin: 0 4px;
-            color: #0f172a;
-            font-weight: 900;
+            color: #1f2937;
+            font-weight: 600;
             line-height: 1;
             font-variant-numeric: tabular-nums;
             letter-spacing: -0.01em;
@@ -1284,7 +1302,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
             <!-- TABLE CARD -->
             <div class="table-card">
                 <div class="table-responsive">
-                    <table class="admin-table">
+                    <table class="admin-table <?= (int) $total_records === 0 ? 'is-empty' : ''; ?>" id="tasksTable">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -1343,7 +1361,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                 <?php } ?>
                                 <?php else: ?>
                                 <tr>
-                                    <td colspan="9" style="text-align:center; color: #94a3b8; padding: 40px;">
+                                    <td colspan="8" style="text-align:center; color: #94a3b8; padding: 40px;">
                                         <div class="empty-state">
                                             <i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i>
                                             <p>No tickets available for the selected filters.</p>
@@ -1519,6 +1537,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
         var filterForm = document.getElementById("filterForm");
         var searchInput = document.getElementById("searchInput");
         var tbodyEl = document.getElementById("tasksTbody");
+        var tasksTableEl = document.getElementById("tasksTable");
         var paginationEl = document.getElementById("tasksPagination");
         var currentTasksPage = <?= (int) $page ?>;
         var tasksAutoRefreshMs = 10000;
@@ -1541,6 +1560,9 @@ $showing_to = min($offset + $limit, (int) $total_records);
                     if (!data || !data.ok) return;
                     tbodyEl.innerHTML = data.rows_html || '';
                     paginationEl.innerHTML = data.pagination_html || '';
+                    if (tasksTableEl) {
+                        tasksTableEl.classList.toggle('is-empty', parseInt(data.total || 0, 10) <= 0);
+                    }
                     currentTasksPage = parseInt(data.page || nextPage, 10) || 1;
                     if (updateHistory === false) return;
                     var url = new URL(window.location.href);

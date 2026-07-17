@@ -556,6 +556,17 @@ if ($row = $result->fetch_assoc()) {
     if ($requester_name !== '') $row['created_by_name'] = $requester_name;
     if ($requester_email !== '') $row['created_by_email'] = $requester_email;
     $row['description'] = $clean_desc;
+    $salesManagerRegionalAccess = false;
+    $salesManagerRegion = trim((string) ($_SESSION['region'] ?? ''));
+    $salesManagerIsEligible = (($_SESSION['employee_view_mode'] ?? '') === 'manager')
+        && ticket_normalize_company((string) $company) === '@leadsagri.com'
+        && strcasecmp((string) $dept, 'Sales') === 0
+        && $salesManagerRegion !== '';
+    if ($salesManagerIsEligible && !empty($row['is_sales_ticket'])) {
+        $normalizedDescription = preg_replace('/<br\s*\/?>/i', "\n", (string) ($row['description'] ?? '')) ?? '';
+        $salesManagerRegionalAccess = stripos($normalizedDescription, 'Region: ' . $salesManagerRegion) !== false;
+    }
+    $row['sales_manager_regional_access'] = $salesManagerRegionalAccess;
     $userContext = ticket_build_user_context($conn, $currentUserId, $_SESSION);
     $lockedAssignedUserId = isset($row['assigned_user_id']) ? (int) $row['assigned_user_id'] : 0;
     $lockedHandlerId = isset($row['assigned_to']) ? (int) $row['assigned_to'] : 0;
@@ -583,11 +594,15 @@ if ($row = $result->fetch_assoc()) {
         $canUpdateTab = false;
     }
     if ($row['is_sales_ticket'] && !$hasActualAssignee) {
-        $canUpdateTab = ticket_user_is_handler_candidate($row, $currentUserId, $userContext);
+        $canUpdateTab = false;
     }
     $row = ticket_chat_apply_effective_handler($row);
     $row['can_claim_ticket'] = ticket_user_can_manual_claim($row, $currentUserId, $userContext);
     if (!empty($row['can_claim_ticket'])) {
+        $canUpdateTab = false;
+    }
+    if ($salesManagerRegionalAccess) {
+        $row['can_claim_ticket'] = false;
         $canUpdateTab = false;
     }
     $row['can_update_tab'] = $canUpdateTab;
@@ -620,9 +635,14 @@ if ($row = $result->fetch_assoc()) {
     if (!$isRequesterForAccess && $specificUserLocked && $lockedAssignedUserId !== $currentUserId) {
         $handlerCandidateAccess = false;
     }
+    $salesAssigneeChatAccess = !$salesManagerRegionalAccess
+        && !empty($row['is_sales_ticket'])
+        && ($handlerCandidateAccess || $isCurrentHandler || $isCurrentAssignedUser || !empty($row['can_claim_ticket']));
+    $row['sales_assignee_chat_access'] = $salesAssigneeChatAccess;
     $hasAccess = $isRequesterForAccess
         || $handlerCandidateAccess
         || $hasFeedbackAccess
+        || $salesManagerRegionalAccess
         || !empty($row['can_claim_ticket']);
     if (!$hasAccess) {
         if (!empty($reassignedViewOnlyAccess)) {
@@ -684,6 +704,16 @@ if ($row = $result->fetch_assoc()) {
     );
     $row['can_view_chat_history'] = !empty($row['reassigned_view_only']) || ($chatClosedMessage === '' || $canViewClosedChat);
     $row['can_chat'] = empty($row['reassigned_view_only']) && $chatClosedMessage === '' && ticket_user_can_chat($row, $currentUserId, $userContext);
+    if ($salesManagerRegionalAccess) {
+        $row['can_view_chat_history'] = true;
+        $row['can_chat'] = $chatClosedMessage === '' && ticket_user_can_chat($row, $currentUserId, $userContext);
+        $row['hide_conversation_tab'] = false;
+        $row['can_update_tab'] = false;
+        $row['can_claim_ticket'] = false;
+    } elseif ($salesAssigneeChatAccess) {
+        $row['can_view_chat_history'] = true;
+        $row['hide_conversation_tab'] = false;
+    }
     $row['assigned_to'] = isset($row['assigned_to']) ? (int) $row['assigned_to'] : null;
     $row['assigned_to_name'] = isset($row['assigned_to_name']) ? (string) $row['assigned_to_name'] : '';
     $row['assigned_to_email'] = isset($row['assigned_to_email']) ? (string) $row['assigned_to_email'] : '';
@@ -696,6 +726,8 @@ if ($row = $result->fetch_assoc()) {
         $row['chat_locked_message'] = $chatClosedMessage;
     } elseif (!empty($row['reassigned_view_only']) && !empty($row['reassigned_message'])) {
         $row['chat_locked_message'] = (string) $row['reassigned_message'];
+    } elseif ($salesManagerRegionalAccess) {
+        $row['chat_locked_message'] = 'Manager view can view the conversation history only.';
     } elseif ($row['assigned_to_name'] !== '') {
         $row['chat_locked_message'] = 'This ticket is already assigned to ' . $row['assigned_to_name'] . '.';
     } else {

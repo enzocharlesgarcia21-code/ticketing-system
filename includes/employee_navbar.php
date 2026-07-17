@@ -4,21 +4,36 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/user_permissions.php';
+require_once __DIR__ . '/ticket_assignment.php';
 $csrfToken = csrf_token();
 
 $user_id = isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : 0;
 $user_email = 'Account';
 $user_name = 'Account';
+$user_company = (string) ($_SESSION['company'] ?? '');
+$user_department = (string) ($_SESSION['department'] ?? '');
+$user_region = (string) ($_SESSION['region'] ?? '');
 $tmUserPermissions = user_permissions_defaults();
 
 if ($user_id > 0 && isset($conn)) {
     user_permissions_ensure_table($conn);
     $tmUserPermissions = user_permissions_get_for_user($conn, $user_id);
-    $user_query = $conn->query("SELECT name, email FROM users WHERE id = $user_id");
+    $hasNavbarRegionColumn = false;
+    $navbarRegionColumnRes = $conn->query("SHOW COLUMNS FROM users LIKE 'region'");
+    if ($navbarRegionColumnRes && $navbarRegionColumnRes->num_rows > 0) {
+        $hasNavbarRegionColumn = true;
+    }
+    $user_query = $conn->query("SELECT name, email, company, department" . ($hasNavbarRegionColumn ? ", region" : "") . " FROM users WHERE id = $user_id");
     if ($user_query && $user_query->num_rows > 0) {
         $user_row = $user_query->fetch_assoc();
         $user_email = trim((string) ($user_row['email'] ?? ''));
         $user_name = trim((string) ($user_row['name'] ?? ''));
+        $user_company = trim((string) ($user_row['company'] ?? $user_company));
+        $user_department = trim((string) ($user_row['department'] ?? $user_department));
+        $user_region = $hasNavbarRegionColumn ? trim((string) ($user_row['region'] ?? $user_region)) : $user_region;
+        if ($user_company !== '') $_SESSION['company'] = $user_company;
+        if ($user_department !== '') $_SESSION['department'] = $user_department;
+        $_SESSION['region'] = $user_region;
         if ($user_name === '') {
             $user_name = $user_email !== '' ? $user_email : 'Account';
         }
@@ -61,6 +76,25 @@ $employeeNavItems = [
     ['key' => 'conference_booking', 'page' => 'book_conference.php', 'label' => 'Conference Booking'],
     ['key' => 'analytics', 'page' => 'analytics.php', 'label' => 'Analytics'],
 ];
+
+$isLapcSalesEmployee = function_exists('ticket_normalize_company')
+    && ticket_normalize_company($user_company) === '@leadsagri.com'
+    && strcasecmp($user_department, 'Sales') === 0
+    && $user_region !== '';
+$employeeViewMode = $isLapcSalesEmployee ? (string) ($_SESSION['employee_view_mode'] ?? 'employee') : 'employee';
+if (!in_array($employeeViewMode, ['employee', 'manager'], true)) {
+    $employeeViewMode = 'employee';
+}
+if (!$isLapcSalesEmployee) {
+    unset($_SESSION['employee_view_mode']);
+}
+if ($isLapcSalesEmployee && $employeeViewMode === 'manager') {
+    $employeeNavItems = [
+        ['key' => 'dashboard', 'page' => 'dashboard.php', 'label' => 'Dashboard'],
+        ['key' => 'sales_submitted_tickets', 'page' => 'sales_submitted_tickets.php', 'label' => ' Submitted Tickets'],
+        ['key' => 'analytics', 'page' => 'analytics.php', 'label' => 'Analytics'],
+    ];
+}
 
 $currentEmployeePage = basename($_SERVER['PHP_SELF'] ?? '');
 $sharedMobileSidebarPages = [
@@ -251,6 +285,19 @@ $showSharedMobileSidebar = in_array($currentEmployeePage, $sharedMobileSidebarPa
                 </button>
                 <div class="user-dropdown">
                     <a href="my_profile.php" class="dropdown-item">My Profile</a>
+                    <?php if ($isLapcSalesEmployee): ?>
+                        <div class="employee-view-switcher">
+                            <div class="employee-view-label">View as</div>
+                            <a href="set_view_mode.php?mode=manager" class="dropdown-item employee-view-option <?= $employeeViewMode === 'manager' ? 'is-active' : ''; ?>">
+                                <span>Manager View</span>
+                                <?php if ($employeeViewMode === 'manager'): ?><i class="fas fa-check"></i><?php endif; ?>
+                            </a>
+                            <a href="set_view_mode.php?mode=employee" class="dropdown-item employee-view-option <?= $employeeViewMode === 'employee' ? 'is-active' : ''; ?>">
+                                <span>Employee View</span>
+                                <?php if ($employeeViewMode === 'employee'): ?><i class="fas fa-check"></i><?php endif; ?>
+                            </a>
+                        </div>
+                    <?php endif; ?>
                     <a href="logout.php" class="dropdown-item">Logout</a>
                 </div>
             </div>
@@ -1373,12 +1420,14 @@ window.TM_MESSENGER_STYLE = 'employee';
     pointer-events: auto;
 }
 .user-dropdown.show { display: flex; }
-body.employee-analytics-page .user-btn {
+body.employee-analytics-page .user-btn,
+body.employee-sales-manager-page .user-btn {
     position: relative !important;
     z-index: 20001 !important;
     pointer-events: auto !important;
 }
-body.employee-analytics-page .user-dropdown {
+body.employee-analytics-page .user-dropdown,
+body.employee-sales-manager-page .user-dropdown {
     z-index: 20002 !important;
 }
 .user-dropdown .dropdown-item {
@@ -1393,6 +1442,36 @@ body.employee-analytics-page .user-dropdown {
 .user-dropdown .dropdown-item:hover {
     background: #f9fafb;
     color: #1B5E20;
+}
+.employee-view-switcher {
+    margin: 4px 0;
+    padding: 8px 0;
+    border-top: 1px solid #eef2f7;
+    border-bottom: 1px solid #eef2f7;
+}
+.employee-view-label {
+    padding: 2px 16px 7px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+}
+.user-dropdown .employee-view-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.user-dropdown .employee-view-option span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.user-dropdown .employee-view-option i {
+    font-size: 12px;
+}
+.user-dropdown .employee-view-option.is-active {
+    background: #ecfdf3;
+    color: #166534;
 }
 
 .mobile-sidebar,
@@ -1733,7 +1812,9 @@ window.toggleEmployeeUserMenu = function(event) {
     }
     if (userDropdown) {
         var willShow = !userDropdown.classList.contains('show');
-        if (document.body && document.body.classList.contains('employee-analytics-page') && userBtn && willShow) {
+        var useFixedUserMenu = document.body
+            && (document.body.classList.contains('employee-analytics-page') || document.body.classList.contains('employee-sales-manager-page'));
+        if (useFixedUserMenu && userBtn && willShow) {
             var rect = userBtn.getBoundingClientRect();
             userDropdown.style.position = 'fixed';
             userDropdown.style.top = Math.round(rect.bottom + 10) + 'px';
@@ -1817,7 +1898,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function(e) {
         const btn = e.target && e.target.closest ? e.target.closest('.user-btn') : null;
         if (!btn) return;
-        if (document.body && document.body.classList.contains('employee-analytics-page')) {
+        if (document.body && (document.body.classList.contains('employee-analytics-page') || document.body.classList.contains('employee-sales-manager-page'))) {
             e.preventDefault();
             e.stopPropagation();
             if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
@@ -1837,8 +1918,8 @@ document.addEventListener('DOMContentLoaded', function() {
         userBtn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            dropdown.classList.remove('show');
-            userDropdown.classList.toggle('show');
+            if (dropdown) dropdown.classList.remove('show');
+            window.toggleEmployeeUserMenu(e);
         });
     }
 
@@ -2167,6 +2248,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Mark as Read & Redirect
     const CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
+    const IS_LAPC_SALES_MANAGER_VIEW = <?php echo json_encode($isLapcSalesEmployee && $employeeViewMode === 'manager'); ?>;
     window.TM_CSRF_TOKEN = CSRF_TOKEN;
     window.markAsRead = function(id, ticketId, type) {
         const notifItem = document.querySelector('.notif-item[data-notif-id="' + String(id) + '"]');
@@ -2183,6 +2265,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }).then(() => {
             if (!ticketId) {
                 window.location.href = 'notifications.php';
+                return;
+            }
+            if (IS_LAPC_SALES_MANAGER_VIEW) {
+                window.location.href = `sales_submitted_tickets.php?ticket_id=${ticketId}`;
                 return;
             }
             const notifType = String(type || '');

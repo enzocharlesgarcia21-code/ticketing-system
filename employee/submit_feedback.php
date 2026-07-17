@@ -20,6 +20,7 @@ $userEmail = strtolower(trim((string) ($_SESSION['email'] ?? '')));
 $ticketId = isset($_POST['ticket_id']) ? (int) $_POST['ticket_id'] : 0;
 $rating = isset($_POST['rating']) ? (int) $_POST['rating'] : 0;
 $comment = trim((string) ($_POST['comment'] ?? ''));
+$suppressSuccessNotice = (string) ($_POST['suppress_success_notice'] ?? '') === '1';
 $redirectTarget = 'my_tickets.php';
 $rawRedirectTarget = trim((string) ($_POST['redirect_to'] ?? ''));
 if ($rawRedirectTarget !== '' && !preg_match('/^[a-z]+:/i', $rawRedirectTarget) && strpos($rawRedirectTarget, '//') !== 0) {
@@ -50,12 +51,14 @@ function feedback_redirect_url(string $target, int $ticketId, bool $keepModal, b
     return $path . ($queryString !== '' ? '?' . $queryString : '');
 }
 
-$redirectWithMessage = static function (string $type, string $message, bool $keepModal = false, ?string $targetOverride = null, bool $keepTicketContext = true) use (&$ticketId, $redirectTarget): void {
-    $_SESSION['feedback_flash'] = [
-        'type' => $type,
-        'message' => $message,
-        'ticket_id' => $ticketId,
-    ];
+$redirectWithMessage = static function (string $type, string $message, bool $keepModal = false, ?string $targetOverride = null, bool $keepTicketContext = true) use (&$ticketId, $redirectTarget, $suppressSuccessNotice): void {
+    if (!(($type === 'success') && $suppressSuccessNotice)) {
+        $_SESSION['feedback_flash'] = [
+            'type' => $type,
+            'message' => $message,
+            'ticket_id' => $ticketId,
+        ];
+    }
     $finalTarget = $targetOverride !== null && trim($targetOverride) !== '' ? $targetOverride : $redirectTarget;
     header("Location: " . feedback_redirect_url($finalTarget, $ticketId, $keepModal, $keepTicketContext));
     exit();

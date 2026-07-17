@@ -236,7 +236,13 @@ $groupCond = count($userDepartmentAliases) > 0
     : "0=1";
 $requiresGroupCond = "(($companyCol LIKE '@%' AND LOWER($companyCol) = '@leadsagri.com') OR ($companyCol NOT LIKE '@%' AND UPPER($companyCol) = 'LAPC'))";
 $requesterIsCurrentCond = "(t.user_id = ? OR LOWER($sourceEmailExpr) = ?)";
-$assignedTaskCond = "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND ((NOT $requiresGroupCond) OR $groupCond)))";
+$normalizedUserCompany = ticket_normalize_company((string) $user_company);
+$isLapcSalesEmployeeView = $normalizedUserCompany === '@leadsagri.com'
+    && strcasecmp((string) $user_department, 'Sales') === 0
+    && (($_SESSION['employee_view_mode'] ?? 'employee') !== 'manager');
+$assignedTaskCond = $isLapcSalesEmployeeView
+    ? "((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond)"
+    : "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND ((NOT $requiresGroupCond) OR $groupCond)))";
 $reassignedActivityCond = count($reassignedHistoryAliases) > 0
     ? "EXISTS (SELECT 1 FROM ticket_activity ta WHERE ta.ticket_id = t.id AND ta.activity_type IN ('department_change', 'company_change') AND (" . implode(' OR ', array_fill(0, count($reassignedHistoryAliases), "UPPER(ta.description) LIKE ?")) . "))"
     : "0=1";
@@ -248,9 +254,11 @@ $reassignedNotificationCond = "EXISTS (
       AND n.type = 'dept_assigned'
       AND COALESCE(NULLIF(LOWER(TRIM(n.action_type)), ''), 'assign') IN ('assign', 'reassign')
 )";
-$reassignedTaskCond = "(NOT $requesterIsCurrentCond AND (($reassignedActivityCond) OR $reassignedNotificationCond))";
+$reassignedTaskCond = $isLapcSalesEmployeeView
+    ? "0=1"
+    : "(NOT $requesterIsCurrentCond AND (($reassignedActivityCond) OR $reassignedNotificationCond))";
 
-$addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases): void {
+$addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $isLapcSalesEmployeeView): void {
     $params[] = $user_id;
     $types .= "i";
     $params[] = $user_id;
@@ -259,6 +267,9 @@ $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $u
     $types .= "i";
     $params[] = strtolower((string) $user_email);
     $types .= "s";
+    if ($isLapcSalesEmployeeView) {
+        return;
+    }
     $params[] = $user_id;
     $types .= "i";
     $params[] = strtolower((string) $user_email);
@@ -275,7 +286,10 @@ $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $u
     }
 };
 
-$addReassignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $reassignedHistoryAliases, $userDepartmentAliases): void {
+$addReassignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
+    if ($isLapcSalesEmployeeView) {
+        return;
+    }
     $params[] = $user_id;
     $types .= "i";
     $params[] = strtolower((string) $user_email);
@@ -436,7 +450,7 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '</tr>';
     }
 } else {
-    $rowsHtml = '<tr><td colspan="9" style="text-align:center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tickets available for the selected filters.</p></div></td></tr>';
+    $rowsHtml = '<tr><td colspan="8" style="text-align:center; color: #94a3b8; padding: 40px;"><div class="empty-state"><i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #cbd5e1;"></i><p>No tickets available for the selected filters.</p></div></td></tr>';
   }
 $stmt->close();
 $showingFrom = $total > 0 ? ($offset + 1) : 0;
@@ -500,5 +514,6 @@ echo json_encode([
     'rows_html' => $rowsHtml,
     'pagination_html' => $paginationHtml,
     'page' => $page,
+    'total' => $total,
     'total_pages' => $totalPages,
 ]);

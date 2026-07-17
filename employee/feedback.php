@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
@@ -76,6 +76,16 @@ function feedback_initials(string $name): string
 }
 
 $feedbackTotal = count($feedbackRows);
+$feedbackPerPage = 5;
+$feedbackTotalPages = max(1, (int) ceil($feedbackTotal / $feedbackPerPage));
+$feedbackPage = max(1, (int) ($_GET['page'] ?? 1));
+if ($feedbackPage > $feedbackTotalPages) {
+    $feedbackPage = $feedbackTotalPages;
+}
+$feedbackOffset = ($feedbackPage - 1) * $feedbackPerPage;
+$feedbackPageRows = array_slice($feedbackRows, $feedbackOffset, $feedbackPerPage);
+$feedbackStart = $feedbackTotal > 0 ? $feedbackOffset + 1 : 0;
+$feedbackEnd = min($feedbackTotal, $feedbackOffset + count($feedbackPageRows));
 $ratingCounts = [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0];
 $ratingSum = 0;
 foreach ($feedbackRows as $feedbackRow) {
@@ -84,6 +94,10 @@ foreach ($feedbackRows as $feedbackRow) {
     $ratingSum += $rating;
 }
 $averageRating = $feedbackTotal > 0 ? round($ratingSum / $feedbackTotal, 1) : 0;
+$excellentFeedbackTotal = $ratingCounts[5];
+$adviceFeedbackTotal = max(0, $feedbackTotal - $excellentFeedbackTotal);
+$excellentFeedbackPercent = $feedbackTotal > 0 ? (int) round(($excellentFeedbackTotal / $feedbackTotal) * 100) : 0;
+$adviceFeedbackPercent = $feedbackTotal > 0 ? (int) round(($adviceFeedbackTotal / $feedbackTotal) * 100) : 0;
 $donutSegments = [];
 $donutColors = [5 => '#1B5E20', 4 => '#43A047', 3 => '#7CB342', 2 => '#f59e0b', 1 => '#ef4444'];
 $donutStart = 0;
@@ -117,13 +131,13 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         }
 
         body.employee-feedback-page .content-wrapper {
-            max-width: 1480px;
-            padding-top: 6px;
+            max-width: 1420px;
+            padding-top: 4px;
         }
 
         body.employee-feedback-page .feedback-page-shell {
             display: grid;
-            gap: 18px;
+            gap: 16px;
         }
 
         body.employee-feedback-page .feedback-hero {
@@ -144,70 +158,69 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         }
 
         body.employee-feedback-page .feedback-hero p {
-            margin: 5px 0 0;
+            margin: 0;
             max-width: 760px;
             font-size: 16px;
             line-height: 1.5;
-            color: #475569;
+            color: var(--text-gray);
         }
 
         body.employee-feedback-page .feedback-summary-grid {
             display: grid;
-            grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
-            gap: 24px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
         }
 
         body.employee-feedback-page .feedback-card {
             background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
-            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+            border: 1px solid #eef2f7;
+            border-radius: 9px;
+            box-shadow: 0 5px 14px rgba(15, 23, 42, 0.045);
             padding: 22px 26px;
         }
 
         body.employee-feedback-page .feedback-average-card {
-            display: grid;
-            grid-template-columns: 1fr;
+            display: flex;
             align-items: center;
-            align-content: center;
-            justify-items: center;
-            text-align: center;
-            gap: 0;
-            padding: 22px 24px;
+            justify-content: flex-start;
+            text-align: left;
+            gap: 20px;
         }
 
-        body.employee-feedback-page .feedback-average-icon {
-            width: 88px;
-            height: 88px;
-            border-radius: 10px;
+        body.employee-feedback-page .feedback-summary-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             background: #ecfdf5;
-            border: 1px solid #8cc3a8;
             color: #1B5E20;
-            font-size: 38px;
+            font-size: 27px;
+            flex: 0 0 auto;
         }
 
         body.employee-feedback-page .feedback-card-title {
-            margin: 0 0 14px;
-            font-size: 18px;
-            font-weight: 500;
+            margin: 0 0 10px;
+            font-size: 14px;
+            font-weight: 700;
             color: #0f172a;
         }
 
         body.employee-feedback-page .feedback-score-line {
             display: flex;
             align-items: baseline;
-            justify-content: center;
-            gap: 10px;
-            color: #1B5E20;
+            justify-content: flex-start;
+            gap: 9px;
+            color: #0b2540;
         }
 
         body.employee-feedback-page .feedback-score-line strong {
-            font-size: 52px;
+            font-size: 38px;
             line-height: 1;
             letter-spacing: 0;
+            color: #0b2540;
+            font-weight: 600;
         }
 
         body.employee-feedback-page .feedback-score-line span {
@@ -217,100 +230,17 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         }
 
         body.employee-feedback-page .feedback-score-note {
-            margin: 9px 0 0;
+            margin: 8px 0 0;
             color: #64748b;
-            font-size: 14px;
-        }
-
-        body.employee-feedback-page .feedback-breakdown-card {
-            display: grid;
-            grid-template-columns: minmax(360px, 1fr) 170px;
-            align-items: center;
-            gap: 24px;
-        }
-
-        body.employee-feedback-page .feedback-breakdown-list {
-            display: grid;
-            gap: 10px;
-        }
-
-        body.employee-feedback-page .feedback-breakdown-row {
-            display: grid;
-            grid-template-columns: 42px 1fr 48px;
-            align-items: center;
-            gap: 10px;
-            font-size: 14px;
-            font-weight: 400;
-            color: #475569;
-        }
-
-        body.employee-feedback-page .feedback-breakdown-label i {
-            color: #334155;
-            margin-left: 4px;
-            font-size: 12px;
-        }
-
-        body.employee-feedback-page .feedback-breakdown-track {
-            height: 12px;
-            overflow: hidden;
-            border-radius: 999px;
-            background: #eef2f7;
-        }
-
-        body.employee-feedback-page .feedback-breakdown-fill {
-            display: block;
-            width: var(--rating-width);
-            height: 100%;
-            border-radius: inherit;
-            background: var(--rating-color);
-        }
-
-        body.employee-feedback-page .feedback-breakdown-percent {
-            color: var(--rating-color);
-            text-align: right;
-        }
-
-        body.employee-feedback-page .feedback-donut {
-            width: 150px;
-            height: 150px;
-            border-radius: 50%;
-            display: grid;
-            place-items: center;
-            background: conic-gradient(<?= htmlspecialchars($donutGradient, ENT_QUOTES, 'UTF-8'); ?>);
-            position: relative;
-        }
-
-        body.employee-feedback-page .feedback-donut::before {
-            content: "";
-            position: absolute;
-            inset: 18px;
-            border-radius: 50%;
-            background: #ffffff;
-            box-shadow: inset 0 0 0 1px #e5e7eb;
-        }
-
-        body.employee-feedback-page .feedback-donut-center {
-            position: relative;
-            display: grid;
-            place-items: center;
-            text-align: center;
-            color: #0f172a;
             font-size: 13px;
-            line-height: 1.25;
-        }
-
-        body.employee-feedback-page .feedback-donut-center strong {
-            color: #1B5E20;
-            font-size: 28px;
-            line-height: 1;
         }
 
         body.employee-feedback-page .feedback-section {
             background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
-            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
-            padding: 24px 26px 18px;
+            border: 1px solid #eef2f7;
+            border-radius: 9px;
+            box-shadow: 0 5px 14px rgba(15, 23, 42, 0.045);
+            padding: 22px 24px 16px;
         }
 
         body.employee-feedback-page .feedback-section-header {
@@ -318,24 +248,24 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             align-items: center;
             justify-content: flex-start;
             gap: 16px;
-            margin-bottom: 18px;
+            margin-bottom: 16px;
         }
 
         body.employee-feedback-page .feedback-section-icon {
             width: 48px;
             height: 48px;
-            border-radius: 10px;
+            border-radius: 9px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             background: #ecfdf5;
             color: #1B5E20;
-            font-size: 20px;
+            font-size: 18px;
         }
 
         body.employee-feedback-page .feedback-section-title {
             margin: 0 0 4px;
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 500;
             color: #0f172a;
         }
@@ -357,15 +287,16 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         }
 
         body.employee-feedback-page .feedback-table th {
-            background: #f8fbf9;
+            background: #fbfcfd;
             color: #1B5E20;
-            font-size: 12px;
-            font-weight: 500;
-            letter-spacing: 0.05em;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
             text-transform: uppercase;
-            padding: 14px 16px;
+            padding: 13px 16px;
             text-align: left;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #1B5E20;
         }
 
         body.employee-feedback-page .feedback-table th:first-child {
@@ -405,9 +336,9 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
 
         body.employee-feedback-page .feedback-ticket-id {
             font-weight: 500;
-            color: #1B5E20;
+            color: #0f172a;
             white-space: nowrap;
-            font-size: 16px;
+            font-size: 15px;
         }
 
         body.employee-feedback-page .feedback-ticket-link {
@@ -431,48 +362,50 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             align-items: center;
             gap: 8px;
             max-width: 240px;
-            min-height: 34px;
-            padding: 6px 12px 6px 8px;
+            min-height: 30px;
+            padding: 5px 11px 5px 8px;
             border-radius: 999px;
             border: 1px solid #e5e7eb;
             background: #ffffff;
             font-weight: 400;
             color: #475569;
             white-space: nowrap;
+            font-size: 14px;
         }
 
         body.employee-feedback-page .feedback-category-pill i {
-            width: 24px;
-            height: 24px;
+            width: 22px;
+            height: 22px;
             border-radius: 50%;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             background: #ecfdf5;
             color: #1B5E20;
-            font-size: 12px;
+            font-size: 11px;
             flex: 0 0 auto;
         }
 
         body.employee-feedback-page .feedback-person {
             display: inline-flex;
             align-items: center;
-            gap: 10px;
+            gap: 9px;
             min-width: 170px;
             font-weight: 400;
             color: #334155;
+            font-size: 14px;
         }
 
         body.employee-feedback-page .feedback-avatar {
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             background: #e0f2fe;
             color: #0284c7;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 400;
             flex: 0 0 auto;
         }
@@ -481,10 +414,11 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             min-width: 150px;
             color: #475569;
             font-weight: 400;
+            font-size: 14px;
         }
 
         body.employee-feedback-page .feedback-rating {
-            min-width: 150px;
+            min-width: 220px;
         }
 
         body.employee-feedback-page .feedback-stars {
@@ -513,6 +447,46 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             white-space: pre-wrap;
         }
 
+        body.employee-feedback-page .feedback-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            min-height: 30px;
+            padding: 5px 11px;
+            border-radius: 4px;
+            background: #f0fdf4;
+            color: #1B5E20;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        body.employee-feedback-page .feedback-advice-box {
+            max-width: 330px;
+            padding: 10px 12px;
+            border-radius: 4px;
+            background: #fff7ed;
+            color: #0f172a;
+            line-height: 1.4;
+            font-size: 14px;
+        }
+
+        body.employee-feedback-page .feedback-advice-box i {
+            color: #f59e0b;
+            margin-right: 8px;
+        }
+
+        body.employee-feedback-page .feedback-advice-box strong {
+            display: inline;
+            font-weight: 700;
+        }
+
+        body.employee-feedback-page .feedback-advice-text {
+            display: block;
+            margin: 3px 0 0 25px;
+            color: #334155;
+            font-size: 13px;
+        }
+
         body.employee-feedback-page .feedback-comment.is-empty {
             color: #94a3b8;
             font-style: italic;
@@ -522,6 +496,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             white-space: nowrap;
             color: #64748b;
             font-weight: 400;
+            font-size: 14px;
         }
 
         body.employee-feedback-page .feedback-empty {
@@ -539,14 +514,14 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         }
 
         body.employee-feedback-page .feedback-empty h2 {
-            margin: 0 0 8px;
+            margin: 0 0 6px;
             font-size: 24px;
             color: #0f172a;
         }
 
         body.employee-feedback-page .feedback-empty p {
             margin: 0;
-            font-size: 15px;
+            font-size: 14px;
             color: #64748b;
         }
 
@@ -567,8 +542,8 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         }
 
         body.employee-feedback-page .feedback-page-button {
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             border: 0;
             border-radius: 50%;
             display: inline-flex;
@@ -576,11 +551,17 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             justify-content: center;
             background: #f1f5f9;
             color: #64748b;
+            text-decoration: none;
+        }
+
+        body.employee-feedback-page .feedback-page-button.is-disabled {
+            color: #cbd5e1;
+            pointer-events: none;
         }
 
         body.employee-feedback-page .feedback-page-current {
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             display: inline-flex;
             align-items: center;
@@ -618,7 +599,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
 
             body.employee-feedback-page .feedback-hero h1 {
                 margin-bottom: 8px;
-                font-size: 24px;
+                font-size: 20px;
                 line-height: 1.16;
             }
 
@@ -626,7 +607,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 max-width: 100%;
                 margin-top: 4px;
                 font-size: 14px;
-                line-height: 1.45;
+                line-height: 1.4;
             }
 
             body.employee-feedback-page .feedback-summary-grid {
@@ -679,7 +660,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             body.employee-feedback-page .feedback-breakdown-row {
                 grid-template-columns: 44px minmax(0, 1fr) 42px;
                 gap: 9px;
-                font-size: 13px;
+                font-size: 12px;
             }
 
             body.employee-feedback-page .feedback-breakdown-track {
@@ -711,14 +692,14 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             body.employee-feedback-page .feedback-section-header {
                 align-items: flex-start;
                 margin-bottom: 12px;
-                gap: 10px;
+                gap: 9px;
             }
 
             body.employee-feedback-page .feedback-section-icon {
                 width: 38px;
                 height: 38px;
                 border-radius: 12px;
-                font-size: 16px;
+                font-size: 14px;
             }
 
             body.employee-feedback-page .feedback-section-title {
@@ -727,7 +708,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             }
 
             body.employee-feedback-page .feedback-section-subtitle {
-                font-size: 13px;
+                font-size: 12px;
                 line-height: 1.4;
             }
 
@@ -764,11 +745,11 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 display: grid;
                 grid-template-columns: minmax(0, 1fr) auto;
                 grid-template-areas:
-                    "id rating"
+                    "id date"
                     "category category"
                     "person person"
-                    "department date"
-                    "comment comment";
+                    "department department"
+                    "rating rating";
                 gap: 10px 12px;
                 padding: 16px;
                 border: 1px solid #dfe7ef;
@@ -785,13 +766,13 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             body.employee-feedback-page .feedback-table td {
                 padding: 0;
                 border: 0;
-                font-size: 13px;
+                font-size: 12px;
             }
 
             body.employee-feedback-page .feedback-ticket-id {
                 grid-area: id;
                 color: #0f172a;
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: 900;
             }
 
@@ -825,9 +806,9 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             body.employee-feedback-page .feedback-person {
                 width: 100%;
                 min-width: 0;
-                gap: 10px;
+                gap: 9px;
                 color: #0f172a;
-                font-size: 15px;
+                font-size: 14px;
                 font-weight: 800;
             }
 
@@ -842,7 +823,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 grid-area: department;
                 min-width: 0;
                 color: #475569;
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: 700;
                 line-height: 1.35;
                 white-space: normal;
@@ -851,14 +832,15 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             body.employee-feedback-page .feedback-rating {
                 grid-area: rating;
                 min-width: 0;
-                justify-self: end;
-                display: inline-flex;
+                width: 100%;
+                justify-self: stretch;
+                display: block;
                 align-items: center;
                 gap: 6px;
-                padding: 6px 9px;
-                border-radius: 999px;
-                background: #fff7ed;
-                color: #b45309;
+                padding: 0;
+                border-radius: 0;
+                background: transparent;
+                color: inherit;
             }
 
             body.employee-feedback-page .feedback-rating .feedback-stars {
@@ -872,20 +854,6 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 font-size: 12px;
                 font-weight: 900;
                 white-space: nowrap;
-            }
-
-            body.employee-feedback-page .feedback-comment {
-                grid-area: comment;
-                min-width: 0;
-                margin-top: 2px;
-                padding: 12px;
-                border-radius: 12px;
-                background: #f8fafc;
-                color: #334155;
-                font-size: 13px;
-                line-height: 1.45;
-                white-space: normal;
-                overflow-wrap: anywhere;
             }
 
             body.employee-feedback-page .feedback-date {
@@ -903,7 +871,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 align-items: center;
                 flex-direction: row;
                 justify-content: space-between;
-                gap: 10px;
+                gap: 9px;
                 padding: 14px 2px 0;
                 font-size: 12px;
             }
@@ -933,74 +901,76 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                     </div>
                     <div>
                         <h1>My Support Feedback</h1>
-                        <p>Review ratings and feedback from requestors on the tickets you handled.</p>
+                        <p>View feedback and advice from requestors for tickets assigned to you.</p>
                         
                     </div>
                 </section>
 
                 <section class="feedback-summary-grid" aria-label="Feedback summary">
                     <div class="feedback-card feedback-average-card">
+                        <div class="feedback-summary-icon" aria-hidden="true">
+                            <i class="far fa-star"></i>
+                        </div>
                         <div>
-                            <h2 class="feedback-card-title">Average Rating</h2>
+                            <h2 class="feedback-card-title">Excellent Feedback</h2>
                             <div class="feedback-score-line">
-                                <strong><?= number_format((float) $averageRating, 1); ?></strong>
-                                <span>/ 5</span>
+                                <strong><?= $excellentFeedbackTotal; ?></strong>
                             </div>
-                            <div class="feedback-stars" aria-label="<?= number_format((float) $averageRating, 1); ?> average rating">
-                                <?php for ($star = 1; $star <= 5; $star++): ?>
-                                    <i class="fas fa-star <?= $star <= (int) round($averageRating) ? '' : 'is-muted'; ?>"></i>
-                                <?php endfor; ?>
-                            </div>
-                            <p class="feedback-score-note">Based on <?= $feedbackTotal; ?> response<?= $feedbackTotal === 1 ? '' : 's'; ?></p>
+                            <p class="feedback-score-note"><?= $excellentFeedbackPercent; ?>% of total feedback</p>
                         </div>
                     </div>
 
-                    <div class="feedback-card feedback-breakdown-card">
-                        <div>
-                            <h2 class="feedback-card-title">Rating Breakdown</h2>
-                            <div class="feedback-breakdown-list">
-                                <?php foreach ([5, 4, 3, 2, 1] as $rating): ?>
-                                    <?php
-                                        $percent = $feedbackTotal > 0 ? (int) round(($ratingCounts[$rating] / $feedbackTotal) * 100) : 0;
-                                        $color = $donutColors[$rating];
-                                    ?>
-                                    <div class="feedback-breakdown-row" style="--rating-width: <?= $percent; ?>%; --rating-color: <?= $color; ?>;">
-                                        <span class="feedback-breakdown-label"><?= $rating; ?> <i class="fas fa-star"></i></span>
-                                        <span class="feedback-breakdown-track"><span class="feedback-breakdown-fill"></span></span>
-                                        <span class="feedback-breakdown-percent"><?= $percent; ?>%</span>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
+                    <div class="feedback-card feedback-average-card">
+                        <div class="feedback-summary-icon" aria-hidden="true">
+                            <i class="far fa-comment-dots"></i>
                         </div>
-                        <div class="feedback-donut" aria-label="<?= $feedbackTotal; ?> total feedback responses">
-                            <div class="feedback-donut-center">
-                                <strong><?= $feedbackTotal; ?></strong>
-                                <span>Total<br>Responses</span>
+                        <div>
+                            <h2 class="feedback-card-title">Advice to Improve</h2>
+                            <div class="feedback-score-line">
+                                <strong><?= $adviceFeedbackTotal; ?></strong>
                             </div>
+                            <p class="feedback-score-note"><?= $adviceFeedbackPercent; ?>% of total feedback</p>
+                        </div>
+                    </div>
+
+                    <div class="feedback-card feedback-average-card">
+                        <div class="feedback-summary-icon" aria-hidden="true">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div>
+                            <h2 class="feedback-card-title">Total Feedback</h2>
+                            <div class="feedback-score-line">
+                                <strong><?= $feedbackTotal; ?></strong>
+                            </div>
+                            <p class="feedback-score-note">From <?= $feedbackTotal; ?> resolved ticket<?= $feedbackTotal === 1 ? '' : 's'; ?></p>
                         </div>
                     </div>
                 </section>
 
                 <section class="feedback-section">
                     <?php if (count($feedbackRows) > 0): ?>
+                        <div class="feedback-section-header">
+                            <div>
+                                <h2 class="feedback-section-title">Recent Feedback</h2>
+                            </div>
+                        </div>
                         <div class="feedback-table-wrap">
                             <table class="feedback-table">
                                 <thead>
                                     <tr>
                                         <th>Ticket ID</th>
                                         <th>Category</th>
-                                        <th>Creator</th>
+                                        <th>Requestor</th>
                                         <th>Department</th>
-                                        <th>Rating</th>
-                                        <th>Comment</th>
+                                        <th>Feedback</th>
                                         <th>Submitted</th>
                                     </tr>
                                 </thead>
                                 <tbody id="feedbackTableBody">
-                                    <?php foreach ($feedbackRows as $row): ?>
+                                    <?php foreach ($feedbackPageRows as $row): ?>
                                         <?php
                                             $ticketId = (int) ($row['ticket_id'] ?? 0);
-                                            $displayTicketId = '#' . str_pad((string) $ticketId, 6, '0', STR_PAD_LEFT);
+                                            $displayTicketId = '#' . $ticketId;
                                             $ratingValue = max(1, min(5, (int) ($row['rating'] ?? 0)));
                                             $requesterName = feedback_requester_name($row);
                                             $category = trim((string) ($row['category'] ?? ''));
@@ -1008,6 +978,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                                             $department = trim((string) ($row['creator_department'] ?? ''));
                                             if ($department === '') $department = 'Department';
                                             $comment = trim((string) ($row['comment'] ?? ''));
+                                            $isExcellent = $ratingValue >= 5;
                                         ?>
                                         <tr class="feedback-ticket-row" data-ticket-id="<?= $ticketId; ?>" tabindex="0" role="button" aria-label="Open ticket <?= htmlspecialchars($displayTicketId, ENT_QUOTES, 'UTF-8'); ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;">
                                             <td class="feedback-ticket-id" data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;">
@@ -1029,14 +1000,19 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                                             </td>
                                             <td class="feedback-department" data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;"><?= htmlspecialchars($department, ENT_QUOTES, 'UTF-8'); ?></td>
                                             <td class="feedback-rating" data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;">
-                                                <span class="feedback-stars" aria-label="<?= $ratingValue; ?> out of 5 stars">
-                                                    <?php for ($star = 1; $star <= 5; $star++): ?>
-                                                        <i class="fas fa-star <?= $star <= $ratingValue ? '' : 'is-muted'; ?>"></i>
-                                                    <?php endfor; ?>
-                                                </span>
-                                                <span class="feedback-rating-value"><?= $ratingValue; ?>/5</span>
+                                                <?php if ($isExcellent): ?>
+                                                    <span class="feedback-status-pill">
+                                                        <i class="fas fa-star" aria-hidden="true"></i>
+                                                        Excellent
+                                                    </span>
+                                                <?php else: ?>
+                                                    <div class="feedback-advice-box">
+                                                        <i class="far fa-lightbulb" aria-hidden="true"></i>
+                                                        <strong>Advice to improve:</strong>
+                                                        <span class="feedback-advice-text"><?= htmlspecialchars($comment !== '' ? $comment : 'No comment provided.', ENT_QUOTES, 'UTF-8'); ?></span>
+                                                    </div>
+                                                <?php endif; ?>
                                             </td>
-                                            <td class="feedback-comment <?= $comment === '' ? 'is-empty' : ''; ?>" data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;"><?= htmlspecialchars($comment !== '' ? $comment : 'No comment provided.', ENT_QUOTES, 'UTF-8'); ?></td>
                                             <td class="feedback-date" data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;"><?= htmlspecialchars(date('M d, Y g:i A', strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -1044,11 +1020,19 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                             </table>
                         </div>
                         <div class="feedback-table-footer">
-                            <span>Showing 1 to <?= $feedbackTotal; ?> of <?= $feedbackTotal; ?> entr<?= $feedbackTotal === 1 ? 'y' : 'ies'; ?></span>
-                            <span class="feedback-pagination" aria-hidden="true">
-                                <span class="feedback-page-button"><i class="fas fa-chevron-left"></i></span>
-                                <span class="feedback-page-current">1</span>
-                                <span class="feedback-page-button"><i class="fas fa-chevron-right"></i></span>
+                            <span>Showing <?= $feedbackStart; ?> to <?= $feedbackEnd; ?> of <?= $feedbackTotal; ?> entr<?= $feedbackTotal === 1 ? 'y' : 'ies'; ?></span>
+                            <span class="feedback-pagination" aria-label="Feedback pagination">
+                                <?php if ($feedbackPage > 1): ?>
+                                    <a class="feedback-page-button" href="feedback.php?page=<?= $feedbackPage - 1; ?>" aria-label="Previous page"><i class="fas fa-chevron-left"></i></a>
+                                <?php else: ?>
+                                    <span class="feedback-page-button is-disabled" aria-disabled="true"><i class="fas fa-chevron-left"></i></span>
+                                <?php endif; ?>
+                                <span class="feedback-page-current"><?= $feedbackPage; ?></span>
+                                <?php if ($feedbackPage < $feedbackTotalPages): ?>
+                                    <a class="feedback-page-button" href="feedback.php?page=<?= $feedbackPage + 1; ?>" aria-label="Next page"><i class="fas fa-chevron-right"></i></a>
+                                <?php else: ?>
+                                    <span class="feedback-page-button is-disabled" aria-disabled="true"><i class="fas fa-chevron-right"></i></span>
+                                <?php endif; ?>
                             </span>
                         </div>
                     <?php else: ?>
@@ -1147,3 +1131,4 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
     <script src="../js/employee-dashboard.js"></script>
 </body>
 </html>
+
