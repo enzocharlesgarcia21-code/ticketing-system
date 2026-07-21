@@ -99,6 +99,7 @@ $department = trim((string) ($_GET['department'] ?? ''));
 $company_email = trim((string) ($_GET['company_email'] ?? ''));
 $status = trim((string) ($_GET['status'] ?? ''));
 $sla = trim((string) ($_GET['sla'] ?? ''));
+$reassignment = trim((string) ($_GET['reassignment'] ?? ''));
 $page = (int) ($_GET['page'] ?? 1);
 $limit = (int) ($_GET['limit'] ?? 10);
 if ($page < 1) $page = 1;
@@ -128,11 +129,13 @@ $company_filter_options = [
 ];
 $allowed_statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
 $allowed_slas = ['On Track', 'At Risk', 'Breach'];
+$allowed_reassignment_filters = ['reassigned', 'not_reassigned'];
 $selected_company_departments = $allowed_departments_by_company[$company_email] ?? [];
 if (!array_key_exists($company_email, $allowed_departments_by_company) || !in_array($department, $selected_company_departments, true)) $department = '';
 if (!array_key_exists($company_email, $company_filter_options)) $company_email = '';
 if (!in_array($status, $allowed_statuses, true)) $status = '';
 if (!in_array($sla, $allowed_slas, true) && !in_array($sla, ['Low', 'Medium', 'High'], true)) $sla = '';
+if (!in_array($reassignment, $allowed_reassignment_filters, true)) $reassignment = '';
 
 function task_source_label(array $row): string
 {
@@ -257,6 +260,17 @@ $reassignedNotificationCond = "EXISTS (
 $reassignedTaskCond = $isLapcSalesEmployeeView
     ? "0=1"
     : "(NOT $requesterIsCurrentCond AND (($reassignedActivityCond) OR $reassignedNotificationCond))";
+$reassignmentFilterNotificationCond = "EXISTS (
+    SELECT 1
+    FROM notifications n
+    WHERE n.ticket_id = t.id
+      AND n.user_id = ?
+      AND n.type = 'dept_assigned'
+      AND LOWER(TRIM(COALESCE(n.action_type, ''))) = 'reassign'
+)";
+$reassignmentFilterCond = $isLapcSalesEmployeeView
+    ? "0=1"
+    : "(($reassignedActivityCond) OR $reassignmentFilterNotificationCond)";
 
 $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $isLapcSalesEmployeeView): void {
     $params[] = $user_id;
@@ -294,6 +308,17 @@ $addReassignedTaskParams = static function () use (&$params, &$types, $user_id, 
     $types .= "i";
     $params[] = strtolower((string) $user_email);
     $types .= "s";
+    foreach ($reassignedHistoryAliases as $historyAlias) {
+        $params[] = '%' . strtoupper($historyAlias) . '%';
+        $types .= "s";
+    }
+    $params[] = $user_id;
+    $types .= "i";
+};
+$addReassignmentFilterParams = static function () use (&$params, &$types, $user_id, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
+    if ($isLapcSalesEmployeeView) {
+        return;
+    }
     foreach ($reassignedHistoryAliases as $historyAlias) {
         $params[] = '%' . strtoupper($historyAlias) . '%';
         $types .= "s";
@@ -359,6 +384,14 @@ if ($sla !== '') {
     if ($slaCondition !== '') {
         $where[] = $slaCondition;
     }
+}
+
+if ($reassignment === 'reassigned') {
+    $where[] = $reassignmentFilterCond;
+    $addReassignmentFilterParams();
+} elseif ($reassignment === 'not_reassigned') {
+    $where[] = "NOT ($reassignmentFilterCond)";
+    $addReassignmentFilterParams();
 }
 
 $sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department, u.company as user_company,

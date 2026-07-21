@@ -106,6 +106,12 @@ $flashSuccessTicketId = isset($_SESSION['task_success_ticket_id']) ? (int) $_SES
 if ($flashSuccessTicketId > 0) {
     unset($_SESSION['task_success_ticket_id']);
 }
+$flashSuccessContext = isset($_SESSION['task_success_context']) ? trim((string) $_SESSION['task_success_context']) : '';
+if ($flashSuccessContext !== '') {
+    unset($_SESSION['task_success_context']);
+}
+$isStatusSuccess = $flashSuccessStatus === 'Open' || $flashSuccessStatus === 'In Progress' || $flashSuccessStatus === 'Resolved';
+$isReassignedSuccess = $flashSuccessContext === 'reassigned' && $flashSuccessTicketId > 0;
 $flashErrorTitle = 'Update Failed';
 if ($flashError !== '' && stripos($flashError, 'No assignee available') !== false) {
     $flashErrorTitle = 'No Assignee Available';
@@ -118,6 +124,7 @@ $department = $_GET['department'] ?? '';
 $company_email = $_GET['company_email'] ?? '';
 $status = $_GET['status'] ?? '';
 $sla = $_GET['sla'] ?? '';
+$reassignment = $_GET['reassignment'] ?? '';
 $slaLevel = task_normalize_sla_filter((string) $sla);
 if ($slaLevel !== '') {
     $sla = task_sla_display_label($slaLevel);
@@ -148,6 +155,7 @@ $company_filter_options = [
 ];
 $allowed_statuses = ['Open','In Progress','Resolved','Closed'];
 $allowed_slas = ['On Track', 'At Risk', 'Breach'];
+$allowed_reassignment_filters = ['reassigned', 'not_reassigned'];
 
 $selected_company_departments = $allowed_departments_by_company[$company_email] ?? [];
 if (
@@ -165,6 +173,9 @@ if (!in_array($status, $allowed_statuses, true)) {
 }
 if ($slaLevel === '') {
     $sla = '';
+}
+if (!in_array($reassignment, $allowed_reassignment_filters, true)) {
+    $reassignment = '';
 }
 
 function task_source_label(array $row): string
@@ -306,6 +317,17 @@ $reassignedNotificationCond = "EXISTS (
 $reassignedTaskCond = $isLapcSalesEmployeeView
     ? "0=1"
     : "(NOT $requesterIsCurrentCond AND (($reassignedActivityCond) OR $reassignedNotificationCond))";
+$reassignmentFilterNotificationCond = "EXISTS (
+    SELECT 1
+    FROM notifications n
+    WHERE n.ticket_id = t.id
+      AND n.user_id = ?
+      AND n.type = 'dept_assigned'
+      AND LOWER(TRIM(COALESCE(n.action_type, ''))) = 'reassign'
+)";
+$reassignmentFilterCond = $isLapcSalesEmployeeView
+    ? "0=1"
+    : "(($reassignedActivityCond) OR $reassignmentFilterNotificationCond)";
 
 $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $isLapcSalesEmployeeView): void {
     $params[] = (int) $user_id;
@@ -343,6 +365,17 @@ $addReassignedTaskParams = static function () use (&$params, &$types, $user_id, 
     $types .= "i";
     $params[] = strtolower((string) $user_email);
     $types .= "s";
+    foreach ($reassignedHistoryAliases as $historyAlias) {
+        $params[] = '%' . strtoupper($historyAlias) . '%';
+        $types .= "s";
+    }
+    $params[] = (int) $user_id;
+    $types .= "i";
+};
+$addReassignmentFilterParams = static function () use (&$params, &$types, $user_id, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
+    if ($isLapcSalesEmployeeView) {
+        return;
+    }
     foreach ($reassignedHistoryAliases as $historyAlias) {
         $params[] = '%' . strtoupper($historyAlias) . '%';
         $types .= "s";
@@ -427,6 +460,14 @@ if ($sla !== '') {
     if ($slaCondition !== '') {
         $where[] = $slaCondition;
     }
+}
+
+if ($reassignment === 'reassigned') {
+    $where[] = $reassignmentFilterCond;
+    $addReassignmentFilterParams();
+} elseif ($reassignment === 'not_reassigned') {
+    $where[] = "NOT ($reassignmentFilterCond)";
+    $addReassignmentFilterParams();
 }
 
 // Construct SQL
@@ -585,14 +626,14 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
         body.employee-my-task-page .my-tickets-filter-form {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 170px 170px 150px 124px;
+            grid-template-columns: minmax(240px, 1fr) 160px 160px 140px 178px 124px;
             gap: 16px;
             align-items: center;
             width: 100%;
         }
 
         body.employee-my-task-page .my-tickets-filter-form.has-department-filter {
-            grid-template-columns: minmax(0, 1fr) 170px 170px 170px 150px 124px;
+            grid-template-columns: minmax(200px, 1fr) 150px 150px 150px 130px 178px 124px;
         }
 
         body.employee-my-task-page .my-tickets-search-row,
@@ -1212,6 +1253,100 @@ $showing_to = min($offset + $limit, (int) $total_records);
             position: relative;
             overflow: hidden;
         }
+        .task-success-dialog.is-reassigned,
+        .task-success-dialog.is-status-update {
+            width: min(500px, calc(100vw - 48px));
+            max-width: calc(100vw - 40px);
+            height: auto;
+            min-height: 284px;
+            background: linear-gradient(180deg, #ffffff 0%, #fcfefd 100%);
+            border-radius: 28px;
+            padding: 30px 40px 28px;
+            border: none;
+            box-shadow: 0 28px 64px rgba(15, 23, 42, 0.16);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .task-success-dialog.is-reassigned::before,
+        .task-success-dialog.is-status-update::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 50% 10%, rgba(190, 242, 100, 0.24), transparent 22%),
+                radial-gradient(circle at 50% 18%, rgba(34, 197, 94, 0.1), transparent 18%);
+            pointer-events: none;
+        }
+        .task-success-dialog.is-reassigned .task-success-icon,
+        .task-success-dialog.is-reassigned .task-success-title,
+        .task-success-dialog.is-reassigned .task-success-message,
+        .task-success-dialog.is-reassigned .task-success-actions,
+        .task-success-dialog.is-status-update .task-success-icon,
+        .task-success-dialog.is-status-update .task-success-title,
+        .task-success-dialog.is-status-update .task-success-message,
+        .task-success-dialog.is-status-update .task-success-actions {
+            position: relative;
+            z-index: 1;
+        }
+        .task-success-dialog.is-reassigned .task-success-icon,
+        .task-success-dialog.is-status-update .task-success-icon {
+            width: 66px;
+            height: 66px;
+            margin: 0 auto 16px;
+            font-size: 22px;
+        }
+        .task-success-dialog.is-reassigned .task-success-title,
+        .task-success-dialog.is-status-update .task-success-title {
+            margin: 0 0 12px;
+            padding: 0;
+            font-size: 24px;
+        }
+        .task-success-dialog.is-reassigned .task-success-message,
+        .task-success-dialog.is-status-update .task-success-message {
+            margin: 0 auto 8px;
+            padding: 0;
+            max-width: 420px;
+            font-size: 15px;
+            line-height: 1.45;
+        }
+        .task-success-dialog.is-reassigned .task-success-ticket-line,
+        .task-success-dialog.is-status-update .task-success-ticket-line {
+            margin-top: 8px;
+            font-size: 15px;
+        }
+        .task-success-dialog.is-reassigned .task-success-actions,
+        .task-success-dialog.is-status-update .task-success-actions {
+            width: 100%;
+            min-height: 44px;
+            margin-top: auto;
+            padding: 18px 0 0;
+            border-top: 1px solid #e6e8ef;
+            background: transparent;
+            box-sizing: border-box;
+        }
+        .task-success-dialog.is-reassigned .task-success-btn,
+        .task-success-dialog.is-status-update .task-success-btn {
+            width: 136px;
+            min-width: 0;
+            height: 40px;
+            border: none;
+            outline: none;
+            border-radius: 12px;
+            padding: 0 18px;
+            font-size: 10px;
+        }
+        .task-success-dialog.is-reassigned .task-success-btn:focus,
+        .task-success-dialog.is-reassigned .task-success-btn:focus-visible,
+        .task-success-dialog.is-status-update .task-success-btn:focus,
+        .task-success-dialog.is-status-update .task-success-btn:focus-visible {
+            outline: none;
+            box-shadow: none;
+        }
+        .task-success-dialog.is-status-update .task-success-meta {
+            font-weight: 800;
+        }
         .task-success-icon {
             width: 74px;
             height: 74px;
@@ -1220,9 +1355,9 @@ $showing_to = min($offset + $limit, (int) $total_records);
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #f6fff4;
-            color: #15803d;
-            border: 3px solid #bbf7d0;
+            background: transparent;
+            color: #1B5E20;
+            border: 3px solid #d9f0cd;
             box-sizing: border-box;
             font-size: 34px;
             line-height: 1;
@@ -1245,44 +1380,52 @@ $showing_to = min($offset + $limit, (int) $total_records);
             line-height: 1.5;
         }
         .task-success-meta {
-            color: #475569;
-            font-weight: 500;
+            color: #3f4861;
+            font-weight: 800;
             letter-spacing: -0.01em;
         }
         .task-success-ticket-id {
             display: inline;
             padding: 0;
             margin: 0 4px;
-            color: #1f2937;
-            font-weight: 600;
+            color: #166534;
+            font-weight: 800;
             line-height: 1;
             font-variant-numeric: tabular-nums;
             letter-spacing: -0.01em;
         }
+        .task-success-dialog.is-reassigned .task-success-meta,
+        .task-success-dialog.is-reassigned .task-success-ticket-id,
+        .task-success-dialog.is-status-update .task-success-meta,
+        .task-success-dialog.is-status-update .task-success-ticket-id {
+            font-weight: 800;
+        }
+        .task-success-message-line {
+            display: block;
+        }
+        .task-success-ticket-line {
+            display: block;
+            margin-top: 12px;
+            font-size: 18px;
+            line-height: 1.2;
+        }
         .task-success-status {
-            display: inline-flex;
-            align-items: center;
-            padding: 6px 16px;
-            border-radius: 12px;
-            border: 1px solid transparent;
-            font-weight: 600;
+            display: inline;
+            padding: 0;
+            border-radius: 0;
+            border: none;
+            font-weight: 700;
             line-height: 1;
-            vertical-align: middle;
+            vertical-align: baseline;
         }
         .task-success-status.is-in-progress {
-            background: #dcfce7;
             color: #166534;
-            border-color: #bbf7d0;
         }
         .task-success-status.is-open {
-            background: #fef3c7;
-            color: #92400e;
-            border-color: #fde68a;
+            color: #eab308;
         }
         .task-success-status.is-resolved {
-            background: #dbeafe;
             color: #1d4ed8;
-            border-color: #bfdbfe;
         }
         .task-success-actions {
             margin-top: 20px;
@@ -1297,7 +1440,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
             height: 44px;
             border: none;
             border-radius: 10px;
-            background: #1f6b24;
+            background: #1B5E20;
             color: #ffffff;
             font-size: 15px;
             font-weight: 700;
@@ -1306,7 +1449,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
             transition: background 0.2s ease, transform 0.2s ease;
         }
         .task-success-btn:hover {
-            background: #18591d;
+            background: #144a1e;
         }
         .task-success-btn:active {
             transform: translateY(1px);
@@ -1493,12 +1636,24 @@ $showing_to = min($offset + $limit, (int) $total_records);
                     </div>
                     </div>
 
+
                     <a href="my_task.php" class="my-tickets-clear-btn my-tickets-desktop-clear">Clear Filters</a>
 
                     <div class="my-tickets-mobile-filter-summary">
                         <span>3 Active Filters</span>
                         <a href="my_task.php">Clear all</a>
                     </div>
+
+                    <div class="my-tickets-filter-select-wrap">
+                        <select name="reassignment" class="my-tickets-filter-select" id="filterReassignment">
+                            <option value="" <?= $reassignment === '' ? 'selected' : '' ?>>All Tickets</option>
+                            <option value="reassigned" <?= $reassignment === 'reassigned' ? 'selected' : '' ?>>Reassigned</option>
+                            <option value="not_reassigned" <?= $reassignment === 'not_reassigned' ? 'selected' : '' ?>>Not Reassigned</option>
+                        </select>
+                    </div>
+
+                    <a href="my_task.php" class="my-tickets-clear-btn">Clear Filters</a>
+
                 </form>
             </div>
 
@@ -1582,7 +1737,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 <div class="pagination-glass">
                     <div class="pagination-summary">Showing <?= number_format($showing_from) ?> - <?= number_format($showing_to) ?> of <?= number_format((int) $total_records) ?> tickets</div>
                     <?php if ($total_pages > 1): ?>
-                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>" 
+                    <a href="?page=<?= $page - 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>&reassignment=<?= urlencode($reassignment); ?>" 
                        data-page="<?= max(1, $page - 1) ?>"
                        class="page-btn prev <?= ($page <= 1) ? 'disabled' : ''; ?>">
                         &lsaquo; Previous
@@ -1624,7 +1779,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                             <?php if ($pagination_item === 'ellipsis'): ?>
                                 <span class="pagination-ellipsis">...</span>
                             <?php else: ?>
-                                <a href="?page=<?= $pagination_item; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>"
+                                <a href="?page=<?= $pagination_item; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>&reassignment=<?= urlencode($reassignment); ?>"
                                    data-page="<?= $pagination_item ?>"
                                    class="page-btn <?= ($pagination_item == $page) ? 'active' : ''; ?>">
                                     <?= $pagination_item; ?>
@@ -1633,7 +1788,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                         <?php endforeach; ?>
                     </div>
 
-                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>" 
+                    <a href="?page=<?= $page + 1; ?>&search=<?= urlencode($search); ?>&company_email=<?= urlencode($company_email); ?>&department=<?= urlencode($department); ?>&status=<?= urlencode($status); ?>&sla=<?= urlencode($sla); ?>&reassignment=<?= urlencode($reassignment); ?>" 
                        data-page="<?= min($total_pages, $page + 1) ?>"
                        class="page-btn next <?= ($page >= $total_pages) ? 'disabled' : ''; ?>">
                         Next &rsaquo;
@@ -1683,29 +1838,41 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
     <?php if ($flashSuccess !== ''): ?>
     <div id="taskSuccessOverlay" class="task-success-overlay" role="dialog" aria-modal="true" aria-labelledby="taskSuccessTitle">
-        <div class="task-success-dialog">
+        <div class="task-success-dialog<?= $isReassignedSuccess ? ' is-reassigned' : ($isStatusSuccess ? ' is-status-update' : ''); ?>">
             <div class="task-success-icon" aria-hidden="true">&#10003;</div>
             <h2 id="taskSuccessTitle" class="task-success-title">
-                <?php if ($flashSuccessStatus === 'Open' || $flashSuccessStatus === 'In Progress' || $flashSuccessStatus === 'Resolved'): ?>
-                    Status Updated
+                <?php if ($isReassignedSuccess): ?>
+                    Ticket Reassigned Successfully
+                <?php elseif ($isStatusSuccess): ?>
+                    Ticket Updated Successfully
                 <?php else: ?>
                     <?= strcasecmp($flashSuccess, 'No changes were made.') === 0 ? 'No changes were made' : 'The ticket has been updated'; ?>
                 <?php endif; ?>
             </h2>
             <p class="task-success-message">
-                <?php if (($flashSuccessStatus === 'Open' || $flashSuccessStatus === 'In Progress' || $flashSuccessStatus === 'Resolved') && $flashSuccessTicketId > 0): ?>
-                    <span class="task-success-meta">Ticket No:</span>
-                    <span class="task-success-ticket-id">#<?= htmlspecialchars(str_pad((string) $flashSuccessTicketId, 6, '0', STR_PAD_LEFT), ENT_QUOTES, 'UTF-8'); ?></span>
-                    <span class="task-success-meta">is now</span>
-                    <span class="task-success-status <?= $flashSuccessStatus === 'Open' ? 'is-open' : ($flashSuccessStatus === 'In Progress' ? 'is-in-progress' : 'is-resolved'); ?>">
-                        <?= htmlspecialchars($flashSuccessStatus, ENT_QUOTES, 'UTF-8'); ?>
-                    </span>.
+                <?php if ($isReassignedSuccess): ?>
+                    <span class="task-success-message-line">The ticket has been assigned to a new recipient.</span>
+                    <span class="task-success-message-line">They can now review and continue handling the request.</span>
+                    <span class="task-success-ticket-line">
+                        <span class="task-success-meta">Ticket ID:</span>
+                        <span class="task-success-ticket-id">#<?= htmlspecialchars(str_pad((string) $flashSuccessTicketId, 6, '0', STR_PAD_LEFT), ENT_QUOTES, 'UTF-8'); ?></span>
+                    </span>
+                <?php elseif ($isStatusSuccess && $flashSuccessTicketId > 0): ?>
+                    <span class="task-success-message-line">The ticket has been updated.</span>
+                    <span class="task-success-ticket-line">
+                        <span class="task-success-meta">Ticket ID:</span>
+                        <span class="task-success-ticket-id">#<?= htmlspecialchars(str_pad((string) $flashSuccessTicketId, 6, '0', STR_PAD_LEFT), ENT_QUOTES, 'UTF-8'); ?></span>
+                        <span>is now</span>
+                        <span class="task-success-status <?= $flashSuccessStatus === 'Open' ? 'is-open' : ($flashSuccessStatus === 'In Progress' ? 'is-in-progress' : 'is-resolved'); ?>">
+                            <?= htmlspecialchars($flashSuccessStatus, ENT_QUOTES, 'UTF-8'); ?>
+                        </span>
+                    </span>
                 <?php else: ?>
                     <?= htmlspecialchars($flashSuccess, ENT_QUOTES, 'UTF-8'); ?>
                 <?php endif; ?>
             </p>
             <div class="task-success-actions">
-                <button type="button" class="task-success-btn" id="taskSuccessCloseBtn">Close</button>
+                <button type="button" class="task-success-btn" id="taskSuccessCloseBtn"><?= ($isReassignedSuccess || $isStatusSuccess) ? 'Done' : 'Close'; ?></button>
             </div>
         </div>
     </div>
@@ -1831,6 +1998,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
         var filterDepartmentEl = document.getElementById('filterDepartment');
         var filterStatusEl = document.getElementById('filterStatus');
         var filterSlaEl = document.getElementById('filterSla');
+        var filterReassignmentEl = document.getElementById('filterReassignment');
 
         if (filterCompanyEl) {
             filterCompanyEl.addEventListener('change', function() {
@@ -1853,6 +2021,12 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
         if (filterSlaEl) {
             filterSlaEl.addEventListener('change', function() {
+                refreshTasks(1);
+            });
+        }
+
+        if (filterReassignmentEl) {
+            filterReassignmentEl.addEventListener('change', function() {
                 refreshTasks(1);
             });
         }

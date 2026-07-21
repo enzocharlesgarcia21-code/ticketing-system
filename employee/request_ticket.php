@@ -3987,13 +3987,14 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-progress span { width: 100% !important; }
         body.employee-request-ticket-page .ticket-modal-ticket-label,
         body.employee-request-ticket-page .ticket-modal-ticket-number {
-            font-weight: 600;
+            font-weight: 800;
         }
         body.employee-request-ticket-page .ticket-modal-ticket-label {
             color: #3f4861;
         }
         body.employee-request-ticket-page .ticket-modal-ticket-number {
             color: #166534;
+            font-weight: 800;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-progress span { background: linear-gradient(90deg, #ef4444, #f97316); }
         @keyframes follow-up-feedback-spin {
