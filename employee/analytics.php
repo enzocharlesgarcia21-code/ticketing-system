@@ -20,8 +20,8 @@ $analyticsHtml = ob_get_clean();
 
 $employeeAnalyticsAdminParity = <<<'HTML'
 <style id="employeeAnalyticsAdminParity">
-body.employee-analytics-page .admin-page,
-body.employee-analytics-page .admin-page *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.analytics-title) {
+body.employee-analytics-page .admin-content,
+body.employee-analytics-page .admin-content *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
 }
 
@@ -51,7 +51,7 @@ body.employee-analytics-page .analytics-heading {
 
 body.employee-analytics-page .admin-page .admin-page-header .analytics-heading .admin-page-title.analytics-title {
     color: #1B5E20 !important;
-    font-family: 'Segoe UI', sans-serif !important;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
     font-size: 28px !important;
     font-weight: 700 !important;
     line-height: 1.2 !important;
@@ -85,12 +85,12 @@ body.employee-analytics-page .analytics-card {
         inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
-body.employee-analytics-page .trend-overview-card {
+body.employee-analytics-page:not(.sales-manager-analytics-page) .trend-overview-card {
     flex-direction: row;
     align-items: center;
 }
 
-body.employee-analytics-page .trend-delta-badge {
+body.employee-analytics-page:not(.sales-manager-analytics-page) .trend-delta-badge {
     width: auto;
     justify-content: normal;
 }
@@ -547,7 +547,7 @@ $analyticsHtml = str_replace(
     $analyticsHtml
 );
 $analyticsHtml = preg_replace(
-    '/\s*body\.employee-analytics-page \.admin-content,\s*body\.employee-analytics-page \.admin-content \*:not\(i\):not\(\.fa\):not\(\.fa-solid\):not\(\.fa-regular\):not\(\.fa-brands\)\s*\{\s*font-weight:\s*400\s*!important;\s*\}/',
+    '/\s*body\.employee-analytics-page(?::not\(\.sales-manager-analytics-page\))? \.admin-content,\s*body\.employee-analytics-page(?::not\(\.sales-manager-analytics-page\))? \.admin-content \*:not\(i\):not\(\.fa\):not\(\.fa-solid\):not\(\.fa-regular\):not\(\.fa-brands\)\s*\{\s*font-weight:\s*400\s*!important;\s*\}/',
     '',
     $analyticsHtml,
     1

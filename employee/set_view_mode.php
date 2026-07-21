@@ -51,7 +51,7 @@ $path = $fallback;
 if ($returnTo !== '') {
     $parts = parse_url($returnTo);
     $basename = basename((string) ($parts['path'] ?? ''));
-    $allowed = ['dashboard.php', 'my_tickets.php', 'my_task.php', 'request_ticket.php', 'feedback.php', 'knowledge_base.php', 'analytics.php', 'sales_submitted_tickets.php', 'my_profile.php'];
+    $allowed = ['dashboard.php', 'my_tickets.php', 'my_task.php', 'request_ticket.php', 'feedback.php', 'knowledge_base.php', 'analytics.php', 'sales_submitted_tickets.php', 'sales_analytics.php', 'my_profile.php'];
     if (in_array($basename, $allowed, true)) {
         $path = $basename;
     }
@@ -60,7 +60,10 @@ if ($returnTo !== '') {
 if ($_SESSION['employee_view_mode'] === 'manager' && in_array($path, ['my_tickets.php', 'my_task.php', 'request_ticket.php', 'feedback.php', 'knowledge_base.php'], true)) {
     $path = 'dashboard.php';
 }
-if ($_SESSION['employee_view_mode'] === 'employee' && $path === 'sales_submitted_tickets.php') {
+if ($_SESSION['employee_view_mode'] === 'manager' && $path === 'analytics.php') {
+    $path = 'sales_analytics.php';
+}
+if ($_SESSION['employee_view_mode'] === 'employee' && in_array($path, ['sales_submitted_tickets.php', 'sales_analytics.php'], true)) {
     $path = 'dashboard.php';
 }
 

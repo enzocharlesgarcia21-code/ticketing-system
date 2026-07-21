@@ -63,6 +63,9 @@ function isActive($page) {
     if ($page == 'analytics.php' && $current == 'analytics.php') {
         return 'active';
     }
+    if ($page == 'sales_analytics.php' && $current == 'sales_analytics.php') {
+        return 'active';
+    }
     return '';
 }
 
@@ -92,7 +95,7 @@ if ($isLapcSalesEmployee && $employeeViewMode === 'manager') {
     $employeeNavItems = [
         ['key' => 'dashboard', 'page' => 'dashboard.php', 'label' => 'Dashboard'],
         ['key' => 'sales_submitted_tickets', 'page' => 'sales_submitted_tickets.php', 'label' => ' Submitted Tickets'],
-        ['key' => 'analytics', 'page' => 'analytics.php', 'label' => 'Analytics'],
+        ['key' => 'sales_manager_analytics', 'page' => 'sales_analytics.php', 'label' => 'Analytics'],
     ];
 }
 
@@ -103,6 +106,7 @@ $sharedMobileSidebarPages = [
     'feedback.php',
     'knowledge_base.php',
     'analytics.php',
+    'sales_analytics.php',
 ];
 $showSharedMobileSidebar = in_array($currentEmployeePage, $sharedMobileSidebarPages, true);
 ?>

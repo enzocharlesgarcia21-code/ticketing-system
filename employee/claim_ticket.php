@@ -123,6 +123,41 @@ if ($activityStmt) {
     $activityStmt->execute();
     $activityStmt->close();
 }
+if ((string) ($ticket['status'] ?? '') === 'Open') {
+    $statusActivityStmt = $conn->prepare("
+        INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at)
+        VALUES (?, 'status_change', 'Status changed to In Progress', NOW())
+    ");
+    if ($statusActivityStmt) {
+        $statusActivityStmt->bind_param("i", $ticketId);
+        $statusActivityStmt->execute();
+        $statusActivityStmt->close();
+    }
+}
+
+// The claim itself is complete at this point. Return it to the browser before
+// slower notification/email work so the modal can refresh immediately.
+$successJson = json_encode([
+    'ok' => true,
+    'message' => 'Ticket claimed successfully.',
+    'claimed_by' => $userName,
+]);
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_write_close();
+}
+ignore_user_abort(true);
+if (function_exists('fastcgi_finish_request')) {
+    echo $successJson;
+    fastcgi_finish_request();
+} else {
+    header('Content-Length: ' . strlen($successJson));
+    header('Connection: close');
+    echo $successJson;
+    while (ob_get_level() > 0) {
+        @ob_end_flush();
+    }
+    @flush();
+}
 
 $ticketNumber = notif_ticket_number($ticketId);
 $claimDepartment = trim((string) ($userContext['department'] ?? ($_SESSION['department'] ?? '')));
@@ -140,16 +175,6 @@ if ($ticketForClaimNotification) {
 notif_insert_admins($conn, $ticketId, $claimNotificationMessage, 'ticket_claimed', 'claim', $claimNotificationTitle);
 
 if ((string) ($ticket['status'] ?? '') === 'Open') {
-    $statusActivityStmt = $conn->prepare("
-        INSERT INTO ticket_activity (ticket_id, activity_type, description, created_at)
-        VALUES (?, 'status_change', 'Status changed to In Progress', NOW())
-    ");
-    if ($statusActivityStmt) {
-        $statusActivityStmt->bind_param("i", $ticketId);
-        $statusActivityStmt->execute();
-        $statusActivityStmt->close();
-    }
-
     $ticketForNotification = notif_ticket_data($conn, $ticketId);
     if ($ticketForNotification) {
         $currentAssignedCompany = ticket_normalize_company((string) ($ticketForNotification['assigned_company'] ?? ($ticket['assigned_company'] ?? '')));
@@ -190,9 +215,3 @@ if ((string) ($ticket['status'] ?? '') === 'Open') {
         );
     }
 }
-
-echo json_encode([
-    'ok' => true,
-    'message' => 'Ticket claimed successfully.',
-    'claimed_by' => $userName,
-]);

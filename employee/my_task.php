@@ -595,6 +595,16 @@ $showing_to = min($offset + $limit, (int) $total_records);
             grid-template-columns: minmax(0, 1fr) 170px 170px 170px 150px 124px;
         }
 
+        body.employee-my-task-page .my-tickets-search-row,
+        body.employee-my-task-page .my-tickets-filter-controls {
+            display: contents;
+        }
+
+        body.employee-my-task-page .my-tickets-mobile-filter-btn,
+        body.employee-my-task-page .my-tickets-mobile-filter-summary {
+            display: none;
+        }
+
         body.employee-my-task-page .my-tickets-search-wrapper {
             position: relative;
             min-width: 0;
@@ -681,16 +691,54 @@ $showing_to = min($offset + $limit, (int) $total_records);
             background: #e2e8f0;
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 767px) {
+            body.employee-my-task-page {
+                overflow-x: hidden;
+            }
+
+            body.employee-my-task-page .dashboard-container,
+            body.employee-my-task-page .content-wrapper {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
+            }
+
+            body.employee-my-task-page .my-tickets-filter-card *,
+            body.employee-my-task-page .table-card * {
+                box-sizing: border-box;
+            }
+
+            body.employee-my-task-page .content-wrapper {
+                padding-left: clamp(10px, 4vw, 22px);
+                padding-right: clamp(10px, 4vw, 22px);
+                padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+            }
+
             body.employee-my-task-page .my-tickets-filter-card {
-                padding: 16px;
-                border-radius: 14px;
+                width: 100%;
+                max-width: 100%;
+                margin: 0 0 14px;
+                padding: 0;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+                box-sizing: border-box;
             }
 
             body.employee-my-task-page .table-card {
-                padding: 14px;
+                width: 100%;
+                max-width: 100%;
+                padding: 0;
                 min-height: 0;
                 display: block;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+                overflow: visible;
+                box-sizing: border-box;
             }
 
             body.employee-my-task-page .table-responsive {
@@ -701,16 +749,112 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
             body.employee-my-task-page .my-tickets-filter-form,
             body.employee-my-task-page .my-tickets-filter-form.has-department-filter {
-                grid-template-columns: 1fr;
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
             }
 
-            body.employee-my-task-page .my-tickets-clear-btn {
+            body.employee-my-task-page .my-tickets-search-row {
+                display: flex;
+                align-items: stretch;
+                gap: clamp(8px, 2.5vw, 12px);
                 width: 100%;
+                min-width: 0;
+            }
+
+            body.employee-my-task-page .my-tickets-search-wrapper {
+                flex: 1 1 auto;
+                width: auto;
+                min-width: 0;
+            }
+
+            body.employee-my-task-page .my-tickets-search-input {
+                height: clamp(42px, 11vw, 48px);
+                padding-left: 42px;
+                font-size: clamp(12px, 3.4vw, 14px);
+            }
+
+            body.employee-my-task-page .my-tickets-search-icon {
+                left: 15px;
+                font-size: 15px;
+            }
+
+            body.employee-my-task-page .my-tickets-mobile-filter-btn {
+                flex: 0 0 clamp(42px, 11vw, 48px);
+                width: clamp(42px, 11vw, 48px);
+                min-width: 0;
+                min-height: clamp(42px, 11vw, 48px);
+                padding: 0;
+                border: 1px solid #d7e0ea;
+                border-radius: 11px;
+                background: #ffffff;
+                color: #166534;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 16px;
+                cursor: pointer;
+                box-sizing: border-box;
+            }
+
+            body.employee-my-task-page .my-tickets-filter-controls {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: clamp(8px, 2.5vw, 12px);
+                width: 100%;
+                min-width: 0;
+                margin-top: 10px;
+            }
+
+            body.employee-my-task-page .my-tickets-filter-select-wrap,
+            body.employee-my-task-page .my-tickets-filter-select {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
+            }
+
+            body.employee-my-task-page .my-tickets-filter-select {
+                height: clamp(40px, 10.5vw, 46px);
+                padding-left: clamp(11px, 3vw, 15px);
+                padding-right: 34px;
+                font-size: clamp(12px, 3.2vw, 14px);
+            }
+
+            body.employee-my-task-page .my-tickets-filter-select-wrap::after {
+                right: 13px;
+            }
+
+            body.employee-my-task-page .my-tickets-desktop-clear {
+                display: none;
+            }
+
+            body.employee-my-task-page .my-tickets-mobile-filter-summary {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                width: 100%;
+                margin-top: 10px;
+                padding: 0 2px 11px;
+                border-bottom: 1px solid #dbe3ec;
+                color: #64748b;
+                font-size: clamp(11px, 3vw, 13px);
+                font-weight: 600;
+                box-sizing: border-box;
+            }
+
+            body.employee-my-task-page .my-tickets-mobile-filter-summary a {
+                color: #166534;
+                font-weight: 700;
+                text-decoration: none;
+                white-space: nowrap;
             }
 
             body.employee-my-task-page .tm-global-chat-fab {
                 right: 12px;
-                bottom: 12px;
+                bottom: calc(12px + env(safe-area-inset-bottom, 0px));
                 width: 42px !important;
                 max-width: 42px !important;
                 min-width: 42px;
@@ -748,28 +892,24 @@ $showing_to = min($offset + $limit, (int) $total_records);
             }
 
             body.employee-my-task-page .table-responsive table tbody tr.ticket-row {
-                display: grid;
-                grid-template-columns: minmax(0, 1fr) auto;
-                grid-template-areas:
-                    "id arrow"
-                    "category arrow"
-                    "requester requester"
-                    "date date"
-                    "department department"
-                    "badges badges";
-                column-gap: 12px;
-                row-gap: 8px;
+                position: relative;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 7px 8px;
                 width: 100%;
-                padding: 16px 18px;
-                border-radius: 16px;
+                max-width: 100%;
+                padding: clamp(13px, 4vw, 17px);
+                padding-right: clamp(42px, 12vw, 52px);
+                border-radius: 14px;
                 background: #ffffff;
-                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
-                border: 1px solid #dbe4ee;
+                box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+                border: 1px solid #dde5ed;
                 cursor: pointer;
-                transition: all 0.2s ease;
+                transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
                 min-height: 0;
-                align-content: start;
                 box-sizing: border-box;
+                overflow: hidden;
             }
 
             body.employee-my-task-page .table-responsive table tbody tr.ticket-row:hover {
@@ -794,29 +934,38 @@ $showing_to = min($offset + $limit, (int) $total_records);
             }
 
             body.employee-my-task-page .task-ticket-id {
-                grid-area: id;
-                font-size: 14px;
+                order: 1;
+                flex: 0 0 100%;
+                width: 100%;
+                font-size: clamp(12px, 3.4vw, 14px);
                 line-height: 1.2;
-                font-weight: 900;
+                font-weight: 800;
                 color: #0f172a;
                 font-variant-numeric: tabular-nums;
             }
 
             body.employee-my-task-page .task-ticket-category {
-                grid-area: category;
-                font-size: 14px;
+                order: 2;
+                flex: 0 0 100%;
+                width: 100%;
+                font-size: clamp(13px, 3.6vw, 15px);
                 line-height: 1.25;
-                color: #6b7280;
-                font-weight: 800;
+                color: #1f2937;
+                font-weight: 700;
                 overflow: hidden;
                 text-overflow: ellipsis;
+                white-space: nowrap;
             }
 
             body.employee-my-task-page .task-ticket-requester {
-                grid-area: requester;
-                font-size: 13px;
+                order: 3;
+                flex: 0 0 100%;
+                width: 100%;
+                margin-top: 2px;
+                font-size: clamp(12px, 3.3vw, 13px);
                 color: #1f2937;
                 line-height: 1.3;
+                overflow: hidden;
             }
 
             body.employee-my-task-page .task-ticket-requester .user-info {
@@ -824,8 +973,12 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 gap: 2px;
             }
 
+            body.employee-my-task-page .task-ticket-requester br {
+                display: none;
+            }
+
             body.employee-my-task-page .task-ticket-requester strong {
-                font-size: 15px;
+                font-size: clamp(13px, 3.7vw, 15px);
                 line-height: 1.25;
                 color: #111827;
                 overflow: hidden;
@@ -834,7 +987,9 @@ $showing_to = min($offset + $limit, (int) $total_records);
             }
 
             body.employee-my-task-page .task-ticket-requester small {
-                font-size: 12px;
+                display: block;
+                max-width: 100%;
+                font-size: clamp(11px, 3.1vw, 12px);
                 line-height: 1.3;
                 color: #475569;
                 overflow: hidden;
@@ -843,74 +998,112 @@ $showing_to = min($offset + $limit, (int) $total_records);
             }
 
             body.employee-my-task-page .task-ticket-date {
-                grid-area: date;
-                font-size: 12px;
+                order: 4;
+                flex: 1 1 calc(50% - 4px);
+                width: calc(50% - 4px);
+                font-size: clamp(10px, 2.9vw, 12px);
                 line-height: 1.2;
-                color: #9ca3af;
-                margin-top: 0;
-                font-weight: 700;
+                color: #64748b;
+                margin-top: 2px;
+                font-weight: 600;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
 
             body.employee-my-task-page .task-ticket-arrow {
                 display: block;
-                grid-area: arrow;
-                justify-self: end;
-                align-self: center;
-                font-size: 28px;
+                position: absolute;
+                top: 50%;
+                right: clamp(14px, 4vw, 18px);
+                transform: translateY(-50%);
+                font-size: 25px;
                 font-weight: 700;
                 color: #64748b;
                 line-height: 1;
             }
 
             body.employee-my-task-page .task-ticket-department {
-                grid-area: department;
+                order: 5;
+                flex: 1 1 calc(50% - 4px);
+                width: calc(50% - 4px);
                 display: block;
-                color: #334155;
-                font-size: 14px;
+                color: #475569;
+                font-size: clamp(10px, 2.9vw, 12px);
                 line-height: 1.25;
-                font-weight: 800;
+                font-weight: 600;
+                text-align: right;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
 
             body.employee-my-task-page .task-ticket-urgency,
             body.employee-my-task-page .task-ticket-status,
             body.employee-my-task-page .task-ticket-sla {
-                grid-area: badges;
+                order: 6;
+                flex: 0 1 auto;
                 display: inline-flex;
                 align-items: center;
                 width: max-content;
                 max-width: 100%;
+                margin: 3px 0 0;
                 align-self: center;
-                margin-top: 2px;
-            }
-
-            body.employee-my-task-page .task-ticket-urgency {
-                justify-self: start;
-            }
-
-            body.employee-my-task-page .task-ticket-status {
-                justify-self: start;
-                margin-left: min(28vw, 100px);
-            }
-
-            body.employee-my-task-page .task-ticket-sla {
-                justify-self: start;
-                margin-left: min(57vw, 214px);
+                box-sizing: border-box;
             }
 
             body.employee-my-task-page .task-ticket-urgency .priority-pill,
             body.employee-my-task-page .task-ticket-status .status-pill,
             body.employee-my-task-page .task-ticket-sla .badge {
-                min-height: 32px;
-                padding: 6px 14px;
+                min-width: 0;
+                min-height: 27px;
+                max-width: 100%;
+                padding: 5px clamp(9px, 2.8vw, 12px);
                 border-radius: 999px;
-                font-size: 13px;
+                font-size: clamp(10px, 2.9vw, 12px);
                 line-height: 1;
                 white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
 
             body.employee-my-task-page .table-responsive table tbody tr:not(.ticket-row) {
                 display: block;
                 width: 100%;
+            }
+        }
+
+        @media (max-width: 359px) {
+            body.employee-my-task-page .content-wrapper {
+                padding-left: 8px;
+                padding-right: 8px;
+            }
+
+            body.employee-my-task-page .my-tickets-filter-controls {
+                grid-template-columns: minmax(0, 1fr);
+                gap: 8px;
+            }
+
+            body.employee-my-task-page .table-responsive table tbody {
+                gap: 10px;
+            }
+
+            body.employee-my-task-page .table-responsive table tbody tr.ticket-row {
+                gap: 6px 7px;
+                padding: 12px 38px 12px 12px;
+                border-radius: 12px;
+            }
+
+            body.employee-my-task-page .task-ticket-arrow {
+                right: 12px;
+                font-size: 22px;
+            }
+
+            body.employee-my-task-page .task-ticket-urgency .priority-pill,
+            body.employee-my-task-page .task-ticket-status .status-pill,
+            body.employee-my-task-page .task-ticket-sla .badge {
+                min-height: 25px;
+                padding: 4px 8px;
             }
         }
 
@@ -1151,7 +1344,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
             letter-spacing: 0.08em;
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 767px) {
             body.employee-my-task-page #tasksPagination .pagination-glass {
                 display: grid;
                 grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1175,14 +1368,10 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
             body.employee-my-task-page #tasksPagination .page-numbers {
                 min-width: 0;
-                overflow-x: auto;
-                justify-content: flex-start;
+                overflow: visible;
+                flex-wrap: wrap;
+                justify-content: center;
                 padding: 2px 2px 6px;
-                scrollbar-width: none;
-            }
-
-            body.employee-my-task-page #tasksPagination .page-numbers::-webkit-scrollbar {
-                display: none;
             }
 
             body.employee-my-task-page #tasksPagination .page-btn {
@@ -1245,19 +1434,25 @@ $showing_to = min($offset + $limit, (int) $total_records);
             <div class="my-tickets-filter-card">
                 <?php $has_visible_department_filter = $show_department_filter && array_key_exists($company_email, $allowed_departments_by_company); ?>
                 <form method="GET" action="my_task.php" id="filterForm" class="my-tickets-filter-form <?= $has_visible_department_filter ? 'has-department-filter' : ''; ?>">
-                    <div class="my-tickets-search-wrapper">
-                        <i class="fas fa-search my-tickets-search-icon" aria-hidden="true"></i>
-                        <input
-                            type="search"
-                            name="search"
-                            id="searchInput"
-                            class="my-tickets-search-input"
-                            placeholder="Search by ID, name, email or category..."
-                            autocomplete="off"
-                            value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>"
-                        >
+                    <div class="my-tickets-search-row">
+                        <div class="my-tickets-search-wrapper">
+                            <i class="fas fa-search my-tickets-search-icon" aria-hidden="true"></i>
+                            <input
+                                type="search"
+                                name="search"
+                                id="searchInput"
+                                class="my-tickets-search-input"
+                                placeholder="Search by ID, name, email or category..."
+                                autocomplete="off"
+                                value="<?= htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>"
+                            >
+                        </div>
+                        <button type="button" class="my-tickets-mobile-filter-btn" aria-label="Ticket filters" aria-controls="mobileFilterControls">
+                            <i class="fas fa-sliders-h" aria-hidden="true"></i>
+                        </button>
                     </div>
 
+                    <div class="my-tickets-filter-controls" id="mobileFilterControls">
                     <div class="my-tickets-filter-select-wrap">
                         <select name="company_email" class="my-tickets-filter-select" id="filterCompany">
                             <option value="" <?= $company_email === '' ? 'selected' : '' ?> hidden>All Company</option>
@@ -1296,8 +1491,14 @@ $showing_to = min($offset + $limit, (int) $total_records);
                             <?php endforeach; ?>
                         </select>
                     </div>
+                    </div>
 
-                    <a href="my_task.php" class="my-tickets-clear-btn">Clear Filters</a>
+                    <a href="my_task.php" class="my-tickets-clear-btn my-tickets-desktop-clear">Clear Filters</a>
+
+                    <div class="my-tickets-mobile-filter-summary">
+                        <span>3 Active Filters</span>
+                        <a href="my_task.php">Clear all</a>
+                    </div>
                 </form>
             </div>
 

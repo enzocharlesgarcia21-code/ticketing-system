@@ -1099,11 +1099,11 @@ var TMTicketModal = (function () {
       displayName = att;
     } else if (att && typeof att === 'object') {
       filename = att.stored_name || att.filename || att.file || '';
-      displayName = att.original_name || att.display_name || filename;
+      displayName = att.original_name || att.display_name || att.displayName || filename;
       thumbnailUrl = att.thumbnail_url || att.thumbnailUrl || '';
       thumbnailAvailable = !!att.thumbnail_available;
-      isPdf = !!att.is_pdf;
-      isWord = !!att.is_word;
+      isPdf = !!(att.is_pdf || att.isPdf);
+      isWord = !!(att.is_word || att.isWord);
     }
     return {
       filename: attachmentStoredName(filename),
@@ -1199,6 +1199,64 @@ var TMTicketModal = (function () {
       slide.setAttribute('aria-hidden', active ? 'false' : 'true');
     });
   }
+  function stepAttachmentPage(id, delta) {
+    var root = document.getElementById(String(id || ''));
+    if (!root) return;
+    var pages = Array.prototype.slice.call(root.querySelectorAll('.tm-attachment-page'));
+    if (!pages.length) return;
+    var current = Number(root.getAttribute('data-index') || 0);
+    if (!isFinite(current)) current = 0;
+    var nextIndex = Math.max(0, Math.min(pages.length - 1, current + Number(delta || 0)));
+    root.setAttribute('data-index', String(nextIndex));
+    pages.forEach(function (page, index) {
+      var active = index === nextIndex;
+      page.classList.toggle('is-active', active);
+      page.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+    var counter = root.querySelector('[data-attachment-page-counter]');
+    if (counter) counter.textContent = String(nextIndex + 1) + ' of ' + String(pages.length);
+    var previous = root.querySelector('[data-attachment-page-previous]');
+    var next = root.querySelector('[data-attachment-page-next]');
+    if (previous) previous.disabled = nextIndex <= 0;
+    if (next) next.disabled = nextIndex >= pages.length - 1;
+  }
+  function showTicketContentPage(id, pageIndex) {
+    var root = document.getElementById(String(id || ''));
+    if (!root) return;
+    var pages = Array.prototype.slice.call(root.querySelectorAll('.tm-ticket-content-page'));
+    if (!pages.length) return;
+    var nextIndex = Math.max(0, Math.min(pages.length - 1, Number(pageIndex || 0)));
+    root.setAttribute('data-index', String(nextIndex));
+    pages.forEach(function (page, index) {
+      var active = index === nextIndex;
+      page.classList.toggle('is-active', active);
+      page.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+  }
+
+  function syncTicketContentCardHeight(modalContent) {
+    if (!modalContent) return;
+    var ticketInfoCard = modalContent.querySelector('.tm-card-ticket-info');
+    var pagers = modalContent.querySelectorAll('.tm-ticket-content-pager');
+    if (!ticketInfoCard || !pagers.length) return;
+
+    var applyMeasuredHeight = function () {
+      var measuredHeight = Math.round(ticketInfoCard.getBoundingClientRect().height);
+      if (measuredHeight <= 0) return;
+      Array.prototype.forEach.call(pagers, function (pager) {
+        pager.style.setProperty('--tm-ticket-content-height', measuredHeight + 'px');
+      });
+    };
+
+    applyMeasuredHeight();
+    if (modalContent._tmTicketContentResizeObserver) {
+      modalContent._tmTicketContentResizeObserver.disconnect();
+    }
+    if (typeof ResizeObserver === 'function') {
+      modalContent._tmTicketContentResizeObserver = new ResizeObserver(applyMeasuredHeight);
+      modalContent._tmTicketContentResizeObserver.observe(ticketInfoCard);
+    }
+  }
   function renderAttachmentsBlock(data, options) {
     options = options && typeof options === 'object' ? options : {};
     var hideSectionTitles = !!options.hideSectionTitles;
@@ -1209,48 +1267,72 @@ var TMTicketModal = (function () {
       list = [data.attachment];
     }
     if (!list.length) return '';
-    var images = [];
-    var fileCards = [];
-    var others = [];
+    var attachmentItems = [];
     list.forEach(function (att) {
       var n = normalizeAttachment(att);
       if (!n.filename) return;
-      if (isImageFile(n.filename)) images.push(n);
-      else if (n.isPdf || n.isWord) fileCards.push(att);
-      else others.push(att);
+      attachmentItems.push({ attachment: att, normalized: n, isImage: isImageFile(n.filename) });
     });
-    var html = '';
-    if (images.length) {
-      html += '<div class="tm-attachment-section">';
-      if (!hideSectionTitles) {
-        html += '<div class="tm-attachment-section-title">Images</div>';
+    if (!attachmentItems.length) return '';
+    function renderAttachmentRow(att) {
+      var n = normalizeAttachment(att);
+      if (!n.filename) return '';
+      var src = '../uploads/' + encodeURIComponent(n.filename);
+      var isImage = isImageFile(n.filename);
+      var previewHtml = '';
+      if (isImage) {
+        previewHtml = '<img class="tm-attachment-row-image" src="' + escapeHtml(src) + '" alt="' + escapeHtml(n.displayName || n.filename) + '">';
+      } else if (n.isPdf) {
+        previewHtml = pdfPreviewHtml({ thumbnail_url: n.thumbnailUrl, pdf_src: src }, n.displayName || n.filename);
+      } else if (n.isWord) {
+        previewHtml = wordPreviewHtml(n.displayName || n.filename, wordFileType(n.filename));
+      } else {
+        previewHtml = '<div class="tm-attachment-row-file-icon"><i class="fas fa-file-alt"></i></div>';
       }
-      html += '<div class="tm-attachment-gallery">';
-      html += images.map(function (n) {
-        var src = '../uploads/' + escapeHtml(n.filename);
-        return '<button type="button" class="tm-attachment-thumb" data-src="' + src + '" onclick="TMTicketModal.viewImage(this.dataset.src)">' +
-               '<img class="tm-attachment-img" src="' + src + '" alt="' + escapeHtml(n.displayName || '') + '">' +
-               '</button>';
-      }).join('');
-      html += '</div></div>';
+      var openAction = isImage
+        ? 'TMTicketModal.viewImage(this.dataset.src)'
+        : 'TMTicketModal.openFilePreviewFromCard(this)';
+      return '<article class="tm-attachment-list-row' + (isImage ? ' is-image' : ' is-file') + '" data-src="' + escapeHtml(src) + '" data-name="' + escapeHtml(n.displayName || n.filename) + '" onclick="' + openAction + '">' +
+        '<div class="tm-attachment-row-preview">' + previewHtml + '</div>' +
+        '<div class="tm-attachment-row-name" title="' + escapeHtml(n.displayName || n.filename) + '">' + escapeHtml(n.displayName || n.filename) + '</div>' +
+        '</article>';
     }
-    if (fileCards.length) {
-      html += '<div class="tm-attachment-section">';
-      if (!hideSectionTitles) {
-        html += '<div class="tm-attachment-section-title">Files</div>';
-      }
-      html += '<div class="tm-file-card-grid">';
-      html += fileCards.map(function (a) { return renderAttachment(a); }).join('');
-      html += '</div></div>';
+    function renderAttachmentGroup(title, items) {
+      if (!items.length) return '';
+      var groupHtml = '<div class="tm-attachment-section">';
+      if (!hideSectionTitles) groupHtml += '<div class="tm-attachment-section-title">' + title + '</div>';
+      groupHtml += '<div class="tm-attachment-row-list">' + items.map(function (item) {
+        return renderAttachmentRow(item.isImage ? item.normalized : item.attachment);
+      }).join('') + '</div></div>';
+      return groupHtml;
     }
-    if (others.length) {
-      html += '<div class="tm-attachment-section">';
-      if (!hideSectionTitles) {
-        html += '<div class="tm-attachment-section-title">Files</div>';
-      }
-      html += others.map(function (a) { return renderAttachment(a); }).join('') + '</div>';
+    if (options.showAll) {
+      var allImageItems = attachmentItems.filter(function (item) { return item.isImage; });
+      var allFileItems = attachmentItems.filter(function (item) { return !item.isImage; });
+      return renderAttachmentGroup('Images', allImageItems) + renderAttachmentGroup('Files', allFileItems);
     }
-    return html;
+    var pageSize = 3;
+    var pages = [];
+    for (var pageStart = 0; pageStart < attachmentItems.length; pageStart += pageSize) {
+      pages.push(attachmentItems.slice(pageStart, pageStart + pageSize));
+    }
+    var pagerId = 'tmAttachmentPager-' + String(++attachmentCategorySeq);
+    var pagesHtml = pages.map(function (pageItems, pageIndex) {
+      var imageItems = pageItems.filter(function (item) { return item.isImage; });
+      var fileItems = pageItems.filter(function (item) { return !item.isImage; });
+      return '<section class="tm-attachment-page' + (pageIndex === 0 ? ' is-active' : '') + '" data-index="' + String(pageIndex) + '" aria-hidden="' + (pageIndex === 0 ? 'false' : 'true') + '">' +
+        renderAttachmentGroup('Images', imageItems) +
+        renderAttachmentGroup('Files', fileItems) +
+        '</section>';
+    }).join('');
+    return '<div class="tm-attachment-pager" id="' + pagerId + '" data-index="0">' +
+      '<div class="tm-attachment-pages">' + pagesHtml + '</div>' +
+      '<div class="tm-attachment-pagination">' +
+        '<button type="button" class="tm-attachment-page-btn" data-attachment-page-previous disabled onclick="TMTicketModal.stepAttachmentPage(\'' + pagerId + '\', -1)">Previous</button>' +
+        '<span class="tm-attachment-page-counter" data-attachment-page-counter>1 of ' + String(pages.length) + '</span>' +
+        '<button type="button" class="tm-attachment-page-btn primary" data-attachment-page-next' + (pages.length <= 1 ? ' disabled' : '') + ' onclick="TMTicketModal.stepAttachmentPage(\'' + pagerId + '\', 1)">Next</button>' +
+      '</div>' +
+      '</div>';
   }
   var pdfJsLoadPromise = null;
   function loadPdfJs() {
@@ -2006,13 +2088,10 @@ var TMTicketModal = (function () {
     var descriptionHtml = descriptionText
       ? '<div class="tm-hr-section"><div class="tm-info-label">' + escapeHtml(String(hr.detail_label || 'Description')).toUpperCase() + '</div><div class="tm-info-value">' + escapeHtml(descriptionText).replace(/\n/g, '<br>') + '</div></div>'
       : '';
-    var attachmentGroups = Array.isArray(hr.attachment_groups) ? hr.attachment_groups : [];
-    var attachmentsHtml = renderHrAttachmentCategoryCarousel(attachmentGroups);
-    if (!items.length && !descriptionHtml && !attachmentsHtml) return '';
+    if (!items.length && !descriptionHtml) return '';
     return '<div class="tm-card tm-card-request-details"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(String(hr.request_section_title || 'Request Details')) + '</span></div><div class="tm-card-body">' +
       (items.length ? '<div class="tm-info-grid tm-info-grid-compact">' + items.join('') + '</div>' : '') +
       descriptionHtml +
-      attachmentsHtml +
       '</div></div>';
   }
   function parseSalesTicketDescriptionMeta(data) {
@@ -2102,9 +2181,6 @@ var TMTicketModal = (function () {
         '</div>' +
       '</div>',
       '<div class="tm-sap-card tm-incident-card is-attachments" data-index="1" aria-hidden="true">' +
-        '<div class="tm-incident-section-title">Attachment</div>' +
-        '<div class="tm-incident-section-subtitle">Images</div>' +
-        renderIncidentReportAttachmentRows(data) +
         '<div class="tm-incident-section-title tm-incident-drive-title">GDrive Link (Video)</div>' +
         (incident.gdriveLink
           ? '<a class="tm-incident-drive-row" href="' + escapeHtml(incident.gdriveLink) + '" target="_blank" rel="noopener noreferrer">' +
@@ -2126,7 +2202,7 @@ var TMTicketModal = (function () {
       '</div>' +
     '</div>';
   }
-  function renderDescriptionCard(data) {
+  function renderDescriptionCard(data, footerHtml) {
     var hr = getHrDisplay(data);
     if (isLapcHrIncidentReportTicket(data)) return '';
     if (hr && hr.is_hr_special) return '';
@@ -2175,9 +2251,34 @@ var TMTicketModal = (function () {
       }
       }
     }
-    var attachmentsHtml = renderAttachmentsBlock(data);
-    var emptyHtml = (!descriptionHtml && !attachmentsHtml) ? '<div class="tm-info-value">-</div>' : '';
-    return '<div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(title) + '</span></div><div class="tm-card-body">' + descriptionHtml + attachmentsHtml + emptyHtml + '</div></div>';
+    var emptyHtml = !descriptionHtml ? '<div class="tm-info-value">-</div>' : '';
+    return '<div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(title) + '</span></div><div class="tm-card-body"><div class="tm-ticket-content-scroll">' + descriptionHtml + emptyHtml + '</div>' + String(footerHtml || '') + '</div></div>';
+  }
+  function renderAttachmentCard(data, footerHtml, preparedAttachmentsHtml) {
+    var attachmentsHtml = preparedAttachmentsHtml || renderAttachmentsBlock(data, { showAll: true });
+    if (!attachmentsHtml) return '';
+    return '<div class="tm-card tm-card-attachment"><div class="tm-card-header"><span class="tm-card-title">Attachment</span></div><div class="tm-card-body"><div class="tm-ticket-content-scroll">' + attachmentsHtml + '</div>' + String(footerHtml || '') + '</div></div>';
+  }
+  function renderDescriptionAttachmentCards(data) {
+    var attachmentsHtml = renderAttachmentsBlock(data, { showAll: true });
+    if (!attachmentsHtml) return renderDescriptionCard(data);
+    var pagerId = 'tmTicketContentPager-' + String(++attachmentCategorySeq);
+    var descriptionNavigation = '<div class="tm-ticket-content-navigation">' +
+      '<button type="button" class="tm-attachment-page-btn" disabled>Previous</button>' +
+      '<span class="tm-attachment-page-counter">1 of 2</span>' +
+      '<button type="button" class="tm-attachment-page-btn primary" onclick="TMTicketModal.showTicketContentPage(\'' + pagerId + '\', 1)">Next</button>' +
+      '</div>';
+    var attachmentNavigation = '<div class="tm-ticket-content-navigation">' +
+      '<button type="button" class="tm-attachment-page-btn" onclick="TMTicketModal.showTicketContentPage(\'' + pagerId + '\', 0)">Previous</button>' +
+      '<span class="tm-attachment-page-counter">2 of 2</span>' +
+      '<button type="button" class="tm-attachment-page-btn primary" disabled>Next</button>' +
+      '</div>';
+    var descriptionCard = renderDescriptionCard(data, descriptionNavigation);
+    if (!descriptionCard) return renderAttachmentCard(data, '', attachmentsHtml);
+    return '<div class="tm-ticket-content-pager" id="' + pagerId + '" data-index="0">' +
+      '<section class="tm-ticket-content-page is-active" data-index="0" aria-hidden="false">' + descriptionCard + '</section>' +
+      '<section class="tm-ticket-content-page" data-index="1" aria-hidden="true">' + renderAttachmentCard(data, attachmentNavigation, attachmentsHtml) + '</section>' +
+      '</div>';
   }
   function renderHrAttachmentCards(data) {
     var hr = getHrDisplay(data);
@@ -3263,7 +3364,7 @@ var TMTicketModal = (function () {
       requesterAdminNoteHtml +
       '      ' + renderIncidentReportDetailsCard(data) +
       '      ' + renderHrRequestDetailsCard(data) +
-      '      ' + renderDescriptionCard(data) +
+      '      ' + renderDescriptionAttachmentCards(data) +
       '      ' + renderHrAttachmentCards(data) +
       resolutionCardHtml +
       '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card tm-card-impact"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
@@ -3434,7 +3535,7 @@ var TMTicketModal = (function () {
       '    <div class="tm-desc-col">' +
       '      ' + renderIncidentReportDetailsCard(safe) +
       '      ' + renderHrRequestDetailsCard(safe) +
-      '      ' + renderDescriptionCard(safe) +
+      '      ' + renderDescriptionAttachmentCards(safe) +
       '      ' + renderHrAttachmentCards(safe) +
       '    </div>' +
       '  </div>' +
@@ -5788,6 +5889,7 @@ var TMTicketModal = (function () {
           console.error('PDF thumbnail rendering failed:', pdfThumbError);
         }
         setTimeout(function () {
+          syncTicketContentCardHeight(modalContent);
           var statusSelect = modalContent.querySelector('.tm-status-select');
           if (statusSelect) updateStatusColor(statusSelect);
           startChatBadge(data.id);
@@ -5955,6 +6057,8 @@ var TMTicketModal = (function () {
     closeMessengerChat: closeMessengerChat,
     updateStatusColor: updateStatusColor,
     stepHrAttachmentCategory: stepHrAttachmentCategory,
+    stepAttachmentPage: stepAttachmentPage,
+    showTicketContentPage: showTicketContentPage,
     stepSapDisplay: stepSapDisplay,
     viewImage: viewImage,
     stepImagePreview: stepImagePreview,

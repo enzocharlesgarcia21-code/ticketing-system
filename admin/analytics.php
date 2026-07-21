@@ -4,7 +4,10 @@ require_once '../includes/ticket_assignment.php';
 require_once '../includes/user_permissions.php';
 
 $analyticsViewMode = defined('TICKETING_ANALYTICS_VIEW_MODE') ? (string) TICKETING_ANALYTICS_VIEW_MODE : 'admin';
-$analyticsIsEmployeeView = $analyticsViewMode === 'employee';
+$analyticsIsSalesManagerView = $analyticsViewMode === 'sales_manager';
+$analyticsIsEmployeeView = $analyticsViewMode === 'employee' || $analyticsIsSalesManagerView;
+$analyticsUsesEmployeePresentation = $analyticsIsEmployeeView && !$analyticsIsSalesManagerView;
+$analyticsSalesRegion = '';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
     header("Location: " . ($analyticsIsEmployeeView ? "../employee/employee_login.php" : "admin_login.php"));
@@ -16,11 +19,45 @@ if ($analyticsIsEmployeeView) {
         header("Location: ../employee/employee_login.php");
         exit();
     }
-    user_permissions_ensure_table($conn);
-    $employeePermissions = user_permissions_get_for_user($conn, (int) ($_SESSION['user_id'] ?? 0));
-    if ((int) ($employeePermissions['analytics'] ?? 0) !== 1) {
-        header("Location: dashboard.php");
-        exit();
+    if ($analyticsIsSalesManagerView) {
+        $analyticsUserId = (int) ($_SESSION['user_id'] ?? 0);
+        $analyticsHasRegionColumn = false;
+        $analyticsRegionColumnRes = $conn->query("SHOW COLUMNS FROM users LIKE 'region'");
+        if ($analyticsRegionColumnRes && $analyticsRegionColumnRes->num_rows > 0) {
+            $analyticsHasRegionColumn = true;
+        }
+        $analyticsUserStmt = $conn->prepare("SELECT company, department" . ($analyticsHasRegionColumn ? ", region" : "") . " FROM users WHERE id = ? LIMIT 1");
+        $analyticsUserRow = null;
+        if ($analyticsUserStmt) {
+            $analyticsUserStmt->bind_param('i', $analyticsUserId);
+            $analyticsUserStmt->execute();
+            $analyticsUserRow = $analyticsUserStmt->get_result()->fetch_assoc();
+            $analyticsUserStmt->close();
+        }
+        $analyticsUserCompany = trim((string) ($analyticsUserRow['company'] ?? ($_SESSION['company'] ?? '')));
+        $analyticsUserDepartment = trim((string) ($analyticsUserRow['department'] ?? ($_SESSION['department'] ?? '')));
+        $analyticsSalesRegion = $analyticsHasRegionColumn
+            ? trim((string) ($analyticsUserRow['region'] ?? ($_SESSION['region'] ?? '')))
+            : trim((string) ($_SESSION['region'] ?? ''));
+        $analyticsSalesEligible = ticket_normalize_company($analyticsUserCompany) === '@leadsagri.com'
+            && strcasecmp($analyticsUserDepartment, 'Sales') === 0
+            && $analyticsSalesRegion !== '';
+        if (!$analyticsSalesEligible) {
+            $_SESSION['employee_view_mode'] = 'employee';
+            header("Location: dashboard.php");
+            exit();
+        }
+        $_SESSION['company'] = $analyticsUserCompany;
+        $_SESSION['department'] = $analyticsUserDepartment;
+        $_SESSION['region'] = $analyticsSalesRegion;
+        $_SESSION['employee_view_mode'] = 'manager';
+    } else {
+        user_permissions_ensure_table($conn);
+        $employeePermissions = user_permissions_get_for_user($conn, (int) ($_SESSION['user_id'] ?? 0));
+        if ((int) ($employeePermissions['analytics'] ?? 0) !== 1) {
+            header("Location: dashboard.php");
+            exit();
+        }
     }
 } elseif ((string) $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -175,6 +212,7 @@ function analytics_allowed_categories_for_department(string $company, string $de
             'Phone Plan / Simcard',
             'FleetCard Request',
             'Supplies',
+            'Others',
         ],
         'Diagnostics / Lingap' => [
             'Medical consultations',
@@ -182,7 +220,8 @@ function analytics_allowed_categories_for_department(string $company, string $de
             'Medicine Request',
             'Back to work Clearance',
             'Medical Reimbursement',
-            'Sick Leave Application/Request',
+            'Sick Leave Appliccation/Request',
+            'Others',
         ],
         'Institutional Sales (Bidding)' => [
             'Documentation',
@@ -191,12 +230,13 @@ function analytics_allowed_categories_for_department(string $company, string $de
             'Internet Concerns',
             'Procurement',
             'Software',
-            'Technical Support',
+            'Others',
         ],
         'HR' => [
             'Attendance & Timekeeping',
             'Certificate of Employment',
             'Certificate of Leave',
+            'Incident Report',
             'Leave Concern',
             'Medical Cash Advance',
             'Request for Company Property',
@@ -212,11 +252,12 @@ function analytics_allowed_categories_for_department(string $company, string $de
             'Procurement',
             'SAP',
             'Software',
-            'Technical Support',
+            'Others',
         ],
         'Marketing' => [
             'Marketing Operations',
             'Channel & Campaigns',
+            'Others',
         ],
         'Machineries' => [
             'Documentation',
@@ -225,7 +266,7 @@ function analytics_allowed_categories_for_department(string $company, string $de
             'Internet Concerns',
             'Procurement',
             'Software',
-            'Technical Support',
+            'Others',
         ],
         'Technical' => [
             'CPR',
@@ -236,6 +277,7 @@ function analytics_allowed_categories_for_department(string $company, string $de
             'Certificate of Authorized Dealer',
             'Updated Label',
             'Product Presentations',
+            'Others',
         ],
     ];
 
@@ -244,14 +286,20 @@ function analytics_allowed_categories_for_department(string $company, string $de
     }
 
     if ($company === '@malvedaholdings.com' || strtoupper($company) === 'MHC') {
-        return strcasecmp($department, 'Marketing Creatives') === 0 ? ['Marketing Request'] : [];
+        return strcasecmp($department, 'Marketing Creatives') === 0
+            ? ['Marketing Request', 'Others']
+            : ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'];
     }
 
     if ($company === '@malvedaproperties.com' || strtoupper($company) === 'MPDC') {
-        return ['Engineerings', 'Client Based'];
+        return ['Engineerings', 'Client Referral', 'Others'];
     }
 
-    return ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
+    if ($company === '@lingapleads.org') {
+        return ['Lakbay Kalusugan Request (Medical Mission)', 'Others'];
+    }
+
+    return ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'];
 }
 
 function analytics_is_combined_farmex_lav_filter(string $companyFilter): bool
@@ -278,17 +326,40 @@ function analytics_apply_company_filter(array &$where, array &$params, string &$
     $types .= 's';
 }
 
+$analyticsApplySalesRegionScope = static function (array &$where, array &$params, string &$types, string $ticketAlias = 't') use ($analyticsIsSalesManagerView, $analyticsSalesRegion): void {
+    if (!$analyticsIsSalesManagerView) {
+        return;
+    }
+    $where[] = "EXISTS (
+        SELECT 1
+        FROM users analytics_sales_creator
+        WHERE analytics_sales_creator.id = {$ticketAlias}.user_id
+          AND LOWER(TRIM(COALESCE(analytics_sales_creator.email, ''))) = 'sales_guest@leadsagri.com'
+    )";
+    $where[] = "COALESCE({$ticketAlias}.description, '') LIKE ?";
+    $params[] = '%Region: ' . $analyticsSalesRegion . '%';
+    $types .= 's';
+};
+
 // Determine selected date range. When no dates are selected, default to the
 // month of the latest ticket so analytics does not look empty after month rollovers.
 $defaultEndDate = date('Y-m-d');
-$latestTicketDateRes = $conn->query("SELECT MAX(DATE(created_at)) AS latest_ticket_date FROM employee_tickets WHERE created_at IS NOT NULL");
-if ($latestTicketDateRes) {
-    $latestTicketDateRow = $latestTicketDateRes->fetch_assoc();
+$latestTicketDateWhere = ['t.created_at IS NOT NULL'];
+$latestTicketDateParams = [];
+$latestTicketDateTypes = '';
+$analyticsApplySalesRegionScope($latestTicketDateWhere, $latestTicketDateParams, $latestTicketDateTypes);
+$latestTicketDateStmt = $conn->prepare("SELECT MAX(DATE(t.created_at)) AS latest_ticket_date FROM employee_tickets t WHERE " . implode(' AND ', $latestTicketDateWhere));
+if ($latestTicketDateStmt) {
+    if ($latestTicketDateTypes !== '') {
+        $latestTicketDateStmt->bind_param($latestTicketDateTypes, ...$latestTicketDateParams);
+    }
+    $latestTicketDateStmt->execute();
+    $latestTicketDateRow = $latestTicketDateStmt->get_result()->fetch_assoc();
     $latestTicketDate = trim((string) ($latestTicketDateRow['latest_ticket_date'] ?? ''));
     if ($latestTicketDate !== '') {
         $defaultEndDate = $latestTicketDate;
     }
-    $latestTicketDateRes->free();
+    $latestTicketDateStmt->close();
 }
 $defaultStartDate = date('Y-m-01', strtotime($defaultEndDate));
 $isValidDate = static function (string $date): bool {
@@ -329,7 +400,7 @@ $company_filter = analytics_is_combined_farmex_lav_filter($raw_company_filter)
 $department_filter = trim((string) ($_GET['department'] ?? ''));
 $status_filter = trim((string) ($_GET['status'] ?? ''));
 
-if ($analyticsIsEmployeeView) {
+if ($analyticsIsEmployeeView && !$analyticsIsSalesManagerView) {
     $employeeSessionCompany = ticket_normalize_company(trim((string) ($_SESSION['company'] ?? '')));
     if ($employeeSessionCompany === '') {
         $employeeSessionEmail = strtolower(trim((string) ($_SESSION['email'] ?? '')));
@@ -369,7 +440,7 @@ foreach ($company_options as $companyOption => $_companyLabel) {
         ? []
         : ticket_company_allowed_groups($companyOption);
 }
-if (!$analyticsIsEmployeeView) {
+if (!$analyticsIsEmployeeView || $analyticsIsSalesManagerView) {
     $department_options = $company_filter !== '' ? ($department_options_by_company[$company_filter] ?? []) : [];
     if ($company_filter === '' || count($department_options) === 0) {
         $department_filter = '';
@@ -378,21 +449,41 @@ if (!$analyticsIsEmployeeView) {
     }
 }
 
-$categories = [
-    'Documentation',
-    'Email',
-    'Hardware',
-    'Internet Concerns',
-    'Procurement',
-    'Software',
-    'Technical Support',
-];
+$category_options_by_scope = [];
+foreach ($company_options as $companyOption => $_companyLabel) {
+    $companyCategories = [];
+    $category_options_by_scope[$companyOption] = ['' => []];
+    $companyDepartments = $department_options_by_company[$companyOption] ?? [];
+
+    if (count($companyDepartments) === 0) {
+        $companyCategories = analytics_allowed_categories_for_department($companyOption, '');
+    } else {
+        foreach ($companyDepartments as $companyDepartment) {
+            $departmentCategories = analytics_allowed_categories_for_department($companyOption, $companyDepartment);
+            $category_options_by_scope[$companyOption][$companyDepartment] = $departmentCategories;
+            $companyCategories = array_merge($companyCategories, $departmentCategories);
+        }
+    }
+
+    $category_options_by_scope[$companyOption][''] = array_values(array_unique($companyCategories));
+}
+
+$categories = [];
+if ($company_filter !== '') {
+    $categories = $category_options_by_scope[$company_filter][$department_filter]
+        ?? $category_options_by_scope[$company_filter]['']
+        ?? [];
+}
+if ($analyticsIsEmployeeView && !$analyticsIsSalesManagerView && $company_filter !== '') {
+    $categories = analytics_allowed_categories_for_department($company_filter, $department_filter);
+}
 if ($category_filter !== '' && !in_array($category_filter, $categories, true)) $category_filter = '';
 
 $ticket_where = [];
 $ticket_params = [];
 $ticket_types = "";
 $analyticsApplyCreatedDateFilter($ticket_where, $ticket_params, $ticket_types);
+$analyticsApplySalesRegionScope($ticket_where, $ticket_params, $ticket_types);
 if ($category_filter !== '') {
     $ticket_where[] = "t.category = ?";
     $ticket_params[] = $category_filter;
@@ -424,6 +515,7 @@ $legacyMetricsWhere = ["COALESCE(NULLIF(status,''),'') <> 'Trash'"];
 $legacyMetricsParams = [];
 $legacyMetricsTypes = "";
 $analyticsApplyCreatedDateFilter($legacyMetricsWhere, $legacyMetricsParams, $legacyMetricsTypes, 'created_at');
+$analyticsApplySalesRegionScope($legacyMetricsWhere, $legacyMetricsParams, $legacyMetricsTypes, 'employee_tickets');
 $metricsQuery = $conn->prepare("
     SELECT 
         COUNT(*) as received,
@@ -465,8 +557,8 @@ if ($trend_period === 'last_month') {
     $previousTrendStartDate = $previousTrendDates[0];
     $previousTrendEndDate = $previousTrendDates[count($previousTrendDates) - 1];
 }
-$completionAtExpr = "COALESCE(t.closed_at, t.resolved_at)";
-$resolutionMinutesExpr = "TIMESTAMPDIFF(MINUTE, t.created_at, $completionAtExpr)";
+$completionAtExpr = "t.resolved_at";
+$resolutionMinutesExpr = "TIMESTAMPDIFF(MINUTE, t.started_at, $completionAtExpr)";
 $resolutionSecondsExpr = "TIMESTAMPDIFF(SECOND, t.started_at, $completionAtExpr)";
 
 $formatResolutionMinutes = static function ($minutes): string {
@@ -530,15 +622,16 @@ $trendAverageLabel = $trend_period === 'last_month' ? 'Average for last month' :
 $trendNoDataLabel = $trend_period === 'last_month' ? 'No data for last month' : 'No data for the last 5 weekdays';
 
 $resolutionRangeWhere = [
-    "t.status = 'Closed'",
+    "t.status IN ('Resolved', 'Closed')",
     "$completionAtExpr IS NOT NULL",
-    "t.created_at IS NOT NULL",
+    "t.started_at IS NOT NULL",
     "$resolutionMinutesExpr >= 0",
     "WEEKDAY($completionAtExpr) < 5",
     "DATE($completionAtExpr) BETWEEN ? AND ?",
 ];
 $resolutionRangeParams = [$previousStart, $currentEnd];
 $resolutionRangeTypes = "ss";
+$analyticsApplySalesRegionScope($resolutionRangeWhere, $resolutionRangeParams, $resolutionRangeTypes);
 if ($category_filter !== '') {
     $resolutionRangeWhere[] = "t.category = ?";
     $resolutionRangeParams[] = $category_filter;
@@ -602,15 +695,16 @@ $dailyLabels = [];
 $dailyValues = [];
 $dailyMinutesMap = [];
 $dailyTrendWhere = [
-    "t.status = 'Closed'",
+    "t.status IN ('Resolved', 'Closed')",
     "$completionAtExpr IS NOT NULL",
-    "t.created_at IS NOT NULL",
+    "t.started_at IS NOT NULL",
     "$resolutionMinutesExpr >= 0",
     "WEEKDAY($completionAtExpr) < 5",
     "DATE($completionAtExpr) BETWEEN ? AND ?",
 ];
 $dailyTrendParams = [$currentStart, $currentEnd];
 $dailyTrendTypes = "ss";
+$analyticsApplySalesRegionScope($dailyTrendWhere, $dailyTrendParams, $dailyTrendTypes);
 if ($category_filter !== '') {
     $dailyTrendWhere[] = "t.category = ?";
     $dailyTrendParams[] = $category_filter;
@@ -731,7 +825,7 @@ $resolutionBucketCounts = [
     'Over 4 hours' => 0,
 ];
 $resolutionBucketWhere = [
-    "t.status = 'Closed'",
+    "t.status IN ('Resolved', 'Closed')",
     "t.started_at IS NOT NULL",
     "$completionAtExpr IS NOT NULL",
     "$resolutionSecondsExpr >= 0",
@@ -739,6 +833,7 @@ $resolutionBucketWhere = [
 ];
 $resolutionBucketParams = [$currentStart, $currentEnd];
 $resolutionBucketTypes = "ss";
+$analyticsApplySalesRegionScope($resolutionBucketWhere, $resolutionBucketParams, $resolutionBucketTypes);
 if ($category_filter !== '') {
     $resolutionBucketWhere[] = "t.category = ?";
     $resolutionBucketParams[] = $category_filter;
@@ -754,6 +849,11 @@ analytics_apply_company_filter(
 if ($department_filter !== '') {
     $resolutionBucketWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
     $resolutionBucketParams[] = $department_filter;
+    $resolutionBucketTypes .= "s";
+}
+if ($status_filter !== '') {
+    $resolutionBucketWhere[] = "t.status = ?";
+    $resolutionBucketParams[] = $status_filter;
     $resolutionBucketTypes .= "s";
 }
 $resolutionBucketStmt = $conn->prepare("
@@ -785,7 +885,7 @@ if ($resolutionBucketStmt) {
     $resolutionBucketStmt->close();
 }
 $resolutionBucketTotal = array_sum($resolutionBucketCounts);
-$resolutionTopBucketLabel = 'No closed tickets in the selected range';
+$resolutionTopBucketLabel = 'No resolved tickets in the selected range';
 $resolutionTopBucketPercent = 0;
 if ($resolutionBucketTotal > 0) {
     arsort($resolutionBucketCounts);
@@ -804,7 +904,7 @@ $trendSummaryBadgeText = !empty($trendDayStats) || $trendAverageSeconds > 0
     : 'No data';
 
 $hasCurrentTrendData = $currentResolvedCount > 0 || $trendAverageSeconds > 0 || !empty($trendDayStats);
-$trendComparisonTitle = 'No closed tickets';
+$trendComparisonTitle = 'No resolved tickets';
 $trendComparisonDetail = $trendNoDataLabel;
 $trendComparisonMain = 'No data';
 $trendComparisonSub = 'No previous data';
@@ -820,7 +920,7 @@ if ($hasCurrentTrendData) {
         $trendComparisonTitle = 'No previous data';
         $trendComparisonDetail = 'Current average is ' . $currentAvgLabel;
         $trendComparisonMain = 'New data';
-        $trendComparisonSub = 'No previous closed tickets';
+        $trendComparisonSub = 'No previous resolved tickets';
         $trendSummaryBadgeText = 'New data';
         $trendSummaryBadgeIcon = 'fa-circle-info';
         $trendSummaryBadgeClass = 'flat';
@@ -852,8 +952,8 @@ if ($hasCurrentTrendData) {
 }
 
 $trendInsightText = $resolutionBucketTotal > 0
-    ? 'Most closed tickets took ' . $resolutionTopBucketLabel . ' (' . (int) $resolutionTopBucketPercent . '%)'
-    : 'No closed tickets in ' . strtolower($trendPeriodLabel);
+    ? 'Most resolved tickets took ' . $resolutionTopBucketLabel . ' (' . (int) $resolutionTopBucketPercent . '%)'
+    : 'No resolved tickets in ' . strtolower($trendPeriodLabel);
 $trendPayload = [
     'period' => $trend_period,
     'labels' => $trendWeeks,
@@ -884,6 +984,7 @@ $companyChartWhere = [];
 $companyChartParams = [];
 $companyChartTypes = "";
 $analyticsApplyCreatedDateFilter($companyChartWhere, $companyChartParams, $companyChartTypes);
+$analyticsApplySalesRegionScope($companyChartWhere, $companyChartParams, $companyChartTypes);
 if ($category_filter !== '') {
     $companyChartWhere[] = "t.category = ?";
     $companyChartParams[] = $category_filter;
@@ -975,9 +1076,60 @@ if ($otherCompanyStmt) {
     $otherCompanyStmt->close();
 }
 
+$adminCategoryLabels = [];
+$adminCategoryCounts = [];
+if ((!$analyticsIsEmployeeView || $analyticsIsSalesManagerView) && $company_filter !== '') {
+    $adminCategoryWhere = $companyChartWhere;
+    $adminCategoryParams = $companyChartParams;
+    $adminCategoryTypes = $companyChartTypes;
+    if ($department_filter !== '') {
+        $adminCategoryWhere[] = "$departmentExpr = ?";
+        $adminCategoryParams[] = $department_filter;
+        $adminCategoryTypes .= "s";
+
+        $adminAllowedCategories = analytics_allowed_categories_for_department($company_filter, $department_filter);
+        if (count($adminAllowedCategories) > 0) {
+            $adminCategoryWhere[] = "t.category IN (" . implode(", ", array_fill(0, count($adminAllowedCategories), "?")) . ")";
+            foreach ($adminAllowedCategories as $allowedCategory) {
+                $adminCategoryParams[] = $allowedCategory;
+                $adminCategoryTypes .= "s";
+            }
+        } else {
+            $adminCategoryWhere[] = "1 = 0";
+        }
+    }
+
+    $adminCategorySql = "
+        SELECT COALESCE(NULLIF(TRIM(t.category), ''), 'Uncategorized') AS category_value, COUNT(*) AS total
+        FROM employee_tickets t
+        WHERE " . implode(" AND ", $adminCategoryWhere) . "
+        GROUP BY category_value
+        ORDER BY total DESC, category_value ASC
+    ";
+    $adminCategoryStmt = $conn->prepare($adminCategorySql);
+    if ($adminCategoryStmt) {
+        if ($adminCategoryTypes !== '') {
+            $bind = [];
+            $bind[] = $adminCategoryTypes;
+            foreach ($adminCategoryParams as $k => $p) {
+                $bind[] = &$adminCategoryParams[$k];
+            }
+            call_user_func_array([$adminCategoryStmt, 'bind_param'], $bind);
+        }
+        $adminCategoryStmt->execute();
+        $adminCategoryRes = $adminCategoryStmt->get_result();
+        while ($r = $adminCategoryRes->fetch_assoc()) {
+            $categoryValue = trim((string) ($r['category_value'] ?? ''));
+            $adminCategoryLabels[] = $categoryValue !== '' ? $categoryValue : 'Uncategorized';
+            $adminCategoryCounts[] = (int) ($r['total'] ?? 0);
+        }
+        $adminCategoryStmt->close();
+    }
+}
+
 $employeeMarketingChartDatasets = [];
 $employeeIsLapcMarketing = false;
-if ($analyticsIsEmployeeView) {
+if ($analyticsIsEmployeeView && !$analyticsIsSalesManagerView) {
     $employeeCategoryLabels = [];
     $employeeCategoryCounts = [];
     $employeeUserId = (int) ($_SESSION['user_id'] ?? 0);
@@ -1182,7 +1334,10 @@ $assigneeWhere = [];
 $assigneeParams = [];
 $assigneeTypes = "";
 $analyticsApplyCreatedDateFilter($assigneeWhere, $assigneeParams, $assigneeTypes);
-$assigneeWhere[] = "t.assigned_user_id IS NOT NULL";
+$analyticsApplySalesRegionScope($assigneeWhere, $assigneeParams, $assigneeTypes);
+if (!$analyticsIsSalesManagerView) {
+    $assigneeWhere[] = "t.assigned_user_id IS NOT NULL";
+}
 if ($category_filter !== '') {
     $assigneeWhere[] = "t.category = ?";
     $assigneeParams[] = $category_filter;
@@ -1200,7 +1355,7 @@ if ($department_filter !== '') {
     $assigneeParams[] = $department_filter;
     $assigneeTypes .= "s";
 }
-if ($analyticsIsEmployeeView && $department_filter !== '') {
+if ($analyticsIsEmployeeView && !$analyticsIsSalesManagerView && $department_filter !== '') {
     $assigneeWhere[] = "UPPER(TRIM(COALESCE(a.department, ''))) = UPPER(TRIM(?))";
     $assigneeParams[] = $department_filter;
     $assigneeTypes .= "s";
@@ -1210,15 +1365,27 @@ if ($status_filter !== '') {
     $assigneeParams[] = $status_filter;
     $assigneeTypes .= "s";
 }
-$assigneeSql = "
-    SELECT TRIM(a.name) as assignee_name, COUNT(*) as total
-    FROM employee_tickets t
-    JOIN users a ON t.assigned_user_id = a.id
-    WHERE " . implode(" AND ", $assigneeWhere) . "
-    GROUP BY TRIM(a.name)
-    ORDER BY total DESC
-    LIMIT 5
-";
+$assigneeSql = $analyticsIsSalesManagerView
+    ? "
+        SELECT
+            COALESCE(NULLIF(TRIM(t.requester_name), ''), NULLIF(TRIM(requester.name), ''), 'Unknown') AS assignee_name,
+            COUNT(*) AS total
+        FROM employee_tickets t
+        JOIN users requester ON t.user_id = requester.id
+        WHERE " . implode(" AND ", $assigneeWhere) . "
+        GROUP BY COALESCE(NULLIF(TRIM(t.requester_name), ''), NULLIF(TRIM(requester.name), ''), 'Unknown')
+        ORDER BY total DESC
+        LIMIT 5
+    "
+    : "
+        SELECT TRIM(a.name) as assignee_name, COUNT(*) as total
+        FROM employee_tickets t
+        JOIN users a ON t.assigned_user_id = a.id
+        WHERE " . implode(" AND ", $assigneeWhere) . "
+        GROUP BY TRIM(a.name)
+        ORDER BY total DESC
+        LIMIT 5
+    ";
 $asStmt = $conn->prepare($assigneeSql);
 if ($asStmt) {
     if ($assigneeTypes !== '') {
@@ -1252,6 +1419,7 @@ $buildCompanyChartItems = static function (array $labels, array $counts) use ($c
 };
 $lapcDepartmentItems = $buildCompanyChartItems($lapcDepartmentLabels, $lapcDepartmentCounts);
 $otherCompanyItems = $buildCompanyChartItems($otherCompanyLabels, $otherCompanyCounts);
+$adminCategoryItems = $buildCompanyChartItems($adminCategoryLabels, $adminCategoryCounts);
 $marketingOperationsItems = $buildCompanyChartItems(
     (array) ($employeeMarketingChartDatasets['Marketing Operations']['labels'] ?? []),
     (array) ($employeeMarketingChartDatasets['Marketing Operations']['counts'] ?? [])
@@ -1272,16 +1440,26 @@ $buildCompanyChartDataset = static function (array $items, string $title, string
 };
 $employeeCompanyLabel = $company_filter !== '' ? ticket_company_display_name($company_filter) : 'Your Company';
 $employeeDepartmentLabel = $department_filter !== '' ? $department_filter : 'Your Department';
+$adminSelectedCompanyLabel = $company_options[$company_filter] ?? ticket_company_display_name($company_filter);
+$adminCategoryChartTitle = $department_filter !== '' ? 'Categories per Department' : 'Categories per Company';
+$adminCategoryChartSubtitle = $department_filter !== ''
+    ? ($adminSelectedCompanyLabel . ' • ' . $department_filter)
+    : ($adminSelectedCompanyLabel . ' tickets by category');
 $companyChartDatasets = [
     'lapc' => $buildCompanyChartDataset(
         $lapcDepartmentItems,
-        $analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company',
-        $analyticsIsEmployeeView ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department'
+        $analyticsUsesEmployeePresentation ? 'Category Ticket Distribution' : 'Tickets per Company',
+        $analyticsUsesEmployeePresentation ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department'
     ),
     'other' => $buildCompanyChartDataset(
         $otherCompanyItems,
-        $analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company',
-        $analyticsIsEmployeeView ? 'Scoped to your assigned department' : 'Non-LAPC company distribution'
+        $analyticsUsesEmployeePresentation ? 'Category Ticket Distribution' : 'Tickets per Company',
+        $analyticsUsesEmployeePresentation ? 'Scoped to your assigned department' : 'Non-LAPC company distribution'
+    ),
+    'category' => $buildCompanyChartDataset(
+        $adminCategoryItems,
+        $adminCategoryChartTitle,
+        $adminCategoryChartSubtitle
     ),
 ];
 $marketingOperationsDataset = $buildCompanyChartDataset(
@@ -1298,12 +1476,14 @@ if ($employeeIsLapcMarketing) {
     $companyChartDatasets['marketing_operations'] = $marketingOperationsDataset;
     $companyChartDatasets['channel_campaigns'] = $channelCampaignDataset;
 }
-$adminCompanyChartHasComparisonTabs = !$analyticsIsEmployeeView && $company_filter === '';
+$adminCompanyChartHasComparisonTabs = !$analyticsUsesEmployeePresentation && $company_filter === '';
 $initialCompanyChartView = $employeeIsLapcMarketing
     ? 'marketing_operations'
-    : ((!$analyticsIsEmployeeView && $company_filter !== '' && $company_filter !== '@leadsagri.com') ? 'other' : 'lapc');
+    : ((!$analyticsUsesEmployeePresentation && $company_filter !== '') ? 'category' : 'lapc');
 
-$companyLegendItems = $initialCompanyChartView === 'other' ? $otherCompanyItems : $lapcDepartmentItems;
+$companyLegendItems = $initialCompanyChartView === 'category'
+    ? $adminCategoryItems
+    : ($initialCompanyChartView === 'other' ? $otherCompanyItems : $lapcDepartmentItems);
 if ($employeeIsLapcMarketing) {
     $companyLegendItems = $marketingOperationsItems;
 }
@@ -1379,7 +1559,7 @@ if ($page > $tickets_total_pages) $page = $tickets_total_pages;
 $offset = ($page - 1) * $entries;
 
 $tickets = [];
-$ticketsOrderSql = $analyticsIsEmployeeView
+$ticketsOrderSql = $analyticsUsesEmployeePresentation
     ? "CASE LOWER(TRIM(COALESCE(t.status, '')))
             WHEN 'closed' THEN 2
             WHEN 'resolved' THEN 1
@@ -1569,12 +1749,19 @@ if ($ticketsStmt) {
         }
         .analytics-filters {
             display: grid;
-            grid-template-columns: minmax(330px, 1.35fr) minmax(220px, 1fr) minmax(220px, 1fr) minmax(210px, 0.75fr);
+            grid-template-columns: minmax(300px, 1.35fr) repeat(3, minmax(190px, 1fr)) minmax(190px, 0.75fr);
             gap: 12px;
             align-items: end;
         }
-        body.employee-analytics-page .analytics-filters {
+        body.employee-analytics-page:not(.sales-manager-analytics-page) .analytics-filters {
             grid-template-columns: 1.45fr 1.2fr 1fr minmax(300px, 420px);
+        }
+        body.sales-manager-analytics-page .analytics-filters {
+            grid-template-columns: minmax(300px, 1.35fr) repeat(3, minmax(190px, 1fr)) minmax(190px, 0.75fr);
+        }
+        body.sales-manager-analytics-page .admin-content,
+        body.sales-manager-analytics-page .admin-content *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
         }
         .analytics-filter {
             display: flex;
@@ -2234,16 +2421,17 @@ if ($ticketsStmt) {
             min-width: 0;
         }
         .trend-overview-value {
-            font-size: 2.55rem;
-            line-height: 1;
-            letter-spacing: -0.05em;
+            font-size: 1.68rem;
+            line-height: 0.98;
+            letter-spacing: 0;
             font-weight: 800;
             color: #0f172a;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
         .trend-overview-label {
-            font-size: 0.98rem;
+            font-size: 0.76rem;
             font-weight: 700;
+            line-height: 1.15;
             color: #334155;
         }
         .trend-delta-badge {
@@ -2286,11 +2474,11 @@ if ($ticketsStmt) {
             color: #64748b;
             white-space: normal;
         }
-        body.employee-analytics-page .trend-overview-card {
+        body.employee-analytics-page:not(.sales-manager-analytics-page) .trend-overview-card {
             flex-direction: column;
             align-items: flex-start;
         }
-        body.employee-analytics-page .trend-delta-badge {
+        body.employee-analytics-page:not(.sales-manager-analytics-page) .trend-delta-badge {
             width: 100%;
             justify-content: flex-start;
         }
@@ -2631,8 +2819,8 @@ if ($ticketsStmt) {
             font-weight: 800;
             letter-spacing: 0.08em;
         }
-        body.employee-analytics-page .admin-content,
-        body.employee-analytics-page .admin-content *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
+        body.employee-analytics-page:not(.sales-manager-analytics-page) .admin-content,
+        body.employee-analytics-page:not(.sales-manager-analytics-page) .admin-content *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
             font-weight: 400 !important;
         }
 
@@ -2640,7 +2828,8 @@ if ($ticketsStmt) {
             .analytics-filters {
                 grid-template-columns: minmax(330px, 1.25fr) repeat(2, minmax(0, 1fr));
             }
-            body.employee-analytics-page .analytics-filters {
+            body.employee-analytics-page:not(.sales-manager-analytics-page) .analytics-filters,
+            body.sales-manager-analytics-page .analytics-filters {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
             .analytics-charts {
@@ -2794,7 +2983,7 @@ if ($ticketsStmt) {
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
-<body class="<?= $analyticsIsEmployeeView ? 'employee-analytics-page' : '' ?>">
+<body class="<?= $analyticsIsEmployeeView ? 'employee-analytics-page' : '' ?><?= $analyticsIsSalesManagerView ? ' sales-manager-analytics-page' : '' ?>">
 
 <div class="admin-page">
 
@@ -2822,15 +3011,24 @@ if ($ticketsStmt) {
             <div class="admin-page-header">
                 <div class="analytics-heading">
                     <h1 class="admin-page-title analytics-title">Analytics</h1>
-                    <p class="analytics-subtitle"><?= $analyticsIsEmployeeView ? 'Track ticket analytics, performance trends, department activity, and resolution progress.' : 'Provides an overview of ticket analytics, performance trends, department activity, and resolution progress to help administrators monitor and manage support operations effectively.' ?></p>
+                    <p class="analytics-subtitle"><?= $analyticsIsSalesManagerView ? 'Provides an overview of Sales tickets submitted from ' . htmlspecialchars($analyticsSalesRegion, ENT_QUOTES, 'UTF-8') . '.' : ($analyticsUsesEmployeePresentation ? 'Track ticket analytics, performance trends, department activity, and resolution progress.' : 'Provides an overview of ticket analytics, performance trends, department activity, and resolution progress to help administrators monitor and manage support operations effectively.') ?></p>
                 </div>
                 <div class="analytics-header-actions">
+                    <?php if ($analyticsIsSalesManagerView): ?>
+                    <span class="btn-export btn-export-pdf" aria-disabled="true" title="Regional PDF export is not available yet">
+                        <i class="fa-regular fa-file-pdf"></i> PDF
+                    </span>
+                    <span class="btn-export btn-export-excel" aria-disabled="true" title="Regional Excel export is not available yet">
+                        <i class="fa-regular fa-file-excel"></i> Excel
+                    </span>
+                    <?php else: ?>
                     <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">
                         <i class="fa-regular fa-file-pdf"></i> PDF
                     </a>
                     <a href="<?= htmlspecialchars($analyticsExcelHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-excel" target="_blank">
                         <i class="fa-regular fa-file-excel"></i> Excel
                     </a>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -2848,7 +3046,7 @@ if ($ticketsStmt) {
                                 <input class="analytics-control" type="date" name="end_date" value="<?= htmlspecialchars($end_date) ?>">
                             </div>
                         </div>
-                        <?php if ($analyticsIsEmployeeView): ?>
+                        <?php if ($analyticsUsesEmployeePresentation): ?>
                             <input type="hidden" name="company" value="<?= htmlspecialchars($company_filter, ENT_QUOTES, 'UTF-8'); ?>">
                         <?php else: ?>
                             <div class="analytics-filter">
@@ -2869,7 +3067,7 @@ if ($ticketsStmt) {
                         <?php endif; ?>
                         <div class="analytics-filter">
                             <label>Department</label>
-                            <?php if ($analyticsIsEmployeeView): ?>
+                            <?php if ($analyticsUsesEmployeePresentation): ?>
                                 <input type="hidden" name="department" value="<?= htmlspecialchars($department_filter, ENT_QUOTES, 'UTF-8'); ?>">
                                 <div class="analytics-control" style="display:flex; align-items:center;">
                                     <?= htmlspecialchars($department_filter !== '' ? $department_filter : 'Unassigned', ENT_QUOTES, 'UTF-8'); ?>
@@ -2887,6 +3085,23 @@ if ($ticketsStmt) {
                                 </div>
                             <?php endif; ?>
                         </div>
+                        <?php if (!$analyticsUsesEmployeePresentation): ?>
+                            <div class="analytics-filter">
+                                <label>Category</label>
+                                <div class="analytics-select-wrap" data-analytics-select="category">
+                                    <select class="analytics-control" name="category" id="analyticsCategoryFilter" <?= count($categories) === 0 ? 'disabled' : '' ?> tabindex="-1">
+                                        <option value="" <?= $category_filter === '' ? 'selected' : '' ?>>All Category</option>
+                                        <?php foreach ($categories as $categoryOption): ?>
+                                            <option value="<?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $category_filter === $categoryOption ? 'selected' : '' ?>><?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="button" class="analytics-select-trigger" aria-haspopup="listbox" aria-expanded="false">All Category</button>
+                                    <div class="analytics-select-menu" role="listbox"></div>
+                                </div>
+                            </div>
+                        <?php else: ?>
+                            <input type="hidden" name="category" value="<?= htmlspecialchars($category_filter, ENT_QUOTES, 'UTF-8'); ?>">
+                        <?php endif; ?>
                         <div class="analytics-filter">
                             <label>Status</label>
                             <div class="analytics-status-row">
@@ -2965,8 +3180,8 @@ if ($ticketsStmt) {
                 <div class="chart-card category-card">
                     <div class="chart-header">
                         <div class="chart-heading">
-                            <div class="chart-title" id="companyChartTitle"><?= htmlspecialchars((string) ($initialCompanyChartDataset['title'] ?? ($analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company')), ENT_QUOTES, 'UTF-8') ?></div>
-                            <p class="chart-subtitle" id="companyChartSubtitle"><?= htmlspecialchars((string) ($initialCompanyChartDataset['subtitle'] ?? ($analyticsIsEmployeeView ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department')), ENT_QUOTES, 'UTF-8') ?></p>
+                            <div class="chart-title" id="companyChartTitle"><?= htmlspecialchars((string) ($initialCompanyChartDataset['title'] ?? ($analyticsUsesEmployeePresentation ? 'Category Ticket Distribution' : 'Tickets per Company')), ENT_QUOTES, 'UTF-8') ?></div>
+                            <p class="chart-subtitle" id="companyChartSubtitle"><?= htmlspecialchars((string) ($initialCompanyChartDataset['subtitle'] ?? ($analyticsUsesEmployeePresentation ? ($employeeCompanyLabel . ' • ' . $employeeDepartmentLabel) : 'LAPC tickets by department')), ENT_QUOTES, 'UTF-8') ?></p>
                         </div>
                         <?php if ($employeeIsLapcMarketing): ?>
                         <div class="company-chart-toggle" aria-label="Marketing request type view">
@@ -3002,8 +3217,8 @@ if ($ticketsStmt) {
                 <div class="chart-card trend-card <?= $trend_period === 'last_month' ? 'month-view' : '' ?>">
                     <div class="chart-header">
                         <div class="chart-heading">
-                            <div class="chart-title">Average Close Time by Day</div>
-                            <p class="chart-subtitle">Lower is better. Each point shows the average time to close tickets that day.</p>
+                            <div class="chart-title">Average Resolution Time by Day</div>
+                            <p class="chart-subtitle">Lower is better. Each point shows the average time from claim to resolution that day.</p>
                         </div>
                         <div class="trend-period-actions">
                             <a href="<?= htmlspecialchars($trendLastFiveHref, ENT_QUOTES, 'UTF-8') ?>" class="trend-period-pill <?= $trend_period === 'last_5_weekdays' ? 'active' : '' ?>" data-trend-period="last_5_weekdays">
@@ -3042,8 +3257,8 @@ if ($ticketsStmt) {
                 </div>
                 <div class="chart-card assignee-card">
                     <div class="chart-header">
-                        <div class="chart-title">Tickets per Assignee</div>
-                        <p class="chart-subtitle">Top 5 assignees by selected tickets</p>
+                        <div class="chart-title"><?= $analyticsIsSalesManagerView ? 'Most Submitted Tickets' : 'Most Claimed Tickets' ?></div>
+                        <p class="chart-subtitle"><?= $analyticsIsSalesManagerView ? 'Top 5 employees with the most submitted tickets' : 'Top 5 employees with the most claimed tickets' ?></p>
                     </div>
                     <?php if (count($assigneeCards) > 0): ?>
                         <div class="assignee-list">
@@ -3078,11 +3293,11 @@ if ($ticketsStmt) {
                     $endNum = min($tickets_total, $offset + $entries);
                 ?>
 
-                <div class="<?= $analyticsIsEmployeeView ? 'table-responsive' : '' ?>" style="width:100%; overflow:auto;">
-                    <table class="<?= $analyticsIsEmployeeView ? 'admin-table analytics-task-table' : 'tickets-table' ?>">
+                <div class="<?= $analyticsUsesEmployeePresentation ? 'table-responsive' : '' ?>" style="width:100%; overflow:auto;">
+                    <table class="<?= $analyticsUsesEmployeePresentation ? 'admin-table analytics-task-table' : 'tickets-table' ?>">
                         <thead>
                             <tr>
-                                <?php if ($analyticsIsEmployeeView): ?>
+                                <?php if ($analyticsUsesEmployeePresentation): ?>
                                 <th>ID</th>
                                 <th>Category</th>
                                 <th>Urgency</th>
@@ -3117,8 +3332,8 @@ if ($ticketsStmt) {
                                         $durationSec = (int) ($t['duration_seconds'] ?? 0);
                                         [$requesterName, $requesterEmail] = analytics_requester_display($t);
                                     ?>
-                                    <tr class="<?= $analyticsIsEmployeeView ? 'ticket-row' : '' ?>" data-id="<?= htmlspecialchars((string) ($t['id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" <?= $analyticsIsEmployeeView ? 'style="cursor:pointer;"' : '' ?>>
-                                        <?php if ($analyticsIsEmployeeView): ?>
+                                    <tr class="<?= $analyticsUsesEmployeePresentation ? 'ticket-row' : '' ?>" data-id="<?= htmlspecialchars((string) ($t['id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" <?= $analyticsUsesEmployeePresentation ? 'style="cursor:pointer;"' : '' ?>>
+                                        <?php if ($analyticsUsesEmployeePresentation): ?>
                                         <td class="task-ticket-id">#<?= str_pad((string) ($t['id'] ?? ''), 6, '0', STR_PAD_LEFT) ?></td>
                                         <td class="subject-cell task-ticket-category"><strong><?= htmlspecialchars((string) ($t['category'] ?? ''), ENT_QUOTES, 'UTF-8') ?></strong></td>
                                         <td class="task-ticket-urgency"><?= analytics_urgency_badge_html((string) ($t['priority'] ?? '')) ?></td>
@@ -3262,8 +3477,10 @@ if ($ticketsStmt) {
 
         var companyFilter = document.getElementById('analyticsCompanyFilter');
         var departmentFilter = document.getElementById('analyticsDepartmentFilter');
+        var categoryFilter = document.getElementById('analyticsCategoryFilter');
         var statusFilter = document.getElementById('analyticsStatusFilter');
         var departmentOptionsByCompany = <?= json_encode($department_options_by_company) ?>;
+        var categoryOptionsByScope = <?= json_encode($category_options_by_scope) ?>;
 
         function closeAnalyticsSelects(exceptWrap) {
             document.querySelectorAll('.analytics-select-wrap.is-open').forEach(function (wrap) {
@@ -3287,6 +3504,7 @@ if ($ticketsStmt) {
             menu.innerHTML = Array.prototype.slice.call(selectEl.options).map(function (option, index) {
                 if (selectEl.id === 'analyticsCompanyFilter' && String(option.value || '') === '') return '';
                 if (selectEl.id === 'analyticsDepartmentFilter' && String(option.value || '') === '') return '';
+                if (selectEl.id === 'analyticsCategoryFilter' && String(option.value || '') === '') return '';
                 if (selectEl.id === 'analyticsStatusFilter' && String(option.value || '') === '') return '';
                 var selected = option.selected ? ' is-selected' : '';
                 return '<div class="analytics-select-option' + selected + '" role="option" aria-selected="' + (option.selected ? 'true' : 'false') + '" data-index="' + index + '">' + option.textContent.trim().replace(/[&<>"']/g, function (ch) {
@@ -3360,16 +3578,53 @@ if ($ticketsStmt) {
             refreshAnalyticsSelect(departmentFilter);
         }
 
+        function syncCategoryOptions() {
+            if (!categoryFilter) return;
+            var selectedCompany = companyFilter ? (companyFilter.value || '') : '';
+            var selectedDepartment = departmentFilter ? (departmentFilter.value || '') : '';
+            var companyScopes = categoryOptionsByScope[selectedCompany] || {};
+            var options = companyScopes[selectedDepartment] || companyScopes[''] || [];
+            var selectedCategory = categoryFilter.value || '';
+
+            categoryFilter.innerHTML = '';
+            var allOption = document.createElement('option');
+            allOption.value = '';
+            allOption.textContent = 'All Category';
+            categoryFilter.appendChild(allOption);
+
+            options.forEach(function (category) {
+                var option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                categoryFilter.appendChild(option);
+            });
+
+            categoryFilter.value = selectedCategory !== '' && options.indexOf(selectedCategory) !== -1
+                ? selectedCategory
+                : '';
+            categoryFilter.disabled = selectedCompany === '' || options.length === 0;
+            refreshAnalyticsSelect(categoryFilter);
+        }
+
         if (companyFilter) {
             initAnalyticsSelect(companyFilter);
             companyFilter.addEventListener('change', function () {
                 refreshAnalyticsSelect(companyFilter);
                 syncDepartmentAvailability();
+                syncCategoryOptions();
                 filterForm.submit();
             });
         }
         if (departmentFilter) {
             initAnalyticsSelect(departmentFilter);
+            departmentFilter.addEventListener('change', function () {
+                refreshAnalyticsSelect(departmentFilter);
+                syncCategoryOptions();
+                filterForm.submit();
+            });
+        }
+        if (categoryFilter) {
+            initAnalyticsSelect(categoryFilter);
         }
         if (statusFilter) {
             initAnalyticsSelect(statusFilter);
@@ -3385,7 +3640,7 @@ if ($ticketsStmt) {
 
         var startDateInput = filterForm.querySelector('input[name="start_date"]');
         var endDateInput = filterForm.querySelector('input[name="end_date"]');
-        var controls = filterForm.querySelectorAll('select[name="department"], select[name="status"]');
+        var controls = filterForm.querySelectorAll('select[name="category"], select[name="status"]');
         controls.forEach(function (control) {
             control.addEventListener('change', function () {
                 refreshAnalyticsSelect(control);
@@ -3401,13 +3656,14 @@ if ($ticketsStmt) {
             });
         });
         syncDepartmentAvailability();
+        syncCategoryOptions();
     })();
 
     const textColor = '#7b8798';
     const gridColor = '#e7edf5';
     const companyChartDatasets = <?= json_encode($companyChartDatasets) ?>;
     const initialCompanyChartView = <?= json_encode($initialCompanyChartView) ?>;
-    let activeCompanyChartData = companyChartDatasets[initialCompanyChartView] || companyChartDatasets.lapc || { title: <?= json_encode($analyticsIsEmployeeView ? 'Category Ticket Distribution' : 'Tickets per Company') ?>, subtitle: <?= json_encode($analyticsIsEmployeeView ? 'Categories in your assigned department' : 'LAPC tickets by department') ?>, labels: [], counts: [], colors: [] };
+    let activeCompanyChartData = companyChartDatasets[initialCompanyChartView] || companyChartDatasets.lapc || { title: <?= json_encode($analyticsUsesEmployeePresentation ? 'Category Ticket Distribution' : 'Tickets per Company') ?>, subtitle: <?= json_encode($analyticsUsesEmployeePresentation ? 'Categories in your assigned department' : 'LAPC tickets by department') ?>, labels: [], counts: [], colors: [] };
 
     function companyChartTotal(data) {
         return (data.counts || []).reduce(function(sum, value) { return sum + (Number(value) || 0); }, 0);
@@ -3452,7 +3708,7 @@ if ($ticketsStmt) {
         });
     }
 
-    const isEmployeeAnalyticsView = <?= $analyticsIsEmployeeView ? 'true' : 'false' ?>;
+    const isEmployeeAnalyticsView = <?= $analyticsUsesEmployeePresentation ? 'true' : 'false' ?>;
     const analyticsChartTextWeight = isEmployeeAnalyticsView ? '400' : '800';
     const analyticsChartAxisWeight = isEmployeeAnalyticsView ? '400' : '600';
     const catCtx = document.getElementById('categoryChart').getContext('2d');
@@ -3601,8 +3857,8 @@ if ($ticketsStmt) {
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            if (context.raw === null || typeof context.raw === 'undefined') return 'No closed tickets';
-                            return 'Avg close time: ' + Number(context.raw).toFixed(1) + 'h';
+                            if (context.raw === null || typeof context.raw === 'undefined') return 'No resolved tickets';
+                            return 'Avg resolution time: ' + Number(context.raw).toFixed(1) + 'h';
                         }
                     }
                 },

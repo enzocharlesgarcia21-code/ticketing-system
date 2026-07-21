@@ -2800,6 +2800,313 @@ function dashboard_urgency_badge_html(string $priority): string
             }
         }
 
+        /* Assigned Tickets card presentation: mobile dashboard lists only. */
+        @media (max-width: 767px) {
+            body.employee-dashboard-page .dashboard-ticket-grid,
+            body.employee-dashboard-page .dashboard-ticket-panel,
+            body.employee-dashboard-page .sales-manager-table-card,
+            body.employee-dashboard-page .dashboard-ticket-panel .table-responsive,
+            body.employee-dashboard-page .sales-manager-table-card .table-responsive {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-panel,
+            body.employee-dashboard-page .sales-manager-table-card {
+                padding: 0;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+                overflow: visible;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-panel .table-responsive,
+            body.employee-dashboard-page .sales-manager-table-card .table-responsive {
+                margin: 0;
+                overflow: visible;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table),
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                margin: 0;
+                border-collapse: separate;
+                border-spacing: 0;
+                box-sizing: border-box;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) thead {
+                display: none;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                gap: clamp(10px, 3vw, 14px);
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row {
+                position: relative;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 7px 8px;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                min-height: 0;
+                height: auto;
+                margin: 0;
+                padding: clamp(13px, 4vw, 17px);
+                padding-right: clamp(42px, 12vw, 52px);
+                border: 1px solid #dde5ed;
+                border-radius: 14px;
+                background: #ffffff;
+                box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+                overflow: hidden;
+                box-sizing: border-box;
+                cursor: pointer;
+                transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row:hover {
+                border-color: #1B5E20;
+                box-shadow: 0 10px 22px rgba(15, 23, 42, 0.09);
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row:hover td {
+                background: transparent;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row:active {
+                transform: scale(0.985);
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row td {
+                display: block;
+                width: auto;
+                min-width: 0;
+                padding: 0;
+                border: 0;
+                text-align: left;
+                box-sizing: border-box;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-id, .task-ticket-id) {
+                order: 1;
+                flex: 0 0 100%;
+                width: 100%;
+                color: #0f172a;
+                font-size: clamp(12px, 3.4vw, 14px);
+                font-weight: 800;
+                line-height: 1.2;
+                font-variant-numeric: tabular-nums;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-category, .task-ticket-category) {
+                order: 2;
+                flex: 0 0 100%;
+                width: 100%;
+                max-width: 100%;
+                margin: 0;
+                color: #1f2937;
+                font-size: clamp(13px, 3.6vw, 15px);
+                font-weight: 700;
+                line-height: 1.25;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) {
+                order: 3;
+                flex: 0 0 100%;
+                width: 100%;
+                min-width: 0;
+                margin: 2px 0 0;
+                color: #1f2937;
+                line-height: 1.3;
+                overflow: hidden;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) .user-info,
+            body.employee-dashboard-page .dashboard-ticket-requester {
+                min-width: 0;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) br {
+                display: none;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) strong,
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) small {
+                display: block;
+                max-width: 100%;
+                white-space: normal;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) strong {
+                color: #111827;
+                font-size: clamp(13px, 3.7vw, 15px);
+                font-weight: 700;
+                line-height: 1.25;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) small {
+                margin-top: 2px;
+                color: #475569;
+                font-size: clamp(11px, 3.1vw, 12px);
+                font-weight: 500;
+                line-height: 1.3;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-date, .task-ticket-date) {
+                order: 4;
+                flex: 1 1 calc(50% - 4px);
+                width: calc(50% - 4px);
+                margin: 2px 0 0;
+                color: #64748b;
+                font-size: clamp(10px, 2.9vw, 12px);
+                font-weight: 600;
+                line-height: 1.2;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-department, .task-ticket-department) {
+                order: 5;
+                flex: 1 1 calc(50% - 4px);
+                width: calc(50% - 4px);
+                min-width: 0;
+                margin: 2px 0 0;
+                color: #475569;
+                font-size: clamp(10px, 2.9vw, 12px);
+                font-weight: 600;
+                line-height: 1.2;
+                text-align: right;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page :is(
+                .dashboard-ticket-priority,
+                .dashboard-ticket-status,
+                .dashboard-ticket-sla,
+                .task-ticket-urgency,
+                .task-ticket-status,
+                .task-ticket-sla
+            ) {
+                order: 6;
+                flex: 0 1 auto;
+                display: inline-flex;
+                align-items: center;
+                align-self: center;
+                width: max-content;
+                max-width: 100%;
+                margin: 3px 0 0;
+                box-sizing: border-box;
+            }
+
+            body.employee-dashboard-page :is(
+                .dashboard-priority-badge,
+                .priority-pill,
+                .dashboard-ticket-table .status-pill,
+                .sales-manager-admin-table .status-pill,
+                .dashboard-ticket-sla .badge,
+                .task-ticket-sla .badge
+            ) {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: auto;
+                min-width: 0;
+                min-height: 27px;
+                height: auto;
+                max-width: 100%;
+                padding: 5px clamp(9px, 2.8vw, 12px);
+                border-radius: 999px;
+                font-size: clamp(10px, 2.9vw, 12px);
+                font-weight: 700;
+                line-height: 1;
+                text-align: center;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                box-sizing: border-box;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-sla, .task-ticket-sla) .badge-low {
+                background: #f1f5f9;
+                color: #334155;
+                border-color: #e2e8f0;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-arrow, .task-ticket-arrow) {
+                position: absolute;
+                top: 50%;
+                right: clamp(14px, 4vw, 18px);
+                transform: translateY(-50%);
+                display: block;
+                width: auto;
+                padding: 0;
+                color: #64748b;
+                font-size: 25px;
+                font-weight: 700;
+                line-height: 1;
+                text-align: center;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-empty,
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr:not(.ticket-row) td {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                padding: 20px 12px;
+                box-sizing: border-box;
+                text-align: center;
+            }
+
+        }
+
+        @media (max-width: 359px) {
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody {
+                gap: 10px;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row {
+                gap: 6px 7px;
+                padding: 12px 38px 12px 12px;
+                border-radius: 12px;
+            }
+
+            body.employee-dashboard-page :is(
+                .dashboard-priority-badge,
+                .priority-pill,
+                .dashboard-ticket-table .status-pill,
+                .sales-manager-admin-table .status-pill,
+                .dashboard-ticket-sla .badge,
+                .task-ticket-sla .badge
+            ) {
+                min-height: 25px;
+                padding: 4px 8px;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-arrow, .task-ticket-arrow) {
+                right: 12px;
+                font-size: 22px;
+            }
+        }
+
         @media (min-width: 769px) {
             body.employee-dashboard-page .dashboard-container {
                 width: min(calc(100% - 72px), 1480px);

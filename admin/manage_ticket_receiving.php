@@ -762,6 +762,9 @@ foreach ($availabilityRows as $companyRow) {
                 $companyEnabled = (int) ($companyRow['receiving_enabled'] ?? 0) === 1;
                 $companyKey = (string) ($companyRow['company_key'] ?? '');
                 $companyLabel = (string) ($companyRow['company_label'] ?? $companyKey);
+                if (strcasecmp(trim($companyLabel), 'GPSCI') === 0) {
+                    $companyLabel = 'GPCI';
+                }
                 $departments = is_array($companyRow['departments'] ?? null) ? $companyRow['departments'] : [];
                 $hasDepartments = count($departments) > 0;
                 $isExpanded = $expandedCompanyKey !== '' && $expandedCompanyKey === $companyKey;
