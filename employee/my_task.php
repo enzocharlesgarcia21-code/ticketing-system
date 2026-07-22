@@ -626,14 +626,14 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
         body.employee-my-task-page .my-tickets-filter-form {
             display: grid;
-            grid-template-columns: minmax(240px, 1fr) 160px 160px 140px 178px 124px;
+            grid-template-columns: minmax(240px, 1fr) 160px 160px 140px 178px 118px;
             gap: 16px;
             align-items: center;
             width: 100%;
         }
 
         body.employee-my-task-page .my-tickets-filter-form.has-department-filter {
-            grid-template-columns: minmax(200px, 1fr) 150px 150px 150px 130px 178px 124px;
+            grid-template-columns: minmax(200px, 1fr) 150px 150px 150px 130px 178px 118px;
         }
 
         body.employee-my-task-page .my-tickets-search-row,
@@ -688,6 +688,10 @@ $showing_to = min($offset + $limit, (int) $total_records);
             position: relative;
             width: 100%;
             min-width: 0;
+        }
+
+        body.employee-my-task-page .my-tickets-reassignment-filter {
+            width: 100%;
         }
 
         body.employee-my-task-page .my-tickets-filter-select-wrap.is-hidden {
@@ -869,6 +873,10 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
             body.employee-my-task-page .my-tickets-desktop-clear {
                 display: none;
+            }
+
+            body.employee-my-task-page .my-tickets-reassignment-filter {
+                margin-top: 10px;
             }
 
             body.employee-my-task-page .my-tickets-mobile-filter-summary {
@@ -1636,15 +1644,12 @@ $showing_to = min($offset + $limit, (int) $total_records);
                     </div>
                     </div>
 
-
-                    <a href="my_task.php" class="my-tickets-clear-btn my-tickets-desktop-clear">Clear Filters</a>
-
                     <div class="my-tickets-mobile-filter-summary">
                         <span>3 Active Filters</span>
                         <a href="my_task.php">Clear all</a>
                     </div>
 
-                    <div class="my-tickets-filter-select-wrap">
+                    <div class="my-tickets-filter-select-wrap my-tickets-reassignment-filter">
                         <select name="reassignment" class="my-tickets-filter-select" id="filterReassignment">
                             <option value="" <?= $reassignment === '' ? 'selected' : '' ?>>All Tickets</option>
                             <option value="reassigned" <?= $reassignment === 'reassigned' ? 'selected' : '' ?>>Reassigned</option>
@@ -1652,7 +1657,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                         </select>
                     </div>
 
-                    <a href="my_task.php" class="my-tickets-clear-btn">Clear Filters</a>
+                    <a href="my_task.php" class="my-tickets-clear-btn my-tickets-desktop-clear">Clear Filters</a>
 
                 </form>
             </div>
