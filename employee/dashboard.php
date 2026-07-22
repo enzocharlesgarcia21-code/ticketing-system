@@ -236,7 +236,7 @@ $submittedDashboardStats = [
 $recentStmt = $conn->prepare("
     SELECT
         t.*,
-        u.name AS requester_name,
+        u.name AS user_name,
         u.email AS user_email,
         u.department AS user_department,
         u.company AS user_company
@@ -295,7 +295,7 @@ $receivedTickets = [];
 $receivedStmt = $conn->prepare("
     SELECT
         t.*,
-        u.name AS requester_name,
+        u.name AS user_name,
         u.email AS user_email,
         u.department AS user_department,
         u.company AS user_company,
@@ -2800,7 +2800,7 @@ function dashboard_urgency_badge_html(string $priority): string
             }
         }
 
-        /* Assigned Tickets card presentation: mobile dashboard lists only. */
+        /* Match the mobile ticket-card UI from employee/my_task.php. */
         @media (max-width: 767px) {
             body.employee-dashboard-page .dashboard-ticket-grid,
             body.employee-dashboard-page .dashboard-ticket-panel,
@@ -2848,7 +2848,7 @@ function dashboard_urgency_badge_html(string $priority): string
             body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody {
                 display: grid;
                 grid-template-columns: minmax(0, 1fr);
-                gap: clamp(10px, 3vw, 14px);
+                gap: 14px;
             }
 
             body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row {
@@ -2877,7 +2877,7 @@ function dashboard_urgency_badge_html(string $priority): string
 
             body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row:hover {
                 border-color: #1B5E20;
-                box-shadow: 0 10px 22px rgba(15, 23, 42, 0.09);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
             }
 
             body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row:hover td {
@@ -2885,7 +2885,7 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row:active {
-                transform: scale(0.985);
+                transform: scale(0.98);
             }
 
             body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row td {
@@ -2940,6 +2940,11 @@ function dashboard_urgency_badge_html(string $priority): string
                 min-width: 0;
             }
 
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) .user-info {
+                display: grid;
+                gap: 2px;
+            }
+
             body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) br {
                 display: none;
             }
@@ -2948,9 +2953,9 @@ function dashboard_urgency_badge_html(string $priority): string
             body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) small {
                 display: block;
                 max-width: 100%;
-                white-space: normal;
-                overflow-wrap: anywhere;
-                word-break: break-word;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
 
             body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) strong {
@@ -2961,7 +2966,7 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) small {
-                margin-top: 2px;
+                margin-top: 0;
                 color: #475569;
                 font-size: clamp(11px, 3.1vw, 12px);
                 font-weight: 500;
@@ -2991,7 +2996,7 @@ function dashboard_urgency_badge_html(string $priority): string
                 color: #475569;
                 font-size: clamp(10px, 2.9vw, 12px);
                 font-weight: 600;
-                line-height: 1.2;
+                line-height: 1.25;
                 text-align: right;
                 white-space: nowrap;
                 overflow: hidden;
@@ -3120,6 +3125,328 @@ function dashboard_urgency_badge_html(string $priority): string
         }
     </style>
     <link rel="stylesheet" href="../css/dashboard-carousel.css?v=<?= (int) filemtime(__DIR__ . '/../css/dashboard-carousel.css') ?>">
+    <style id="dashboardMobileTicketCardParity">
+        /* Keep this after dashboard-carousel.css so dashboard tickets match my_task.php on mobile. */
+        @media (max-width: 767px) {
+            body.employee-dashboard-page .dashboard-ticket-grid {
+                gap: 14px;
+                width: auto;
+                margin-inline: clamp(10px, 4vw, 22px);
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-panel {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                padding: 0;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+                overflow: visible;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table,
+            body.employee-dashboard-page .dashboard-ticket-table tbody {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                margin: 0;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tbody {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                gap: 14px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card {
+                position: relative;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 5px 7px;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0;
+                min-height: 0;
+                height: auto;
+                margin: 0;
+                padding: clamp(11px, 3.2vw, 14px);
+                padding-right: clamp(38px, 10vw, 46px);
+                border: 1px solid #dde5ed;
+                border-radius: 14px;
+                background: #ffffff;
+                box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+                overflow: hidden;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card td {
+                display: block;
+                width: auto;
+                min-width: 0;
+                padding: 0;
+                border: 0;
+                text-align: left;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-id {
+                order: 1;
+                flex: 0 0 100%;
+                width: 100%;
+                color: #0f172a;
+                font-size: 12px;
+                font-weight: 800;
+                line-height: 1.2;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-category {
+                order: 2;
+                flex: 0 0 100%;
+                width: 100%;
+                max-width: 100%;
+                margin: 0;
+                color: #1f2937;
+                font-size: 13px;
+                font-weight: 700;
+                line-height: 1.25;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester {
+                order: 3;
+                flex: 0 0 100%;
+                width: 100%;
+                margin: 2px 0 0;
+                color: #1f2937;
+                line-height: 1.3;
+                overflow: hidden;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester strong,
+            body.employee-dashboard-page .dashboard-ticket-requester small {
+                display: block;
+                max-width: 100%;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester strong {
+                color: #111827;
+                font-size: 13px;
+                font-weight: 700;
+                line-height: 1.25;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester small {
+                margin-top: 2px;
+                color: #475569;
+                font-size: 11px;
+                font-weight: 500;
+                line-height: 1.3;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-date {
+                order: 4;
+                flex: 1 1 calc(50% - 4px);
+                width: calc(50% - 4px);
+                margin: 2px 0 0;
+                color: #64748b;
+                font-size: 10px;
+                font-weight: 600;
+                line-height: 1.2;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-department {
+                order: 5;
+                flex: 1 1 calc(50% - 4px);
+                width: calc(50% - 4px);
+                margin: 2px 0 0;
+                color: #475569;
+                font-size: 10px;
+                font-weight: 600;
+                line-height: 1.25;
+                text-align: right;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-priority,
+            body.employee-dashboard-page .dashboard-ticket-status,
+            body.employee-dashboard-page .dashboard-ticket-sla {
+                order: 6;
+                flex: 0 1 auto;
+                display: inline-flex;
+                align-items: center;
+                align-self: center;
+                justify-self: auto;
+                width: max-content;
+                max-width: 100%;
+                margin: 3px 0 0;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-badge,
+            body.employee-dashboard-page .dashboard-ticket-table .status-pill,
+            body.employee-dashboard-page .dashboard-ticket-sla .badge {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: auto;
+                min-width: 0;
+                min-height: 24px;
+                height: auto;
+                max-width: 100%;
+                padding: 4px 9px;
+                border-radius: 999px;
+                font-size: 10px;
+                line-height: 1;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-badge,
+            body.employee-dashboard-page .dashboard-ticket-table .status-pill {
+                font-weight: 600;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-sla .badge {
+                font-weight: 400;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-low {
+                color: #166534;
+                background: #f0fdf4;
+                border-color: transparent;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-medium {
+                color: #ca8a04;
+                background: #fefce8;
+                border-color: transparent;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-high {
+                color: #dc2626;
+                background: #fef2f2;
+                border-color: transparent;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-critical {
+                color: #ffffff;
+                background: #991b1b;
+                border-color: transparent;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table .status-open {
+                color: #5f5400;
+                background: #fff2b3;
+                border-color: #f8e58c;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table .status-in-progress {
+                color: #166534;
+                background: #dcfce7;
+                border-color: #bbf7d0;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table .status-resolved {
+                color: #1d4ed8;
+                background: #dbeafe;
+                border-color: #bfdbfe;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table .status-closed {
+                color: #4b5563;
+                background: #f3f4f6;
+                border-color: #e5e7eb;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-arrow {
+                position: absolute;
+                top: 50%;
+                right: clamp(12px, 3.5vw, 16px);
+                transform: translateY(-50%);
+                display: block;
+                align-self: center;
+                width: auto;
+                margin: 0;
+                padding: 0;
+                color: #64748b;
+                font-size: 22px;
+                font-weight: 700;
+                line-height: 1;
+            }
+
+            body.employee-dashboard-page .mobile-divider {
+                width: auto;
+                margin-inline: clamp(10px, 4vw, 22px);
+                padding-inline: 0;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-grid > .mobile-divider {
+                margin-inline: 0;
+            }
+
+            body.employee-dashboard-page .mobile-divider__inner {
+                gap: 8px;
+                padding: 8px 12px;
+            }
+
+            body.employee-dashboard-page .mobile-divider__icon {
+                flex-basis: 28px;
+                width: 28px;
+                height: 28px;
+                font-size: 13px;
+            }
+
+            body.employee-dashboard-page .mobile-divider__title {
+                font-size: 14px;
+            }
+
+            body.employee-dashboard-page .tm-global-chat-fab {
+                width: 42px !important;
+                max-width: 42px !important;
+                min-width: 42px !important;
+                height: 42px !important;
+                min-height: 42px !important;
+                padding: 0 !important;
+            }
+
+            body.employee-dashboard-page .tm-global-chat-fab .tm-global-chat-label {
+                display: none;
+            }
+
+            body.employee-dashboard-page .tm-global-chat-fab i {
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 359px) {
+            body.employee-dashboard-page .dashboard-ticket-table tbody {
+                gap: 10px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card {
+                gap: 5px 6px;
+                padding: 10px 34px 10px 10px;
+                border-radius: 12px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-arrow {
+                right: 12px;
+                font-size: 22px;
+            }
+        }
+    </style>
 </head>
 <body class="employee-dashboard-page">
 

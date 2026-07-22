@@ -1759,9 +1759,34 @@ if ($ticketsStmt) {
         body.sales-manager-analytics-page .analytics-filters {
             grid-template-columns: minmax(300px, 1.35fr) repeat(3, minmax(190px, 1fr)) minmax(190px, 0.75fr);
         }
+        @media (min-width: 901px) {
+            body.sales-manager-analytics-page .admin-container {
+                width: min(calc(100% - 72px), 1560px);
+                max-width: none;
+                margin: 0 auto;
+                padding: 34px 38px 60px;
+                box-sizing: border-box;
+            }
+            body.sales-manager-analytics-page .admin-content {
+                width: 100%;
+                max-width: 1460px;
+                margin: 0 auto;
+            }
+        }
         body.sales-manager-analytics-page .admin-content,
         body.sales-manager-analytics-page .admin-content *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
             font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        }
+        body.sales-manager-analytics-page .admin-page .admin-container .admin-content .admin-page-header .analytics-heading h1.admin-page-title.analytics-title {
+            color: #1B5E20 !important;
+            font-family: 'Segoe UI', sans-serif !important;
+            font-size: 28px !important;
+            font-weight: 700 !important;
+            line-height: 1.2 !important;
+            letter-spacing: 0 !important;
+        }
+        body.sales-manager-analytics-page .analytics-subtitle {
+            color: #6B7280 !important;
         }
         .analytics-filter {
             display: flex;
@@ -2992,14 +3017,14 @@ if ($ticketsStmt) {
     <div class="admin-container">
         <div class="admin-content">
             <?php
-                $analyticsPdfHref = ($analyticsIsEmployeeView ? 'export_analytics_pdf.php' : 'export_analytics_pdf.php')
+                $analyticsPdfHref = ($analyticsIsSalesManagerView ? 'export_sales_analytics_pdf.php' : 'export_analytics_pdf.php')
                     . '?start_date=' . urlencode($start_date)
                     . '&end_date=' . urlencode($end_date)
                     . '&category=' . urlencode($category_filter)
                     . '&company=' . urlencode($company_filter)
                     . '&department=' . urlencode($department_filter)
                     . '&status=' . urlencode($status_filter);
-                $analyticsExcelHref = ($analyticsIsEmployeeView ? 'export_analytics_excel.php' : 'export_analytics_excel.php')
+                $analyticsExcelHref = ($analyticsIsSalesManagerView ? 'export_sales_analytics_excel.php' : 'export_analytics_excel.php')
                     . '?start_date=' . urlencode($start_date)
                     . '&end_date=' . urlencode($end_date)
                     . '&category=' . urlencode($category_filter)
@@ -3014,21 +3039,12 @@ if ($ticketsStmt) {
                     <p class="analytics-subtitle"><?= $analyticsIsSalesManagerView ? 'Provides an overview of Sales tickets submitted from ' . htmlspecialchars($analyticsSalesRegion, ENT_QUOTES, 'UTF-8') . '.' : ($analyticsUsesEmployeePresentation ? 'Track ticket analytics, performance trends, department activity, and resolution progress.' : 'Provides an overview of ticket analytics, performance trends, department activity, and resolution progress to help administrators monitor and manage support operations effectively.') ?></p>
                 </div>
                 <div class="analytics-header-actions">
-                    <?php if ($analyticsIsSalesManagerView): ?>
-                    <span class="btn-export btn-export-pdf" aria-disabled="true" title="Regional PDF export is not available yet">
-                        <i class="fa-regular fa-file-pdf"></i> PDF
-                    </span>
-                    <span class="btn-export btn-export-excel" aria-disabled="true" title="Regional Excel export is not available yet">
-                        <i class="fa-regular fa-file-excel"></i> Excel
-                    </span>
-                    <?php else: ?>
                     <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">
                         <i class="fa-regular fa-file-pdf"></i> PDF
                     </a>
                     <a href="<?= htmlspecialchars($analyticsExcelHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-excel" target="_blank">
                         <i class="fa-regular fa-file-excel"></i> Excel
                     </a>
-                    <?php endif; ?>
                 </div>
             </div>
 
@@ -3257,8 +3273,8 @@ if ($ticketsStmt) {
                 </div>
                 <div class="chart-card assignee-card">
                     <div class="chart-header">
-                        <div class="chart-title"><?= $analyticsIsSalesManagerView ? 'Most Submitted Tickets' : 'Most Claimed Tickets' ?></div>
-                        <p class="chart-subtitle"><?= $analyticsIsSalesManagerView ? 'Top 5 employees with the most submitted tickets' : 'Top 5 employees with the most claimed tickets' ?></p>
+                        <div class="chart-title"><?= $analyticsIsSalesManagerView ? 'Most Submitted Tickets' : 'Tickets per Assignee' ?></div>
+                        <p class="chart-subtitle"><?= $analyticsIsSalesManagerView ? 'Top 5 employees with the most submitted tickets' : 'Top 5 assignees by selected tickets' ?></p>
                     </div>
                     <?php if (count($assigneeCards) > 0): ?>
                         <div class="assignee-list">

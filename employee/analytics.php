@@ -51,9 +51,9 @@ body.employee-analytics-page .analytics-heading {
 
 body.employee-analytics-page .admin-page .admin-page-header .analytics-heading .admin-page-title.analytics-title {
     color: #1B5E20 !important;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-    font-size: 28px !important;
-    font-weight: 700 !important;
+    font-family: 'Segoe UI', sans-serif !important;
+    font-size: 30px !important;
+    font-weight: 800 !important;
     line-height: 1.2 !important;
     letter-spacing: 0 !important;
 }

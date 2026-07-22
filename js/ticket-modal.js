@@ -2264,14 +2264,14 @@ var TMTicketModal = (function () {
     if (!attachmentsHtml) return renderDescriptionCard(data);
     var pagerId = 'tmTicketContentPager-' + String(++attachmentCategorySeq);
     var descriptionNavigation = '<div class="tm-ticket-content-navigation">' +
-      '<button type="button" class="tm-attachment-page-btn" disabled>Previous</button>' +
+      '<button type="button" class="tm-attachment-page-btn" onclick="TMTicketModal.showTicketContentPage(\'' + pagerId + '\', 1)">Previous</button>' +
       '<span class="tm-attachment-page-counter">1 of 2</span>' +
       '<button type="button" class="tm-attachment-page-btn primary" onclick="TMTicketModal.showTicketContentPage(\'' + pagerId + '\', 1)">Next</button>' +
       '</div>';
     var attachmentNavigation = '<div class="tm-ticket-content-navigation">' +
       '<button type="button" class="tm-attachment-page-btn" onclick="TMTicketModal.showTicketContentPage(\'' + pagerId + '\', 0)">Previous</button>' +
       '<span class="tm-attachment-page-counter">2 of 2</span>' +
-      '<button type="button" class="tm-attachment-page-btn primary" disabled>Next</button>' +
+      '<button type="button" class="tm-attachment-page-btn primary" onclick="TMTicketModal.showTicketContentPage(\'' + pagerId + '\', 0)">Next</button>' +
       '</div>';
     var descriptionCard = renderDescriptionCard(data, descriptionNavigation);
     if (!descriptionCard) return renderAttachmentCard(data, '', attachmentsHtml);

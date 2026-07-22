@@ -1807,6 +1807,9 @@
 
 .tm-desc-text {
     display: grid;
+    min-width: 0;
+    max-width: 100%;
+    max-height: 400px;
     gap: 10px;
     line-height: 1.65;
     color: #334155;
@@ -1817,20 +1820,41 @@
     box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04);
     min-height: 58px;
     font-size: 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #aeb8c7 transparent;
+}
+
+.tm-desc-text::-webkit-scrollbar {
+    width: 6px;
+}
+
+.tm-desc-text::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.tm-desc-text::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: #aeb8c7;
 }
 
 .tm-desc-lead {
     color: #0f172a;
-    font-size: 16px;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1.45;
     letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .tm-desc-lead.is-muted {
-    color: #334155;
+    color: #0f172a;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .tm-desc-row {
@@ -3888,10 +3912,10 @@
     color: #ffffff;
 }
 
-.tm-attachment-page-btn:not(:disabled):hover {
-    border-color: #15803d;
-    background: #f0fdf4;
-    color: #166534;
+.tm-attachment-page-btn:not(.primary):not(:disabled):hover {
+    border-color: #d7dee7;
+    background: #ffffff;
+    color: #111827;
 }
 
 .tm-attachment-page-btn.primary:not(:disabled):hover {
@@ -4324,7 +4348,7 @@
         grid-template-columns: 1fr;
     }
     .tm-desc-lead {
-        font-size: 15px;
+        font-size: 14px;
     }
     .tm-actions-fields {
         grid-template-columns: 1fr;
@@ -5101,8 +5125,11 @@
     }
 
     #ticketModal .tm-desc-lead {
-        font-size: 15px;
+        font-size: 14px;
+        font-weight: 700;
         line-height: 1.4;
+        overflow-wrap: anywhere;
+        word-break: break-word;
     }
 
     #ticketModal .tm-desc-row {

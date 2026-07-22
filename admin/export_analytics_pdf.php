@@ -4,7 +4,9 @@ require_once __DIR__ . '/../includes/user_permissions.php';
 require_once __DIR__ . '/../includes/ticket_assignment.php';
 
 $analyticsExportViewMode = defined('TICKETING_ANALYTICS_EXPORT_VIEW_MODE') ? (string) TICKETING_ANALYTICS_EXPORT_VIEW_MODE : 'admin';
-$analyticsExportIsEmployeeView = $analyticsExportViewMode === 'employee';
+$analyticsExportIsSalesManagerView = $analyticsExportViewMode === 'sales_manager';
+$analyticsExportIsEmployeeView = $analyticsExportViewMode === 'employee' || $analyticsExportIsSalesManagerView;
+$analyticsExportSalesRegion = '';
 
 define('FPDF_FONTPATH', dirname(__DIR__) . '/vendor/fpdf/font/');
 require_once __DIR__ . '/../vendor/fpdf/fpdf.php';
@@ -17,10 +19,34 @@ if ($analyticsExportIsEmployeeView) {
     if ((string) ($_SESSION['role'] ?? '') !== 'employee') {
         die('Access Denied');
     }
-    user_permissions_ensure_table($conn);
-    $employeePermissions = user_permissions_get_for_user($conn, (int) ($_SESSION['user_id'] ?? 0));
-    if ((int) ($employeePermissions['analytics'] ?? 0) !== 1) {
-        die('Access Denied');
+    if ($analyticsExportIsSalesManagerView) {
+        $exportUserId = (int) ($_SESSION['user_id'] ?? 0);
+        $regionColumnResult = $conn->query("SHOW COLUMNS FROM users LIKE 'region'");
+        $hasRegionColumn = $regionColumnResult && $regionColumnResult->num_rows > 0;
+        $exportUserStmt = $conn->prepare("SELECT company, department" . ($hasRegionColumn ? ", region" : "") . " FROM users WHERE id = ? LIMIT 1");
+        $exportUserRow = null;
+        if ($exportUserStmt) {
+            $exportUserStmt->bind_param('i', $exportUserId);
+            $exportUserStmt->execute();
+            $exportUserRow = $exportUserStmt->get_result()->fetch_assoc();
+            $exportUserStmt->close();
+        }
+        $exportCompany = trim((string) ($exportUserRow['company'] ?? ($_SESSION['company'] ?? '')));
+        $exportDepartment = trim((string) ($exportUserRow['department'] ?? ($_SESSION['department'] ?? '')));
+        $analyticsExportSalesRegion = $hasRegionColumn
+            ? trim((string) ($exportUserRow['region'] ?? ($_SESSION['region'] ?? '')))
+            : trim((string) ($_SESSION['region'] ?? ''));
+        if (ticket_normalize_company($exportCompany) !== '@leadsagri.com'
+            || strcasecmp($exportDepartment, 'Sales') !== 0
+            || $analyticsExportSalesRegion === '') {
+            die('Access Denied');
+        }
+    } else {
+        user_permissions_ensure_table($conn);
+        $employeePermissions = user_permissions_get_for_user($conn, (int) ($_SESSION['user_id'] ?? 0));
+        if ((int) ($employeePermissions['analytics'] ?? 0) !== 1) {
+            die('Access Denied');
+        }
     }
 } elseif (($_SESSION['role'] ?? '') !== 'admin') {
     die('Access Denied');
@@ -35,18 +61,19 @@ function analytics_export_filters(): array
     $department = trim((string) ($_GET['department'] ?? ''));
     $status = trim((string) ($_GET['status'] ?? ''));
 
-    $allowedStatuses = ['Open', 'In Progress', 'Resolved'];
+    global $analyticsExportIsSalesManagerView;
+    $allowedStatuses = $analyticsExportIsSalesManagerView ? ['Open', 'In Progress', 'Resolved', 'Closed'] : ['Open', 'In Progress', 'Resolved'];
     if (!in_array($status, $allowedStatuses, true)) {
         $status = '';
     }
 
     $allowedDepartments = ['ACCOUNTING', 'ADMIN', 'BIDDING', 'E-COMM', 'HR', 'IT', 'LINGAP', 'MARKETING', 'SUPPLY CHAIN', 'TECHNICAL'];
-    if ($department !== '' && !in_array($department, $allowedDepartments, true)) {
+    if (!$analyticsExportIsSalesManagerView && $department !== '' && !in_array($department, $allowedDepartments, true)) {
         $department = '';
     }
 
     $allowedCategories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Technical Support'];
-    if ($category !== '' && !in_array($category, $allowedCategories, true)) {
+    if (!$analyticsExportIsSalesManagerView && $category !== '' && !in_array($category, $allowedCategories, true)) {
         $category = '';
     }
 
@@ -60,7 +87,13 @@ function analytics_export_filters(): array
     ];
 
     global $analyticsExportIsEmployeeView;
-    if ($analyticsExportIsEmployeeView) {
+    if ($analyticsExportIsSalesManagerView) {
+        $rawCompany = trim((string) ($_GET['company'] ?? ''));
+        $filters['company'] = strtolower($rawCompany) === '__farmex_lav__'
+            ? '__farmex_lav__'
+            : ticket_normalize_company($rawCompany);
+        $filters['assignee'] = 0;
+    } elseif ($analyticsExportIsEmployeeView) {
         $filters['company'] = ticket_normalize_company(trim((string) ($_SESSION['company'] ?? '')));
         $filters['department'] = trim((string) ($_SESSION['department'] ?? ''));
         $filters['assignee'] = 0;
@@ -73,6 +106,7 @@ function analytics_export_filters(): array
 
 function analytics_export_fetch_rows(mysqli $conn, array $filters): array
 {
+    global $analyticsExportIsSalesManagerView, $analyticsExportSalesRegion;
     $where = ["DATE(t.created_at) BETWEEN ? AND ?"];
     $params = [$filters['start_date'], $filters['end_date']];
     $types = 'ss';
@@ -88,9 +122,16 @@ function analytics_export_fetch_rows(mysqli $conn, array $filters): array
         $types .= 'i';
     }
     if (($filters['company'] ?? '') !== '') {
-        $where[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
-        $params[] = (string) $filters['company'];
-        $types .= 's';
+        if ((string) $filters['company'] === '__farmex_lav__') {
+            $where[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) IN (?, ?)";
+            $params[] = '@leads-farmex.com';
+            $params[] = '@leadsav.com';
+            $types .= 'ss';
+        } else {
+            $where[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
+            $params[] = (string) $filters['company'];
+            $types .= 's';
+        }
     }
     if ($filters['department'] !== '') {
         $where[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
@@ -102,7 +143,19 @@ function analytics_export_fetch_rows(mysqli $conn, array $filters): array
         $params[] = $filters['status'];
         $types .= 's';
     }
-    $where[] = "COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')";
+    if ($analyticsExportIsSalesManagerView) {
+        $where[] = "EXISTS (
+            SELECT 1 FROM users analytics_sales_creator
+            WHERE analytics_sales_creator.id = t.user_id
+              AND LOWER(TRIM(COALESCE(analytics_sales_creator.email, ''))) = 'sales_guest@leadsagri.com'
+        )";
+        $where[] = "COALESCE(t.description, '') LIKE ?";
+        $params[] = '%Region: ' . $analyticsExportSalesRegion . '%';
+        $types .= 's';
+        $where[] = "COALESCE(NULLIF(t.status,''),'') <> 'Trash'";
+    } else {
+        $where[] = "COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')";
+    }
 
     $sql = "
         SELECT

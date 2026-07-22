@@ -2477,7 +2477,7 @@ $successMessage = '';
             margin: 0 0 14px;
             color: #0f172a;
             font-size: 28px;
-            font-weight: 800;
+            font-weight: 600;
             letter-spacing: -0.035em;
         }
         body.employee-my-tickets-page .follow-up-feedback-dialog.is-pending .follow-up-feedback-text {
