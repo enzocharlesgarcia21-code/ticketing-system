@@ -4779,8 +4779,12 @@ if (count($emailCreationEntries) === 0) {
         }
 
         body.employee-request-ticket-page .request-page-header {
+            width: 100%;
             margin: 0 0 14px !important;
             padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             text-align: center;
             transform: none;
         }
@@ -5248,13 +5252,20 @@ if (count($emailCreationEntries) === 0) {
             }
         }
 
+        @media (min-width: 1181px) {
+            body.employee-request-ticket-page .request-page-header {
+                width: calc(100% - 478px);
+                margin-left: 478px !important;
+            }
+        }
+
         @media (max-width: 768px) {
             body.employee-request-ticket-page .dashboard-container {
                 padding: 14px 12px 86px;
             }
 
             body.employee-request-ticket-page .request-page-header {
-                margin-bottom: 12px !important;
+                margin: 0 0 12px !important;
             }
 
             body.employee-request-ticket-page .request-page-header h1 {
@@ -5365,7 +5376,6 @@ if (count($emailCreationEntries) === 0) {
                 <?php unset($_SESSION['error']); ?>
             <?php endif; ?>
 
-            <!-- 4️⃣ REQUEST TICKET PAGE – REDESIGN -->
             <div class="page-header request-page-header">
                 <h1 class="page-title">Create a Ticket</h1>
                 <p class="page-subtitle">Please fill out the form below to submit your concern.</p>

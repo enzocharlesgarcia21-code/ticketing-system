@@ -5315,6 +5315,10 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             box-shadow: 0 8px 24px rgba(15, 23, 42, 0.045);
         }
 
+        body.sales-request-ticket-page .request-main-column > .form-card {
+            border-top: 1px solid #e1e7e3 !important;
+        }
+
         body.sales-request-ticket-page .request-guidance-card {
             overflow: hidden;
         }
@@ -5688,6 +5692,13 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             body.sales-request-ticket-page .request-ticket-layout { grid-template-columns: 1fr; }
             body.sales-request-ticket-page .request-guidance-sidebar { position: static; }
             body.sales-request-ticket-page .request-guidance-directory { max-height: 390px; }
+        }
+
+        @media (min-width: 1181px) {
+            body.sales-request-ticket-page .sales-page-header {
+                width: calc(100% - 478px);
+                margin-left: 478px;
+            }
         }
 
         @media (max-width: 768px) {
