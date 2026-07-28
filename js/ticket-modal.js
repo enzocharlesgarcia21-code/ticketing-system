@@ -2167,17 +2167,19 @@ var TMTicketModal = (function () {
       : '';
     if (footerHtml) {
       var embeddedIncidentHtml = '<div class="tm-incident-field">' +
-          '<div class="tm-incident-summary-box tm-ticket-description-surface">' + escapeHtml(summaryText).replace(/\n/g, '<br>') + '</div>' +
+          '<div class="tm-incident-section-title">Short Summary of IR</div>' +
+          '<div class="tm-incident-summary-box tm-ticket-description-surface" style="font-size:16px;">' + escapeHtml(summaryText).replace(/\n/g, '<br>') + '</div>' +
         '</div>' +
         (driveHtml ? '<div style="margin-top:18px;">' + driveHtml + '</div>' : '');
-      return '<div class="tm-card tm-card-description tm-card-incident-report"><div class="tm-card-header"><span class="tm-card-title">Incident Report</span></div><div class="tm-card-body">' +
+      return '<div class="tm-card tm-card-description tm-card-incident-report"><div class="tm-card-header"><span class="tm-card-title">Request Details</span></div><div class="tm-card-body">' +
         '<div class="tm-ticket-content-scroll tm-ticket-description-scroll">' + embeddedIncidentHtml + '</div>' + String(footerHtml) +
         '</div></div>';
     }
     var slides = [
       '<div class="tm-sap-card tm-incident-card is-active" data-index="0" aria-hidden="false">' +
         '<div class="tm-incident-field">' +
-          '<div class="tm-incident-summary-box tm-ticket-description-surface">' + escapeHtml(summaryText).replace(/\n/g, '<br>') + '</div>' +
+          '<div class="tm-incident-section-title">Short Summary of IR</div>' +
+          '<div class="tm-incident-summary-box tm-ticket-description-surface" style="font-size:16px;">' + escapeHtml(summaryText).replace(/\n/g, '<br>') + '</div>' +
         '</div>' +
       '</div>'
     ];
@@ -2186,7 +2188,7 @@ var TMTicketModal = (function () {
     }
     var incidentHtml = '<div class="tm-sap-display tm-incident-display">' +
       '<div class="tm-sap-carousel" id="' + carouselId + '" data-index="0">' +
-        '<div class="tm-incident-card-header"><span class="tm-incident-card-icon"><i class="fas fa-file-alt"></i></span><span>Incident Report Form</span></div>' +
+        '<div class="tm-incident-card-header"><span class="tm-incident-card-icon"><i class="fas fa-file-alt"></i></span><span>Request Details</span></div>' +
         slides.join('') +
         (slides.length > 1
           ? '<div class="tm-sap-actions">' +

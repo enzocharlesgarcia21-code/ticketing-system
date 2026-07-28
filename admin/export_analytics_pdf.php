@@ -117,6 +117,17 @@ function analytics_export_request_text(string $description, string $subject): st
     return $description !== '' ? $description : ($subject !== '' ? $subject : '-');
 }
 
+function analytics_export_description_field(string $description, string $label): string
+{
+    $labelPattern = preg_quote($label, '/');
+    if (preg_match('/^\s*' . $labelPattern . '\s*:\s*(.+)$/mi', $description, $match)) {
+        $value = trim(strip_tags((string) ($match[1] ?? '')));
+        return $value !== '' ? $value : '-';
+    }
+
+    return '-';
+}
+
 function analytics_export_fetch_rows(mysqli $conn, array $filters): array
 {
     global $analyticsExportIsSalesManagerView, $analyticsExportSalesRegion;
@@ -229,6 +240,8 @@ function analytics_export_fetch_rows(mysqli $conn, array $filters): array
             'attending_it' => (string) ($row['attending_it'] ?? '-'),
             'client' => (string) ($row['client_name'] ?? '-'),
             'department_subs' => (string) ($row['requester_department'] ?? '-'),
+            'position' => $analyticsExportIsSalesManagerView ? analytics_export_description_field($description, 'Position') : '',
+            'region' => $analyticsExportIsSalesManagerView ? analytics_export_description_field($description, 'Region') : '',
             'request_concern' => analytics_export_request_text($description, $subject),
             'category' => (string) ($row['category'] ?? '-'),
             'time_reported' => $createdAt !== '' ? date('h:i A', strtotime($createdAt)) : '-',
@@ -398,20 +411,32 @@ $headers = [
     'Attendee',
     'Client',
     'Department / Subs',
+];
+if ($analyticsExportIsSalesManagerView) {
+    $headers[] = 'Position';
+    $headers[] = 'Region';
+}
+$headers = array_merge($headers, [
     'Request / Reported Concern',
     'Category (HL Report)',
     'Time Reported',
     'Time Resolved',
     'Status',
     'Duration',
-];
+]);
 
 $pdf->SetFont('Helvetica', 'B', 7);
 $pdf->SetFillColor(232, 239, 233);
-$widths = [18, 18, 20, 26, 24, 67, 22, 18, 18, 16, 16];
-$aligns = ['C', 'C', 'C', 'L', 'L', 'L', 'C', 'C', 'C', 'C', 'C'];
+$widths = $analyticsExportIsSalesManagerView
+    ? [17, 17, 19, 24, 20, 20, 31, 44, 20, 17, 17, 15, 15]
+    : [18, 18, 20, 26, 24, 67, 22, 18, 18, 16, 16];
+$aligns = $analyticsExportIsSalesManagerView
+    ? ['C', 'C', 'C', 'L', 'L', 'L', 'L', 'L', 'C', 'C', 'C', 'C', 'C']
+    : ['C', 'C', 'C', 'L', 'L', 'L', 'C', 'C', 'C', 'C', 'C'];
 $pdf->widths = $widths;
 $pdf->aligns = $aligns;
+$pdf->categoryColumnIndex = $analyticsExportIsSalesManagerView ? 8 : 6;
+$pdf->statusColumnIndex = $analyticsExportIsSalesManagerView ? 11 : 9;
 
 foreach ($headers as $idx => $header) {
     $pdf->Cell($widths[$idx], 8, $header, 1, 0, 'C', true);
@@ -434,6 +459,7 @@ if (count($rows) === 0) {
             $row['attending_it'],
             $row['client'],
             $row['department_subs'],
+            ...($analyticsExportIsSalesManagerView ? [$row['position'], $row['region']] : []),
             $row['request_concern'],
             $row['category'],
             $row['time_reported'],

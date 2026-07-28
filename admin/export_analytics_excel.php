@@ -119,6 +119,17 @@ function analytics_export_request_text_excel(string $description, string $subjec
     return $description !== '' ? $description : ($subject !== '' ? $subject : '-');
 }
 
+function analytics_export_description_field_excel(string $description, string $label): string
+{
+    $labelPattern = preg_quote($label, '/');
+    if (preg_match('/^\s*' . $labelPattern . '\s*:\s*(.+)$/mi', $description, $match)) {
+        $value = trim(strip_tags((string) ($match[1] ?? '')));
+        return $value !== '' ? $value : '-';
+    }
+
+    return '-';
+}
+
 function analytics_export_rows_excel(mysqli $conn, array $filters): array
 {
     global $analyticsExportIsSalesManagerView, $analyticsExportSalesRegion;
@@ -225,19 +236,26 @@ function analytics_export_rows_excel(mysqli $conn, array $filters): array
 
         $description = (string) ($row['description'] ?? '');
         $subject = (string) ($row['subject'] ?? '-');
-        $rows[] = [
+        $exportRow = [
             $createdAt !== '' ? date('Y-m-d', strtotime($createdAt)) : '-',
             $endDateSource !== '' ? date('Y-m-d', strtotime($endDateSource)) : '-',
             (string) ($row['attending_it'] ?? '-'),
             (string) ($row['client_name'] ?? '-'),
             (string) ($row['requester_department'] ?? '-'),
+        ];
+        if ($analyticsExportIsSalesManagerView) {
+            $exportRow[] = analytics_export_description_field_excel($description, 'Position');
+            $exportRow[] = analytics_export_description_field_excel($description, 'Region');
+        }
+        $exportRow = array_merge($exportRow, [
             analytics_export_request_text_excel($description, $subject),
             (string) ($row['category'] ?? '-'),
             $createdAt !== '' ? date('h:i A', strtotime($createdAt)) : '-',
             $completionAt !== '' ? date('h:i A', strtotime($completionAt)) : '-',
             (string) ($row['status'] ?? '-'),
             $duration,
-        ];
+        ]);
+        $rows[] = $exportRow;
     }
     $stmt->close();
 
@@ -288,13 +306,29 @@ $headers = [
     'Attendee',
     'Client',
     'Department / Subs',
+];
+if ($analyticsExportIsSalesManagerView) {
+    $headers[] = 'Position';
+    $headers[] = 'Region';
+}
+$headers = array_merge($headers, [
     'Request / Reported Concern',
     'Category (HL Report)',
     'Time Reported',
     'Time Resolved',
     'Status',
     'Duration',
-];
+]);
+$columnCount = count($headers);
+$lastColumnIndex = $columnCount - 1;
+$categoryColumnIndex = $analyticsExportIsSalesManagerView ? 8 : 6;
+$statusColumnIndex = $analyticsExportIsSalesManagerView ? 11 : 9;
+$centerColumnIndexes = $analyticsExportIsSalesManagerView
+    ? [0, 1, 2, 8, 9, 10, 11, 12]
+    : [0, 1, 2, 6, 7, 8, 9, 10];
+$columnWidths = $analyticsExportIsSalesManagerView
+    ? [72, 72, 78, 110, 110, 110, 140, 260, 110, 78, 78, 78, 78]
+    : [72, 72, 78, 110, 110, 260, 110, 78, 78, 78, 78];
 
 if (ob_get_level()) {
     ob_end_clean();
@@ -459,22 +493,14 @@ echo '<?mso-application progid="Excel.Sheet"?>';
  </Styles>
  <Worksheet ss:Name="Analytics Report">
   <Table>
-   <Column ss:AutoFitWidth="0" ss:Width="72"/>
-   <Column ss:AutoFitWidth="0" ss:Width="72"/>
-   <Column ss:AutoFitWidth="0" ss:Width="78"/>
-   <Column ss:AutoFitWidth="0" ss:Width="110"/>
-   <Column ss:AutoFitWidth="0" ss:Width="110"/>
-   <Column ss:AutoFitWidth="0" ss:Width="260"/>
-   <Column ss:AutoFitWidth="0" ss:Width="110"/>
-   <Column ss:AutoFitWidth="0" ss:Width="78"/>
-   <Column ss:AutoFitWidth="0" ss:Width="78"/>
-   <Column ss:AutoFitWidth="0" ss:Width="78"/>
-   <Column ss:AutoFitWidth="0" ss:Width="78"/>
+<?php foreach ($columnWidths as $columnWidth): ?>
+   <Column ss:AutoFitWidth="0" ss:Width="<?= (int) $columnWidth ?>"/>
+<?php endforeach; ?>
    <Row>
-    <Cell ss:MergeAcross="10" ss:StyleID="Title"><Data ss:Type="String">Leads DeskMetamorph Ticket Analytics Report</Data></Cell>
+    <Cell ss:MergeAcross="<?= (int) $lastColumnIndex ?>" ss:StyleID="Title"><Data ss:Type="String">Leads DeskMetamorph Ticket Analytics Report</Data></Cell>
    </Row>
    <Row>
-    <Cell ss:MergeAcross="10"><Data ss:Type="String"><?= analytics_excel_escape('Date Range: ' . $filters['start_date'] . ' to ' . $filters['end_date']) ?></Data></Cell>
+    <Cell ss:MergeAcross="<?= (int) $lastColumnIndex ?>"><Data ss:Type="String"><?= analytics_excel_escape('Date Range: ' . $filters['start_date'] . ' to ' . $filters['end_date']) ?></Data></Cell>
    </Row>
    <Row></Row>
    <Row>
@@ -484,24 +510,24 @@ echo '<?mso-application progid="Excel.Sheet"?>';
    </Row>
 <?php if (count($rows) === 0): ?>
    <Row>
-    <Cell ss:MergeAcross="10" ss:StyleID="CenterCell"><Data ss:Type="String">No records found for the selected filters.</Data></Cell>
+    <Cell ss:MergeAcross="<?= (int) $lastColumnIndex ?>" ss:StyleID="CenterCell"><Data ss:Type="String">No records found for the selected filters.</Data></Cell>
    </Row>
 <?php else: ?>
 <?php foreach ($rows as $row): ?>
-<?php $categoryStyleId = analytics_excel_category_style_id((string) $row[6]); ?>
-<?php $statusStyleId = analytics_excel_status_style_id((string) $row[9]); ?>
+<?php $categoryStyleId = analytics_excel_category_style_id((string) $row[$categoryColumnIndex]); ?>
+<?php $statusStyleId = analytics_excel_status_style_id((string) $row[$statusColumnIndex]); ?>
    <Row>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String"><?= analytics_excel_escape((string) $row[0]) ?></Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String"><?= analytics_excel_escape((string) $row[1]) ?></Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String"><?= analytics_excel_escape((string) $row[2]) ?></Data></Cell>
-    <Cell ss:StyleID="Cell"><Data ss:Type="String"><?= analytics_excel_escape((string) $row[3]) ?></Data></Cell>
-    <Cell ss:StyleID="Cell"><Data ss:Type="String"><?= analytics_excel_escape((string) $row[4]) ?></Data></Cell>
-    <Cell ss:StyleID="Cell"><Data ss:Type="String"><?= analytics_excel_escape((string) $row[5]) ?></Data></Cell>
-    <Cell ss:StyleID="<?= analytics_excel_escape($categoryStyleId) ?>"><Data ss:Type="String"><?= analytics_excel_escape((string) $row[6]) ?></Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String"><?= analytics_excel_escape((string) $row[7]) ?></Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String"><?= analytics_excel_escape((string) $row[8]) ?></Data></Cell>
-    <Cell ss:StyleID="<?= analytics_excel_escape($statusStyleId) ?>"><Data ss:Type="String"><?= analytics_excel_escape((string) $row[9]) ?></Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String"><?= analytics_excel_escape((string) $row[10]) ?></Data></Cell>
+<?php foreach ($row as $idx => $value): ?>
+<?php
+    $styleId = in_array($idx, $centerColumnIndexes, true) ? 'CenterCell' : 'Cell';
+    if ($idx === $categoryColumnIndex) {
+        $styleId = $categoryStyleId;
+    } elseif ($idx === $statusColumnIndex) {
+        $styleId = $statusStyleId;
+    }
+?>
+    <Cell ss:StyleID="<?= analytics_excel_escape($styleId) ?>"><Data ss:Type="String"><?= analytics_excel_escape((string) $value) ?></Data></Cell>
+<?php endforeach; ?>
    </Row>
 <?php endforeach; ?>
 <?php endif; ?>

@@ -206,8 +206,18 @@ $requestGuidanceCompanyOptions = array_map(static function ($guidanceLabel): str
 }, $requestGuidanceCompanyOptions);
 asort($requestGuidanceCompanyOptions, SORT_NATURAL | SORT_FLAG_CASE);
 
+$requestGuidanceHideCategoriesFor = [
+    '@farmasee.ph',
+    '@leads-farmex.com',
+    '@leadsav.com',
+    '@gpsci.net',
+    '@leadstech-corp.com',
+    '@malvedaholdings.com',
+    '@primestocks.ph',
+];
 $requestGuidanceCompanies = [];
 foreach ($requestGuidanceCompanyOptions as $guidanceCompanyValue => $guidanceCompanyLabel) {
+    $hideGuidanceCategories = in_array((string) $guidanceCompanyValue, $requestGuidanceHideCategoriesFor, true);
     $guidanceRequiresDepartment = ticket_company_requires_department((string) $guidanceCompanyValue);
     $guidanceDepartments = $guidanceRequiresDepartment
         ? ticket_receiving_available_departments($conn, (string) $guidanceCompanyValue)
@@ -218,6 +228,9 @@ foreach ($requestGuidanceCompanyOptions as $guidanceCompanyValue => $guidanceCom
     } elseif ($guidanceCompanyValue === '@lingapleads.org') {
         $guidanceDirectCategories = $lingapCategories;
     }
+    if ($hideGuidanceCategories) {
+        $guidanceDirectCategories = [];
+    }
 
     $guidanceDepartmentRows = [];
     foreach ($guidanceDepartments as $guidanceDepartment) {
@@ -226,6 +239,9 @@ foreach ($requestGuidanceCompanyOptions as $guidanceCompanyValue => $guidanceCom
             $guidanceCategories = $mhcDepartmentCategories[$guidanceDepartment];
         } elseif ($guidanceCompanyValue === '@leadsagri.com' && isset($lapcDepartmentCategories[$guidanceDepartment])) {
             $guidanceCategories = $lapcDepartmentCategories[$guidanceDepartment];
+        }
+        if ($hideGuidanceCategories) {
+            $guidanceCategories = [];
         }
         $guidanceDepartmentRows[] = [
             'name' => (string) $guidanceDepartment,
@@ -5354,6 +5370,12 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
         }
 
+        body.sales-request-ticket-page .request-company-guide.is-search-match > summary,
+        body.sales-request-ticket-page .request-department-guide.is-search-match {
+            background: #ecfdf3;
+            box-shadow: inset 3px 0 0 #16a34a;
+        }
+
         body.sales-request-ticket-page .request-guidance-directory {
             max-height: 510px;
             min-height: 0;
@@ -5815,7 +5837,9 @@ document.addEventListener('DOMContentLoaded', function () {
                                             <span class="request-department-icon is-<?= htmlspecialchars($guidanceDepartmentTone, ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"><i class="fas <?= htmlspecialchars($guidanceDepartmentIcon, ENT_QUOTES, 'UTF-8'); ?>"></i></span>
                                             <div>
                                                 <h3 class="request-department-name"><?= htmlspecialchars($guidanceDepartmentName, ENT_QUOTES, 'UTF-8'); ?></h3>
+                                                <?php if ($guidanceCategoryText !== ''): ?>
                                                 <p class="request-category-list"><?= htmlspecialchars($guidanceCategoryText, ENT_QUOTES, 'UTF-8'); ?></p>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                     <?php endforeach; ?>
@@ -5828,6 +5852,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     <?php endif; ?>
                                 <?php else: ?>
                                     <?php $guidanceCategoryText = implode(' • ', array_map('strval', (array) ($guidanceCompany['categories'] ?? []))); ?>
+                                    <?php if ($guidanceCategoryText !== ''): ?>
                                     <div class="request-department-guide">
                                         <span class="request-department-icon is-category" aria-hidden="true"><i class="fas fa-tags"></i></span>
                                         <div>
@@ -5835,6 +5860,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                             <p class="request-category-list"><?= htmlspecialchars($guidanceCategoryText, ENT_QUOTES, 'UTF-8'); ?></p>
                                         </div>
                                     </div>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </details>
@@ -10823,6 +10849,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!directory) return;
 
     var companyGuides = Array.prototype.slice.call(directory.querySelectorAll('.request-company-guide'));
+    companyGuides.forEach(function (guide) {
+        guide.dataset.initiallyOpen = guide.open ? 'true' : 'false';
+    });
 
     directory.querySelectorAll('.request-view-departments').forEach(function (button) {
         button.addEventListener('click', function () {
@@ -10844,18 +10873,30 @@ document.addEventListener('DOMContentLoaded', function () {
 
         companyGuides.forEach(function (guide) {
             var summary = guide.querySelector('summary');
-            var companyMatches = !query || (summary && summary.textContent.toLowerCase().indexOf(query) !== -1);
+            var companyText = summary ? summary.textContent.toLowerCase() : '';
+            var companyMatches = query !== '' && companyText.indexOf(query) !== -1;
             var departmentMatches = false;
             var departments = Array.prototype.slice.call(guide.querySelectorAll('.request-department-guide'));
 
             departments.forEach(function (department) {
-                var matches = !query || companyMatches || department.textContent.toLowerCase().indexOf(query) !== -1;
+                var departmentMatchesQuery = query !== '' && department.textContent.toLowerCase().indexOf(query) !== -1;
+                var matches = query === '' || companyMatches || departmentMatchesQuery;
                 department.hidden = !matches;
-                if (matches) departmentMatches = true;
+                department.style.display = matches ? '' : 'none';
+                department.classList.toggle('is-search-match', departmentMatchesQuery);
+                if (departmentMatchesQuery) departmentMatches = true;
             });
 
             guide.hidden = Boolean(query && !companyMatches && !departmentMatches);
-            if (query && !guide.hidden) guide.open = true;
+            guide.classList.toggle('is-search-match', companyMatches);
+            if (query && !guide.hidden) {
+                guide.open = true;
+            } else if (!query) {
+                guide.open = guide.dataset.initiallyOpen === 'true';
+                departments.forEach(function (department) {
+                    department.style.display = '';
+                });
+            }
         });
     });
 })();

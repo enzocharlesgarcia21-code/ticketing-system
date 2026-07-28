@@ -3704,13 +3704,13 @@ $successMessage = '';
                             <button type="button" class="feedback-excellent-close" id="feedbackExcellentCloseBtn" aria-label="Close feedback">&times;</button>
                             <div class="feedback-hero-icon feedback-star-hero" aria-hidden="true"><i class="far fa-star"></i></div>
                             <div class="feedback-excellent-copy">
-                                <h3 class="feedback-question-title">Thank you!</h3>
-                                <p class="feedback-question-copy">We're glad to hear that you had a positive experience.</p>
+                                <h3 class="feedback-question-title">Thank you for your feedback!</h3>
+                                <p class="feedback-question-copy">We're happy to know you had a positive support experience.</p>
                             </div>
                             <div class="feedback-excellent-divider" aria-hidden="true"></div>
                             <button type="submit" class="feedback-excellent-btn" id="feedbackExcellentBtn">
                                 <i class="far fa-star" aria-hidden="true"></i>
-                                <span>Mark as Excellent</span>
+                                <span>Mark as &quot;Excellent&quot;</span>
                             </button>
                             <p class="feedback-excellent-support">Rate your support experience as excellent.</p>
                         </div>

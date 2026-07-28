@@ -76,8 +76,18 @@ $requestTicketSidebarCompanyMeta = [
     '@primestocks.ph' => ['icon' => 'fa-industry', 'tone' => 'orange'],
 ];
 
+$requestTicketHideGuidanceCategoriesFor = [
+    '@farmasee.ph',
+    '@leads-farmex.com',
+    '@leadsav.com',
+    '@gpsci.net',
+    '@leadstech-corp.com',
+    '@malvedaholdings.com',
+    '@primestocks.ph',
+];
 $requestTicketSidebarCompanies = [];
 foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel) {
+    $hideSidebarCategories = in_array((string) $companyValue, $requestTicketHideGuidanceCategoriesFor, true);
     $sidebarRequiresDepartment = ticket_company_requires_department((string) $companyValue);
     $sidebarDepartments = $sidebarRequiresDepartment
         ? ticket_receiving_available_departments($conn, (string) $companyValue)
@@ -89,6 +99,9 @@ foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel) {
     } elseif ($companyValue === '@lingapleads.org') {
         $sidebarDirectCategories = $requestTicketLingapCategories;
     }
+    if ($hideSidebarCategories) {
+        $sidebarDirectCategories = [];
+    }
 
     $sidebarDepartmentRows = [];
     foreach ($sidebarDepartments as $sidebarDepartment) {
@@ -97,6 +110,9 @@ foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel) {
             $sidebarCategories = $requestTicketMhcDepartmentCategories[$sidebarDepartment];
         } elseif ($companyValue === '@leadsagri.com' && isset($requestTicketLapcDepartmentCategories[$sidebarDepartment])) {
             $sidebarCategories = $requestTicketLapcDepartmentCategories[$sidebarDepartment];
+        }
+        if ($hideSidebarCategories) {
+            $sidebarCategories = [];
         }
 
         $sidebarDepartmentRows[] = [
@@ -5440,7 +5456,9 @@ if (count($emailCreationEntries) === 0) {
                                                     <span class="request-department-icon is-<?= htmlspecialchars($sidebarDepartmentTone, ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"><i class="fas <?= htmlspecialchars($sidebarDepartmentIcon, ENT_QUOTES, 'UTF-8'); ?>"></i></span>
                                                     <div>
                                                         <h3 class="request-department-name"><?= htmlspecialchars($sidebarDepartmentName, ENT_QUOTES, 'UTF-8'); ?></h3>
+                                                        <?php if ($sidebarCategoryText !== ''): ?>
                                                         <p class="request-category-list"><?= htmlspecialchars($sidebarCategoryText, ENT_QUOTES, 'UTF-8'); ?></p>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </div>
                                             <?php endforeach; ?>
@@ -5453,6 +5471,7 @@ if (count($emailCreationEntries) === 0) {
                                             <?php endif; ?>
                                         <?php else: ?>
                                             <?php $sidebarCategoryText = implode('  •  ', array_map('strval', (array) ($sidebarCompany['categories'] ?? []))); ?>
+                                            <?php if ($sidebarCategoryText !== ''): ?>
                                             <div class="request-department-guide request-direct-category-guide">
                                                 <span class="request-department-icon is-category" aria-hidden="true"><i class="fas fa-tags"></i></span>
                                                 <div>
@@ -5460,6 +5479,7 @@ if (count($emailCreationEntries) === 0) {
                                                     <p class="request-category-list"><?= htmlspecialchars($sidebarCategoryText, ENT_QUOTES, 'UTF-8'); ?></p>
                                                 </div>
                                             </div>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </div>
                                 </details>
@@ -10199,6 +10219,7 @@ if (count($emailCreationEntries) === 0) {
                     var departmentMatchesQuery = query !== '' && department.textContent.toLowerCase().indexOf(query) !== -1;
                     var matches = query === '' || companyMatches || departmentMatchesQuery;
                     department.hidden = !matches;
+                    department.style.display = matches ? '' : 'none';
                     department.classList.toggle('is-search-match', departmentMatchesQuery);
                     if (departmentMatchesQuery) departmentMatches = true;
                 });
@@ -10210,6 +10231,9 @@ if (count($emailCreationEntries) === 0) {
                     guide.open = true;
                 } else if (!query) {
                     guide.open = guide.dataset.initiallyOpen === 'true';
+                    departments.forEach(function (department) {
+                        department.style.display = '';
+                    });
                 }
             });
 

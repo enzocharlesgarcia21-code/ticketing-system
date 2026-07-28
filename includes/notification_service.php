@@ -2128,7 +2128,7 @@ function notif_email_requester_ticket_status_updated(string $title, array $lines
 
 function notif_email_follow_up(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
 {
-    $safeTitle = htmlspecialchars('Follow Up', ENT_QUOTES, 'UTF-8');
+    $safeTitle = htmlspecialchars($title !== '' ? $title : 'Ticket Follow-up', ENT_QUOTES, 'UTF-8');
     $ctaLabelSafe = htmlspecialchars($ctaLabel !== '' ? $ctaLabel : 'View Ticket', ENT_QUOTES, 'UTF-8');
     $ctaUrlSafe = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
     $details = [];
@@ -2168,8 +2168,8 @@ function notif_email_follow_up(string $title, array $lines, string $ctaLabel, st
         }
         $rowsHtml .= '
                         <tr>
-                            <td style="width:160px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td align="left" style="width:160px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;text-align:left;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
+                            <td align="left" style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;text-align:left;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
                         </tr>';
     }
 
@@ -2178,13 +2178,13 @@ function notif_email_follow_up(string $title, array $lines, string $ctaLabel, st
         : '';
 
     $bodyHtml = '
-        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;">
-            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;">
-                <div style="background:#005c2f;padding:24px 26px 18px;color:#ffffff;">
+        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;text-align:left;">
+            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;text-align:left;">
+                <div style="background:#005c2f;padding:24px 26px 18px;color:#ffffff;text-align:left;">
                     <div style="font-size:31px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;">Leads DeskMetamorph</div>
                     <div style="font-size:19px;font-weight:700;color:#fff200;margin-top:12px;line-height:1.25;">' . $safeTitle . '</div>
                 </div>
-                <div style="padding:30px 28px 26px;">
+                <div style="padding:30px 28px 26px;text-align:left;">
                     <div style="margin:0 0 28px 0;font-size:16px;line-height:1.5;color:#050505;">The requestor has provided a follow-up update.</div>
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 2px 0;">
                         ' . $rowsHtml . '
@@ -2197,7 +2197,7 @@ function notif_email_follow_up(string $title, array $lines, string $ctaLabel, st
             </div>
         </div>';
 
-    $bodyText = "Leads DeskMetamorph\nFollow Up\n\nThe requestor has provided a follow-up update.\n\n" . $lineText . "\nAction Required:\nPlease review the follow-up and provide an update to the requestor.\n\n$ctaLabel: $ctaUrl\n";
+    $bodyText = "Leads DeskMetamorph\n$title\n\nThe requestor has provided a follow-up update.\n\n" . $lineText . "\nAction Required:\nPlease review the follow-up and provide an update to the requestor.\n\n$ctaLabel: $ctaUrl\n";
     return ['html' => $bodyHtml, 'text' => $bodyText];
 }
 
@@ -2438,7 +2438,7 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
     if ($isRequesterTicketStatusUpdated) {
         return notif_email_requester_ticket_status_updated($title, $lines, $ctaLabel, $ctaUrl);
     }
-    if (in_array($normalizedTitle, ['ticket follow up', 'follow up', 'follow-up'], true)) {
+    if (in_array($normalizedTitle, ['ticket follow up', 'ticket follow-up', 'follow up', 'follow-up'], true)) {
         return notif_email_follow_up($title, $lines, $ctaLabel, $ctaUrl);
     }
     if ($normalizedTitle === 'pending chat') {
