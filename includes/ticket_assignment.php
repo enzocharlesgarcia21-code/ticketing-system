@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/notification_service.php';
 require_once __DIR__ . '/pdf_thumbnail.php';
+require_once __DIR__ . '/sla_calendar.php';
 
 function ticket_ensure_activity_table(mysqli $conn): void
 {
@@ -2915,19 +2916,7 @@ function ticket_normalize_sla_level(string $sla): string
 
 function ticket_sla_age_days(string $createdAt): int
 {
-    $createdAt = trim($createdAt);
-    if ($createdAt === '') return 0;
-    try {
-        $created = new DateTimeImmutable($createdAt);
-    } catch (Throwable $e) {
-        return 0;
-    }
-    $now = new DateTimeImmutable('now');
-    $createdDay = $created->setTime(0, 0, 0);
-    $nowDay = $now->setTime(0, 0, 0);
-    $diff = $nowDay->diff($createdDay);
-    $days = (int) ($diff->days ?? 0);
-    return $diff->invert === 1 ? $days : 0;
+    return intdiv(ticket_sla_business_seconds_between($createdAt), ticket_sla_workday_seconds());
 }
 
 function ticket_effective_sla_level(string $createdAt, string $status, string $priority = ''): string
@@ -2935,12 +2924,12 @@ function ticket_effective_sla_level(string $createdAt, string $status, string $p
     $statusKey = strtolower(trim($status));
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '';
 
-    $days = ticket_sla_age_days($createdAt);
+    $businessSeconds = ticket_sla_business_seconds_between($createdAt);
 
-    if ($days >= 6) {
+    if ($businessSeconds >= 6 * ticket_sla_workday_seconds()) {
         return 'High';
     }
-    if ($days >= 3) {
+    if ($businessSeconds >= 3 * ticket_sla_workday_seconds()) {
         return 'Medium';
     }
     return 'Low';
@@ -2962,8 +2951,9 @@ function ticket_sla_filter_condition_sql(string $tableAlias, string $sla): strin
     $prefix = trim($tableAlias);
     if ($prefix !== '') $prefix .= '.';
     $statusExpr = "LOWER(TRIM(COALESCE({$prefix}status, '')))";
-    $ageBreach = "DATEDIFF(CURDATE(), DATE({$prefix}created_at)) >= 6";
-    $ageRisk = "DATEDIFF(CURDATE(), DATE({$prefix}created_at)) >= 3";
+    $businessSeconds = ticket_sla_business_seconds_sql("{$prefix}created_at");
+    $ageBreach = "$businessSeconds >= " . (6 * ticket_sla_workday_seconds());
+    $ageRisk = "$businessSeconds >= " . (3 * ticket_sla_workday_seconds());
     $activeExpr = "{$prefix}created_at IS NOT NULL AND $statusExpr NOT IN ('resolved', 'closed')";
     $breachExpr = "($ageBreach)";
 
@@ -3024,7 +3014,6 @@ function ticket_priority_escalation_stage_config(string $targetPriority): ?array
             'target_priority' => 'High',
             'from_priorities' => ['', 'Low'],
             'days' => 3,
-            'interval' => '+5 minutes',
             'escalated_at_column' => 'auto_escalated_high_at',
             'notified_at_column' => 'auto_escalated_high_notified_at',
             'emailed_at_column' => 'auto_escalated_high_emailed_at',
@@ -3035,7 +3024,6 @@ function ticket_priority_escalation_stage_config(string $targetPriority): ?array
             'target_priority' => 'Critical',
             'from_priorities' => ['High'],
             'days' => 3,
-            'interval' => '+5 minutes',
             'escalated_at_column' => 'auto_escalated_critical_at',
             'notified_at_column' => 'auto_escalated_critical_notified_at',
             'emailed_at_column' => 'auto_escalated_critical_emailed_at',
@@ -3064,20 +3052,11 @@ function ticket_priority_escalation_due_at(array $ticket, string $targetPriority
         return null;
     }
 
-    $referenceTs = strtotime($reference);
-    if ($referenceTs === false) {
-        return null;
-    }
-
-    $interval = trim((string) ($config['interval'] ?? ''));
-    $dueTs = $interval !== ''
-        ? strtotime($interval, $referenceTs)
-        : strtotime('+' . (int) $config['days'] . ' days', $referenceTs);
-    if ($dueTs === false) {
-        return null;
-    }
-
-    return date('Y-m-d H:i:s', $dueTs);
+    $dueAt = ticket_sla_add_business_seconds(
+        $reference,
+        (int) ($config['days'] ?? 0) * ticket_sla_workday_seconds()
+    );
+    return $dueAt ? $dueAt->format('Y-m-d H:i:s') : null;
 }
 
 function ticket_priority_escalation_notification_time(mysqli $conn, int $ticketId, string $targetPriority): ?string
@@ -3438,6 +3417,12 @@ function ticket_apply_sla_priority(mysqli $conn, bool $force = false): array
         'tickets' => [],
     ];
 
+    $referenceSql = ticket_escalation_reference_sql();
+    $highAgeSql = ticket_sla_business_seconds_sql($referenceSql);
+    $criticalAgeFromHighSql = ticket_sla_business_seconds_sql('auto_escalated_high_at');
+    $highThresholdSeconds = 3 * ticket_sla_workday_seconds();
+    $criticalThresholdSeconds = 6 * ticket_sla_workday_seconds();
+
     $sql = "
         SELECT id
         FROM employee_tickets
@@ -3445,10 +3430,17 @@ function ticket_apply_sla_priority(mysqli $conn, bool $force = false): array
           AND (
                 (
                     COALESCE(priority, '') IN ('', 'Low', 'High')
-                    AND " . ticket_escalation_reference_sql() . " IS NOT NULL
+                    AND $referenceSql IS NOT NULL
                     AND (
-                        (DATE_ADD(" . ticket_escalation_reference_sql() . ", INTERVAL 5 MINUTE) <= NOW() AND auto_escalated_high_at IS NULL)
-                        OR (DATE_ADD(COALESCE(auto_escalated_high_at, DATE_ADD(" . ticket_escalation_reference_sql() . ", INTERVAL 5 MINUTE)), INTERVAL 5 MINUTE) <= NOW() AND (priority = 'High' OR auto_escalated_high_at IS NOT NULL) AND auto_escalated_critical_at IS NULL)
+                        ($highAgeSql >= $highThresholdSeconds AND auto_escalated_high_at IS NULL)
+                        OR (
+                            (priority = 'High' OR auto_escalated_high_at IS NOT NULL)
+                            AND auto_escalated_critical_at IS NULL
+                            AND (
+                                (auto_escalated_high_at IS NOT NULL AND $criticalAgeFromHighSql >= $highThresholdSeconds)
+                                OR (auto_escalated_high_at IS NULL AND $highAgeSql >= $criticalThresholdSeconds)
+                            )
+                        )
                     )
                 )
                 OR (auto_escalated_high_at IS NOT NULL AND (auto_escalated_high_notified_at IS NULL OR auto_escalated_high_emailed_at IS NULL))
@@ -3461,7 +3453,7 @@ function ticket_apply_sla_priority(mysqli $conn, bool $force = false): array
                     )
                 )
           )
-        ORDER BY " . ticket_escalation_reference_sql() . " ASC, id ASC
+        ORDER BY $referenceSql ASC, id ASC
     ";
     $res = $conn->query($sql);
     while ($res && ($row = $res->fetch_assoc())) {

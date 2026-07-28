@@ -648,32 +648,6 @@ var TMTicketModal = (function () {
       minute: '2-digit'
     });
   }
-  function getEffectiveSlaVariant(createdAt, status, priority) {
-    var statusKey = status == null ? '' : String(status).trim().toLowerCase();
-    if (statusKey === 'resolved' || statusKey === 'closed') return '';
-    var priorityKey = priority == null ? '' : String(priority).trim().toLowerCase();
-    var days = 0;
-    if (createdAt) {
-      var created = createdAt instanceof Date ? createdAt : new Date(createdAt);
-      if (!isNaN(created.getTime())) {
-        var now = new Date();
-        var createdDay = new Date(created.getFullYear(), created.getMonth(), created.getDate());
-        var nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        var diffMs = nowDay.getTime() - createdDay.getTime();
-        days = diffMs > 0 ? Math.floor(diffMs / 86400000) : 0;
-      }
-    }
-    if (priorityKey === 'critical' || days >= 6) return 'high';
-    if (priorityKey === 'high' || days >= 3) return 'medium';
-    return 'low';
-  }
-  function getEffectiveSlaLabel(createdAt, status, priority) {
-    var variant = getEffectiveSlaVariant(createdAt, status, priority);
-    if (variant === 'high') return 'Breach';
-    if (variant === 'medium') return 'At Risk';
-    if (variant === 'low') return 'On Track';
-    return '';
-  }
   function assignedCompanyUsesDepartment(companyValue) {
     var normalized = normalizeCompanyValue(companyValue);
     if (normalized === '@leadsagri.com' || normalized === '@malvedaholdings.com') return true;
@@ -1407,6 +1381,15 @@ var TMTicketModal = (function () {
     if (!data || !data.hr_display || typeof data.hr_display !== 'object') return null;
     return data.hr_display;
   }
+  function isLapcHrDepartmentTicket(data) {
+    var assignedCompany = String((data && data.assigned_company) || '').trim().toLowerCase();
+    var assignedGroup = String((data && (data.assigned_group || data.assigned_department)) || '').trim().toUpperCase();
+    return assignedCompany === '@leadsagri.com' && assignedGroup === 'HR';
+  }
+  function hasTicketAttachments(data) {
+    if (data && Array.isArray(data.attachments) && data.attachments.length > 0) return true;
+    return !!(data && data.attachment);
+  }
   function normalizeDisplaySubject(subject) {
     var text = subject == null ? '' : String(subject).trim();
     if (!text) return 'Ticket';
@@ -2073,9 +2056,10 @@ var TMTicketModal = (function () {
     var compose = input.closest ? input.closest('.tm-messenger-compose') : null;
     if (compose) compose.classList.toggle('is-expanded', nextHeight > 52);
   }
-  function renderHrRequestDetailsCard(data) {
+  function renderHrRequestDetailsCard(data, footerHtml, includeWithAttachments) {
     var hr = getHrDisplay(data);
     if (!hr || !hr.is_hr_special) return '';
+    if (!includeWithAttachments && hasTicketAttachments(data)) return '';
     var items = [];
     var summaryFields = Array.isArray(hr.summary_fields) ? hr.summary_fields : [];
     summaryFields.forEach(function (field) {
@@ -2086,12 +2070,14 @@ var TMTicketModal = (function () {
       ? String(hr.detail_text || '')
       : String((data && data.description) || '');
     var descriptionHtml = descriptionText
-      ? '<div class="tm-hr-section"><div class="tm-info-label">' + escapeHtml(String(hr.detail_label || 'Description')).toUpperCase() + '</div><div class="tm-info-value">' + escapeHtml(descriptionText).replace(/\n/g, '<br>') + '</div></div>'
+      ? '<div class="tm-hr-section"><div class="tm-info-value tm-ticket-description-surface">' + escapeHtml(descriptionText).replace(/\n/g, '<br>') + '</div></div>'
       : '';
     if (!items.length && !descriptionHtml) return '';
     return '<div class="tm-card tm-card-request-details"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(String(hr.request_section_title || 'Request Details')) + '</span></div><div class="tm-card-body">' +
-      (items.length ? '<div class="tm-info-grid tm-info-grid-compact">' + items.join('') + '</div>' : '') +
-      descriptionHtml +
+      '<div class="tm-ticket-content-scroll tm-ticket-description-scroll">' +
+        (items.length ? '<div class="tm-info-grid tm-info-grid-compact">' + items.join('') + '</div>' : '') +
+        descriptionHtml +
+      '</div>' + String(footerHtml || '') +
       '</div></div>';
   }
   function parseSalesTicketDescriptionMeta(data) {
@@ -2128,10 +2114,8 @@ var TMTicketModal = (function () {
     return html;
   }
   function isLapcHrIncidentReportTicket(data) {
-    var assignedCompany = String((data && data.assigned_company) || '').trim().toLowerCase();
-    var assignedGroup = String((data && (data.assigned_group || data.assigned_department)) || '').trim();
     var category = String((data && data.category) || '').trim();
-    return assignedCompany === '@leadsagri.com' && assignedGroup === 'HR' && category === 'Incident Report';
+    return isLapcHrDepartmentTicket(data) && category === 'Incident Report';
   }
   function parseIncidentReportDisplay(data) {
     var descriptionText = String((data && data.description) || '');
@@ -2168,39 +2152,52 @@ var TMTicketModal = (function () {
         '</a>';
     }).join('') + '</div>';
   }
-  function renderIncidentReportDetailsCard(data) {
+  function renderIncidentReportDetailsCard(data, footerHtml, includeWithAttachments) {
     if (!isLapcHrIncidentReportTicket(data)) return '';
+    if (!includeWithAttachments && hasTicketAttachments(data)) return '';
     var incident = parseIncidentReportDisplay(data);
     var carouselId = 'tmIncidentDisplay-' + String(++sapDisplaySeq);
     var summaryText = incident.summary || '-';
+    var driveHtml = incident.gdriveLink
+      ? '<div class="tm-incident-section-title tm-incident-drive-title">GDrive Link (Video)</div>' +
+        '<a class="tm-incident-drive-row" href="' + escapeHtml(incident.gdriveLink) + '" target="_blank" rel="noopener noreferrer">' +
+          '<span class="tm-incident-drive-icon"><i class="fab fa-google-drive"></i></span>' +
+          '<span class="tm-incident-drive-url">' + escapeHtml(incident.gdriveLink) + '</span>' +
+        '</a>'
+      : '';
+    if (footerHtml) {
+      var embeddedIncidentHtml = '<div class="tm-incident-field">' +
+          '<div class="tm-incident-summary-box tm-ticket-description-surface">' + escapeHtml(summaryText).replace(/\n/g, '<br>') + '</div>' +
+        '</div>' +
+        (driveHtml ? '<div style="margin-top:18px;">' + driveHtml + '</div>' : '');
+      return '<div class="tm-card tm-card-description tm-card-incident-report"><div class="tm-card-header"><span class="tm-card-title">Incident Report</span></div><div class="tm-card-body">' +
+        '<div class="tm-ticket-content-scroll tm-ticket-description-scroll">' + embeddedIncidentHtml + '</div>' + String(footerHtml) +
+        '</div></div>';
+    }
     var slides = [
       '<div class="tm-sap-card tm-incident-card is-active" data-index="0" aria-hidden="false">' +
         '<div class="tm-incident-field">' +
-          '<div class="tm-incident-label">Short Summary of IR</div>' +
-          '<div class="tm-incident-summary-box">' + escapeHtml(summaryText).replace(/\n/g, '<br>') + '</div>' +
+          '<div class="tm-incident-summary-box tm-ticket-description-surface">' + escapeHtml(summaryText).replace(/\n/g, '<br>') + '</div>' +
         '</div>' +
-      '</div>',
-      '<div class="tm-sap-card tm-incident-card is-attachments" data-index="1" aria-hidden="true">' +
-        '<div class="tm-incident-section-title tm-incident-drive-title">GDrive Link (Video)</div>' +
-        (incident.gdriveLink
-          ? '<a class="tm-incident-drive-row" href="' + escapeHtml(incident.gdriveLink) + '" target="_blank" rel="noopener noreferrer">' +
-              '<span class="tm-incident-drive-icon"><i class="fab fa-google-drive"></i></span>' +
-              '<span class="tm-incident-drive-url">' + escapeHtml(incident.gdriveLink) + '</span>' +
-            '</a>'
-          : '<div class="tm-incident-empty">No Google Drive video link provided.</div>') +
       '</div>'
     ];
-    return '<div class="tm-sap-display tm-incident-display">' +
+    if (driveHtml) {
+      slides.push('<div class="tm-sap-card tm-incident-card is-attachments" data-index="1" aria-hidden="true">' + driveHtml + '</div>');
+    }
+    var incidentHtml = '<div class="tm-sap-display tm-incident-display">' +
       '<div class="tm-sap-carousel" id="' + carouselId + '" data-index="0">' +
         '<div class="tm-incident-card-header"><span class="tm-incident-card-icon"><i class="fas fa-file-alt"></i></span><span>Incident Report Form</span></div>' +
         slides.join('') +
-        '<div class="tm-sap-actions">' +
-          '<button type="button" class="tm-sap-nav-btn" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', -1)">Previous</button>' +
-          '<span class="tm-sap-counter" data-sap-counter>1 of 2</span>' +
-          '<button type="button" class="tm-sap-nav-btn primary" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', 1)">Next</button>' +
-        '</div>' +
+        (slides.length > 1
+          ? '<div class="tm-sap-actions">' +
+              '<button type="button" class="tm-sap-nav-btn" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', -1)">Previous</button>' +
+              '<span class="tm-sap-counter" data-sap-counter>1 of ' + String(slides.length) + '</span>' +
+              '<button type="button" class="tm-sap-nav-btn primary" onclick="TMTicketModal.stepSapDisplay(\'' + carouselId + '\', 1)">Next</button>' +
+            '</div>'
+          : '') +
       '</div>' +
     '</div>';
+    return incidentHtml;
   }
   function renderDescriptionCard(data, footerHtml) {
     var hr = getHrDisplay(data);
@@ -2232,7 +2229,7 @@ var TMTicketModal = (function () {
         lines = lines.slice(1);
       }
       if (lines.length > 0) {
-        descriptionHtml = '<div class="tm-desc-text">';
+        descriptionHtml = '<div class="tm-desc-text tm-ticket-description-surface">';
         lines.forEach(function (line, index) {
           var colonIndex = line.indexOf(':');
           if (colonIndex > 0 && colonIndex < line.length - 1) {
@@ -2252,7 +2249,7 @@ var TMTicketModal = (function () {
       }
     }
     var emptyHtml = !descriptionHtml ? '<div class="tm-info-value">-</div>' : '';
-    return '<div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(title) + '</span></div><div class="tm-card-body"><div class="tm-ticket-content-scroll">' + descriptionHtml + emptyHtml + '</div>' + String(footerHtml || '') + '</div></div>';
+    return '<div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(title) + '</span></div><div class="tm-card-body"><div class="tm-ticket-content-scroll tm-ticket-description-scroll">' + descriptionHtml + emptyHtml + '</div>' + String(footerHtml || '') + '</div></div>';
   }
   function renderAttachmentCard(data, footerHtml, preparedAttachmentsHtml) {
     var attachmentsHtml = preparedAttachmentsHtml || renderAttachmentsBlock(data, { showAll: true });
@@ -2273,7 +2270,19 @@ var TMTicketModal = (function () {
       '<span class="tm-attachment-page-counter">2 of 2</span>' +
       '<button type="button" class="tm-attachment-page-btn primary" onclick="TMTicketModal.showTicketContentPage(\'' + pagerId + '\', 0)">Next</button>' +
       '</div>';
-    var descriptionCard = renderDescriptionCard(data, descriptionNavigation);
+    var descriptionCard = '';
+    if (isLapcHrDepartmentTicket(data)) {
+      if (isLapcHrIncidentReportTicket(data)) {
+        descriptionCard = renderIncidentReportDetailsCard(data, descriptionNavigation, true);
+      } else {
+        var hr = getHrDisplay(data);
+        descriptionCard = hr && hr.is_hr_special
+          ? renderHrRequestDetailsCard(data, descriptionNavigation, true)
+          : renderDescriptionCard(data, descriptionNavigation);
+      }
+    } else {
+      descriptionCard = renderDescriptionCard(data, descriptionNavigation);
+    }
     if (!descriptionCard) return renderAttachmentCard(data, '', attachmentsHtml);
     return '<div class="tm-ticket-content-pager" id="' + pagerId + '" data-index="0">' +
       '<section class="tm-ticket-content-page is-active" data-index="0" aria-hidden="false">' + descriptionCard + '</section>' +
@@ -2298,15 +2307,6 @@ var TMTicketModal = (function () {
       return !!n.filename && isImageFile(n.filename);
     });
   }
-  function computeResolutionMinutes(createdAt, updatedAt) {
-    if (!createdAt || !updatedAt) return null;
-    var c = new Date(createdAt);
-    var u = new Date(updatedAt);
-    if (isNaN(c.getTime()) || isNaN(u.getTime())) return null;
-    var diffMs = u.getTime() - c.getTime();
-    if (diffMs <= 0) return 0;
-    return Math.round(diffMs / 60000);
-  }
   function formatResolutionString(minutes) {
     if (minutes == null) return null;
     if (minutes < 60) {
@@ -2319,15 +2319,6 @@ var TMTicketModal = (function () {
     var mins = minutes % 60;
     if (mins === 0) return hrs + ' ' + (hrs === 1 ? 'hr' : 'hrs');
     return hrs + ' ' + (hrs === 1 ? 'hr' : 'hrs') + ' ' + mins + ' ' + (mins === 1 ? 'min' : 'mins');
-  }
-  function computeResolutionSeconds(createdAt, updatedAt) {
-    if (!createdAt || !updatedAt) return null;
-    var c = new Date(createdAt);
-    var u = new Date(updatedAt);
-    if (isNaN(c.getTime()) || isNaN(u.getTime())) return null;
-    var diffMs = u.getTime() - c.getTime();
-    if (diffMs <= 0) return 0;
-    return Math.round(diffMs / 1000);
   }
   function formatResolutionStringWithSeconds(totalSeconds) {
     if (totalSeconds == null) return null;
@@ -3161,13 +3152,16 @@ var TMTicketModal = (function () {
     var prioritySlug = urgencySlugSource.indexOf('high') === 0 ? 'high' : (urgencySlugSource.indexOf('medium') === 0 ? 'medium' : (urgencySlugSource.indexOf('low') === 0 ? 'low' : 'default'));
     var resolutionStart = (data && (data.started_at || data.created_at)) ? (data.started_at || data.created_at) : null;
     var resolutionEnd = (data && data.status && (/^(Resolved|Closed)$/i).test(String(data.status)))
-      ? (data.resolved_at || data.updated_at || null)
+      ? (data.resolved_at || data.closed_at || data.updated_at || null)
       : null;
-    var resMinutesAll = computeResolutionMinutes(resolutionStart, resolutionEnd);
-    var resSecondsAll = computeResolutionSeconds(resolutionStart, resolutionEnd);
+    var resSecondsAll = data && data.duration_seconds != null && data.duration_seconds !== ''
+      ? Math.max(0, Number(data.duration_seconds))
+      : null;
+    if (resSecondsAll != null && !isFinite(resSecondsAll)) resSecondsAll = null;
+    var resMinutesAll = resSecondsAll == null ? null : Math.round(resSecondsAll / 60);
     var backendStr = data && data.duration ? String(data.duration) : null;
     var displayStr = resolutionEnd
-      ? (formatResolutionStringWithSeconds(resSecondsAll) || formatResolutionString(resMinutesAll))
+      ? (formatResolutionStringWithSeconds(resSecondsAll) || backendStr || formatResolutionString(resMinutesAll))
       : backendStr;
     var cls = getDurationClass(displayStr, resMinutesAll);
     var isRunning = !resolutionEnd && !!(data && data.started_at);

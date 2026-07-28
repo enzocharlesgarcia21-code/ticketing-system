@@ -2589,8 +2589,8 @@ $successMessage = '';
             display: flex;
         }
         body.employee-my-tickets-page .feedback-modal-dialog {
-            width: min(100%, 390px);
-            height: 390px;
+            width: min(100%, 430px);
+            height: 400px;
             max-height: calc(100vh - 44px);
             background: #ffffff;
             border-radius: 12px;
@@ -2737,7 +2737,10 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .feedback-step {
             display: none;
+            width: 100%;
+            max-width: 520px;
             height: 100%;
+            margin: 0 auto;
             text-align: center;
             flex-direction: column;
             justify-content: center;
@@ -2887,6 +2890,16 @@ $successMessage = '';
             font-size: 17px;
             line-height: 1.35;
         }
+        body.employee-my-tickets-page .feedback-excellent-copy {
+            display: grid;
+            justify-items: center;
+            gap: 30px;
+            width: 100%;
+        }
+        body.employee-my-tickets-page .feedback-excellent-copy .feedback-question-title,
+        body.employee-my-tickets-page .feedback-excellent-copy .feedback-question-copy {
+            margin-bottom: 0;
+        }
         body.employee-my-tickets-page .feedback-step-excellent .feedback-excellent-close {
             display: none;
         }
@@ -2956,8 +2969,8 @@ $successMessage = '';
             position: relative;
         }
         body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-textarea {
-            min-height: 100px;
-            max-height: 100px;
+            min-height: 130px;
+            max-height: 130px;
             padding: 13px 13px 28px;
             border-color: #1B5E20;
             border-radius: 7px;
@@ -3116,6 +3129,136 @@ $successMessage = '';
             opacity: 0.6;
             cursor: not-allowed;
             box-shadow: none;
+        }
+        @media (min-width: 641px) {
+            body.employee-my-tickets-page .feedback-step {
+                max-width: 370px;
+            }
+            body.employee-my-tickets-page .feedback-hero-icon {
+                width: 74px;
+                height: 74px;
+                margin-bottom: 14px;
+                font-size: 36px;
+            }
+            body.employee-my-tickets-page .feedback-question-title {
+                margin-bottom: 10px;
+                font-size: 24px;
+            }
+            body.employee-my-tickets-page .feedback-question-copy {
+                max-width: 380px;
+                margin-bottom: 18px;
+                font-size: 16px;
+            }
+            body.employee-my-tickets-page .feedback-step-satisfied .feedback-hero-icon {
+                width: 62px;
+                height: 62px;
+                margin-bottom: 12px;
+                font-size: 30px;
+            }
+            body.employee-my-tickets-page .feedback-step-satisfied .feedback-question-title {
+                margin-bottom: 8px;
+                font-size: 21px;
+            }
+            body.employee-my-tickets-page .feedback-step-satisfied .feedback-question-copy {
+                max-width: 320px;
+                margin-bottom: 14px;
+                font-size: 14px;
+            }
+            body.employee-my-tickets-page .feedback-step-satisfied .feedback-choice-stack {
+                gap: 10px;
+            }
+            body.employee-my-tickets-page .feedback-step-satisfied .feedback-choice-btn {
+                min-height: 48px;
+                font-size: 14px;
+            }
+            body.employee-my-tickets-page .feedback-choice-btn,
+            body.employee-my-tickets-page .feedback-excellent-btn {
+                min-height: 52px;
+                font-size: 15px;
+            }
+            body.employee-my-tickets-page .feedback-footer-note {
+                max-width: 360px;
+                margin-top: 10px;
+                font-size: 12px;
+            }
+            body.employee-my-tickets-page .feedback-step-excellent .feedback-hero-icon {
+                width: 84px;
+                height: 84px;
+                margin-bottom: 0;
+                font-size: 42px;
+            }
+            body.employee-my-tickets-page .feedback-step-excellent .feedback-question-title {
+                margin-bottom: 0;
+                font-size: 24px;
+            }
+            body.employee-my-tickets-page .feedback-step-excellent .feedback-question-copy {
+                max-width: 320px;
+                margin-bottom: 0;
+                font-size: 16px;
+            }
+            body.employee-my-tickets-page .feedback-excellent-divider {
+                max-width: 320px;
+                margin-bottom: 0;
+            }
+            body.employee-my-tickets-page .feedback-excellent-btn {
+                max-width: 320px;
+                min-height: 50px;
+            }
+            body.employee-my-tickets-page .feedback-excellent-btn span {
+                font-size: 15px;
+            }
+            body.employee-my-tickets-page .feedback-excellent-btn i {
+                font-size: 19px;
+            }
+            body.employee-my-tickets-page .feedback-step-excellent {
+                justify-content: space-evenly;
+                transform: none;
+            }
+            body.employee-my-tickets-page .feedback-modal-dialog.is-excellent-step .feedback-modal-header,
+            body.employee-my-tickets-page .feedback-modal-dialog.is-dissatisfied-step .feedback-modal-header {
+                height: 0;
+                min-height: 0;
+            }
+            body.employee-my-tickets-page .feedback-modal-dialog.is-excellent-step .feedback-modal-body,
+            body.employee-my-tickets-page .feedback-modal-dialog.is-dissatisfied-step .feedback-modal-body {
+                height: 100%;
+                padding-bottom: 12px;
+            }
+            body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-hero-icon {
+                width: 58px;
+                height: 58px;
+                margin-bottom: 10px;
+                font-size: 28px;
+            }
+            body.employee-my-tickets-page .feedback-step-dissatisfied {
+                transform: none;
+            }
+            body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-question-title {
+                margin-bottom: 8px;
+                font-size: 24px;
+            }
+            body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-question-copy {
+                max-width: 380px;
+                margin-bottom: 10px;
+                font-size: 15px;
+            }
+            body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-textarea {
+                min-height: 110px;
+                max-height: 110px;
+                font-size: 14px;
+            }
+            body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-negative-actions {
+                width: 100%;
+                max-width: 300px;
+                margin: 14px auto 0;
+                gap: 12px;
+                transform: none;
+            }
+            body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-negative-cancel,
+            body.employee-my-tickets-page .feedback-step-dissatisfied .feedback-negative-submit {
+                min-height: 40px;
+                font-size: 13px;
+            }
         }
         @media (max-width: 900px) {
             body.employee-my-tickets-page .feedback-modal-header,
@@ -3560,8 +3703,10 @@ $successMessage = '';
                         <div class="feedback-step feedback-step-excellent" data-feedback-step="excellent">
                             <button type="button" class="feedback-excellent-close" id="feedbackExcellentCloseBtn" aria-label="Close feedback">&times;</button>
                             <div class="feedback-hero-icon feedback-star-hero" aria-hidden="true"><i class="far fa-star"></i></div>
-                            <h3 class="feedback-question-title">Thank you!</h3>
-                            <p class="feedback-question-copy">We're glad to hear that you had a positive experience.</p>
+                            <div class="feedback-excellent-copy">
+                                <h3 class="feedback-question-title">Thank you!</h3>
+                                <p class="feedback-question-copy">We're glad to hear that you had a positive experience.</p>
+                            </div>
                             <div class="feedback-excellent-divider" aria-hidden="true"></div>
                             <button type="submit" class="feedback-excellent-btn" id="feedbackExcellentBtn">
                                 <i class="far fa-star" aria-hidden="true"></i>
@@ -4222,6 +4367,11 @@ $successMessage = '';
 
     function setFeedbackStep(stepName) {
         if (!feedbackModal) return;
+        var feedbackDialog = feedbackModal.querySelector('.feedback-modal-dialog');
+        if (feedbackDialog) {
+            feedbackDialog.classList.toggle('is-excellent-step', stepName === 'excellent');
+            feedbackDialog.classList.toggle('is-dissatisfied-step', stepName === 'dissatisfied');
+        }
         feedbackModal.querySelectorAll('.feedback-step').forEach(function (stepEl) {
             stepEl.classList.toggle('is-active', stepEl.getAttribute('data-feedback-step') === stepName);
         });
@@ -4730,13 +4880,6 @@ $successMessage = '';
                 setFeedbackDissatisfiedRating();
             } else {
                 setFeedbackExcellentRating();
-            }
-        });
-    }
-    if (feedbackModal) {
-        feedbackModal.addEventListener('click', function (event) {
-            if (event.target === feedbackModal) {
-                closeFeedbackModal();
             }
         });
     }

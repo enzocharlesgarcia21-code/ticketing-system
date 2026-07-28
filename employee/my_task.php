@@ -1475,6 +1475,18 @@ $showing_to = min($offset + $limit, (int) $total_records);
             color: #dc2626;
         }
 
+        @media (min-width: 769px) {
+            body.employee-my-task-page #ticketModal .tm-body {
+                padding: 34px 46px 38px;
+                gap: 24px;
+            }
+        }
+
+        body.employee-my-task-page #ticketModal .modal-content,
+        body.employee-my-task-page #ticketModal .modal-content *:not(i):not(svg):not(path):not(.tm-id) {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
         body.employee-my-task-page #tasksPagination .pagination-glass {
             flex-wrap: nowrap;
         }
@@ -1651,9 +1663,9 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
                     <div class="my-tickets-filter-select-wrap my-tickets-reassignment-filter">
                         <select name="reassignment" class="my-tickets-filter-select" id="filterReassignment">
-                            <option value="" <?= $reassignment === '' ? 'selected' : '' ?>>All Tickets</option>
+                            <option value="" <?= $reassignment === '' ? 'selected' : '' ?> hidden>All Tickets</option>
+                            <option value="not_reassigned" <?= $reassignment === 'not_reassigned' ? 'selected' : '' ?>>Assigned</option>
                             <option value="reassigned" <?= $reassignment === 'reassigned' ? 'selected' : '' ?>>Reassigned</option>
-                            <option value="not_reassigned" <?= $reassignment === 'not_reassigned' ? 'selected' : '' ?>>Not Reassigned</option>
                         </select>
                     </div>
 

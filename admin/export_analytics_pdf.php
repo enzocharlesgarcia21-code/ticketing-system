@@ -164,8 +164,10 @@ function analytics_export_fetch_rows(mysqli $conn, array $filters): array
             t.description,
             t.category,
             t.created_at,
+            t.started_at,
             t.updated_at,
             t.resolved_at,
+            t.closed_at,
             t.status,
             COALESCE(NULLIF(t.assigned_department, ''), NULLIF(t.assigned_group, ''), '-') AS attending_it,
             COALESCE(NULLIF(t.requester_name, ''), NULLIF(u.name, ''), '-') AS client_name,
@@ -192,20 +194,18 @@ function analytics_export_fetch_rows(mysqli $conn, array $filters): array
     $rows = [];
     while ($row = $res->fetch_assoc()) {
         $createdAt = trim((string) ($row['created_at'] ?? ''));
+        $startedAt = trim((string) ($row['started_at'] ?? ''));
         $resolvedAt = trim((string) ($row['resolved_at'] ?? ''));
+        $closedAt = trim((string) ($row['closed_at'] ?? ''));
         $updatedAt = trim((string) ($row['updated_at'] ?? ''));
-        $endDateSource = $resolvedAt !== '' ? $resolvedAt : $updatedAt;
+        $completionAt = $resolvedAt !== '' ? $resolvedAt : $closedAt;
+        $endDateSource = $completionAt !== '' ? $completionAt : $updatedAt;
 
         $duration = '-';
-        if ($createdAt !== '' && $resolvedAt !== '') {
-            try {
-                $start = new DateTimeImmutable($createdAt);
-                $end = new DateTimeImmutable($resolvedAt);
-                $seconds = max(0, $end->getTimestamp() - $start->getTimestamp());
-                $duration = gmdate('H:i:s', $seconds);
-            } catch (Throwable $e) {
-                $duration = '-';
-            }
+        $resolutionStart = $startedAt !== '' ? $startedAt : $createdAt;
+        if ($resolutionStart !== '' && $completionAt !== '') {
+            $seconds = ticket_business_seconds_between($resolutionStart, $completionAt);
+            $duration = ticket_format_business_duration_clock($seconds);
         }
 
         $rows[] = [
@@ -217,7 +217,7 @@ function analytics_export_fetch_rows(mysqli $conn, array $filters): array
             'request_concern' => trim((string) ($row['description'] ?? '')) !== '' ? trim((string) $row['description']) : (string) ($row['subject'] ?? '-'),
             'category' => (string) ($row['category'] ?? '-'),
             'time_reported' => $createdAt !== '' ? date('h:i A', strtotime($createdAt)) : '-',
-            'time_resolved' => $resolvedAt !== '' ? date('h:i A', strtotime($resolvedAt)) : '-',
+            'time_resolved' => $completionAt !== '' ? date('h:i A', strtotime($completionAt)) : '-',
             'status' => (string) ($row['status'] ?? '-'),
             'duration' => $duration,
         ];

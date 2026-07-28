@@ -158,6 +158,18 @@ $mhcDepartmentCategories = [
     ],
 ];
 
+$requestGuidanceCompanyMeta = [
+    '@farmasee.ph' => ['icon' => 'fa-store', 'tone' => 'emerald'],
+    '@leads-farmex.com' => ['icon' => 'fa-seedling', 'tone' => 'green'],
+    '@gpsci.net' => ['icon' => 'fa-flask', 'tone' => 'violet'],
+    '@leadsagri.com' => ['icon' => 'fa-leaf', 'tone' => 'lime'],
+    '@lingapleads.org' => ['icon' => 'fa-hand-holding-heart', 'tone' => 'rose'],
+    '@leadstech-corp.com' => ['icon' => 'fa-microchip', 'tone' => 'blue'],
+    '@malvedaholdings.com' => ['icon' => 'fa-building', 'tone' => 'amber'],
+    '@malvedaproperties.com' => ['icon' => 'fa-helmet-safety', 'tone' => 'cyan'],
+    '@primestocks.ph' => ['icon' => 'fa-industry', 'tone' => 'orange'],
+];
+
 $requestTicketCompanyOptions = [
     '@leadstech-corp.com' => 'LTC',
     '@gpsci.net' => 'GPSCI',
@@ -183,6 +195,55 @@ $initialShowDepartment = ticket_company_requires_department($selectedRecipientCo
 if ($selectedRecipientDepartment === '' && count($initialSalesDepartmentOptions) === 1) {
     $selectedRecipientDepartment = (string) ($initialSalesDepartmentOptions[0] ?? '');
 }
+
+$requestGuidanceCompanyOptions = ticket_receiving_available_company_options($conn);
+$requestGuidanceCompanyOptions = array_map(static function ($guidanceLabel): string {
+    $guidanceLabel = trim((string) $guidanceLabel);
+    if ($guidanceLabel === 'GPSCI') {
+        return 'GPCI';
+    }
+    return str_replace('Golden Primestocks Chemical Inc - GPSCI', 'Golden Primestocks Chemical Inc - GPCI', $guidanceLabel);
+}, $requestGuidanceCompanyOptions);
+asort($requestGuidanceCompanyOptions, SORT_NATURAL | SORT_FLAG_CASE);
+
+$requestGuidanceCompanies = [];
+foreach ($requestGuidanceCompanyOptions as $guidanceCompanyValue => $guidanceCompanyLabel) {
+    $guidanceRequiresDepartment = ticket_company_requires_department((string) $guidanceCompanyValue);
+    $guidanceDepartments = $guidanceRequiresDepartment
+        ? ticket_receiving_available_departments($conn, (string) $guidanceCompanyValue)
+        : [];
+    $guidanceDirectCategories = $defaultCategories;
+    if ($guidanceCompanyValue === '@malvedaproperties.com') {
+        $guidanceDirectCategories = $mpdcCategories;
+    } elseif ($guidanceCompanyValue === '@lingapleads.org') {
+        $guidanceDirectCategories = $lingapCategories;
+    }
+
+    $guidanceDepartmentRows = [];
+    foreach ($guidanceDepartments as $guidanceDepartment) {
+        $guidanceCategories = $defaultCategories;
+        if ($guidanceCompanyValue === '@malvedaholdings.com' && isset($mhcDepartmentCategories[$guidanceDepartment])) {
+            $guidanceCategories = $mhcDepartmentCategories[$guidanceDepartment];
+        } elseif ($guidanceCompanyValue === '@leadsagri.com' && isset($lapcDepartmentCategories[$guidanceDepartment])) {
+            $guidanceCategories = $lapcDepartmentCategories[$guidanceDepartment];
+        }
+        $guidanceDepartmentRows[] = [
+            'name' => (string) $guidanceDepartment,
+            'categories' => array_values($guidanceCategories),
+        ];
+    }
+
+    $requestGuidanceCompanies[] = [
+        'value' => (string) $guidanceCompanyValue,
+        'label' => (string) $guidanceCompanyLabel,
+        'icon' => (string) ($requestGuidanceCompanyMeta[$guidanceCompanyValue]['icon'] ?? 'fa-building'),
+        'tone' => (string) ($requestGuidanceCompanyMeta[$guidanceCompanyValue]['tone'] ?? 'green'),
+        'requires_department' => $guidanceRequiresDepartment,
+        'departments' => $guidanceDepartmentRows,
+        'categories' => array_values($guidanceDirectCategories),
+    ];
+}
+$requestGuidanceOpenCompany = $selectedRecipientCompany !== '' ? $selectedRecipientCompany : '@leadsagri.com';
 
 function derive_name_from_email(string $email): string
 {
@@ -4947,6 +5008,692 @@ if ($normalized_company_id === '@malvedaproperties.com') {
                 margin-top: 14px;
             }
         }
+        body.sales-request-ticket-page .sales-container {
+            max-width: 1280px;
+            margin-top: 0;
+            padding-top: 0;
+        }
+        body.sales-request-ticket-page .sales-page-header {
+            margin-bottom: 0;
+            padding: 18px 16px 14px;
+        }
+        body.sales-request-ticket-page .request-ticket-layout {
+            display: grid;
+            grid-template-columns: minmax(360px, 400px) minmax(0, 1fr);
+            gap: 24px;
+            align-items: start;
+        }
+        body.sales-request-ticket-page .request-ticket-layout > .form-card {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+        }
+        body.sales-request-ticket-page .request-guidance-sidebar {
+            position: sticky;
+            top: 104px;
+            display: grid;
+            gap: 14px;
+            min-width: 0;
+        }
+        body.sales-request-ticket-page .request-guidance-card,
+        body.sales-request-ticket-page .request-tips-card {
+            overflow: hidden;
+            border: 1px solid #dbe4df;
+            border-radius: 16px;
+            background: #fff;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, .06);
+        }
+        body.sales-request-ticket-page .request-guidance-heading {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 17px 18px 15px;
+            border-bottom: 1px solid #e5ebe7;
+            background: linear-gradient(180deg, #fff 0%, #fbfefc 100%);
+        }
+        body.sales-request-ticket-page .request-guidance-heading-icon,
+        body.sales-request-ticket-page .request-tips-icon {
+            width: 28px;
+            height: 28px;
+            flex: 0 0 28px;
+            border: 2px solid #147233;
+            border-radius: 999px;
+            color: #147233;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        body.sales-request-ticket-page .request-guidance-heading h2,
+        body.sales-request-ticket-page .request-tips-title {
+            margin: 0;
+            color: #14532d;
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+        body.sales-request-ticket-page .request-guidance-heading p {
+            margin: 3px 0 0;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        body.sales-request-ticket-page .request-guidance-directory {
+            max-height: min(520px, calc(100vh - 400px));
+            min-height: 280px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding: 10px;
+            scrollbar-width: thin;
+            scrollbar-color: #9fb1a5 #eef4f0;
+        }
+        body.sales-request-ticket-page .request-company-guide {
+            margin: 0 0 8px;
+            border: 1px solid #dfe7e2;
+            border-radius: 12px;
+            background: #fff;
+        }
+        body.sales-request-ticket-page .request-company-guide:last-child { margin-bottom: 0; }
+        body.sales-request-ticket-page .request-company-guide summary {
+            display: grid;
+            grid-template-columns: 32px minmax(0, 1fr) 18px;
+            gap: 10px;
+            align-items: center;
+            min-height: 54px;
+            padding: 8px 12px;
+            cursor: pointer;
+            list-style: none;
+        }
+        body.sales-request-ticket-page .request-company-guide summary::-webkit-details-marker { display: none; }
+        body.sales-request-ticket-page .request-company-guide[open] summary {
+            border-bottom: 1px solid #e5ebe7;
+            background: #f7fcf8;
+        }
+        body.sales-request-ticket-page .request-company-icon,
+        body.sales-request-ticket-page .request-department-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            background: #eaf8ee;
+            color: #147233;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+        }
+        body.sales-request-ticket-page .request-company-icon.is-emerald { background:#e7f8f0; color:#047857; }
+        body.sales-request-ticket-page .request-company-icon.is-green { background:#eaf8ee; color:#15803d; }
+        body.sales-request-ticket-page .request-company-icon.is-violet { background:#f1eafe; color:#7c3aed; }
+        body.sales-request-ticket-page .request-company-icon.is-lime { background:#eff9df; color:#4d7c0f; }
+        body.sales-request-ticket-page .request-company-icon.is-rose { background:#fff0f3; color:#e11d48; }
+        body.sales-request-ticket-page .request-company-icon.is-blue { background:#eaf2ff; color:#2563eb; }
+        body.sales-request-ticket-page .request-company-icon.is-amber { background:#fff7df; color:#b45309; }
+        body.sales-request-ticket-page .request-company-icon.is-cyan { background:#e6f8fb; color:#0891b2; }
+        body.sales-request-ticket-page .request-company-icon.is-orange { background:#fff0e5; color:#ea580c; }
+        body.sales-request-ticket-page .request-company-copy { min-width: 0; }
+        body.sales-request-ticket-page .request-company-name {
+            display: block;
+            color: #14532d;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+        body.sales-request-ticket-page .request-company-domain {
+            display: block;
+            margin-top: 2px;
+            overflow: hidden;
+            color: #64748b;
+            font-size: 10px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        body.sales-request-ticket-page .request-company-chevron {
+            color: #64748b;
+            font-size: 11px;
+            transition: transform .18s ease;
+        }
+        body.sales-request-ticket-page .request-company-guide[open] .request-company-chevron { transform: rotate(90deg); }
+        body.sales-request-ticket-page .request-department-list { display: grid; }
+        body.sales-request-ticket-page .request-department-guide {
+            display: grid;
+            grid-template-columns: 32px minmax(0, 1fr);
+            gap: 10px;
+            align-items: start;
+            padding: 11px 12px;
+            border-bottom: 1px solid #edf1ee;
+        }
+        body.sales-request-ticket-page .request-department-guide:last-child { border-bottom: 0; }
+        body.sales-request-ticket-page .request-department-icon { background:#f1f5f9; color:#2563eb; }
+        body.sales-request-ticket-page .request-department-icon.is-admin { background:#eaf8ee; color:#15803d; }
+        body.sales-request-ticket-page .request-department-icon.is-it { background:#eaf2ff; color:#2563eb; }
+        body.sales-request-ticket-page .request-department-icon.is-hr { background:#f3e8ff; color:#9333ea; }
+        body.sales-request-ticket-page .request-department-icon.is-health { background:#fff0f3; color:#e11d48; }
+        body.sales-request-ticket-page .request-department-icon.is-marketing { background:#fce7f3; color:#db2777; }
+        body.sales-request-ticket-page .request-department-icon.is-technical { background:#fff0e5; color:#ea580c; }
+        body.sales-request-ticket-page .request-department-icon.is-sales { background:#e8f4ff; color:#0369a1; }
+        body.sales-request-ticket-page .request-department-icon.is-category { background:#ecfdf3; color:#047857; }
+        body.sales-request-ticket-page .request-department-name {
+            margin: 0 0 3px;
+            color: #1e293b;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        body.sales-request-ticket-page .request-category-list {
+            margin: 0;
+            color: #64748b;
+            font-size: 10px;
+            line-height: 1.55;
+            overflow-wrap: anywhere;
+        }
+        body.sales-request-ticket-page .request-guide-empty {
+            margin: 0;
+            padding: 13px 14px;
+            color: #64748b;
+            font-size: 11px;
+        }
+        body.sales-request-ticket-page .request-tips-card {
+            padding: 15px 16px 16px;
+            border-color: #cfe8d6;
+            background: linear-gradient(180deg, #f3fbf5 0%, #eef9f1 100%);
+        }
+        body.sales-request-ticket-page .request-tips-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        body.sales-request-ticket-page .request-tips-icon {
+            width: 24px;
+            height: 24px;
+            flex-basis: 24px;
+            border: 0;
+            font-size: 16px;
+        }
+        body.sales-request-ticket-page .request-tips-list {
+            display: grid;
+            gap: 7px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+        body.sales-request-ticket-page .request-tips-list li {
+            display: grid;
+            grid-template-columns: 15px minmax(0, 1fr);
+            gap: 7px;
+            color: #475569;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        body.sales-request-ticket-page .request-tips-list i { margin-top:2px; color:#15803d; font-size:10px; }
+        @media (max-width: 1180px) {
+            body.sales-request-ticket-page .sales-container { max-width: 920px; }
+            body.sales-request-ticket-page .request-ticket-layout { grid-template-columns: 1fr; }
+            body.sales-request-ticket-page .request-guidance-sidebar { position: static; }
+            body.sales-request-ticket-page .request-guidance-directory { max-height: 380px; min-height: 0; }
+        }
+
+        /* Employee request-page visual parity */
+        body.sales-request-ticket-page {
+            background: #f7f9f8;
+            color: #0f172a;
+        }
+
+        body.sales-request-ticket-page .sales-container {
+            width: min(100%, 1450px);
+            max-width: 1450px;
+            margin: 0 auto;
+            padding: 18px 28px 42px;
+            box-sizing: border-box;
+        }
+
+        body.sales-request-ticket-page .sales-page-header {
+            margin: 0 0 14px;
+            padding: 0;
+            text-align: center;
+        }
+
+        body.sales-request-ticket-page .sales-page-header h1 {
+            margin: 0 0 4px;
+            color: #166534;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 27px;
+            line-height: 1.2;
+            font-weight: 700;
+        }
+
+        body.sales-request-ticket-page .sales-page-header p {
+            margin: 0;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        body.sales-request-ticket-page .request-ticket-layout {
+            display: grid;
+            grid-template-columns: minmax(390px, 460px) minmax(0, 1fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        body.sales-request-ticket-page .request-guidance-sidebar {
+            position: sticky;
+            top: 96px;
+            display: grid;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        body.sales-request-ticket-page .request-main-column {
+            display: grid;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        body.sales-request-ticket-page .request-guidance-card,
+        body.sales-request-ticket-page .request-routing-help,
+        body.sales-request-ticket-page .request-tips-card-main,
+        body.sales-request-ticket-page .request-main-column > .form-card {
+            border: 1px solid #e1e7e3;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.045);
+        }
+
+        body.sales-request-ticket-page .request-guidance-card {
+            overflow: hidden;
+        }
+
+        body.sales-request-ticket-page .request-guidance-heading {
+            padding: 18px 20px 12px;
+            border-bottom: 0;
+            background: #ffffff;
+        }
+
+        body.sales-request-ticket-page .request-guidance-heading h2 {
+            font-size: 15px;
+            line-height: 1.35;
+        }
+
+        body.sales-request-ticket-page .request-guidance-heading p {
+            margin-top: 3px;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        body.sales-request-ticket-page .request-guidance-search {
+            position: relative;
+            margin: 0 16px 8px;
+        }
+
+        body.sales-request-ticket-page .request-guidance-search i {
+            position: absolute;
+            top: 50%;
+            left: 15px;
+            z-index: 1;
+            color: #64748b;
+            font-size: 14px;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        body.sales-request-ticket-page .request-guidance-search input {
+            width: 100%;
+            height: 42px;
+            padding: 0 14px 0 43px;
+            border: 1px solid #dbe3de;
+            border-radius: 9px;
+            outline: none;
+            background: #ffffff;
+            color: #0f172a;
+            font: 13px 'Segoe UI', sans-serif;
+            box-sizing: border-box;
+        }
+
+        body.sales-request-ticket-page .request-guidance-search input:focus {
+            border-color: #16a34a;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+        }
+
+        body.sales-request-ticket-page .request-guidance-directory {
+            max-height: 510px;
+            min-height: 0;
+            padding: 0 16px 8px;
+        }
+
+        body.sales-request-ticket-page .request-company-guide {
+            margin-bottom: 6px;
+            border-radius: 11px;
+        }
+
+        body.sales-request-ticket-page .request-company-guide summary {
+            min-height: 52px;
+            padding: 8px 12px;
+        }
+
+        body.sales-request-ticket-page .request-company-name {
+            font-size: 13px;
+        }
+
+        body.sales-request-ticket-page .request-company-domain,
+        body.sales-request-ticket-page .request-category-list {
+            font-size: 10.5px;
+        }
+
+        body.sales-request-ticket-page .request-department-guide {
+            padding: 10px 12px;
+        }
+
+        body.sales-request-ticket-page .request-department-guide.is-guidance-extra {
+            display: none;
+        }
+
+        body.sales-request-ticket-page .request-company-guide.show-all-departments .request-department-guide.is-guidance-extra,
+        body.sales-request-ticket-page .request-guidance-directory.is-searching .request-department-guide.is-guidance-extra {
+            display: grid;
+        }
+
+        body.sales-request-ticket-page .request-view-departments {
+            width: 100%;
+            min-height: 45px;
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border: 0;
+            border-top: 1px solid #e5e7eb;
+            background: #ffffff;
+            color: #1f2937;
+            font: 600 12px 'Segoe UI', sans-serif;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        body.sales-request-ticket-page .request-view-departments > i:first-child {
+            color: #64748b;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        body.sales-request-ticket-page .request-view-departments > i:last-child {
+            color: #64748b;
+            font-size: 11px;
+            transition: transform 0.18s ease;
+        }
+
+        body.sales-request-ticket-page .request-company-guide.show-all-departments .request-view-departments > i:last-child {
+            transform: rotate(90deg);
+        }
+
+        body.sales-request-ticket-page .request-routing-help {
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr);
+            gap: 10px;
+            padding: 14px 16px;
+            border-color: #f2d679;
+            background: #fffdf6;
+            box-shadow: none;
+        }
+
+        body.sales-request-ticket-page .request-routing-help-icon {
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1.5px solid #eab308;
+            border-radius: 50%;
+            color: #d39e00;
+            font-size: 13px;
+        }
+
+        body.sales-request-ticket-page .request-routing-help h2 {
+            margin: 0 0 5px;
+            color: #8a5b0a;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        body.sales-request-ticket-page .request-routing-help p {
+            margin: 0;
+            color: #596579;
+            font-size: 11.5px;
+            line-height: 1.55;
+        }
+
+        body.sales-request-ticket-page .request-main-column > .form-card {
+            width: 100%;
+            max-width: none;
+            min-height: 0;
+            height: auto;
+            margin: 0;
+            padding: 20px 24px;
+            overflow: visible;
+            box-sizing: border-box;
+        }
+
+        body.sales-request-ticket-page .request-main-column .form-section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 20px;
+            padding: 0 0 15px;
+            border-bottom: 1px solid #dfe5e1;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            color: #166534;
+            font-size: 15px;
+            line-height: 1.3;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        body.sales-request-ticket-page .request-main-column .form-section-title::before {
+            content: "\f15c";
+            color: #15803d;
+            font-family: "Font Awesome 6 Free";
+            font-size: 20px;
+            font-weight: 900;
+        }
+
+        body.sales-request-ticket-page .request-main-column .form-group {
+            margin-bottom: 16px;
+        }
+
+        body.sales-request-ticket-page .request-main-column .form-group > label {
+            display: block;
+            margin-bottom: 7px;
+            color: #111827;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        body.sales-request-ticket-page .request-main-column .request-grid-row {
+            gap: 20px;
+        }
+
+        body.sales-request-ticket-page .request-main-column .form-control,
+        body.sales-request-ticket-page .request-main-column .form-group input:not([type="hidden"]):not([type="file"]),
+        body.sales-request-ticket-page .request-main-column .form-group select,
+        body.sales-request-ticket-page .request-main-column .form-group textarea,
+        body.sales-request-ticket-page .request-main-column .recipient-dropdown-trigger,
+        body.sales-request-ticket-page .request-main-column .department-dropdown-trigger,
+        body.sales-request-ticket-page .request-main-column .category-dropdown-trigger,
+        body.sales-request-ticket-page .request-main-column .priority-dropdown-trigger,
+        body.sales-request-ticket-page .request-main-column .sales-position-dropdown-trigger,
+        body.sales-request-ticket-page .request-main-column .sales-region-dropdown-trigger {
+            min-height: 48px;
+            height: 48px;
+            padding: 11px 14px;
+            border: 1px solid #d5ddd8;
+            border-radius: 10px;
+            background: #ffffff;
+            box-shadow: none;
+            color: #1f2937;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        body.sales-request-ticket-page .request-main-column .form-group textarea,
+        body.sales-request-ticket-page .request-main-column #descriptionField {
+            height: 136px;
+            min-height: 136px;
+            padding: 14px;
+            resize: none;
+        }
+
+        body.sales-request-ticket-page .request-main-column .attachment-upload-shell {
+            min-height: 64px;
+            padding: 10px 12px;
+            border: 1px solid #e1e7e3;
+            border-radius: 10px;
+            background: #ffffff;
+        }
+
+        body.sales-request-ticket-page .request-main-column .file-button {
+            min-width: 128px;
+            height: 42px;
+            padding: 0 15px;
+            border: 1px solid #bbdfc5;
+            border-radius: 8px;
+            background: #f0fdf4;
+            color: #166534;
+            font-size: 13px;
+        }
+
+        body.sales-request-ticket-page .request-main-column .attachment-file-name {
+            font-size: 13px;
+        }
+
+        body.sales-request-ticket-page .request-main-column .form-text {
+            margin-top: 7px;
+            color: #64748b;
+            font-size: 11px;
+        }
+
+        body.sales-request-ticket-page .request-main-column .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 18px;
+        }
+
+        body.sales-request-ticket-page .request-main-column .submit-btn {
+            width: auto;
+            min-width: 180px;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            margin: 0;
+            padding: 0 22px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        body.sales-request-ticket-page .request-main-column .submit-btn::before {
+            content: "\f1d8";
+            font-family: "Font Awesome 6 Free";
+            font-size: 14px;
+            font-weight: 900;
+        }
+
+        body.sales-request-ticket-page .request-tips-card-main {
+            padding: 15px 22px 17px;
+        }
+
+        body.sales-request-ticket-page .request-tips-card-main .request-tips-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e4e9e6;
+        }
+
+        body.sales-request-ticket-page .request-tips-card-main .request-tips-icon {
+            width: 30px;
+            height: 30px;
+            flex: 0 0 30px;
+            border: 0;
+            border-radius: 50%;
+            background: #ecfdf3;
+            color: #16803d;
+            font-size: 15px;
+        }
+
+        body.sales-request-ticket-page .request-tips-card-main .request-tips-title {
+            color: #166534;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        body.sales-request-ticket-page .request-tips-card-main .request-tips-list {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0;
+            margin: 14px 0 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        body.sales-request-ticket-page .request-tips-card-main .request-tips-list li {
+            min-width: 0;
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr);
+            align-items: center;
+            gap: 10px;
+            padding: 0 20px;
+            color: #465469;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        body.sales-request-ticket-page .request-tips-card-main .request-tips-list li:first-child { padding-left: 0; }
+        body.sales-request-ticket-page .request-tips-card-main .request-tips-list li:last-child { padding-right: 0; }
+        body.sales-request-ticket-page .request-tips-card-main .request-tips-list li + li { border-left: 1px solid #dfe5e1; }
+
+        body.sales-request-ticket-page .request-tips-card-main .request-tips-list i {
+            margin: 0;
+            color: #159447;
+            font-size: 27px;
+        }
+
+        @media (max-width: 1180px) {
+            body.sales-request-ticket-page .sales-container { max-width: 920px; }
+            body.sales-request-ticket-page .request-ticket-layout { grid-template-columns: 1fr; }
+            body.sales-request-ticket-page .request-guidance-sidebar { position: static; }
+            body.sales-request-ticket-page .request-guidance-directory { max-height: 390px; }
+        }
+
+        @media (max-width: 768px) {
+            body.sales-request-ticket-page .sales-container { padding: 14px 12px 86px; }
+            body.sales-request-ticket-page .sales-page-header h1 { font-size: 23px; }
+            body.sales-request-ticket-page .request-main-column > .form-card { padding: 17px 16px; }
+            body.sales-request-ticket-page .request-main-column .form-section-title {
+                margin: 0 0 18px;
+                padding: 0 0 13px;
+                border-bottom: 1px solid #dfe5e1;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+                color: #166534;
+                font-size: 14px;
+            }
+            body.sales-request-ticket-page .request-main-column .request-grid-row { grid-template-columns: 1fr; gap: 0; }
+            body.sales-request-ticket-page .request-main-column .submit-btn { width: 100%; min-width: 0; }
+            body.sales-request-ticket-page .request-tips-card-main .request-tips-list { grid-template-columns: 1fr; gap: 12px; }
+            body.sales-request-ticket-page .request-tips-card-main .request-tips-list li,
+            body.sales-request-ticket-page .request-tips-card-main .request-tips-list li:first-child,
+            body.sales-request-ticket-page .request-tips-card-main .request-tips-list li:last-child { padding: 0; }
+            body.sales-request-ticket-page .request-tips-card-main .request-tips-list li + li {
+                padding-top: 12px;
+                border-top: 1px solid #e4e9e6;
+                border-left: 0;
+            }
+        }
     </style>
 </head>
 <body class="sales-request-ticket-page">
@@ -4989,8 +5736,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <div class="sales-container">
     <div class="sales-page-header">
-        <h1>Create a Ticket </h1>
-        <p>Please fill out the form below.</p>
+        <h1>Create a Ticket</h1>
+        <p>Please fill out the form below to submit your concern.</p>
     </div>
 
         <?php if($success_msg): ?>
@@ -5000,6 +5747,110 @@ document.addEventListener('DOMContentLoaded', function () {
         <?php if($error_msg): ?>
             <div class="alert alert-error" id="pageError"><?= htmlspecialchars($error_msg, ENT_QUOTES, 'UTF-8'); ?></div>
         <?php endif; ?>
+        <div class="request-ticket-layout">
+        <aside class="request-guidance-sidebar" aria-label="Ticket routing guide">
+            <section class="request-guidance-card">
+                <div class="request-guidance-heading">
+                    <span class="request-guidance-heading-icon" aria-hidden="true"><i class="fas fa-info"></i></span>
+                    <div>
+                        <h2>Guidelines: Where to Submit Your Concern</h2>
+                        <p>Choose a subsidiary, then use the Department field when it appears and select the matching category.</p>
+                    </div>
+                </div>
+                <div class="request-guidance-search">
+                    <i class="fas fa-search" aria-hidden="true"></i>
+                    <input type="search" id="requestGuidanceSearch" placeholder="Search subsidiary or department..." aria-label="Search subsidiary or department">
+                </div>
+                <div class="request-guidance-directory">
+                    <?php foreach ($requestGuidanceCompanies as $guidanceCompany): ?>
+                        <?php
+                            $guidanceCompanyIsOpen = (string) $guidanceCompany['value'] === $requestGuidanceOpenCompany;
+                            $guidanceRequiresDepartment = !empty($guidanceCompany['requires_department']);
+                        ?>
+                        <details class="request-company-guide"<?= $guidanceCompanyIsOpen ? ' open' : ''; ?>>
+                            <summary>
+                                <span class="request-company-icon is-<?= htmlspecialchars((string) $guidanceCompany['tone'], ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"><i class="fas <?= htmlspecialchars((string) $guidanceCompany['icon'], ENT_QUOTES, 'UTF-8'); ?>"></i></span>
+                                <span class="request-company-copy">
+                                    <strong class="request-company-name"><?= htmlspecialchars((string) $guidanceCompany['label'], ENT_QUOTES, 'UTF-8'); ?></strong>
+                                    <span class="request-company-domain"><?= htmlspecialchars((string) $guidanceCompany['value'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                </span>
+                                <i class="fas fa-chevron-right request-company-chevron" aria-hidden="true"></i>
+                            </summary>
+                            <div class="request-department-list">
+                                <?php if ($guidanceRequiresDepartment): ?>
+                                    <?php if (empty($guidanceCompany['departments'])): ?>
+                                        <p class="request-guide-empty">No departments are currently available in the Department dropdown.</p>
+                                    <?php endif; ?>
+                                    <?php foreach ($guidanceCompany['departments'] as $guidanceDepartmentIndex => $guidanceDepartment): ?>
+                                        <?php
+                                            $guidanceDepartmentName = (string) ($guidanceDepartment['name'] ?? '');
+                                            $guidanceDepartmentLookup = strtolower($guidanceDepartmentName);
+                                            $guidanceDepartmentIcon = 'fa-sitemap';
+                                            $guidanceDepartmentTone = 'operations';
+                                            if (str_contains($guidanceDepartmentLookup, 'admin') || str_contains($guidanceDepartmentLookup, 'legal')) {
+                                                $guidanceDepartmentIcon = 'fa-scale-balanced';
+                                                $guidanceDepartmentTone = 'admin';
+                                            } elseif ($guidanceDepartmentLookup === 'it') {
+                                                $guidanceDepartmentIcon = 'fa-desktop';
+                                                $guidanceDepartmentTone = 'it';
+                                            } elseif ($guidanceDepartmentLookup === 'hr') {
+                                                $guidanceDepartmentIcon = 'fa-users';
+                                                $guidanceDepartmentTone = 'hr';
+                                            } elseif (str_contains($guidanceDepartmentLookup, 'diagnostic') || str_contains($guidanceDepartmentLookup, 'lingap')) {
+                                                $guidanceDepartmentIcon = 'fa-heart-pulse';
+                                                $guidanceDepartmentTone = 'health';
+                                            } elseif (str_contains($guidanceDepartmentLookup, 'marketing')) {
+                                                $guidanceDepartmentIcon = 'fa-bullhorn';
+                                                $guidanceDepartmentTone = 'marketing';
+                                            } elseif (str_contains($guidanceDepartmentLookup, 'technical')) {
+                                                $guidanceDepartmentIcon = 'fa-flask';
+                                                $guidanceDepartmentTone = 'technical';
+                                            } elseif (str_contains($guidanceDepartmentLookup, 'sales') || str_contains($guidanceDepartmentLookup, 'bidding')) {
+                                                $guidanceDepartmentIcon = 'fa-file-contract';
+                                                $guidanceDepartmentTone = 'sales';
+                                            }
+                                            $guidanceCategoryText = implode(' • ', array_map('strval', (array) ($guidanceDepartment['categories'] ?? [])));
+                                        ?>
+                                        <div class="request-department-guide<?= $guidanceDepartmentIndex >= 3 ? ' is-guidance-extra' : ''; ?>">
+                                            <span class="request-department-icon is-<?= htmlspecialchars($guidanceDepartmentTone, ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"><i class="fas <?= htmlspecialchars($guidanceDepartmentIcon, ENT_QUOTES, 'UTF-8'); ?>"></i></span>
+                                            <div>
+                                                <h3 class="request-department-name"><?= htmlspecialchars($guidanceDepartmentName, ENT_QUOTES, 'UTF-8'); ?></h3>
+                                                <p class="request-category-list"><?= htmlspecialchars($guidanceCategoryText, ENT_QUOTES, 'UTF-8'); ?></p>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                    <?php if (count($guidanceCompany['departments']) > 3): ?>
+                                        <button type="button" class="request-view-departments" aria-expanded="false">
+                                            <i class="fas fa-border-all" aria-hidden="true"></i>
+                                            <span>View all departments</span>
+                                            <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                                        </button>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <?php $guidanceCategoryText = implode(' • ', array_map('strval', (array) ($guidanceCompany['categories'] ?? []))); ?>
+                                    <div class="request-department-guide">
+                                        <span class="request-department-icon is-category" aria-hidden="true"><i class="fas fa-tags"></i></span>
+                                        <div>
+                                            <h3 class="request-department-name">Categories</h3>
+                                            <p class="request-category-list"><?= htmlspecialchars($guidanceCategoryText, ENT_QUOTES, 'UTF-8'); ?></p>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </details>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+
+            <section class="request-routing-help" aria-label="Routing help">
+                <span class="request-routing-help-icon" aria-hidden="true"><i class="fas fa-question"></i></span>
+                <div>
+                    <h2>Not sure where to send your concern?</h2>
+                    <p>Select the department “Others” under the most relevant subsidiary or choose the category “Others”.</p>
+                </div>
+            </section>
+        </aside>
+        <div class="request-main-column">
         <div class="form-card">
         <form id="ticketForm" method="POST" enctype="multipart/form-data">
             <?php echo csrf_field(); ?>
@@ -5880,6 +6731,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 <button type="submit" class="submit-btn">Submit Ticket</button>
             </div>
         </form>
+        </div>
+        <section class="request-tips-card request-tips-card-main" aria-labelledby="requestTipsTitle">
+            <div class="request-tips-head">
+                <span class="request-tips-icon" aria-hidden="true"><i class="far fa-lightbulb"></i></span>
+                <h2 class="request-tips-title" id="requestTipsTitle">Tips Before Submitting</h2>
+            </div>
+            <ul class="request-tips-list">
+                <li><i class="far fa-check-circle" aria-hidden="true"></i><span>Select the correct<br>subsidiary first.</span></li>
+                <li><i class="far fa-check-circle" aria-hidden="true"></i><span>If the Department field appears,<br>choose the best matching department.</span></li>
+                <li><i class="far fa-check-circle" aria-hidden="true"></i><span>Select the most<br>appropriate category.</span></li>
+            </ul>
+        </section>
+        </div>
         </div>
 
     <?php endif; ?>
@@ -9950,6 +10814,51 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 });
+</script>
+
+<script>
+(function () {
+    var search = document.getElementById('requestGuidanceSearch');
+    var directory = document.querySelector('.request-guidance-directory');
+    if (!directory) return;
+
+    var companyGuides = Array.prototype.slice.call(directory.querySelectorAll('.request-company-guide'));
+
+    directory.querySelectorAll('.request-view-departments').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var guide = button.closest('.request-company-guide');
+            if (!guide) return;
+
+            var expanded = guide.classList.toggle('show-all-departments');
+            var label = button.querySelector('span');
+            button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            if (label) label.textContent = expanded ? 'Show fewer departments' : 'View all departments';
+        });
+    });
+
+    if (!search) return;
+
+    search.addEventListener('input', function () {
+        var query = search.value.trim().toLowerCase();
+        directory.classList.toggle('is-searching', query !== '');
+
+        companyGuides.forEach(function (guide) {
+            var summary = guide.querySelector('summary');
+            var companyMatches = !query || (summary && summary.textContent.toLowerCase().indexOf(query) !== -1);
+            var departmentMatches = false;
+            var departments = Array.prototype.slice.call(guide.querySelectorAll('.request-department-guide'));
+
+            departments.forEach(function (department) {
+                var matches = !query || companyMatches || department.textContent.toLowerCase().indexOf(query) !== -1;
+                department.hidden = !matches;
+                if (matches) departmentMatches = true;
+            });
+
+            guide.hidden = Boolean(query && !companyMatches && !departmentMatches);
+            if (query && !guide.hidden) guide.open = true;
+        });
+    });
+})();
 </script>
 
 </body>

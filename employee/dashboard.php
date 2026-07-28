@@ -1541,8 +1541,8 @@ function dashboard_urgency_badge_html(string $priority): string
 
 
         body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
-            width: min(100%, 390px);
-            height: 390px;
+            width: min(100%, 430px);
+            height: 400px;
             max-height: calc(100vh - 44px);
             border-radius: 12px;
             box-shadow: 0 20px 48px rgba(15, 23, 42, 0.28);
@@ -1552,38 +1552,45 @@ function dashboard_urgency_badge_html(string $priority): string
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header {
-            padding: 0 34px 20px;
+            padding: 0 30px;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-success-icon {
-            width: 58px;
-            height: 58px;
-            margin-bottom: 22px;
+            width: 76px;
+            height: 76px;
+            margin-bottom: 18px;
             border-width: 2px;
             background: #f0fbf3;
-            font-size: 30px;
+            font-size: 36px;
             font-weight: 400;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-title {
-            margin-bottom: 14px;
-            font-size: 23px;
+            margin-bottom: 10px;
+            font-size: 26px;
             line-height: 1.2;
             color: #0f172a;
             font-weight: 600;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-subtitle {
-            max-width: 285px;
+            max-width: 340px;
             margin: 0 auto;
-            font-size: 15px;
+            font-size: 16px;
             line-height: 1.45;
             color: #5b6473;
         }
 
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-title,
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-subtitle {
+            position: relative;
+            top: 0;
+        }
+
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
-            margin: 0 34px;
-            padding: 24px 0 0;
+            width: calc(100% - 60px);
+            margin: 32px 30px 0;
+            padding: 18px 0 0;
             display: grid;
             gap: 0;
             overflow: visible;
@@ -1629,9 +1636,11 @@ function dashboard_urgency_badge_html(string $priority): string
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-submit-btn {
-            width: 190px;
-            min-width: 190px;
+            width: 300px;
+            min-width: 300px;
             min-height: 48px;
+            position: relative;
+            top: 12px;
             border-radius: 999px;
             background: #1B5E20;
             font-size: 16px;
@@ -1649,14 +1658,21 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
-                width: min(100%, 94vw);
-                height: 390px;
+                width: min(100%, 430px);
+                height: min(400px, calc(100vh - 24px));
             }
 
-            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header,
-            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
+            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header {
                 padding-left: 24px;
                 padding-right: 24px;
+            }
+
+            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
+                width: calc(100% - 48px);
+                margin-left: 24px;
+                margin-right: 24px;
+                padding-left: 0;
+                padding-right: 0;
             }
 
             body.employee-dashboard-page .feedback-modal-dialog-success .feedback-flash.is-success {
@@ -1665,6 +1681,14 @@ function dashboard_urgency_badge_html(string $priority): string
 
             body.employee-dashboard-page .feedback-modal-dialog-success .feedback-submit-btn {
                 width: 100%;
+                min-width: 0;
+            }
+        }
+
+        @media (max-width: 640px) {
+            body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
+                width: min(100%, 390px);
+                height: min(390px, calc(100vh - 24px));
             }
         }
 

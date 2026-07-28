@@ -77,14 +77,13 @@ if (!isset($_SESSION['email']) && isset($_SESSION['user_id'])) {
 
 // Helper for formatting time
 function formatHandlingTime($seconds) {
-    if (!$seconds) return '0h';
+    if (!$seconds) return '0s';
+    if ($seconds < 60) return (int) $seconds . 's';
     $hours = floor($seconds / 3600);
-    if ($hours >= 24) {
-        $days = floor($hours / 24);
-        $rem_hours = $hours % 24;
-        return "{$days}d {$rem_hours}h";
-    }
-    return "{$hours}h";
+    $minutes = floor(($seconds % 3600) / 60);
+    if ($hours > 0 && $minutes > 0) return "{$hours}h {$minutes}m";
+    if ($hours > 0) return "{$hours}h";
+    return "{$minutes}m";
 }
 
 function formatHandlingTimeDetailed($seconds) {
@@ -557,9 +556,9 @@ if ($trend_period === 'last_month') {
     $previousTrendStartDate = $previousTrendDates[0];
     $previousTrendEndDate = $previousTrendDates[count($previousTrendDates) - 1];
 }
-$completionAtExpr = "t.resolved_at";
-$resolutionMinutesExpr = "TIMESTAMPDIFF(MINUTE, t.started_at, $completionAtExpr)";
-$resolutionSecondsExpr = "TIMESTAMPDIFF(SECOND, t.started_at, $completionAtExpr)";
+$completionAtExpr = "COALESCE(t.resolved_at, t.closed_at)";
+$resolutionSecondsExpr = ticket_business_seconds_sql('t.started_at', $completionAtExpr);
+$resolutionMinutesExpr = "($resolutionSecondsExpr / 60.0)";
 
 $formatResolutionMinutes = static function ($minutes): string {
     $minutes = (float) $minutes;
@@ -1568,6 +1567,8 @@ $ticketsOrderSql = $analyticsUsesEmployeePresentation
         t.created_at DESC,
         t.id DESC"
     : "t.created_at DESC";
+$ticketCompletionExpr = "COALESCE(t.resolved_at, t.closed_at)";
+$ticketDurationSecondsExpr = ticket_business_seconds_sql('t.started_at', $ticketCompletionExpr);
 $ticketsSql = "
     SELECT
         t.id,
@@ -1586,9 +1587,9 @@ $ticketsSql = "
         t.created_at,
         COALESCE(a.name, 'Unassigned') as assignee_name,
         t.started_at,
-        COALESCE(t.closed_at, t.resolved_at) as resolved_at,
+        $ticketCompletionExpr as resolved_at,
         t.status,
-        TIMESTAMPDIFF(SECOND, t.started_at, COALESCE(t.closed_at, t.resolved_at)) as duration_seconds
+        $ticketDurationSecondsExpr as duration_seconds
     FROM employee_tickets t
     JOIN users u ON t.user_id = u.id
     LEFT JOIN users a ON t.assigned_user_id = a.id
@@ -3372,7 +3373,7 @@ if ($ticketsStmt) {
                                         <td><?= htmlspecialchars((string) ($t['assignee_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
                                         <td class="time-cell"><?= $startedAt !== '' ? htmlspecialchars(date('M d, Y g:i A', strtotime($startedAt)), ENT_QUOTES, 'UTF-8') : '-' ?></td>
                                         <td class="time-cell"><?= $resolvedAt !== '' ? htmlspecialchars(date('M d, Y g:i A', strtotime($resolvedAt)), ENT_QUOTES, 'UTF-8') : '-' ?></td>
-                                        <td class="time-cell"><?= ($startedAt !== '' && $resolvedAt !== '' && $durationSec > 0) ? htmlspecialchars(formatHandlingTime($durationSec), ENT_QUOTES, 'UTF-8') : '-' ?></td>
+                                        <td class="time-cell"><?= ($startedAt !== '' && $resolvedAt !== '') ? htmlspecialchars(formatHandlingTime($durationSec), ENT_QUOTES, 'UTF-8') : '-' ?></td>
                                         <td><span class="status-badge status-<?= htmlspecialchars($statusSlug, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($status !== '' ? $status : '-', ENT_QUOTES, 'UTF-8') ?></span></td>
                                         <?php endif; ?>
                                     </tr>
