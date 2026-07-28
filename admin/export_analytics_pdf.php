@@ -104,6 +104,19 @@ function analytics_export_filters(): array
     return $filters;
 }
 
+function analytics_export_request_text(string $description, string $subject): string
+{
+    $description = trim($description);
+    if ($description === '') {
+        return $subject !== '' ? $subject : '-';
+    }
+
+    $description = preg_replace('/^\s*(?:Position|Region):[^\r\n]*(?:\r\n|\r|\n)?/i', '', $description);
+    $description = trim((string) preg_replace('/^\s*(?:Position|Region):[^\r\n]*(?:\r\n|\r|\n)?/i', '', (string) $description));
+
+    return $description !== '' ? $description : ($subject !== '' ? $subject : '-');
+}
+
 function analytics_export_fetch_rows(mysqli $conn, array $filters): array
 {
     global $analyticsExportIsSalesManagerView, $analyticsExportSalesRegion;
@@ -208,13 +221,15 @@ function analytics_export_fetch_rows(mysqli $conn, array $filters): array
             $duration = ticket_format_business_duration_clock($seconds);
         }
 
+        $description = (string) ($row['description'] ?? '');
+        $subject = (string) ($row['subject'] ?? '-');
         $rows[] = [
             'start_date' => $createdAt !== '' ? date('Y-m-d', strtotime($createdAt)) : '-',
             'end_date' => $endDateSource !== '' ? date('Y-m-d', strtotime($endDateSource)) : '-',
             'attending_it' => (string) ($row['attending_it'] ?? '-'),
             'client' => (string) ($row['client_name'] ?? '-'),
             'department_subs' => (string) ($row['requester_department'] ?? '-'),
-            'request_concern' => trim((string) ($row['description'] ?? '')) !== '' ? trim((string) $row['description']) : (string) ($row['subject'] ?? '-'),
+            'request_concern' => analytics_export_request_text($description, $subject),
             'category' => (string) ($row['category'] ?? '-'),
             'time_reported' => $createdAt !== '' ? date('h:i A', strtotime($createdAt)) : '-',
             'time_resolved' => $completionAt !== '' ? date('h:i A', strtotime($completionAt)) : '-',

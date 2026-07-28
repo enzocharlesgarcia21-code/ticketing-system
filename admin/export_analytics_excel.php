@@ -106,6 +106,19 @@ function analytics_export_filters_excel(): array
     return $filters;
 }
 
+function analytics_export_request_text_excel(string $description, string $subject): string
+{
+    $description = trim($description);
+    if ($description === '') {
+        return $subject !== '' ? $subject : '-';
+    }
+
+    $description = preg_replace('/^\s*(?:Position|Region):[^\r\n]*(?:\r\n|\r|\n)?/i', '', $description);
+    $description = trim((string) preg_replace('/^\s*(?:Position|Region):[^\r\n]*(?:\r\n|\r|\n)?/i', '', (string) $description));
+
+    return $description !== '' ? $description : ($subject !== '' ? $subject : '-');
+}
+
 function analytics_export_rows_excel(mysqli $conn, array $filters): array
 {
     global $analyticsExportIsSalesManagerView, $analyticsExportSalesRegion;
@@ -210,13 +223,15 @@ function analytics_export_rows_excel(mysqli $conn, array $filters): array
             $duration = ticket_format_business_duration_clock($seconds);
         }
 
+        $description = (string) ($row['description'] ?? '');
+        $subject = (string) ($row['subject'] ?? '-');
         $rows[] = [
             $createdAt !== '' ? date('Y-m-d', strtotime($createdAt)) : '-',
             $endDateSource !== '' ? date('Y-m-d', strtotime($endDateSource)) : '-',
             (string) ($row['attending_it'] ?? '-'),
             (string) ($row['client_name'] ?? '-'),
             (string) ($row['requester_department'] ?? '-'),
-            trim((string) ($row['description'] ?? '')) !== '' ? trim((string) $row['description']) : (string) ($row['subject'] ?? '-'),
+            analytics_export_request_text_excel($description, $subject),
             (string) ($row['category'] ?? '-'),
             $createdAt !== '' ? date('h:i A', strtotime($createdAt)) : '-',
             $completionAt !== '' ? date('h:i A', strtotime($completionAt)) : '-',
