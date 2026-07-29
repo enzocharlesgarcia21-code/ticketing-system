@@ -167,8 +167,8 @@ function notif_company_display_map(): array
         'farmasee.ph' => 'FARMASEE',
         '@gmail.com' => 'Gmail',
         'gmail.com' => 'Gmail',
-        '@gpsci.net' => 'GPSCI',
-        'gpsci.net' => 'GPSCI',
+        '@gpsci.net' => 'GPCI',
+        'gpsci.net' => 'GPCI',
         '@leads-eh.com' => 'LEH',
         'leads-eh.com' => 'LEH',
         '@leads-farmex.com' => 'FARMEX',
@@ -1539,6 +1539,25 @@ function notif_email_lines_with_sales_request_context(array $lines): array
     return $out;
 }
 
+function notif_email_detail_value_html(string $label, string $value): string
+{
+    $escapedValue = nl2br(htmlspecialchars($value, ENT_QUOTES, 'UTF-8'));
+    if (strcasecmp(trim($label), 'Description') !== 0) {
+        return $escapedValue;
+    }
+
+    $length = function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+    $lineCount = substr_count(str_replace("\r\n", "\n", $value), "\n") + 1;
+    if ($length <= 420 && $lineCount <= 6) {
+        return $escapedValue;
+    }
+
+    return '<details style="margin:0;padding:0;">'
+        . '<summary style="cursor:pointer;color:#006633;font-weight:700;text-decoration:underline;">Expand / Minimize description</summary>'
+        . '<div style="margin-top:10px;">' . $escapedValue . '</div>'
+        . '</details>';
+}
+
 function notif_email_assignee_assignment(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
 {
     $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
@@ -1586,7 +1605,7 @@ function notif_email_assignee_assignment(string $title, array $lines, string $ct
         $rowsHtml .= '
                         <tr>
                             <td style="width:155px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -1668,7 +1687,7 @@ function notif_email_requester_ticket_submitted(string $title, array $lines, str
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -1750,7 +1769,7 @@ function notif_email_requester_ticket_claimed(string $title, array $lines, strin
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -1838,7 +1857,7 @@ function notif_email_requester_ticket_resolved(string $title, array $lines, stri
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -2014,7 +2033,7 @@ function notif_email_requester_ticket_reassigned(string $title, array $lines, st
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -2094,7 +2113,7 @@ function notif_email_requester_ticket_status_updated(string $title, array $lines
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -2169,7 +2188,7 @@ function notif_email_follow_up(string $title, array $lines, string $ctaLabel, st
         $rowsHtml .= '
                         <tr>
                             <td align="left" style="width:160px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;text-align:left;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td align="left" style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;text-align:left;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td align="left" style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;text-align:left;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -2250,7 +2269,7 @@ function notif_email_pending_chat(string $title, array $lines, string $ctaLabel,
         $rowsHtml .= '
                         <tr>
                             <td style="width:160px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -2365,7 +2384,7 @@ function notif_email_priority_escalation(string $title, array $lines, string $ct
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 

@@ -148,7 +148,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <select name="company" id="reg_company" required>
                     <option value=""disabled selected hidden>Select Company</option>
                     <option value="LAPC" <?= (isset($_POST['company']) && $_POST['company']==='LAPC') ? 'selected' : '' ?>>LAPC</option>
-                    <option value="GPSCI" <?= (isset($_POST['company']) && (($_POST['company'] ?? '')==='GPSCI' || ($_POST['company'] ?? '')==='GPCI')) ? 'selected' : '' ?>>GPSCI</option>
+                    <option value="GPSCI" <?= (isset($_POST['company']) && (($_POST['company'] ?? '')==='GPSCI' || ($_POST['company'] ?? '')==='GPCI')) ? 'selected' : '' ?>>GPCI</option>
                     <option value="PCC" <?= (isset($_POST['company']) && $_POST['company']==='PCC') ? 'selected' : '' ?>>PCC</option>
                     <option value="MHC" <?= (isset($_POST['company']) && $_POST['company']==='MHC') ? 'selected' : '' ?>>MHC</option>
                     <option value="Farmex Corp" <?= (isset($_POST['company']) && $_POST['company']==='Farmex Corp') ? 'selected' : '' ?>>Farmex Corp</option>

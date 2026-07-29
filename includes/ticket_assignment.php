@@ -318,7 +318,7 @@ function ticket_request_company_options(): array
     return [
         '@leads-farmex.com' => 'FARMEX / LAV',
         '@farmasee.ph' => 'FARMASEE',
-        '@gpsci.net' => 'GPSCI',
+        '@gpsci.net' => 'GPCI',
         '@leadsagri.com' => 'LAPC',
         '@leadstech-corp.com' => 'LTC',
         '@lingapleads.org' => 'LINGAP',
@@ -827,13 +827,15 @@ function ticket_registered_department_notification_emails(mysqli $conn, string $
         $domain = ltrim(strtolower($company), '@');
         if ($domain !== '') {
             $companyKey = ticket_notification_company_key($company);
-            $companyAliases = array_values(array_unique(array_filter([
-                strtoupper($company),
-                strtoupper($domain),
-                strtoupper($companyKey),
-                strtoupper($companyKey . ' (' . $company . ')'),
-                strtoupper($companyKey . ' (' . $domain . ')'),
-            ], static function ($value) {
+            $companyAliases = array_values(array_unique(array_filter(array_map(static function ($value) {
+                return strtoupper(trim((string) $value));
+            }, array_merge([
+                $company,
+                $domain,
+                $companyKey,
+                $companyKey . ' (' . $company . ')',
+                $companyKey . ' (' . $domain . ')',
+            ], ticket_company_aliases($companyKey))), static function ($value) {
                 return trim((string) $value) !== '';
             })));
             $where[] = "(LOWER(email) LIKE ? OR UPPER(TRIM(COALESCE(company, ''))) IN (" . implode(',', array_fill(0, count($companyAliases), '?')) . "))";
@@ -2797,10 +2799,10 @@ function ticket_company_display_map(): array
         'farmasee' => 'FARMASEE',
         '@gmail.com' => 'Gmail',
         'gmail.com' => 'Gmail',
-        '@gpsci.net' => 'GPSCI',
-        'gpsci.net' => 'GPSCI',
-        'gpsci' => 'GPSCI',
-        'gpci' => 'GPSCI',
+        '@gpsci.net' => 'GPCI',
+        'gpsci.net' => 'GPCI',
+        'gpsci' => 'GPCI',
+        'gpci' => 'GPCI',
         '@leads-eh.com' => 'LEH',
         'leads-eh.com' => 'LEH',
         'leh' => 'LEH',

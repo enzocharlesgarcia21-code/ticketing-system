@@ -664,8 +664,8 @@ var TMTicketModal = (function () {
       'farmasee.ph': 'FARMASEE',
       '@gmail.com': 'Gmail',
       'gmail.com': 'Gmail',
-      '@gpsci.net': 'GPSCI',
-      'gpsci.net': 'GPSCI',
+      '@gpsci.net': 'GPCI',
+      'gpsci.net': 'GPCI',
       '@leads-eh.com': 'LEH',
       'leads-eh.com': 'LEH',
       '@leads-farmex.com': 'FARMEX / LAV',
@@ -1576,7 +1576,7 @@ var TMTicketModal = (function () {
     var labels = {
       '@leads-farmex.com': 'FARMEX / LAV',
       '@farmasee.ph': 'FARMASEE',
-      '@gpsci.net': 'GPSCI',
+      '@gpsci.net': 'GPCI',
       '@leadsagri.com': 'LAPC',
       '@leadsav.com': 'FARMEX / LAV',
       '@leadstech-corp.com': 'LTC',
@@ -3124,13 +3124,6 @@ var TMTicketModal = (function () {
     var isSalesTicket = !!(data && data.is_sales_ticket);
     var isSalesManagerRegionalAccess = !!(data && data.sales_manager_regional_access === true);
     var isSalesAssigneeChatAccess = !!(data && data.sales_assignee_chat_access === true);
-    var hasActualAssignee = false;
-    if (data && Object.prototype.hasOwnProperty.call(data, 'has_assignee')) {
-      hasActualAssignee = data.has_assignee === true || data.has_assignee === 1 || data.has_assignee === '1';
-    } else if (data) {
-      hasActualAssignee = parseInt(data.assigned_to || 0, 10) > 0;
-    }
-    if (isSalesTicket && !hasActualAssignee) hideUpdateTab = true;
     if (isClosedTicket) hideUpdateTab = true;
     var hideConversationTab = false;
     if (data && data.hide_conversation_tab === true) hideConversationTab = true;
@@ -3413,7 +3406,7 @@ var TMTicketModal = (function () {
       ( assignedCompanyValue && ['@gpsci.net','@farmasee.ph','@leads-farmex.com','@leadsagri.com','@leadsav.com','@malvedaholdings.com','@malvedaproperties.com','@leadstech-corp.com','@lingapleads.org','@primestocks.ph'].indexOf(String(assignedCompanyValue).toLowerCase()) === -1
           ? ('                  <option value="' + escapeHtml(assignedCompanyValue) + '" selected>' + escapeHtml(assignedCompanyValue) + '</option>')
           : '' ) +
-      '                  <option value="@gpsci.net" ' + (String(assignedCompanyValue || '').toLowerCase() === '@gpsci.net' ? 'selected' : '') + '>GPSCI</option>' +
+      '                  <option value="@gpsci.net" ' + (String(assignedCompanyValue || '').toLowerCase() === '@gpsci.net' ? 'selected' : '') + '>GPCI</option>' +
       '                  <option value="@farmasee.ph" ' + (String(assignedCompanyValue || '').toLowerCase() === '@farmasee.ph' ? 'selected' : '') + '>FARMASEE</option>' +
       '                  <option value="@leads-farmex.com" ' + ((String(assignedCompanyValue || '').toLowerCase() === '@leads-farmex.com' || String(assignedCompanyValue || '').toLowerCase() === '@leadsav.com') ? 'selected' : '') + '>FARMEX / LAV</option>' +
       '                  <option value="@leadsagri.com" ' + (String(assignedCompanyValue || '').toLowerCase() === '@leadsagri.com' ? 'selected' : '') + '>LAPC</option>' +

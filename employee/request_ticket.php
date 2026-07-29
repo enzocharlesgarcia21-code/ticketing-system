@@ -45,14 +45,25 @@ if ($selectedAssignedGroup === '' && count($initialDepartmentOptions) === 1) {
 $requestTicketDefaultCategories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'];
 $requestTicketMpdcCategories = ['Engineerings', 'Client Referral', 'Others'];
 $requestTicketLingapCategories = ['Lakbay Kalusugan Request (Medical Mission)', 'Others'];
+$requestTicketOthersOnlyCompanies = ['@primestocks.ph', '@leadstech-corp.com', '@gpsci.net', '@farmasee.ph', '@leads-farmex.com', '@leadsav.com'];
 $requestTicketLapcDepartmentCategories = [
     'Admin & Legal' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
+    'Banana Farm Operations' => ['Others'],
     'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request', 'Others'],
-    'Institutional Sales (Bidding)' => $requestTicketDefaultCategories,
+    'Digital Agri Solutions and Innovations' => ['Others'],
+    'E-Commerce' => ['Others'],
+    'Executive' => ['Others'],
+    'Finance and Accounting' => ['Others'],
+    'Institutional Sales (Bidding)' => ['Others'],
     'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Incident Report', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
     'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Others'],
-    'Machineries' => $requestTicketDefaultCategories,
+    'Machineries' => ['Others'],
+    'Management' => ['Others'],
     'Marketing' => ['Marketing Operations', 'Channel & Campaigns', 'Others'],
+    'New Business Segment' => ['Others'],
+    'Seed Production' => ['Others'],
+    'Supply Chain' => ['Others'],
+    'Supply Chain Innovation' => ['Others'],
     'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations', 'Others'],
 ];
 $requestTicketLapcAdminLegalRequestCategories = [
@@ -63,6 +74,10 @@ $requestTicketLapcAdminLegalRequestCategories = [
 ];
 $requestTicketMhcDepartmentCategories = [
     'Marketing Creatives' => ['Marketing Request', 'Others'],
+    'IT' => ['Others'],
+    'Executive' => ['Others'],
+    'Institutional Sales' => ['Others'],
+    'Accounting' => ['Others'],
 ];
 $requestTicketSidebarCompanyMeta = [
     '@farmasee.ph' => ['icon' => 'fa-store', 'tone' => 'emerald'],
@@ -82,16 +97,24 @@ $requestTicketHideGuidanceCategoriesFor = [
     '@leadsav.com',
     '@gpsci.net',
     '@leadstech-corp.com',
-    '@malvedaholdings.com',
     '@primestocks.ph',
 ];
 $requestTicketSidebarCompanies = [];
+$requestTicketSidebarAllowedCompanies = ['@leadsagri.com', '@malvedaholdings.com', '@malvedaproperties.com', '@lingapleads.org'];
 foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel) {
+    if (!in_array((string) $companyValue, $requestTicketSidebarAllowedCompanies, true)) {
+        continue;
+    }
     $hideSidebarCategories = in_array((string) $companyValue, $requestTicketHideGuidanceCategoriesFor, true);
     $sidebarRequiresDepartment = ticket_company_requires_department((string) $companyValue);
     $sidebarDepartments = $sidebarRequiresDepartment
         ? ticket_receiving_available_departments($conn, (string) $companyValue)
         : [];
+    if ($companyValue === '@malvedaholdings.com') {
+        $sidebarDepartments = array_values(array_filter($sidebarDepartments, static function ($department): bool {
+            return (string) $department === 'Marketing Creatives';
+        }));
+    }
 
     $sidebarDirectCategories = $requestTicketDefaultCategories;
     if ($companyValue === '@malvedaproperties.com') {
@@ -650,14 +673,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $default_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'];
     $mpdc_categories = ['Engineerings', 'Client Referral', 'Others'];
     $lingap_categories = ['Lakbay Kalusugan Request (Medical Mission)', 'Others'];
+    $others_only_companies = ['@primestocks.ph', '@leadstech-corp.com', '@gpsci.net', '@farmasee.ph', '@leads-farmex.com', '@leadsav.com'];
     $lapc_department_categories = [
         'Admin & Legal' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
+        'Banana Farm Operations' => ['Others'],
         'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request', 'Others'],
-        'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
+        'Digital Agri Solutions and Innovations' => ['Others'],
+        'E-Commerce' => ['Others'],
+        'Executive' => ['Others'],
+        'Finance and Accounting' => ['Others'],
+        'Institutional Sales (Bidding)' => ['Others'],
         'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Incident Report', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
         'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Others'],
-        'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
+        'Machineries' => ['Others'],
+        'Management' => ['Others'],
         'Marketing' => ['Marketing Operations', 'Channel & Campaigns', 'Others'],
+        'New Business Segment' => ['Others'],
+        'Seed Production' => ['Others'],
+        'Supply Chain' => ['Others'],
+        'Supply Chain Innovation' => ['Others'],
         'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations', 'Others'],
     ];
     $lapc_admin_legal_request_categories = [
@@ -667,6 +701,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     ];
     $mhc_department_categories = [
         'Marketing Creatives' => ['Marketing Request', 'Others'],
+        'IT' => ['Others'],
+        'Executive' => ['Others'],
+        'Institutional Sales' => ['Others'],
+        'Accounting' => ['Others'],
     ];
     $category = trim((string) ($_POST['category'] ?? ''));
     $admin_legal_request_for = trim((string) ($_POST['admin_legal_request_for'] ?? ''));
@@ -753,7 +791,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $assigned_group = isset($_POST['assigned_group']) ? trim((string) $_POST['assigned_group']) : '';
     $assigned_company = ticket_normalize_company($assigned_company);
     $allowed_categories = $default_categories;
-    if ($assigned_company === '@malvedaproperties.com') {
+    if (in_array($assigned_company, $others_only_companies, true)) {
+        $allowed_categories = ['Others'];
+    } elseif ($assigned_company === '@malvedaproperties.com') {
         $allowed_categories = $mpdc_categories;
     } elseif ($assigned_company === '@lingapleads.org') {
         $allowed_categories = $lingap_categories;
@@ -6736,6 +6776,7 @@ if (count($emailCreationEntries) === 0) {
         const defaultCategories = <?= json_encode($requestTicketDefaultCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mpdcCategories = <?= json_encode($requestTicketMpdcCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lingapCategories = <?= json_encode($requestTicketLingapCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const othersOnlyCompanies = <?= json_encode($requestTicketOthersOnlyCompanies, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lapcDepartmentCategories = <?= json_encode($requestTicketLapcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lapcAdminLegalRequestCategories = <?= json_encode($requestTicketLapcAdminLegalRequestCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const mhcDepartmentCategories = <?= json_encode($requestTicketMhcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
@@ -7373,11 +7414,18 @@ if (count($emailCreationEntries) === 0) {
             const departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
             return recipientValue === '@leadsagri.com' && departmentValue === 'Admin & Legal';
         }
+        function areRoutingSelectionsComplete() {
+            if (!recipientDropdown || String(recipientDropdown.value || '') === '') return false;
+            return !departmentSelect || departmentSelect.disabled || String(departmentSelect.value || '') !== '';
+        }
         function getCategoryOptions() {
             if (!recipientDropdown) return defaultCategories;
             const recipientValue = String(recipientDropdown.value || '');
             const departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
             const requestForValue = adminLegalRequestForSelect ? String(adminLegalRequestForSelect.value || '') : '';
+            if (othersOnlyCompanies.indexOf(recipientValue) !== -1) {
+                return ['Others'];
+            }
             if (recipientValue === '@malvedaproperties.com') {
                 return mpdcCategories;
             }
@@ -7418,6 +7466,29 @@ if (count($emailCreationEntries) === 0) {
                     closeAdminLegalRequestForDropdown();
                 }
                 renderAdminLegalRequestForDropdownOptions();
+            }
+            const routingSelectionsComplete = areRoutingSelectionsComplete();
+            if (urgencySelect) {
+                urgencySelect.disabled = !routingSelectionsComplete;
+                if (routingSelectionsComplete) {
+                    urgencySelect.setAttribute('required', 'required');
+                } else {
+                    urgencySelect.value = '';
+                    urgencySelect.removeAttribute('required');
+                    if (priorityHidden) priorityHidden.value = '';
+                }
+                renderUrgencyDropdownOptions();
+            }
+            if (!routingSelectionsComplete) {
+                if (categoryContainer) categoryContainer.style.display = '';
+                categorySelect.value = '';
+                categorySelect.setAttribute('data-selected', '');
+                categorySelect.disabled = true;
+                categorySelect.removeAttribute('required');
+                populateCategories([]);
+                toggleMarketingSubcategory();
+                syncRequestGridRows();
+                return;
             }
             if (adminLegalSelected && requestForValue === '') {
                 if (categoryContainer) categoryContainer.style.display = 'none';

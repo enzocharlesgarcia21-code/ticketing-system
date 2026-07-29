@@ -63,8 +63,9 @@ $salesRegionOptions = [
     'Area 833',
 ];
 $defaultCategories = ['Hardware', 'Software', 'Documentation', 'Email', 'Internet Concerns', 'Procurement'];
-$mpdcCategories = ['Engineerings', 'Client Referral'];
-$lingapCategories = ['Lakbay Kalusugan Request (Medical Mission)'];
+$mpdcCategories = ['Engineerings', 'Client Referral', 'Others'];
+$lingapCategories = ['Lakbay Kalusugan Request (Medical Mission)', 'Others'];
+$othersOnlyCompanyDomains = ['@primestocks.ph', '@leadstech-corp.com', '@gpsci.net', '@farmasee.ph', '@leads-farmex.com', '@leadsav.com'];
 $lapcDepartmentCategories = [
     'Admin & Legal' => [
         'Fleetcard',
@@ -75,7 +76,9 @@ $lapcDepartmentCategories = [
         'Phone Plan / Simcard',
         'FleetCard Request',
         'Supplies',
+        'Others',
     ],
+    'Banana Farm Operations' => ['Others'],
     'Diagnostics / Lingap' => [
         'Medical consultations',
         'Laboratory Request',
@@ -83,15 +86,13 @@ $lapcDepartmentCategories = [
         'Back to work Clearance',
         'Medical Reimbursement',
         'Sick Leave Appliccation/Request',
+        'Others',
     ],
-    'Institutional Sales (Bidding)' => [
-        'Documentation',
-        'Email',
-        'Hardware',
-        'Internet Concerns',
-        'Procurement',
-        'Software',
-    ],
+    'Digital Agri Solutions and Innovations' => ['Others'],
+    'E-Commerce' => ['Others'],
+    'Executive' => ['Others'],
+    'Finance and Accounting' => ['Others'],
+    'Institutional Sales (Bidding)' => ['Others'],
     'HR' => [
         'Attendance & Timekeeping',
         'Certificate of Employment',
@@ -112,19 +113,19 @@ $lapcDepartmentCategories = [
         'Procurement',
         'SAP',
         'Software',
+        'Others',
     ],
-    'Machineries' => [
-        'Documentation',
-        'Email',
-        'Hardware',
-        'Internet Concerns',
-        'Procurement',
-        'Software',
-    ],
+    'Machineries' => ['Others'],
+    'Management' => ['Others'],
     'Marketing' => [
         'Marketing Operations',
         'Channel & Campaigns',
+        'Others',
     ],
+    'New Business Segment' => ['Others'],
+    'Seed Production' => ['Others'],
+    'Supply Chain' => ['Others'],
+    'Supply Chain Innovation' => ['Others'],
     'Technical' => [
         'CPR',
         'MSDS',
@@ -134,6 +135,7 @@ $lapcDepartmentCategories = [
         'Certificate of Authorized Dealer',
         'Updated Label',
         'Product Presentations',
+        'Others',
     ],
 ];
 $lapcAdminLegalRequestCategories = [
@@ -141,21 +143,30 @@ $lapcAdminLegalRequestCategories = [
         'Fleetcard',
         'Office Supplies',
         'Termporary Vehicle',
+        'Others',
     ],
     'Ace Loui Rosal (Ace)' => [
         'Office Supplies(HO,Warehouse Bulacan,Norza)',
         'Repair Concern(HO)',
+        'Others',
     ],
     'Cherry Jane Cabote (CJ)' => [
         'Phone Plan / Simcard',
         'FleetCard Request',
         'Supplies',
+        'Others',
     ],
+    'Others' => ['Others'],
 ];
 $mhcDepartmentCategories = [
     'Marketing Creatives' => [
         'Marketing Request',
+        'Others',
     ],
+    'IT' => ['Others'],
+    'Executive' => ['Others'],
+    'Institutional Sales' => ['Others'],
+    'Accounting' => ['Others'],
 ];
 
 $requestGuidanceCompanyMeta = [
@@ -172,7 +183,7 @@ $requestGuidanceCompanyMeta = [
 
 $requestTicketCompanyOptions = [
     '@leadstech-corp.com' => 'LTC',
-    '@gpsci.net' => 'GPSCI',
+    '@gpsci.net' => 'GPCI',
     '@leadsagri.com' => 'LAPC',
     '@leads-farmex.com' => 'FARMEX / LAV',
     '@lingapleads.org' => 'LINGAP',
@@ -212,16 +223,24 @@ $requestGuidanceHideCategoriesFor = [
     '@leadsav.com',
     '@gpsci.net',
     '@leadstech-corp.com',
-    '@malvedaholdings.com',
     '@primestocks.ph',
 ];
 $requestGuidanceCompanies = [];
+$requestGuidanceAllowedCompanies = ['@leadsagri.com', '@malvedaholdings.com', '@malvedaproperties.com', '@lingapleads.org'];
 foreach ($requestGuidanceCompanyOptions as $guidanceCompanyValue => $guidanceCompanyLabel) {
+    if (!in_array((string) $guidanceCompanyValue, $requestGuidanceAllowedCompanies, true)) {
+        continue;
+    }
     $hideGuidanceCategories = in_array((string) $guidanceCompanyValue, $requestGuidanceHideCategoriesFor, true);
     $guidanceRequiresDepartment = ticket_company_requires_department((string) $guidanceCompanyValue);
     $guidanceDepartments = $guidanceRequiresDepartment
         ? ticket_receiving_available_departments($conn, (string) $guidanceCompanyValue)
         : [];
+    if ($guidanceCompanyValue === '@malvedaholdings.com') {
+        $guidanceDepartments = array_values(array_filter($guidanceDepartments, static function ($department): bool {
+            return (string) $department === 'Marketing Creatives';
+        }));
+    }
     $guidanceDirectCategories = $defaultCategories;
     if ($guidanceCompanyValue === '@malvedaproperties.com') {
         $guidanceDirectCategories = $mpdcCategories;
@@ -816,7 +835,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $priority = 'Low';
     $subject = $category !== '' ? ($category . ' Concern') : 'Sales Ticket';
     $normalized_company_id = normalize_sales_recipient_company($company_id);
-    $allowed_categories = ($normalized_company_id === '@malvedaproperties.com')
+    $allowed_categories = in_array($normalized_company_id, $othersOnlyCompanyDomains, true)
+        ? ['Others']
+        : (($normalized_company_id === '@malvedaproperties.com')
         ? $mpdcCategories
         : (($normalized_company_id === '@lingapleads.org')
             ? $lingapCategories
@@ -824,7 +845,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             ? $mhcDepartmentCategories[$assigned_department_selected]
         : (($normalized_company_id === '@leadsagri.com' && isset($lapcDepartmentCategories[$assigned_department_selected]))
             ? $lapcDepartmentCategories[$assigned_department_selected]
-            : $defaultCategories)));
+            : $defaultCategories))));
     $isLapcRecipient = ($normalized_company_id === '@leadsagri.com');
     $isMhcRecipient = ($normalized_company_id === '@malvedaholdings.com');
     $requiresDepartment = ticket_company_requires_department($normalized_company_id);
@@ -847,6 +868,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $isLapcItSapRequest = ($isLapcItRecipient && $category === 'SAP');
     $isLapcMarketingTicket = ($isLapcRecipient && $assigned_department_selected === 'Marketing' && ($category === 'Marketing Operations' || $category === 'Channel & Campaigns'));
     $isLapcAdminLegalRecipient = ($isLapcRecipient && $assigned_department_selected === 'Admin & Legal');
+    if ($isLapcAdminLegalRecipient && $admin_legal_request_for === 'Others') {
+        $category = 'Others';
+        $subject = 'Others Concern';
+    }
     if ($isLapcAdminLegalRecipient && isset($lapcAdminLegalRequestCategories[$admin_legal_request_for])) {
         $allowed_categories = $lapcAdminLegalRequestCategories[$admin_legal_request_for];
     }
@@ -1851,7 +1876,9 @@ if (count($emailCreationEntries) === 0) {
 }
 $normalized_company_id = $selectedRecipientCompany;
 $initialSalesCategoryOptions = $defaultCategories;
-if ($normalized_company_id === '@malvedaproperties.com') {
+if (in_array($normalized_company_id, $othersOnlyCompanyDomains, true)) {
+    $initialSalesCategoryOptions = ['Others'];
+} elseif ($normalized_company_id === '@malvedaproperties.com') {
     $initialSalesCategoryOptions = $mpdcCategories;
 } elseif ($normalized_company_id === '@lingapleads.org') {
     $initialSalesCategoryOptions = $lingapCategories;
@@ -1866,6 +1893,8 @@ if ($normalized_company_id === '@malvedaproperties.com') {
 } elseif ($normalized_company_id === '@leadsagri.com' && isset($lapcDepartmentCategories[$selectedRecipientDepartment])) {
     $initialSalesCategoryOptions = $lapcDepartmentCategories[$selectedRecipientDepartment];
 }
+$initialSalesRoutingComplete = $selectedRecipientCompany !== ''
+    && (!$initialShowDepartment || $selectedRecipientDepartment !== '');
 ?>
 
 <!DOCTYPE html>
@@ -2568,8 +2597,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             font-weight: 400;
         }
 
-        body.sales-request-ticket-page .category-dropdown-option.is-selected,
-        body.sales-request-ticket-page .department-dropdown-option.is-selected {
+        body.sales-request-ticket-page .category-dropdown-option.is-selected {
             background: #f8fafc;
             color: #0f172a;
             font-weight: 400;
@@ -5545,6 +5573,7 @@ if ($normalized_company_id === '@malvedaproperties.com') {
         body.sales-request-ticket-page .request-main-column .form-group textarea,
         body.sales-request-ticket-page .request-main-column .recipient-dropdown-trigger,
         body.sales-request-ticket-page .request-main-column .department-dropdown-trigger,
+        body.sales-request-ticket-page .request-main-column .admin-legal-request-for-dropdown-trigger,
         body.sales-request-ticket-page .request-main-column .category-dropdown-trigger,
         body.sales-request-ticket-page .request-main-column .priority-dropdown-trigger,
         body.sales-request-ticket-page .request-main-column .sales-position-dropdown-trigger,
@@ -5559,6 +5588,15 @@ if ($normalized_company_id === '@malvedaproperties.com') {
             color: #1f2937;
             font-size: 14px;
             box-sizing: border-box;
+        }
+
+        body.sales-request-ticket-page .request-main-column .department-dropdown-trigger:focus,
+        body.sales-request-ticket-page .request-main-column .department-dropdown-trigger[aria-expanded="true"],
+        body.sales-request-ticket-page .request-main-column .admin-legal-request-for-dropdown-trigger:focus,
+        body.sales-request-ticket-page .request-main-column .admin-legal-request-for-dropdown-trigger[aria-expanded="true"] {
+            outline: none;
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
         }
 
         body.sales-request-ticket-page .request-main-column .form-group textarea,
@@ -5994,13 +6032,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="form-group" id="categoryContainer">
                     <label>Category <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper category-dropdown" id="categoryDropdown">
-                        <select name="category" id="sales_category" class="form-control category-select category-native-select" required data-selected="<?= htmlspecialchars((string) ($category ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                        <select name="category" id="sales_category" class="form-control category-select category-native-select" required data-selected="<?= htmlspecialchars((string) ($category ?? ''), ENT_QUOTES, 'UTF-8'); ?>"<?= $initialSalesRoutingComplete ? '' : ' disabled'; ?>>
                             <option value="" disabled hidden <?= ($category ?? '') === '' ? 'selected' : '' ?>>Choose category</option>
                             <?php foreach ($initialSalesCategoryOptions as $categoryOption): ?>
                                 <option value="<?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?>" <?= ($category ?? '') === $categoryOption ? 'selected' : '' ?>><?= htmlspecialchars($categoryOption, ENT_QUOTES, 'UTF-8'); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <button type="button" id="categoryDropdownTrigger" class="category-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Choose category</button>
+                        <button type="button" id="categoryDropdownTrigger" class="category-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false"<?= $initialSalesRoutingComplete ? '' : ' disabled'; ?>>Choose category</button>
                         <div id="categoryDropdownMenu" class="category-dropdown-menu" role="listbox" aria-labelledby="categoryDropdownTrigger"></div>
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
@@ -6009,13 +6047,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 <div class="form-group" id="priorityGroup">
                     <label>Level of Urgency <span class="required-asterisk">*</span></label>
                     <div class="select-wrapper priority-dropdown" id="priorityDropdown">
-                        <select name="priority" id="sales_priority" class="form-control category-select priority-native-select" required data-selected="<?= htmlspecialchars((string) ($priority_selected ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                        <select name="priority" id="sales_priority" class="form-control category-select priority-native-select" required data-selected="<?= htmlspecialchars((string) ($priority_selected ?? ''), ENT_QUOTES, 'UTF-8'); ?>"<?= $initialSalesRoutingComplete ? '' : ' disabled'; ?>>
                             <option value="" disabled hidden <?= ($priority_selected ?? '') === '' ? 'selected' : '' ?>>Choose level of urgency</option>
                             <option value="Low" <?= ($priority_selected ?? '') === 'Low' ? 'selected' : '' ?>>Low (7 to 9 days)</option>
                             <option value="Medium" <?= ($priority_selected ?? '') === 'Medium' ? 'selected' : '' ?>>Medium (4 to 6 days)</option>
                             <option value="High" <?= ($priority_selected ?? '') === 'High' ? 'selected' : '' ?>>High (1 to 3 days)</option>
                         </select>
-                        <button type="button" id="priorityDropdownTrigger" class="priority-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Choose level of urgency</button>
+                        <button type="button" id="priorityDropdownTrigger" class="priority-dropdown-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false"<?= $initialSalesRoutingComplete ? '' : ' disabled'; ?>>Choose level of urgency</button>
                         <div id="priorityDropdownMenu" class="priority-dropdown-menu" role="listbox" aria-labelledby="priorityDropdownTrigger">
                             <button type="button" class="priority-dropdown-option<?= ($priority_selected ?? '') === 'Low' ? ' is-selected' : '' ?>" data-value="Low" role="option" aria-selected="<?= ($priority_selected ?? '') === 'Low' ? 'true' : 'false' ?>">LOW (7 to 9 days)</button>
                             <button type="button" class="priority-dropdown-option<?= ($priority_selected ?? '') === 'Medium' ? ' is-selected' : '' ?>" data-value="Medium" role="option" aria-selected="<?= ($priority_selected ?? '') === 'Medium' ? 'true' : 'false' ?>">Medium (4 to 6 days)</button>
@@ -6964,6 +7002,7 @@ var emailCreationDepartmentOptionsBySubsidiary = {
 var defaultCategories = <?= json_encode($defaultCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var mpdcCategories = <?= json_encode($mpdcCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var lingapCategories = <?= json_encode($lingapCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var othersOnlyCompanyDomains = <?= json_encode($othersOnlyCompanyDomains, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var lapcDepartmentCategories = <?= json_encode($lapcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var lapcAdminLegalRequestCategories = <?= json_encode($lapcAdminLegalRequestCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var mhcDepartmentCategories = <?= json_encode($mhcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
@@ -7404,7 +7443,7 @@ function buildRecipientDropdown() {
         });
         recipientMenu.appendChild(optionButton);
     });
-    setStaticDropdownState(recipientWrapper, recipientTrigger, recipientMenu, options.length <= 1);
+    setStaticDropdownState(recipientDropdown, recipientTrigger, recipientMenu, options.length <= 1);
     if (recipientTrigger) {
         recipientTrigger.disabled = !!recipient.disabled || options.length <= 1;
     }
@@ -7444,7 +7483,7 @@ function syncCategoryTriggerLabel() {
 }
 
 function chooseCategory(optionValue, shouldDispatchChange) {
-    if (!categorySelect) return;
+    if (!categorySelect || !areRoutingSelectionsComplete()) return;
     categorySelect.value = optionValue;
     categorySelect.setAttribute('data-selected', optionValue);
     syncCategoryTriggerLabel();
@@ -7712,7 +7751,7 @@ function syncPriorityTriggerLabel() {
 }
 
 function choosePriority(optionValue, shouldDispatchChange) {
-    if (!prioritySelect) return;
+    if (!prioritySelect || !areRoutingSelectionsComplete()) return;
     prioritySelect.value = optionValue;
     prioritySelect.setAttribute('data-selected', optionValue);
     syncPriorityTriggerLabel();
@@ -7826,7 +7865,7 @@ function toggleDepartmentField() {
     var departmentOptions = Array.from(departmentSelect.options).filter(function(option) {
         return String(option.value || '') !== '';
     });
-    setStaticDropdownState(departmentWrapper, departmentTrigger, departmentMenu, false);
+    setStaticDropdownState(departmentDropdown, departmentTrigger, departmentMenu, false);
     if (departmentTrigger) {
         departmentTrigger.disabled = !!departmentSelect.disabled;
     }
@@ -7921,6 +7960,14 @@ function shouldShowMarketingSubcategory() {
         && Object.prototype.hasOwnProperty.call(lapcMarketingSubcategories, selectedCategory);
 }
 
+function areRoutingSelectionsComplete() {
+    if (!recipient || String(recipient.value || '') === '') return false;
+    var normalizedRecipient = normalizeRecipientCompany(recipient.value);
+    var requiresDepartment = normalizedRecipient === '@leadsagri.com'
+        || normalizedRecipient === '@malvedaholdings.com';
+    return !requiresDepartment || (departmentSelect && String(departmentSelect.value || '') !== '');
+}
+
 function toggleMarketingSubcategory() {
     if (!marketingSubcategoryRow || !marketingSubcategoryContainer || !marketingSubcategorySelect) return;
     var selectedCategory = categorySelect ? String(categorySelect.value || '') : '';
@@ -7971,7 +8018,49 @@ function toggleCategoryField() {
             syncAdminLegalRequestForTriggerLabel();
         }
     }
-    if (normalizedRecipient === '@malvedaproperties.com') {
+    if (!areRoutingSelectionsComplete()) {
+        categorySelect.value = '';
+        categorySelect.setAttribute('data-selected', '');
+        categorySelect.disabled = true;
+        categorySelect.removeAttribute('required');
+        if (categoryTrigger) categoryTrigger.disabled = true;
+        populateSalesCategories([]);
+        toggleMarketingSubcategory();
+        syncRequestGridRows();
+        return;
+    }
+    if (categoryContainer) categoryContainer.style.display = '';
+    if (isAdminLegalSelection) {
+        if (requestForValue === '') {
+            if (categoryContainer) categoryContainer.style.display = 'none';
+            categorySelect.value = '';
+            categorySelect.setAttribute('data-selected', '');
+            categorySelect.disabled = true;
+            categorySelect.removeAttribute('required');
+            if (categoryTrigger) categoryTrigger.disabled = true;
+            populateSalesCategories([]);
+        } else if (requestForValue === 'Others') {
+            if (categoryContainer) categoryContainer.style.display = 'none';
+            populateSalesCategories(['Others']);
+            categorySelect.disabled = false;
+            categorySelect.value = 'Others';
+            categorySelect.setAttribute('data-selected', 'Others');
+            categorySelect.removeAttribute('required');
+            if (categoryTrigger) categoryTrigger.disabled = true;
+        } else {
+            populateSalesCategories(lapcAdminLegalRequestCategories[requestForValue] || []);
+            categorySelect.disabled = false;
+            categorySelect.setAttribute('required', 'required');
+            if (categoryTrigger) categoryTrigger.disabled = false;
+        }
+        closeCategoryDropdown();
+        toggleMarketingSubcategory();
+        syncRequestGridRows();
+        return;
+    }
+    if (othersOnlyCompanyDomains.indexOf(normalizedRecipient) !== -1) {
+        options = ['Others'];
+    } else if (normalizedRecipient === '@malvedaproperties.com') {
         options = mpdcCategories;
     } else if (normalizedRecipient === '@lingapleads.org') {
         options = lingapCategories;
@@ -8008,9 +8097,16 @@ function togglePriorityField() {
     if (!priorityGroup || !prioritySelect || !recipient) return;
     setPriorityOptions('hr');
     priorityGroup.classList.remove('hidden');
-    prioritySelect.disabled = false;
-    prioritySelect.setAttribute('required', 'true');
-    if (priorityTrigger) priorityTrigger.disabled = false;
+    var routingSelectionsComplete = areRoutingSelectionsComplete();
+    prioritySelect.disabled = !routingSelectionsComplete;
+    if (routingSelectionsComplete) {
+        prioritySelect.setAttribute('required', 'true');
+    } else {
+        prioritySelect.value = '';
+        prioritySelect.setAttribute('data-selected', '');
+        prioritySelect.removeAttribute('required');
+    }
+    if (priorityTrigger) priorityTrigger.disabled = !routingSelectionsComplete;
     renderPriorityDropdownOptions();
     syncRequestGridRows();
 }
@@ -8978,6 +9074,10 @@ if (marketingSubcategoryTrigger) {
 }
 if (priorityTrigger) {
     priorityTrigger.addEventListener('click', function() {
+        if (!areRoutingSelectionsComplete()) {
+            togglePriorityField();
+            return;
+        }
         if (priorityTrigger.disabled || !priorityMenu) return;
         renderPriorityDropdownOptions();
         var nextState = !priorityMenu.classList.contains('is-open');

@@ -3754,7 +3754,7 @@ function conference_admin_booking_status_text(string $status): string
                                         <div class="room-preview-legend">
                                             <div class="room-preview-legend-row"><span class="room-preview-legend-dot"></span><span data-room-preview-name>New Room</span></div>
                                             <div class="room-preview-legend-row"><span class="room-preview-legend-dot" style="background:#b7edc3;"></span><span>Caltex</span></div>
-                                            <div class="room-preview-legend-row"><span class="room-preview-legend-dot" style="background:#fff7a8;"></span><span>GPSCI</span></div>
+                                            <div class="room-preview-legend-row"><span class="room-preview-legend-dot" style="background:#fff7a8;"></span><span>GPCI</span></div>
                                             <div class="room-preview-legend-row"><span class="room-preview-legend-dot" style="background:#9ecbf3;"></span><span>MPDC</span></div>
                                         </div>
                                     </div>
