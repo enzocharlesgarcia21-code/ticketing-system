@@ -2099,24 +2099,27 @@ $successMessage = '';
             }
 
             body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row {
+                --submitted-card-padding-x: clamp(12px, 4vw, 18px);
+                --submitted-card-header-space: 45px;
+                position: relative;
                 display: grid;
                 grid-template-columns: minmax(0, 1fr) auto;
                 grid-template-areas:
-                    "id status"
                     "category category"
                     "passed passed"
                     "date date"
-                    "badges badges"
+                    "status badges"
                     "action action";
                 column-gap: 12px;
                 row-gap: 9px;
                 width: 100%;
                 min-width: 0;
-                padding: 16px 18px;
+                padding: var(--submitted-card-header-space) var(--submitted-card-padding-x) var(--submitted-card-padding-x);
                 border: 1px solid #dbe4ee;
                 border-radius: 16px;
                 background: #ffffff;
                 box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+                overflow: hidden;
                 box-sizing: border-box;
             }
 
@@ -2135,12 +2138,26 @@ $successMessage = '';
             }
 
             body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(1) {
-                grid-area: id;
-                color: #0f172a;
-                font-size: 15px;
+                position: absolute;
+                top: 0;
+                right: 0;
+                left: 0;
+                display: flex !important;
+                align-items: center;
+                width: auto !important;
+                min-height: 36px;
+                margin: 0;
+                padding: 10px var(--submitted-card-padding-x) !important;
+                border-radius: 15px 15px 0 0;
+                background: #1B5E20 !important;
+                color: #ffffff !important;
+                font-size: clamp(12px, 3.4vw, 14px);
                 font-weight: 900;
                 line-height: 1.2;
                 font-variant-numeric: tabular-nums;
+                letter-spacing: 0.02em;
+                box-sizing: border-box;
+                z-index: 1;
             }
 
             body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(2) {
@@ -2161,7 +2178,7 @@ $successMessage = '';
 
             body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(3) {
                 grid-area: status;
-                justify-self: end;
+                justify-self: start;
                 align-self: start;
             }
 
@@ -2339,6 +2356,36 @@ $successMessage = '';
 
             body.employee-my-tickets-page .tm-global-chat-fab .tm-global-chat-label {
                 display: none;
+            }
+
+            body.employee-my-tickets-page #followUpConfirmOverlay .close-ticket-confirm-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            body.employee-my-tickets-page #followUpConfirmBtn {
+                order: 1;
+                width: 100%;
+            }
+
+            body.employee-my-tickets-page #followUpCancelBtn {
+                order: 2;
+                width: 100%;
+            }
+
+            body.employee-my-tickets-page #closeTicketConfirmOverlay .close-ticket-confirm-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            body.employee-my-tickets-page #closeTicketConfirmBtn {
+                order: 1;
+                width: 100%;
+            }
+
+            body.employee-my-tickets-page #closeTicketCancelBtn {
+                order: 2;
+                width: 100%;
             }
         }
         #ticketSuccessOverlay {
@@ -3498,7 +3545,7 @@ $successMessage = '';
                             <?php if($result->num_rows > 0): ?>
                                 <?php while($row = $result->fetch_assoc()): ?>
                                 <tr class="ticket-row" data-id="<?= $row['id']; ?>" style="cursor:pointer;">
-                                    <td data-label="ID">#<?= $row['id']; ?></td>
+                                    <td data-label="ID">#<?= str_pad((string) (int) $row['id'], 6, '0', STR_PAD_LEFT); ?></td>
                                     <td data-label="Category" class="subject-cell">
                                         <strong><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                     </td>

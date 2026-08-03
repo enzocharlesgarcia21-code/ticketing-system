@@ -1127,6 +1127,9 @@ $showing_to = min($offset + $limit, (int) $total_records);
             }
 
             body.employee-my-task-page .table-responsive table tbody tr.ticket-row {
+                --task-card-padding-x: clamp(13px, 4vw, 17px);
+                --task-card-arrow-space: clamp(42px, 12vw, 52px);
+                --task-card-header-space: 45px;
                 position: relative;
                 display: flex;
                 flex-wrap: wrap;
@@ -1134,8 +1137,8 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 gap: 7px 8px;
                 width: 100%;
                 max-width: 100%;
-                padding: clamp(13px, 4vw, 17px);
-                padding-right: clamp(42px, 12vw, 52px);
+                padding: var(--task-card-header-space) var(--task-card-padding-x) var(--task-card-padding-x);
+                padding-right: var(--task-card-arrow-space);
                 border-radius: 14px;
                 background: #ffffff;
                 box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
@@ -1169,14 +1172,28 @@ $showing_to = min($offset + $limit, (int) $total_records);
             }
 
             body.employee-my-task-page .task-ticket-id {
+                position: absolute;
+                top: 0;
+                right: 0;
+                left: 0;
                 order: 1;
-                flex: 0 0 100%;
-                width: 100%;
+                display: flex !important;
+                align-items: center;
+                flex: none;
+                width: auto;
+                min-height: 36px;
+                margin: 0;
+                padding: 10px var(--task-card-padding-x) !important;
+                border-radius: 13px 13px 0 0;
+                background: #1B5E20 !important;
                 font-size: clamp(12px, 3.4vw, 14px);
                 line-height: 1.2;
                 font-weight: 800;
-                color: #0f172a;
+                color: #ffffff !important;
                 font-variant-numeric: tabular-nums;
+                letter-spacing: 0.02em;
+                box-sizing: border-box;
+                z-index: 1;
             }
 
             body.employee-my-task-page .task-ticket-category {
@@ -1324,9 +1341,16 @@ $showing_to = min($offset + $limit, (int) $total_records);
             }
 
             body.employee-my-task-page .table-responsive table tbody tr.ticket-row {
+                --task-card-padding-x: 12px;
+                --task-card-arrow-space: 38px;
+                --task-card-header-space: 43px;
                 gap: 6px 7px;
-                padding: 12px 38px 12px 12px;
+                padding: var(--task-card-header-space) var(--task-card-arrow-space) 12px var(--task-card-padding-x);
                 border-radius: 12px;
+            }
+
+            body.employee-my-task-page .task-ticket-id {
+                border-radius: 11px 11px 0 0;
             }
 
             body.employee-my-task-page .task-ticket-arrow {

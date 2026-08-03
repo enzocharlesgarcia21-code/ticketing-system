@@ -5278,6 +5278,47 @@ if (count($emailCreationEntries) === 0) {
             font-size: 27px;
         }
 
+        body.employee-request-ticket-page .request-guidance-heading {
+            width: 100%;
+            border: 0;
+            font-family: inherit;
+            text-align: left;
+            box-sizing: border-box;
+            cursor: default;
+        }
+
+        body.employee-request-ticket-page .request-guidance-heading-copy {
+            display: block;
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        body.employee-request-ticket-page .request-guidance-heading-title {
+            display: block;
+            margin: 0;
+            color: #14532d;
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        body.employee-request-ticket-page .request-guidance-heading-description {
+            display: block;
+            margin-top: 3px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 1.45;
+        }
+
+        body.employee-request-ticket-page .request-guidance-toggle-icon {
+            display: none;
+        }
+
+        body.employee-request-ticket-page .request-guidance-body {
+            display: block;
+        }
+
         @media (max-width: 1180px) {
             body.employee-request-ticket-page .request-ticket-layout {
                 grid-template-columns: 1fr;
@@ -5310,6 +5351,132 @@ if (count($emailCreationEntries) === 0) {
 
             body.employee-request-ticket-page .request-page-header h1 {
                 font-size: 23px;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading {
+                display: grid;
+                grid-template-columns: 24px minmax(0, 1fr) 12px;
+                align-items: center;
+                gap: 10px;
+                height: 70px;
+                min-height: 70px;
+                padding: 10px 12px;
+                cursor: pointer;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            body.employee-request-ticket-page .request-guidance-sidebar {
+                grid-template-columns: minmax(0, 1fr);
+                justify-items: stretch;
+                width: 100%;
+                max-width: 100%;
+            }
+
+            body.employee-request-ticket-page .request-mobile-info-card {
+                width: 100% !important;
+                max-width: 100% !important;
+                inline-size: 100% !important;
+                margin: 0;
+                align-self: stretch;
+                border-width: 1px !important;
+                border-style: solid !important;
+                border-radius: 14px !important;
+                box-shadow: none !important;
+                overflow: hidden !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card.request-mobile-info-card:not(.is-expanded),
+            body.employee-request-ticket-page .request-routing-help.request-mobile-info-card {
+                height: 72px !important;
+                min-height: 72px !important;
+                max-height: 72px !important;
+                block-size: 72px !important;
+                min-block-size: 72px !important;
+                max-block-size: 72px !important;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading:focus-visible {
+                outline: 3px solid rgba(22, 163, 74, 0.22);
+                outline-offset: -3px;
+            }
+
+            body.employee-request-ticket-page .request-guidance-toggle-icon {
+                display: inline-block;
+                flex: 0 0 auto;
+                margin: 0;
+                color: #166534;
+                font-size: 13px;
+                transition: transform 0.2s ease;
+            }
+
+            body.employee-request-ticket-page .request-routing-help {
+                grid-template-columns: 24px minmax(0, 1fr) 12px;
+                align-items: center;
+                gap: 10px;
+                padding: 10px 12px;
+            }
+
+            body.employee-request-ticket-page .request-routing-help::after {
+                width: 12px;
+                content: "";
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-icon,
+            body.employee-request-ticket-page .request-routing-help-icon {
+                width: 24px;
+                height: 24px;
+                border-width: 1.5px;
+                font-size: 11px;
+                box-sizing: border-box;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-copy,
+            body.employee-request-ticket-page .request-routing-help > div {
+                min-width: 0;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-title,
+            body.employee-request-ticket-page .request-routing-help h2 {
+                margin: 0;
+                overflow: hidden;
+                color: #166534;
+                font-family: inherit;
+                font-size: 11px;
+                font-weight: 700;
+                line-height: 1.25;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-request-ticket-page .request-routing-help h2 {
+                color: #8a5b0a;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-description,
+            body.employee-request-ticket-page .request-routing-help p {
+                display: -webkit-box;
+                margin: 2px 0 0;
+                overflow: hidden;
+                color: #64748b;
+                font-family: inherit;
+                font-size: 9px;
+                font-weight: 400;
+                line-height: 1.35;
+                -webkit-box-orient: vertical;
+                -webkit-line-clamp: 2;
+            }
+
+            body.employee-request-ticket-page .request-routing-help p {
+                color: #596579;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card:not(.is-expanded) .request-guidance-body {
+                display: none;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card.is-expanded .request-guidance-toggle-icon {
+                transform: rotate(180deg);
             }
 
             body.employee-request-ticket-page .request-main-column > .form-card {
@@ -5423,14 +5590,16 @@ if (count($emailCreationEntries) === 0) {
 
             <div class="request-ticket-layout">
                 <aside class="request-guidance-sidebar" aria-label="Ticket routing guide">
-                    <section class="request-guidance-card">
-                        <div class="request-guidance-heading">
+                    <section class="request-guidance-card request-mobile-info-card" id="requestGuidanceCard">
+                        <button type="button" class="request-guidance-heading" id="requestGuidanceToggle" aria-expanded="false" aria-controls="requestGuidanceBody">
                             <span class="request-guidance-heading-icon" aria-hidden="true"><i class="fas fa-info"></i></span>
-                            <div>
-                                <h2>Guidelines: Where to Submit Your Concern</h2>
-                                <p>Choose a subsidiary, then use the Department field when it appears and select the matching category.</p>
-                            </div>
-                        </div>
+                            <span class="request-guidance-heading-copy">
+                                <span class="request-guidance-heading-title" role="heading" aria-level="2">Guidelines: Where to Submit Your Concern</span>
+                                <span class="request-guidance-heading-description">Choose a subsidiary, then use the Department field when it appears and select the matching category.</span>
+                            </span>
+                            <i class="fas fa-chevron-down request-guidance-toggle-icon" aria-hidden="true"></i>
+                        </button>
+                        <div class="request-guidance-body" id="requestGuidanceBody">
                         <div class="request-guidance-search">
                             <i class="fas fa-search" aria-hidden="true"></i>
                             <input type="search" id="requestGuidanceSearch" placeholder="Search subsidiary, department, or category..." aria-label="Search subsidiary, department, or category">
@@ -5536,9 +5705,10 @@ if (count($emailCreationEntries) === 0) {
                             <?php endforeach; ?>
                         </div>
                         <p class="request-guidance-no-results" id="requestGuidanceNoResults" hidden>No matching subsidiary, department, or category found.</p>
+                        </div>
                     </section>
 
-                    <section class="request-routing-help" aria-label="Routing help">
+                    <section class="request-routing-help request-mobile-info-card" aria-label="Routing help">
                         <span class="request-routing-help-icon" aria-hidden="true"><i class="fas fa-question"></i></span>
                         <div>
                             <h2>Not sure where to send your concern?</h2>
@@ -10260,9 +10430,40 @@ if (count($emailCreationEntries) === 0) {
     })();
 
     (function () {
+        var guidanceCard = document.getElementById('requestGuidanceCard');
+        var guidanceToggle = document.getElementById('requestGuidanceToggle');
+        var mobileGuidanceQuery = window.matchMedia('(max-width: 768px)');
         var search = document.getElementById('requestGuidanceSearch');
         var directory = document.querySelector('.request-guidance-directory');
         var noResults = document.getElementById('requestGuidanceNoResults');
+
+        function setGuidanceExpanded(expanded) {
+            if (!guidanceCard || !guidanceToggle) return;
+            guidanceCard.classList.toggle('is-expanded', expanded);
+            guidanceToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        }
+
+        function syncGuidanceDisplay(event) {
+            var isMobile = event ? event.matches : mobileGuidanceQuery.matches;
+            setGuidanceExpanded(!isMobile);
+            if (guidanceToggle) guidanceToggle.tabIndex = isMobile ? 0 : -1;
+        }
+
+        syncGuidanceDisplay();
+
+        if (guidanceToggle) {
+            guidanceToggle.addEventListener('click', function () {
+                if (!mobileGuidanceQuery.matches) return;
+                setGuidanceExpanded(!guidanceCard.classList.contains('is-expanded'));
+            });
+        }
+
+        if (typeof mobileGuidanceQuery.addEventListener === 'function') {
+            mobileGuidanceQuery.addEventListener('change', syncGuidanceDisplay);
+        } else if (typeof mobileGuidanceQuery.addListener === 'function') {
+            mobileGuidanceQuery.addListener(syncGuidanceDisplay);
+        }
+
         if (!directory) return;
 
         var companyGuides = Array.prototype.slice.call(directory.querySelectorAll('.request-company-guide'));
