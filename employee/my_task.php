@@ -234,6 +234,35 @@ function task_sla_filter_condition(string $sla): string
     return ticket_sla_filter_condition_sql('t', $sla);
 }
 
+function task_company_filter_aliases(string $companyFilter): array
+{
+    $map = [
+        '@farmex_lav' => ['@leads-farmex.com', '@leadsav.com', 'leads-farmex.com', 'leadsav.com', 'farmex', 'farmex corp', 'lav', 'farmex / lav'],
+        '@farmasee.ph' => ['@farmasee.ph', 'farmasee'],
+        '@gpsci.net' => ['@gpsci.net', 'gpsci', 'gpci', 'golden primestocks chemical inc - gpsci', 'golden primestocks chemical inc - gpci'],
+        '@leadsagri.com' => ['@leadsagri.com', 'lapc', 'leads agri', 'leads agricultural products corporation'],
+        '@malvedaholdings.com' => ['@malvedaholdings.com', 'mhc', 'malveda holdings', 'malveda holdings corporation', 'malveda holdings corporation - mhc'],
+        '@malvedaproperties.com' => ['@malvedaproperties.com', 'mpdc', 'malveda properties', 'malveda properties & development corporation - mpdc'],
+        '@leadstech-corp.com' => ['@leadstech-corp.com', 'ltc', 'leads tech corporation - ltc'],
+        '@lingapleads.org' => ['@lingapleads.org', 'lingap', 'lingap leads foundation - lingap'],
+        '@primestocks.ph' => ['@primestocks.ph', 'pcc', 'primestocks chemical corporation - pcc'],
+    ];
+    $aliases = $map[$companyFilter] ?? [$companyFilter];
+    return array_values(array_unique(array_filter(array_map(static function ($value) {
+        return strtolower(trim((string) $value));
+    }, $aliases), static function ($value) {
+        return $value !== '';
+    })));
+}
+
+function task_company_filter_email_domains(string $companyFilter): array
+{
+    if ($companyFilter === '@farmex_lav') {
+        return ['@leads-farmex.com', '@leadsav.com'];
+    }
+    return str_starts_with($companyFilter, '@') ? [$companyFilter] : [];
+}
+
 // --- PAGINATION LOGIC ---
 $limit = 10;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -302,7 +331,7 @@ if ($userDepartmentKey === 'IT') {
 }
 $assignedTaskCond = $isLapcSalesEmployeeView
     ? "((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond)"
-    : "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND (($companyCond AND ((NOT $requiresGroupCond) OR $groupCond)) OR $linkedItTaskCond)))";
+    : "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND ($groupCond OR $linkedItTaskCond)))";
 $reassignedActivityCond = count($reassignedHistoryAliases) > 0
     ? "EXISTS (SELECT 1 FROM ticket_activity ta WHERE ta.ticket_id = t.id AND ta.activity_type IN ('department_change', 'company_change') AND (" . implode(' OR ', array_fill(0, count($reassignedHistoryAliases), "UPPER(ta.description) LIKE ?")) . "))"
     : "0=1";
@@ -330,7 +359,7 @@ $reassignmentFilterCond = $isLapcSalesEmployeeView
     : "(($reassignedActivityCond) OR $reassignmentFilterNotificationCond)";
 $teamTicketsCond = $isLapcSalesEmployeeView
     ? "((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond AND NOT ($reassignmentFilterCond))"
-    : "(NOT $requesterIsCurrentCond AND (($companyCond AND ((NOT $requiresGroupCond) OR $groupCond)) OR $linkedItTaskCond) AND NOT ($reassignmentFilterCond))";
+    : "(NOT $requesterIsCurrentCond AND ($groupCond OR $linkedItTaskCond) AND NOT ($reassignmentFilterCond))";
 $handledByYouCond = "(t.assigned_to = ? AND LOWER(TRIM(COALESCE(t.status, ''))) = 'in progress')";
 
 $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $isLapcSalesEmployeeView): void {
@@ -349,12 +378,6 @@ $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $u
     $types .= "i";
     $params[] = strtolower((string) $user_email);
     $types .= "s";
-    $params[] = strtolower((string) $user_email);
-    $types .= "s";
-    foreach ($companyAliases as $co) {
-        $params[] = $co;
-        $types .= "s";
-    }
     foreach ($userDepartmentAliases as $departmentAlias) {
         $params[] = $departmentAlias;
         $types .= "s";
@@ -407,12 +430,6 @@ $addTeamTicketsFilterParams = static function () use (&$params, &$types, $user_i
     $types .= "i";
     $params[] = strtolower((string) $user_email);
     $types .= "s";
-    $params[] = strtolower((string) $user_email);
-    $types .= "s";
-    foreach ($companyAliases as $co) {
-        $params[] = $co;
-        $types .= "s";
-    }
     foreach ($userDepartmentAliases as $departmentAlias) {
         $params[] = $departmentAlias;
         $types .= "s";
@@ -478,15 +495,23 @@ if ($department !== '') {
 }
 
 if ($company_email !== '') {
-    if ($company_email === 'farmex_lav') {
-        $where[] = "(LOWER($sourceCompanyExpr) = ? OR LOWER($sourceCompanyExpr) = ?)";
-        $params[] = '@leads-farmex.com';
-        $params[] = '@leadsav.com';
-        $types .= "ss";
-    } else {
-        $where[] = "LOWER($sourceCompanyExpr) = ?";
-        $params[] = strtolower((string) $company_email);
+    $companyFilterAliases = task_company_filter_aliases((string) $company_email);
+    $companyFilterDomains = task_company_filter_email_domains((string) $company_email);
+    $companyFilterParts = [];
+    if (count($companyFilterAliases) > 0) {
+        $companyFilterParts[] = "LOWER($sourceCompanyExpr) IN (" . implode(', ', array_fill(0, count($companyFilterAliases), '?')) . ")";
+        foreach ($companyFilterAliases as $companyFilterAlias) {
+            $params[] = $companyFilterAlias;
+            $types .= "s";
+        }
+    }
+    foreach ($companyFilterDomains as $companyFilterDomain) {
+        $companyFilterParts[] = "LOWER($sourceEmailExpr) LIKE ?";
+        $params[] = '%' . strtolower($companyFilterDomain);
         $types .= "s";
+    }
+    if (count($companyFilterParts) > 0) {
+        $where[] = "(" . implode(" OR ", $companyFilterParts) . ")";
     }
 }
 
@@ -728,10 +753,127 @@ $showing_to = min($offset + $limit, (int) $total_records);
             cursor: pointer;
         }
 
+        body.employee-my-task-page .my-tickets-filter-select.is-customized {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        body.employee-my-task-page .my-tickets-filter-select option {
+            background: #ffffff;
+            color: #0f172a;
+        }
+
+        body.employee-my-task-page .my-tickets-filter-select option:hover,
+        body.employee-my-task-page .my-tickets-filter-select option:focus,
+        body.employee-my-task-page .my-tickets-filter-select option:checked {
+            background: #1B5E20;
+            color: #ffffff;
+        }
+
         body.employee-my-task-page .my-tickets-filter-select-wrap {
             position: relative;
             width: 100%;
             min-width: 0;
+        }
+
+        body.employee-my-task-page .my-tickets-filter-select-wrap.has-custom-dropdown::after {
+            display: none;
+        }
+
+        body.employee-my-task-page .my-task-filter-trigger {
+            width: 100%;
+            height: 48px;
+            border: 1px solid #dbe3ef;
+            border-radius: 9px;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0;
+            padding: 0 14px 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            cursor: pointer;
+            box-sizing: border-box;
+            text-align: left;
+        }
+
+        body.employee-my-task-page .my-task-filter-trigger:focus-visible,
+        body.employee-my-task-page .my-tickets-filter-select-wrap.is-open .my-task-filter-trigger {
+            outline: none;
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.14);
+        }
+
+        body.employee-my-task-page .my-task-filter-trigger-icon {
+            color: #8fa1bd;
+            font-size: 12px;
+            transition: transform 0.16s ease;
+        }
+
+        body.employee-my-task-page .my-tickets-filter-select-wrap.is-open .my-task-filter-trigger-icon {
+            transform: rotate(180deg);
+        }
+
+        body.employee-my-task-page .my-task-filter-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            z-index: 80;
+            width: 100%;
+            margin: 0;
+            padding: 6px 0;
+            list-style: none;
+            background: #ffffff;
+            border: 1px solid #dbe3ef;
+            border-radius: 9px;
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+            display: none;
+            max-height: 260px;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        body.employee-my-task-page .my-tickets-filter-select-wrap.is-open .my-task-filter-menu {
+            display: block;
+        }
+
+        body.employee-my-task-page .my-task-filter-option {
+            width: 100%;
+            min-height: 36px;
+            padding: 0 14px;
+            border: 0;
+            background: #ffffff;
+            color: #0f172a;
+            font: inherit;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+
+        body.employee-my-task-page .my-task-filter-option:hover,
+        body.employee-my-task-page .my-task-filter-option:focus {
+            background: rgba(27, 94, 32, 0.08);
+            color: #1b5e20;
+            outline: none;
+        }
+
+        body.employee-my-task-page .my-task-filter-option.is-selected {
+            background: #1B5E20;
+            color: #ffffff;
+            font-weight: 400;
+            border-radius: 12px;
+            outline: none;
         }
 
         body.employee-my-task-page .my-tickets-reassignment-filter {
@@ -757,8 +899,8 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
         body.employee-my-task-page .my-tickets-search-input:focus,
         body.employee-my-task-page .my-tickets-filter-select:focus {
-            border-color: #94a3b8;
-            box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.14);
         }
 
         body.employee-my-task-page .my-tickets-clear-btn {
@@ -2016,6 +2158,115 @@ $showing_to = min($offset + $limit, (int) $total_records);
             '@malvedaholdings.com': <?= json_encode(array_values($mhc_departments), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>
         };
 
+        function closeTaskFilterDropdowns(exceptWrap) {
+            if (!filterForm) return;
+            Array.prototype.slice.call(filterForm.querySelectorAll('.my-tickets-filter-select-wrap.is-open')).forEach(function (wrap) {
+                if (exceptWrap && wrap === exceptWrap) return;
+                wrap.classList.remove('is-open');
+                var trigger = wrap.querySelector('.my-task-filter-trigger');
+                if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        function syncTaskCustomSelect(selectEl) {
+            if (!selectEl) return;
+            var wrap = selectEl.closest('.my-tickets-filter-select-wrap');
+            if (!wrap) return;
+            var triggerText = wrap.querySelector('.my-task-filter-trigger-text');
+            var menu = wrap.querySelector('.my-task-filter-menu');
+            var selectedOption = selectEl.options[selectEl.selectedIndex] || null;
+            var selectedValue = String(selectEl.value || '');
+            if (triggerText) {
+                triggerText.textContent = selectedOption ? selectedOption.textContent.trim() : '';
+            }
+            if (!menu) return;
+            menu.innerHTML = '';
+            Array.prototype.slice.call(selectEl.options).forEach(function (option) {
+                if (option.hidden || option.disabled) return;
+                var value = String(option.value || '');
+                var item = document.createElement('li');
+                var btn = document.createElement('button');
+                var isSelected = value === selectedValue;
+                btn.type = 'button';
+                btn.className = 'my-task-filter-option' + (isSelected ? ' is-selected' : '');
+                btn.setAttribute('role', 'option');
+                btn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+                btn.setAttribute('data-value', value);
+                btn.textContent = option.textContent.trim();
+                btn.addEventListener('click', function (event) {
+                    event.stopPropagation();
+                    selectEl.value = value;
+                    syncTaskCustomSelect(selectEl);
+                    closeTaskFilterDropdowns();
+                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+                btn.addEventListener('keydown', function (event) {
+                    var options = Array.prototype.slice.call(menu.querySelectorAll('.my-task-filter-option'));
+                    var index = options.indexOf(btn);
+                    if (event.key === 'Escape') {
+                        event.preventDefault();
+                        closeTaskFilterDropdowns();
+                        var trigger = wrap.querySelector('.my-task-filter-trigger');
+                        if (trigger) trigger.focus();
+                    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        var nextIndex = event.key === 'ArrowDown'
+                            ? (index + 1) % options.length
+                            : (index - 1 + options.length) % options.length;
+                        if (options[nextIndex]) options[nextIndex].focus();
+                    }
+                });
+                item.appendChild(btn);
+                menu.appendChild(item);
+            });
+        }
+
+        function enhanceTaskFilterSelect(selectEl) {
+            if (!selectEl || selectEl.dataset.customDropdown === '1') return;
+            var wrap = selectEl.closest('.my-tickets-filter-select-wrap');
+            if (!wrap) return;
+            selectEl.dataset.customDropdown = '1';
+            selectEl.classList.add('is-customized');
+            wrap.classList.add('has-custom-dropdown');
+
+            var trigger = document.createElement('button');
+            trigger.type = 'button';
+            trigger.className = 'my-task-filter-trigger';
+            trigger.setAttribute('aria-haspopup', 'listbox');
+            trigger.setAttribute('aria-expanded', 'false');
+            trigger.innerHTML = '<span class="my-task-filter-trigger-text"></span><i class="fas fa-chevron-down my-task-filter-trigger-icon" aria-hidden="true"></i>';
+
+            var menu = document.createElement('ul');
+            menu.className = 'my-task-filter-menu';
+            menu.setAttribute('role', 'listbox');
+
+            selectEl.insertAdjacentElement('afterend', trigger);
+            trigger.insertAdjacentElement('afterend', menu);
+
+            trigger.addEventListener('click', function (event) {
+                event.stopPropagation();
+                var willOpen = !wrap.classList.contains('is-open');
+                closeTaskFilterDropdowns(willOpen ? wrap : null);
+                wrap.classList.toggle('is-open', willOpen);
+                trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            });
+            trigger.addEventListener('keydown', function (event) {
+                if (event.key !== 'ArrowDown' && event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                closeTaskFilterDropdowns(wrap);
+                wrap.classList.add('is-open');
+                trigger.setAttribute('aria-expanded', 'true');
+                var selected = menu.querySelector('.my-task-filter-option.is-selected');
+                var first = menu.querySelector('.my-task-filter-option');
+                if (selected) selected.focus();
+                else if (first) first.focus();
+            });
+            selectEl.addEventListener('change', function () {
+                syncTaskCustomSelect(selectEl);
+            });
+            syncTaskCustomSelect(selectEl);
+        }
+
         function syncTaskDepartmentFilter() {
             var formEl = document.getElementById('filterForm');
             var companyEl = document.getElementById('filterCompany');
@@ -2045,6 +2296,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 formEl.classList.toggle('has-department-filter', hasDepartmentFilter);
             }
             departmentEl.disabled = !hasDepartmentFilter;
+            syncTaskCustomSelect(departmentEl);
         }
 
         if (searchInput) {
@@ -2061,6 +2313,12 @@ $showing_to = min($offset + $limit, (int) $total_records);
         var filterStatusEl = document.getElementById('filterStatus');
         var filterSlaEl = document.getElementById('filterSla');
         var filterReassignmentEl = document.getElementById('filterReassignment');
+
+        if (filterForm) {
+            Array.prototype.slice.call(filterForm.querySelectorAll('.my-tickets-filter-select')).forEach(function (selectEl) {
+                enhanceTaskFilterSelect(selectEl);
+            });
+        }
 
         if (filterCompanyEl) {
             filterCompanyEl.addEventListener('change', function() {
@@ -2094,6 +2352,11 @@ $showing_to = min($offset + $limit, (int) $total_records);
         }
 
         syncTaskDepartmentFilter();
+
+        document.addEventListener('click', function (event) {
+            if (!filterForm || filterForm.contains(event.target)) return;
+            closeTaskFilterDropdowns();
+        });
 
         document.addEventListener('click', function (e) {
             var row = e.target && e.target.closest ? e.target.closest('.ticket-row') : null;

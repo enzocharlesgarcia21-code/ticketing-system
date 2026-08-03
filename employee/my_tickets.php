@@ -1385,7 +1385,16 @@ $successMessage = '';
             opacity: 0;
             pointer-events: none;
         }
+        body.employee-my-tickets-page .my-tickets-filter-select.is-customized {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
         body.employee-my-tickets-page .my-tickets-company-select-wrap::after {
+            display: none;
+        }
+        body.employee-my-tickets-page .my-tickets-filter-select-wrap.has-custom-dropdown::after {
             display: none;
         }
         body.employee-my-tickets-page .my-tickets-company-trigger {
@@ -1409,8 +1418,13 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .my-tickets-company-trigger:focus-visible {
             outline: none;
-            border-color: #94a3b8;
-            box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.14);
+        }
+        body.employee-my-tickets-page .my-tickets-company-select-wrap.is-open .my-tickets-company-trigger,
+        body.employee-my-tickets-page .my-tickets-filter-select-wrap.is-open .my-tickets-company-trigger {
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.14);
         }
         body.employee-my-tickets-page .my-tickets-company-trigger-icon {
             color: #8da6c8;
@@ -1440,6 +1454,9 @@ $successMessage = '';
         body.employee-my-tickets-page .my-tickets-company-select-wrap.is-open .my-tickets-company-menu {
             display: block;
         }
+        body.employee-my-tickets-page .my-tickets-filter-select-wrap.is-open .my-tickets-company-menu {
+            display: block;
+        }
         body.employee-my-tickets-page .my-tickets-company-option {
             width: 100%;
             min-height: 36px;
@@ -1458,10 +1475,16 @@ $successMessage = '';
             box-sizing: border-box;
         }
         body.employee-my-tickets-page .my-tickets-company-option:hover,
-        body.employee-my-tickets-page .my-tickets-company-option:focus,
+        body.employee-my-tickets-page .my-tickets-company-option:focus {
+            background: rgba(27, 94, 32, 0.08);
+            color: #1b5e20;
+            outline: none;
+        }
         body.employee-my-tickets-page .my-tickets-company-option.is-selected {
-            background: #f5f7fb;
-            color: #0f172a;
+            background: #1B5E20;
+            color: #ffffff;
+            font-weight: 400;
+            border-radius: 12px;
             outline: none;
         }
         body.employee-my-tickets-page .my-tickets-department-select-wrap {
@@ -1497,8 +1520,12 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .my-tickets-department-trigger:focus-visible {
             outline: none;
-            border-color: #94a3b8;
-            box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.14);
+        }
+        body.employee-my-tickets-page .my-tickets-department-select-wrap.is-open .my-tickets-department-trigger {
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.14);
         }
         body.employee-my-tickets-page .my-tickets-department-trigger-icon {
             color: #8da6c8;
@@ -1547,12 +1574,15 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .my-tickets-department-option:hover,
         body.employee-my-tickets-page .my-tickets-department-option:focus {
-            background: #f5f7fb;
+            background: rgba(27, 94, 32, 0.08);
+            color: #1b5e20;
             outline: none;
         }
         body.employee-my-tickets-page .my-tickets-department-option.is-selected {
-            background: #f5f7fb;
-            color: #0f172a;
+            background: #1B5E20;
+            color: #ffffff;
+            font-weight: 400;
+            border-radius: 12px;
             outline: none;
         }
         body.employee-my-tickets-page .my-tickets-filter-select-wrap::after {
@@ -1569,8 +1599,8 @@ $successMessage = '';
         }
         body.employee-my-tickets-page .my-tickets-search-input:focus,
         body.employee-my-tickets-page .my-tickets-filter-select:focus {
-            border-color: #94a3b8;
-            box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.14);
         }
         body.employee-my-tickets-page .my-tickets-clear-btn {
             height: 48px;
@@ -3989,9 +4019,20 @@ $successMessage = '';
         myTicketsDepartmentTrigger.setAttribute('aria-expanded', 'false');
     }
 
+    function closeMyTicketsGenericDropdowns(exceptWrap) {
+        if (!myTicketsFilterForm) return;
+        Array.prototype.slice.call(myTicketsFilterForm.querySelectorAll('.my-tickets-filter-select-wrap.is-open.has-custom-dropdown')).forEach(function(wrap) {
+            if (exceptWrap && wrap === exceptWrap) return;
+            wrap.classList.remove('is-open');
+            var trigger = wrap.querySelector('.my-tickets-company-trigger');
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        });
+    }
+
     function openMyTicketsCompanyDropdown() {
         if (!myTicketsCompanyDropdown || !myTicketsCompanyTrigger) return;
         closeMyTicketsDepartmentDropdown();
+        closeMyTicketsGenericDropdowns();
         myTicketsCompanyDropdown.classList.add('is-open');
         myTicketsCompanyTrigger.setAttribute('aria-expanded', 'true');
     }
@@ -3999,8 +4040,112 @@ $successMessage = '';
     function openMyTicketsDepartmentDropdown() {
         if (!myTicketsDepartmentDropdown || !myTicketsDepartmentTrigger || !shouldShowMyTicketsDepartmentDropdown()) return;
         closeMyTicketsCompanyDropdown();
+        closeMyTicketsGenericDropdowns();
         myTicketsDepartmentDropdown.classList.add('is-open');
         myTicketsDepartmentTrigger.setAttribute('aria-expanded', 'true');
+    }
+
+    function syncMyTicketsGenericSelect(selectEl) {
+        if (!selectEl) return;
+        var wrap = selectEl.closest('.my-tickets-filter-select-wrap');
+        if (!wrap) return;
+        var triggerText = wrap.querySelector('.my-tickets-company-trigger-text');
+        var menu = wrap.querySelector('.my-tickets-company-menu');
+        var selectedOption = selectEl.options[selectEl.selectedIndex] || null;
+        var selectedValue = String(selectEl.value || '');
+        if (triggerText) {
+            triggerText.textContent = selectedOption ? selectedOption.textContent.trim() : '';
+        }
+        if (!menu) return;
+        menu.innerHTML = '';
+        Array.prototype.slice.call(selectEl.options).forEach(function(option) {
+            if (option.hidden || option.disabled) return;
+            var value = String(option.value || '');
+            var isSelected = value === selectedValue;
+            var item = document.createElement('li');
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'my-tickets-company-option' + (isSelected ? ' is-selected' : '');
+            btn.setAttribute('role', 'option');
+            btn.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+            btn.setAttribute('data-value', value);
+            btn.textContent = option.textContent.trim();
+            btn.addEventListener('click', function(event) {
+                event.stopPropagation();
+                selectEl.value = value;
+                syncMyTicketsGenericSelect(selectEl);
+                closeMyTicketsGenericDropdowns();
+                selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            btn.addEventListener('keydown', function(event) {
+                var options = Array.prototype.slice.call(menu.querySelectorAll('.my-tickets-company-option'));
+                var index = options.indexOf(btn);
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeMyTicketsGenericDropdowns();
+                    var trigger = wrap.querySelector('.my-tickets-company-trigger');
+                    if (trigger) trigger.focus();
+                } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    var nextIndex = event.key === 'ArrowDown'
+                        ? (index + 1) % options.length
+                        : (index - 1 + options.length) % options.length;
+                    if (options[nextIndex]) options[nextIndex].focus();
+                }
+            });
+            item.appendChild(btn);
+            menu.appendChild(item);
+        });
+    }
+
+    function enhanceMyTicketsGenericSelect(selectEl) {
+        if (!selectEl || selectEl.dataset.customDropdown === '1') return;
+        var wrap = selectEl.closest('.my-tickets-filter-select-wrap');
+        if (!wrap) return;
+        selectEl.dataset.customDropdown = '1';
+        selectEl.classList.add('is-customized');
+        wrap.classList.add('has-custom-dropdown');
+
+        var trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'my-tickets-company-trigger';
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.innerHTML = '<span class="my-tickets-company-trigger-text"></span><i class="fas fa-chevron-down my-tickets-company-trigger-icon" aria-hidden="true"></i>';
+
+        var menu = document.createElement('ul');
+        menu.className = 'my-tickets-company-menu';
+        menu.setAttribute('role', 'listbox');
+
+        selectEl.insertAdjacentElement('afterend', trigger);
+        trigger.insertAdjacentElement('afterend', menu);
+
+        trigger.addEventListener('click', function(event) {
+            event.stopPropagation();
+            var willOpen = !wrap.classList.contains('is-open');
+            closeMyTicketsCompanyDropdown();
+            closeMyTicketsDepartmentDropdown();
+            closeMyTicketsGenericDropdowns(willOpen ? wrap : null);
+            wrap.classList.toggle('is-open', willOpen);
+            trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        });
+        trigger.addEventListener('keydown', function(event) {
+            if (event.key !== 'ArrowDown' && event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            closeMyTicketsCompanyDropdown();
+            closeMyTicketsDepartmentDropdown();
+            closeMyTicketsGenericDropdowns(wrap);
+            wrap.classList.add('is-open');
+            trigger.setAttribute('aria-expanded', 'true');
+            var selected = menu.querySelector('.my-tickets-company-option.is-selected');
+            var first = menu.querySelector('.my-tickets-company-option');
+            if (selected) selected.focus();
+            else if (first) first.focus();
+        });
+        selectEl.addEventListener('change', function() {
+            syncMyTicketsGenericSelect(selectEl);
+        });
+        syncMyTicketsGenericSelect(selectEl);
     }
 
     function syncMyTicketsCompanyDropdown(value) {
@@ -4142,6 +4287,9 @@ $successMessage = '';
         if (myTicketsDepartmentDropdown && !myTicketsDepartmentDropdown.contains(e.target)) {
             closeMyTicketsDepartmentDropdown();
         }
+        if (myTicketsFilterForm && !myTicketsFilterForm.contains(e.target)) {
+            closeMyTicketsGenericDropdowns();
+        }
     });
     if (myTicketsCompanyFilter) {
         myTicketsCompanyFilter.addEventListener('change', function() {
@@ -4204,6 +4352,8 @@ $successMessage = '';
         });
     }
     updateMyTicketsDepartmentVisibility();
+    enhanceMyTicketsGenericSelect(myTicketsStatusFilter);
+    enhanceMyTicketsGenericSelect(myTicketsSlaFilter);
     if (myTicketsStatusFilter) {
         myTicketsStatusFilter.addEventListener('change', function() {
             refreshMyTickets(1, true);

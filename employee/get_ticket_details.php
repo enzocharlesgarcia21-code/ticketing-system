@@ -486,6 +486,7 @@ if ($checkResult->num_rows > 0) {
     );
     $ticketRequiresDepartment = ticket_company_requires_department(ticket_normalize_company($ticketAssignedCompany));
     $departmentAccessOk = $companyOk && (!$ticketRequiresDepartment || $groupOk);
+    $assignedDepartmentAccessOk = $groupOk;
     $linkedDepartmentAccessOk = ticket_user_is_linked_department_candidate($ticketData, [
         'department' => $dept,
         'company' => $company,
@@ -500,7 +501,7 @@ if ($checkResult->num_rows > 0) {
     }
     $reassignedHistoryAccess = ticket_user_has_reassignment_history($conn, $id, $currentUserId, $historyAliases)
         || ticket_chat_latest_participated_thread_id($conn, $id, $currentUserId) > 0;
-    $reassignedViewOnlyAccess = !$isRequester && ($assigneeOk || $departmentAccessOk || $linkedDepartmentAccessOk || $reassignedHistoryAccess);
+    $reassignedViewOnlyAccess = !$isRequester && ($assigneeOk || $departmentAccessOk || $assignedDepartmentAccessOk || $linkedDepartmentAccessOk || $reassignedHistoryAccess);
 }
 
 $sql = "
@@ -535,7 +536,13 @@ if ($row = $result->fetch_assoc()) {
     $row['company'] = !empty($row['company']) ? $row['company'] : $row['user_company'];
     $row['department'] = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
     if (empty($row['department'])) {
-        $row['department'] = 'Unknown';
+        $requesterCompanyRaw = (string) ($row['company'] ?? '');
+        $requesterEmailForCompany = trim((string) (($row['requester_email'] ?? '') !== '' ? $row['requester_email'] : ($row['created_by_email'] ?? '')));
+        if ($requesterCompanyRaw === '' && $requesterEmailForCompany !== '' && strpos($requesterEmailForCompany, '@') !== false) {
+            $requesterCompanyRaw = '@' . strtolower(substr(strrchr($requesterEmailForCompany, '@'), 1));
+        }
+        $requesterCompanyLabel = ticket_company_display_name($requesterCompanyRaw);
+        $row['department'] = $requesterCompanyLabel !== '' ? $requesterCompanyLabel : 'Unknown';
     }
 
     $requester_name = trim((string)($row['requester_name'] ?? ''));

@@ -306,7 +306,13 @@ if ($row = $result->fetch_assoc()) {
     $row['company'] = !empty($row['company']) ? $row['company'] : $row['user_company'];
     $row['department'] = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
     if (empty($row['department'])) {
-        $row['department'] = 'Unknown';
+        $requesterCompanyRaw = (string) ($row['company'] ?? '');
+        $requesterEmailForCompany = trim((string) (($row['requester_email'] ?? '') !== '' ? $row['requester_email'] : ($row['created_by_email'] ?? '')));
+        if ($requesterCompanyRaw === '' && $requesterEmailForCompany !== '' && strpos($requesterEmailForCompany, '@') !== false) {
+            $requesterCompanyRaw = '@' . strtolower(substr(strrchr($requesterEmailForCompany, '@'), 1));
+        }
+        $requesterCompanyLabel = ticket_company_display_name($requesterCompanyRaw);
+        $row['department'] = $requesterCompanyLabel !== '' ? $requesterCompanyLabel : 'Unknown';
     }
 
     $requester_name = trim((string)($row['requester_name'] ?? ''));
