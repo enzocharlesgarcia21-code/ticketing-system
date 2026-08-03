@@ -3186,6 +3186,9 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card {
+                --ticket-card-padding-x: clamp(11px, 3.2vw, 14px);
+                --ticket-card-arrow-space: clamp(38px, 10vw, 46px);
+                --ticket-card-header-space: 45px;
                 position: relative;
                 display: flex;
                 flex-wrap: wrap;
@@ -3197,8 +3200,8 @@ function dashboard_urgency_badge_html(string $priority): string
                 min-height: 0;
                 height: auto;
                 margin: 0;
-                padding: clamp(11px, 3.2vw, 14px);
-                padding-right: clamp(38px, 10vw, 46px);
+                padding: var(--ticket-card-header-space) var(--ticket-card-padding-x) var(--ticket-card-padding-x);
+                padding-right: var(--ticket-card-arrow-space);
                 border: 1px solid #dde5ed;
                 border-radius: 14px;
                 background: #ffffff;
@@ -3216,13 +3219,28 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page .dashboard-ticket-id {
+                position: absolute;
+                top: 0;
+                right: 0;
+                left: 0;
                 order: 1;
-                flex: 0 0 100%;
-                width: 100%;
-                color: #0f172a;
+                display: flex !important;
+                align-items: center;
+                flex: none;
+                width: auto !important;
+                min-height: 36px;
+                max-width: none;
+                margin: 0;
+                padding: 10px var(--ticket-card-padding-x) !important;
+                border-radius: 13px 13px 0 0;
+                background: #1B5E20 !important;
+                color: #ffffff !important;
                 font-size: 12px;
                 font-weight: 800;
                 line-height: 1.2;
+                letter-spacing: 0.02em;
+                box-sizing: border-box;
+                z-index: 1;
             }
 
             body.employee-dashboard-page .dashboard-ticket-category {
@@ -3460,9 +3478,16 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card {
+                --ticket-card-padding-x: 10px;
+                --ticket-card-arrow-space: 34px;
+                --ticket-card-header-space: 43px;
                 gap: 5px 6px;
-                padding: 10px 34px 10px 10px;
+                padding: var(--ticket-card-header-space) var(--ticket-card-arrow-space) 10px var(--ticket-card-padding-x);
                 border-radius: 12px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-id {
+                border-radius: 11px 11px 0 0;
             }
 
             body.employee-dashboard-page .dashboard-ticket-arrow {
