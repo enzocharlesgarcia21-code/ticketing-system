@@ -155,7 +155,7 @@ $company_filter_options = [
 ];
 $allowed_statuses = ['Open','In Progress','Resolved','Closed'];
 $allowed_slas = ['On Track', 'At Risk', 'Breach'];
-$allowed_reassignment_filters = ['reassigned', 'not_reassigned'];
+$allowed_reassignment_filters = ['reassigned', 'not_reassigned', 'handled_by_you'];
 
 $selected_company_departments = $allowed_departments_by_company[$company_email] ?? [];
 if (
@@ -328,6 +328,10 @@ $reassignmentFilterNotificationCond = "EXISTS (
 $reassignmentFilterCond = $isLapcSalesEmployeeView
     ? "0=1"
     : "(($reassignedActivityCond) OR $reassignmentFilterNotificationCond)";
+$teamTicketsCond = $isLapcSalesEmployeeView
+    ? "((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond AND NOT ($reassignmentFilterCond))"
+    : "(NOT $requesterIsCurrentCond AND (($companyCond AND ((NOT $requiresGroupCond) OR $groupCond)) OR $linkedItTaskCond) AND NOT ($reassignmentFilterCond))";
+$handledByYouCond = "(t.assigned_to = ? AND LOWER(TRIM(COALESCE(t.status, ''))) = 'in progress')";
 
 $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $isLapcSalesEmployeeView): void {
     $params[] = (int) $user_id;
@@ -375,6 +379,43 @@ $addReassignedTaskParams = static function () use (&$params, &$types, $user_id, 
 $addReassignmentFilterParams = static function () use (&$params, &$types, $user_id, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
     if ($isLapcSalesEmployeeView) {
         return;
+    }
+    foreach ($reassignedHistoryAliases as $historyAlias) {
+        $params[] = '%' . strtoupper($historyAlias) . '%';
+        $types .= "s";
+    }
+    $params[] = (int) $user_id;
+    $types .= "i";
+};
+$addHandledByYouFilterParams = static function () use (&$params, &$types, $user_id): void {
+    $params[] = (int) $user_id;
+    $types .= "i";
+};
+$addTeamTicketsFilterParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
+    if ($isLapcSalesEmployeeView) {
+        $params[] = (int) $user_id;
+        $types .= "i";
+        $params[] = (int) $user_id;
+        $types .= "i";
+        $params[] = (int) $user_id;
+        $types .= "i";
+        $params[] = strtolower((string) $user_email);
+        $types .= "s";
+        return;
+    }
+    $params[] = (int) $user_id;
+    $types .= "i";
+    $params[] = strtolower((string) $user_email);
+    $types .= "s";
+    $params[] = strtolower((string) $user_email);
+    $types .= "s";
+    foreach ($companyAliases as $co) {
+        $params[] = $co;
+        $types .= "s";
+    }
+    foreach ($userDepartmentAliases as $departmentAlias) {
+        $params[] = $departmentAlias;
+        $types .= "s";
     }
     foreach ($reassignedHistoryAliases as $historyAlias) {
         $params[] = '%' . strtoupper($historyAlias) . '%';
@@ -466,8 +507,11 @@ if ($reassignment === 'reassigned') {
     $where[] = $reassignmentFilterCond;
     $addReassignmentFilterParams();
 } elseif ($reassignment === 'not_reassigned') {
-    $where[] = "NOT ($reassignmentFilterCond)";
-    $addReassignmentFilterParams();
+    $where[] = $teamTicketsCond;
+    $addTeamTicketsFilterParams();
+} elseif ($reassignment === 'handled_by_you') {
+    $where[] = $handledByYouCond;
+    $addHandledByYouFilterParams();
 }
 
 // Construct SQL
@@ -1664,7 +1708,8 @@ $showing_to = min($offset + $limit, (int) $total_records);
                     <div class="my-tickets-filter-select-wrap my-tickets-reassignment-filter">
                         <select name="reassignment" class="my-tickets-filter-select" id="filterReassignment">
                             <option value="" <?= $reassignment === '' ? 'selected' : '' ?> hidden>All Tickets</option>
-                            <option value="not_reassigned" <?= $reassignment === 'not_reassigned' ? 'selected' : '' ?>>Assigned</option>
+                            <option value="handled_by_you" <?= $reassignment === 'handled_by_you' ? 'selected' : '' ?>>Handled by you</option>
+                            <option value="not_reassigned" <?= $reassignment === 'not_reassigned' ? 'selected' : '' ?>>Team Tickets</option>
                             <option value="reassigned" <?= $reassignment === 'reassigned' ? 'selected' : '' ?>>Reassigned</option>
                         </select>
                     </div>

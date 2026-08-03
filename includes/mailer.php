@@ -493,11 +493,13 @@ function smtp_email_client_safe_html(string $htmlBody): string
     <meta name="x-apple-disable-message-reformatting">
     <title>Leads DeskMetamorph</title>
 </head>
-<body style="margin:0;padding:0;background:#ffffff;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;background:#ffffff;margin:0;padding:0;">
+<body style="margin:0;padding:0;background:#ffffff;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;text-align:left;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;background:#ffffff;margin:0;padding:0;text-align:left;">
         <tr>
-            <td align="center" style="padding:0;margin:0;background:#ffffff;">
-                ' . $htmlBody . '
+            <td align="left" style="padding:0;margin:0;background:#ffffff;text-align:left;">
+                <div style="width:100%;text-align:left;">
+                    ' . $htmlBody . '
+                </div>
             </td>
         </tr>
     </table>
