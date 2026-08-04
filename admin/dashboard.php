@@ -165,20 +165,20 @@ while($row = $deptQuery->fetch_assoc()) {
 
 $priorityAgg = $conn->query("
     SELECT 
-        SUM(LOWER(priority) IN ('low','medium')) AS low_count,
-        SUM(LOWER(priority) = 'high') AS high_count,
-        SUM(LOWER(priority) = 'critical') AS critical_count
+        SUM(LOWER(TRIM(priority)) = 'low') AS low_count,
+        SUM(LOWER(TRIM(priority)) = 'medium') AS medium_count,
+        SUM(LOWER(TRIM(priority)) = 'high') AS high_count
     FROM employee_tickets
     WHERE COALESCE(NULLIF(status,''),'') <> 'Trash'
 ")->fetch_assoc();
 
-$priorities = ['Low', 'High', 'Critical'];
+$priorities = ['Low', 'Medium', 'High'];
 $priorityCounts = [
     (int) ($priorityAgg['low_count'] ?? 0),
+    (int) ($priorityAgg['medium_count'] ?? 0),
     (int) ($priorityAgg['high_count'] ?? 0),
-    (int) ($priorityAgg['critical_count'] ?? 0),
 ];
-$priorityColors = ['#43A047', '#FB8C00', '#E53935'];
+$priorityColors = ['#43A047', '#F59E0B', '#E53935'];
 $priorityTotal = array_sum($priorityCounts);
 $priorityLegendItems = [];
 foreach ($priorities as $index => $priorityLabel) {
@@ -528,10 +528,12 @@ if ($recentRes) {
             align-items: center;
             gap: 16px;
             flex-wrap: wrap;
-            justify-content: flex-end;
+            justify-content: center;
             position: absolute;
-            right: 0;
+            left: 50%;
             bottom: 0;
+            transform: translateX(-50%);
+            width: max-content;
             max-width: 100%;
         }
         .priority-legend-item {

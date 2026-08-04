@@ -1546,15 +1546,39 @@ function notif_email_detail_value_html(string $label, string $value): string
         return $escapedValue;
     }
 
-    $length = function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
-    $lineCount = substr_count(str_replace("\r\n", "\n", $value), "\n") + 1;
-    if ($length <= 420 && $lineCount <= 6) {
+    $normalized = str_replace(["\r\n", "\r"], "\n", trim($value));
+    $visualLines = [];
+    foreach (explode("\n", $normalized) as $line) {
+        $line = rtrim((string) $line);
+        if ($line === '') {
+            $visualLines[] = '';
+            continue;
+        }
+        $wrapped = wordwrap($line, 64, "\n", false);
+        foreach (explode("\n", $wrapped) as $wrappedLine) {
+            $visualLines[] = (string) $wrappedLine;
+        }
+    }
+
+    if (count($visualLines) <= 5) {
         return $escapedValue;
     }
 
-    return '<details style="margin:0;padding:0;">'
-        . '<summary style="cursor:pointer;color:#006633;font-weight:700;text-decoration:underline;">Expand / Minimize description</summary>'
-        . '<div style="margin-top:10px;">' . $escapedValue . '</div>'
+    $preview = implode("\n", array_slice($visualLines, 0, 5));
+    $remaining = implode("\n", array_slice($visualLines, 5));
+    $previewHtml = nl2br(htmlspecialchars($preview, ENT_QUOTES, 'UTF-8'));
+    $remainingHtml = nl2br(htmlspecialchars($remaining, ENT_QUOTES, 'UTF-8'));
+
+    if (trim($remaining) === '') {
+        return $escapedValue;
+    }
+
+    $summaryStyle = 'display:inline-block;margin-top:8px;padding:7px 12px;background:#006633;border:1px solid #006633;border-radius:5px;color:#ffffff;font-size:13px;line-height:1.2;font-weight:700;text-decoration:none;cursor:pointer;';
+
+    return '<div style="margin:0;padding:0;">' . $previewHtml . '</div>'
+        . '<details style="margin:0;padding:0;">'
+        . '<summary style="' . $summaryStyle . '">See more</summary>'
+        . '<div style="margin-top:10px;">' . $remainingHtml . '</div>'
         . '</details>';
 }
 
@@ -2494,6 +2518,11 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
             $line = 'Level of Urgency: ' . notif_urgency_email_label((string) ($urgencyMatch[2] ?? ''));
         }
         $lineText .= $line . "\n";
+        if (preg_match('/^([^:]+):\s*(.*)$/s', $line, $lineMatch) && strcasecmp(trim((string) ($lineMatch[1] ?? '')), 'Description') === 0) {
+            $descriptionHtml = notif_email_detail_value_html('Description', trim((string) ($lineMatch[2] ?? '')));
+            $lineHtml .= '<div style="margin:0 0 12px 0; font-size:16px; line-height:1.5; color:#0f172a;"><strong>Description:</strong><br>' . $descriptionHtml . '</div>';
+            continue;
+        }
         $safeLine = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
         if (preg_match('/^([A-Za-z][A-Za-z\s&]+:)(\s*.*)$/s', $safeLine, $matches)) {
             $safeLine = '<strong>' . $matches[1] . '</strong>' . $matches[2];
