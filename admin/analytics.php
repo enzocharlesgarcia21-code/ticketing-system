@@ -340,10 +340,14 @@ $analyticsApplySalesRegionScope = static function (array &$where, array &$params
     $types .= 's';
 };
 
-// Determine selected date range. When no dates are selected, default to the
-// month of the latest ticket so analytics does not look empty after month rollovers.
+// Determine the selected date range. Admin analytics has no default date filter,
+// so blank calendar fields mean all-time. Employee views retain their latest-month
+// default because those dashboards are operational.
 $defaultEndDate = date('Y-m-d');
-$latestTicketDateWhere = ['t.created_at IS NOT NULL'];
+$latestTicketDateWhere = [
+    't.created_at IS NOT NULL',
+    "COALESCE(NULLIF(t.status,''),'') <> 'Trash'",
+];
 $latestTicketDateParams = [];
 $latestTicketDateTypes = '';
 $analyticsApplySalesRegionScope($latestTicketDateWhere, $latestTicketDateParams, $latestTicketDateTypes);
@@ -368,7 +372,8 @@ $isValidDate = static function (string $date): bool {
 };
 $requestedStartDate = trim((string) ($_GET['start_date'] ?? ''));
 $requestedEndDate = trim((string) ($_GET['end_date'] ?? ''));
-$analyticsNoDefaultDate = $analyticsIsEmployeeView && defined('TICKETING_ANALYTICS_NO_DEFAULT_DATE') && TICKETING_ANALYTICS_NO_DEFAULT_DATE;
+$analyticsNoDefaultDate = !$analyticsIsEmployeeView
+    || (defined('TICKETING_ANALYTICS_NO_DEFAULT_DATE') && TICKETING_ANALYTICS_NO_DEFAULT_DATE);
 $analyticsHasRequestedDateRange = $isValidDate($requestedStartDate) && $isValidDate($requestedEndDate);
 $analyticsUseDateFilter = !$analyticsNoDefaultDate || $analyticsHasRequestedDateRange;
 $start_date = $analyticsUseDateFilter
@@ -478,7 +483,7 @@ if ($analyticsIsEmployeeView && !$analyticsIsSalesManagerView && $company_filter
 }
 if ($category_filter !== '' && !in_array($category_filter, $categories, true)) $category_filter = '';
 
-$ticket_where = [];
+$ticket_where = ["COALESCE(NULLIF(t.status,''),'') <> 'Trash'"];
 $ticket_params = [];
 $ticket_types = "";
 $analyticsApplyCreatedDateFilter($ticket_where, $ticket_params, $ticket_types);
@@ -979,7 +984,7 @@ $companyExpr = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''), ''
 $departmentExpr = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''), '')";
 $lapcCompanySql = "LOWER(TRIM($companyExpr)) IN ('@leadsagri.com', 'leadsagri.com', 'lapc', 'lapc (@leadsagri.com)', 'leads agricultural products corporation - lapc')";
 
-$companyChartWhere = [];
+$companyChartWhere = ["COALESCE(NULLIF(t.status,''),'') <> 'Trash'"];
 $companyChartParams = [];
 $companyChartTypes = "";
 $analyticsApplyCreatedDateFilter($companyChartWhere, $companyChartParams, $companyChartTypes);
@@ -1156,7 +1161,7 @@ if ($analyticsIsEmployeeView && !$analyticsIsSalesManagerView) {
     $employeeTaskDeptExpr = "COALESCE(NULLIF(NULLIF(t.assigned_group, ''), NULLIF(t.assigned_department, 'Unassigned')), NULLIF(t.assigned_department, ''), NULLIF(t.department, ''), NULLIF(u.department, ''))";
     $employeeRequiresGroupCond = "(($employeeCompanyCol LIKE '@%' AND LOWER($employeeCompanyCol) = '@leadsagri.com') OR ($employeeCompanyCol NOT LIKE '@%' AND UPPER($employeeCompanyCol) = 'LAPC'))";
 
-    $employeeCategoryWhere = [];
+    $employeeCategoryWhere = ["COALESCE(NULLIF(t.status,''),'') <> 'Trash'"];
     $employeeCategoryParams = [];
     $employeeCategoryTypes = "";
     $analyticsApplyCreatedDateFilter($employeeCategoryWhere, $employeeCategoryParams, $employeeCategoryTypes);
@@ -1329,7 +1334,7 @@ if ($analyticsIsEmployeeView && !$analyticsIsSalesManagerView) {
 
 $assigneeLabels = [];
 $assigneeCounts = [];
-$assigneeWhere = [];
+$assigneeWhere = ["COALESCE(NULLIF(t.status,''),'') <> 'Trash'"];
 $assigneeParams = [];
 $assigneeTypes = "";
 $analyticsApplyCreatedDateFilter($assigneeWhere, $assigneeParams, $assigneeTypes);
@@ -1538,15 +1543,17 @@ $trendLastMonthHref = '?' . http_build_query(array_merge($trendLinkBase, ['trend
 $offset = ($page - 1) * $entries;
 
 $tickets_total = 0;
-$countSql = "SELECT COUNT(*) as total FROM employee_tickets t JOIN users u ON t.user_id = u.id WHERE " . implode(" AND ", $ticket_where);
+$countSql = "SELECT COUNT(*) as total FROM employee_tickets t LEFT JOIN users u ON t.user_id = u.id WHERE " . implode(" AND ", $ticket_where);
 $countStmt = $conn->prepare($countSql);
 if ($countStmt) {
-    $bind = [];
-    $bind[] = $ticket_types;
-    foreach ($ticket_params as $k => $p) {
-        $bind[] = &$ticket_params[$k];
+    if ($ticket_types !== '') {
+        $bind = [];
+        $bind[] = $ticket_types;
+        foreach ($ticket_params as $k => $p) {
+            $bind[] = &$ticket_params[$k];
+        }
+        call_user_func_array([$countStmt, 'bind_param'], $bind);
     }
-    call_user_func_array([$countStmt, 'bind_param'], $bind);
     $countStmt->execute();
     $countRow = $countStmt->get_result()->fetch_assoc();
     $tickets_total = (int) ($countRow['total'] ?? 0);
@@ -1591,7 +1598,7 @@ $ticketsSql = "
         t.status,
         $ticketDurationSecondsExpr as duration_seconds
     FROM employee_tickets t
-    JOIN users u ON t.user_id = u.id
+    LEFT JOIN users u ON t.user_id = u.id
     LEFT JOIN users a ON t.assigned_user_id = a.id
     WHERE " . implode(" AND ", $ticket_where) . "
     ORDER BY $ticketsOrderSql

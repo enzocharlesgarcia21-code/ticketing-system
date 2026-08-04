@@ -54,15 +54,20 @@ if ($analyticsExportIsEmployeeView) {
 
 function analytics_export_filters(): array
 {
-    $startDate = trim((string) ($_GET['start_date'] ?? date('Y-m-01')));
-    $endDate = trim((string) ($_GET['end_date'] ?? date('Y-m-d')));
+    global $analyticsExportIsEmployeeView;
+    $startDate = trim((string) ($_GET['start_date'] ?? ($analyticsExportIsEmployeeView ? date('Y-m-01') : '')));
+    $endDate = trim((string) ($_GET['end_date'] ?? ($analyticsExportIsEmployeeView ? date('Y-m-d') : '')));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+        $startDate = '';
+        $endDate = '';
+    }
     $category = trim((string) ($_GET['category'] ?? ''));
     $assignee = (int) ($_GET['assignee'] ?? 0);
     $department = trim((string) ($_GET['department'] ?? ''));
     $status = trim((string) ($_GET['status'] ?? ''));
 
     global $analyticsExportIsSalesManagerView;
-    $allowedStatuses = $analyticsExportIsSalesManagerView ? ['Open', 'In Progress', 'Resolved', 'Closed'] : ['Open', 'In Progress', 'Resolved'];
+    $allowedStatuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
     if (!in_array($status, $allowedStatuses, true)) {
         $status = '';
     }
@@ -86,7 +91,6 @@ function analytics_export_filters(): array
         'status' => $status,
     ];
 
-    global $analyticsExportIsEmployeeView;
     if ($analyticsExportIsSalesManagerView) {
         $rawCompany = trim((string) ($_GET['company'] ?? ''));
         $filters['company'] = strtolower($rawCompany) === '__farmex_lav__'
@@ -131,9 +135,15 @@ function analytics_export_description_field(string $description, string $label):
 function analytics_export_fetch_rows(mysqli $conn, array $filters): array
 {
     global $analyticsExportIsSalesManagerView, $analyticsExportSalesRegion;
-    $where = ["DATE(t.created_at) BETWEEN ? AND ?"];
-    $params = [$filters['start_date'], $filters['end_date']];
-    $types = 'ss';
+    $where = [];
+    $params = [];
+    $types = '';
+    if ($filters['start_date'] !== '' && $filters['end_date'] !== '') {
+        $where[] = "DATE(t.created_at) BETWEEN ? AND ?";
+        $params[] = $filters['start_date'];
+        $params[] = $filters['end_date'];
+        $types .= 'ss';
+    }
 
     if ($filters['category'] !== '') {
         $where[] = "t.category = ?";
@@ -176,10 +186,8 @@ function analytics_export_fetch_rows(mysqli $conn, array $filters): array
         $where[] = "COALESCE(t.description, '') LIKE ?";
         $params[] = '%Region: ' . $analyticsExportSalesRegion . '%';
         $types .= 's';
-        $where[] = "COALESCE(NULLIF(t.status,''),'') <> 'Trash'";
-    } else {
-        $where[] = "COALESCE(NULLIF(t.status,''),'') NOT IN ('Closed','Trash')";
     }
+    $where[] = "COALESCE(NULLIF(t.status,''),'') <> 'Trash'";
 
     $sql = "
         SELECT
@@ -402,7 +410,10 @@ $pdf->AddPage();
 $pdf->SetFont('Helvetica', 'B', 14);
 $pdf->Cell(0, 8, 'Leads DeskMetamorph Ticket Analytics Report', 0, 1, 'C');
 $pdf->SetFont('Helvetica', '', 9);
-$pdf->Cell(0, 6, 'Date Range: ' . $filters['start_date'] . ' to ' . $filters['end_date'], 0, 1, 'C');
+$pdfDateRange = $filters['start_date'] !== '' && $filters['end_date'] !== ''
+    ? $filters['start_date'] . ' to ' . $filters['end_date']
+    : 'All time';
+$pdf->Cell(0, 6, 'Date Range: ' . $pdfDateRange, 0, 1, 'C');
 $pdf->Ln(3);
 
 $headers = [
@@ -471,4 +482,7 @@ if (count($rows) === 0) {
     }
 }
 
-$pdf->Output('D', 'analytics_report_' . $filters['start_date'] . '_to_' . $filters['end_date'] . '.pdf');
+$pdfFileRange = $filters['start_date'] !== '' && $filters['end_date'] !== ''
+    ? $filters['start_date'] . '_to_' . $filters['end_date']
+    : 'all_time';
+$pdf->Output('D', 'analytics_report_' . $pdfFileRange . '.pdf');

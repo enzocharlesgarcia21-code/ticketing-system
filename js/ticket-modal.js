@@ -3292,6 +3292,9 @@ var TMTicketModal = (function () {
     var claimButtonHtml = showClaimButton
       ? ('  <div class="tm-tabs-actions"><button type="button" class="tm-claim-ticket-btn" onclick="TMTicketModal.claimTicket(' + String(data.id) + ', this)"><i class="fas fa-user-check"></i><span>Claim Ticket</span></button></div>')
       : '';
+    var mobileClaimButtonHtml = showClaimButton
+      ? ('  <div class="tm-mobile-claim"><button type="button" class="tm-claim-ticket-btn tm-mobile-claim-btn" onclick="TMTicketModal.claimTicket(' + String(data.id) + ', this)"><i class="fas fa-user-check"></i><span>Claim Ticket</span></button></div>')
+      : '';
     var reassignedBannerTone = String((data && data.reassigned_banner_tone) || 'reassigned').toLowerCase();
     var reassignedBannerIsAssigned = reassignedBannerTone === 'assigned';
     var reassignedBannerBorder = reassignedBannerIsAssigned ? '#b7dfc2' : '#f3d273';
@@ -3322,7 +3325,7 @@ var TMTicketModal = (function () {
       '      <span class="tm-id">#' + String(data.id).padStart(6, '0') + '</span>' +
       '    </div>' +
       '  </div>' +
-      '  <button class="tm-close-btn" onclick="TMTicketModal.close()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>' +
+      '  <button type="button" class="tm-close-btn" onclick="TMTicketModal.close()" aria-label="Close ticket details"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>' +
       '</div>' +
       '<div class="tm-tabs">' +
       '  <div class="tm-tab active" data-tab="info" onclick="TMTicketModal.switchTab(\'info\')">Information</div>' +
@@ -3334,6 +3337,7 @@ var TMTicketModal = (function () {
       '<div class="tm-body">' +
       (isReassignedViewOnly ? reassignedBannerHtml : '') +
       '  <div id="tab-info" class="tm-tab-content active">' +
+      '    <div class="tm-mobile-paged-content">' +
       '    <div class="tm-info-col">' +
       '      <div class="tm-card tm-card-ticket-info"><div class="tm-card-header"><span class="tm-card-title">Ticket Information</span></div><div class="tm-card-body"><div class="tm-info-grid">' +
       '        <div class="tm-info-label">CREATED BY</div><div class="tm-info-value">' + (data.created_by_name ? escapeHtml(String(data.created_by_name)) : '-') + '</div>' +
@@ -3357,6 +3361,12 @@ var TMTicketModal = (function () {
       '      ' + renderHrAttachmentCards(data) +
       resolutionCardHtml +
       '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card tm-card-impact"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
+      '    </div>' +
+      '    <nav class="tm-mobile-section-nav" aria-label="Ticket information sections">' +
+      '      <button type="button" class="tm-mobile-section-btn" data-mobile-section-previous disabled onclick="TMTicketModal.stepMobileInfoSection(-1)"><i class="fas fa-chevron-left" aria-hidden="true"></i><span>Previous</span></button>' +
+      '      <div class="tm-mobile-section-status" aria-live="polite"><strong data-mobile-section-title>Ticket Information</strong><span data-mobile-section-counter>1 of 3</span></div>' +
+      '      <button type="button" class="tm-mobile-section-btn is-primary" data-mobile-section-next onclick="TMTicketModal.stepMobileInfoSection(1)"><span>Next</span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>' +
+      '    </nav>' +
       '    </div>' +
       '  </div>' +
       (hideActionHistoryTab ? '' : '  <div id="tab-action-history" class="tm-tab-content">' +
@@ -3471,6 +3481,7 @@ var TMTicketModal = (function () {
       '    </form>' +
       '    </div></div>' +
       '  </div>') +
+      mobileClaimButtonHtml +
       '</div>';
   }
   function buildFallbackHtml(data) {
@@ -3624,6 +3635,40 @@ var TMTicketModal = (function () {
         if (btn) btn.disabled = false;
       });
   }
+  var mobileInfoSectionLabels = ['Ticket Information', 'Description', 'Ticket Activity'];
+  function setMobileInfoSection(index, shouldScroll) {
+    var panel = qs('tab-info');
+    if (!panel) return;
+    var nextIndex = Math.max(0, Math.min(mobileInfoSectionLabels.length - 1, Number(index) || 0));
+    panel.setAttribute('data-mobile-section', String(nextIndex));
+
+    var title = panel.querySelector('[data-mobile-section-title]');
+    var counter = panel.querySelector('[data-mobile-section-counter]');
+    var previous = panel.querySelector('[data-mobile-section-previous]');
+    var next = panel.querySelector('[data-mobile-section-next]');
+    if (title) title.textContent = mobileInfoSectionLabels[nextIndex];
+    if (counter) counter.textContent = String(nextIndex + 1) + ' of ' + String(mobileInfoSectionLabels.length);
+    if (previous) previous.disabled = nextIndex === 0;
+    if (next) next.disabled = nextIndex === mobileInfoSectionLabels.length - 1;
+
+    if (shouldScroll && window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
+      var activeSection = nextIndex === 1
+        ? panel.querySelector('.tm-desc-col')
+        : panel.querySelector('.tm-info-col');
+      var scrollTarget = activeSection || panel;
+      if (typeof scrollTarget.scrollTo === 'function') {
+        scrollTarget.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        scrollTarget.scrollTop = 0;
+      }
+    }
+  }
+  function stepMobileInfoSection(delta) {
+    var panel = qs('tab-info');
+    if (!panel) return;
+    var currentIndex = parseInt(panel.getAttribute('data-mobile-section') || '0', 10);
+    setMobileInfoSection(currentIndex + Number(delta || 0), true);
+  }
   function switchTab(tabName) {
     document.querySelectorAll('.tm-tab-content').forEach(function (c) { c.classList.remove('active'); });
     document.querySelectorAll('.tm-tab').forEach(function (t) { t.classList.remove('active'); });
@@ -3635,6 +3680,7 @@ var TMTicketModal = (function () {
       var noteEl = qs('tmAdminNote');
       if (noteEl) noteEl.value = '';
     }
+    if (tabName === 'info') setMobileInfoSection(0, false);
     if (tabName === 'chat') { /* no-op: chat now opens in separate modal */ }
   }
   function claimTicket(ticketId, buttonEl) {
@@ -5817,6 +5863,7 @@ var TMTicketModal = (function () {
           console.error('Ticket modal render failed:', renderError, data);
           modalContent.innerHTML = buildFallbackHtml(data);
         }
+        setMobileInfoSection(0, false);
         try {
           if (data && data.id != null && data.hide_conversation_tab !== true && (data.is_sales_ticket !== true || data.sales_manager_regional_access === true || data.sales_assignee_chat_access === true) && (data.reassigned_view_only !== true || data.can_view_chat_history === true)) {
             var tabsEl = modalContent.querySelector('.tm-tabs');
@@ -6056,6 +6103,7 @@ var TMTicketModal = (function () {
     openFilePreviewFromCard: openFilePreviewFromCard,
     closeFilePreview: closeFilePreview,
     toggleTimeline: toggleTimeline,
+    stepMobileInfoSection: stepMobileInfoSection,
     getCurrentTicketId: getCurrentTicketId
   };
 })(); 
