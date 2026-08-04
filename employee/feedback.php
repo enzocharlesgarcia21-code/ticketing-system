@@ -2424,6 +2424,22 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             display: none;
         }
 
+        body.employee-feedback-page .dashboard-container {
+            max-width: 1780px !important;
+            padding-left: 30px !important;
+            padding-right: 30px !important;
+        }
+
+        body.employee-feedback-page .content-wrapper {
+            max-width: none !important;
+            padding-left: 30px !important;
+            padding-right: 30px !important;
+        }
+
+        body.employee-feedback-page .feedback-hero h1 {
+            color: #145a24 !important;
+        }
+
         @media (max-width: 768px) {
             body.employee-feedback-page .feedback-toolbar {
                 width: 100%;
