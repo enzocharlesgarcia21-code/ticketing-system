@@ -2047,6 +2047,17 @@ function ticket_ensure_chat_tables(mysqli $conn): void
             KEY idx_ticket_id (ticket_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS ticket_chat_typing (
+            ticket_id INT NOT NULL,
+            chat_thread_id INT NOT NULL DEFAULT 1,
+            user_id INT NOT NULL,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (ticket_id, chat_thread_id, user_id),
+            KEY idx_ticket_typing (ticket_id, chat_thread_id, updated_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
 }
 
 function ticket_chat_current_thread_id(mysqli $conn, int $ticketId): int

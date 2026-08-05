@@ -207,6 +207,50 @@ function feedback_page_url(int $page): string
     return 'feedback.php?page=' . max(1, $page);
 }
 
+function render_feedback_pagination(int $page, int $totalPages, int $showingFrom, int $showingTo, int $totalRecords): string
+{
+    if ($totalRecords <= 0) {
+        return '';
+    }
+
+    $html = '<div class="pagination-glass">';
+    $html .= '<div class="pagination-summary">Showing ' . number_format($showingFrom) . ' - ' . number_format($showingTo) . ' of ' . number_format($totalRecords) . ' entries</div>';
+
+    if ($totalPages > 1) {
+        $html .= '<a href="' . htmlspecialchars(feedback_page_url(max(1, $page - 1)), ENT_QUOTES, 'UTF-8') . '" class="page-btn prev' . ($page <= 1 ? ' disabled' : '') . '">&lsaquo; Previous</a>';
+        $html .= '<div class="page-numbers">';
+
+        $window = 2;
+        $startPage = max(1, $page - $window);
+        $endPage = min($totalPages, $page + $window);
+
+        if ($startPage > 1) {
+            $html .= '<a href="' . htmlspecialchars(feedback_page_url(1), ENT_QUOTES, 'UTF-8') . '" class="page-btn' . ($page === 1 ? ' active' : '') . '">1</a>';
+            if ($startPage > 2) {
+                $html .= '<span class="page-ellipsis">...</span>';
+            }
+        }
+
+        for ($i = $startPage; $i <= $endPage; $i++) {
+            $html .= '<a href="' . htmlspecialchars(feedback_page_url($i), ENT_QUOTES, 'UTF-8') . '" class="page-btn' . ($i === $page ? ' active' : '') . '">' . $i . '</a>';
+        }
+
+        if ($endPage < $totalPages) {
+            if ($endPage < ($totalPages - 1)) {
+                $html .= '<span class="page-ellipsis">...</span>';
+            }
+            $html .= '<a href="' . htmlspecialchars(feedback_page_url($totalPages), ENT_QUOTES, 'UTF-8') . '" class="page-btn' . ($page === $totalPages ? ' active' : '') . '">' . $totalPages . '</a>';
+        }
+
+        $html .= '</div>';
+        $html .= '<a href="' . htmlspecialchars(feedback_page_url(min($totalPages, $page + 1)), ENT_QUOTES, 'UTF-8') . '" class="page-btn next' . ($page >= $totalPages ? ' disabled' : '') . '">Next &rsaquo;</a>';
+    }
+
+    $html .= '</div>';
+
+    return $html;
+}
+
 $feedbackTotal = count($feedbackRows);
 $feedbackPerPage = 5;
 $feedbackTotalPages = max(1, (int) ceil($feedbackTotal / $feedbackPerPage));
@@ -1420,18 +1464,6 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             font-size: 15px !important;
         }
 
-        body.employee-feedback-page .feedback-page-button,
-        body.employee-feedback-page .feedback-page-current {
-            width: 36px !important;
-            height: 36px !important;
-        }
-
-        body.employee-feedback-page .feedback-page-current {
-            background: linear-gradient(145deg, #197538, #06491e) !important;
-            box-shadow: 0 8px 18px rgba(20, 112, 48, .28);
-            font-weight: 800 !important;
-        }
-
         body.employee-feedback-page .feedback-bottom-callout {
             display: grid;
             grid-template-columns: 1.15fr 1fr;
@@ -2454,6 +2486,202 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 width: 100%;
             }
         }
+
+        /* Feedback table-only override: match My Submitted Tickets while keeping this page scoped. */
+        body.employee-feedback-page .feedback-page-shell {
+            width: 100% !important;
+            max-width: 1360px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+        }
+
+        body.employee-feedback-page .feedback-table-wrap {
+            border: 0 !important;
+            border-radius: 0 !important;
+            overflow-x: auto !important;
+            overflow-y: visible !important;
+        }
+
+        body.employee-feedback-page .feedback-table {
+            width: 100% !important;
+            table-layout: fixed !important;
+        }
+
+        body.employee-feedback-page .feedback-table th {
+            background: #fbfcfd !important;
+            border-bottom: 2px solid #1B5E20 !important;
+            padding: 14px 16px !important;
+            color: #0b6b27 !important;
+            font-size: 12px !important;
+            font-weight: 500 !important;
+        }
+
+        body.employee-feedback-page .feedback-table th:first-child {
+            border-top-left-radius: 8px !important;
+            border-bottom-left-radius: 8px !important;
+        }
+
+        body.employee-feedback-page .feedback-table th:last-child {
+            border-top-right-radius: 8px !important;
+            border-bottom-right-radius: 8px !important;
+        }
+
+        body.employee-feedback-page .feedback-table td {
+            padding: 15px 16px !important;
+            border-bottom: 2px solid #e3eadf !important;
+            font-size: 13px !important;
+        }
+
+        body.employee-feedback-page .feedback-table th:nth-child(1),
+        body.employee-feedback-page .feedback-table td:nth-child(1) {
+            width: 92px !important;
+        }
+
+        body.employee-feedback-page .feedback-table th:nth-child(2),
+        body.employee-feedback-page .feedback-table td:nth-child(2) {
+            width: 16% !important;
+        }
+
+        body.employee-feedback-page .feedback-table th:nth-child(3),
+        body.employee-feedback-page .feedback-table td:nth-child(3) {
+            width: 16% !important;
+        }
+
+        body.employee-feedback-page .feedback-table th:nth-child(4),
+        body.employee-feedback-page .feedback-table td:nth-child(4) {
+            width: 14% !important;
+        }
+
+        body.employee-feedback-page .feedback-table th:nth-child(5),
+        body.employee-feedback-page .feedback-table td:nth-child(5) {
+            width: 24% !important;
+        }
+
+        body.employee-feedback-page .feedback-table th:nth-child(6),
+        body.employee-feedback-page .feedback-table td:nth-child(6) {
+            width: 150px !important;
+        }
+
+        body.employee-feedback-page .feedback-category-pill,
+        body.employee-feedback-page .feedback-person,
+        body.employee-feedback-page .feedback-department,
+        body.employee-feedback-page .feedback-rating,
+        body.employee-feedback-page .feedback-date {
+            max-width: 100% !important;
+            min-width: 0 !important;
+            font-size: 13px !important;
+        }
+
+        body.employee-feedback-page .feedback-advice-box {
+            max-width: 250px !important;
+            font-size: 12px !important;
+        }
+
+        body.employee-feedback-page .feedback-table-footer {
+            display: block !important;
+            padding: 18px 0 0 !important;
+        }
+
+        body.employee-feedback-page .feedback-table-footer .pagination-glass {
+            width: 100%;
+            min-height: 46px;
+            margin: 0;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        body.employee-feedback-page .feedback-table-footer .pagination-summary {
+            flex: 1 1 auto;
+        }
+
+        body.employee-feedback-page .feedback-table-footer .page-numbers {
+            min-width: 0;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        body.employee-feedback-page .feedback-table-footer .page-btn.active {
+            background: #1B5E20 !important;
+            border-color: #1B5E20 !important;
+            box-shadow: 0 10px 18px rgba(27, 94, 32, 0.22) !important;
+        }
+
+        @media (max-width: 768px) {
+            body.employee-feedback-page .feedback-table-footer .pagination-glass {
+                display: grid;
+                grid-template-columns: auto minmax(0, 1fr) auto;
+                gap: 10px;
+                padding: 14px 0 4px;
+            }
+
+            body.employee-feedback-page .feedback-table td {
+                width: 100% !important;
+            }
+
+            body.employee-feedback-page .feedback-advice-box {
+                max-width: 100% !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .pagination-summary {
+                grid-column: 1 / -1;
+                width: 100%;
+                font-size: 14px;
+                line-height: 1.35;
+                text-align: left;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-numbers {
+                min-width: 0;
+                justify-content: flex-start;
+                overflow-x: auto;
+                padding: 2px 2px 6px;
+                scrollbar-width: none;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-numbers::-webkit-scrollbar {
+                display: none;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn {
+                flex: 0 0 auto;
+                min-width: 44px;
+                height: 44px;
+                padding: 0 14px;
+                border-radius: 999px;
+                font-size: 14px;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn.prev,
+            body.employee-feedback-page .feedback-table-footer .page-btn.next {
+                min-width: 44px;
+                width: 44px;
+                padding: 0;
+                overflow: hidden;
+                color: transparent;
+                white-space: nowrap;
+                position: relative;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn.prev::before,
+            body.employee-feedback-page .feedback-table-footer .page-btn.next::before {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #334155;
+                font-size: 20px;
+                font-weight: 900;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn.prev::before {
+                content: "\2039";
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn.next::before {
+                content: "\203A";
+            }
+        }
     </style>
 </head>
 <body class="employee-feedback-page">
@@ -2591,21 +2819,8 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                                     </tbody>
                                 </table>
                             </div>
-                            <div class="feedback-table-footer">
-                                <span>Showing <?= $feedbackStart; ?> to <?= $feedbackEnd; ?> of <?= $feedbackTotal; ?> entr<?= $feedbackTotal === 1 ? 'y' : 'ies'; ?></span>
-                                <span class="feedback-pagination" aria-label="Feedback pagination">
-                                    <?php if ($feedbackPage > 1): ?>
-                                        <a class="feedback-page-button" href="<?= htmlspecialchars(feedback_page_url($feedbackPage - 1), ENT_QUOTES, 'UTF-8'); ?>" aria-label="Previous page"><i class="fas fa-chevron-left"></i></a>
-                                    <?php else: ?>
-                                        <span class="feedback-page-button is-disabled" aria-disabled="true"><i class="fas fa-chevron-left"></i></span>
-                                    <?php endif; ?>
-                                    <span class="feedback-page-current"><?= $feedbackPage; ?></span>
-                                    <?php if ($feedbackPage < $feedbackTotalPages): ?>
-                                        <a class="feedback-page-button" href="<?= htmlspecialchars(feedback_page_url($feedbackPage + 1), ENT_QUOTES, 'UTF-8'); ?>" aria-label="Next page"><i class="fas fa-chevron-right"></i></a>
-                                    <?php else: ?>
-                                        <span class="feedback-page-button is-disabled" aria-disabled="true"><i class="fas fa-chevron-right"></i></span>
-                                    <?php endif; ?>
-                                </span>
+                            <div class="feedback-table-footer" aria-label="Feedback pagination">
+                                <?= render_feedback_pagination($feedbackPage, $feedbackTotalPages, $feedbackStart, $feedbackEnd, $feedbackTotal); ?>
                             </div>
                         <?php else: ?>
                             <div class="feedback-empty">

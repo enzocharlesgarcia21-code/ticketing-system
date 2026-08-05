@@ -461,12 +461,49 @@ if ($showCategoryView) {
         /* Knowledge Base Specific Styles */
         body {
             background-image:
-               
+                radial-gradient(circle at -4% 18%, rgba(209, 236, 216, 0.76) 0 245px, transparent 246px),
+                radial-gradient(circle at 104% 5%, rgba(224, 244, 229, 0.78) 0 185px, transparent 186px),
+                radial-gradient(ellipse at -7% 106%, rgba(220, 241, 224, 0.78) 0 330px, transparent 331px),
+                radial-gradient(ellipse at 106% 106%, rgba(205, 234, 214, 0.86) 0 340px, transparent 341px),
+                radial-gradient(ellipse at 63% 116%, rgba(226, 244, 229, 0.78) 0 275px, transparent 276px),
+                radial-gradient(circle at 96% 17%, transparent 0 235px, rgba(199, 226, 207, 0.34) 236px 238px, transparent 239px),
+                radial-gradient(circle at 102% 34%, transparent 0 300px, rgba(199, 226, 207, 0.24) 301px 303px, transparent 304px),
+                linear-gradient(145deg, rgba(239, 249, 242, 0.84) 0%, rgba(255, 255, 255, 0.98) 22%, rgba(255, 255, 255, 0.99) 60%, rgba(239, 249, 242, 0.82) 100%);
             background-repeat: no-repeat;
-            background-position: center top;
+            background-position: left top, right top, left bottom, right bottom, center bottom, right top, right center, center top;
+            background-size: auto, auto, auto, auto, auto, auto, auto, cover;
             background-attachment: fixed;
-            background-size: cover;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        body::before,
+        body::after {
+            content: "";
+            position: fixed;
+            pointer-events: none;
+            z-index: 0;
+            background-image: radial-gradient(circle, rgba(105, 163, 123, 0.22) 1.25px, transparent 1.6px);
+        }
+
+        body::before {
+            left: 10%;
+            top: 120px;
+            width: 112px;
+            height: 112px;
+            background-size: 15px 15px;
+        }
+
+        body::after {
+            right: 9%;
+            top: 50%;
+            width: 128px;
+            height: 128px;
+            background-size: 17px 17px;
+        }
+
+        .kb-container {
+            position: relative;
+            z-index: 1;
         }
 
         .kb-container {

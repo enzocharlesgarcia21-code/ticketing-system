@@ -1788,6 +1788,55 @@ $showing_to = min($offset + $limit, (int) $total_records);
             }
         }
 
+        /* Assigned Tickets background-only override. */
+        body.employee-my-task-page {
+            background-image:
+                radial-gradient(circle at -5% 16%, rgba(211, 237, 218, 0.78) 0 235px, transparent 236px),
+                radial-gradient(circle at 101% 17%, rgba(232, 246, 235, 0.82) 0 150px, transparent 151px),
+                radial-gradient(circle at 103% 54%, rgba(216, 240, 222, 0.8) 0 96px, transparent 97px),
+                radial-gradient(circle at 99% 86%, rgba(219, 241, 224, 0.82) 0 150px, transparent 151px),
+                radial-gradient(ellipse at -4% 103%, rgba(220, 241, 224, 0.76) 0 250px, transparent 251px),
+                radial-gradient(circle at 3% 95%, transparent 0 74px, rgba(205, 230, 213, 0.28) 75px 77px, transparent 78px),
+                radial-gradient(circle at 3% 96%, transparent 0 105px, rgba(205, 230, 213, 0.2) 106px 108px, transparent 109px),
+                radial-gradient(circle at 94% 21%, transparent 0 180px, rgba(202, 229, 211, 0.25) 181px 183px, transparent 184px),
+                radial-gradient(circle at 96% 24%, transparent 0 230px, rgba(202, 229, 211, 0.18) 231px 233px, transparent 234px),
+                linear-gradient(145deg, rgba(239, 249, 242, 0.78) 0%, rgba(255, 255, 255, 0.98) 20%, rgba(255, 255, 255, 0.99) 60%, rgba(239, 249, 242, 0.84) 100%) !important;
+            background-repeat: no-repeat !important;
+            background-attachment: fixed !important;
+        }
+
+        body.employee-my-task-page::before,
+        body.employee-my-task-page::after {
+            content: "" !important;
+            position: fixed !important;
+            pointer-events: none !important;
+            z-index: 0 !important;
+            background-image: radial-gradient(circle, rgba(105, 163, 123, 0.2) 1.2px, transparent 1.55px);
+        }
+
+        body.employee-my-task-page::before {
+            left: 3%;
+            top: 112px;
+            width: 118px;
+            height: 128px;
+            background-size: 15px 15px;
+        }
+
+        body.employee-my-task-page::after {
+            right: 4%;
+            top: 67%;
+            width: 128px;
+            height: 132px;
+            background-size: 17px 17px;
+        }
+
+        body.employee-my-task-page .dashboard-container,
+        body.employee-my-task-page .content-wrapper {
+            position: relative !important;
+            z-index: 1 !important;
+            background: transparent !important;
+        }
+
     </style>
 </head>
 <body class="employee-my-task-page">
