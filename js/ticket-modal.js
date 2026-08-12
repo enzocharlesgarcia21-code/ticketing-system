@@ -168,12 +168,25 @@ var TMTicketModal = (function () {
     var style = document.createElement('style');
     style.id = 'tmChatTypingStyles';
     style.textContent =
-      '.chat-typing-indicator{align-self:flex-start;width:58px;min-width:58px;height:34px;margin:4px 0 10px 8px;padding:0 12px;border-radius:18px;background:#2f3a43;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 6px 16px rgba(15,23,42,.16);box-sizing:border-box;}' +
-      '.chat-typing-indicator span{width:6px;height:6px;border-radius:999px;background:#9aa3ad;display:block;animation:tmTypingDot 1.15s infinite ease-in-out;}' +
-      '.chat-typing-indicator span:nth-child(2){animation-delay:.16s;}' +
-      '.chat-typing-indicator span:nth-child(3){animation-delay:.32s;}' +
+      '.chat-typing-indicator{align-self:flex-start;display:inline-flex;align-items:flex-end;gap:12px;min-height:38px;margin:4px 0 12px 8px;box-sizing:border-box;}' +
+      '.chat-typing-avatar{width:32px;height:32px;min-width:32px;border-radius:999px;background:var(--tm-typing-avatar-bg,#008a63);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;text-transform:uppercase;box-shadow:0 3px 8px rgba(15,23,42,.14),inset 0 0 0 1px rgba(255,255,255,.4);}' +
+      '.chat-typing-bubble{height:34px;min-width:62px;padding:0 15px;border-radius:17px;background:#eaf6ee;display:inline-flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 6px 14px rgba(15,23,42,.06);box-sizing:border-box;}' +
+      '.chat-typing-bubble span{width:7px;height:7px;border-radius:999px;background:#22c55e;display:block;animation:tmTypingDot 1.15s infinite ease-in-out;}' +
+      '.chat-typing-bubble span:nth-child(2){animation-delay:.16s;}' +
+      '.chat-typing-bubble span:nth-child(3){animation-delay:.32s;}' +
       '@keyframes tmTypingDot{0%,80%,100%{opacity:.45;transform:translateY(0);}40%{opacity:1;transform:translateY(-2px);}}';
     document.head.appendChild(style);
+  }
+  function syncTypingIndicatorAvatar(container, indicator) {
+    if (!container || !indicator) return;
+    var avatar = indicator.querySelector('.chat-typing-avatar');
+    if (!avatar) return;
+    var bubbles = container.querySelectorAll('.chat-bubble.other.tm-has-letter-avatar');
+    var source = bubbles.length ? bubbles[bubbles.length - 1] : null;
+    var initials = source ? String(source.getAttribute('data-avatar') || '').trim() : '';
+    var bg = source ? String(source.style.getPropertyValue('--tm-avatar-bg') || '').trim() : '';
+    avatar.textContent = initials || 'U';
+    indicator.style.setProperty('--tm-typing-avatar-bg', bg || '#008a63');
   }
   function setTypingIndicator(containerId, visible) {
     var container = qs(containerId);
@@ -188,9 +201,10 @@ var TMTicketModal = (function () {
       existing = document.createElement('div');
       existing.className = 'chat-typing-indicator';
       existing.setAttribute('aria-label', 'Typing');
-      existing.innerHTML = '<span></span><span></span><span></span>';
+      existing.innerHTML = '<span class="chat-typing-avatar" aria-hidden="true">U</span><span class="chat-typing-bubble" aria-hidden="true"><span></span><span></span><span></span></span>';
       container.appendChild(existing);
     }
+    syncTypingIndicatorAvatar(container, existing);
     var isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
     if (isNearBottom) container.scrollTop = container.scrollHeight;
   }
@@ -4574,10 +4588,12 @@ var TMTicketModal = (function () {
         '.tm-messenger-close{border:none;background:#f1f5f9;color:#0f172a;border-radius:10px;padding:8px 10px;cursor:pointer;font-weight:900;display:inline-flex;align-items:center;justify-content:center;}' +
         '.tm-messenger-close:hover{background:#e2e8f0;}' +
         '.tm-messenger-messages{flex:1;overflow:auto;padding:16px;background:#f9fafb;display:flex;flex-direction:column;gap:6px;}' +
-        '.chat-typing-indicator{align-self:flex-start;width:58px;min-width:58px;height:34px;margin:4px 0 10px 8px;padding:0 12px;border-radius:18px;background:#2f3a43;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 6px 16px rgba(15,23,42,.16);box-sizing:border-box;}' +
-        '.chat-typing-indicator span{width:6px;height:6px;border-radius:999px;background:#9aa3ad;display:block;animation:tmTypingDot 1.15s infinite ease-in-out;}' +
-        '.chat-typing-indicator span:nth-child(2){animation-delay:.16s;}' +
-        '.chat-typing-indicator span:nth-child(3){animation-delay:.32s;}' +
+        '.chat-typing-indicator{align-self:flex-start;display:inline-flex;align-items:flex-end;gap:12px;min-height:38px;margin:4px 0 12px 8px;box-sizing:border-box;}' +
+        '.chat-typing-avatar{width:32px;height:32px;min-width:32px;border-radius:999px;background:var(--tm-typing-avatar-bg,#008a63);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;text-transform:uppercase;box-shadow:0 3px 8px rgba(15,23,42,.14),inset 0 0 0 1px rgba(255,255,255,.4);}' +
+        '.chat-typing-bubble{height:34px;min-width:62px;padding:0 15px;border-radius:17px;background:#eaf6ee;display:inline-flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 6px 14px rgba(15,23,42,.06);box-sizing:border-box;}' +
+        '.chat-typing-bubble span{width:7px;height:7px;border-radius:999px;background:#22c55e;display:block;animation:tmTypingDot 1.15s infinite ease-in-out;}' +
+        '.chat-typing-bubble span:nth-child(2){animation-delay:.16s;}' +
+        '.chat-typing-bubble span:nth-child(3){animation-delay:.32s;}' +
         '@keyframes tmTypingDot{0%,80%,100%{opacity:.45;transform:translateY(0);}40%{opacity:1;transform:translateY(-2px);}}' +
         '.tm-messenger-empty{color:#94a3b8;font-weight:700;text-align:center;margin-top:26px;}' +
         '.tm-messenger-compose{border-top:1px solid #e5e7eb;padding:12px;background:#fff;display:flex;gap:8px;align-items:center;flex-wrap:nowrap;position:relative;padding-bottom:64px;}' +

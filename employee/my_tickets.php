@@ -3400,15 +3400,15 @@ $successMessage = '';
         /* Employee page background-only consistency override. */
         body.employee-my-tickets-page {
             background-image:
-                radial-gradient(circle at -5% 16%, rgba(211, 237, 218, 0.78) 0 235px, transparent 236px),
-                radial-gradient(circle at 101% 17%, rgba(232, 246, 235, 0.82) 0 150px, transparent 151px),
-                radial-gradient(circle at 103% 54%, rgba(216, 240, 222, 0.8) 0 96px, transparent 97px),
-                radial-gradient(circle at 99% 86%, rgba(219, 241, 224, 0.82) 0 150px, transparent 151px),
-                radial-gradient(ellipse at -4% 103%, rgba(220, 241, 224, 0.76) 0 250px, transparent 251px),
-                radial-gradient(circle at 3% 95%, transparent 0 74px, rgba(205, 230, 213, 0.28) 75px 77px, transparent 78px),
-                radial-gradient(circle at 3% 96%, transparent 0 105px, rgba(205, 230, 213, 0.2) 106px 108px, transparent 109px),
-                radial-gradient(circle at 94% 21%, transparent 0 180px, rgba(202, 229, 211, 0.25) 181px 183px, transparent 184px),
-                radial-gradient(circle at 96% 24%, transparent 0 230px, rgba(202, 229, 211, 0.18) 231px 233px, transparent 234px),
+                radial-gradient(circle at 2% 30%, rgba(222, 243, 227, 0.78) 0 58px, transparent 59px),
+                radial-gradient(circle at 92% 13%, rgba(220, 241, 225, 0.74) 0 112px, transparent 113px),
+                radial-gradient(circle at 101% 87%, rgba(214, 238, 220, 0.82) 0 128px, transparent 129px),
+                radial-gradient(ellipse at -6% 101%, rgba(225, 244, 229, 0.82) 0 215px, transparent 216px),
+                radial-gradient(ellipse at 100% 43%, rgba(239, 249, 242, 0.74) 0 245px, transparent 246px),
+                radial-gradient(circle at 0% 47%, transparent 0 150px, rgba(205, 230, 213, 0.22) 151px 153px, transparent 154px),
+                radial-gradient(circle at 1% 49%, transparent 0 198px, rgba(205, 230, 213, 0.15) 199px 201px, transparent 202px),
+                radial-gradient(circle at 92% 7%, transparent 0 160px, rgba(202, 229, 211, 0.23) 161px 163px, transparent 164px),
+                radial-gradient(circle at 95% 10%, transparent 0 218px, rgba(202, 229, 211, 0.15) 219px 221px, transparent 222px),
                 linear-gradient(145deg, rgba(239, 249, 242, 0.78) 0%, rgba(255, 255, 255, 0.98) 20%, rgba(255, 255, 255, 0.99) 60%, rgba(239, 249, 242, 0.84) 100%) !important;
             background-repeat: no-repeat !important;
             background-attachment: fixed !important;
@@ -3424,19 +3424,19 @@ $successMessage = '';
         }
 
         body.employee-my-tickets-page::before {
-            left: 3%;
-            top: 112px;
-            width: 118px;
-            height: 128px;
-            background-size: 15px 15px;
+            left: 2%;
+            top: 128px;
+            width: 82px;
+            height: 94px;
+            background-size: 14px 14px;
         }
 
         body.employee-my-tickets-page::after {
-            right: 4%;
-            top: 67%;
-            width: 128px;
-            height: 132px;
-            background-size: 17px 17px;
+            right: 5%;
+            top: 142px;
+            width: 92px;
+            height: 92px;
+            background-size: 14px 14px;
         }
 
         body.employee-my-tickets-page .dashboard-container,

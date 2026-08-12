@@ -5534,15 +5534,15 @@ if (count($emailCreationEntries) === 0) {
         /* Employee page background-only consistency override. */
         body.employee-request-ticket-page {
             background-image:
-                radial-gradient(circle at -5% 16%, rgba(211, 237, 218, 0.78) 0 235px, transparent 236px),
-                radial-gradient(circle at 101% 17%, rgba(232, 246, 235, 0.82) 0 150px, transparent 151px),
-                radial-gradient(circle at 103% 54%, rgba(216, 240, 222, 0.8) 0 96px, transparent 97px),
-                radial-gradient(circle at 99% 86%, rgba(219, 241, 224, 0.82) 0 150px, transparent 151px),
-                radial-gradient(ellipse at -4% 103%, rgba(220, 241, 224, 0.76) 0 250px, transparent 251px),
-                radial-gradient(circle at 3% 95%, transparent 0 74px, rgba(205, 230, 213, 0.28) 75px 77px, transparent 78px),
-                radial-gradient(circle at 3% 96%, transparent 0 105px, rgba(205, 230, 213, 0.2) 106px 108px, transparent 109px),
-                radial-gradient(circle at 94% 21%, transparent 0 180px, rgba(202, 229, 211, 0.25) 181px 183px, transparent 184px),
-                radial-gradient(circle at 96% 24%, transparent 0 230px, rgba(202, 229, 211, 0.18) 231px 233px, transparent 234px),
+                radial-gradient(circle at -4% 10%, rgba(217, 240, 223, 0.78) 0 160px, transparent 161px),
+                radial-gradient(circle at 9% 39%, rgba(233, 247, 236, 0.78) 0 44px, transparent 45px),
+                radial-gradient(circle at 97% 40%, rgba(221, 242, 226, 0.76) 0 84px, transparent 85px),
+                radial-gradient(circle at 105% 80%, rgba(213, 237, 220, 0.82) 0 170px, transparent 171px),
+                radial-gradient(ellipse at 23% 106%, rgba(225, 244, 229, 0.82) 0 180px, transparent 181px),
+                radial-gradient(circle at 1% 2%, transparent 0 110px, rgba(205, 230, 213, 0.25) 111px 113px, transparent 114px),
+                radial-gradient(circle at 2% 4%, transparent 0 165px, rgba(205, 230, 213, 0.17) 166px 168px, transparent 169px),
+                radial-gradient(circle at 98% 58%, transparent 0 165px, rgba(202, 229, 211, 0.22) 166px 168px, transparent 169px),
+                radial-gradient(circle at 100% 60%, transparent 0 215px, rgba(202, 229, 211, 0.15) 216px 218px, transparent 219px),
                 linear-gradient(145deg, rgba(239, 249, 242, 0.78) 0%, rgba(255, 255, 255, 0.98) 20%, rgba(255, 255, 255, 0.99) 60%, rgba(239, 249, 242, 0.84) 100%) !important;
             background-repeat: no-repeat !important;
             background-attachment: fixed !important;
@@ -5558,19 +5558,19 @@ if (count($emailCreationEntries) === 0) {
         }
 
         body.employee-request-ticket-page::before {
-            left: 3%;
-            top: 112px;
-            width: 118px;
-            height: 128px;
-            background-size: 15px 15px;
+            left: 2%;
+            top: 54%;
+            width: 100px;
+            height: 112px;
+            background-size: 16px 16px;
         }
 
         body.employee-request-ticket-page::after {
             right: 4%;
-            top: 67%;
-            width: 128px;
-            height: 132px;
-            background-size: 17px 17px;
+            top: 128px;
+            width: 104px;
+            height: 104px;
+            background-size: 15px 15px;
         }
 
         body.employee-request-ticket-page .dashboard-container,

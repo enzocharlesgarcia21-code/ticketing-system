@@ -430,15 +430,15 @@ body.employee-analytics-page .task-ticket-arrow {
 /* Employee page background-only consistency override. */
 body.employee-analytics-page {
     background-image:
-        radial-gradient(circle at -5% 16%, rgba(211, 237, 218, 0.78) 0 235px, transparent 236px),
-        radial-gradient(circle at 101% 17%, rgba(232, 246, 235, 0.82) 0 150px, transparent 151px),
-        radial-gradient(circle at 103% 54%, rgba(216, 240, 222, 0.8) 0 96px, transparent 97px),
-        radial-gradient(circle at 99% 86%, rgba(219, 241, 224, 0.82) 0 150px, transparent 151px),
-        radial-gradient(ellipse at -4% 103%, rgba(220, 241, 224, 0.76) 0 250px, transparent 251px),
-        radial-gradient(circle at 3% 95%, transparent 0 74px, rgba(205, 230, 213, 0.28) 75px 77px, transparent 78px),
-        radial-gradient(circle at 3% 96%, transparent 0 105px, rgba(205, 230, 213, 0.2) 106px 108px, transparent 109px),
-        radial-gradient(circle at 94% 21%, transparent 0 180px, rgba(202, 229, 211, 0.25) 181px 183px, transparent 184px),
-        radial-gradient(circle at 96% 24%, transparent 0 230px, rgba(202, 229, 211, 0.18) 231px 233px, transparent 234px),
+        radial-gradient(circle at 6% 24%, rgba(225, 244, 229, 0.82) 0 78px, transparent 79px),
+        radial-gradient(circle at -4% 83%, rgba(215, 239, 221, 0.78) 0 190px, transparent 191px),
+        radial-gradient(circle at 98% 26%, rgba(219, 241, 224, 0.76) 0 205px, transparent 206px),
+        radial-gradient(circle at 94% 76%, rgba(233, 247, 236, 0.82) 0 90px, transparent 91px),
+        radial-gradient(ellipse at 58% 108%, rgba(223, 243, 228, 0.74) 0 260px, transparent 261px),
+        radial-gradient(circle at 4% 77%, transparent 0 165px, rgba(205, 230, 213, 0.24) 166px 168px, transparent 169px),
+        radial-gradient(circle at 4% 78%, transparent 0 210px, rgba(205, 230, 213, 0.16) 211px 213px, transparent 214px),
+        radial-gradient(circle at 92% 19%, transparent 0 145px, rgba(202, 229, 211, 0.23) 146px 148px, transparent 149px),
+        radial-gradient(circle at 94% 20%, transparent 0 198px, rgba(202, 229, 211, 0.16) 199px 201px, transparent 202px),
         linear-gradient(145deg, rgba(239, 249, 242, 0.78) 0%, rgba(255, 255, 255, 0.98) 20%, rgba(255, 255, 255, 0.99) 60%, rgba(239, 249, 242, 0.84) 100%) !important;
     background-repeat: no-repeat !important;
     background-attachment: fixed !important;
@@ -454,19 +454,19 @@ body.employee-analytics-page::after {
 }
 
 body.employee-analytics-page::before {
-    left: 3%;
-    top: 112px;
-    width: 118px;
-    height: 128px;
-    background-size: 15px 15px;
+    left: 2%;
+    top: 132px;
+    width: 104px;
+    height: 88px;
+    background-size: 16px 16px;
 }
 
 body.employee-analytics-page::after {
-    right: 4%;
-    top: 67%;
-    width: 128px;
-    height: 132px;
-    background-size: 17px 17px;
+    right: 6%;
+    top: 88%;
+    width: 116px;
+    height: 96px;
+    background-size: 15px 15px;
 }
 
 body.employee-analytics-page .admin-container,

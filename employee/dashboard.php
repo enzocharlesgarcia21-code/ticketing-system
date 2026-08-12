@@ -3499,15 +3499,15 @@ function dashboard_urgency_badge_html(string $priority): string
         /* Employee page background-only consistency override. */
         body.employee-dashboard-page {
             background-image:
-                radial-gradient(circle at -5% 16%, rgba(211, 237, 218, 0.78) 0 235px, transparent 236px),
-                radial-gradient(circle at 101% 17%, rgba(232, 246, 235, 0.82) 0 150px, transparent 151px),
-                radial-gradient(circle at 103% 54%, rgba(216, 240, 222, 0.8) 0 96px, transparent 97px),
-                radial-gradient(circle at 99% 86%, rgba(219, 241, 224, 0.82) 0 150px, transparent 151px),
-                radial-gradient(ellipse at -4% 103%, rgba(220, 241, 224, 0.76) 0 250px, transparent 251px),
-                radial-gradient(circle at 3% 95%, transparent 0 74px, rgba(205, 230, 213, 0.28) 75px 77px, transparent 78px),
-                radial-gradient(circle at 3% 96%, transparent 0 105px, rgba(205, 230, 213, 0.2) 106px 108px, transparent 109px),
-                radial-gradient(circle at 94% 21%, transparent 0 180px, rgba(202, 229, 211, 0.25) 181px 183px, transparent 184px),
-                radial-gradient(circle at 96% 24%, transparent 0 230px, rgba(202, 229, 211, 0.18) 231px 233px, transparent 234px),
+                radial-gradient(circle at -3% 58%, rgba(211, 237, 218, 0.72) 0 118px, transparent 119px),
+                radial-gradient(circle at 7% 86%, rgba(220, 242, 225, 0.8) 0 92px, transparent 93px),
+                radial-gradient(circle at 101% 46%, rgba(216, 240, 222, 0.76) 0 145px, transparent 146px),
+                radial-gradient(circle at 95% 95%, rgba(231, 246, 234, 0.88) 0 105px, transparent 106px),
+                radial-gradient(ellipse at 80% 18%, rgba(235, 248, 238, 0.62) 0 320px, transparent 321px),
+                radial-gradient(circle at -1% 38%, transparent 0 105px, rgba(205, 230, 213, 0.24) 106px 108px, transparent 109px),
+                radial-gradient(circle at 0% 39%, transparent 0 148px, rgba(205, 230, 213, 0.17) 149px 151px, transparent 152px),
+                radial-gradient(circle at 84% 22%, transparent 0 160px, rgba(202, 229, 211, 0.22) 161px 163px, transparent 164px),
+                radial-gradient(circle at 86% 24%, transparent 0 210px, rgba(202, 229, 211, 0.15) 211px 213px, transparent 214px),
                 linear-gradient(145deg, rgba(239, 249, 242, 0.78) 0%, rgba(255, 255, 255, 0.98) 20%, rgba(255, 255, 255, 0.99) 60%, rgba(239, 249, 242, 0.84) 100%) !important;
             background-repeat: no-repeat !important;
             background-attachment: fixed !important;
@@ -3523,19 +3523,19 @@ function dashboard_urgency_badge_html(string $priority): string
         }
 
         body.employee-dashboard-page::before {
-            left: 3%;
-            top: 112px;
-            width: 118px;
-            height: 128px;
-            background-size: 15px 15px;
+            left: 4%;
+            top: 128px;
+            width: 96px;
+            height: 100px;
+            background-size: 14px 14px;
         }
 
         body.employee-dashboard-page::after {
-            right: 4%;
-            top: 67%;
-            width: 128px;
-            height: 132px;
-            background-size: 17px 17px;
+            right: 5%;
+            top: 71%;
+            width: 112px;
+            height: 116px;
+            background-size: 16px 16px;
         }
 
         body.employee-dashboard-page .dashboard-container,
