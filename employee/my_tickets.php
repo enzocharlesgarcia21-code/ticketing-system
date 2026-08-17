@@ -3825,7 +3825,7 @@ $successMessage = '';
         }
     </style>
 </head>
-<body>
+<body class="employee-my-tickets-page">
     <script>document.body.classList.add('tm-hide-requestor-admin-chat');</script>
     <script>document.body.classList.add('employee-my-tickets-page');</script>
 

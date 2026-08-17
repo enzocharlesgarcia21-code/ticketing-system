@@ -598,7 +598,7 @@ function dashboard_urgency_badge_html(string $priority): string
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
     <title>Employee Dashboard | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <!-- Optional: Font Awesome for Icons -->
@@ -1749,12 +1749,13 @@ function dashboard_urgency_badge_html(string $priority): string
             body.employee-dashboard-page .mobile-sidebar {
                 position: fixed;
                 top: 0;
-                right: -260px;
+                left: -260px;
+                right: auto;
                 width: 260px;
                 height: 100vh;
                 background: #1B5E20;
                 padding: 20px;
-                transition: right 0.3s ease;
+                transition: left 0.3s ease;
                 z-index: 2000;
                 display: flex;
                 flex-direction: column;
@@ -1763,7 +1764,8 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page .mobile-sidebar.active {
-                right: 0;
+                left: 0;
+                right: auto;
             }
 
             body.employee-dashboard-page .mobile-sidebar-header {
@@ -3572,6 +3574,14 @@ function dashboard_urgency_badge_html(string $priority): string
 
         /* Mobile dashboard layout aligned with the supplied compact reference. */
         @media (max-width: 767px) {
+            html,
+            body.employee-dashboard-page,
+            body.employee-dashboard-page .summary-carousel,
+            body.employee-dashboard-page .carousel__viewport,
+            body.employee-dashboard-page .dashboard-ticket-panel {
+                touch-action: pan-x pan-y pinch-zoom !important;
+            }
+
             body.employee-dashboard-page {
                 background: #f4f7f5 !important;
             }
@@ -3612,12 +3622,8 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page .hero-section::before {
-                content: "";
-                position: absolute;
-                inset: auto 0 0;
-                height: 42px;
-                background: linear-gradient(to top, rgba(244, 247, 245, 0.92), transparent);
-                pointer-events: none;
+                content: none !important;
+                display: none !important;
             }
 
             body.employee-dashboard-page .hero-copy {
@@ -3726,6 +3732,17 @@ function dashboard_urgency_badge_html(string $priority): string
                 align-items: center !important;
                 justify-content: flex-end !important;
                 gap: 7px !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                backdrop-filter: none !important;
+            }
+
+            body.employee-dashboard-page .card-filter-row::before,
+            body.employee-dashboard-page .card-filter-row::after {
+                content: none !important;
+                display: none !important;
             }
 
             body.employee-dashboard-page .card-filter-label {
@@ -3819,7 +3836,7 @@ function dashboard_urgency_badge_html(string $priority): string
                 padding: 0 !important;
                 scroll-behavior: auto !important;
                 scroll-snap-type: none !important;
-                touch-action: pan-y !important;
+                touch-action: pan-x pan-y pinch-zoom !important;
             }
 
             body.employee-dashboard-page .summary-carousel.is-compact .carousel__track {
@@ -3991,7 +4008,7 @@ function dashboard_urgency_badge_html(string $priority): string
                 overflow-y: hidden !important;
                 -webkit-overflow-scrolling: touch !important;
                 overscroll-behavior-x: contain !important;
-                touch-action: pan-x pan-y !important;
+                touch-action: pan-x pan-y pinch-zoom !important;
                 scrollbar-width: thin !important;
             }
 
@@ -4043,7 +4060,7 @@ function dashboard_urgency_badge_html(string $priority): string
                 border-bottom: 1px solid #eef2f0 !important;
                 background: transparent !important;
                 color: #334155 !important;
-                font-size: 9px !important;
+                font-size: 11px !important;
                 font-weight: 500 !important;
                 line-height: 1.25 !important;
                 text-align: left !important;
@@ -4057,7 +4074,7 @@ function dashboard_urgency_badge_html(string $priority): string
                 padding-top: 9px !important;
                 padding-bottom: 8px !important;
                 color: #718096 !important;
-                font-size: 7px !important;
+                font-size: 8.5px !important;
                 font-weight: 800 !important;
                 text-transform: uppercase !important;
                 white-space: nowrap !important;
@@ -4116,7 +4133,7 @@ function dashboard_urgency_badge_html(string $priority): string
                 overflow: visible !important;
                 text-overflow: clip !important;
                 white-space: nowrap !important;
-                font-size: 9px !important;
+                font-size: 11px !important;
                 font-weight: 500 !important;
             }
 
@@ -4126,13 +4143,13 @@ function dashboard_urgency_badge_html(string $priority): string
 
             body.employee-dashboard-page .dashboard-ticket-table .status-pill {
                 min-width: 0 !important;
-                min-height: 16px !important;
+                min-height: 19px !important;
                 display: inline-flex !important;
                 align-items: center !important;
                 justify-content: center !important;
-                padding: 2px 6px !important;
+                padding: 3px 7px !important;
                 border-radius: 999px !important;
-                font-size: 6.5px !important;
+                font-size: 8px !important;
                 font-weight: 700 !important;
                 line-height: 1 !important;
                 white-space: nowrap !important;
@@ -4141,15 +4158,15 @@ function dashboard_urgency_badge_html(string $priority): string
             body.employee-dashboard-page .dashboard-priority-badge,
             body.employee-dashboard-page .dashboard-ticket-sla .badge {
                 min-width: 0 !important;
-                min-height: 16px !important;
+                min-height: 19px !important;
                 height: auto !important;
                 display: inline-flex !important;
                 align-items: center !important;
                 justify-content: center !important;
                 margin: 0 !important;
-                padding: 2px 6px !important;
+                padding: 3px 7px !important;
                 border-radius: 999px !important;
-                font-size: 6.5px !important;
+                font-size: 8px !important;
                 font-weight: 700 !important;
                 line-height: 1 !important;
                 white-space: nowrap !important;
@@ -4159,6 +4176,111 @@ function dashboard_urgency_badge_html(string $priority): string
                 color: #64748b !important;
                 font-size: 17px !important;
                 font-weight: 700 !important;
+            }
+
+            /* Keep every mobile table heading aligned with its ticket value. */
+            body.employee-dashboard-page .dashboard-ticket-panel {
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table {
+                width: 805px !important;
+                min-width: 805px !important;
+                table-layout: fixed !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(4),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(4),
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(5),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(5),
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(7),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(7),
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(8),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(8) {
+                display: table-cell !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(1),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(1) {
+                width: 70px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(2),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(2) {
+                width: 130px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(3),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(3) {
+                width: 125px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(4),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(4) {
+                width: 105px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(5),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(5) {
+                width: 75px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(6),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(6) {
+                width: 95px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(7),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(7) {
+                width: 75px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(8),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(8) {
+                width: 105px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(9),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(9) {
+                width: 34px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table td.dashboard-ticket-arrow {
+                position: static !important;
+                padding: 6px 8px !important;
+                font-size: 0 !important;
+                line-height: 1 !important;
+                text-align: center !important;
+                overflow: hidden !important;
+                vertical-align: middle !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-arrow-icon {
+                position: relative;
+                width: 18px;
+                height: 18px;
+                display: block;
+                margin: 0 auto;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-arrow-icon::before {
+                content: '';
+                position: absolute;
+                top: 50%;
+                left: 46%;
+                width: 5px;
+                height: 5px;
+                border-right: 1.5px solid #52615a;
+                border-bottom: 1.5px solid #52615a;
+                transform: translate(-50%, -50%) rotate(-45deg);
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th {
+                color: #264438 !important;
+                font-weight: 800 !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
             }
         }
     </style>
@@ -4441,7 +4563,7 @@ function dashboard_urgency_badge_html(string $priority): string
                                         </td>
                                         <td class="dashboard-ticket-sla ticket-card__badges"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
                                         <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
+                                        <td class="dashboard-ticket-arrow" aria-hidden="true"><span class="dashboard-ticket-arrow-icon"></span></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -4501,7 +4623,7 @@ function dashboard_urgency_badge_html(string $priority): string
                                         </td>
                                         <td class="dashboard-ticket-sla ticket-card__badges"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
                                         <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
+                                        <td class="dashboard-ticket-arrow" aria-hidden="true"><span class="dashboard-ticket-arrow-icon"></span></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>

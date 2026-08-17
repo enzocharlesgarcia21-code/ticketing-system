@@ -680,6 +680,14 @@ if ($showCategoryView) {
             margin-bottom: 34px;
         }
 
+        .kb-subtitle {
+            display: none;
+        }
+
+        .mobile-kb-back {
+            display: none;
+        }
+
         .kb-breadcrumb {
             display: inline-flex;
             align-items: center;
@@ -1013,6 +1021,10 @@ if ($showCategoryView) {
             color: #1E6A2D;
             font-size: 14px;
             flex: 0 0 auto;
+        }
+
+        .home-departments .category-arrow {
+            display: none;
         }
 
         .results-section {
@@ -1507,8 +1519,59 @@ if ($showCategoryView) {
         }
 
         @media (max-width: 768px) {
+            html body {
+                min-height: 100vh;
+                border-top: 2px solid #2f8644;
+                zoom: 1 !important;
+                background:
+                    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0, rgba(248, 250, 248, 0.76) 145px, #f8faf8 220px),
+                    url('../assets/img/dashboard_bg.jpg') center top / 100% 220px no-repeat,
+                    #f8faf8 !important;
+                background-attachment: scroll !important;
+                box-sizing: border-box;
+            }
+
+            html body::before,
+            html body::after {
+                display: none !important;
+            }
+
             .sales-employee-navbar {
-                display: flex;
+                display: none;
+            }
+
+            .kb-container {
+                width: 100%;
+                max-width: none;
+                padding: 27px 22px 34px;
+                box-sizing: border-box;
+            }
+
+            .mobile-kb-back {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 9px;
+                min-height: 28px;
+                margin: 0 0 16px;
+                padding: 4px 18px;
+                border: 1px solid #176326;
+                border-radius: 999px;
+                background: #176326;
+                color: #ffffff;
+                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+                font-size: 12px;
+                font-weight: 800;
+                line-height: 1;
+                text-decoration: none;
+            }
+
+            .mobile-kb-back i {
+                color: #f6cf4a;
+                font-size: 11px;
+            }
+
+            .sales-employee-navbar {
                 flex-wrap: wrap;
                 align-items: center;
                 gap: 10px;
@@ -1575,23 +1638,29 @@ if ($showCategoryView) {
             }
 
             .home-departments .category-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 12px;
+                grid-template-columns: 1fr;
+                gap: 6px;
             }
 
             .home-departments .category-card {
-                min-height: 112px;
-                gap: 10px;
-                padding: 12px 10px;
+                min-height: 56px;
+                gap: 12px;
+                padding: 8px 12px;
                 align-items: center;
                 overflow: hidden;
+                border: 1px solid rgba(232, 237, 232, 0.95);
+                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.94);
+                box-shadow: 0 2px 9px rgba(24, 54, 31, 0.07);
             }
 
             .home-departments .category-icon {
-                width: 44px;
-                height: 44px;
-                flex-basis: 44px;
-                font-size: 18px;
+                width: 36px;
+                height: 36px;
+                flex-basis: 36px;
+                font-size: 16px;
+                color: #087c32;
+                background: #edf8ef;
             }
 
             .home-departments .category-info {
@@ -1600,16 +1669,94 @@ if ($showCategoryView) {
             }
 
             .home-departments .category-info h4 {
-                font-size: 13px;
-                line-height: 1.15;
+                margin-bottom: 3px;
+                color: #16231a;
+                font-size: 12px;
+                font-weight: 600;
+                line-height: 1.1;
                 overflow-wrap: anywhere;
                 word-break: normal;
             }
 
             .home-departments .category-info p {
-                font-size: 12px;
-                line-height: 1.2;
+                color: #56645b;
+                font-size: 9px;
+                font-weight: 500;
+                line-height: 1.15;
                 overflow-wrap: anywhere;
+            }
+
+            .home-departments .category-arrow {
+                display: inline-block;
+                margin-left: auto;
+                color: #2b8a47;
+                font-size: 11px;
+            }
+
+            .kb-header {
+                margin-bottom: 21px;
+                text-align: left;
+            }
+
+            .kb-title {
+                margin: 0 0 7px;
+                color: #087b2e;
+                font-size: 21px;
+                font-weight: 700;
+                line-height: 1.2;
+            }
+
+            .kb-subtitle {
+                display: block;
+                margin: 0;
+                color: #3f4a42;
+                font-size: 11px;
+                font-weight: 400;
+                line-height: 1.4;
+            }
+
+            .search-filter-wrapper {
+                display: block;
+                width: 100%;
+                max-width: none;
+                margin-top: 17px;
+            }
+
+            .search-input {
+                min-height: 44px;
+                padding: 11px 14px 11px 47px;
+                border: 1px solid rgba(224, 230, 225, 0.96);
+                border-radius: 8px;
+                color: #26312a;
+                font-size: 11px;
+                box-shadow: 0 3px 10px rgba(21, 52, 29, 0.08);
+            }
+
+            .search-icon {
+                left: 17px;
+                color: #68716b;
+                font-size: 14px;
+            }
+
+            .categories-section.home-departments {
+                width: 100%;
+                max-width: none;
+                margin: 0 auto;
+            }
+
+            .home-departments .categories-title {
+                position: relative;
+                margin: 0 0 14px;
+                padding-bottom: 0;
+                color: #176f32;
+                font-size: 12px;
+                font-weight: 600;
+                line-height: 1;
+            }
+
+            .home-departments .categories-title::after {
+                content: none;
+                display: none;
             }
 
             #kbResultsSection {
@@ -1720,10 +1867,19 @@ if ($showCategoryView) {
     </script>
 
     <div class="kb-container">
+        <?php if (!$showOtherDepartments): ?>
+            <a href="<?= $showCategoryView ? 'knowledge_base.php' : 'request_ticket.php' ?>" class="mobile-kb-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Back</span>
+            </a>
+        <?php endif; ?>
         
         <!-- Search & Filter Header -->
         <div class="kb-header">
             <h1 class="kb-title"><?= $showCategoryView ? htmlspecialchars($categoryViewTitle) . ' Knowledge Base' : 'Knowledge Base' ?></h1>
+            <?php if (!$showCategoryView): ?>
+                <p class="kb-subtitle">Find answers, articles, and solutions across all departments.</p>
+            <?php endif; ?>
             <?php if ($showCategoryView): ?>
                 <div class="kb-breadcrumb" aria-label="Breadcrumb">
                     <a href="knowledge_base.php">Knowledge Base</a>
@@ -1916,6 +2072,7 @@ if ($showCategoryView) {
                                 <h4><?= htmlspecialchars($categoryCard['label']) ?></h4>
                                 <p><?= number_format((int) ($categoryCard['total_articles'] ?? 0)) ?> Article<?= (int) ($categoryCard['total_articles'] ?? 0) === 1 ? '' : 's' ?></p>
                             </div>
+                            <i class="fas fa-chevron-right category-arrow" aria-hidden="true"></i>
                         </a>
                     <?php endforeach; ?>
                 </div>
@@ -1936,6 +2093,7 @@ if ($showCategoryView) {
                                 <h4><?= htmlspecialchars($categoryCard['label']) ?></h4>
                                 <p>Browse articles</p>
                             </div>
+                            <i class="fas fa-chevron-right category-arrow" aria-hidden="true"></i>
                         </a>
                     <?php endforeach; ?>
                 </div>

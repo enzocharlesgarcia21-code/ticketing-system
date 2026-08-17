@@ -327,6 +327,9 @@ document.body && document.body.classList.add('employee-shared-mobile-sidebar-pag
     <?php foreach ($employeeNavItems as $navItem): ?>
         <?php
             $permissionKey = (string) ($navItem['key'] ?? '');
+            if (in_array($permissionKey, ['analytics', 'sales_manager_analytics'], true)) {
+                continue;
+            }
             $isVisible = !array_key_exists($permissionKey, $tmUserPermissions) || (int) $tmUserPermissions[$permissionKey] === 1;
             if (!$isVisible) {
                 continue;
@@ -1523,12 +1526,13 @@ body.employee-sales-manager-page .user-dropdown {
     body.employee-shared-mobile-sidebar-page .mobile-sidebar {
         position: fixed;
         top: 0;
-        right: -260px;
+        left: -260px;
+        right: auto;
         width: 260px;
         height: 100vh;
         background: #1B5E20;
         padding: 20px;
-        transition: right 0.3s ease;
+        transition: left 0.3s ease;
         z-index: 2000;
         display: flex;
         flex-direction: column;
@@ -1537,7 +1541,8 @@ body.employee-sales-manager-page .user-dropdown {
     }
 
     body.employee-shared-mobile-sidebar-page .mobile-sidebar.active {
-        right: 0;
+        left: 0;
+        right: auto;
     }
 
     body.employee-shared-mobile-sidebar-page .mobile-sidebar-header {
@@ -1698,6 +1703,240 @@ body.employee-sales-manager-page .user-dropdown {
     body.employee-shared-mobile-sidebar-page .navbar-toggler {
         position: relative;
         z-index: 2105;
+    }
+
+    /* One authoritative reference-style mobile header for every employee page. */
+    html body > nav.navbar,
+    html body[class] > nav.navbar {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 2105 !important;
+        width: 100% !important;
+        height: 76px !important;
+        min-height: 76px !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 8px !important;
+        padding: 8px 14px !important;
+        border-bottom: 4px solid #F4C430 !important;
+        background: linear-gradient(90deg, #075f28, #006a2d) !important;
+        box-sizing: border-box !important;
+        box-shadow: none !important;
+        -webkit-text-size-adjust: 100% !important;
+        text-size-adjust: 100% !important;
+    }
+
+    html body[class] > nav.navbar .nav-left {
+        width: 100% !important;
+        min-width: 0 !important;
+        display: grid !important;
+        grid-template-columns: 44px 44px minmax(0, 1fr) !important;
+        grid-template-areas: "menu logo brand" !important;
+        align-items: center !important;
+        gap: 9px !important;
+    }
+
+    html body[class] > nav.navbar .navbar-toggler {
+        grid-area: menu !important;
+        justify-self: start !important;
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    html body[class] > nav.navbar .navbar-toggler i,
+    html body[class] > nav.navbar .navbar-toggler svg {
+        width: 22px !important;
+        height: 22px !important;
+        color: #ffffff !important;
+        font-size: 22px !important;
+        line-height: 1 !important;
+    }
+
+    html body[class] > nav.navbar .logo-icon {
+        grid-area: logo !important;
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        max-width: 44px !important;
+        flex-basis: 44px !important;
+        padding: 5px !important;
+    }
+
+    html body[class] > nav.navbar .brand-name {
+        grid-area: brand !important;
+        min-width: 0 !important;
+        font-family: 'Segoe UI', Arial, sans-serif !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        line-height: 1.1 !important;
+        letter-spacing: 0 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+
+    html body[class] > nav.navbar #navbarCollapse {
+        width: auto !important;
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+    }
+
+    html body[class] > nav.navbar .nav-center {
+        display: none !important;
+    }
+
+    html body[class] > nav.navbar .nav-right {
+        width: auto !important;
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 8px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    html body[class] > nav.navbar .notification-bell,
+    html body[class] > nav.navbar .user-btn {
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    html body[class] > nav.navbar .user-btn {
+        width: 58px !important;
+        min-width: 58px !important;
+        gap: 7px !important;
+    }
+
+    html body[class] > nav.navbar .notification-bell > i,
+    html body[class] > nav.navbar .user-btn > i:first-child {
+        color: #ffffff !important;
+        font-size: 20px !important;
+    }
+
+    html body[class] > nav.navbar .user-btn > i:first-child {
+        width: 38px !important;
+        height: 38px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 50% !important;
+        background: #ffffff !important;
+        color: #176b35 !important;
+    }
+
+    html body[class] > nav.navbar .user-btn-name {
+        display: none !important;
+    }
+
+    html body[class] > nav.navbar .user-btn > i:last-child {
+        display: inline-block !important;
+        color: #ffffff !important;
+        font-size: 11px !important;
+    }
+
+    /* Keep the mobile notification popover compact without resizing the bell. */
+    html body[class] > nav.navbar .notification-dropdown {
+        left: auto !important;
+        right: 12px !important;
+        width: min(350px, calc(100vw - 32px)) !important;
+        max-height: 72vh !important;
+        margin: 0 !important;
+        border-radius: 10px !important;
+    }
+
+    /* Knowledge Base uses 100% page zoom; compensate so its header has the
+       same visible dimensions and type size as the 78%-scaled employee pages. */
+    html body.employee-knowledge-base-page > nav.navbar {
+        height: 59px !important;
+        min-height: 59px !important;
+        padding: 6px 11px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .nav-left {
+        grid-template-columns: 34px 34px minmax(0, 1fr) !important;
+        gap: 7px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .logo-icon {
+        width: 34px !important;
+        height: 34px !important;
+        min-width: 34px !important;
+        max-width: 34px !important;
+        flex-basis: 34px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .brand-name {
+        font-size: 14px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .navbar-toggler,
+    html body.employee-knowledge-base-page > nav.navbar .notification-bell {
+        width: 34px !important;
+        height: 34px !important;
+        min-width: 34px !important;
+        min-height: 34px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .navbar-toggler i,
+    html body.employee-knowledge-base-page > nav.navbar .navbar-toggler svg,
+    html body.employee-knowledge-base-page > nav.navbar .notification-bell > i {
+        width: 16px !important;
+        height: 16px !important;
+        font-size: 16px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .nav-right {
+        gap: 6px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .user-btn {
+        width: 45px !important;
+        height: 34px !important;
+        min-width: 45px !important;
+        min-height: 34px !important;
+        gap: 5px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .user-btn > i:first-child {
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 16px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .user-btn > i:last-child {
+        font-size: 9px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .notification-badge {
+        padding: 1px 4px !important;
+        font-size: 9px !important;
     }
 }
 </style>
