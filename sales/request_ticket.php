@@ -124,7 +124,18 @@ $lapcDepartmentCategories = [
     ],
     'New Business Segment' => ['Others'],
     'Seed Production' => ['Others'],
-    'Supply Chain' => ['Others'],
+    'Supply Chain' => [
+        'Product / Material Request',
+        'Inventory Concern',
+        'Delivery / Dispatch Request',
+        'Transportation / Trucking Request',
+        'Delivery Concern / Exception',
+        'Product Return / Retrieval',
+        'Documentation Request',
+        'Supplier / Vendor Concern',
+        'Demand / Replenishment Request',
+        'Logistics / Supply Chain Inquiry',
+    ],
     'Supply Chain Innovation' => ['Others'],
     'Technical' => [
         'CPR',
@@ -137,6 +148,30 @@ $lapcDepartmentCategories = [
         'Product Presentations',
         'Others',
     ],
+];
+$lapcSupplyChainRequestTypes = [
+    'Product / Material Request' => ['Request for Seeds', 'Fertilizer', 'Packaging Materials', 'Warehouse Supplies', 'Other Materials'],
+    'Inventory Concern' => ['Stock Availability', 'Inventory Discrepancy', 'Missing Stock', 'Excess Stock', 'Damaged Stock', 'Lot/Batch Concern'],
+    'Delivery / Dispatch Request' => ['Delivery Scheduling', 'Delivery Rescheduling', 'Urgent Delivery', 'Additional Delivery', 'Delivery Follow-up'],
+    'Transportation / Trucking Request' => ['Truck Request', 'Truck Assignment', 'Truck Rescheduling', 'Truck Replacement', 'Delivery Vehicle Concern'],
+    'Delivery Concern / Exception' => ['Late Delivery', 'Failed Delivery', 'Wrong Product', 'Short/Over Delivery', 'Damaged Product', 'Missing Documents'],
+    'Product Return / Retrieval' => ['Product Return', 'Damaged Return', 'Excess Return', 'Pull-out/Retrieval'],
+    'Documentation Request' => ['DR', 'Delivery Documents', 'POD', 'Shipping Documents', 'NSQCS Documents', 'Other Supply Chain Documents'],
+    'Supplier / Vendor Concern' => ['Supplier Delivery', 'Supplier Shortage', 'Supplier Delay', 'Product Quality Issue', 'Supplier Coordination'],
+    'Demand / Replenishment Request' => ['Stock Replenishment', 'Allocation Request', 'Regional Stock Requirement', 'Urgent Stock Requirement'],
+    'Logistics / Supply Chain Inquiry' => ['Delivery Status', 'Inventory Status', 'Order Status', 'Shipment Tracking', 'General Inquiry'],
+];
+$lapcSupplyChainDetailFields = [
+    'Product / Material Request' => ['Product/Material Name', 'SKU/Code', 'Quantity', 'UOM', 'Purpose', 'Required Date', 'Destination'],
+    'Inventory Concern' => ['Product', 'SKU', 'Lot/Batch No.', 'System Qty', 'Actual Qty', 'Variance', 'Warehouse', 'Supporting Photo'],
+    'Delivery / Dispatch Request' => ['Customer/DOP', 'Delivery Location', 'SO/DR No.', 'Product', 'Quantity', 'Required Delivery Date', 'Priority'],
+    'Transportation / Trucking Request' => ['Origin', 'Destination', 'Truck Type', 'Required Date/Time', 'Quantity/CBM/Tonnage', 'Special Requirements'],
+    'Delivery Concern / Exception' => ['DR/SO No.', 'Delivery Date', 'Customer/DOP', 'Product', 'Issue Type', 'Quantity Affected', 'Details/Photos'],
+    'Product Return / Retrieval' => ['Product', 'Quantity', 'Lot/Batch', 'Reason', 'Origin', 'Return Destination', 'Supporting Documents'],
+    'Documentation Request' => ['Document Type', 'Reference No.', 'Product', 'Customer/DOP', 'Delivery Date', 'Required Date'],
+    'Supplier / Vendor Concern' => ['Supplier', 'PO No.', 'Product', 'Quantity', 'Expected Date', 'Issue/Concern'],
+    'Demand / Replenishment Request' => ['Product', 'Required Quantity', 'Destination/Region', 'Required Date', 'Current Stock', 'Reason'],
+    'Logistics / Supply Chain Inquiry' => ['Reference No.', 'Product', 'Location', 'Date', 'Specific Inquiry'],
 ];
 $lapcAdminLegalRequestCategories = [
     'Aimi Bing Santos (Bing)' => [
@@ -812,6 +847,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $area_code = trim((string) ($_POST['area_code'] ?? ''));
     $marketing_department = trim((string) ($_POST['marketing_department'] ?? ''));
     $marketing_subcategory = trim((string) ($_POST['marketing_subcategory'] ?? ''));
+    $supply_chain_details = is_array($_POST['supply_chain_details'] ?? null) ? $_POST['supply_chain_details'] : [];
     $requested_materials = sales_request_clean_string_array($_POST['requested_materials'] ?? []);
     $requested_materials_other = trim((string) ($_POST['requested_materials_other'] ?? ''));
     $material_size_unit = trim((string) ($_POST['material_size_unit'] ?? ''));
@@ -867,6 +903,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $isLapcItEmailRequest = ($isLapcItRecipient && $category === 'Email');
     $isLapcItSapRequest = ($isLapcItRecipient && $category === 'SAP');
     $isLapcMarketingTicket = ($isLapcRecipient && $assigned_department_selected === 'Marketing' && ($category === 'Marketing Operations' || $category === 'Channel & Campaigns'));
+    $isLapcSupplyChainTicket = ($isLapcRecipient && $assigned_department_selected === 'Supply Chain' && isset($lapcSupplyChainRequestTypes[$category]));
     $isLapcAdminLegalRecipient = ($isLapcRecipient && $assigned_department_selected === 'Admin & Legal');
     if ($isLapcAdminLegalRecipient && $admin_legal_request_for === 'Others') {
         $category = 'Others';
@@ -986,6 +1023,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     ];
     if ($error_msg === '' && $isLapcMarketingTicket && !in_array($marketing_subcategory, $lapcMarketingSubcategories[$category] ?? [], true)) {
         $error_msg = "Please choose the Request Type.";
+    }
+    if ($error_msg === '' && $isLapcSupplyChainTicket && !in_array($marketing_subcategory, $lapcSupplyChainRequestTypes[$category] ?? [], true)) {
+        $error_msg = "Please choose a valid Request Type / Concern.";
+    }
+    if ($error_msg === '' && $isLapcSupplyChainTicket) {
+        foreach ($lapcSupplyChainDetailFields[$category] as $fieldLabel) {
+            if (in_array($fieldLabel, ['Supporting Photo', 'Supporting Documents'], true)) continue;
+            if (trim((string) ($supply_chain_details[$fieldLabel] ?? '')) === '') {
+                $error_msg = "Please complete all Supply Chain request details.";
+                break;
+            }
+        }
     }
     if ($error_msg === '' && $isHrLeaveOrOtherCategory) {
         if ($request_subject_title === '') {
@@ -1229,6 +1278,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($error_msg === '' && $isLapcMarketingTicket && $marketing_subcategory !== '') {
         $description = "Request Type: " . $marketing_subcategory . "\n\n" . $description;
     }
+    if ($error_msg === '' && $isLapcSupplyChainTicket && $marketing_subcategory !== '') {
+        $description = "Request Type / Concern: " . $marketing_subcategory . "\n\n" . $description;
+        $detailLines = [];
+        foreach ($lapcSupplyChainDetailFields[$category] as $fieldLabel) {
+            $fieldValue = trim((string) ($supply_chain_details[$fieldLabel] ?? ''));
+            if ($fieldValue !== '') $detailLines[] = $fieldLabel . ': ' . $fieldValue;
+        }
+        if (count($detailLines) > 0) {
+            $description = "Supply Chain Details:\n" . implode("\n", $detailLines) . "\n\n" . $description;
+        }
+    }
     if ($error_msg === '' && $isLapcItEmailRequest && $email_request_type === 'creation of email') {
         $subject = 'Creation of email';
         $description = "Email Request\n"
@@ -1426,9 +1486,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error_msg = "Ticket Recipient (Company Email Domain) is required.";
     } elseif ($category === '' || !in_array($category, $allowed_categories, true)) {
         $error_msg = "Category is required.";
-    } elseif ($isLapcMarketingTicket && !in_array($marketing_subcategory, $lapcMarketingSubcategories[$category] ?? [], true)) {
+    } elseif (($isLapcMarketingTicket && !in_array($marketing_subcategory, $lapcMarketingSubcategories[$category] ?? [], true)) || ($isLapcSupplyChainTicket && !in_array($marketing_subcategory, $lapcSupplyChainRequestTypes[$category] ?? [], true))) {
         $error_msg = "Please choose the Request Type.";
-    } elseif ($description === '' && !($isLapcItEmailRequest && $email_request_type === 'creation of email')) {
+    } elseif ($description === '' && !$isLapcSupplyChainTicket && !($isLapcItEmailRequest && $email_request_type === 'creation of email')) {
         $error_msg = "Description is required.";
     }
  
@@ -1589,6 +1649,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
                 if ($isLapcMarketingTicket) {
                     $ticketMeta['marketing_subcategory'] = $marketing_subcategory;
+                }
+                if ($isLapcSupplyChainTicket) {
+                    $ticketMeta['supply_chain_request_type'] = $marketing_subcategory;
+                    $ticketMeta['supply_chain_details'] = json_encode($supply_chain_details, JSON_UNESCAPED_UNICODE);
                 }
                 if ($isHrIncidentReport && $incident_gdrive_link !== '') {
                     $ticketMeta['incident_gdrive_link'] = $incident_gdrive_link;
@@ -2537,6 +2601,83 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         body.sales-request-ticket-page .concern-type-dropdown-menu.is-open {
             display: block;
         }
+        body.sales-request-ticket-page .marketing-materials-dropdown {
+            position: relative;
+        }
+        body.sales-request-ticket-page .marketing-materials-dropdown-native {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+        body.sales-request-ticket-page .marketing-materials-dropdown-trigger {
+            width: 100%;
+            min-height: 50px;
+            padding: 0 44px 0 16px;
+            border: 1px solid #d4ddd7;
+            border-radius: 16px;
+            background: #ffffff;
+            color: #0f172a;
+            text-align: left;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: inherit;
+            font-weight: 400;
+            cursor: pointer;
+        }
+        body.sales-request-ticket-page #marketingRequestSection .marketing-materials-dropdown-trigger > span {
+            font-weight: 400;
+        }
+        body.sales-request-ticket-page .marketing-materials-dropdown-trigger:focus {
+            outline: none;
+            border-color: #1B5E20;
+            box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.12);
+        }
+        body.sales-request-ticket-page .marketing-materials-dropdown.is-open .marketing-materials-dropdown-trigger {
+            border-color: #1B5E20;
+        }
+        body.sales-request-ticket-page .marketing-materials-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            z-index: 120;
+            max-height: 280px;
+            overflow-y: auto;
+            padding: 8px 0;
+            border: 2px solid #73a66f;
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+        }
+        body.sales-request-ticket-page .marketing-materials-dropdown-menu[hidden] {
+            display: none;
+        }
+        body.sales-request-ticket-page .marketing-materials-dropdown-option {
+            width: 100%;
+            border: 0;
+            padding: 11px 16px;
+            background: transparent;
+            color: #0f172a;
+            text-align: left;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: inherit;
+            font-weight: 400;
+            cursor: pointer;
+        }
+        body.sales-request-ticket-page .marketing-materials-dropdown-option:hover,
+        body.sales-request-ticket-page .marketing-materials-dropdown-option:focus-visible {
+            background: rgba(27, 94, 32, 0.08);
+            color: #1B5E20;
+            outline: none;
+        }
+        body.sales-request-ticket-page .marketing-materials-dropdown-option.is-selected {
+            border-radius: 12px;
+            background: #1B5E20;
+            color: #ffffff;
+        }
+        body.sales-request-ticket-page .marketing-materials-dropdown.is-open .select-icon {
+            transform: translateY(-50%) rotate(180deg);
+        }
         body.sales-request-ticket-page .recipient-dropdown-option,
         body.sales-request-ticket-page .department-dropdown-option,
         body.sales-request-ticket-page .email-request-type-dropdown-option,
@@ -2909,6 +3050,7 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         }
         body.sales-request-ticket-page.kami-section-active #kamiBannerContainer {
             margin-bottom: 0;
+            box-shadow: none;
         }
         body.sales-request-ticket-page.kami-section-active #kamiBannerContainer .kami-list {
             gap: 0;
@@ -3295,6 +3437,21 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             gap: 14px;
         }
+        body.sales-request-ticket-page .marketing-request-details-row {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        body.sales-request-ticket-page .marketing-request-inline-row .supply-chain-full-row {
+            grid-column: 1 / -1;
+        }
+        body.sales-request-ticket-page .marketing-request-inline-row .marketing-crop-card {
+            grid-column: 2;
+        }
+        body.sales-request-ticket-page .marketing-crop-inline {
+            margin-top: 18px;
+        }
+        body.sales-request-ticket-page #marketingRequestSection #project_deadline {
+            font-weight: 400;
+        }
         body.sales-request-ticket-page .medical-cash-card {
             border: 1px solid #dbe4ef;
             border-radius: 14px;
@@ -3356,6 +3513,9 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             margin-bottom: 16px;
             font-weight: 700;
             color: #0f172a;
+        }
+        body.sales-request-ticket-page .marketing-request-card-title.is-regular-label {
+            font-weight: 400;
         }
         body.sales-request-ticket-page .marketing-request-option-list {
             display: grid;
@@ -3850,6 +4010,36 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             font-weight: 700;
             color: #0f172a;
         }
+        body.sales-request-ticket-page .company-property-card-title.is-regular-label,
+        body.sales-request-ticket-page .coe-request-card-title.is-regular-label {
+            font-weight: 400;
+        }
+        /* Keep all LAPC HR form field text consistent with the Type of Concern field. */
+        body.sales-request-ticket-page :is(#kamiBannerContainer, #medicalCashAdvanceSection, #trainingRequestSection, #companyPropertySection, #coeRequestSection, #colRequestSection, #incidentReportSection) :is(label, span, p, input, select, textarea) {
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.45;
+        }
+        body.sales-request-ticket-page #marketingRequestSection :is(label, span, p, input, select, textarea, button) {
+            font-size: 13px;
+            font-weight: 600;
+        }
+        /* Match the employee MHC dropdown text: regular menu options and a softer selected value. */
+        body.sales-request-ticket-page #marketingRequestSection .marketing-materials-dropdown-trigger,
+        body.sales-request-ticket-page #marketingRequestSection .marketing-materials-dropdown-trigger > span {
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: 400;
+            color: #334155;
+        }
+        body.sales-request-ticket-page #marketingRequestSection .marketing-materials-dropdown-option {
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: 400;
+            color: #0f172a;
+        }
+        body.sales-request-ticket-page #marketingRequestSection .marketing-materials-dropdown-option.is-selected {
+            color: #ffffff;
+        }
         body.sales-request-ticket-page .company-property-option-list {
             display: grid;
             gap: 18px;
@@ -3961,6 +4151,9 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             body.sales-request-ticket-page .marketing-request-inline-row {
                 grid-template-columns: 1fr;
             }
+            body.sales-request-ticket-page .marketing-request-inline-row .marketing-crop-card {
+                grid-column: 1;
+            }
             body.sales-request-ticket-page .sap-request-inline-row,
             body.sales-request-ticket-page .email-creation-inline-row,
             body.sales-request-ticket-page .sap-request-company-row {
@@ -4038,7 +4231,7 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         body.sales-request-ticket-page .sss-benefits-card-title {
             margin: 0 0 8px;
             color: #0f172a;
-            font-size: 17px;
+            font-size: 13px;
             font-weight: 600;
         }
         body.sales-request-ticket-page .sss-benefits-card-copy {
@@ -5111,9 +5304,9 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         body.sales-request-ticket-page .request-guidance-heading h2,
         body.sales-request-ticket-page .request-tips-title {
             margin: 0;
-            color: #14532d;
+            color: #166534;
             font-size: 15px;
-            font-weight: 600;
+            font-weight: 700;
             line-height: 1.3;
         }
         body.sales-request-ticket-page .request-guidance-heading p {
@@ -5178,7 +5371,7 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         body.sales-request-ticket-page .request-company-name {
             display: block;
             color: #14532d;
-            font-size: 13px;
+            font-size: 15px;
             font-weight: 600;
             line-height: 1.3;
         }
@@ -5187,7 +5380,7 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             margin-top: 2px;
             overflow: hidden;
             color: #64748b;
-            font-size: 10px;
+            font-size: 12px;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
@@ -5241,7 +5434,7 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         body.sales-request-ticket-page .request-category-list {
             margin: 0;
             color: #64748b;
-            font-size: 10px;
+            font-size: 12px;
             line-height: 1.55;
             overflow-wrap: anywhere;
         }
@@ -5441,12 +5634,12 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         }
 
         body.sales-request-ticket-page .request-company-name {
-            font-size: 13px;
+            font-size: 15px;
         }
 
         body.sales-request-ticket-page .request-company-domain,
         body.sales-request-ticket-page .request-category-list {
-            font-size: 10.5px;
+            font-size: 12px;
         }
 
         body.sales-request-ticket-page .request-department-guide {
@@ -6097,6 +6290,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             </div>
 
+            <section class="marketing-request-group" id="supplyChainDetailsRow">
+                <h3 class="marketing-request-head">Supply Chain Request</h3>
+                <div class="marketing-request-list">
+                    <div class="marketing-request-inline-row" id="supplyChainDetailsFields"></div>
+                    <small class="marketing-request-help">For supporting photos or documents, use the Attachment field below.</small>
+                </div>
+            </section>
+
             <section class="kami-group" id="kamiBannerContainer">
                 <h3 class="kami-banner-head">Attendance and Timekeeping (KAMI)</h3>
                 <div class="kami-list">
@@ -6243,7 +6444,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <p class="company-property-copy">First issuance of company property is free. Payment is required for requests due to lost or replacement.</p>
                     </section>
                     <section class="company-property-card">
-                        <span class="company-property-card-title">Type of Company Property: <span class="required-asterisk">*</span></span>
+                        <span class="company-property-card-title is-regular-label">Type of Company Property: <span class="required-asterisk">*</span></span>
                         <div class="company-property-option-list">
                             <?php foreach (['Company ID', 'Company Lanyard', 'Company Uniform', 'Business Card'] as $propertyOption): ?>
                                 <label class="company-property-option">
@@ -6254,7 +6455,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>
                     </section>
                     <section class="company-property-card">
-                        <span class="company-property-card-title">Reason of Request: <span class="required-asterisk">*</span></span>
+                        <span class="company-property-card-title is-regular-label">Reason of Request: <span class="required-asterisk">*</span></span>
                         <div class="company-property-option-list">
                             <?php foreach (['Lost', 'Replacement', 'No issuance'] as $reasonOption): ?>
                                 <label class="company-property-option">
@@ -6451,7 +6652,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             </section>
             <section class="marketing-request-group" id="marketingRequestSection">
-                <h3 class="marketing-request-head">MHC Marketing Request</h3>
+                <h3 class="marketing-request-head">Marketing Request</h3>
                 <div class="marketing-request-list">
                     <section class="marketing-request-card">
                         <div class="form-group">
@@ -6464,8 +6665,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         <section class="marketing-request-card">
                             <div class="form-group">
                                 <label for="area_code">Area Code <span class="required-asterisk">*</span></label>
-                                <div class="select-wrapper">
-                                    <select name="area_code" id="area_code" class="form-control category-select" data-selected="<?= htmlspecialchars((string) ($_POST['area_code'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                <div class="select-wrapper marketing-materials-dropdown" id="areaCodeGroup">
+                                    <select name="area_code" id="area_code" class="form-control category-select marketing-materials-dropdown-native" data-selected="<?= htmlspecialchars((string) ($_POST['area_code'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                         <option value="" disabled selected hidden>Choose area code</option>
                                         <?php foreach (['811A', '811B', '812', '813A', '813B', '814A', '814B', '815A', '815B', '815C', '821A', '821B', '821C', '822A', '822B', '831A', '831B', '832A', '832B', '833', 'HEAD OFFICE'] as $areaCodeOption): ?>
                                             <option value="<?= htmlspecialchars($areaCodeOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($_POST['area_code'] ?? '') === $areaCodeOption) ? 'selected' : ''; ?>>
@@ -6473,6 +6674,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
+                                    <button type="button" class="marketing-materials-dropdown-trigger" id="areaCodeTrigger" aria-haspopup="listbox" aria-expanded="false"><span id="areaCodeTriggerValue">Choose area code</span></button>
+                                    <div class="marketing-materials-dropdown-menu" id="areaCodeMenu" role="listbox" hidden></div>
                                     <i class="fas fa-chevron-down select-icon"></i>
                                 </div>
                             </div>
@@ -6480,8 +6683,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         <section class="marketing-request-card">
                             <div class="form-group">
                                 <label for="marketing_department">Department <span class="required-asterisk">*</span></label>
-                                <div class="select-wrapper">
-                                    <select name="marketing_department" id="marketing_department" class="form-control category-select" data-selected="<?= htmlspecialchars((string) ($_POST['marketing_department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                <div class="select-wrapper marketing-materials-dropdown" id="marketingDepartmentGroup">
+                                    <select name="marketing_department" id="marketing_department" class="form-control category-select marketing-materials-dropdown-native" data-selected="<?= htmlspecialchars((string) ($_POST['marketing_department'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                         <option value="" disabled selected hidden>Choose department</option>
                                         <?php foreach (['Marketing Ops', 'Sales', 'Technical', 'Human Resources', 'PCC/GPCI', 'Farmex', 'Farmasee', 'LTC', 'MPDC', 'IT', 'Admin', 'Leads AH/EH', 'Executive/Management'] as $marketingDepartmentOption): ?>
                                             <option value="<?= htmlspecialchars($marketingDepartmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= (($_POST['marketing_department'] ?? '') === $marketingDepartmentOption) ? 'selected' : ''; ?>>
@@ -6489,6 +6692,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
+                                    <button type="button" class="marketing-materials-dropdown-trigger" id="marketingDepartmentTrigger" aria-haspopup="listbox" aria-expanded="false"><span id="marketingDepartmentTriggerValue">Choose department</span></button>
+                                    <div class="marketing-materials-dropdown-menu" id="marketingDepartmentMenu" role="listbox" hidden></div>
                                     <i class="fas fa-chevron-down select-icon"></i>
                                 </div>
                             </div>
@@ -6499,8 +6704,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         <div class="form-group">
                             <label for="requested_materials">Requested Materials <span class="required-asterisk">*</span></label>
                             <?php $selectedRequestedMaterials = sales_request_clean_string_array($_POST['requested_materials'] ?? []); ?>
-                            <div class="select-wrapper" id="requestedMaterialsGroup">
-                                <select name="requested_materials[]" id="requested_materials" class="form-control">
+                            <div class="select-wrapper marketing-materials-dropdown" id="requestedMaterialsGroup">
+                                <select name="requested_materials[]" id="requested_materials" class="form-control marketing-materials-dropdown-native">
                                     <option value="" disabled <?= count($selectedRequestedMaterials) === 0 ? 'selected' : ''; ?> hidden>Choose requested material</option>
                                     <?php foreach (['Social Media Graphics', 'Print Materials (Flyers, Brochures)', 'Video (Short-form)', 'Banners/Taffetas', 'Labels', 'Tarpaulin/Poster', 'Invitation', 'Coupons', 'Sintraboard design', 'Plotsigns', 'Promats Design (shirt, cap, etc)', 'Other'] as $materialOption): ?>
                                         <option value="<?= htmlspecialchars($materialOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($materialOption, $selectedRequestedMaterials, true) ? 'selected' : ''; ?>>
@@ -6508,6 +6713,10 @@ document.addEventListener('DOMContentLoaded', function () {
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
+                                <button type="button" class="marketing-materials-dropdown-trigger" id="requestedMaterialsTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                    <span id="requestedMaterialsTriggerValue">Choose requested material</span>
+                                </button>
+                                <div class="marketing-materials-dropdown-menu" id="requestedMaterialsMenu" role="listbox" hidden></div>
                                 <i class="fas fa-chevron-down select-icon"></i>
                             </div>
                             <div class="marketing-request-other-row" id="requestedMaterialsOtherRow">
@@ -6520,7 +6729,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="marketing-request-inline-row">
                         <section class="marketing-request-card">
                             <div class="form-group">
-                                <span class="marketing-request-card-title">Size of Material <span class="required-asterisk">*</span></span>
+                                <span class="marketing-request-card-title is-regular-label">Size of Material <span class="required-asterisk">*</span></span>
                                 <?php
                                     $selectedMaterialSizeUnit = trim((string) ($_POST['material_size_unit'] ?? ''));
                                     $selectedMaterialSizeInput = trim((string) ($_POST['material_size_value'] ?? ''));
@@ -6537,6 +6746,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                     $selectedMaterialSizeValue = ($selectedMaterialSizeUnit !== '' && $selectedMaterialSizeInput !== '') ? $selectedMaterialSizeUnit . ': ' . $selectedMaterialSizeInput : '';
                                 ?>
                                 <input type="hidden" name="material_size" id="material_size" value="<?= htmlspecialchars($selectedMaterialSizeValue, ENT_QUOTES, 'UTF-8'); ?>">
+                                <small class="marketing-request-help">Select one size unit, then enter the measurement.</small>
                                 <div class="marketing-request-option-list marketing-size-options">
                                     <?php foreach (['Inches', 'Feet', 'Centimeters'] as $sizeOption): ?>
                                         <div class="marketing-request-option marketing-size-option">
@@ -6548,39 +6758,41 @@ document.addEventListener('DOMContentLoaded', function () {
                                         </div>
                                     <?php endforeach; ?>
                                 </div>
-                                <small class="marketing-request-help">Select one size unit, then enter the measurement.</small>
                             </div>
                         </section>
                         <section class="marketing-request-card">
                             <div class="form-group">
                                 <label for="project_deadline">Project Deadline <span class="required-asterisk">*</span></label>
-                                <input type="date" name="project_deadline" id="project_deadline" class="form-control" value="<?= htmlspecialchars((string) ($_POST['project_deadline'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                 <small class="marketing-request-help" id="projectDeadlineHelp">Must be at least 3 working days from today.</small>
+                                <input type="date" name="project_deadline" id="project_deadline" class="form-control" value="<?= htmlspecialchars((string) ($_POST['project_deadline'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                 <div class="marketing-request-error" id="projectDeadlineError"></div>
+
+                                <div class="marketing-crop-inline">
+                                    <label for="crop">Crop <span class="required-asterisk">*</span></label>
+                                    <?php $selectedCrops = sales_request_clean_string_array($_POST['crop'] ?? []); ?>
+                                    <div class="select-wrapper marketing-materials-dropdown" id="cropGroup">
+                                        <select name="crop[]" id="crop" class="form-control marketing-materials-dropdown-native">
+                                            <option value="" disabled <?= count($selectedCrops) === 0 ? 'selected' : ''; ?> hidden>Choose crop</option>
+                                            <?php foreach (['Rice', 'Lowland Vegetable', 'Upland Vegetable', 'Sugarcane', 'Corn', 'Mango', 'Other'] as $cropOption): ?>
+                                                <option value="<?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($cropOption, $selectedCrops, true) ? 'selected' : ''; ?>>
+                                                    <?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <button type="button" class="marketing-materials-dropdown-trigger" id="cropTrigger" aria-haspopup="listbox" aria-expanded="false"><span id="cropTriggerValue">Choose crop</span></button>
+                                        <div class="marketing-materials-dropdown-menu" id="cropMenu" role="listbox" hidden></div>
+                                        <i class="fas fa-chevron-down select-icon"></i>
+                                    </div>
+                                    <div class="marketing-request-other-row" id="cropOtherRow">
+                                        <label for="crop_other">Other crop <span class="required-asterisk">*</span></label>
+                                        <input type="text" name="crop_other" id="crop_other" class="form-control" value="<?= htmlspecialchars((string) ($_POST['crop_other'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Please specify">
+                                    </div>
+                                </div>
                             </div>
                         </section>
                     </div>
-
-                    <section class="marketing-request-card">
-                        <div class="form-group">
-                            <label for="crop">Crop <span class="required-asterisk">*</span></label>
-                            <?php $selectedCrops = sales_request_clean_string_array($_POST['crop'] ?? []); ?>
-                            <div class="select-wrapper" id="cropGroup">
-                                <select name="crop[]" id="crop" class="form-control">
-                                    <option value="" disabled <?= count($selectedCrops) === 0 ? 'selected' : ''; ?> hidden>Choose crop</option>
-                                    <?php foreach (['Rice', 'Lowland Vegetable', 'Upland Vegetable', 'Sugarcane', 'Corn', 'Mango', 'Other'] as $cropOption): ?>
-                                        <option value="<?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($cropOption, $selectedCrops, true) ? 'selected' : ''; ?>>
-                                            <?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <i class="fas fa-chevron-down select-icon"></i>
-                            </div>
-                            <div class="marketing-request-other-row" id="cropOtherRow">
-                                <label for="crop_other">Other crop <span class="required-asterisk">*</span></label>
-                                <input type="text" name="crop_other" id="crop_other" class="form-control" value="<?= htmlspecialchars((string) ($_POST['crop_other'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Please specify">
-                            </div>
-                        </div>
+                    <section class="marketing-request-card" id="marketingDescriptionCard">
+                        <div id="marketingDescriptionHost"></div>
                     </section>
                 </div>
             </section>
@@ -6958,6 +7170,7 @@ var sapEmployeeSwitcher = document.getElementById('sapEmployeeSwitcher');
 var sapRequestCounter = document.getElementById('sapRequestCounter');
 var emailRequestSection = document.getElementById('emailRequestSection');
 var emailDescriptionHost = document.getElementById('emailDescriptionHost');
+var marketingDescriptionHost = document.getElementById('marketingDescriptionHost');
 var emailRequestTypeSelect = document.getElementById('email_request_type');
 var emailRequestTypeDropdown = document.getElementById('emailRequestTypeDropdown');
 var emailRequestTypeTrigger = document.getElementById('emailRequestTypeDropdownTrigger');
@@ -6973,6 +7186,10 @@ var projectNameInput = document.getElementById('project_name');
 var areaCodeSelect = document.getElementById('area_code');
 var marketingDepartmentSelect = document.getElementById('marketing_department');
 var requestedMaterialsSelect = document.getElementById('requested_materials');
+var requestedMaterialsWrapper = document.getElementById('requestedMaterialsGroup');
+var requestedMaterialsTrigger = document.getElementById('requestedMaterialsTrigger');
+var requestedMaterialsTriggerValue = document.getElementById('requestedMaterialsTriggerValue');
+var requestedMaterialsMenu = document.getElementById('requestedMaterialsMenu');
 var requestedMaterialsInputs = requestedMaterialsSelect ? [requestedMaterialsSelect] : Array.from(document.querySelectorAll('input[name="requested_materials[]"]'));
 var requestedMaterialsOtherRow = document.getElementById('requestedMaterialsOtherRow');
 var requestedMaterialsOtherInput = document.getElementById('requested_materials_other');
@@ -7012,6 +7229,8 @@ var marketingSubcategorySelect = document.getElementById('marketing_subcategory'
 var marketingSubcategoryDropdown = document.getElementById('marketingSubcategoryDropdown');
 var marketingSubcategoryTrigger = document.getElementById('marketingSubcategoryDropdownTrigger');
 var marketingSubcategoryMenu = document.getElementById('marketingSubcategoryDropdownMenu');
+var supplyChainDetailsRow = document.getElementById('supplyChainDetailsRow');
+var supplyChainDetailsFields = document.getElementById('supplyChainDetailsFields');
 var lapcDepartments = <?= json_encode(array_values($lapcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var mhcDepartments = <?= json_encode(array_values($mhcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var emailCreationDepartmentOptionsBySubsidiary = {
@@ -7025,6 +7244,9 @@ var othersOnlyCompanyDomains = <?= json_encode($othersOnlyCompanyDomains, JSON_H
 var lapcDepartmentCategories = <?= json_encode($lapcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var lapcAdminLegalRequestCategories = <?= json_encode($lapcAdminLegalRequestCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var mhcDepartmentCategories = <?= json_encode($mhcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var lapcSupplyChainRequestTypes = <?= json_encode($lapcSupplyChainRequestTypes, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var lapcSupplyChainDetailFields = <?= json_encode($lapcSupplyChainDetailFields, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+var savedSupplyChainDetails = <?= json_encode($_POST['supply_chain_details'] ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var lapcMarketingSubcategories = <?= json_encode([
     'Marketing Operations' => [
         'Promo materials',
@@ -7340,6 +7562,135 @@ function normalizeRecipientCompany(value) {
     }
     return lower;
 }
+
+function closeRequestedMaterialsDropdown() {
+    if (!requestedMaterialsWrapper || !requestedMaterialsTrigger || !requestedMaterialsMenu) return;
+    requestedMaterialsWrapper.classList.remove('is-open');
+    requestedMaterialsTrigger.setAttribute('aria-expanded', 'false');
+    requestedMaterialsMenu.hidden = true;
+}
+
+function syncRequestedMaterialsTriggerLabel() {
+    if (!requestedMaterialsSelect || !requestedMaterialsTriggerValue) return;
+    var selectedOption = requestedMaterialsSelect.options[requestedMaterialsSelect.selectedIndex];
+    requestedMaterialsTriggerValue.textContent = selectedOption && selectedOption.value
+        ? String(selectedOption.textContent || '').trim()
+        : 'Choose requested material';
+}
+
+function renderRequestedMaterialsDropdownOptions() {
+    if (!requestedMaterialsSelect || !requestedMaterialsMenu) return;
+    var currentValue = String(requestedMaterialsSelect.value || '');
+    requestedMaterialsMenu.innerHTML = '';
+    Array.from(requestedMaterialsSelect.options).forEach(function(option) {
+        if (!option.value) return;
+        var item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'marketing-materials-dropdown-option' + (currentValue === option.value ? ' is-selected' : '');
+        item.setAttribute('role', 'option');
+        item.setAttribute('aria-selected', currentValue === option.value ? 'true' : 'false');
+        item.textContent = String(option.textContent || option.value).trim();
+        item.addEventListener('click', function() {
+            requestedMaterialsSelect.value = option.value;
+            requestedMaterialsSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            closeRequestedMaterialsDropdown();
+            requestedMaterialsTrigger.focus();
+        });
+        requestedMaterialsMenu.appendChild(item);
+    });
+    syncRequestedMaterialsTriggerLabel();
+}
+
+function setupRequestedMaterialsDropdown() {
+    if (!requestedMaterialsWrapper || !requestedMaterialsTrigger || !requestedMaterialsMenu || !requestedMaterialsSelect) return;
+    requestedMaterialsTrigger.addEventListener('click', function() {
+        var shouldOpen = requestedMaterialsMenu.hidden;
+        closeRequestedMaterialsDropdown();
+        if (!shouldOpen || requestedMaterialsSelect.disabled) return;
+        renderRequestedMaterialsDropdownOptions();
+        requestedMaterialsWrapper.classList.add('is-open');
+        requestedMaterialsTrigger.setAttribute('aria-expanded', 'true');
+        requestedMaterialsMenu.hidden = false;
+    });
+    requestedMaterialsSelect.addEventListener('change', function() {
+        syncRequestedMaterialsTriggerLabel();
+        renderRequestedMaterialsDropdownOptions();
+    });
+    document.addEventListener('click', function(event) {
+        if (!requestedMaterialsWrapper.contains(event.target)) closeRequestedMaterialsDropdown();
+    });
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') closeRequestedMaterialsDropdown();
+    });
+    renderRequestedMaterialsDropdownOptions();
+}
+
+setupRequestedMaterialsDropdown();
+
+function setupMarketingSelectDropdown(selectId, wrapperId, triggerId, valueId, menuId, placeholder) {
+    var select = document.getElementById(selectId);
+    var wrapper = document.getElementById(wrapperId);
+    var trigger = document.getElementById(triggerId);
+    var value = document.getElementById(valueId);
+    var menu = document.getElementById(menuId);
+    if (!select || !wrapper || !trigger || !value || !menu) return;
+
+    function close() {
+        wrapper.classList.remove('is-open');
+        trigger.setAttribute('aria-expanded', 'false');
+        menu.hidden = true;
+    }
+    function syncLabel() {
+        var option = select.options[select.selectedIndex];
+        value.textContent = option && option.value ? String(option.textContent || '').trim() : placeholder;
+    }
+    function render() {
+        var currentValue = String(select.value || '');
+        menu.innerHTML = '';
+        Array.from(select.options).forEach(function(option) {
+            if (!option.value) return;
+            var item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'marketing-materials-dropdown-option' + (currentValue === option.value ? ' is-selected' : '');
+            item.setAttribute('role', 'option');
+            item.setAttribute('aria-selected', currentValue === option.value ? 'true' : 'false');
+            item.textContent = String(option.textContent || option.value).trim();
+            item.addEventListener('click', function() {
+                select.value = option.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                close();
+                trigger.focus();
+            });
+            menu.appendChild(item);
+        });
+        syncLabel();
+        trigger.disabled = !!select.disabled;
+    }
+    trigger.addEventListener('click', function() {
+        var shouldOpen = menu.hidden;
+        close();
+        if (!shouldOpen || select.disabled) return;
+        render();
+        wrapper.classList.add('is-open');
+        trigger.setAttribute('aria-expanded', 'true');
+        menu.hidden = false;
+    });
+    select.addEventListener('change', function() {
+        syncLabel();
+        render();
+    });
+    document.addEventListener('click', function(event) {
+        if (!wrapper.contains(event.target)) close();
+    });
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') close();
+    });
+    render();
+}
+
+setupMarketingSelectDropdown('area_code', 'areaCodeGroup', 'areaCodeTrigger', 'areaCodeTriggerValue', 'areaCodeMenu', 'Choose area code');
+setupMarketingSelectDropdown('marketing_department', 'marketingDepartmentGroup', 'marketingDepartmentTrigger', 'marketingDepartmentTriggerValue', 'marketingDepartmentMenu', 'Choose department');
+setupMarketingSelectDropdown('crop', 'cropGroup', 'cropTrigger', 'cropTriggerValue', 'cropMenu', 'Choose crop');
 
 function closeDepartmentDropdown() {
     if (!departmentMenu || !departmentTrigger) return;
@@ -7974,9 +8325,10 @@ function populateMarketingSubcategories(options) {
 function shouldShowMarketingSubcategory() {
     if (!recipient || !departmentSelect || !categorySelect) return false;
     var selectedCategory = String(categorySelect.value || '');
-    return isLapcRecipientValue(String(recipient.value || ''))
-        && String(departmentSelect.value || '') === 'Marketing'
-        && Object.prototype.hasOwnProperty.call(lapcMarketingSubcategories, selectedCategory);
+    if (!isLapcRecipientValue(String(recipient.value || ''))) return false;
+    var departmentValue = String(departmentSelect.value || '');
+    return (departmentValue === 'Marketing' && Object.prototype.hasOwnProperty.call(lapcMarketingSubcategories, selectedCategory))
+        || (departmentValue === 'Supply Chain' && Object.prototype.hasOwnProperty.call(lapcSupplyChainRequestTypes, selectedCategory));
 }
 
 function areRoutingSelectionsComplete() {
@@ -7997,7 +8349,10 @@ function toggleMarketingSubcategory() {
         marketingSubcategorySelect.disabled = false;
         marketingSubcategorySelect.setAttribute('required', 'required');
         if (marketingSubcategoryTrigger) marketingSubcategoryTrigger.disabled = false;
-        populateMarketingSubcategories(lapcMarketingSubcategories[selectedCategory] || []);
+        var requestTypeOptions = String(departmentSelect.value || '') === 'Supply Chain'
+            ? (lapcSupplyChainRequestTypes[selectedCategory] || [])
+            : (lapcMarketingSubcategories[selectedCategory] || []);
+        populateMarketingSubcategories(requestTypeOptions);
     } else {
         marketingSubcategorySelect.value = '';
         marketingSubcategorySelect.setAttribute('data-selected', '');
@@ -8006,6 +8361,78 @@ function toggleMarketingSubcategory() {
         if (marketingSubcategoryTrigger) marketingSubcategoryTrigger.disabled = true;
         populateMarketingSubcategories([]);
         closeMarketingSubcategoryDropdown();
+    }
+    toggleSupplyChainDetails();
+}
+
+function toggleSupplyChainDetails() {
+    if (!supplyChainDetailsRow || !supplyChainDetailsFields || !recipient || !departmentSelect || !categorySelect || !marketingSubcategorySelect) return;
+    var category = String(categorySelect.value || '');
+    var shouldShow = isLapcRecipientValue(String(recipient.value || ''))
+        && String(departmentSelect.value || '') === 'Supply Chain'
+        && Object.prototype.hasOwnProperty.call(lapcSupplyChainDetailFields, category)
+        && String(marketingSubcategorySelect.value || '') !== '';
+    supplyChainDetailsRow.classList.toggle('is-visible', shouldShow);
+    toggleSupplyChainOptionalSections(shouldShow);
+    supplyChainDetailsFields.innerHTML = '';
+    if (!shouldShow) return;
+
+    (lapcSupplyChainDetailFields[category] || []).forEach(function(label) {
+        var group = document.createElement('div');
+        group.className = 'marketing-request-card';
+        var formGroup = document.createElement('div');
+        formGroup.className = 'form-group';
+        var fieldLabel = document.createElement('label');
+        fieldLabel.textContent = label;
+        var isSupportingField = /^(Supporting Photo|Supporting Documents)$/i.test(label);
+        if (isSupportingField) {
+            var note = document.createElement('div');
+            note.className = 'form-control';
+            note.textContent = 'Upload using Attachment below';
+            formGroup.append(fieldLabel, note);
+        } else {
+            var isLongText = /Purpose|Special Requirements|Details\/Photos|Reason|Issue\/Concern|Specific Inquiry/i.test(label);
+            if (isLongText) group.classList.add('supply-chain-full-row');
+            var field = document.createElement(isLongText ? 'textarea' : 'input');
+            field.className = 'form-control';
+            field.name = 'supply_chain_details[' + label + ']';
+            field.required = true;
+            field.value = String(savedSupplyChainDetails[label] || '');
+            if (!isLongText && /Date\/Time/i.test(label)) field.type = 'datetime-local';
+            else if (!isLongText && /Date/i.test(label)) field.type = 'date';
+            else if (!isLongText) field.type = 'text';
+            if (isLongText) field.rows = 3;
+            var requiredMark = document.createElement('span');
+            requiredMark.className = 'required-asterisk';
+            requiredMark.textContent = '*';
+            fieldLabel.appendChild(document.createTextNode(' '));
+            fieldLabel.appendChild(requiredMark);
+            formGroup.append(fieldLabel, field);
+        }
+        group.appendChild(formGroup);
+        supplyChainDetailsFields.appendChild(group);
+    });
+}
+
+function toggleSupplyChainOptionalSections(isSupplyChainRequest) {
+    if (isSupplyChainRequest) {
+        if (descriptionContainer) {
+            descriptionContainer.style.display = 'none';
+            descriptionContainer.dataset.supplyChainHidden = 'true';
+        }
+        if (attachmentContainer) {
+            attachmentContainer.style.display = 'none';
+            attachmentContainer.dataset.supplyChainHidden = 'true';
+        }
+        if (descriptionFieldEl) descriptionFieldEl.removeAttribute('required');
+    } else if (descriptionContainer && descriptionContainer.dataset.supplyChainHidden === 'true') {
+        descriptionContainer.style.display = '';
+        delete descriptionContainer.dataset.supplyChainHidden;
+        if (attachmentContainer) {
+            attachmentContainer.style.display = '';
+            delete attachmentContainer.dataset.supplyChainHidden;
+        }
+        if (descriptionFieldEl) descriptionFieldEl.setAttribute('required', 'required');
     }
 }
 
@@ -8145,7 +8572,7 @@ function isLapcItSelection() {
 function isLapcMarketingRequestTypeSelection() {
     var recipientValue = recipient ? String(recipient.value || '') : '';
     var departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
-    return isLapcRecipientValue(recipientValue) && departmentValue === 'Marketing';
+    return isLapcRecipientValue(recipientValue) && (departmentValue === 'Marketing' || departmentValue === 'Supply Chain');
 }
 
 function isLapcMarketingSelection() {
@@ -8771,7 +9198,6 @@ function toggleHrExtraFields() {
         chooseBtn.tabIndex = isAttachmentPickerDisabled ? -1 : 0;
     }
     if (attachmentOptionalText) attachmentOptionalText.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment || shouldRequireIncidentAttachment) ? 'none' : '';
-    if (attachmentOptionalText && shouldShowMarketingRequest) attachmentOptionalText.style.display = 'none';
     if (attachmentRequiredAsterisk) attachmentRequiredAsterisk.style.display = (shouldRequireKamiAttachment || shouldRequireMedicalAttachment || shouldRequireIncidentAttachment) ? '' : 'none';
     syncAttachmentCopy(shouldShowMarketingRequest ? 'marketing' : (shouldShowMedicalCashAdvance ? 'medical' : (shouldRequireKamiAttachment ? 'kami' : 'default')));
 
@@ -8956,6 +9382,8 @@ function toggleHrExtraFields() {
     if (shouldShowConcernType && kamiContinuationHost) {
         moveDescriptionContainer(kamiContinuationHost);
         moveAttachmentContainer(kamiContinuationHost);
+    } else if (shouldShowMarketingRequest && marketingDescriptionHost) {
+        moveDescriptionContainer(marketingDescriptionHost);
     } else if ((shouldShowEmailDefault || shouldShowEmailForgotPassword || shouldShowEmailBackup) && emailDescriptionHost) {
         moveDescriptionContainer(emailDescriptionHost);
     } else if (shouldShowOtherDetailsStyle && otherRequestContinuationHost) {
@@ -8976,6 +9404,7 @@ function toggleHrExtraFields() {
     } else if (attachmentOriginalHost) {
         moveAttachmentContainer(attachmentOriginalHost);
     }
+    toggleSupplyChainOptionalSections(!!(supplyChainDetailsRow && supplyChainDetailsRow.classList.contains('is-visible')));
 }
 
 if (recipient) recipient.addEventListener('change', function() {
@@ -9280,6 +9709,7 @@ if (adminLegalRequestForSelect) adminLegalRequestForSelect.addEventListener('cha
 });
 if (marketingSubcategorySelect) marketingSubcategorySelect.addEventListener('change', function() {
     syncMarketingSubcategoryTriggerLabel();
+    toggleSupplyChainDetails();
 });
 if (emailRequestTypeSelect) emailRequestTypeSelect.addEventListener('change', function() {
     toggleHrExtraFields();
@@ -9873,9 +10303,10 @@ if (formEl) {
                 }
             }
         }
-        if (isLapcMarketingRequestTypeSelected && Object.prototype.hasOwnProperty.call(lapcMarketingSubcategories, selectedCategory) && marketingSubcategorySelect && !String(marketingSubcategorySelect.value || '').trim()) {
+        var requiresLapcRequestType = isLapcMarketingRequestTypeSelected && (Object.prototype.hasOwnProperty.call(lapcMarketingSubcategories, selectedCategory) || Object.prototype.hasOwnProperty.call(lapcSupplyChainRequestTypes, selectedCategory));
+        if (requiresLapcRequestType && marketingSubcategorySelect && !String(marketingSubcategorySelect.value || '').trim()) {
             e.preventDefault();
-            setInlineFormError('Please choose the Request Type.');
+            setInlineFormError('Please choose the Request Type / Concern.');
             return;
         }
         if (isLapcMarketingSelected) {

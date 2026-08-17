@@ -34,11 +34,9 @@ html body.employee-book-conference-page,
 html body.employee-notifications-page,
 html body.employee-sales-manager-page,
 html body.sales-request-ticket-page {
-    background-image:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.48)),
-        url('../assets/img/dashboard_bg.jpg') !important;
+    background-image: url('../assets/img/dashboard_bg.jpg') !important;
     background-repeat: no-repeat !important;
-    background-size: 100% auto !important;
+    background-size: cover !important;
     background-position: center -28px !important;
     background-attachment: fixed !important;
 }
@@ -65,11 +63,7 @@ html body.employee-sales-manager-page::before,
 html body.employee-sales-manager-page::after,
 html body.sales-request-ticket-page::before,
 html body.sales-request-ticket-page::after {
-    content: "" !important;
-    position: fixed !important;
-    pointer-events: none !important;
-    z-index: 0 !important;
-    background-image: radial-gradient(circle, rgba(105, 163, 123, 0.2) 1.2px, transparent 1.55px) !important;
+    content: none !important;
 }
 
 html body::before,

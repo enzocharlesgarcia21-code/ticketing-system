@@ -137,9 +137,10 @@ if ($regionColumnRes && $regionColumnRes->num_rows > 0) {
 }
 $userQuery = $conn->query("SELECT company, department, email" . ($hasUserRegionColumn ? ", region" : "") . " FROM users WHERE id = $user_id");
 if ($userQuery && $row = $userQuery->fetch_assoc()) {
-    $company = (string) ($row['company'] ?? '');
-    if ($company !== '') {
-        $_SESSION['company'] = $company;
+    $storedCompany = trim((string) ($row['company'] ?? ''));
+    if ($storedCompany !== '') {
+        $company = $storedCompany;
+        $_SESSION['company'] = $storedCompany;
     }
     if ($user_department === '') {
         $user_department = (string) ($row['department'] ?? '');
@@ -153,6 +154,13 @@ if ($userQuery && $row = $userQuery->fetch_assoc()) {
         $user_region = (string) ($row['region'] ?? '');
         $_SESSION['region'] = $user_region;
     }
+}
+
+// Older employee records may not have a company value saved. Use the email
+// domain as the company identifier so the dashboard can still show it.
+if (trim($company) === '' && strpos($user_email, '@') !== false) {
+    $company = '@' . strtolower(substr(strrchr($user_email, '@'), 1));
+    $_SESSION['company'] = $company;
 }
 
 /* Ticket Counts (tickets created by this employee) */
@@ -932,22 +940,42 @@ function dashboard_urgency_badge_html(string $priority): string
         }
 
         body.employee-dashboard-page .hero-dept {
-            display: inline-flex;
+            display: flex;
             align-items: center;
             gap: 8px;
+            flex-wrap: wrap;
             margin: 0 0 14px;
-            padding: 5px 12px;
-            border-radius: 8px;
-            background: #eef2f7;
-            color: #64748b;
+            padding: 0;
+            background: transparent;
+            color: #1f6a3b;
             font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.08em;
+            font-weight: 700;
+            letter-spacing: 0.03em;
             text-transform: uppercase;
         }
 
-        body.employee-dashboard-page .company-text {
-            color: #64748b;
+        body.employee-dashboard-page .hero-meta-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 38px;
+            padding: 0 14px;
+            border: 1px solid #cfe9d6;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #f4fcf6, #e4f5e8);
+            color: #17683a;
+            box-shadow: 0 6px 14px rgba(22, 101, 52, 0.08);
+        }
+
+        body.employee-dashboard-page .hero-meta-pill i {
+            color: #22834a;
+            font-size: 15px;
+        }
+
+        body.employee-dashboard-page .company-text.hero-meta-pill {
+            border-color: #d3e8da;
+            background: linear-gradient(135deg, #f7fcf8, #eaf6ed);
+            color: #236b42;
         }
 
         body.employee-dashboard-page .hero-subtitle {
@@ -4210,13 +4238,13 @@ function dashboard_urgency_badge_html(string $priority): string
                             </span>
                             <?php if ($heroCompanyLabel !== ''): ?>
                                 <span class="company-text hero-meta-pill">
-                                    <i class="fas fa-location-dot" aria-hidden="true"></i>
+                                    <i class="fas fa-building" aria-hidden="true"></i>
                                     <?= htmlspecialchars($heroCompanyLabel); ?>
                                 </span>
                             <?php endif; ?>
                         <?php elseif ($heroCompanyLabel !== ''): ?>
                             <span class="company-text hero-meta-pill">
-                                <i class="fas fa-location-dot" aria-hidden="true"></i>
+                                <i class="fas fa-building" aria-hidden="true"></i>
                                 <?= htmlspecialchars($heroCompanyLabel); ?>
                             </span>
                         <?php endif; ?>
