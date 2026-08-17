@@ -1494,7 +1494,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(145deg, #82c777, #006620);
+            background: #1B5E20;
             color: #ffffff;
             font-size: 32px;
             flex: 0 0 auto;
@@ -1517,7 +1517,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         body.employee-feedback-page .feedback-create-ticket-btn {
             min-height: 42px;
             border-radius: 8px;
-            background: linear-gradient(145deg, #197538, #06491e);
+            background: #1B5E20;
             color: #ffffff;
             padding: 0 20px;
             display: inline-flex;
@@ -2490,7 +2490,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         /* Feedback table-only override: match My Submitted Tickets while keeping this page scoped. */
         body.employee-feedback-page .feedback-page-shell {
             width: 100% !important;
-            max-width: 1360px !important;
+            max-width: 1500px !important;
             margin-left: auto !important;
             margin-right: auto !important;
         }

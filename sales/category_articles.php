@@ -167,7 +167,39 @@ if ($stmt) {
         body {
             margin: 0;
             background-color: #F9FAFB;
+            background-image:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.48)),
+                url('../assets/img/dashboard_bg.jpg') !important;
+            background-repeat: no-repeat !important;
+            background-size: 100% auto !important;
+            background-position: center -28px !important;
+            background-attachment: fixed !important;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        body::before,
+        body::after {
+            content: "" !important;
+            position: fixed !important;
+            pointer-events: none !important;
+            z-index: 0 !important;
+            background-image: radial-gradient(circle, rgba(105, 163, 123, 0.2) 1.2px, transparent 1.55px) !important;
+        }
+
+        body::before {
+            left: 4% !important;
+            top: 128px !important;
+            width: 96px !important;
+            height: 100px !important;
+            background-size: 14px 14px !important;
+        }
+
+        body::after {
+            right: 5% !important;
+            top: 71% !important;
+            width: 112px !important;
+            height: 116px !important;
+            background-size: 16px 16px !important;
         }
 
         .sales-employee-navbar {

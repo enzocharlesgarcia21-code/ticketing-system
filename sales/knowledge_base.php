@@ -676,7 +676,7 @@ if ($showCategoryView) {
         .kb-title {
             color: #1B5E20;
             font-size: 30px;
-            font-weight: 500;
+            font-weight: 700;
             margin-bottom: 34px;
         }
 

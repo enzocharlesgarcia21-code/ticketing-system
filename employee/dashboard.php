@@ -3499,17 +3499,11 @@ function dashboard_urgency_badge_html(string $priority): string
         /* Employee page background-only consistency override. */
         body.employee-dashboard-page {
             background-image:
-                radial-gradient(circle at -3% 58%, rgba(211, 237, 218, 0.72) 0 118px, transparent 119px),
-                radial-gradient(circle at 7% 86%, rgba(220, 242, 225, 0.8) 0 92px, transparent 93px),
-                radial-gradient(circle at 101% 46%, rgba(216, 240, 222, 0.76) 0 145px, transparent 146px),
-                radial-gradient(circle at 95% 95%, rgba(231, 246, 234, 0.88) 0 105px, transparent 106px),
-                radial-gradient(ellipse at 80% 18%, rgba(235, 248, 238, 0.62) 0 320px, transparent 321px),
-                radial-gradient(circle at -1% 38%, transparent 0 105px, rgba(205, 230, 213, 0.24) 106px 108px, transparent 109px),
-                radial-gradient(circle at 0% 39%, transparent 0 148px, rgba(205, 230, 213, 0.17) 149px 151px, transparent 152px),
-                radial-gradient(circle at 84% 22%, transparent 0 160px, rgba(202, 229, 211, 0.22) 161px 163px, transparent 164px),
-                radial-gradient(circle at 86% 24%, transparent 0 210px, rgba(202, 229, 211, 0.15) 211px 213px, transparent 214px),
-                linear-gradient(145deg, rgba(239, 249, 242, 0.78) 0%, rgba(255, 255, 255, 0.98) 20%, rgba(255, 255, 255, 0.99) 60%, rgba(239, 249, 242, 0.84) 100%) !important;
+                linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.48)),
+                url('../assets/img/dashboard_bg.jpg') !important;
             background-repeat: no-repeat !important;
+            background-size: 100% auto !important;
+            background-position: center -28px !important;
             background-attachment: fixed !important;
         }
 

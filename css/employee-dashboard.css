@@ -22,6 +22,99 @@ body {
     min-height: 100vh;
 }
 
+/* Shared page background: matches employee/dashboard.php. */
+html body,
+html body.employee-dashboard-page,
+html body.employee-request-ticket-page,
+html body.employee-my-task-page,
+html body.employee-my-tickets-page,
+html body.employee-analytics-page,
+html body.employee-feedback-page,
+html body.employee-book-conference-page,
+html body.employee-notifications-page,
+html body.employee-sales-manager-page,
+html body.sales-request-ticket-page {
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.48)),
+        url('../assets/img/dashboard_bg.jpg') !important;
+    background-repeat: no-repeat !important;
+    background-size: 100% auto !important;
+    background-position: center -28px !important;
+    background-attachment: fixed !important;
+}
+
+html body::before,
+html body::after,
+html body.employee-dashboard-page::before,
+html body.employee-dashboard-page::after,
+html body.employee-request-ticket-page::before,
+html body.employee-request-ticket-page::after,
+html body.employee-my-task-page::before,
+html body.employee-my-task-page::after,
+html body.employee-my-tickets-page::before,
+html body.employee-my-tickets-page::after,
+html body.employee-analytics-page::before,
+html body.employee-analytics-page::after,
+html body.employee-feedback-page::before,
+html body.employee-feedback-page::after,
+html body.employee-book-conference-page::before,
+html body.employee-book-conference-page::after,
+html body.employee-notifications-page::before,
+html body.employee-notifications-page::after,
+html body.employee-sales-manager-page::before,
+html body.employee-sales-manager-page::after,
+html body.sales-request-ticket-page::before,
+html body.sales-request-ticket-page::after {
+    content: "" !important;
+    position: fixed !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+    background-image: radial-gradient(circle, rgba(105, 163, 123, 0.2) 1.2px, transparent 1.55px) !important;
+}
+
+html body::before,
+html body.employee-dashboard-page::before,
+html body.employee-request-ticket-page::before,
+html body.employee-my-task-page::before,
+html body.employee-my-tickets-page::before,
+html body.employee-analytics-page::before,
+html body.employee-feedback-page::before,
+html body.employee-book-conference-page::before,
+html body.employee-notifications-page::before,
+html body.employee-sales-manager-page::before,
+html body.sales-request-ticket-page::before {
+    left: 4% !important;
+    top: 128px !important;
+    width: 96px !important;
+    height: 100px !important;
+    background-size: 14px 14px !important;
+}
+
+html body::after,
+html body.employee-dashboard-page::after,
+html body.employee-request-ticket-page::after,
+html body.employee-my-task-page::after,
+html body.employee-my-tickets-page::after,
+html body.employee-analytics-page::after,
+html body.employee-feedback-page::after,
+html body.employee-book-conference-page::after,
+html body.employee-notifications-page::after,
+html body.employee-sales-manager-page::after,
+html body.sales-request-ticket-page::after {
+    right: 5% !important;
+    top: 71% !important;
+    width: 112px !important;
+    height: 116px !important;
+    background-size: 16px 16px !important;
+}
+
+html body .dashboard-container,
+html body .content-wrapper {
+    position: relative !important;
+    z-index: 1 !important;
+    background: transparent !important;
+}
+
 /* ================= TOP NAVIGATION BAR ================= */
 .navbar {
     background: linear-gradient(90deg, var(--primary-green), var(--primary-green-dark));
