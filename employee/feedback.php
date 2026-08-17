@@ -458,6 +458,10 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             overflow-x: auto;
         }
 
+        body.employee-feedback-page .feedback-swipe-guide {
+            display: none;
+        }
+
         body.employee-feedback-page .feedback-table {
             width: 100%;
             border-collapse: separate;
@@ -2607,6 +2611,28 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         }
 
         @media (max-width: 768px) {
+            body.employee-feedback-page .dashboard-container {
+                width: 100% !important;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 8px 6px 24px !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-feedback-page .content-wrapper {
+                width: 100% !important;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 4px 6px 88px !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-feedback-page .feedback-page-shell {
+                width: 100% !important;
+                max-width: none !important;
+                margin: 0 !important;
+            }
+
             body.employee-feedback-page .feedback-table-footer .pagination-glass {
                 display: grid;
                 grid-template-columns: auto minmax(0, 1fr) auto;
@@ -2680,6 +2706,337 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
 
             body.employee-feedback-page .feedback-table-footer .page-btn.next::before {
                 content: "\203A";
+            }
+
+            /* Keep every feedback record evenly aligned as a mobile card. */
+            body.employee-feedback-page .feedback-table,
+            body.employee-feedback-page .feedback-table tbody {
+                display: block !important;
+                width: 100% !important;
+            }
+
+            body.employee-feedback-page .feedback-table tbody {
+                display: grid !important;
+                gap: 12px !important;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row {
+                display: grid !important;
+                grid-template-columns: minmax(0, 1fr) auto !important;
+                grid-template-areas:
+                    "id date"
+                    "category category"
+                    "person person"
+                    "department department"
+                    "rating rating" !important;
+                gap: 12px !important;
+                width: 100% !important;
+                min-height: 0 !important;
+                padding: 16px !important;
+                border: 1px solid #dbe6de !important;
+                border-radius: 14px !important;
+                background: #ffffff !important;
+                box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05) !important;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row > td {
+                display: block !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                padding: 0 !important;
+                border: 0 !important;
+                text-align: left !important;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(1) { grid-area: id !important; }
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(2) { grid-area: category !important; }
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(3) { grid-area: person !important; }
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(4) { grid-area: department !important; }
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(5) { grid-area: rating !important; }
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(6) {
+                grid-area: date !important;
+                width: auto !important;
+                justify-self: end !important;
+                text-align: right !important;
+            }
+
+            body.employee-feedback-page .feedback-category-pill,
+            body.employee-feedback-page .feedback-person,
+            body.employee-feedback-page .feedback-rating,
+            body.employee-feedback-page .feedback-advice-box {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-feedback-page .feedback-category-pill {
+                min-height: 40px !important;
+                padding: 8px 12px !important;
+                white-space: normal !important;
+                overflow-wrap: anywhere;
+            }
+
+            body.employee-feedback-page .feedback-person {
+                min-height: 38px;
+                align-items: center !important;
+            }
+
+            body.employee-feedback-page .feedback-department {
+                padding-top: 10px !important;
+                border-top: 1px solid #e5ebe7 !important;
+                white-space: normal !important;
+            }
+
+            body.employee-feedback-page .feedback-rating {
+                padding-top: 10px !important;
+                border-top: 1px solid #e5ebe7 !important;
+            }
+
+            body.employee-feedback-page .feedback-advice-box {
+                padding: 12px !important;
+                border-radius: 10px !important;
+                line-height: 1.45 !important;
+                overflow-wrap: anywhere;
+            }
+
+            body.employee-feedback-page .feedback-callout-left,
+            body.employee-feedback-page .feedback-callout-right {
+                width: 100%;
+                align-items: center !important;
+            }
+
+            body.employee-feedback-page .feedback-callout-right {
+                padding: 14px 0 0 !important;
+            }
+
+            body.employee-feedback-page .tm-global-chat-fab {
+                position: fixed !important;
+                right: 12px !important;
+                bottom: 12px !important;
+                width: 42px !important;
+                max-width: 42px !important;
+                min-width: 42px !important;
+                height: 42px !important;
+                min-height: 42px !important;
+                padding: 0 !important;
+                border-radius: 999px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                gap: 0 !important;
+            }
+
+            body.employee-feedback-page .tm-global-chat-fab .tm-global-chat-label {
+                display: none !important;
+            }
+
+            /* Conference-scheduler table pattern for mobile feedback. */
+            body.employee-feedback-page .feedback-swipe-guide {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                margin: 0 0 10px;
+                padding: 9px 12px;
+                border: 1px solid #d9e6db;
+                border-radius: 12px;
+                background: #f6fbf7;
+                color: #476653;
+                font-size: 12px;
+                font-weight: 600;
+                line-height: 1.35;
+                text-align: center;
+            }
+
+            body.employee-feedback-page .feedback-swipe-guide i {
+                color: #166534;
+                font-size: 14px;
+                flex: 0 0 auto;
+            }
+
+            body.employee-feedback-page .feedback-table-wrap {
+                width: 100% !important;
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+                border: 1px solid #e5e7eb !important;
+                border-radius: 14px !important;
+                background: #ffffff !important;
+                touch-action: pan-x pan-y;
+                overscroll-behavior-x: contain;
+                overscroll-behavior-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            body.employee-feedback-page .feedback-table {
+                display: table !important;
+                width: 980px !important;
+                min-width: 980px !important;
+                table-layout: fixed !important;
+                border-collapse: separate !important;
+                border-spacing: 0 !important;
+            }
+
+            body.employee-feedback-page .feedback-table thead {
+                display: table-header-group !important;
+            }
+
+            body.employee-feedback-page .feedback-table thead tr {
+                display: table-row !important;
+                width: auto !important;
+            }
+
+            body.employee-feedback-page .feedback-table tbody {
+                display: table-row-group !important;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row {
+                display: table-row !important;
+                width: auto !important;
+                min-height: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: #ffffff !important;
+                box-shadow: none !important;
+            }
+
+            body.employee-feedback-page .feedback-table th,
+            body.employee-feedback-page .feedback-ticket-row > td {
+                display: table-cell !important;
+                grid-area: auto !important;
+                width: auto !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                height: auto !important;
+                padding: 12px !important;
+                border: 0 !important;
+                border-right: 1px solid #e5e7eb !important;
+                border-bottom: 1px solid #e5e7eb !important;
+                border-radius: 0 !important;
+                vertical-align: middle !important;
+                text-align: left !important;
+                white-space: normal !important;
+                overflow-wrap: anywhere;
+            }
+
+            body.employee-feedback-page .feedback-table th {
+                position: sticky;
+                top: 0;
+                z-index: 4;
+                height: 48px !important;
+                background: #166534 !important;
+                color: #ffffff !important;
+                border-bottom-color: #14532d !important;
+                font-size: 12px !important;
+                font-weight: 800 !important;
+                letter-spacing: 0 !important;
+                text-transform: none !important;
+                line-height: 1.25 !important;
+                white-space: nowrap !important;
+                overflow-wrap: normal !important;
+                word-break: normal !important;
+            }
+
+            body.employee-feedback-page .feedback-table th:first-child,
+            body.employee-feedback-page .feedback-ticket-row > td:first-child {
+                position: sticky;
+                left: 0;
+                width: 105px !important;
+                min-width: 105px !important;
+            }
+
+            body.employee-feedback-page .feedback-table th:first-child {
+                z-index: 6;
+                background: #166534 !important;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row > td:first-child {
+                z-index: 2;
+                background: #f3f8f3 !important;
+                color: #166534 !important;
+                font-weight: 800 !important;
+            }
+
+            body.employee-feedback-page .feedback-table th:nth-child(2) { width: 170px !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(3) { width: 170px !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(4) { width: 135px !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(5) { width: 230px !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(6) { width: 170px !important; }
+
+            body.employee-feedback-page .feedback-table th:last-child,
+            body.employee-feedback-page .feedback-ticket-row > td:last-child {
+                border-right: 0 !important;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row:last-child > td {
+                border-bottom: 0 !important;
+            }
+
+            body.employee-feedback-page .feedback-category-pill,
+            body.employee-feedback-page .feedback-person,
+            body.employee-feedback-page .feedback-rating,
+            body.employee-feedback-page .feedback-advice-box {
+                width: auto !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+            }
+
+            body.employee-feedback-page .feedback-category-pill,
+            body.employee-feedback-page .feedback-person {
+                white-space: normal !important;
+            }
+
+            body.employee-feedback-page .feedback-department,
+            body.employee-feedback-page .feedback-rating {
+                padding: 12px !important;
+                border-top: 0 !important;
+            }
+
+            body.employee-feedback-page .feedback-date {
+                justify-self: auto !important;
+                text-align: left !important;
+            }
+
+            body.employee-feedback-page .feedback-advice-box {
+                padding: 9px 10px !important;
+                border-radius: 8px !important;
+            }
+
+            body.employee-feedback-page .feedback-summary-grid {
+                gap: 8px !important;
+            }
+
+            body.employee-feedback-page .feedback-card.feedback-average-card {
+                min-height: 82px !important;
+                padding: 10px 14px !important;
+                gap: 12px !important;
+                border-radius: 10px !important;
+            }
+
+            body.employee-feedback-page .feedback-summary-icon {
+                width: 42px !important;
+                height: 42px !important;
+                flex: 0 0 42px !important;
+                font-size: 18px !important;
+            }
+
+            body.employee-feedback-page .feedback-card-title {
+                margin: 0 0 3px !important;
+                font-size: 12px !important;
+                line-height: 1.2 !important;
+            }
+
+            body.employee-feedback-page .feedback-score-line strong {
+                font-size: 26px !important;
+                line-height: 1 !important;
+            }
+
+            body.employee-feedback-page .feedback-score-note {
+                margin: 3px 0 0 !important;
+                font-size: 10px !important;
+                line-height: 1.25 !important;
             }
         }
     </style>
@@ -2755,6 +3112,10 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                             </div>
                         </div>
                         <?php if (count($feedbackRows) > 0): ?>
+                            <div class="feedback-swipe-guide" role="note">
+                                <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+                                <span>Swipe left or right on the table to see all feedback details.</span>
+                            </div>
                             <div class="feedback-table-wrap">
                                 <table class="feedback-table">
                                     <thead>

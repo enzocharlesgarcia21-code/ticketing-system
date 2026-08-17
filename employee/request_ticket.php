@@ -4685,12 +4685,14 @@ if (count($emailCreationEntries) === 0) {
             }
 
             body.employee-request-ticket-page .mobile-sidebar-footer {
-                margin-top: auto;
-                padding-top: 14px;
-                border-top: 1px solid rgba(255, 255, 255, 0.18);
+                margin: 0 0 8px;
+                padding: 0 0 14px;
+                border-top: 0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.18);
                 display: flex;
                 align-items: center;
                 gap: 12px;
+                flex: 0 0 auto;
             }
 
             body.employee-request-ticket-page .mobile-sidebar-icon-link,
@@ -4749,7 +4751,8 @@ if (count($emailCreationEntries) === 0) {
             body.employee-request-ticket-page .mobile-sidebar-user-menu {
                 position: absolute;
                 right: 0;
-                bottom: calc(100% + 10px);
+                top: calc(100% + 10px);
+                bottom: auto;
                 min-width: 170px;
                 background: #ffffff;
                 border-radius: 12px;
@@ -5372,6 +5375,14 @@ if (count($emailCreationEntries) === 0) {
                 max-width: 100%;
             }
 
+            body.employee-request-ticket-page .request-routing-help {
+                order: 1;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card {
+                order: 2;
+            }
+
             body.employee-request-ticket-page .request-mobile-info-card {
                 width: 100% !important;
                 max-width: 100% !important;
@@ -5415,6 +5426,8 @@ if (count($emailCreationEntries) === 0) {
                 align-items: center;
                 gap: 10px;
                 padding: 10px 12px;
+                -webkit-text-size-adjust: none;
+                text-size-adjust: none;
             }
 
             body.employee-request-ticket-page .request-routing-help::after {
@@ -5451,6 +5464,9 @@ if (count($emailCreationEntries) === 0) {
 
             body.employee-request-ticket-page .request-routing-help h2 {
                 color: #8a5b0a;
+                font-size: 11px !important;
+                font-weight: 700 !important;
+                line-height: 1.25;
             }
 
             body.employee-request-ticket-page .request-guidance-heading-description,
@@ -5469,6 +5485,8 @@ if (count($emailCreationEntries) === 0) {
 
             body.employee-request-ticket-page .request-routing-help p {
                 color: #596579;
+                font-size: 9px !important;
+                line-height: 1.35;
             }
 
             body.employee-request-ticket-page .request-guidance-card:not(.is-expanded) .request-guidance-body {
@@ -5585,43 +5603,6 @@ if (count($emailCreationEntries) === 0) {
 
     <!-- 2️⃣ TOP NAVIGATION BAR -->
     <?php include '../includes/employee_navbar.php'; ?>
-
-    <div id="mobileSidebar" class="mobile-sidebar" aria-hidden="true">
-        <div class="mobile-sidebar-header">
-            <img src="../assets/img/UPDATEDlogo.png" alt="Logo">
-            <span>Leads Agri</span>
-        </div>
-        <?php foreach ($employeeNavItems as $navItem): ?>
-            <?php
-                $permissionKey = (string) ($navItem['key'] ?? '');
-                $isVisible = !array_key_exists($permissionKey, $tmUserPermissions) || (int) $tmUserPermissions[$permissionKey] === 1;
-                if (!$isVisible) {
-                    continue;
-                }
-            ?>
-            <a href="<?= htmlspecialchars((string) $navItem['page'], ENT_QUOTES, 'UTF-8'); ?>" class="<?= isActive((string) $navItem['page']); ?>">
-                <?= htmlspecialchars((string) $navItem['label'], ENT_QUOTES, 'UTF-8'); ?>
-            </a>
-        <?php endforeach; ?>
-        <div class="mobile-sidebar-footer">
-            <a href="notifications.php" class="mobile-sidebar-icon-link" aria-label="Notifications">
-                <i class="fas fa-bell"></i>
-                <span id="mobileSidebarNotifBadge" class="mobile-sidebar-badge"></span>
-            </a>
-            <div class="mobile-sidebar-user">
-                <button type="button" id="mobileSidebarUserBtn" class="mobile-sidebar-user-btn" aria-label="Account menu">
-                    <i class="fas fa-user"></i>
-                    <i class="fas fa-chevron-down" style="font-size: 11px;"></i>
-                </button>
-                <div id="mobileSidebarUserMenu" class="mobile-sidebar-user-menu">
-                    <a href="my_profile.php">My Profile</a>
-                    <a href="logout.php">Logout</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="mobileSidebarOverlay" class="mobile-sidebar-overlay" aria-hidden="true"></div>
 
     <div class="dashboard-container">
         <div class="content-wrapper">
@@ -6733,6 +6714,7 @@ if (count($emailCreationEntries) === 0) {
     <script src="../js/employee-dashboard.js"></script>
 
     <script>
+    if (!document.body.classList.contains('employee-shared-mobile-sidebar-page')) {
     (function () {
         const menuBtn = document.getElementById('navbarToggler');
         const sidebar = document.getElementById('mobileSidebar');
@@ -6819,6 +6801,7 @@ if (count($emailCreationEntries) === 0) {
             }
         }
     })();
+    }
     </script>
 
     <script>

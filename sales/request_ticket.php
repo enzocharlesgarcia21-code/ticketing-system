@@ -5198,6 +5198,22 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         }
         body.sales-request-ticket-page .request-company-guide[open] .request-company-chevron { transform: rotate(90deg); }
         body.sales-request-ticket-page .request-department-list { display: grid; }
+
+        @media (max-width: 768px) {
+            body.sales-request-ticket-page .request-guidance-directory.is-mobile-initializing .request-company-guide[open] > :not(summary) {
+                display: none;
+            }
+
+            body.sales-request-ticket-page .request-guidance-directory.is-mobile-initializing .request-company-guide[open] > summary {
+                border-bottom: 0;
+                background: #ffffff;
+            }
+
+            body.sales-request-ticket-page .request-guidance-directory.is-mobile-initializing .request-company-guide[open] .request-company-chevron {
+                transform: none;
+            }
+        }
+
         body.sales-request-ticket-page .request-department-guide {
             display: grid;
             grid-template-columns: 32px minmax(0, 1fr);
@@ -5832,7 +5848,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     <i class="fas fa-search" aria-hidden="true"></i>
                     <input type="search" id="requestGuidanceSearch" placeholder="Search subsidiary or department..." aria-label="Search subsidiary or department">
                 </div>
-                <div class="request-guidance-directory">
+                <div
+                    class="request-guidance-directory<?= $selectedRecipientCompany === '' ? ' is-mobile-initializing' : ''; ?>"
+                    data-has-selected-company="<?= $selectedRecipientCompany !== '' ? 'true' : 'false'; ?>"
+                >
                     <?php foreach ($requestGuidanceCompanies as $guidanceCompany): ?>
                         <?php
                             $guidanceCompanyIsOpen = (string) $guidanceCompany['value'] === $requestGuidanceOpenCompany;
@@ -10960,6 +10979,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!directory) return;
 
     var companyGuides = Array.prototype.slice.call(directory.querySelectorAll('.request-company-guide'));
+    var isFreshMobileVisit = window.matchMedia('(max-width: 768px)').matches
+        && directory.dataset.hasSelectedCompany !== 'true';
+
+    if (isFreshMobileVisit) {
+        companyGuides.forEach(function (guide) {
+            guide.open = false;
+        });
+    }
+    directory.classList.remove('is-mobile-initializing');
+
     companyGuides.forEach(function (guide) {
         guide.dataset.initiallyOpen = guide.open ? 'true' : 'false';
     });

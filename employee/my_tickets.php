@@ -1337,6 +1337,14 @@ $successMessage = '';
         body.employee-my-tickets-page .my-tickets-filter-form.has-department-filter {
             grid-template-columns: minmax(260px, 1fr) 170px minmax(240px, 300px) 170px 150px 124px;
         }
+        body.employee-my-tickets-page .my-tickets-search-row,
+        body.employee-my-tickets-page .my-tickets-filter-controls {
+            display: contents;
+        }
+        body.employee-my-tickets-page .my-tickets-mobile-filter-btn,
+        body.employee-my-tickets-page .my-tickets-mobile-filter-summary {
+            display: none;
+        }
         body.employee-my-tickets-page .my-tickets-search-wrapper {
             position: relative;
             min-width: 0;
@@ -3445,6 +3453,376 @@ $successMessage = '';
             z-index: 1 !important;
             background: transparent !important;
         }
+
+        /* Keep the submitted-tickets mobile view aligned with Assigned Tickets. */
+        @media (max-width: 767px) {
+            body.employee-my-tickets-page {
+                overflow-x: hidden;
+            }
+
+            body.employee-my-tickets-page .dashboard-container,
+            body.employee-my-tickets-page .content-wrapper {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
+            }
+
+            body.employee-my-tickets-page .content-wrapper {
+                padding-left: clamp(10px, 4vw, 22px);
+                padding-right: clamp(10px, 4vw, 22px);
+                padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-card *,
+            body.employee-my-tickets-page .table-card.my-tickets-card * {
+                box-sizing: border-box;
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-card {
+                width: 100%;
+                max-width: 100%;
+                margin: 0 0 14px;
+                padding: 0;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-form,
+            body.employee-my-tickets-page .my-tickets-filter-form.has-department-filter {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+            }
+
+            body.employee-my-tickets-page .my-tickets-search-row {
+                display: flex;
+                align-items: stretch;
+                gap: clamp(8px, 2.5vw, 12px);
+                width: 100%;
+                min-width: 0;
+            }
+
+            body.employee-my-tickets-page .my-tickets-search-wrapper {
+                flex: 1 1 auto;
+                width: auto;
+                min-width: 0;
+            }
+
+            body.employee-my-tickets-page .my-tickets-search-input {
+                height: clamp(42px, 11vw, 48px);
+                padding-left: 42px;
+                font-size: clamp(12px, 3.4vw, 14px);
+            }
+
+            body.employee-my-tickets-page .my-tickets-search-icon {
+                left: 15px;
+                font-size: 15px;
+            }
+
+            body.employee-my-tickets-page .my-tickets-mobile-filter-btn {
+                flex: 0 0 clamp(42px, 11vw, 48px);
+                width: clamp(42px, 11vw, 48px);
+                min-width: 0;
+                min-height: clamp(42px, 11vw, 48px);
+                padding: 0;
+                border: 1px solid #d7e0ea;
+                border-radius: 11px;
+                background: #ffffff;
+                color: #166534;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 16px;
+                cursor: pointer;
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-controls {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: clamp(8px, 2.5vw, 12px);
+                width: 100%;
+                min-width: 0;
+                margin-top: 10px;
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-select-wrap,
+            body.employee-my-tickets-page .my-tickets-filter-select,
+            body.employee-my-tickets-page .my-tickets-company-trigger,
+            body.employee-my-tickets-page .my-tickets-department-trigger {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-select,
+            body.employee-my-tickets-page .my-tickets-company-trigger,
+            body.employee-my-tickets-page .my-tickets-department-trigger {
+                height: clamp(40px, 10.5vw, 46px);
+                padding-left: clamp(11px, 3vw, 15px);
+                padding-right: 34px;
+                font-size: clamp(12px, 3.2vw, 14px);
+            }
+
+            body.employee-my-tickets-page .my-tickets-company-trigger,
+            body.employee-my-tickets-page .my-tickets-department-trigger {
+                padding-right: 13px;
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-select-wrap::after {
+                right: 13px;
+            }
+
+            body.employee-my-tickets-page .my-tickets-desktop-clear {
+                display: none;
+            }
+
+            body.employee-my-tickets-page .my-tickets-mobile-filter-summary {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                width: 100%;
+                margin-top: 10px;
+                padding: 0 2px 11px;
+                border-bottom: 1px solid #dbe3ec;
+                color: #64748b;
+                font-size: clamp(11px, 3vw, 13px);
+                font-weight: 600;
+            }
+
+            body.employee-my-tickets-page .my-tickets-mobile-filter-summary a {
+                color: #166534;
+                font-weight: 700;
+                text-decoration: none;
+                white-space: nowrap;
+            }
+
+            body.employee-my-tickets-page .table-card.my-tickets-card {
+                width: 100%;
+                max-width: 100%;
+                min-height: 0;
+                padding: 0;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+                overflow: visible;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-shell,
+            body.employee-my-tickets-page .table-responsive.my-tickets-table-responsive {
+                min-height: 0;
+                overflow: visible;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row {
+                --submitted-card-padding-x: clamp(13px, 4vw, 17px);
+                --submitted-card-arrow-space: clamp(42px, 12vw, 52px);
+                --submitted-card-header-space: 45px;
+                position: relative;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 7px 8px;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                padding: var(--submitted-card-header-space) var(--submitted-card-arrow-space) var(--submitted-card-padding-x) var(--submitted-card-padding-x);
+                border: 1px solid #dde5ed;
+                border-radius: 14px;
+                background: #ffffff;
+                box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+                overflow: hidden;
+                cursor: pointer;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row::after {
+                content: "\203A";
+                position: absolute;
+                top: 50%;
+                right: clamp(14px, 4vw, 18px);
+                transform: translateY(-50%);
+                color: #64748b;
+                font-size: 25px;
+                font-weight: 700;
+                line-height: 1;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td {
+                display: block;
+                width: auto !important;
+                min-width: 0;
+                padding: 0;
+                border: 0;
+                text-align: left;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(1) {
+                order: 1;
+                border-radius: 13px 13px 0 0;
+                font-weight: 800;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(2) {
+                order: 2;
+                flex: 0 0 100%;
+                width: 100% !important;
+                color: #1f2937;
+                font-size: clamp(13px, 3.6vw, 15px);
+                line-height: 1.25;
+                font-weight: 700;
+                white-space: nowrap;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(4) {
+                order: 3;
+                flex: 0 0 100%;
+                width: 100% !important;
+                color: #1f2937;
+                font-size: clamp(12px, 3.3vw, 13px);
+                line-height: 1.3;
+                font-weight: 700;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(4)::after {
+                margin-top: 1px;
+                color: #64748b;
+                font-size: clamp(10px, 2.8vw, 11px);
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(5) {
+                order: 4;
+                flex: 1 1 100%;
+                width: 100% !important;
+                margin-top: 2px;
+                color: #64748b;
+                font-size: clamp(10px, 2.9vw, 12px);
+                line-height: 1.2;
+                font-weight: 600;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(3),
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(6) {
+                order: 5;
+                flex: 0 1 auto;
+                width: max-content !important;
+                max-width: 100%;
+                margin-top: 3px;
+            }
+
+            body.employee-my-tickets-page .status-pill,
+            body.employee-my-tickets-page .my-tickets-sla-cell .badge {
+                min-width: 0;
+                min-height: 27px;
+                max-width: 100%;
+                padding: 5px clamp(9px, 2.8vw, 12px);
+                border-radius: 999px;
+                font-size: clamp(10px, 2.9vw, 12px);
+                line-height: 1;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(7) {
+                order: 6;
+                flex: 1 1 calc(100% + var(--submitted-card-arrow-space) - var(--submitted-card-padding-x));
+                width: calc(100% + var(--submitted-card-arrow-space) - var(--submitted-card-padding-x)) !important;
+                margin-top: 5px;
+                margin-right: calc(var(--submitted-card-padding-x) - var(--submitted-card-arrow-space));
+                padding-top: 10px;
+                border-top: 1px solid #dbe3ec;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(7):not(:has(.follow-up-btn, .close-ticket-btn, .reopen-ticket-btn)) {
+                display: none;
+            }
+
+            body.employee-my-tickets-page .ticket-action-buttons {
+                display: flex;
+                align-items: center;
+                justify-content: flex-start;
+                flex-wrap: wrap;
+                gap: 7px;
+                width: 100%;
+            }
+
+            body.employee-my-tickets-page .follow-up-btn,
+            body.employee-my-tickets-page .close-ticket-btn {
+                width: auto;
+                min-width: 104px;
+                height: 32px;
+                min-height: 32px;
+                padding: 5px 13px;
+                font-size: 12px;
+            }
+
+            body.employee-my-tickets-page .ticket-action-buttons .follow-up-btn {
+                flex: 0 0 100px !important;
+                width: 100px !important;
+                min-width: 100px;
+                max-width: 100px;
+                height: 30px;
+                min-height: 30px;
+                margin-left: auto;
+                margin-right: auto;
+                padding: 4px 2px;
+                font-size: 11px;
+            }
+
+            body.employee-my-tickets-page .ticket-action-buttons .close-ticket-form {
+                flex: 0 0 100%;
+                width: 100%;
+                justify-content: center;
+            }
+
+            body.employee-my-tickets-page .ticket-action-buttons .close-ticket-btn {
+                flex: 0 0 100px !important;
+                width: 100px !important;
+                min-width: 100px;
+                max-width: 100px;
+                height: 30px;
+                min-height: 30px;
+                padding: 4px 2px;
+                font-size: 11px;
+            }
+
+            body.employee-my-tickets-page .follow-up-cooldown-note {
+                flex: 0 0 100%;
+                text-align: left;
+                font-size: 11px;
+            }
+
+            body.employee-my-tickets-page .tm-global-chat-fab {
+                right: 12px;
+                bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+                width: 42px !important;
+                max-width: 42px !important;
+                min-width: 42px;
+                height: 42px;
+                min-height: 42px;
+                padding: 0 !important;
+                border-radius: 999px;
+                justify-content: center;
+                gap: 0;
+            }
+
+            body.employee-my-tickets-page .tm-global-chat-fab .tm-global-chat-label {
+                display: none;
+            }
+        }
+
+        @media (max-width: 359px) {
+            body.employee-my-tickets-page .content-wrapper {
+                padding-left: 8px;
+                padding-right: 8px;
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-controls {
+                grid-template-columns: minmax(0, 1fr);
+                gap: 8px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -3469,6 +3847,7 @@ $successMessage = '';
 
             <div class="my-tickets-filter-card">
                 <form method="GET" action="my_tickets.php" id="myTicketsFilterForm" class="my-tickets-filter-form <?= ticket_normalize_company($ticketCompanyFilter) === '@leadsagri.com' ? 'has-department-filter' : ''; ?>">
+                    <div class="my-tickets-search-row">
                     <div class="my-tickets-search-wrapper">
                         <i class="fas fa-search my-tickets-search-icon" aria-hidden="true"></i>
                         <input
@@ -3481,6 +3860,11 @@ $successMessage = '';
                             autocomplete="off"
                         >
                     </div>
+                    <button type="button" class="my-tickets-mobile-filter-btn" aria-label="Ticket filters" aria-controls="myTicketsMobileFilterControls">
+                        <i class="fas fa-sliders-h" aria-hidden="true"></i>
+                    </button>
+                    </div>
+                    <div class="my-tickets-filter-controls" id="myTicketsMobileFilterControls">
                     <div class="my-tickets-filter-select-wrap my-tickets-company-select-wrap" id="myTicketsCompanyDropdown">
                         <select name="company" id="myTicketsCompanyFilter" class="my-tickets-filter-select my-tickets-native-select" tabindex="-1" aria-hidden="true">
                             <option value="">All Company</option>
@@ -3562,7 +3946,12 @@ $successMessage = '';
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <a href="my_tickets.php" class="my-tickets-clear-btn">Clear Filters</a>
+                    </div>
+                    <a href="my_tickets.php" class="my-tickets-clear-btn my-tickets-desktop-clear">Clear Filters</a>
+                    <div class="my-tickets-mobile-filter-summary">
+                        <span><?= ticket_normalize_company($ticketCompanyFilter) === '@leadsagri.com' ? '4' : '3'; ?> Active Filters</span>
+                        <a href="my_tickets.php">Clear all</a>
+                    </div>
                 </form>
             </div>
 

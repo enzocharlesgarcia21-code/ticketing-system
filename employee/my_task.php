@@ -1706,28 +1706,29 @@ $showing_to = min($offset + $limit, (int) $total_records);
         }
 
         body.employee-my-task-page #tasksPagination .pagination-ellipsis {
-            min-width: 18px;
-            height: 40px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            color: #64748b;
-            font-size: 16px;
-            font-weight: 800;
-            letter-spacing: 0.08em;
+            color: #94a3b8;
+            font-weight: 700;
+            padding: 0 4px;
+            user-select: none;
         }
 
         @media (max-width: 767px) {
+            body.employee-my-task-page #tasksPagination {
+                margin-top: 16px;
+                padding-top: 0;
+            }
+
             body.employee-my-task-page #tasksPagination .pagination-glass {
                 display: grid;
                 grid-template-columns: auto minmax(0, 1fr) auto;
                 align-items: center;
-                max-width: 100%;
-                overflow: visible;
-                justify-content: stretch;
                 gap: 10px;
+                min-height: 0;
+                margin: 0;
                 padding: 14px 0 4px;
-                margin-top: 16px;
             }
 
             body.employee-my-task-page #tasksPagination .pagination-summary {
@@ -1741,10 +1742,15 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
             body.employee-my-task-page #tasksPagination .page-numbers {
                 min-width: 0;
-                overflow: visible;
-                flex-wrap: wrap;
-                justify-content: center;
+                overflow-x: auto;
+                flex-wrap: nowrap;
+                justify-content: flex-start;
                 padding: 2px 2px 6px;
+                scrollbar-width: none;
+            }
+
+            body.employee-my-task-page #tasksPagination .page-numbers::-webkit-scrollbar {
+                display: none;
             }
 
             body.employee-my-task-page #tasksPagination .page-btn {

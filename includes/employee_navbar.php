@@ -100,15 +100,9 @@ if ($isLapcSalesEmployee && $employeeViewMode === 'manager') {
 }
 
 $currentEmployeePage = basename($_SERVER['PHP_SELF'] ?? '');
-$sharedMobileSidebarPages = [
-    'my_task.php',
-    'my_tickets.php',
-    'feedback.php',
-    'knowledge_base.php',
-    'analytics.php',
-    'sales_analytics.php',
-];
-$showSharedMobileSidebar = in_array($currentEmployeePage, $sharedMobileSidebarPages, true);
+// The dashboard currently renders this same sidebar beside the shared navbar.
+// Every other employee page gets it directly from this include.
+$showSharedMobileSidebar = $currentEmployeePage !== 'dashboard.php';
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style id="employee-navbar-critical-logo-styles">
@@ -314,23 +308,7 @@ $showSharedMobileSidebar = in_array($currentEmployeePage, $sharedMobileSidebarPa
 document.body && document.body.classList.add('employee-shared-mobile-sidebar-page');
 </script>
 <div id="mobileSidebar" class="mobile-sidebar" aria-hidden="true">
-    <div class="mobile-sidebar-header">
-        <img src="../assets/img/UPDATEDlogo.png" alt="Logo" width="36" height="36">
-        <span>Leads Agri</span>
-    </div>
-    <?php foreach ($employeeNavItems as $navItem): ?>
-        <?php
-            $permissionKey = (string) ($navItem['key'] ?? '');
-            $isVisible = !array_key_exists($permissionKey, $tmUserPermissions) || (int) $tmUserPermissions[$permissionKey] === 1;
-            if (!$isVisible) {
-                continue;
-            }
-        ?>
-        <a href="<?= htmlspecialchars((string) $navItem['page'], ENT_QUOTES, 'UTF-8'); ?>" class="<?= isActive((string) $navItem['page']); ?>">
-            <?= htmlspecialchars((string) $navItem['label'], ENT_QUOTES, 'UTF-8'); ?>
-        </a>
-    <?php endforeach; ?>
-    <div class="mobile-sidebar-footer">
+    <div class="mobile-sidebar-footer mobile-sidebar-header-actions" aria-label="Notifications and account">
         <a href="notifications.php" class="mobile-sidebar-icon-link" aria-label="Notifications">
             <i class="fas fa-bell"></i>
             <span id="mobileSidebarNotifBadge" class="mobile-sidebar-badge"></span>
@@ -346,6 +324,18 @@ document.body && document.body.classList.add('employee-shared-mobile-sidebar-pag
             </div>
         </div>
     </div>
+    <?php foreach ($employeeNavItems as $navItem): ?>
+        <?php
+            $permissionKey = (string) ($navItem['key'] ?? '');
+            $isVisible = !array_key_exists($permissionKey, $tmUserPermissions) || (int) $tmUserPermissions[$permissionKey] === 1;
+            if (!$isVisible) {
+                continue;
+            }
+        ?>
+        <a href="<?= htmlspecialchars((string) $navItem['page'], ENT_QUOTES, 'UTF-8'); ?>" class="<?= isActive((string) $navItem['page']); ?>">
+            <?= htmlspecialchars((string) $navItem['label'], ENT_QUOTES, 'UTF-8'); ?>
+        </a>
+    <?php endforeach; ?>
 </div>
 
 <div id="mobileSidebarOverlay" class="mobile-sidebar-overlay" aria-hidden="true"></div>
@@ -1592,12 +1582,13 @@ body.employee-sales-manager-page .user-dropdown {
     }
 
     body.employee-shared-mobile-sidebar-page .mobile-sidebar-footer {
-        margin-top: auto;
-        padding-top: 14px;
-        border-top: 1px solid rgba(255, 255, 255, 0.18);
+        margin: 0 0 8px;
+        padding: 0 0 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.18);
         display: flex;
         align-items: center;
         gap: 12px;
+        flex: 0 0 auto;
     }
 
     body.employee-shared-mobile-sidebar-page .mobile-sidebar-icon-link,
@@ -1656,7 +1647,7 @@ body.employee-sales-manager-page .user-dropdown {
     body.employee-shared-mobile-sidebar-page .mobile-sidebar-user-menu {
         position: absolute;
         right: 0;
-        bottom: calc(100% + 10px);
+        top: calc(100% + 10px);
         min-width: 170px;
         background: #ffffff;
         border-radius: 12px;

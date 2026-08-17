@@ -2287,15 +2287,62 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             min-width: 0;
         }
 
-        @media (max-width: 640px) {
+        body.conference-booking-public-page .scheduler-swipe-guide {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            body.conference-booking-public-page .scheduler-swipe-guide {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                margin: 0 0 10px;
+                padding: 9px 12px;
+                border: 1px solid #d9e6db;
+                border-radius: 12px;
+                background: #f6fbf7;
+                color: #476653;
+                font-size: 12px;
+                font-weight: 600;
+                line-height: 1.35;
+                text-align: center;
+            }
+
+            body.conference-booking-public-page .scheduler-swipe-guide i {
+                color: var(--booking-green);
+                font-size: 14px;
+                flex: 0 0 auto;
+            }
+
             body.conference-booking-public-page .scheduler-board-frame {
-                grid-template-columns: 38px minmax(0, 1fr) 38px;
-                gap: 6px;
+                display: block;
+                width: 100%;
             }
 
             body.conference-booking-public-page .scheduler-scroll-button {
-                width: 38px;
-                height: 38px;
+                display: none !important;
+            }
+
+            body.conference-booking-public-page .scheduler-board-frame .scheduler-board-wrap {
+                width: 100%;
+                grid-column: auto;
+                grid-row: auto;
+                overflow-x: auto;
+                overflow-y: hidden;
+                touch-action: pan-x pan-y;
+                overscroll-behavior-x: contain;
+                overscroll-behavior-y: auto;
+            }
+        }
+
+        @media (max-width: 640px) {
+            body.conference-booking-public-page .scheduler-board-frame {
+                display: block;
+            }
+
+            body.conference-booking-public-page .scheduler-scroll-button {
+                display: none !important;
             }
         }
 
@@ -4184,15 +4231,23 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
 
             body.conference-booking-public-page .legend-items {
                 display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 8px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px 12px;
+                width: 100%;
             }
 
             body.conference-booking-public-page .legend-item {
+                display: grid;
+                grid-template-columns: 16px minmax(0, 1fr);
+                align-items: center;
                 gap: 6px;
+                width: 100%;
+                min-height: 24px;
                 font-size: 12px;
                 font-weight: 700;
                 min-width: 0;
+                white-space: normal;
+                overflow-wrap: anywhere;
             }
 
             body.conference-booking-public-page .legend-dot {
@@ -4254,11 +4309,20 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
             }
 
             body.conference-booking-public-page .availability-filter .form-control {
-                height: 44px;
-                min-height: 44px;
+                height: 52px;
+                min-height: 52px;
                 border-radius: 14px;
                 font-size: 14px;
                 padding-left: 14px;
+            }
+
+            body.conference-booking-public-page .availability-filter .availability-select-trigger {
+                width: 100%;
+                height: 52px;
+                min-height: 52px;
+                border-radius: 14px;
+                padding: 0 40px 0 14px;
+                font-size: 14px;
             }
 
             body.conference-booking-public-page .panel-header .btn-submit {
@@ -4812,6 +4876,10 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                             <?php endif; ?>
 
                             <?php if (count($schedulerRooms) > 0 && $schedulerIntervalCount > 0): ?>
+                                <div class="scheduler-swipe-guide" role="note">
+                                    <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+                                    <span>Swipe left or right on the schedule to see other schedules.</span>
+                                </div>
                                 <div class="scheduler-board-frame">
                                     <button type="button" class="scheduler-scroll-button scroll-left is-hidden" id="schedulerScrollLeft" aria-label="Scroll scheduler left">
                                         <i class="fas fa-chevron-left"></i>
@@ -5498,7 +5566,11 @@ for ($minute = 0; $minute <= 55; $minute += 5) {
                 window.setTimeout(updateSchedulerScrollButtons, 0);
 
                 schedulerBoardWrap.addEventListener('pointerdown', function (event) {
-                    if (event.button !== 0 || event.target.closest('button, a, input, select, textarea, label')) {
+                    if (
+                        event.pointerType === 'touch'
+                        || event.button !== 0
+                        || event.target.closest('button, a, input, select, textarea, label')
+                    ) {
                         return;
                     }
 
