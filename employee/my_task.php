@@ -621,6 +621,23 @@ $showing_to = min($offset + $limit, (int) $total_records);
             margin: 0;
         }
 
+        /* Keep the assigned-ticket columns fixed while filter results change. */
+        @media (min-width: 768px) {
+            body.employee-my-task-page #tasksTable {
+                table-layout: fixed;
+            }
+
+            body.employee-my-task-page #tasksTable :is(th, td):nth-child(1) { width: 8%; }
+            body.employee-my-task-page #tasksTable :is(th, td):nth-child(2) { width: 20%; }
+            body.employee-my-task-page #tasksTable :is(th, td):nth-child(3) { width: 9%; }
+            body.employee-my-task-page #tasksTable :is(th, td):nth-child(4) { width: 20%; }
+            body.employee-my-task-page #tasksTable :is(th, td):nth-child(5) { width: 7%; }
+            body.employee-my-task-page #tasksTable :is(th, td):nth-child(6) { width: 12%; }
+            body.employee-my-task-page #tasksTable :is(th, td):nth-child(7) { width: 8%; }
+            body.employee-my-task-page #tasksTable :is(th, td):nth-child(8) { width: 13%; }
+            body.employee-my-task-page #tasksTable :is(th, td):nth-child(9) { width: 3%; }
+        }
+
         body.employee-my-task-page .table-responsive .admin-table.is-empty th:last-child {
             display: none;
         }

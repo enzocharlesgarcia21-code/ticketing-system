@@ -2475,6 +2475,11 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         body.employee-feedback-page .feedback-hero h1 {
             color: #145a24 !important;
         }
+        body.employee-feedback-page .feedback-hero::before,
+        body.employee-feedback-page .feedback-hero::after {
+            content: none !important;
+            background: none !important;
+        }
 
         @media (max-width: 768px) {
             body.employee-feedback-page .feedback-toolbar {
@@ -2513,7 +2518,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
 
         body.employee-feedback-page .feedback-table th {
             background: #fbfcfd !important;
-            border-bottom: 2px solid #1B5E20 !important;
+            border-bottom: 1px solid #1B5E20 !important;
             padding: 14px 16px !important;
             color: #0b6b27 !important;
             font-size: 12px !important;
@@ -2532,7 +2537,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
 
         body.employee-feedback-page .feedback-table td {
             padding: 15px 16px !important;
-            border-bottom: 2px solid #e3eadf !important;
+            border-bottom: 1px solid #edf2f7 !important;
             font-size: 13px !important;
         }
 
@@ -3048,17 +3053,9 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
         <div class="content-wrapper">
             <div class="feedback-page-shell">
                 <section class="feedback-hero">
-                    <div class="feedback-hero-icon" aria-hidden="true">
-                        <i class="fas fa-comment-dots"></i>
-                    </div>
                     <div>
                         <h1>My Support Feedback</h1>
                         <p>View feedback and advice from our team on the tickets you've submitted.</p>
-                    </div>
-                    <div class="feedback-hero-art" aria-hidden="true">
-                        <span class="feedback-bubble-main"></span>
-                        <span class="feedback-bubble-small"></span>
-                        <span class="feedback-rating-card-art"></span>
                     </div>
                 </section>
 

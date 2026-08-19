@@ -972,12 +972,6 @@ function dashboard_urgency_badge_html(string $priority): string
             font-size: 15px;
         }
 
-        body.employee-dashboard-page .company-text.hero-meta-pill {
-            border-color: #d3e8da;
-            background: linear-gradient(135deg, #f7fcf8, #eaf6ed);
-            color: #236b42;
-        }
-
         body.employee-dashboard-page .hero-subtitle {
             margin: 0;
             color: #64748b;
@@ -1310,6 +1304,23 @@ function dashboard_urgency_badge_html(string $priority): string
             width: 100%;
             border-collapse: separate;
             border-spacing: 0;
+        }
+
+        /* Both dashboard ticket views use the same column map, so their table
+           columns remain aligned when the card filter changes. */
+        @media (min-width: 769px) {
+            body.employee-dashboard-page .dashboard-ticket-table {
+                table-layout: fixed;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(1) { width: 8%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(2) { width: 20%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(3) { width: 25%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(4) { width: 10%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(6) { width: 15%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(7) { width: 8%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(8) { width: 14%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(9) { width: 0; }
         }
 
         body.employee-dashboard-page .dashboard-ticket-table th {
@@ -4915,6 +4926,35 @@ function dashboard_urgency_badge_html(string $priority): string
         var ticketSets = document.querySelectorAll('[data-ticket-set]');
         if (!filter || !filterMenu || !filterText || !filterIcon || !grids.length || !options.length) return;
 
+        // The two card sets can have different natural heights. Reserve the taller
+        // height so the ticket table remains in the same position when switching.
+        function reserveCardsPanelHeight() {
+            var cardsPanel = document.querySelector('.cards-panel');
+            if (!cardsPanel) return;
+            if (window.innerWidth < 769) {
+                cardsPanel.style.minHeight = '';
+                return;
+            }
+
+            var activeStates = Array.prototype.map.call(grids, function (grid) {
+                return grid.hidden;
+            });
+            var tallestHeight = 0;
+
+            cardsPanel.style.minHeight = '';
+            grids.forEach(function (candidate) {
+                grids.forEach(function (grid) {
+                    grid.hidden = grid !== candidate;
+                });
+                tallestHeight = Math.max(tallestHeight, cardsPanel.offsetHeight);
+            });
+
+            grids.forEach(function (grid, index) {
+                grid.hidden = activeStates[index];
+            });
+            cardsPanel.style.minHeight = Math.ceil(tallestHeight) + 'px';
+        }
+
         function setActiveCardSet(value, label, iconClass) {
             grids.forEach(function (grid) {
                 grid.hidden = grid.getAttribute('data-card-set') !== value;
@@ -4933,6 +4973,7 @@ function dashboard_urgency_badge_html(string $priority): string
             filterText.textContent = label;
             filterIcon.className = 'fas ' + iconClass + ' card-filter-trigger-icon';
             filter.setAttribute('data-card-filter-value', value);
+            reserveCardsPanelHeight();
         }
 
         function closeMenu() {
@@ -4956,6 +4997,12 @@ function dashboard_urgency_badge_html(string $priority): string
                 closeMenu();
             });
         });
+
+        reserveCardsPanelHeight();
+        window.addEventListener('load', function () {
+            window.requestAnimationFrame(reserveCardsPanelHeight);
+        }, { once: true });
+        window.addEventListener('resize', reserveCardsPanelHeight);
 
         document.addEventListener('click', function (event) {
             if (!filterMenu.hidden && !event.target.closest('.card-filter-dropdown')) {

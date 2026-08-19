@@ -2157,7 +2157,7 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page #areaCodeWrapper .custom-select-menu,
         body.employee-request-ticket-page #marketingDepartmentWrapper .custom-select-menu,
         body.employee-request-ticket-page #requestedMaterialsGroup .custom-select-menu,
-        body.employee-request-ticket-page #cropWrapper .custom-select-menu,
+        body.employee-request-ticket-page #cropGroup .custom-select-menu,
         body.employee-request-ticket-page #concernTypeWrapper .custom-select-menu,
         body.employee-request-ticket-page #urgencyWrapper .custom-select-menu {
             position: absolute;
@@ -3454,6 +3454,28 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page .marketing-request-card label {
             display: block;
             margin-bottom: 10px;
+        }
+        /* Supply Chain uses the same two-column form layout without a card around
+           every input, keeping the request form less visually busy. */
+        body.employee-request-ticket-page #supplyChainDetailsFields > .supply-chain-field {
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        body.employee-request-ticket-page #supplyChainDetailsFields > .supply-chain-field .form-group {
+            margin: 0;
+        }
+        body.employee-request-ticket-page #supplyChainDetailsFields > .supply-chain-field label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        body.employee-request-ticket-page #supplyChainAttachmentHost {
+            margin-top: 14px;
+        }
+        body.employee-request-ticket-page #supplyChainAttachmentHost #attachmentContainer {
+            margin: 0;
         }
         body.employee-request-ticket-page .marketing-request-card-title {
             display: block;
@@ -5730,6 +5752,18 @@ if (count($emailCreationEntries) === 0) {
             z-index: 1 !important;
             background: transparent !important;
         }
+        /* Use only the shared image background; do not leave an old overlay or page seam. */
+        body.employee-request-ticket-page {
+            background-image: url('../assets/img/dashboard_bg.jpg') !important;
+            background-repeat: no-repeat !important;
+            background-size: cover !important;
+            background-position: center -28px !important;
+            background-attachment: fixed !important;
+        }
+        body.employee-request-ticket-page::before,
+        body.employee-request-ticket-page::after {
+            content: none !important;
+        }
     </style>
 </head>
 <body class="employee-request-ticket-page">
@@ -6009,7 +6043,7 @@ if (count($emailCreationEntries) === 0) {
                         <h3 class="marketing-request-head">Supply Chain Request</h3>
                         <div class="marketing-request-list">
                             <div class="marketing-request-inline-row" id="supplyChainDetailsFields"></div>
-                            <small class="marketing-request-help">For supporting photos or documents, use the Attachment field below.</small>
+                            <div id="supplyChainAttachmentHost"></div>
                         </div>
                     </section>
 
@@ -6978,6 +7012,7 @@ if (count($emailCreationEntries) === 0) {
         const marketingSubcategoryMenu = document.getElementById('marketingSubcategoryMenu');
         const supplyChainDetailsRow = document.getElementById('supplyChainDetailsRow');
         const supplyChainDetailsFields = document.getElementById('supplyChainDetailsFields');
+        const supplyChainAttachmentHost = document.getElementById('supplyChainAttachmentHost');
         const kamiBannerContainer = document.getElementById('kamiBannerContainer');
         const concernTypeContainer = document.getElementById('concernTypeContainer');
         const concernTypeSelect = document.getElementById('hr_concern_type');
@@ -7722,38 +7757,31 @@ if (count($emailCreationEntries) === 0) {
             supplyChainDetailsFields.innerHTML = '';
             if (!shouldShow) return;
 
-            (lapcSupplyChainDetailFields[category] || []).forEach(function(label) {
+            (lapcSupplyChainDetailFields[category] || []).forEach(function(label, index) {
+                if (/^(Supporting Photo|Supporting Documents)$/i.test(label)) return;
                 const group = document.createElement('div');
-                group.className = 'marketing-request-card';
+                group.className = 'supply-chain-field';
                 const formGroup = document.createElement('div');
                 formGroup.className = 'form-group';
                 const fieldLabel = document.createElement('label');
                 fieldLabel.textContent = label;
-                const isSupportingField = /^(Supporting Photo|Supporting Documents)$/i.test(label);
-                if (isSupportingField) {
-                    const note = document.createElement('div');
-                    note.className = 'form-control';
-                    note.textContent = 'Upload using Attachment below';
-                    formGroup.append(fieldLabel, note);
-                } else {
-                    const isLongText = /Purpose|Special Requirements|Details\/Photos|Reason|Issue\/Concern|Specific Inquiry/i.test(label);
-                    if (isLongText) group.classList.add('supply-chain-full-row');
-                    const field = document.createElement(isLongText ? 'textarea' : 'input');
-                    field.className = 'form-control';
-                    field.name = 'supply_chain_details[' + label + ']';
-                    field.required = true;
-                    field.value = String(savedSupplyChainDetails[label] || '');
-                    if (!isLongText && /Date\/Time/i.test(label)) field.type = 'datetime-local';
-                    else if (!isLongText && /Date/i.test(label)) field.type = 'date';
-                    else if (!isLongText) field.type = 'text';
-                    if (isLongText) field.rows = 3;
-                    const requiredMark = document.createElement('span');
-                    requiredMark.className = 'required-asterisk';
-                    requiredMark.textContent = '*';
-                    fieldLabel.appendChild(document.createTextNode(' '));
-                    fieldLabel.appendChild(requiredMark);
-                    formGroup.append(fieldLabel, field);
-                }
+                const isLongText = /Purpose|Special Requirements|Details\/Photos|Reason|Issue\/Concern|Specific Inquiry/i.test(label);
+                if (isLongText) group.classList.add('supply-chain-full-row');
+                const field = document.createElement(isLongText ? 'textarea' : 'input');
+                field.className = 'form-control';
+                field.name = 'supply_chain_details[' + label + ']';
+                field.required = true;
+                field.value = String(savedSupplyChainDetails[label] || '');
+                if (!isLongText && /Date\/Time/i.test(label)) field.type = 'datetime-local';
+                else if (!isLongText && /Date/i.test(label)) field.type = 'date';
+                else if (!isLongText) field.type = 'text';
+                if (isLongText) field.rows = 3;
+                const requiredMark = document.createElement('span');
+                requiredMark.className = 'required-asterisk';
+                requiredMark.textContent = '*';
+                fieldLabel.appendChild(document.createTextNode(' '));
+                fieldLabel.appendChild(requiredMark);
+                formGroup.append(fieldLabel, field);
                 group.appendChild(formGroup);
                 supplyChainDetailsFields.appendChild(group);
             });
@@ -7761,22 +7789,33 @@ if (count($emailCreationEntries) === 0) {
 
         function toggleSupplyChainOptionalSections(isSupplyChainRequest) {
             if (isSupplyChainRequest) {
+                const supportAttachmentLabel = (lapcSupplyChainDetailFields[String(categorySelect.value || '')] || []).find(function(label) {
+                    return /^(Supporting Photo|Supporting Documents)$/i.test(label);
+                });
+                const showStandardAttachment = String(categorySelect.value || '') === 'Delivery Concern / Exception';
+                const shouldShowAttachment = !!supportAttachmentLabel || showStandardAttachment;
                 if (descriptionContainer) {
                     descriptionContainer.style.display = 'none';
                     descriptionContainer.dataset.supplyChainHidden = 'true';
                 }
                 if (attachmentContainer) {
-                    attachmentContainer.style.display = 'none';
+                    if (shouldShowAttachment && supplyChainAttachmentHost) {
+                        moveAttachmentContainer(supplyChainAttachmentHost);
+                    }
+                    attachmentContainer.style.display = shouldShowAttachment ? '' : 'none';
                     attachmentContainer.dataset.supplyChainHidden = 'true';
                 }
+                if (attachmentLabelText) attachmentLabelText.textContent = supportAttachmentLabel || 'Attachment';
                 if (descriptionField) descriptionField.removeAttribute('required');
             } else if (descriptionContainer && descriptionContainer.dataset.supplyChainHidden === 'true') {
                 descriptionContainer.style.display = '';
                 delete descriptionContainer.dataset.supplyChainHidden;
                 if (attachmentContainer) {
+                    if (attachmentOriginalHost) moveAttachmentContainer(attachmentOriginalHost);
                     attachmentContainer.style.display = '';
                     delete attachmentContainer.dataset.supplyChainHidden;
                 }
+                if (attachmentLabelText) attachmentLabelText.textContent = 'Attachment';
                 if (descriptionField) descriptionField.setAttribute('required', 'required');
             }
         }

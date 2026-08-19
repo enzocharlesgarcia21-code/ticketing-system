@@ -2541,6 +2541,12 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         body.sales-request-ticket-page .concern-type-dropdown-trigger.is-placeholder {
             color: #334155;
         }
+        /* Keep Request Type neutral after a selection; it is not a validation state. */
+        body.sales-request-ticket-page .marketing-subcategory-dropdown-trigger,
+        body.sales-request-ticket-page .marketing-subcategory-dropdown-trigger:focus {
+            border-color: #d7e0dc;
+            box-shadow: none;
+        }
         body.sales-request-ticket-page .admin-legal-request-for-dropdown-trigger:disabled,
         body.sales-request-ticket-page .category-dropdown-trigger:disabled,
         body.sales-request-ticket-page .marketing-subcategory-dropdown-trigger:disabled,
@@ -3507,6 +3513,28 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         body.sales-request-ticket-page .marketing-request-card label {
             display: block;
             margin-bottom: 10px;
+        }
+        /* Supply Chain uses the same two-column form layout without a card around
+           every input, keeping the request form less visually busy. */
+        body.sales-request-ticket-page #supplyChainDetailsFields > .supply-chain-field {
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        body.sales-request-ticket-page #supplyChainDetailsFields > .supply-chain-field .form-group {
+            margin: 0;
+        }
+        body.sales-request-ticket-page #supplyChainDetailsFields > .supply-chain-field label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        body.sales-request-ticket-page #supplyChainAttachmentHost {
+            margin-top: 14px;
+        }
+        body.sales-request-ticket-page #supplyChainAttachmentHost #attachmentContainer {
+            margin: 0;
         }
         body.sales-request-ticket-page .marketing-request-card-title {
             display: block;
@@ -6294,7 +6322,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <h3 class="marketing-request-head">Supply Chain Request</h3>
                 <div class="marketing-request-list">
                     <div class="marketing-request-inline-row" id="supplyChainDetailsFields"></div>
-                    <small class="marketing-request-help">For supporting photos or documents, use the Attachment field below.</small>
+                    <div id="supplyChainAttachmentHost"></div>
                 </div>
             </section>
 
@@ -7231,6 +7259,7 @@ var marketingSubcategoryTrigger = document.getElementById('marketingSubcategoryD
 var marketingSubcategoryMenu = document.getElementById('marketingSubcategoryDropdownMenu');
 var supplyChainDetailsRow = document.getElementById('supplyChainDetailsRow');
 var supplyChainDetailsFields = document.getElementById('supplyChainDetailsFields');
+var supplyChainAttachmentHost = document.getElementById('supplyChainAttachmentHost');
 var lapcDepartments = <?= json_encode(array_values($lapcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var mhcDepartments = <?= json_encode(array_values($mhcDepartments), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 var emailCreationDepartmentOptionsBySubsidiary = {
@@ -8377,38 +8406,31 @@ function toggleSupplyChainDetails() {
     supplyChainDetailsFields.innerHTML = '';
     if (!shouldShow) return;
 
-    (lapcSupplyChainDetailFields[category] || []).forEach(function(label) {
+    (lapcSupplyChainDetailFields[category] || []).forEach(function(label, index) {
+        if (/^(Supporting Photo|Supporting Documents)$/i.test(label)) return;
         var group = document.createElement('div');
-        group.className = 'marketing-request-card';
+        group.className = 'supply-chain-field';
         var formGroup = document.createElement('div');
         formGroup.className = 'form-group';
         var fieldLabel = document.createElement('label');
         fieldLabel.textContent = label;
-        var isSupportingField = /^(Supporting Photo|Supporting Documents)$/i.test(label);
-        if (isSupportingField) {
-            var note = document.createElement('div');
-            note.className = 'form-control';
-            note.textContent = 'Upload using Attachment below';
-            formGroup.append(fieldLabel, note);
-        } else {
-            var isLongText = /Purpose|Special Requirements|Details\/Photos|Reason|Issue\/Concern|Specific Inquiry/i.test(label);
-            if (isLongText) group.classList.add('supply-chain-full-row');
-            var field = document.createElement(isLongText ? 'textarea' : 'input');
-            field.className = 'form-control';
-            field.name = 'supply_chain_details[' + label + ']';
-            field.required = true;
-            field.value = String(savedSupplyChainDetails[label] || '');
-            if (!isLongText && /Date\/Time/i.test(label)) field.type = 'datetime-local';
-            else if (!isLongText && /Date/i.test(label)) field.type = 'date';
-            else if (!isLongText) field.type = 'text';
-            if (isLongText) field.rows = 3;
-            var requiredMark = document.createElement('span');
-            requiredMark.className = 'required-asterisk';
-            requiredMark.textContent = '*';
-            fieldLabel.appendChild(document.createTextNode(' '));
-            fieldLabel.appendChild(requiredMark);
-            formGroup.append(fieldLabel, field);
-        }
+        var isLongText = /Purpose|Special Requirements|Details\/Photos|Reason|Issue\/Concern|Specific Inquiry/i.test(label);
+        if (isLongText) group.classList.add('supply-chain-full-row');
+        var field = document.createElement(isLongText ? 'textarea' : 'input');
+        field.className = 'form-control';
+        field.name = 'supply_chain_details[' + label + ']';
+        field.required = true;
+        field.value = String(savedSupplyChainDetails[label] || '');
+        if (!isLongText && /Date\/Time/i.test(label)) field.type = 'datetime-local';
+        else if (!isLongText && /Date/i.test(label)) field.type = 'date';
+        else if (!isLongText) field.type = 'text';
+        if (isLongText) field.rows = 3;
+        var requiredMark = document.createElement('span');
+        requiredMark.className = 'required-asterisk';
+        requiredMark.textContent = '*';
+        fieldLabel.appendChild(document.createTextNode(' '));
+        fieldLabel.appendChild(requiredMark);
+        formGroup.append(fieldLabel, field);
         group.appendChild(formGroup);
         supplyChainDetailsFields.appendChild(group);
     });
@@ -8416,22 +8438,33 @@ function toggleSupplyChainDetails() {
 
 function toggleSupplyChainOptionalSections(isSupplyChainRequest) {
     if (isSupplyChainRequest) {
+        var supportAttachmentLabel = (lapcSupplyChainDetailFields[String(categorySelect.value || '')] || []).find(function(label) {
+            return /^(Supporting Photo|Supporting Documents)$/i.test(label);
+        });
+        var showStandardAttachment = String(categorySelect.value || '') === 'Delivery Concern / Exception';
+        var shouldShowAttachment = !!supportAttachmentLabel || showStandardAttachment;
         if (descriptionContainer) {
             descriptionContainer.style.display = 'none';
             descriptionContainer.dataset.supplyChainHidden = 'true';
         }
         if (attachmentContainer) {
-            attachmentContainer.style.display = 'none';
+            if (shouldShowAttachment && supplyChainAttachmentHost) {
+                moveAttachmentContainer(supplyChainAttachmentHost);
+            }
+            attachmentContainer.style.display = shouldShowAttachment ? '' : 'none';
             attachmentContainer.dataset.supplyChainHidden = 'true';
         }
+        if (attachmentLabelText) attachmentLabelText.textContent = supportAttachmentLabel || 'Attachment';
         if (descriptionFieldEl) descriptionFieldEl.removeAttribute('required');
     } else if (descriptionContainer && descriptionContainer.dataset.supplyChainHidden === 'true') {
         descriptionContainer.style.display = '';
         delete descriptionContainer.dataset.supplyChainHidden;
         if (attachmentContainer) {
+            if (attachmentOriginalHost) moveAttachmentContainer(attachmentOriginalHost);
             attachmentContainer.style.display = '';
             delete attachmentContainer.dataset.supplyChainHidden;
         }
+        if (attachmentLabelText) attachmentLabelText.textContent = 'Attachment';
         if (descriptionFieldEl) descriptionFieldEl.setAttribute('required', 'required');
     }
 }

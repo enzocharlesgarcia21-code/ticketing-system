@@ -22,6 +22,16 @@ body {
     min-height: 100vh;
 }
 
+html {
+    min-height: 100%;
+    background-color: var(--bg-light);
+    background-image: url('../assets/img/dashboard_bg.jpg');
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center -28px;
+    background-attachment: fixed;
+}
+
 /* Shared page background: matches employee/dashboard.php. */
 html body,
 html body.employee-dashboard-page,
