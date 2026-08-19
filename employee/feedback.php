@@ -246,6 +246,7 @@ function render_feedback_pagination(int $page, int $totalPages, int $showingFrom
         $html .= '<a href="' . htmlspecialchars(feedback_page_url(min($totalPages, $page + 1)), ENT_QUOTES, 'UTF-8') . '" class="page-btn next' . ($page >= $totalPages ? ' disabled' : '') . '">Next &rsaquo;</a>';
     }
 
+    $html .= '<span class="feedback-mobile-page-counter" aria-label="Page ' . $page . ' of ' . $totalPages . '">' . $page . ' of ' . $totalPages . '</span>';
     $html .= '</div>';
 
     return $html;
@@ -3054,6 +3055,305 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 font-size: 7px !important;
                 line-height: 1.25 !important;
                 white-space: nowrap;
+            }
+        }
+
+        /* Phone reference layout: compact feedback table. */
+        body.employee-feedback-page .feedback-mobile-page-counter {
+            display: none;
+        }
+
+        @media (max-width: 767px) {
+            body.employee-feedback-page .feedback-swipe-guide {
+                display: none !important;
+            }
+
+            body.employee-feedback-page .feedback-section {
+                padding: 10px 7px 0 !important;
+                border: 1px solid #e5ebe7 !important;
+                border-radius: 11px !important;
+                background: #ffffff !important;
+                box-shadow: 0 7px 22px rgba(15, 23, 42, .06) !important;
+                overflow: hidden !important;
+            }
+
+            body.employee-feedback-page .feedback-section-header {
+                margin: 0 2px 9px !important;
+            }
+
+            body.employee-feedback-page .feedback-section-title {
+                font-size: 13px !important;
+                font-weight: 750 !important;
+            }
+
+            body.employee-feedback-page .feedback-table-wrap {
+                width: 100% !important;
+                overflow: hidden !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: #ffffff !important;
+                touch-action: auto;
+            }
+
+            body.employee-feedback-page .feedback-table {
+                display: table !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                table-layout: fixed !important;
+                border-collapse: collapse !important;
+                border-spacing: 0 !important;
+            }
+
+            body.employee-feedback-page .feedback-table thead {
+                display: table-header-group !important;
+            }
+
+            body.employee-feedback-page .feedback-table thead tr,
+            body.employee-feedback-page .feedback-table tbody .feedback-ticket-row {
+                display: table-row !important;
+                width: auto !important;
+                min-height: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: #ffffff !important;
+                box-shadow: none !important;
+            }
+
+            body.employee-feedback-page .feedback-table tbody {
+                display: table-row-group !important;
+                width: auto !important;
+            }
+
+            body.employee-feedback-page .feedback-table th,
+            body.employee-feedback-page .feedback-ticket-row > td {
+                display: table-cell !important;
+                position: static !important;
+                grid-area: auto !important;
+                width: auto !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                margin: 0 !important;
+                border: 0 !important;
+                border-right: 0 !important;
+                border-radius: 0 !important;
+                vertical-align: middle !important;
+                text-align: center !important;
+                white-space: normal !important;
+                overflow: hidden !important;
+                overflow-wrap: anywhere;
+            }
+
+            body.employee-feedback-page .feedback-table th {
+                position: static !important;
+                top: auto !important;
+                left: auto !important;
+                z-index: auto !important;
+                height: 36px !important;
+                padding: 5px 2px !important;
+                border-bottom: 1px solid #b9d6bf !important;
+                background: #ffffff !important;
+                color: #17642b !important;
+                font-size: 7px !important;
+                font-weight: 800 !important;
+                line-height: 1.1 !important;
+                letter-spacing: 0 !important;
+                text-transform: uppercase !important;
+                white-space: normal !important;
+                overflow-wrap: anywhere !important;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row > td {
+                height: 54px !important;
+                padding: 5px 2px !important;
+                border-bottom: 1px solid #edf1ee !important;
+                background: #ffffff !important;
+                color: #24364d !important;
+                font-size: 7px !important;
+                font-weight: 600 !important;
+                line-height: 1.2 !important;
+            }
+
+            body.employee-feedback-page .feedback-table th:nth-child(1),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(1) { width: 12% !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(2),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(2) { width: 18% !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(3),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(3) { width: 18% !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(4),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(4) { width: 15% !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(5),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(5) { width: 23% !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(6),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(6) { width: 14% !important; }
+
+            body.employee-feedback-page .feedback-ticket-row > td:first-child {
+                color: #172033 !important;
+                font-size: 7.5px !important;
+                font-weight: 800 !important;
+                font-variant-numeric: tabular-nums;
+            }
+
+            body.employee-feedback-page .feedback-category-pill {
+                display: -webkit-box !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                min-height: 0 !important;
+                max-width: 100% !important;
+                padding: 0 !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: transparent !important;
+                color: inherit !important;
+                font-size: 7px !important;
+                font-weight: 650 !important;
+                line-height: 1.2 !important;
+                white-space: normal !important;
+                overflow: hidden !important;
+                -webkit-box-orient: vertical;
+                -webkit-line-clamp: 2;
+            }
+
+            body.employee-feedback-page .feedback-category-pill i,
+            body.employee-feedback-page .feedback-avatar {
+                display: none !important;
+            }
+
+            body.employee-feedback-page .feedback-person,
+            body.employee-feedback-page .feedback-department,
+            body.employee-feedback-page .feedback-date {
+                display: block !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                padding: 0 !important;
+                border: 0 !important;
+                color: inherit !important;
+                font-size: 6.5px !important;
+                font-weight: 600 !important;
+                line-height: 1.2 !important;
+                text-align: center !important;
+                white-space: normal !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-feedback-page .feedback-rating {
+                display: block !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                padding: 0 !important;
+                border: 0 !important;
+                background: transparent !important;
+            }
+
+            body.employee-feedback-page .feedback-status-pill {
+                display: inline-flex !important;
+                min-height: 17px !important;
+                max-width: 100% !important;
+                gap: 2px !important;
+                padding: 3px 4px !important;
+                border-radius: 999px !important;
+                font-size: 6px !important;
+                line-height: 1 !important;
+                white-space: normal !important;
+            }
+
+            body.employee-feedback-page .feedback-advice-box {
+                display: -webkit-box !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                max-height: 34px !important;
+                padding: 3px !important;
+                border-radius: 5px !important;
+                font-size: 6px !important;
+                line-height: 1.2 !important;
+                overflow: hidden !important;
+                -webkit-box-orient: vertical;
+                -webkit-line-clamp: 3;
+            }
+
+            body.employee-feedback-page .feedback-advice-box i {
+                display: none !important;
+            }
+
+            body.employee-feedback-page .feedback-advice-box strong {
+                font-size: inherit !important;
+            }
+
+            body.employee-feedback-page .feedback-advice-text {
+                display: inline !important;
+                margin: 0 !important;
+                color: inherit !important;
+                font-size: inherit !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .pagination-glass {
+                display: grid !important;
+                grid-template-columns: 1fr auto 1fr !important;
+                grid-template-areas: "prev counter next";
+                align-items: center !important;
+                width: 100% !important;
+                min-height: 42px !important;
+                gap: 8px !important;
+                margin: 0 !important;
+                padding: 6px 5px !important;
+                border: 0 !important;
+                background: #ffffff !important;
+                box-shadow: none !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .pagination-summary,
+            body.employee-feedback-page .feedback-table-footer .page-numbers {
+                display: none !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .feedback-mobile-page-counter {
+                display: block;
+                grid-area: counter;
+                color: #29415e;
+                font-size: 9px;
+                font-weight: 800;
+                white-space: nowrap;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn.prev,
+            body.employee-feedback-page .feedback-table-footer .page-btn.next {
+                position: static !important;
+                display: inline-flex !important;
+                width: auto !important;
+                min-width: 0 !important;
+                height: 30px !important;
+                padding: 0 3px !important;
+                border: 0 !important;
+                background: transparent !important;
+                color: #17642b !important;
+                font-size: 9px !important;
+                font-weight: 700 !important;
+                overflow: visible !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn.prev {
+                grid-area: prev;
+                justify-self: start;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn.next {
+                grid-area: next;
+                justify-self: end;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn.prev::before,
+            body.employee-feedback-page .feedback-table-footer .page-btn.next::before {
+                display: none !important;
+                content: none !important;
             }
         }
     </style>

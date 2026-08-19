@@ -215,11 +215,13 @@ function analytics_export_fetch_rows(mysqli $conn, array $filters): array
         die('Query preparation failed: ' . $conn->error);
     }
 
-    $bind = [$types];
-    foreach ($params as $k => $v) {
-        $bind[] = &$params[$k];
+    if ($types !== '') {
+        $bind = [$types];
+        foreach ($params as $k => $v) {
+            $bind[] = &$params[$k];
+        }
+        call_user_func_array([$stmt, 'bind_param'], $bind);
     }
-    call_user_func_array([$stmt, 'bind_param'], $bind);
     $stmt->execute();
     $res = $stmt->get_result();
 

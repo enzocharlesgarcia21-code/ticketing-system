@@ -560,6 +560,10 @@ function renderArticleContent($text) {
         }
 
         @media (max-width: 768px) {
+            html body.employee-view-article-page > .tm-global-chat-fab {
+                display: none !important;
+            }
+
             .article-header, .article-content, .article-video-feature {
                 padding: 24px;
             }
@@ -596,7 +600,7 @@ function renderArticleContent($text) {
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
-<body class="<?= $is_embed ? 'embed-preview' : '' ?>">
+<body class="employee-view-article-page<?= $is_embed ? ' embed-preview' : '' ?>">
 
     <?php if (!$is_embed): ?>
         <?php if ($current_role === 'admin'): ?>

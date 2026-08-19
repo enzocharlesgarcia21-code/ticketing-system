@@ -4729,6 +4729,24 @@
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
+.image-preview-content img.is-slide-next {
+    animation: tmImagePreviewSlideNext 0.24s ease-out both;
+}
+
+.image-preview-content img.is-slide-previous {
+    animation: tmImagePreviewSlidePrevious 0.24s ease-out both;
+}
+
+@keyframes tmImagePreviewSlideNext {
+    from { opacity: 0.25; transform: translateX(38px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes tmImagePreviewSlidePrevious {
+    from { opacity: 0.25; transform: translateX(-38px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
 .preview-close {
     position: absolute;
     top: -18px;
@@ -4794,21 +4812,50 @@
 @media (max-width: 768px) {
     .preview-content,
     .image-preview-content {
-        max-width: 94vw;
+        width: min(88vw, 420px);
+        height: min(68dvh, 620px);
+        max-width: 88vw;
+        max-height: 68dvh;
+        overflow: hidden;
+        border-radius: 14px;
+        background: rgba(0, 0, 0, 0.32);
+    }
+
+    .preview-image,
+    .image-preview-content img {
+        display: block;
+        width: 100% !important;
+        height: 100% !important;
+        min-width: 100% !important;
+        min-height: 100% !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        object-fit: contain;
+        object-position: center;
+        border-radius: 14px;
     }
 
     .preview-close {
-        top: -14px;
-        right: -10px;
-        width: 36px;
-        height: 36px;
-        font-size: 16px;
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        left: auto;
+        width: 32px !important;
+        min-width: 32px !important;
+        max-width: 32px !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        max-height: 32px !important;
+        padding: 0 !important;
+        font-size: 20px;
+    }
+
+    .image-preview-modal {
+        touch-action: pan-y;
     }
 
     .preview-nav {
-        width: 42px;
-        height: 42px;
-        font-size: 16px;
+        display: none !important;
     }
 
     .preview-prev {

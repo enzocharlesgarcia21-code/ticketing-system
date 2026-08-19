@@ -1387,7 +1387,27 @@ if ($showCategoryView) {
             }
 
             body.employee-kb-category-page .mobile-kb-back {
-                display: none;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 9px;
+                min-height: 30px;
+                margin: 0 0 16px;
+                padding: 4px 18px;
+                border: 1px solid #176326;
+                border-radius: 999px;
+                background: #176326;
+                color: #ffffff;
+                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+                font-size: 12px;
+                font-weight: 800;
+                line-height: 1;
+                text-decoration: none;
+            }
+
+            body.employee-kb-category-page .mobile-kb-back i {
+                color: #f6cf4a;
+                font-size: 11px;
             }
 
             body.employee-kb-category-page .kb-header {

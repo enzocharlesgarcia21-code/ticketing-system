@@ -1712,13 +1712,13 @@ body.employee-sales-manager-page .user-dropdown {
         top: 0 !important;
         z-index: 2105 !important;
         width: 100% !important;
-        height: 76px !important;
-        min-height: 76px !important;
+        height: 84px !important;
+        min-height: 84px !important;
         display: grid !important;
         grid-template-columns: minmax(0, 1fr) auto !important;
         align-items: center !important;
         gap: 8px !important;
-        padding: 8px 14px !important;
+        padding: 10px 14px !important;
         border-bottom: 4px solid #F4C430 !important;
         background: linear-gradient(90deg, #075f28, #006a2d) !important;
         box-sizing: border-box !important;
@@ -1731,7 +1731,7 @@ body.employee-sales-manager-page .user-dropdown {
         width: 100% !important;
         min-width: 0 !important;
         display: grid !important;
-        grid-template-columns: 44px 44px minmax(0, 1fr) !important;
+        grid-template-columns: 38px 44px minmax(0, 1fr) !important;
         grid-template-areas: "menu logo brand" !important;
         align-items: center !important;
         gap: 9px !important;
@@ -1740,10 +1740,10 @@ body.employee-sales-manager-page .user-dropdown {
     html body[class] > nav.navbar .navbar-toggler {
         grid-area: menu !important;
         justify-self: start !important;
-        width: 44px !important;
-        height: 44px !important;
-        min-width: 44px !important;
-        min-height: 44px !important;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        min-height: 38px !important;
         margin: 0 !important;
         padding: 0 !important;
         border: 0 !important;
@@ -1755,10 +1755,10 @@ body.employee-sales-manager-page .user-dropdown {
 
     html body[class] > nav.navbar .navbar-toggler i,
     html body[class] > nav.navbar .navbar-toggler svg {
-        width: 22px !important;
-        height: 22px !important;
+        width: 18px !important;
+        height: 18px !important;
         color: #ffffff !important;
-        font-size: 22px !important;
+        font-size: 18px !important;
         line-height: 1 !important;
     }
 
@@ -1776,7 +1776,7 @@ body.employee-sales-manager-page .user-dropdown {
         grid-area: brand !important;
         min-width: 0 !important;
         font-family: 'Segoe UI', Arial, sans-serif !important;
-        font-size: 18px !important;
+        font-size: 16px !important;
         font-weight: 700 !important;
         line-height: 1.1 !important;
         letter-spacing: 0 !important;
@@ -1806,17 +1806,17 @@ body.employee-sales-manager-page .user-dropdown {
         display: flex !important;
         align-items: center !important;
         justify-content: flex-end !important;
-        gap: 8px !important;
+        gap: 6px !important;
         margin: 0 !important;
         padding: 0 !important;
     }
 
     html body[class] > nav.navbar .notification-bell,
     html body[class] > nav.navbar .user-btn {
-        width: 44px !important;
-        height: 44px !important;
-        min-width: 44px !important;
-        min-height: 44px !important;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        min-height: 38px !important;
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -1829,20 +1829,20 @@ body.employee-sales-manager-page .user-dropdown {
     }
 
     html body[class] > nav.navbar .user-btn {
-        width: 58px !important;
-        min-width: 58px !important;
-        gap: 7px !important;
+        width: 46px !important;
+        min-width: 46px !important;
+        gap: 4px !important;
     }
 
     html body[class] > nav.navbar .notification-bell > i,
     html body[class] > nav.navbar .user-btn > i:first-child {
         color: #ffffff !important;
-        font-size: 20px !important;
+        font-size: 17px !important;
     }
 
     html body[class] > nav.navbar .user-btn > i:first-child {
-        width: 38px !important;
-        height: 38px !important;
+        width: 30px !important;
+        height: 30px !important;
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -1858,7 +1858,7 @@ body.employee-sales-manager-page .user-dropdown {
     html body[class] > nav.navbar .user-btn > i:last-child {
         display: inline-block !important;
         color: #ffffff !important;
-        font-size: 11px !important;
+        font-size: 9px !important;
     }
 
     /* Keep the mobile notification popover compact without resizing the bell. */
@@ -1874,13 +1874,13 @@ body.employee-sales-manager-page .user-dropdown {
     /* Knowledge Base uses 100% page zoom; compensate so its header has the
        same visible dimensions and type size as the 78%-scaled employee pages. */
     html body.employee-knowledge-base-page > nav.navbar {
-        height: 59px !important;
-        min-height: 59px !important;
-        padding: 6px 11px !important;
+        height: 66px !important;
+        min-height: 66px !important;
+        padding: 8px 11px !important;
     }
 
     html body.employee-knowledge-base-page > nav.navbar .nav-left {
-        grid-template-columns: 34px 34px minmax(0, 1fr) !important;
+        grid-template-columns: 30px 34px minmax(0, 1fr) !important;
         gap: 7px !important;
     }
 
@@ -1893,23 +1893,23 @@ body.employee-sales-manager-page .user-dropdown {
     }
 
     html body.employee-knowledge-base-page > nav.navbar .brand-name {
-        font-size: 14px !important;
+        font-size: 13px !important;
     }
 
     html body.employee-knowledge-base-page > nav.navbar .navbar-toggler,
     html body.employee-knowledge-base-page > nav.navbar .notification-bell {
-        width: 34px !important;
-        height: 34px !important;
-        min-width: 34px !important;
-        min-height: 34px !important;
+        width: 30px !important;
+        height: 30px !important;
+        min-width: 30px !important;
+        min-height: 30px !important;
     }
 
     html body.employee-knowledge-base-page > nav.navbar .navbar-toggler i,
     html body.employee-knowledge-base-page > nav.navbar .navbar-toggler svg,
     html body.employee-knowledge-base-page > nav.navbar .notification-bell > i {
-        width: 16px !important;
-        height: 16px !important;
-        font-size: 16px !important;
+        width: 14px !important;
+        height: 14px !important;
+        font-size: 14px !important;
     }
 
     html body.employee-knowledge-base-page > nav.navbar .nav-right {
@@ -1917,21 +1917,21 @@ body.employee-sales-manager-page .user-dropdown {
     }
 
     html body.employee-knowledge-base-page > nav.navbar .user-btn {
-        width: 45px !important;
-        height: 34px !important;
-        min-width: 45px !important;
-        min-height: 34px !important;
-        gap: 5px !important;
+        width: 36px !important;
+        height: 30px !important;
+        min-width: 36px !important;
+        min-height: 30px !important;
+        gap: 3px !important;
     }
 
     html body.employee-knowledge-base-page > nav.navbar .user-btn > i:first-child {
-        width: 30px !important;
-        height: 30px !important;
-        font-size: 16px !important;
+        width: 24px !important;
+        height: 24px !important;
+        font-size: 12px !important;
     }
 
     html body.employee-knowledge-base-page > nav.navbar .user-btn > i:last-child {
-        font-size: 9px !important;
+        font-size: 8px !important;
     }
 
     html body.employee-knowledge-base-page > nav.navbar .notification-badge {

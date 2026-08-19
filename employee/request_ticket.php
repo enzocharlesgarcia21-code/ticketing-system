@@ -5774,6 +5774,242 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page::after {
             content: none !important;
         }
+
+        /* Compact phone layout matching the mobile request-ticket reference. */
+        @media (max-width: 768px) {
+            body.employee-request-ticket-page {
+                min-height: 100vh;
+                background: #eef1f1 !important;
+            }
+
+            body.employee-request-ticket-page .navbar {
+                min-height: 4px !important;
+                height: 4px !important;
+                padding: 0 !important;
+                border-bottom: 4px solid #f4c430 !important;
+                background: #174f25 !important;
+                box-shadow: none !important;
+                overflow: hidden;
+            }
+
+            body.employee-request-ticket-page .navbar > * {
+                display: none !important;
+            }
+
+            body.employee-request-ticket-page .dashboard-container {
+                max-width: none;
+                min-height: calc(100vh - 4px);
+                margin: 0;
+                padding: 24px 22px 58px;
+                background-color: #eef1f1 !important;
+                background-image:
+                    linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0, rgba(255, 255, 255, 0.72) 112px, #eef1f1 160px),
+                    url('../assets/img/dashboard_bg.jpg') !important;
+                background-repeat: no-repeat !important;
+                background-position: center top !important;
+                background-size: 100% 160px, cover !important;
+                box-sizing: border-box;
+            }
+
+            body.employee-request-ticket-page .content-wrapper {
+                display: block;
+            }
+
+            body.employee-request-ticket-page .request-page-header {
+                margin: 0 0 22px !important;
+            }
+
+            body.employee-request-ticket-page .request-page-header h1 {
+                margin-bottom: 7px;
+                color: #075d25;
+                font-size: 19px;
+                line-height: 1.15;
+                font-weight: 750;
+            }
+
+            body.employee-request-ticket-page .request-page-header p {
+                color: #334155;
+                font-size: 10px;
+                line-height: 1.35;
+            }
+
+            body.employee-request-ticket-page .request-ticket-layout {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                gap: 14px;
+            }
+
+            body.employee-request-ticket-page .request-guidance-sidebar {
+                display: block;
+            }
+
+            body.employee-request-ticket-page .request-routing-help,
+            body.employee-request-ticket-page .request-tips-card-main,
+            body.employee-request-ticket-page .tm-global-chat-fab {
+                display: none !important;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card {
+                order: initial;
+                border: 1px solid #dfe5e1 !important;
+                border-radius: 13px !important;
+                background: rgba(255, 255, 255, 0.96);
+                box-shadow: 0 7px 17px rgba(15, 23, 42, 0.08) !important;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card.request-mobile-info-card:not(.is-expanded) {
+                height: 70px !important;
+                min-height: 70px !important;
+                max-height: 70px !important;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading {
+                height: 68px;
+                min-height: 68px;
+                grid-template-columns: 25px minmax(0, 1fr) 12px;
+                gap: 9px;
+                padding: 9px 13px;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-icon {
+                width: 21px;
+                height: 21px;
+                border-color: #087330;
+                color: #087330;
+                font-size: 10px;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-title {
+                color: #075d25;
+                font-size: 10px;
+                white-space: normal;
+                text-overflow: clip;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-description {
+                margin-top: 5px;
+                color: #263448;
+                font-size: 9px;
+                line-height: 1.42;
+            }
+
+            body.employee-request-ticket-page .request-guidance-toggle-icon {
+                color: #075d25;
+                font-size: 10px;
+            }
+
+            body.employee-request-ticket-page .request-main-column {
+                display: block;
+            }
+
+            body.employee-request-ticket-page .request-main-column > .form-card {
+                padding: 15px 14px 13px;
+                border: 1px solid #dfe5e1;
+                border-radius: 13px;
+                background: rgba(255, 255, 255, 0.97);
+                box-shadow: 0 7px 18px rgba(15, 23, 42, 0.07);
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-section-title {
+                gap: 8px;
+                margin: 0 0 13px;
+                padding: 0 0 11px;
+                color: #075d25;
+                font-size: 8px;
+                line-height: 1.2;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-section-title::before {
+                font-size: 15px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-group {
+                margin-bottom: 12px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-group > label {
+                margin-bottom: 5px;
+                font-size: 9px;
+                line-height: 1.25;
+            }
+
+            body.employee-request-ticket-page .required-asterisk {
+                font-size: 9px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-control,
+            body.employee-request-ticket-page .request-main-column .form-group input,
+            body.employee-request-ticket-page .request-main-column .form-group select,
+            body.employee-request-ticket-page .request-main-column .form-group textarea {
+                min-height: 34px;
+                height: 34px;
+                padding: 8px 10px;
+                border: 1px solid #d5ddd8;
+                border-radius: 6px;
+                color: #263448;
+                font-size: 9px;
+            }
+
+            body.employee-request-ticket-page .select-wrapper .select-icon {
+                right: 10px;
+                font-size: 8px;
+            }
+
+            body.employee-request-ticket-page .request-main-column textarea.form-control,
+            body.employee-request-ticket-page .request-main-column #descriptionField {
+                height: 86px;
+                min-height: 86px;
+                padding: 9px 10px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .attachment-upload-shell {
+                min-height: 36px;
+                padding: 5px 7px;
+                border-radius: 7px !important;
+            }
+
+            body.employee-request-ticket-page .request-main-column .file-button {
+                min-width: 92px;
+                height: 27px;
+                min-height: 27px;
+                padding: 0 9px !important;
+                border: 0 !important;
+                border-radius: 5px !important;
+                background: #eafaf0 !important;
+                font-size: 9px !important;
+            }
+
+            body.employee-request-ticket-page .request-main-column .file-button svg {
+                width: 11px;
+                height: 11px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .attachment-file-name {
+                font-size: 9px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-text {
+                margin-top: 5px;
+                font-size: 7px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-actions {
+                margin-top: 12px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .btn-submit {
+                min-height: 37px;
+                height: 37px;
+                padding: 0 15px;
+                border-radius: 6px;
+                font-size: 11px;
+                box-shadow: 0 4px 10px rgba(7, 93, 37, 0.16);
+            }
+
+            body.employee-request-ticket-page .request-main-column .btn-submit::before {
+                font-size: 11px;
+            }
+        }
     </style>
 </head>
 <body class="employee-request-ticket-page">

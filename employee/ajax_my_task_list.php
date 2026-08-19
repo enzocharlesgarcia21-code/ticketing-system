@@ -616,6 +616,7 @@ if ($total > 0) {
         $paginationHtml .= '</div>';
         $paginationHtml .= '<a href="#" data-page="' . min($totalPages, $page + 1) . '" class="page-btn next' . ($page >= $totalPages ? ' disabled' : '') . '">Next &rsaquo;</a>';
     }
+    $paginationHtml .= '<span class="my-task-mobile-page-counter" aria-label="Page ' . $page . ' of ' . $totalPages . '">' . $page . ' of ' . $totalPages . '</span>';
     $paginationHtml .= '</div>';
 }
 

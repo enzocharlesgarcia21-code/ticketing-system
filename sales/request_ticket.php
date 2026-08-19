@@ -1999,6 +1999,12 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             flex: 0 0 auto;
             justify-content: flex-end;
         }
+        .sales-mobile-header-actions,
+        .sales-mobile-menu,
+        .sales-mobile-menu-overlay,
+        .request-guidance-chevron {
+            display: none;
+        }
         .sales-topbar {
             position: sticky;
             top: 0;
@@ -5593,9 +5599,14 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         }
 
         body.sales-request-ticket-page .request-guidance-heading {
+            width: 100%;
             padding: 18px 20px 12px;
-            border-bottom: 0;
+            border: 0;
             background: #ffffff;
+            color: inherit;
+            font-family: inherit;
+            text-align: left;
+            box-sizing: border-box;
         }
 
         body.sales-request-ticket-page .request-guidance-heading h2 {
@@ -5994,6 +6005,102 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         @media (max-width: 768px) {
             body.sales-request-ticket-page .sales-container { padding: 14px 12px 86px; }
             body.sales-request-ticket-page .sales-page-header h1 { font-size: 23px; }
+            body.sales-request-ticket-page .sales-employee-navbar {
+                position: sticky; top: 0; z-index: 2105;
+                width: 100%; height: 76px; min-height: 76px;
+                display: grid; grid-template-columns: minmax(0, 1fr) auto;
+                align-items: center; gap: 8px; padding: 8px 14px;
+                border-bottom: 4px solid #f4c430; box-sizing: border-box;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .nav-left {
+                width: 100%; min-width: 0; display: grid;
+                grid-template-columns: 44px 44px minmax(0, 1fr);
+                grid-template-areas: "menu logo brand"; align-items: center; gap: 9px;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .navbar-toggler {
+                grid-area: menu; width: 44px; height: 44px; min-width: 44px; min-height: 44px;
+                display: inline-flex; align-items: center; justify-content: center;
+                margin: 0; padding: 0; border: 0; background: transparent;
+                color: #fff; font-size: 22px;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .logo-icon {
+                grid-area: logo; width: 44px; height: 44px; min-width: 44px; max-width: 44px; padding: 5px;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .brand-name {
+                grid-area: brand; min-width: 0; overflow: hidden; color: #fff;
+                font: 700 18px/1.1 'Segoe UI', Arial, sans-serif;
+                text-overflow: ellipsis; white-space: nowrap;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .navbar-collapse {
+                width: auto; min-width: 0; display: flex; align-items: center;
+                margin: 0; padding: 0; border: 0;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .sales-nav-right { display: none; }
+            body.sales-request-ticket-page .sales-mobile-header-actions { display: flex; align-items: center; gap: 8px; }
+            body.sales-request-ticket-page .sales-mobile-icon-link,
+            body.sales-request-ticket-page .sales-mobile-user-link {
+                height: 44px; display: inline-flex; align-items: center; justify-content: center;
+                padding: 0; border: 0; background: transparent; color: #fff; text-decoration: none;
+            }
+            body.sales-request-ticket-page .sales-mobile-icon-link { position: relative; width: 44px; font-size: 20px; }
+            body.sales-request-ticket-page .sales-mobile-user-link { width: 58px; gap: 7px; }
+            body.sales-request-ticket-page .sales-mobile-user-avatar {
+                width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center;
+                border-radius: 50%; background: #fff; color: #176b35; font-size: 20px;
+            }
+            body.sales-request-ticket-page .sales-mobile-user-caret { font-size: 11px; }
+            body.sales-request-ticket-page .sales-mobile-menu {
+                position: fixed; top: 76px; bottom: 0; left: 0; z-index: 2104; width: 260px;
+                display: flex; flex-direction: column; gap: 8px; padding: 22px 18px;
+                background: #176326; box-shadow: 12px 0 28px rgba(15, 23, 42, .24);
+                box-sizing: border-box; transform: translateX(-100%); transition: transform .25s ease;
+            }
+            body.sales-request-ticket-page .sales-mobile-menu.is-open { transform: translateX(0); }
+            body.sales-request-ticket-page .sales-mobile-menu a {
+                min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 16px;
+                border-radius: 9px; color: #fff; font: 500 16px/1.2 'Segoe UI', Arial, sans-serif;
+                text-decoration: none;
+            }
+            body.sales-request-ticket-page .sales-mobile-menu a:hover { background: rgba(255, 255, 255, .12); }
+            body.sales-request-ticket-page .sales-mobile-menu-overlay {
+                position: fixed; inset: 76px 0 0; z-index: 2103; display: block;
+                background: rgba(15, 23, 42, .42); opacity: 0; visibility: hidden;
+                transition: opacity .25s ease, visibility .25s ease;
+            }
+            body.sales-request-ticket-page .sales-mobile-menu-overlay.is-open { opacity: 1; visibility: visible; }
+            body.sales-request-ticket-page .sales-container {
+                width: 100%; max-width: none; margin: 0; padding: 28px 14px 86px;
+                border-radius: 0; background: transparent; box-sizing: border-box;
+            }
+            body.sales-request-ticket-page .sales-page-header {
+                display: block; margin: 0 0 26px; padding: 0; text-align: center;
+            }
+            body.sales-request-ticket-page .sales-page-header h1 {
+                margin: 0 0 6px; color: #087b2e; font-size: 25px;
+            }
+            body.sales-request-ticket-page .sales-page-header p { color: #526173; font-size: 15px; }
+            body.sales-request-ticket-page .request-guidance-sidebar {
+                display: flex; flex-direction: column; gap: 14px;
+            }
+            body.sales-request-ticket-page .request-routing-help {
+                order: 1; padding: 15px 16px; border-color: #e7c64f; border-radius: 14px;
+                background: rgba(255, 253, 244, .96);
+            }
+            body.sales-request-ticket-page .request-guidance-card { order: 2; border-radius: 14px; }
+            body.sales-request-ticket-page .request-guidance-heading {
+                width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr) 18px;
+                align-items: center; gap: 12px; padding: 16px 18px; border: 0;
+                background: #fff; color: inherit; font-family: inherit; text-align: left;
+                cursor: pointer; box-sizing: border-box;
+            }
+            body.sales-request-ticket-page .request-guidance-heading-icon { align-self: center; }
+            body.sales-request-ticket-page .request-guidance-chevron {
+                display: inline-block; color: #147233; font-size: 15px; transition: transform .2s ease;
+            }
+            body.sales-request-ticket-page .request-guidance-card.is-open .request-guidance-chevron { transform: rotate(180deg); }
+            body.sales-request-ticket-page .request-guidance-card:not(.is-open) .request-guidance-search,
+            body.sales-request-ticket-page .request-guidance-card:not(.is-open) .request-guidance-directory { display: none; }
+            body.sales-request-ticket-page .request-guidance-card.is-open .request-guidance-search { margin-top: 8px; }
             body.sales-request-ticket-page .request-main-column > .form-card { padding: 17px 16px; }
             body.sales-request-ticket-page .request-main-column .form-section-title {
                 margin: 0 0 18px;
@@ -6043,17 +6150,61 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
                 <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
             </a>
         </div>
+        <div class="sales-mobile-header-actions" aria-label="Notifications and account">
+            <a class="sales-mobile-icon-link" href="../employee/notifications.php" aria-label="Notifications">
+                <i class="fas fa-bell" aria-hidden="true"></i>
+            </a>
+            <a class="sales-mobile-user-link" href="../employee/employee_login.php" aria-label="Employee account">
+                <span class="sales-mobile-user-avatar"><i class="fas fa-user" aria-hidden="true"></i></span>
+                <i class="fas fa-chevron-down sales-mobile-user-caret" aria-hidden="true"></i>
+            </a>
+        </div>
     </div>
 </nav>
+<div class="sales-mobile-menu" id="salesMobileMenu" aria-hidden="true">
+    <a href="../index.php"><i class="fas fa-arrow-left" aria-hidden="true"></i><span>Back</span></a>
+    <a href="knowledge_base.php"><i class="fas fa-book-open" aria-hidden="true"></i><span>Knowledge Base</span></a>
+</div>
+<div class="sales-mobile-menu-overlay" id="salesMobileMenuOverlay" aria-hidden="true"></div>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var toggler = document.getElementById('navbarToggler');
     var collapse = document.getElementById('navbarCollapse');
-    if (!toggler || !collapse) return;
-    toggler.addEventListener('click', function () {
-        var isOpen = collapse.classList.toggle('show');
-        toggler.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-    });
+    var mobileMenu = document.getElementById('salesMobileMenu');
+    var mobileOverlay = document.getElementById('salesMobileMenuOverlay');
+
+    function setMobileMenu(open) {
+        if (!mobileMenu || !mobileOverlay) return;
+        mobileMenu.classList.toggle('is-open', open);
+        mobileOverlay.classList.toggle('is-open', open);
+        mobileMenu.setAttribute('aria-hidden', open ? 'false' : 'true');
+        mobileOverlay.setAttribute('aria-hidden', open ? 'false' : 'true');
+        if (toggler) toggler.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    if (toggler && collapse) {
+        toggler.addEventListener('click', function () {
+            if (window.matchMedia('(max-width: 768px)').matches) {
+                setMobileMenu(!mobileMenu.classList.contains('is-open'));
+                return;
+            }
+            var isOpen = collapse.classList.toggle('show');
+            toggler.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+    }
+    if (mobileOverlay) {
+        mobileOverlay.addEventListener('click', function () { setMobileMenu(false); });
+    }
+
+    var guidanceCard = document.querySelector('.request-guidance-card');
+    var guidanceToggle = document.getElementById('requestGuidanceToggle');
+    if (guidanceCard && guidanceToggle) {
+        guidanceToggle.addEventListener('click', function () {
+            if (!window.matchMedia('(max-width: 768px)').matches) return;
+            var isOpen = guidanceCard.classList.toggle('is-open');
+            guidanceToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+    }
 });
 </script>
 
@@ -6073,14 +6224,15 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="request-ticket-layout">
         <aside class="request-guidance-sidebar" aria-label="Ticket routing guide">
             <section class="request-guidance-card">
-                <div class="request-guidance-heading">
+                <button type="button" class="request-guidance-heading" id="requestGuidanceToggle" aria-expanded="false" aria-controls="requestGuidanceContent">
                     <span class="request-guidance-heading-icon" aria-hidden="true"><i class="fas fa-info"></i></span>
                     <div>
                         <h2>Guidelines: Where to Submit Your Concern</h2>
                         <p>Choose a subsidiary, then use the Department field when it appears and select the matching category.</p>
                     </div>
-                </div>
-                <div class="request-guidance-search">
+                    <i class="fas fa-chevron-down request-guidance-chevron" aria-hidden="true"></i>
+                </button>
+                <div class="request-guidance-search" id="requestGuidanceContent">
                     <i class="fas fa-search" aria-hidden="true"></i>
                     <input type="search" id="requestGuidanceSearch" placeholder="Search subsidiary or department..." aria-label="Search subsidiary or department">
                 </div>

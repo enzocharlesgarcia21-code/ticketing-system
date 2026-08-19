@@ -960,6 +960,7 @@ function render_my_tickets_pagination(int $page, int $totalPages, int $showingFr
         $html .= '<a href="?page=' . min($totalPages, $page + 1) . '" data-page="' . min($totalPages, $page + 1) . '" class="page-btn next' . ($page >= $totalPages ? ' disabled' : '') . '">Next &rsaquo;</a>';
     }
 
+    $html .= '<span class="my-tickets-mobile-page-counter" aria-label="Page ' . $page . ' of ' . $totalPages . '">' . $page . ' of ' . $totalPages . '</span>';
     $html .= '</div>';
 
     return $html;
@@ -3821,6 +3822,432 @@ $successMessage = '';
             body.employee-my-tickets-page .my-tickets-filter-controls {
                 grid-template-columns: minmax(0, 1fr);
                 gap: 8px;
+            }
+        }
+
+        /* Phone reference layout: compact submitted-ticket table. */
+        body.employee-my-tickets-page .my-tickets-mobile-page-counter {
+            display: none;
+        }
+
+        @media (max-width: 767px) {
+            html body.employee-my-tickets-page {
+                background: #ffffff !important;
+                background-image: none !important;
+                background-attachment: scroll !important;
+            }
+
+            html body.employee-my-tickets-page::before,
+            html body.employee-my-tickets-page::after {
+                content: none !important;
+                display: none !important;
+            }
+
+            html body.employee-my-tickets-page .dashboard-container,
+            html body.employee-my-tickets-page .content-wrapper {
+                background: #ffffff !important;
+            }
+
+            html body.employee-my-tickets-page .dashboard-container {
+                width: 100% !important;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            body.employee-my-tickets-page .content-wrapper {
+                gap: 0 !important;
+                padding: 0 8px calc(72px + env(safe-area-inset-bottom, 0px));
+            }
+
+            body.employee-my-tickets-page .page-header {
+                width: calc(100% + 16px);
+                min-height: 78px;
+                margin: 0 -8px;
+                padding: 18px 12px 15px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                background-color: #f5faf5;
+                background-image:
+                    linear-gradient(90deg, rgba(255,255,255,.98) 0%, rgba(255,255,255,.88) 48%, rgba(243,250,242,.38) 100%),
+                    url('../assets/img/dashboard_bg.jpg');
+                background-repeat: no-repeat;
+                background-position: center 55%;
+                background-size: cover;
+                border-bottom: 1px solid #e5eee7;
+            }
+
+            body.employee-my-tickets-page .page-title {
+                margin: 0;
+                color: #145b25;
+                font-size: 22px;
+                line-height: 1.15;
+                font-weight: 800;
+            }
+
+            body.employee-my-tickets-page .page-subtitle {
+                max-width: 280px;
+                margin: 7px auto 0;
+                color: #38526d;
+                font-size: 11px;
+                line-height: 1.4;
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-card {
+                margin-bottom: 10px;
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-form,
+            body.employee-my-tickets-page .my-tickets-filter-form.has-department-filter {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) 82px;
+                gap: 9px;
+                align-items: center;
+            }
+
+            body.employee-my-tickets-page .my-tickets-search-row {
+                display: block;
+                grid-column: 1;
+                min-width: 0;
+            }
+
+            body.employee-my-tickets-page .my-tickets-search-input {
+                height: 42px;
+                padding: 0 10px 0 38px;
+                border-radius: 8px;
+                background: #fff;
+                font-size: 16px;
+                box-shadow: 0 3px 10px rgba(15, 23, 42, .04);
+            }
+
+            body.employee-my-tickets-page .my-tickets-search-icon {
+                left: 13px;
+                font-size: 14px;
+            }
+
+            body.employee-my-tickets-page .my-tickets-mobile-filter-btn {
+                display: none !important;
+            }
+
+            body.employee-my-tickets-page .my-tickets-clear-btn.my-tickets-desktop-clear {
+                display: inline-flex;
+                grid-column: 2;
+                grid-row: 1;
+                width: 82px;
+                height: 42px;
+                padding: 0 7px;
+                border: 1px solid #1b6b32;
+                border-radius: 8px;
+                background: #fff;
+                color: #145b25;
+                font-size: 10px;
+                font-weight: 700;
+                text-align: center;
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-controls {
+                display: grid;
+                grid-column: 1 / -1;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                width: 100%;
+                margin: 0;
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-form.has-department-filter .my-tickets-filter-controls {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            body.employee-my-tickets-page .my-tickets-filter-select,
+            body.employee-my-tickets-page .my-tickets-company-trigger,
+            body.employee-my-tickets-page .my-tickets-department-trigger {
+                height: 36px;
+                min-height: 36px;
+                padding: 0 27px 0 10px;
+                border-radius: 8px;
+                font-size: 11px;
+                font-weight: 650;
+                background: #fff;
+                box-shadow: 0 3px 9px rgba(15, 23, 42, .04);
+            }
+
+            body.employee-my-tickets-page .my-tickets-company-trigger,
+            body.employee-my-tickets-page .my-tickets-department-trigger {
+                padding-right: 10px;
+            }
+
+            body.employee-my-tickets-page .my-tickets-mobile-filter-summary {
+                display: none;
+            }
+
+            body.employee-my-tickets-page .table-card.my-tickets-card {
+                padding: 7px 7px 0;
+                border: 1px solid #e5ebe7;
+                border-radius: 11px;
+                background: #fff;
+                box-shadow: 0 7px 22px rgba(15, 23, 42, .06);
+                overflow: hidden;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-shell,
+            body.employee-my-tickets-page .table-responsive.my-tickets-table-responsive {
+                display: block;
+                width: 100%;
+                overflow: hidden;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive table {
+                display: table;
+                width: 100%;
+                min-width: 0;
+                table-layout: fixed;
+                border-collapse: collapse;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive colgroup {
+                display: table-column-group;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive colgroup col:nth-child(1) { width: 12% !important; }
+            body.employee-my-tickets-page .my-tickets-table-responsive colgroup col:nth-child(2) { width: 16% !important; }
+            body.employee-my-tickets-page .my-tickets-table-responsive colgroup col:nth-child(3) { width: 14% !important; }
+            body.employee-my-tickets-page .my-tickets-table-responsive colgroup col:nth-child(4) { width: 16% !important; }
+            body.employee-my-tickets-page .my-tickets-table-responsive colgroup col:nth-child(5) { width: 15% !important; }
+            body.employee-my-tickets-page .my-tickets-table-responsive colgroup col:nth-child(6) { width: 10% !important; }
+            body.employee-my-tickets-page .my-tickets-table-responsive colgroup col:nth-child(7) { width: 17% !important; }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive thead {
+                display: table-header-group;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody {
+                display: table-row-group;
+                width: auto;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive thead tr,
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row {
+                display: table-row;
+                width: auto;
+                height: auto;
+                padding: 0;
+                border: 0;
+                border-radius: 0;
+                background: #fff;
+                box-shadow: none;
+                overflow: visible;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row::after {
+                display: none;
+                content: none;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive thead th {
+                height: 35px;
+                padding: 5px 2px;
+                border: 0;
+                border-bottom: 1px solid #b9d6bf;
+                background: #fff;
+                color: #17642b;
+                font-size: 7px;
+                font-weight: 800;
+                line-height: 1.1;
+                text-align: center;
+                text-transform: uppercase;
+                white-space: normal;
+                overflow-wrap: anywhere;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td,
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(n) {
+                display: table-cell;
+                position: static;
+                width: auto !important;
+                min-width: 0;
+                height: 48px;
+                margin: 0;
+                padding: 5px 2px;
+                border: 0;
+                border-bottom: 1px solid #edf1ee;
+                border-radius: 0;
+                background: #fff !important;
+                color: #24364d !important;
+                font-size: 8px;
+                font-weight: 600;
+                line-height: 1.25;
+                text-align: center;
+                vertical-align: middle;
+                white-space: normal;
+                overflow: hidden;
+                overflow-wrap: anywhere;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(1) {
+                color: #172033 !important;
+                font-size: 8px;
+                font-weight: 800;
+                font-variant-numeric: tabular-nums;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(2) strong {
+                display: -webkit-box;
+                overflow: hidden;
+                -webkit-box-orient: vertical;
+                -webkit-line-clamp: 2;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr.ticket-row td:nth-child(4)::after {
+                display: none;
+                content: none;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr:not(.ticket-row) {
+                display: table-row;
+                width: auto;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive tbody tr:not(.ticket-row) td {
+                display: table-cell;
+                width: auto;
+                padding: 28px 8px !important;
+                border: 0;
+                background: #fff;
+                text-align: center;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive .empty-state i {
+                font-size: 28px !important;
+                margin-bottom: 8px !important;
+            }
+
+            body.employee-my-tickets-page .my-tickets-table-responsive .empty-state p {
+                margin: 0;
+                font-size: 11px;
+            }
+
+            body.employee-my-tickets-page .status-pill,
+            body.employee-my-tickets-page .my-tickets-sla-cell .badge {
+                display: inline-flex;
+                width: auto;
+                min-width: 0;
+                min-height: 16px;
+                max-width: 100%;
+                padding: 3px 4px;
+                border-radius: 999px;
+                font-size: 6.5px;
+                line-height: 1;
+                white-space: normal;
+                box-sizing: border-box;
+            }
+
+            body.employee-my-tickets-page .ticket-action-buttons {
+                display: flex;
+                width: 100%;
+                align-items: center;
+                justify-content: center;
+                gap: 3px;
+            }
+
+            body.employee-my-tickets-page .ticket-action-buttons .follow-up-btn,
+            body.employee-my-tickets-page .ticket-action-buttons .close-ticket-btn,
+            body.employee-my-tickets-page .ticket-action-buttons .reopen-ticket-btn {
+                flex: 0 1 auto !important;
+                width: 100% !important;
+                min-width: 0;
+                max-width: 58px;
+                height: 20px;
+                min-height: 20px;
+                margin: 0;
+                padding: 2px 3px;
+                border-radius: 999px;
+                font-size: 6.5px;
+                line-height: 1;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                box-shadow: none;
+            }
+
+            body.employee-my-tickets-page .ticket-action-buttons .close-ticket-form,
+            body.employee-my-tickets-page .ticket-action-buttons .reopen-ticket-form {
+                display: flex;
+                width: 100%;
+                margin: 0;
+                justify-content: center;
+            }
+
+            body.employee-my-tickets-page .follow-up-cooldown-note {
+                display: none;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination {
+                margin: 0;
+                padding: 0;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .pagination-glass {
+                display: grid;
+                grid-template-columns: 1fr auto 1fr;
+                grid-template-areas: "prev counter next";
+                align-items: center;
+                min-height: 42px;
+                gap: 8px;
+                margin: 0;
+                padding: 6px 5px;
+                border: 0;
+                background: #fff;
+                box-shadow: none;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .pagination-summary,
+            body.employee-my-tickets-page #myTicketsPagination .page-numbers {
+                display: none;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .my-tickets-mobile-page-counter {
+                display: block;
+                grid-area: counter;
+                color: #29415e;
+                font-size: 9px;
+                font-weight: 800;
+                white-space: nowrap;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.prev,
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.next {
+                position: static;
+                display: inline-flex;
+                width: auto;
+                min-width: 0;
+                height: 30px;
+                padding: 0 3px;
+                border: 0;
+                background: transparent;
+                color: #17642b;
+                font-size: 9px;
+                font-weight: 700;
+                overflow: visible;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.prev {
+                grid-area: prev;
+                justify-self: start;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.next {
+                grid-area: next;
+                justify-self: end;
+            }
+
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.prev::before,
+            body.employee-my-tickets-page #myTicketsPagination .page-btn.next::before {
+                display: none;
+                content: none;
             }
         }
     </style>

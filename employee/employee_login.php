@@ -135,7 +135,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             $stmt->close();
         }
-    } else {
+    } else { 
         $error = "Please fill in all fields.";
     }
 }
