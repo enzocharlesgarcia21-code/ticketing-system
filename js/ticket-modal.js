@@ -3398,7 +3398,7 @@ var TMTicketModal = (function () {
     var assignedDeptValue = data.assigned_department || data.assigned_group || data.department || '';
     var emailRequestTypeDisplay = getEmailRequestTypeDisplay(data);
     var emailRequestTypeInfoHtml = emailRequestTypeDisplay
-      ? ('        <div class="tm-info-label">EMAIL REQUEST TYPE</div><div class="tm-info-value">' + escapeHtml(emailRequestTypeDisplay) + '</div>')
+      ? ('        <div class="tm-info-label">Email request type</div><div class="tm-info-value">' + escapeHtml(emailRequestTypeDisplay) + '</div>')
       : '';
     var salesTicketInfoHtml = renderSalesTicketInfoHtml(data);
     var deptOptionsHtml = buildDeptOptionsHtml(assignedCompanyValue, assignedDeptValue);
@@ -3445,10 +3445,11 @@ var TMTicketModal = (function () {
       '        </div>' +
       '      </div></div>';
     var sapHeaderClass = isSapTicket(data, data && data.description ? data.description : '') ? ' tm-sap-header' : '';
-    var claimButtonHtml = showClaimButton
+    var showClaimControl = showClaimButton;
+    var claimButtonHtml = showClaimControl
       ? ('  <div class="tm-tabs-actions"><button type="button" class="tm-claim-ticket-btn" onclick="TMTicketModal.claimTicket(' + String(data.id) + ', this)"><i class="fas fa-user-check"></i><span>Claim Ticket</span></button></div>')
       : '';
-    var mobileClaimButtonHtml = showClaimButton
+    var mobileClaimButtonHtml = showClaimControl
       ? ('  <div class="tm-mobile-claim"><button type="button" class="tm-claim-ticket-btn tm-mobile-claim-btn" onclick="TMTicketModal.claimTicket(' + String(data.id) + ', this)"><i class="fas fa-user-check"></i><span>Claim Ticket</span></button></div>')
       : '';
     var reassignedBannerTone = String((data && data.reassigned_banner_tone) || 'reassigned').toLowerCase();
@@ -3461,7 +3462,7 @@ var TMTicketModal = (function () {
     var reassignedBannerIconColor = reassignedBannerIsAssigned ? '#1f7a3d' : '#7c5a00';
     var reassignedBannerHtml = isReassignedViewOnly
       ? (
-        '    <div class="tm-reassigned-banner" style="margin:8px 14px 18px;border:1px solid ' + reassignedBannerBorder + ';background:' + reassignedBannerBackground + ';border-radius:18px;padding:14px 18px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 10px 24px rgba(15,23,42,.05);">' +
+        '    <div class="tm-reassigned-banner' + (reassignedBannerIsAssigned ? ' is-assigned-lock' : '') + '" style="margin:8px 14px 18px;border:1px solid ' + reassignedBannerBorder + ';background:' + reassignedBannerBackground + ';border-radius:18px;padding:14px 18px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 10px 24px rgba(15,23,42,.05);">' +
         '      <div style="width:42px;height:42px;border-radius:999px;background:' + reassignedBannerIconBackground + ';color:' + reassignedBannerIconColor + ';display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:20px;"><i class="fas fa-lock"></i></div>' +
         '      <div style="min-width:0;font-family:Georgia, \"Times New Roman\", serif;">' +
         '        <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px;">' + escapeHtml(String(data.reassigned_banner_heading || 'Ticket Reassigned')) + '</div>' +
@@ -3473,6 +3474,7 @@ var TMTicketModal = (function () {
       : '';
     return '' +
       '<div class="tm-header' + sapHeaderClass + '">' +
+      '  <button type="button" class="tm-mobile-back" onclick="TMTicketModal.close()" aria-label="Back to tickets"><i class="fas fa-arrow-left" aria-hidden="true"></i></button>' +
       '  <div class="tm-header-left">' +
       '    <div class="tm-title">' + escapeHtml(getDisplaySubject(data)) + '</div>' +
       '    <div class="tm-chips">' +
@@ -3481,6 +3483,7 @@ var TMTicketModal = (function () {
       '      <span class="tm-id">#' + String(data.id).padStart(6, '0') + '</span>' +
       '    </div>' +
       '  </div>' +
+      '  <button type="button" class="tm-mobile-more" aria-label="More ticket options"><i class="fas fa-ellipsis-v" aria-hidden="true"></i></button>' +
       '  <button type="button" class="tm-close-btn" onclick="TMTicketModal.close()" aria-label="Close ticket details"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>' +
       '</div>' +
       '<div class="tm-tabs">' +
@@ -3496,16 +3499,16 @@ var TMTicketModal = (function () {
       '    <div class="tm-mobile-paged-content">' +
       '    <div class="tm-info-col">' +
       '      <div class="tm-card tm-card-ticket-info"><div class="tm-card-header"><span class="tm-card-title">Ticket Information</span></div><div class="tm-card-body"><div class="tm-info-grid">' +
-      '        <div class="tm-info-label">CREATED BY</div><div class="tm-info-value">' + (data.created_by_name ? escapeHtml(String(data.created_by_name)) : '-') + '</div>' +
-      '        <div class="tm-info-label">EMAIL</div><div class="tm-info-value">' + (data.created_by_email ? escapeHtml(String(data.created_by_email)) : '-') + '</div>' +
-      '        <div class="tm-info-label">DEPARTMENT</div><div class="tm-info-value">' + escapeHtml(dashIfUnknown(data.department)) + '</div>' +
+      '        <div class="tm-info-label">Created by</div><div class="tm-info-value">' + (data.created_by_name ? escapeHtml(String(data.created_by_name)) : '-') + '</div>' +
+      '        <div class="tm-info-label">Email</div><div class="tm-info-value">' + (data.created_by_email ? escapeHtml(String(data.created_by_email)) : '-') + '</div>' +
+      '        <div class="tm-info-label">Department</div><div class="tm-info-value">' + escapeHtml(dashIfUnknown(data.department)) + '</div>' +
       salesTicketInfoHtml +
-      '        <div class="tm-info-label">CATEGORY</div><div class="tm-info-value">' + (data.category ? escapeHtml(String(data.category)) : '-') + '</div>' +
-      '        <div class="tm-info-label">URGENCY</div><div class="tm-info-value">' + (data.urgency ? escapeHtml(String(data.urgency)) : '-') + '</div>' +
+      '        <div class="tm-info-label">Category</div><div class="tm-info-value">' + (data.category ? escapeHtml(String(data.category)) : '-') + '</div>' +
+      '        <div class="tm-info-label">Urgency</div><div class="tm-info-value">' + (data.urgency ? escapeHtml(String(data.urgency)) : '-') + '</div>' +
       emailRequestTypeInfoHtml +
-      '        <div class="tm-info-label">CREATED AT</div><div class="tm-info-value">' + (data.created_at ? formatTimelineTime(data.created_at) : '-') + '</div>' +
-      '        <div class="tm-info-label">LAST UPDATED</div><div class="tm-info-value">' + (data.updated_at ? formatTimelineTime(data.updated_at) : '-') + '</div>' +
-      '        <div class="tm-info-label">ASSIGNED TO</div><div class="tm-info-value">' + buildAssignedTargetHtml(data) + '</div>' +
+      '        <div class="tm-info-label">Created at</div><div class="tm-info-value">' + (data.created_at ? formatTimelineTime(data.created_at) : '-') + '</div>' +
+      '        <div class="tm-info-label">Last updated</div><div class="tm-info-value">' + (data.updated_at ? formatTimelineTime(data.updated_at) : '-') + '</div>' +
+      '        <div class="tm-info-label">Assigned to</div><div class="tm-info-value">' + buildAssignedTargetHtml(data) + '</div>' +
       '      </div></div></div>' +
       '      <div class="tm-card tm-card-ticket-activity"><div class="tm-card-header"><span class="tm-card-title">Ticket Activity</span></div><div class="tm-card-body">' + renderTimeline(data) + '</div></div>' +
       '    </div>' +
@@ -3844,25 +3847,45 @@ var TMTicketModal = (function () {
   }
   function claimTicket(ticketId, buttonEl) {
     if (!ticketId) return;
+    var originalButtonHtml = buttonEl ? buttonEl.innerHTML : '';
+    var refreshTimer = null;
     if (buttonEl) {
       buttonEl.disabled = true;
       buttonEl.classList.add('is-loading');
+      buttonEl.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Claiming...</span>';
     }
     var formData = new FormData();
     formData.append('ticket_id', String(ticketId));
     var token = getCsrfToken();
     if (token) formData.append('csrf_token', token);
+
+    // The claim is committed before slower notification work runs. Refresh
+    // the modal promptly even on local Apache setups that buffer the response.
+    refreshTimer = window.setTimeout(function () {
+      open(ticketId);
+    }, 1800);
+
     postJson('claim_ticket.php', formData)
       .then(function (data) {
         if (!data || data.ok !== true) {
           throw new Error(String((data && (data.error || data.message)) || 'Unable to claim ticket.'));
         }
-        open(ticketId);
+        if (refreshTimer) window.clearTimeout(refreshTimer);
+        if (buttonEl && document.documentElement.contains(buttonEl)) {
+          buttonEl.classList.remove('is-loading');
+          buttonEl.classList.add('is-claimed');
+          buttonEl.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i><span>Claimed</span>';
+        }
+        window.setTimeout(function () {
+          open(ticketId);
+        }, 350);
       })
       .catch(function (err) {
+        if (refreshTimer) window.clearTimeout(refreshTimer);
         if (buttonEl) {
           buttonEl.disabled = false;
           buttonEl.classList.remove('is-loading');
+          buttonEl.innerHTML = originalButtonHtml;
         }
         window.alert(err && err.message ? err.message : 'Unable to claim ticket.');
       });

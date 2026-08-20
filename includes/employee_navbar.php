@@ -1529,7 +1529,9 @@ body.employee-sales-manager-page .user-dropdown {
         left: -260px;
         right: auto;
         width: 260px;
-        height: 100vh;
+        height: var(--employee-mobile-sidebar-height, 100vh);
+        min-height: var(--employee-mobile-sidebar-height, 100vh);
+        max-height: var(--employee-mobile-sidebar-height, 100vh);
         background: #1B5E20;
         padding: 20px;
         transition: left 0.3s ease;
@@ -1537,6 +1539,10 @@ body.employee-sales-manager-page .user-dropdown {
         display: flex;
         flex-direction: column;
         gap: 18px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        box-sizing: border-box;
         box-shadow: 12px 0 28px rgba(15, 23, 42, 0.25);
     }
 
@@ -1685,7 +1691,8 @@ body.employee-sales-manager-page .user-dropdown {
         top: 0;
         left: 0;
         width: 100%;
-        height: 100%;
+        height: var(--employee-mobile-sidebar-height, 100vh);
+        min-height: var(--employee-mobile-sidebar-height, 100vh);
         background: rgba(0, 0, 0, 0.4);
         opacity: 0;
         visibility: hidden;
@@ -1953,6 +1960,24 @@ document.addEventListener('DOMContentLoaded', function () {
     const mobileNotifBadge = document.getElementById('mobileSidebarNotifBadge');
     const navbarCollapse = document.getElementById('navbarCollapse');
 
+    function syncMobileSidebarHeight() {
+        if (!document.documentElement || !document.body) return;
+
+        const viewportHeight = window.visualViewport && window.visualViewport.height
+            ? window.visualViewport.height
+            : window.innerHeight;
+        let bodyZoom = parseFloat(window.getComputedStyle(document.body).zoom || '1');
+
+        if (!Number.isFinite(bodyZoom) || bodyZoom <= 0) {
+            bodyZoom = 1;
+        }
+
+        document.documentElement.style.setProperty(
+            '--employee-mobile-sidebar-height',
+            Math.ceil(viewportHeight / bodyZoom) + 'px'
+        );
+    }
+
     function closeSidebar() {
         if (!sidebar || !overlay) return;
         sidebar.classList.remove('active');
@@ -1974,6 +1999,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (!menuBtn || !sidebar || !overlay) return;
 
+    syncMobileSidebarHeight();
+    window.addEventListener('orientationchange', syncMobileSidebarHeight);
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', syncMobileSidebarHeight);
+    }
+
     menuBtn.addEventListener('click', function (event) {
         if (window.innerWidth > 768) return;
         event.preventDefault();
@@ -1982,6 +2013,7 @@ document.addEventListener('DOMContentLoaded', function () {
             event.stopImmediatePropagation();
         }
         if (navbarCollapse) navbarCollapse.classList.remove('show');
+        syncMobileSidebarHeight();
         const shouldOpen = !sidebar.classList.contains('active');
         sidebar.classList.toggle('active', shouldOpen);
         overlay.classList.toggle('active', shouldOpen);
@@ -2018,6 +2050,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     window.addEventListener('resize', function () {
+        syncMobileSidebarHeight();
         if (window.innerWidth > 768) {
             closeSidebar();
         }
