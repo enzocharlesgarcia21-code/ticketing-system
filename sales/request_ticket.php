@@ -5524,6 +5524,10 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             max-width: 1450px;
             margin: 0 auto;
             padding: 18px 28px 42px;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
             box-sizing: border-box;
         }
 
@@ -5812,6 +5816,7 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         body.sales-request-ticket-page .request-main-column .department-dropdown-trigger,
         body.sales-request-ticket-page .request-main-column .admin-legal-request-for-dropdown-trigger,
         body.sales-request-ticket-page .request-main-column .category-dropdown-trigger,
+        body.sales-request-ticket-page .request-main-column .marketing-subcategory-dropdown-trigger,
         body.sales-request-ticket-page .request-main-column .priority-dropdown-trigger,
         body.sales-request-ticket-page .request-main-column .sales-position-dropdown-trigger,
         body.sales-request-ticket-page .request-main-column .sales-region-dropdown-trigger {
@@ -5929,6 +5934,16 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             color: #166534;
             font-size: 15px;
             font-weight: 700;
+        }
+
+        /* Keep the page's three primary guidance headings visually consistent. */
+        body.sales-request-ticket-page .request-guidance-heading h2,
+        body.sales-request-ticket-page .request-main-column .form-section-title,
+        body.sales-request-ticket-page .request-tips-card-main .request-tips-title {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.3;
         }
 
         body.sales-request-ticket-page .request-tips-card-main .request-tips-list {

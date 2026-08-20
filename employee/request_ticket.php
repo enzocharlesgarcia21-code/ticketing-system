@@ -5397,6 +5397,16 @@ if (count($emailCreationEntries) === 0) {
             font-weight: 700;
         }
 
+        /* Keep the page's three primary guidance headings visually consistent. */
+        body.employee-request-ticket-page .request-guidance-heading-title,
+        body.employee-request-ticket-page .request-main-column .form-section-title,
+        body.employee-request-ticket-page .request-tips-card-main .request-tips-title {
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
         body.employee-request-ticket-page .request-tips-card-main .request-tips-list {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
