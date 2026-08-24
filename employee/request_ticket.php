@@ -2462,6 +2462,19 @@ if (count($emailCreationEntries) === 0) {
             text-align: left;
             line-height: 1.5;
         }
+        body.employee-request-ticket-page #attachment-preview .attachment-remove-button {
+            width: 40px !important;
+            min-width: 40px !important;
+            max-width: 40px !important;
+            height: 40px !important;
+            min-height: 40px !important;
+            padding: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex: 0 0 40px !important;
+            line-height: 1 !important;
+        }
         body.employee-request-ticket-page .sss-benefits-file-chip-link {
             border: none;
             background: transparent;
@@ -5789,7 +5802,7 @@ if (count($emailCreationEntries) === 0) {
                 border-bottom: 4px solid #f4c430 !important;
                 background: #174f25 !important;
                 box-shadow: none !important;
-                overflow: hidden;
+                overflow: visible;
             }
 
             body.employee-request-ticket-page .navbar > * {
@@ -5986,6 +5999,17 @@ if (count($emailCreationEntries) === 0) {
 
             body.employee-request-ticket-page .request-main-column .attachment-file-name {
                 font-size: 9px;
+            }
+
+            body.employee-request-ticket-page #attachment-preview .attachment-remove-button {
+                width: 32px !important;
+                min-width: 32px !important;
+                max-width: 32px !important;
+                height: 32px !important;
+                min-height: 32px !important;
+                flex-basis: 32px !important;
+                border-radius: 8px !important;
+                font-size: 16px !important;
             }
 
             body.employee-request-ticket-page .request-main-column .form-text {
@@ -10260,7 +10284,9 @@ if (count($emailCreationEntries) === 0) {
 
                 var removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
-                removeBtn.textContent = 'x';
+                removeBtn.className = 'attachment-remove-button';
+                removeBtn.textContent = '\u00d7';
+                removeBtn.setAttribute('aria-label', 'Remove ' + file.name);
                 removeBtn.style.border = '1px solid #e2e8f0';
                 removeBtn.style.background = '#ffffff';
                 removeBtn.style.color = '#ef4444';

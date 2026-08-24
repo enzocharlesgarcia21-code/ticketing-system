@@ -2121,7 +2121,18 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         }
         @media (max-width: 1280px) {
             body.sales-request-ticket-page .sales-employee-navbar .nav-right {
-                justify-content: center;
+                justify-content: flex-end;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .navbar-toggler {
+                display: none !important;
+            }
+            body.sales-request-ticket-page .sales-employee-navbar .navbar-collapse {
+                display: flex !important;
+                width: auto !important;
+                flex: 0 0 auto !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
             }
         }
         @media (max-width: 768px) {
@@ -6005,69 +6016,9 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
         @media (max-width: 768px) {
             body.sales-request-ticket-page .sales-container { padding: 14px 12px 86px; }
             body.sales-request-ticket-page .sales-page-header h1 { font-size: 23px; }
-            body.sales-request-ticket-page .sales-employee-navbar {
-                position: sticky; top: 0; z-index: 2105;
-                width: 100%; height: 76px; min-height: 76px;
-                display: grid; grid-template-columns: minmax(0, 1fr) auto;
-                align-items: center; gap: 8px; padding: 8px 14px;
-                border-bottom: 4px solid #f4c430; box-sizing: border-box;
-            }
-            body.sales-request-ticket-page .sales-employee-navbar .nav-left {
-                width: 100%; min-width: 0; display: grid;
-                grid-template-columns: 44px 44px minmax(0, 1fr);
-                grid-template-areas: "menu logo brand"; align-items: center; gap: 9px;
-            }
-            body.sales-request-ticket-page .sales-employee-navbar .navbar-toggler {
-                grid-area: menu; width: 44px; height: 44px; min-width: 44px; min-height: 44px;
-                display: inline-flex; align-items: center; justify-content: center;
-                margin: 0; padding: 0; border: 0; background: transparent;
-                color: #fff; font-size: 22px;
-            }
-            body.sales-request-ticket-page .sales-employee-navbar .logo-icon {
-                grid-area: logo; width: 44px; height: 44px; min-width: 44px; max-width: 44px; padding: 5px;
-            }
-            body.sales-request-ticket-page .sales-employee-navbar .brand-name {
-                grid-area: brand; min-width: 0; overflow: hidden; color: #fff;
-                font: 700 18px/1.1 'Segoe UI', Arial, sans-serif;
-                text-overflow: ellipsis; white-space: nowrap;
-            }
-            body.sales-request-ticket-page .sales-employee-navbar .navbar-collapse {
-                width: auto; min-width: 0; display: flex; align-items: center;
-                margin: 0; padding: 0; border: 0;
-            }
-            body.sales-request-ticket-page .sales-employee-navbar .sales-nav-right { display: none; }
-            body.sales-request-ticket-page .sales-mobile-header-actions { display: flex; align-items: center; gap: 8px; }
-            body.sales-request-ticket-page .sales-mobile-icon-link,
-            body.sales-request-ticket-page .sales-mobile-user-link {
-                height: 44px; display: inline-flex; align-items: center; justify-content: center;
-                padding: 0; border: 0; background: transparent; color: #fff; text-decoration: none;
-            }
-            body.sales-request-ticket-page .sales-mobile-icon-link { position: relative; width: 44px; font-size: 20px; }
-            body.sales-request-ticket-page .sales-mobile-user-link { width: 58px; gap: 7px; }
-            body.sales-request-ticket-page .sales-mobile-user-avatar {
-                width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center;
-                border-radius: 50%; background: #fff; color: #176b35; font-size: 20px;
-            }
-            body.sales-request-ticket-page .sales-mobile-user-caret { font-size: 11px; }
-            body.sales-request-ticket-page .sales-mobile-menu {
-                position: fixed; top: 76px; bottom: 0; left: 0; z-index: 2104; width: 260px;
-                display: flex; flex-direction: column; gap: 8px; padding: 22px 18px;
-                background: #176326; box-shadow: 12px 0 28px rgba(15, 23, 42, .24);
-                box-sizing: border-box; transform: translateX(-100%); transition: transform .25s ease;
-            }
-            body.sales-request-ticket-page .sales-mobile-menu.is-open { transform: translateX(0); }
-            body.sales-request-ticket-page .sales-mobile-menu a {
-                min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 16px;
-                border-radius: 9px; color: #fff; font: 500 16px/1.2 'Segoe UI', Arial, sans-serif;
-                text-decoration: none;
-            }
-            body.sales-request-ticket-page .sales-mobile-menu a:hover { background: rgba(255, 255, 255, .12); }
-            body.sales-request-ticket-page .sales-mobile-menu-overlay {
-                position: fixed; inset: 76px 0 0; z-index: 2103; display: block;
-                background: rgba(15, 23, 42, .42); opacity: 0; visibility: hidden;
-                transition: opacity .25s ease, visibility .25s ease;
-            }
-            body.sales-request-ticket-page .sales-mobile-menu-overlay.is-open { opacity: 1; visibility: visible; }
+            body.sales-request-ticket-page .sales-mobile-header-actions,
+            body.sales-request-ticket-page .sales-mobile-menu,
+            body.sales-request-ticket-page .sales-mobile-menu-overlay { display: none !important; }
             body.sales-request-ticket-page .sales-container {
                 width: 100%; max-width: none; margin: 0; padding: 28px 14px 86px;
                 border-radius: 0; background: transparent; box-sizing: border-box;
@@ -6125,16 +6076,55 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             }
         }
     </style>
+    <link rel="stylesheet" href="../css/sales-guest-header.css?v=2">
+    <style id="salesRequestMobileHeaderSize">
+        @media (max-width: 768px) {
+            body.sales-request-ticket-page .sales-employee-navbar {
+                min-height: 72px !important;
+                gap: 4px !important;
+                padding: 10px 8px !important;
+            }
+
+            body.sales-request-ticket-page .sales-employee-navbar .nav-left {
+                gap: 8px !important;
+            }
+
+            body.sales-request-ticket-page .sales-employee-navbar .logo-icon {
+                width: 38px !important;
+                min-width: 38px !important;
+                max-width: 38px !important;
+                height: 38px !important;
+                padding: 4px !important;
+            }
+
+            body.sales-request-ticket-page .sales-employee-navbar .brand-name {
+                font-size: 13px !important;
+            }
+
+            body.sales-request-ticket-page .sales-employee-navbar .sales-nav-right {
+                gap: 5px !important;
+            }
+
+            body.sales-request-ticket-page .sales-employee-navbar .sales-nav-link {
+                height: 36px !important;
+                min-height: 36px !important;
+                gap: 5px !important;
+                padding: 0 10px !important;
+                font-size: 11px !important;
+            }
+
+            body.sales-request-ticket-page .sales-employee-navbar .sales-nav-link-icon {
+                font-size: 11px !important;
+            }
+        }
+    </style>
 </head>
 <body class="sales-request-ticket-page">
 
-<nav class="navbar sales-employee-navbar" aria-label="Sales navigation">
+<nav class="sales-employee-navbar" aria-label="Sales navigation">
     <div class="nav-left">
         <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo" class="logo-icon">
         <div class="brand-name">Leads DeskMetamorph</div>
-        <button class="navbar-toggler" id="navbarToggler" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="navbarCollapse">
-            <i class="fas fa-bars"></i>
-        </button>
     </div>
 
     <div class="navbar-collapse" id="navbarCollapse">
@@ -6150,52 +6140,10 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
                 <span class="sales-nav-link-icon" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
             </a>
         </div>
-        <div class="sales-mobile-header-actions" aria-label="Notifications and account">
-            <a class="sales-mobile-icon-link" href="../employee/notifications.php" aria-label="Notifications">
-                <i class="fas fa-bell" aria-hidden="true"></i>
-            </a>
-            <a class="sales-mobile-user-link" href="../employee/employee_login.php" aria-label="Employee account">
-                <span class="sales-mobile-user-avatar"><i class="fas fa-user" aria-hidden="true"></i></span>
-                <i class="fas fa-chevron-down sales-mobile-user-caret" aria-hidden="true"></i>
-            </a>
-        </div>
     </div>
 </nav>
-<div class="sales-mobile-menu" id="salesMobileMenu" aria-hidden="true">
-    <a href="../index.php"><i class="fas fa-arrow-left" aria-hidden="true"></i><span>Back</span></a>
-    <a href="knowledge_base.php"><i class="fas fa-book-open" aria-hidden="true"></i><span>Knowledge Base</span></a>
-</div>
-<div class="sales-mobile-menu-overlay" id="salesMobileMenuOverlay" aria-hidden="true"></div>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    var toggler = document.getElementById('navbarToggler');
-    var collapse = document.getElementById('navbarCollapse');
-    var mobileMenu = document.getElementById('salesMobileMenu');
-    var mobileOverlay = document.getElementById('salesMobileMenuOverlay');
-
-    function setMobileMenu(open) {
-        if (!mobileMenu || !mobileOverlay) return;
-        mobileMenu.classList.toggle('is-open', open);
-        mobileOverlay.classList.toggle('is-open', open);
-        mobileMenu.setAttribute('aria-hidden', open ? 'false' : 'true');
-        mobileOverlay.setAttribute('aria-hidden', open ? 'false' : 'true');
-        if (toggler) toggler.setAttribute('aria-expanded', open ? 'true' : 'false');
-    }
-
-    if (toggler && collapse) {
-        toggler.addEventListener('click', function () {
-            if (window.matchMedia('(max-width: 768px)').matches) {
-                setMobileMenu(!mobileMenu.classList.contains('is-open'));
-                return;
-            }
-            var isOpen = collapse.classList.toggle('show');
-            toggler.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        });
-    }
-    if (mobileOverlay) {
-        mobileOverlay.addEventListener('click', function () { setMobileMenu(false); });
-    }
-
     var guidanceCard = document.querySelector('.request-guidance-card');
     var guidanceToggle = document.getElementById('requestGuidanceToggle');
     if (guidanceCard && guidanceToggle) {

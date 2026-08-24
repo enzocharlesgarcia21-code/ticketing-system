@@ -6633,3 +6633,132 @@
         margin-left: -22px;
     }
 }
+
+/* Compact ticket details after normalizing the employee page zoom on phones. */
+@media (max-width: 768px) {
+    #ticketModal .tm-header {
+        height: 76px !important;
+        min-height: 76px !important;
+        max-height: 76px !important;
+        padding: 14px 12px 14px 56px !important;
+        background: linear-gradient(90deg, #1B5E20 0%, #144a1e 100%) !important;
+        box-sizing: border-box !important;
+    }
+
+    #ticketModal .tm-header-left {
+        width: 100% !important;
+        min-width: 0 !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 8px !important;
+    }
+
+    #ticketModal .tm-title {
+        width: auto !important;
+        min-width: 0 !important;
+        flex: 0 1 auto !important;
+        font-size: 16px !important;
+    }
+
+    #ticketModal .tm-chips {
+        flex: 0 0 auto !important;
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        gap: 4px !important;
+        max-width: none !important;
+        overflow: visible !important;
+    }
+
+    #ticketModal .tm-chip,
+    #ticketModal .tm-id {
+        min-height: 23px !important;
+        padding: 3px 7px !important;
+        font-size: 9px !important;
+        line-height: 17px !important;
+        white-space: nowrap !important;
+    }
+
+    #ticketModal .tm-header > .tm-mobile-back {
+        left: 7px !important;
+        width: 36px !important;
+        min-width: 36px !important;
+        max-width: 36px !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        max-height: 36px !important;
+        border-radius: 50% !important;
+        background: rgba(255, 255, 255, 0.12) !important;
+        font-size: 17px !important;
+    }
+
+    #ticketModal .tm-tabs {
+        min-height: 52px !important;
+        padding: 5px 7px !important;
+        gap: 1px !important;
+    }
+
+    #ticketModal .tm-tabs > .tm-tab {
+        min-width: 62px !important;
+        min-height: 42px !important;
+        padding: 0 8px !important;
+        font-size: 10.5px !important;
+    }
+
+    #ticketModal .tm-tabs-actions .tm-claim-ticket-btn {
+        min-width: 84px !important;
+        min-height: 34px !important;
+        height: 34px !important;
+        padding: 0 8px !important;
+        border-radius: 8px !important;
+        font-size: 9.5px !important;
+    }
+
+    #ticketModal .tm-body {
+        padding: 14px 12px calc(22px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    #ticketModal .tm-mobile-paged-content { gap: 12px !important; }
+    #ticketModal .tm-card { border-radius: 12px !important; }
+
+    #ticketModal .tm-card-header {
+        min-height: 48px !important;
+        padding: 9px 13px !important;
+    }
+
+    #ticketModal .tm-card-title {
+        min-height: 28px !important;
+        padding-left: 37px !important;
+        font-size: 14px !important;
+    }
+
+    #ticketModal .tm-card-title::before {
+        left: 13px !important;
+        width: 28px !important;
+        height: 28px !important;
+        border-radius: 9px !important;
+    }
+
+    #ticketModal .tm-card-body { padding: 14px !important; }
+
+    #ticketModal .tm-card-ticket-info .tm-info-grid {
+        grid-template-columns: minmax(98px, 36%) minmax(0, 1fr) !important;
+        row-gap: 12px !important;
+        column-gap: 10px !important;
+    }
+
+    #ticketModal .tm-card-ticket-info .tm-info-label { font-size: 10.5px !important; }
+
+    #ticketModal .tm-card-ticket-info .tm-info-value {
+        font-size: 11.5px !important;
+        line-height: 1.4 !important;
+    }
+
+    #ticketModal .tm-desc-text {
+        min-height: 54px !important;
+        padding: 12px !important;
+        font-size: 12px !important;
+        line-height: 1.45 !important;
+    }
+}

@@ -794,6 +794,7 @@ if ($stmt) {
             }
         }
     </style>
+    <link rel="stylesheet" href="../css/sales-guest-header.css?v=2">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>

@@ -14,7 +14,7 @@ function admin_sla_display_label(string $slaLevel): string
     return ticket_sla_display_label($slaLevel);
 }
 
-function time_ago_days(string $dateTime): string
+function admin_ticket_created_date(string $dateTime): string
 {
     $dateTime = trim($dateTime);
     if ($dateTime === '') return '-';
@@ -23,13 +23,6 @@ function time_ago_days(string $dateTime): string
     } catch (Throwable $e) {
         return '-';
     }
-    $now = new DateTimeImmutable('now');
-    $createdDay = $created->setTime(0, 0, 0);
-    $nowDay = $now->setTime(0, 0, 0);
-    $diff = $nowDay->diff($createdDay);
-    $days = (int) ($diff->days ?? 0);
-    if ($diff->invert !== 1) $days = 0;
-    if ($days <= 0) return 'Today';
     return $created->format('M d, Y');
 }
 
@@ -741,7 +734,7 @@ if ($recentRes) {
                                                     $origDept = !empty($t['department']) ? $t['department'] : ($t['user_department'] ?? '');
                                                     echo htmlspecialchars($origDept !== '' ? ticket_department_display_name((string) $origDept) : 'Sales');
                                                 ?></td>
-                                                <td data-label="Created"><?= htmlspecialchars(time_ago_days((string) ($t['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') ?></td>
+                                                <td data-label="Created"><?= htmlspecialchars(admin_ticket_created_date((string) ($t['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') ?></td>
                                                 <td data-label="SLA"><?= sla_badge_html((string) ($t['created_at'] ?? ''), (string) ($t['status'] ?? ''), (string) ($t['priority'] ?? '')); ?></td>
                                                 <td data-label="Assign To"><?= htmlspecialchars(assigned_target_label($t), ENT_QUOTES, 'UTF-8'); ?></td>
                                             </tr>

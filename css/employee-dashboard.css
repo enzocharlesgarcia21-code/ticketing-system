@@ -1336,3 +1336,168 @@ select {
         zoom: 0.78;
     }
 }
+
+/* ================= RESPONSIVE APPLICATION SHELL =================
+   Desktop/tablet only. Existing phone layouts (<= 768px) are intentionally
+   left untouched because individual pages provide their own mobile UI. */
+@media (min-width: 769px) {
+    html,
+    html body[class] {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    html body[class] > .dashboard-container {
+        width: min(100%, 1840px) !important;
+        max-width: 1840px !important;
+        min-width: 0 !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        padding-left: clamp(24px, 2vw, 40px) !important;
+        padding-right: clamp(24px, 2vw, 40px) !important;
+        box-sizing: border-box !important;
+    }
+
+    html body[class] > .dashboard-container > .content-wrapper {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        box-sizing: border-box !important;
+    }
+
+    html body[class] :is(
+        .page-header,
+        .hero-section,
+        .stats-grid,
+        .recent-section,
+        .table-card,
+        .my-tickets-filter-card,
+        .feedback-page-shell,
+        .feedback-summary-grid,
+        .feedback-section,
+        .analytics-shell,
+        .knowledge-base-shell,
+        .request-page-shell,
+        .sales-container
+    ) {
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    html body[class] :is(.table-responsive, .feedback-table-wrap) {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    html body[class] :is(.table-responsive, .feedback-table-wrap) > table {
+        max-width: 100%;
+    }
+
+    html body[class] :is(
+        .my-tickets-filter-form,
+        .filter-form,
+        .filter-controls,
+        .my-tickets-search-row,
+        .my-tickets-filter-controls
+    ) {
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    html body[class] :is(input, select, textarea, button) {
+        max-width: 100%;
+    }
+}
+
+/* Tablet/intermediate layout: retain desktop structure with fluid columns. */
+@media (min-width: 769px) and (max-width: 1180px) {
+    html body[class] > .dashboard-container {
+        max-width: none !important;
+        padding-left: clamp(20px, 3vw, 30px) !important;
+        padding-right: clamp(20px, 3vw, 30px) !important;
+    }
+
+    html body[class] :is(.my-tickets-filter-form, .filter-form) {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    html body[class] :is(.stats-grid, .feedback-summary-grid) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    html body[class] :is(.table-responsive, .feedback-table-wrap) {
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    html body[class] > nav.navbar {
+        grid-template-columns: 190px minmax(0, 1fr) auto !important;
+        padding-left: 18px !important;
+        padding-right: 18px !important;
+    }
+
+    html body[class] > nav.navbar .nav-left {
+        width: 190px !important;
+        min-width: 190px !important;
+        max-width: 190px !important;
+    }
+
+    html body[class] > nav.navbar .nav-center {
+        gap: 4px !important;
+    }
+
+    html body[class] > nav.navbar .nav-link {
+        padding-left: 5px !important;
+        padding-right: 5px !important;
+        font-size: 10px !important;
+    }
+
+    html body[class] > nav.navbar .nav-right {
+        min-width: 126px !important;
+        gap: 8px !important;
+    }
+
+    html body[class] > nav.navbar .user-btn-name {
+        max-width: 72px !important;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 900px) {
+    html body[class] > nav.navbar {
+        grid-template-columns: 150px minmax(0, 1fr) auto !important;
+        padding-left: 14px !important;
+        padding-right: 14px !important;
+    }
+
+    html body[class] > nav.navbar .nav-left {
+        width: 150px !important;
+        min-width: 150px !important;
+        max-width: 150px !important;
+    }
+
+    html body[class] > nav.navbar .brand-name {
+        font-size: 11px !important;
+    }
+
+    html body[class] > nav.navbar .nav-link {
+        padding-left: 3px !important;
+        padding-right: 3px !important;
+        font-size: 9px !important;
+    }
+
+    html body[class] > nav.navbar .nav-right {
+        min-width: 82px !important;
+    }
+
+    html body[class] > nav.navbar .user-btn-name {
+        display: none !important;
+    }
+}

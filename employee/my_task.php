@@ -953,7 +953,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
             background: #e2e8f0;
         }
 
-        @media (max-width: 767px) {
+        @media (max-width: 768px) {
             body.employee-my-task-page {
                 overflow-x: hidden;
             }
@@ -1746,7 +1746,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
             user-select: none;
         }
 
-        @media (max-width: 767px) {
+        @media (max-width: 768px) {
             body.employee-my-task-page #tasksPagination {
                 margin-top: 16px;
                 padding-top: 0;
@@ -1879,11 +1879,16 @@ $showing_to = min($offset + $limit, (int) $total_records);
             display: none;
         }
 
-        @media (max-width: 767px) {
+        @media (max-width: 768px) {
             html body.employee-my-task-page {
-                background: #ffffff !important;
-                background-image: none !important;
-                background-attachment: scroll !important;
+                background-color: #eef4ef !important;
+                background-image:
+                    linear-gradient(180deg, rgba(245, 251, 246, 0.08) 0%, rgba(245, 251, 246, 0.15) 42%, rgba(238, 247, 240, 0.24) 100%),
+                    url('../assets/img/dashboard_bg.jpg') !important;
+                background-repeat: no-repeat !important;
+                background-position: center top !important;
+                background-size: cover !important;
+                background-attachment: fixed !important;
             }
 
             html body.employee-my-task-page::before,
@@ -1894,7 +1899,7 @@ $showing_to = min($offset + $limit, (int) $total_records);
 
             html body.employee-my-task-page .dashboard-container,
             html body.employee-my-task-page .content-wrapper {
-                background: #ffffff !important;
+                background: transparent !important;
             }
 
             html body.employee-my-task-page .dashboard-container {
@@ -1921,10 +1926,8 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 align-items: center;
                 justify-content: center;
                 text-align: center;
-                background-color: #f5faf5;
-                background-image:
-                    linear-gradient(90deg, rgba(255,255,255,.98) 0%, rgba(255,255,255,.88) 48%, rgba(243,250,242,.38) 100%),
-                    url('../assets/img/dashboard_bg.jpg');
+                background-color: transparent;
+                background-image: linear-gradient(90deg, rgba(255,255,255,.78) 0%, rgba(255,255,255,.58) 48%, rgba(243,250,242,.22) 100%);
                 background-repeat: no-repeat;
                 background-position: center 55%;
                 background-size: cover;
@@ -2286,6 +2289,237 @@ $showing_to = min($offset + $limit, (int) $total_records);
                 grid-area: next;
                 justify-self: end;
             }
+
+            body.employee-my-task-page #tasksPagination .page-btn.prev::before,
+            body.employee-my-task-page #tasksPagination .page-btn.next::before {
+                display: none !important;
+                content: none !important;
+            }
+        }
+
+        /* Keep the mobile page viewport-bound; only the ticket table may scroll sideways. */
+        @media (max-width: 768px) {
+            html,
+            body.employee-my-task-page {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                margin: 0 !important;
+                overflow-x: hidden !important;
+            }
+
+            body.employee-my-task-page .dashboard-container,
+            body.employee-my-task-page .content-wrapper {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-my-task-page .dashboard-container {
+                padding: 0 !important;
+                overflow-x: hidden !important;
+            }
+
+            body.employee-my-task-page .content-wrapper {
+                padding: 0 8px calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+                overflow-x: hidden !important;
+            }
+
+            body.employee-my-task-page .page-header {
+                max-width: none !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-my-task-page .my-tickets-filter-card,
+            body.employee-my-task-page .table-card,
+            body.employee-my-task-page #tasksPagination {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-my-task-page .my-tickets-filter-form,
+            body.employee-my-task-page .my-tickets-filter-form.has-department-filter {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                grid-template-columns: minmax(0, 1fr) minmax(72px, 82px) !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-my-task-page .my-tickets-search-row,
+            body.employee-my-task-page .my-tickets-search-wrapper,
+            body.employee-my-task-page .my-tickets-search-input,
+            body.employee-my-task-page .my-tickets-filter-controls,
+            body.employee-my-task-page .my-tickets-filter-select-wrap,
+            body.employee-my-task-page .my-tickets-filter-select,
+            body.employee-my-task-page .my-task-filter-trigger {
+                max-width: 100% !important;
+                min-width: 0 !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-my-task-page .my-tickets-search-input {
+                width: 100% !important;
+            }
+
+            body.employee-my-task-page .my-tickets-filter-controls {
+                width: 100% !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+
+            body.employee-my-task-page .my-tickets-filter-form.has-department-filter .my-tickets-filter-controls {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+
+            body.employee-my-task-page .my-tickets-reassignment-filter {
+                grid-column: auto !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+            }
+
+            body.employee-my-task-page .table-card {
+                overflow: hidden !important;
+            }
+
+            body.employee-my-task-page .table-responsive {
+                display: block !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                margin: 0 !important;
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+                overscroll-behavior-inline: contain;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            body.employee-my-task-page .table-responsive table.admin-table {
+                display: table !important;
+                width: 200% !important;
+                min-width: 200% !important;
+                max-width: none !important;
+                table-layout: fixed !important;
+            }
+
+            /* Two equal horizontal panels: first four columns, then the final four. */
+            body.employee-my-task-page .table-responsive table.admin-table :is(th, td):nth-child(1) { width: 6% !important; }
+            body.employee-my-task-page .table-responsive table.admin-table :is(th, td):nth-child(2) { width: 14% !important; }
+            body.employee-my-task-page .table-responsive table.admin-table :is(th, td):nth-child(3) { width: 10% !important; }
+            body.employee-my-task-page .table-responsive table.admin-table :is(th, td):nth-child(4) { width: 20% !important; }
+            body.employee-my-task-page .table-responsive table.admin-table :is(th, td):nth-child(5) { width: 12% !important; }
+            body.employee-my-task-page .table-responsive table.admin-table :is(th, td):nth-child(6) { width: 13% !important; }
+            body.employee-my-task-page .table-responsive table.admin-table :is(th, td):nth-child(7) { width: 10% !important; }
+            body.employee-my-task-page .table-responsive table.admin-table :is(th, td):nth-child(8) { width: 15% !important; }
+
+            body.employee-my-task-page .table-responsive table.admin-table thead th {
+                font-size: 9px !important;
+                padding: 7px 4px !important;
+            }
+
+            body.employee-my-task-page .table-responsive table.admin-table tbody tr.ticket-row td,
+            body.employee-my-task-page .table-responsive table.admin-table tbody tr.ticket-row td:nth-child(n) {
+                height: 56px !important;
+                padding: 6px 4px !important;
+                font-size: 9.5px !important;
+            }
+
+            body.employee-my-task-page .table-responsive table.admin-table tbody tr.ticket-row .task-ticket-id {
+                display: table-cell !important;
+                position: static !important;
+                inset: auto !important;
+                flex: none !important;
+                width: 6% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding-left: 6px !important;
+                padding-right: 6px !important;
+                border-radius: 0 !important;
+                background: #ffffff !important;
+                font-size: 9px !important;
+                line-height: 1.2 !important;
+                text-align: center !important;
+                white-space: nowrap !important;
+                overflow: visible !important;
+                overflow-wrap: normal !important;
+                word-break: normal !important;
+                letter-spacing: 0 !important;
+            }
+
+            body.employee-my-task-page .task-ticket-requester strong,
+            body.employee-my-task-page .task-ticket-requester small {
+                font-size: 9px !important;
+            }
+
+            body.employee-my-task-page .task-ticket-urgency .priority-pill,
+            body.employee-my-task-page .task-ticket-status .status-pill,
+            body.employee-my-task-page .task-ticket-sla .badge {
+                min-height: 20px !important;
+                padding: 3px 6px !important;
+                font-size: 8px !important;
+            }
+
+            body.employee-my-task-page #tasksPagination .pagination-glass {
+                display: grid !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                grid-template-columns: minmax(0, 1fr) auto auto !important;
+                grid-template-areas: "summary prev next" !important;
+                justify-content: stretch !important;
+                gap: 6px !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-my-task-page #tasksPagination .pagination-summary {
+                display: block !important;
+                grid-area: summary !important;
+                width: auto !important;
+                min-width: 0 !important;
+                margin: 0 !important;
+                align-self: center !important;
+                color: #64748b !important;
+                font-size: 9px !important;
+                font-weight: 700 !important;
+                line-height: 1.25 !important;
+                text-align: left !important;
+                white-space: normal !important;
+            }
+
+            body.employee-my-task-page #tasksPagination .page-numbers,
+            body.employee-my-task-page #tasksPagination .my-task-mobile-page-counter {
+                display: none !important;
+            }
+
+            body.employee-my-task-page #tasksPagination .page-btn.prev,
+            body.employee-my-task-page #tasksPagination .page-btn.next {
+                width: auto !important;
+                min-width: 54px !important;
+                height: 36px !important;
+                margin: 0 !important;
+                padding: 0 9px !important;
+                border-radius: 999px !important;
+                font-size: 10px !important;
+                justify-self: end !important;
+            }
+
+            body.employee-my-task-page #tasksPagination .page-btn.prev {
+                grid-area: prev !important;
+            }
+
+            body.employee-my-task-page #tasksPagination .page-btn.next {
+                grid-area: next !important;
+            }
         }
 
     </style>
@@ -2364,12 +2598,6 @@ $showing_to = min($offset + $limit, (int) $total_records);
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    </div>
-
-                    <div class="my-tickets-mobile-filter-summary">
-                        <span>3 Active Filters</span>
-                        <a href="my_task.php">Clear all</a>
-                    </div>
 
                     <div class="my-tickets-filter-select-wrap my-tickets-reassignment-filter">
                         <select name="reassignment" class="my-tickets-filter-select" id="filterReassignment">
@@ -2378,6 +2606,12 @@ $showing_to = min($offset + $limit, (int) $total_records);
                             <option value="not_reassigned" <?= $reassignment === 'not_reassigned' ? 'selected' : '' ?>>Team Tickets</option>
                             <option value="reassigned" <?= $reassignment === 'reassigned' ? 'selected' : '' ?>>Reassigned</option>
                         </select>
+                    </div>
+                    </div>
+
+                    <div class="my-tickets-mobile-filter-summary">
+                        <span>3 Active Filters</span>
+                        <a href="my_task.php">Clear all</a>
                     </div>
 
                     <a href="my_task.php" class="my-tickets-clear-btn my-tickets-desktop-clear">Clear Filters</a>

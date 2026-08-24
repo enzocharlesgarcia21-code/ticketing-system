@@ -1196,11 +1196,14 @@ if ($showCategoryView) {
                 min-height: 100vh;
                 border-top: 0;
                 zoom: 1 !important;
-                background:
-                    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0, rgba(248, 250, 248, 0.76) 145px, #f8faf8 220px),
-                    url('../assets/img/dashboard_bg.jpg') center top / 100% 220px no-repeat,
-                    #f8faf8 !important;
-                background-attachment: scroll !important;
+                background-color: #eef4ef !important;
+                background-image:
+                    linear-gradient(180deg, rgba(245, 251, 246, 0.08) 0%, rgba(245, 251, 246, 0.15) 42%, rgba(238, 247, 240, 0.24) 100%),
+                    url('../assets/img/dashboard_bg.jpg') !important;
+                background-repeat: no-repeat !important;
+                background-position: center top !important;
+                background-size: cover !important;
+                background-attachment: fixed !important;
                 box-sizing: border-box;
             }
 
@@ -1276,27 +1279,27 @@ if ($showCategoryView) {
                 font-size: 16px !important;
             }
 
-            body.employee-shared-mobile-sidebar-page > .tm-global-chat-fab {
+            html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page > .tm-global-chat-fab {
                 position: fixed !important;
                 right: 16px !important;
                 bottom: 16px !important;
                 left: auto !important;
                 display: inline-flex !important;
-                width: 46px !important;
-                max-width: 46px !important;
-                height: 46px !important;
-                min-width: 46px !important;
-                min-height: 46px !important;
+                width: 60px !important;
+                max-width: 60px !important;
+                min-width: 60px !important;
+                height: 60px !important;
+                min-height: 60px !important;
                 padding: 0 !important;
                 align-items: center !important;
                 justify-content: center !important;
-                flex: 0 0 46px !important;
+                flex: 0 0 60px !important;
                 border-radius: 50% !important;
                 gap: 0 !important;
             }
 
-            body.employee-shared-mobile-sidebar-page > .tm-global-chat-fab i {
-                font-size: 16px !important;
+            html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page > .tm-global-chat-fab i {
+                font-size: 22px !important;
                 line-height: 1 !important;
             }
 

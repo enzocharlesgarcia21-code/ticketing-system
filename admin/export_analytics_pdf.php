@@ -110,7 +110,8 @@ function analytics_export_filters(): array
 
 function analytics_export_request_text(string $description, string $subject): string
 {
-    $description = trim($description);
+    $description = html_entity_decode(strip_tags($description), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $description = trim((string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $description));
     if ($description === '') {
         return $subject !== '' ? $subject : '-';
     }
@@ -118,7 +119,35 @@ function analytics_export_request_text(string $description, string $subject): st
     $description = preg_replace('/^\s*(?:Position|Region):[^\r\n]*(?:\r\n|\r|\n)?/i', '', $description);
     $description = trim((string) preg_replace('/^\s*(?:Position|Region):[^\r\n]*(?:\r\n|\r|\n)?/i', '', (string) $description));
 
-    return $description !== '' ? $description : ($subject !== '' ? $subject : '-');
+    $description = trim((string) preg_replace('/\s+/u', ' ', $description));
+    if ($description === '') {
+        return $subject !== '' ? $subject : '-';
+    }
+
+    // Analytics exports are summaries. Keeping this bounded prevents one pasted
+    // document from creating a PDF row taller than the printable page.
+    $limit = 420;
+    if (function_exists('mb_strlen') && mb_strlen($description, 'UTF-8') > $limit) {
+        return rtrim(mb_substr($description, 0, $limit - 3, 'UTF-8')) . '...';
+    }
+    if (!function_exists('mb_strlen') && strlen($description) > $limit) {
+        return rtrim(substr($description, 0, $limit - 3)) . '...';
+    }
+
+    return $description;
+}
+
+function analytics_pdf_text(string $value): string
+{
+    $value = html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $value = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value);
+    if (function_exists('iconv')) {
+        $converted = @iconv('UTF-8', 'windows-1252//TRANSLIT//IGNORE', $value);
+        if ($converted !== false) {
+            return $converted;
+        }
+    }
+    return preg_replace('/[^\x20-\x7E\r\n]/', '?', $value) ?? $value;
 }
 
 function analytics_export_description_field(string $description, string $label): string
@@ -305,6 +334,7 @@ class AnalyticsReportPdf extends FPDF
 {
     public array $widths = [];
     public array $aligns = [];
+    public array $headers = [];
     public int $categoryColumnIndex = 6;
     public int $statusColumnIndex = 9;
 
@@ -318,6 +348,7 @@ class AnalyticsReportPdf extends FPDF
 
         if ($this->GetY() + $h > $this->PageBreakTrigger) {
             $this->AddPage($this->CurOrientation);
+            $this->HeaderRow();
         }
 
         for ($i = 0; $i < count($data); $i++) {
@@ -344,6 +375,34 @@ class AnalyticsReportPdf extends FPDF
             $this->SetXY($x + $w, $y);
         }
         $this->Ln($h);
+    }
+
+    public function HeaderRow(): void
+    {
+        if (count($this->headers) === 0) {
+            return;
+        }
+
+        $this->SetFont('Helvetica', 'B', 7);
+        $this->SetFillColor(232, 239, 233);
+        $this->SetTextColor(0, 0, 0);
+        $lineHeight = 3.5;
+        $lines = 1;
+        foreach ($this->headers as $index => $header) {
+            $lines = max($lines, $this->NbLines($this->widths[$index], (string) $header));
+        }
+        $height = max(8, $lineHeight * $lines);
+
+        foreach ($this->headers as $index => $header) {
+            $width = $this->widths[$index];
+            $x = $this->GetX();
+            $y = $this->GetY();
+            $this->Rect($x, $y, $width, $height, 'DF');
+            $this->MultiCell($width, $lineHeight, (string) $header, 0, 'C');
+            $this->SetXY($x + $width, $y);
+        }
+        $this->Ln($height);
+        $this->SetFont('Helvetica', '', 7);
     }
 
     public function NbLines(float $w, string $txt): int
@@ -410,12 +469,12 @@ $pdf->SetAutoPageBreak(true, 8);
 $pdf->AddPage();
 
 $pdf->SetFont('Helvetica', 'B', 14);
-$pdf->Cell(0, 8, 'Leads DeskMetamorph Ticket Analytics Report', 0, 1, 'C');
+$pdf->Cell(0, 8, analytics_pdf_text('Leads DeskMetamorph Ticket Analytics Report'), 0, 1, 'C');
 $pdf->SetFont('Helvetica', '', 9);
 $pdfDateRange = $filters['start_date'] !== '' && $filters['end_date'] !== ''
     ? $filters['start_date'] . ' to ' . $filters['end_date']
     : 'All time';
-$pdf->Cell(0, 6, 'Date Range: ' . $pdfDateRange, 0, 1, 'C');
+$pdf->Cell(0, 6, analytics_pdf_text('Date Range: ' . $pdfDateRange), 0, 1, 'C');
 $pdf->Ln(3);
 
 $headers = [
@@ -448,13 +507,10 @@ $aligns = $analyticsExportIsSalesManagerView
     : ['C', 'C', 'C', 'L', 'L', 'L', 'C', 'C', 'C', 'C', 'C'];
 $pdf->widths = $widths;
 $pdf->aligns = $aligns;
+$pdf->headers = array_map('analytics_pdf_text', $headers);
 $pdf->categoryColumnIndex = $analyticsExportIsSalesManagerView ? 8 : 6;
 $pdf->statusColumnIndex = $analyticsExportIsSalesManagerView ? 11 : 9;
-
-foreach ($headers as $idx => $header) {
-    $pdf->Cell($widths[$idx], 8, $header, 1, 0, 'C', true);
-}
-$pdf->Ln();
+$pdf->HeaderRow();
 
 $pdf->SetFont('Helvetica', '', 7);
 $fill = false;
@@ -466,7 +522,7 @@ if (count($rows) === 0) {
             $pdf->SetFillColor(248, 250, 252);
             $pdf->Rect($pdf->GetX(), $pdf->GetY(), array_sum($widths), 5, 'F');
         }
-        $pdf->Row([
+        $pdf->Row(array_map('analytics_pdf_text', [
             $row['start_date'],
             $row['end_date'],
             $row['attending_it'],
@@ -479,7 +535,7 @@ if (count($rows) === 0) {
             $row['time_resolved'],
             $row['status'],
             $row['duration'],
-        ]);
+        ]));
         $fill = !$fill;
     }
 }

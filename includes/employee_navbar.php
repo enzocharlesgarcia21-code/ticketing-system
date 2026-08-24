@@ -327,9 +327,6 @@ document.body && document.body.classList.add('employee-shared-mobile-sidebar-pag
     <?php foreach ($employeeNavItems as $navItem): ?>
         <?php
             $permissionKey = (string) ($navItem['key'] ?? '');
-            if (in_array($permissionKey, ['analytics', 'sales_manager_analytics'], true)) {
-                continue;
-            }
             $isVisible = !array_key_exists($permissionKey, $tmUserPermissions) || (int) $tmUserPermissions[$permissionKey] === 1;
             if (!$isVisible) {
                 continue;
@@ -1351,22 +1348,36 @@ window.TM_MESSENGER_STYLE = 'employee';
 .tm-global-chat-fab .chat-badge.is-visible { display: inline-flex; }
 @media (max-width: 768px) {
     .tm-global-chat-fab {
-        right: 12px;
-        bottom: 12px;
-        width: 42px;
-        height: 42px;
-        min-width: 42px;
-        min-height: 42px;
+        right: 14px;
+        bottom: 14px;
+        width: 76px;
+        height: 76px;
+        min-width: 76px;
+        min-height: 76px;
         padding: 0;
         border-radius: 999px;
         justify-content: center;
         gap: 0;
     }
     .tm-global-chat-fab .tm-global-chat-label { display: none; }
-    .tm-global-chat-fab i { font-size: 16px; }
+    .tm-global-chat-fab i { font-size: 28px; }
     .tm-global-chat-fab .chat-badge {
         top: -4px;
         right: -4px;
+    }
+
+    /* One consistent mobile chat shortcut across every employee page. */
+    html body[class] > .tm-global-chat-fab {
+        width: 76px !important;
+        max-width: 76px !important;
+        min-width: 76px !important;
+        height: 76px !important;
+        min-height: 76px !important;
+        padding: 0 !important;
+    }
+
+    html body[class] > .tm-global-chat-fab i {
+        font-size: 28px !important;
     }
 }
 
@@ -1944,6 +1955,52 @@ body.employee-sales-manager-page .user-dropdown {
     html body.employee-knowledge-base-page > nav.navbar .notification-badge {
         padding: 1px 4px !important;
         font-size: 9px !important;
+    }
+
+    /* Knowledge Base renders at 100% mobile scale, while the other employee
+       pages scale this shared 260px drawer. Keep its visible size consistent. */
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar {
+        left: -203px !important;
+        width: 203px !important;
+        padding: 16px !important;
+        gap: 14px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar.active {
+        left: 0 !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar a {
+        min-height: 34px !important;
+        padding: 8px 9px !important;
+        border-radius: 8px !important;
+        font-size: 13px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-footer {
+        margin-bottom: 6px !important;
+        padding-bottom: 11px !important;
+        gap: 9px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-icon-link,
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-user-btn {
+        min-height: 34px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-icon-link {
+        width: 34px !important;
+        min-width: 34px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-icon-link i,
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-user-btn i {
+        font-size: 13px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-user-btn {
+        gap: 8px !important;
+        padding: 0 12px !important;
     }
 }
 </style>

@@ -3601,7 +3601,14 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page {
-                background: #f4f7f5 !important;
+                background-color: #eef4ef !important;
+                background-image:
+                    linear-gradient(180deg, rgba(245,251,246,.08) 0%, rgba(245,251,246,.15) 42%, rgba(238,247,240,.24) 100%),
+                    url('../assets/img/dashboard_bg.jpg') !important;
+                background-repeat: no-repeat !important;
+                background-size: cover !important;
+                background-position: center top !important;
+                background-attachment: fixed !important;
             }
 
             body.employee-dashboard-page .dashboard-container {
@@ -3626,15 +3633,13 @@ function dashboard_urgency_badge_html(string $priority): string
                 grid-template-columns: minmax(0, 1fr) auto !important;
                 align-items: start !important;
                 gap: 10px 12px !important;
-                min-height: 150px !important;
+                min-height: 0 !important;
                 margin: 0 -12px !important;
-                padding: 18px 20px 30px !important;
+                padding: 18px 20px 20px !important;
                 border: 0 !important;
-                border-radius: 0 0 24px 24px !important;
+                border-radius: 0 !important;
                 overflow: hidden !important;
-                background:
-                    linear-gradient(100deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 250, 228, 0.84) 48%, rgba(255, 255, 255, 0.34) 100%),
-                    url('../assets/img/L1.jpg') center 52% / cover no-repeat !important;
+                background: transparent !important;
                 box-shadow: none !important;
                 text-align: left !important;
             }
@@ -3732,7 +3737,7 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page .cards-panel {
-                margin: -16px 0 14px !important;
+                margin: 10px 0 14px !important;
                 padding: 0 !important;
                 border: 0 !important;
                 background: transparent !important;
@@ -3742,19 +3747,20 @@ function dashboard_urgency_badge_html(string $priority): string
             body.employee-dashboard-page .card-filter-row {
                 position: relative !important;
                 z-index: 3 !important;
-                width: max-content !important;
+                width: 100% !important;
                 max-width: 100% !important;
-                margin: 0 0 12px auto !important;
-                padding: 0 !important;
+                margin: 0 0 10px !important;
+                padding: 7px 8px 7px 12px !important;
                 display: flex !important;
                 align-items: center !important;
                 justify-content: flex-end !important;
-                gap: 7px !important;
-                border: 0 !important;
-                border-radius: 0 !important;
-                background: transparent !important;
-                box-shadow: none !important;
-                backdrop-filter: none !important;
+                gap: 9px !important;
+                border: 1px solid rgba(211, 224, 214, 0.9) !important;
+                border-radius: 13px !important;
+                background: rgba(255, 255, 255, 0.88) !important;
+                box-shadow: 0 5px 14px rgba(20, 66, 36, 0.06) !important;
+                backdrop-filter: blur(5px) !important;
+                box-sizing: border-box !important;
             }
 
             body.employee-dashboard-page .card-filter-row::before,
@@ -3764,24 +3770,29 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page .card-filter-label {
+                flex: 0 0 auto !important;
+                color: #496055 !important;
                 font-size: 10px !important;
                 font-weight: 700 !important;
                 white-space: nowrap !important;
             }
 
             body.employee-dashboard-page .card-filter-trigger {
-                width: auto !important;
-                min-width: 174px !important;
-                min-height: 38px !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                min-height: 36px !important;
                 padding: 0 11px !important;
-                border-radius: 999px !important;
-                background: #ffffff !important;
+                border-color: #d8e5db !important;
+                border-radius: 10px !important;
+                background: rgba(250, 253, 250, 0.98) !important;
                 font-size: 10px !important;
-                box-shadow: 0 6px 14px rgba(15, 23, 42, 0.07) !important;
+                box-shadow: none !important;
             }
 
             body.employee-dashboard-page .card-filter-dropdown {
                 position: relative !important;
+                flex: 1 1 auto !important;
+                min-width: 0 !important;
             }
 
             body.employee-dashboard-page .card-filter-menu {
@@ -4331,6 +4342,13 @@ function dashboard_urgency_badge_html(string $priority): string
         <a href="my_tickets.php">My Submitted Tickets</a>
         <a href="feedback.php">Feedback</a>
         <a href="knowledge_base.php">Knowledge Base</a>
+        <?php if ($isLapcSalesEmployee && $employeeViewMode === 'manager'): ?>
+            <?php if (!array_key_exists('sales_manager_analytics', $tmUserPermissions) || (int) $tmUserPermissions['sales_manager_analytics'] === 1): ?>
+                <a href="sales_analytics.php">Analytics</a>
+            <?php endif; ?>
+        <?php elseif (!array_key_exists('analytics', $tmUserPermissions) || (int) $tmUserPermissions['analytics'] === 1): ?>
+            <a href="analytics.php">Analytics</a>
+        <?php endif; ?>
     </div>
 
     <div id="mobileSidebarOverlay" class="mobile-sidebar-overlay" aria-hidden="true"></div>

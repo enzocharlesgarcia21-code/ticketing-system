@@ -51,6 +51,9 @@ if ($analyticsExportIsEmployeeView) {
 
 function analytics_excel_escape(string $value): string
 {
+    // XML 1.0 rejects most control characters, which can be present in text
+    // pasted into a ticket description.
+    $value = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value);
     return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
 }
 
@@ -112,7 +115,8 @@ function analytics_export_filters_excel(): array
 
 function analytics_export_request_text_excel(string $description, string $subject): string
 {
-    $description = trim($description);
+    $description = html_entity_decode(strip_tags($description), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $description = trim((string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $description));
     if ($description === '') {
         return $subject !== '' ? $subject : '-';
     }
@@ -120,7 +124,20 @@ function analytics_export_request_text_excel(string $description, string $subjec
     $description = preg_replace('/^\s*(?:Position|Region):[^\r\n]*(?:\r\n|\r|\n)?/i', '', $description);
     $description = trim((string) preg_replace('/^\s*(?:Position|Region):[^\r\n]*(?:\r\n|\r|\n)?/i', '', (string) $description));
 
-    return $description !== '' ? $description : ($subject !== '' ? $subject : '-');
+    $description = trim((string) preg_replace('/\s+/u', ' ', $description));
+    if ($description === '') {
+        return $subject !== '' ? $subject : '-';
+    }
+
+    $limit = 420;
+    if (function_exists('mb_strlen') && mb_strlen($description, 'UTF-8') > $limit) {
+        return rtrim(mb_substr($description, 0, $limit - 3, 'UTF-8')) . '...';
+    }
+    if (!function_exists('mb_strlen') && strlen($description) > $limit) {
+        return rtrim(substr($description, 0, $limit - 3)) . '...';
+    }
+
+    return $description;
 }
 
 function analytics_export_description_field_excel(string $description, string $label): string
@@ -308,6 +325,45 @@ function analytics_excel_status_style_id(string $status): string
     }
 }
 
+function analytics_xlsx_column_name(int $index): string
+{
+    $name = '';
+    for ($index++; $index > 0; $index = intdiv($index - 1, 26)) {
+        $name = chr(65 + (($index - 1) % 26)) . $name;
+    }
+    return $name;
+}
+
+function analytics_xlsx_cell(string $reference, string $value, int $style = 0): string
+{
+    $escaped = analytics_excel_escape($value);
+    return '<c r="' . $reference . '" s="' . $style . '" t="inlineStr"><is><t xml:space="preserve">'
+        . $escaped . '</t></is></c>';
+}
+
+function analytics_xlsx_category_style(string $category): int
+{
+    return match (analytics_excel_category_style_id($category)) {
+        'CategoryHardware' => 6,
+        'CategorySoftware' => 7,
+        'CategoryEmail' => 8,
+        'CategoryProcurement' => 9,
+        'CategoryInternet' => 10,
+        default => 11,
+    };
+}
+
+function analytics_xlsx_status_style(string $status): int
+{
+    return match (analytics_excel_status_style_id($status)) {
+        'StatusResolved' => 10,
+        'StatusOpen' => 9,
+        'StatusInProgress' => 7,
+        'StatusClosed' => 11,
+        default => 5,
+    };
+}
+
 $filters = analytics_export_filters_excel();
 $rows = analytics_export_rows_excel($conn, $filters);
 $headers = [
@@ -340,210 +396,119 @@ $columnWidths = $analyticsExportIsSalesManagerView
     ? [72, 72, 78, 110, 110, 110, 140, 260, 110, 78, 78, 78, 78]
     : [72, 72, 78, 110, 110, 260, 110, 78, 78, 78, 78];
 
+$lastColumnName = analytics_xlsx_column_name($lastColumnIndex);
+$dateRangeLabel = 'Date Range: ' . ($filters['start_date'] !== '' && $filters['end_date'] !== ''
+    ? $filters['start_date'] . ' to ' . $filters['end_date']
+    : 'All time');
+
+$sheetRows = [];
+$sheetRows[] = '<row r="1" ht="24" customHeight="1">' . analytics_xlsx_cell('A1', 'Leads DeskMetamorph Ticket Analytics Report', 1) . '</row>';
+$sheetRows[] = '<row r="2" ht="18" customHeight="1">' . analytics_xlsx_cell('A2', $dateRangeLabel, 2) . '</row>';
+$sheetRows[] = '<row r="3"/>';
+$headerCells = '';
+foreach ($headers as $index => $header) {
+    $headerCells .= analytics_xlsx_cell(analytics_xlsx_column_name($index) . '4', (string) $header, 3);
+}
+$sheetRows[] = '<row r="4" ht="30" customHeight="1">' . $headerCells . '</row>';
+
+$sheetRowNumber = 5;
+if (count($rows) === 0) {
+    $sheetRows[] = '<row r="5" ht="24" customHeight="1">' . analytics_xlsx_cell('A5', 'No records found for the selected filters.', 5) . '</row>';
+} else {
+    foreach ($rows as $row) {
+        $cells = '';
+        foreach ($row as $index => $value) {
+            $style = in_array($index, $centerColumnIndexes, true) ? 5 : 4;
+            if ($index === $categoryColumnIndex) {
+                $style = analytics_xlsx_category_style((string) $value);
+            } elseif ($index === $statusColumnIndex) {
+                $style = analytics_xlsx_status_style((string) $value);
+            }
+            $cells .= analytics_xlsx_cell(analytics_xlsx_column_name($index) . $sheetRowNumber, (string) $value, $style);
+        }
+        $sheetRows[] = '<row r="' . $sheetRowNumber . '" ht="72" customHeight="1">' . $cells . '</row>';
+        $sheetRowNumber++;
+    }
+}
+$lastSheetRow = max(5, $sheetRowNumber - 1);
+
+$xlsxColumnWidths = $analyticsExportIsSalesManagerView
+    ? [12, 12, 13, 18, 18, 18, 22, 42, 20, 14, 14, 13, 13]
+    : [12, 12, 13, 18, 18, 42, 20, 14, 14, 13, 13];
+$columnsXml = '';
+foreach ($xlsxColumnWidths as $index => $width) {
+    $number = $index + 1;
+    $columnsXml .= '<col min="' . $number . '" max="' . $number . '" width="' . $width . '" customWidth="1"/>';
+}
+
+$sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    . '<dimension ref="A1:' . $lastColumnName . $lastSheetRow . '"/>'
+    . '<sheetViews><sheetView workbookViewId="0"><pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+    . '<sheetFormatPr defaultRowHeight="15"/>'
+    . '<cols>' . $columnsXml . '</cols><sheetData>' . implode('', $sheetRows) . '</sheetData>'
+    . '<mergeCells count="' . (count($rows) === 0 ? 3 : 2) . '"><mergeCell ref="A1:' . $lastColumnName . '1"/><mergeCell ref="A2:' . $lastColumnName . '2"/>'
+    . (count($rows) === 0 ? '<mergeCell ref="A5:' . $lastColumnName . '5"/>' : '') . '</mergeCells>'
+    . '<autoFilter ref="A4:' . $lastColumnName . $lastSheetRow . '"/>'
+    . '<pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>'
+    . '</worksheet>';
+
+$stylesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    . '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    . '<fonts count="9"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="14"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font>'
+    . '<font><b/><color rgb="FF4A237B"/><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FF166534"/><sz val="11"/><name val="Calibri"/></font>'
+    . '<font><b/><color rgb="FF926200"/><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FF991B1B"/><sz val="11"/><name val="Calibri"/></font>'
+    . '<font><b/><color rgb="FF1E40AF"/><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FF374151"/><sz val="11"/><name val="Calibri"/></font></fonts>'
+    . '<fills count="9"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE8EFE9"/><bgColor indexed="64"/></patternFill></fill>'
+    . '<fill><patternFill patternType="solid"><fgColor rgb="FFD6C1F7"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC6EFCE"/><bgColor indexed="64"/></patternFill></fill>'
+    . '<fill><patternFill patternType="solid"><fgColor rgb="FFFFF2CC"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF4CCCC"/><bgColor indexed="64"/></patternFill></fill>'
+    . '<fill><patternFill patternType="solid"><fgColor rgb="FFCFE2F3"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE5E7EB"/><bgColor indexed="64"/></patternFill></fill></fills>'
+    . '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color auto="1"/></left><right style="thin"><color auto="1"/></right><top style="thin"><color auto="1"/></top><bottom style="thin"><color auto="1"/></bottom><diagonal/></border></borders>'
+    . '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="12">'
+    . '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'
+    . '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+    . '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+    . '<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="4" fillId="4" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+    . '<xf numFmtId="0" fontId="5" fillId="5" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="6" fillId="6" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+    . '<xf numFmtId="0" fontId="7" fillId="7" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="8" fillId="8" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+    . '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+
+$xlsxFiles = [
+    '[Content_Types].xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>',
+    '_rels/.rels' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+    'xl/workbook.xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Analytics Report" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    'xl/_rels/workbook.xml.rels' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+    'xl/styles.xml' => $stylesXml,
+    'xl/worksheets/sheet1.xml' => $sheetXml,
+];
+
+$temporaryFile = tempnam(sys_get_temp_dir(), 'analytics_xlsx_');
+if ($temporaryFile === false) {
+    http_response_code(500);
+    die('Unable to create the Excel export.');
+}
+$zip = new ZipArchive();
+if ($zip->open($temporaryFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+    @unlink($temporaryFile);
+    http_response_code(500);
+    die('Unable to create the Excel export.');
+}
+foreach ($xlsxFiles as $path => $contents) {
+    $zip->addFromString($path, $contents);
+}
+$zip->close();
+
 if (ob_get_level()) {
     ob_end_clean();
 }
-
-header('Content-Type: application/vnd.ms-excel');
 $excelFileRange = $filters['start_date'] !== '' && $filters['end_date'] !== ''
     ? $filters['start_date'] . '_to_' . $filters['end_date']
     : 'all_time';
-header('Content-Disposition: attachment; filename="analytics_report_' . $excelFileRange . '.xls"');
-header('Cache-Control: max-age=0');
-
-echo '<?xml version="1.0" encoding="UTF-8"?>';
-echo '<?mso-application progid="Excel.Sheet"?>';
-?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:html="http://www.w3.org/TR/REC-html40">
- <Styles>
-  <Style ss:ID="Title">
-   <Font ss:Bold="1" ss:Size="14"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-  </Style>
-  <Style ss:ID="Header">
-   <Font ss:Bold="1"/>
-   <Interior ss:Color="#E8EFE9" ss:Pattern="Solid"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="Cell">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Alignment ss:Vertical="Top" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="CenterCell">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="CategoryHardware">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Interior ss:Color="#D6C1F7" ss:Pattern="Solid"/>
-   <Font ss:Bold="1" ss:Color="#4A237B"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="CategorySoftware">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Interior ss:Color="#C6EFCE" ss:Pattern="Solid"/>
-   <Font ss:Bold="1" ss:Color="#166534"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="CategoryEmail">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/>
-   <Font ss:Bold="1" ss:Color="#926200"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="CategoryProcurement">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Interior ss:Color="#F4CCCC" ss:Pattern="Solid"/>
-   <Font ss:Bold="1" ss:Color="#991B1B"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="CategoryInternet">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Interior ss:Color="#CFE2F3" ss:Pattern="Solid"/>
-   <Font ss:Bold="1" ss:Color="#1E40AF"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="CategoryOther">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Interior ss:Color="#E5E7EB" ss:Pattern="Solid"/>
-   <Font ss:Bold="1" ss:Color="#374151"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="StatusResolved">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Interior ss:Color="#CFE2F3" ss:Pattern="Solid"/>
-   <Font ss:Bold="1" ss:Color="#1E40AF"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="StatusOpen">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Interior ss:Color="#F4CCCC" ss:Pattern="Solid"/>
-   <Font ss:Bold="1" ss:Color="#991B1B"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="StatusInProgress">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Interior ss:Color="#C6EFCE" ss:Pattern="Solid"/>
-   <Font ss:Bold="1" ss:Color="#166534"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
-  <Style ss:ID="StatusClosed">
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
-    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
-   </Borders>
-   <Interior ss:Color="#E5E7EB" ss:Pattern="Solid"/>
-   <Font ss:Bold="1" ss:Color="#374151"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
-  </Style>
- </Styles>
- <Worksheet ss:Name="Analytics Report">
-  <Table>
-<?php foreach ($columnWidths as $columnWidth): ?>
-   <Column ss:AutoFitWidth="0" ss:Width="<?= (int) $columnWidth ?>"/>
-<?php endforeach; ?>
-   <Row>
-    <Cell ss:MergeAcross="<?= (int) $lastColumnIndex ?>" ss:StyleID="Title"><Data ss:Type="String">Leads DeskMetamorph Ticket Analytics Report</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:MergeAcross="<?= (int) $lastColumnIndex ?>"><Data ss:Type="String"><?= analytics_excel_escape('Date Range: ' . ($filters['start_date'] !== '' && $filters['end_date'] !== '' ? $filters['start_date'] . ' to ' . $filters['end_date'] : 'All time')) ?></Data></Cell>
-   </Row>
-   <Row></Row>
-   <Row>
-<?php foreach ($headers as $header): ?>
-    <Cell ss:StyleID="Header"><Data ss:Type="String"><?= analytics_excel_escape($header) ?></Data></Cell>
-<?php endforeach; ?>
-   </Row>
-<?php if (count($rows) === 0): ?>
-   <Row>
-    <Cell ss:MergeAcross="<?= (int) $lastColumnIndex ?>" ss:StyleID="CenterCell"><Data ss:Type="String">No records found for the selected filters.</Data></Cell>
-   </Row>
-<?php else: ?>
-<?php foreach ($rows as $row): ?>
-<?php $categoryStyleId = analytics_excel_category_style_id((string) $row[$categoryColumnIndex]); ?>
-<?php $statusStyleId = analytics_excel_status_style_id((string) $row[$statusColumnIndex]); ?>
-   <Row>
-<?php foreach ($row as $idx => $value): ?>
-<?php
-    $styleId = in_array($idx, $centerColumnIndexes, true) ? 'CenterCell' : 'Cell';
-    if ($idx === $categoryColumnIndex) {
-        $styleId = $categoryStyleId;
-    } elseif ($idx === $statusColumnIndex) {
-        $styleId = $statusStyleId;
-    }
-?>
-    <Cell ss:StyleID="<?= analytics_excel_escape($styleId) ?>"><Data ss:Type="String"><?= analytics_excel_escape((string) $value) ?></Data></Cell>
-<?php endforeach; ?>
-   </Row>
-<?php endforeach; ?>
-<?php endif; ?>
-  </Table>
- </Worksheet>
-</Workbook>
+header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+header('Content-Disposition: attachment; filename="analytics_report_' . $excelFileRange . '.xlsx"');
+header('Content-Length: ' . filesize($temporaryFile));
+header('Cache-Control: private, max-age=0, must-revalidate');
+header('X-Content-Type-Options: nosniff');
+readfile($temporaryFile);
+@unlink($temporaryFile);
+exit;

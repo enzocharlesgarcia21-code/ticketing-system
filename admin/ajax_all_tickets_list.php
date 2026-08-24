@@ -42,7 +42,7 @@ function parseLegacyRequester(string $desc): array
     return [$name, $email];
 }
 
-function time_ago_days(string $dateTime): string
+function admin_ticket_created_date(string $dateTime): string
 {
     $dateTime = trim($dateTime);
     if ($dateTime === '') return '';
@@ -51,13 +51,7 @@ function time_ago_days(string $dateTime): string
     } catch (Throwable $e) {
         return '';
     }
-    $now = new DateTimeImmutable('now');
-    $diff = $now->diff($created);
-    $days = (int) ($diff->days ?? 0);
-    if ($diff->invert !== 1) $days = 0;
-    if ($days <= 0) return 'Today';
-    if ($days === 1) return '1 day ago';
-    return $days . ' days ago';
+    return $created->format('M d, Y');
 }
 
 function sla_badge_html(string $createdAt, string $status, string $priority = ''): string
@@ -272,7 +266,7 @@ while ($res && ($row = $res->fetch_assoc())) {
     $id = (int) ($row['id'] ?? 0);
     $statusVal = (string) ($row['status'] ?? '');
     $createdAt = (string) ($row['created_at'] ?? '');
-    $dateStr = $createdAt !== '' ? time_ago_days($createdAt) : '';
+    $dateStr = $createdAt !== '' ? admin_ticket_created_date($createdAt) : '';
     $slaHtml = sla_badge_html($createdAt, $statusVal, (string) ($row['priority'] ?? ''));
     $rowsHtml .= '<tr class="ticket-row" data-id="' . (string) $id . '" style="cursor:pointer;' . ($showNewBadge ? 'background:rgba(27, 94, 32, 0.08);' : '') . '">';
     $rowsHtml .= '<td data-label="ID">#' . str_pad((string) $id, 6, '0', STR_PAD_LEFT) . '</td>';

@@ -1634,6 +1634,7 @@ if ($ticketsStmt) {
 <!DOCTYPE html>
 <html>
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <title>Analytics - Leads DeskMetamorph</title>
@@ -3018,9 +3019,15 @@ if ($ticketsStmt) {
 </head>
 <body class="<?= $analyticsIsEmployeeView ? 'employee-analytics-page' : '' ?><?= $analyticsIsSalesManagerView ? ' sales-manager-analytics-page' : '' ?>">
 
+<?php if ($analyticsIsEmployeeView): ?>
+    <?php include __DIR__ . '/../includes/employee_navbar.php'; ?>
+<?php endif; ?>
+
 <div class="admin-page">
 
-    <?php include __DIR__ . '/../includes/' . ($analyticsIsEmployeeView ? 'employee_navbar.php' : 'admin_navbar.php'); ?>
+    <?php if (!$analyticsIsEmployeeView): ?>
+        <?php include __DIR__ . '/../includes/admin_navbar.php'; ?>
+    <?php endif; ?>
 
     <div class="admin-container">
         <div class="admin-content">

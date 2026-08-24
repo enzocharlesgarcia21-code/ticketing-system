@@ -3063,7 +3063,7 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             display: none;
         }
 
-        @media (max-width: 767px) {
+        @media (max-width: 768px) {
             body.employee-feedback-page .feedback-swipe-guide {
                 display: none !important;
             }
@@ -3355,6 +3355,178 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 display: none !important;
                 content: none !important;
             }
+
+            /* Match the ticket pages: only the table scrolls, in two readable panels. */
+            body.employee-feedback-page .feedback-table-wrap {
+                display: block !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0 !important;
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+                overscroll-behavior-inline: contain;
+                touch-action: pan-x pan-y !important;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            body.employee-feedback-page .feedback-table {
+                width: 170% !important;
+                min-width: 170% !important;
+                max-width: none !important;
+                table-layout: fixed !important;
+            }
+
+            /* First panel: Ticket ID through Department. Second: Feedback and Submitted. */
+            body.employee-feedback-page .feedback-table th:nth-child(1),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(1) { width: 8% !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(2),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(2) { width: 18% !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(3),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(3) { width: 20% !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(4),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(4) { width: 13% !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(5),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(5) { width: 24% !important; }
+            body.employee-feedback-page .feedback-table th:nth-child(6),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(6) { width: 17% !important; }
+
+            body.employee-feedback-page .feedback-table th {
+                height: 38px !important;
+                padding: 7px 4px !important;
+                font-size: 9px !important;
+            }
+
+            body.employee-feedback-page .feedback-table th:first-child {
+                position: static !important;
+                background: #ffffff !important;
+                color: #17642b !important;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row > td {
+                height: 58px !important;
+                padding: 6px 4px !important;
+                font-size: 9.5px !important;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row > td:first-child {
+                background: #ffffff !important;
+                color: #172033 !important;
+                font-size: 9px !important;
+                text-align: center !important;
+                white-space: nowrap !important;
+                overflow: visible !important;
+                overflow-wrap: normal !important;
+                word-break: normal !important;
+            }
+
+            body.employee-feedback-page .feedback-category-pill {
+                font-size: 9.5px !important;
+                font-weight: 700 !important;
+            }
+
+            body.employee-feedback-page .feedback-person,
+            body.employee-feedback-page .feedback-department,
+            body.employee-feedback-page .feedback-date {
+                font-size: 9px !important;
+            }
+
+            body.employee-feedback-page .feedback-advice-box,
+            body.employee-feedback-page .feedback-status-pill {
+                font-size: 8.5px !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .pagination-glass {
+                grid-template-columns: minmax(0, 1fr) auto auto !important;
+                grid-template-areas: "summary prev next" !important;
+                min-height: 48px !important;
+                gap: 6px !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .pagination-summary {
+                display: block !important;
+                grid-area: summary !important;
+                min-width: 0 !important;
+                color: #64748b !important;
+                font-size: 9px !important;
+                font-weight: 700 !important;
+                line-height: 1.25 !important;
+                text-align: left !important;
+                white-space: normal !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .feedback-mobile-page-counter {
+                display: none !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn.prev,
+            body.employee-feedback-page .feedback-table-footer .page-btn.next {
+                min-width: 54px !important;
+                height: 36px !important;
+                padding: 0 9px !important;
+                border-radius: 999px !important;
+                font-size: 10px !important;
+                justify-self: end !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn.prev {
+                grid-area: prev !important;
+            }
+
+            body.employee-feedback-page .feedback-table-footer .page-btn.next {
+                grid-area: next !important;
+            }
+
+        }
+
+        /* Final desktop alignment: use the same full-width content inset as the ticket pages. */
+        @media (min-width: 769px) {
+            body.employee-feedback-page .dashboard-container {
+                width: 100% !important;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 28px 45px 40px !important;
+            }
+
+            body.employee-feedback-page .content-wrapper {
+                width: 100% !important;
+                max-width: none !important;
+                padding: 0 !important;
+            }
+
+            body.employee-feedback-page .feedback-hero {
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+
+            body.employee-feedback-page .feedback-hero h1 {
+                margin: 0 0 8px !important;
+                font-size: 28px !important;
+                font-weight: 700 !important;
+                line-height: normal !important;
+                letter-spacing: 0 !important;
+            }
+
+            body.employee-feedback-page .feedback-hero p {
+                margin: 0 !important;
+                font-size: 16px !important;
+                line-height: normal !important;
+            }
+        }
+
+        body.employee-feedback-page .feedback-category-pill {
+            display: inline !important;
+            width: auto !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            color: #0f172a !important;
+            font-weight: 700 !important;
+            line-height: inherit !important;
+            white-space: normal !important;
         }
     </style>
 </head>
@@ -3458,7 +3630,6 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                                             </td>
                                             <td data-ticket-id="<?= $ticketId; ?>" onclick="openFeedbackTicketModal(<?= $ticketId; ?>); return false;">
                                                 <span class="feedback-category-pill">
-                                                    <i class="fas fa-desktop" aria-hidden="true"></i>
                                                     <?= htmlspecialchars($category, ENT_QUOTES, 'UTF-8'); ?>
                                                 </span>
                                             </td>

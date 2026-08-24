@@ -26,12 +26,42 @@ if ($result->num_rows === 0) {
 }
 
 $article = $result->fetch_assoc();
+
+function sales_article_department_label(string $category): string
+{
+    $category = trim($category);
+    $aliases = [
+        'technical support' => 'IT',
+        'hardware' => 'IT',
+        'hardware issue' => 'IT',
+        'hardware issues' => 'IT',
+        'software' => 'IT',
+        'software issue' => 'IT',
+        'software issues' => 'IT',
+        'email' => 'IT',
+        'email problem' => 'IT',
+        'internet concerns' => 'IT',
+        'network' => 'IT',
+        'network issue' => 'IT',
+        'network issues' => 'IT',
+        'printer' => 'IT',
+        'documentation' => 'Admin & Legal',
+        'documentations' => 'Admin & Legal',
+        'procurement' => 'Admin & Legal',
+        'others' => 'Management',
+    ];
+    $key = strtolower($category);
+
+    return $aliases[$key] ?? ($category !== '' ? $category : 'Knowledge Base');
+}
+
+$article_department = sales_article_department_label((string) ($article['category'] ?? ''));
 $registered_view = kb_register_article_view($conn, $article_id);
 if ($registered_view) {
     $article['views'] = (int) ($article['views'] ?? 0) + 1;
 }
 $article_image_urls = kb_resolve_asset_urls($article['image_path'] ?? '');
-$back_url = 'knowledge_base.php';
+$back_url = 'knowledge_base.php?category=' . urlencode($article_department);
 
 // Fetch Related Articles
 $relatedStmt = $conn->prepare("
@@ -273,6 +303,97 @@ function renderArticleContent($text) {
             border-radius: 6px;
             cursor: pointer;
             margin-left: auto;
+        }
+
+        .article-kb-hero {
+            position: relative;
+            z-index: 1;
+            padding: 48px 20px 34px;
+            text-align: center;
+            background: linear-gradient(180deg, rgba(255,255,255,.58), rgba(255,255,255,.32));
+            border-bottom: 1px solid rgba(255,255,255,.7);
+        }
+
+        .article-kb-hero-inner {
+            width: min(900px, 100%);
+            margin: 0 auto;
+        }
+
+        .article-kb-heading {
+            margin: 0;
+            color: #075d27;
+            font-size: 34px;
+            font-weight: 800;
+            line-height: 1.18;
+            letter-spacing: -.02em;
+        }
+
+        .article-kb-breadcrumb {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 18px 0 30px;
+            color: #334155;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .article-kb-breadcrumb a {
+            color: #334155;
+            text-decoration: none;
+        }
+
+        .article-kb-breadcrumb a:hover {
+            color: #075d27;
+        }
+
+        .article-kb-breadcrumb i {
+            color: #64748b;
+            font-size: 11px;
+        }
+
+        .article-kb-breadcrumb .active {
+            color: #075d27;
+            font-weight: 800;
+        }
+
+        .article-kb-search {
+            position: relative;
+            width: min(620px, 100%);
+            margin: 0 auto;
+        }
+
+        .article-kb-search-icon {
+            position: absolute;
+            top: 50%;
+            left: 20px;
+            z-index: 1;
+            transform: translateY(-50%);
+            color: #64748b;
+            font-size: 18px;
+            pointer-events: none;
+        }
+
+        .article-kb-search-input {
+            width: 100%;
+            min-height: 62px;
+            padding: 0 22px 0 56px;
+            border: 1px solid rgba(226,232,240,.95);
+            border-radius: 18px;
+            outline: none;
+            background: rgba(255,255,255,.96);
+            color: #172033;
+            font: inherit;
+            font-size: 16px;
+            box-shadow: 0 14px 34px rgba(15,23,42,.11);
+            box-sizing: border-box;
+        }
+
+        .article-kb-search-input:focus {
+            border-color: #2f8b49;
+            box-shadow: 0 0 0 4px rgba(47,139,73,.13), 0 14px 34px rgba(15,23,42,.11);
         }
 
         .sales-topbar {
@@ -829,6 +950,32 @@ function renderArticleContent($text) {
             .article-header, .article-content, .article-video-feature {
                 padding: 24px;
             }
+
+            .article-kb-hero {
+                padding: 34px 16px 28px;
+            }
+
+            .article-kb-heading {
+                font-size: 28px;
+            }
+
+            .article-kb-breadcrumb {
+                margin: 14px 0 24px;
+                gap: 8px;
+                font-size: 13px;
+            }
+
+            .article-kb-search-input {
+                min-height: 56px;
+                padding-left: 50px;
+                border-radius: 16px;
+                font-size: 14px;
+            }
+
+            .article-kb-search-icon {
+                left: 18px;
+                font-size: 16px;
+            }
             .article-title {
                 font-size: 24px;
             }
@@ -885,15 +1032,15 @@ function renderArticleContent($text) {
 
         @media (max-width: 768px) {
             .sales-employee-navbar {
-                display: flex;
-                flex-wrap: wrap;
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
                 align-items: center;
                 gap: 10px;
-                padding: 12px 10px 10px;
+                padding: 11px 14px;
             }
 
             .sales-employee-navbar .nav-left {
-                width: 100%;
+                width: auto;
                 min-width: 0;
                 display: flex;
                 align-items: center;
@@ -906,7 +1053,11 @@ function renderArticleContent($text) {
             }
 
             .sales-employee-navbar .brand-name {
-                font-size: 16px;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: 15px;
             }
 
             .sales-employee-navbar .navbar-toggler {
@@ -915,11 +1066,12 @@ function renderArticleContent($text) {
 
             .sales-employee-navbar .navbar-collapse {
                 display: flex;
-                width: 100%;
-                flex: 0 0 100%;
+                width: auto;
+                min-width: 0;
+                flex: 0 0 auto;
                 margin: 0;
                 padding: 0;
-                border-top: 1px solid rgba(255, 255, 255, 0.12);
+                border: 0;
             }
 
             .sales-employee-navbar .nav-center {
@@ -928,21 +1080,21 @@ function renderArticleContent($text) {
 
             .sales-employee-navbar .sales-nav-right {
                 display: flex;
-                width: 100%;
+                width: auto;
                 gap: 8px;
                 margin-top: 0;
-                justify-content: stretch;
-                padding-top: 10px;
+                justify-content: flex-end;
+                padding: 0;
             }
 
             .sales-employee-navbar .sales-nav-link {
-                flex: 1 1 0;
+                flex: 0 0 auto;
                 min-width: 0;
                 width: auto;
-                min-height: 38px;
-                padding: 0 10px;
+                min-height: 40px;
+                padding: 0 14px;
                 gap: 7px;
-                font-size: 12px;
+                font-size: 13px;
                 line-height: 1;
                 white-space: nowrap;
             }
@@ -955,7 +1107,55 @@ function renderArticleContent($text) {
                 display: none;
             }
         }
+
+        @media (max-width: 520px) {
+            .sales-employee-navbar {
+                gap: 4px;
+                padding: 9px 8px;
+            }
+
+            .sales-employee-navbar .nav-left {
+                gap: 7px;
+            }
+
+            .sales-employee-navbar .logo-icon {
+                width: 32px;
+                height: 32px;
+            }
+
+            .sales-employee-navbar .brand-name {
+                font-size: 12px;
+            }
+
+            .sales-employee-navbar .sales-nav-right {
+                gap: 4px;
+            }
+
+            .sales-employee-navbar .sales-nav-link {
+                min-height: 32px;
+                padding: 0 9px;
+                gap: 4px;
+                font-size: 10px;
+            }
+
+            .sales-employee-navbar .sales-nav-link-icon {
+                font-size: 10px;
+            }
+
+            .article-kb-hero {
+                padding: 28px 12px 24px;
+            }
+
+            .article-kb-heading {
+                font-size: 24px;
+            }
+
+            .article-kb-breadcrumb {
+                font-size: 12px;
+            }
+        }
     </style>
+<link rel="stylesheet" href="../css/sales-guest-header.css?v=2">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -981,6 +1181,30 @@ function renderArticleContent($text) {
             </div>
         </div>
     </nav>
+    <section class="article-kb-hero" aria-labelledby="articleKnowledgeBaseHeading">
+        <div class="article-kb-hero-inner">
+            <h1 class="article-kb-heading" id="articleKnowledgeBaseHeading"><?= htmlspecialchars($article_department, ENT_QUOTES, 'UTF-8') ?> Knowledge Base</h1>
+            <nav class="article-kb-breadcrumb" aria-label="Breadcrumb">
+                <a href="knowledge_base.php">Knowledge Base</a>
+                <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                <a href="knowledge_base.php">Departments</a>
+                <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                <span class="active"><?= htmlspecialchars($article_department, ENT_QUOTES, 'UTF-8') ?></span>
+            </nav>
+            <form class="article-kb-search" action="knowledge_base.php" method="get" role="search">
+                <input type="hidden" name="category" value="<?= htmlspecialchars($article_department, ENT_QUOTES, 'UTF-8') ?>">
+                <i class="fas fa-search article-kb-search-icon" aria-hidden="true"></i>
+                <input
+                    class="article-kb-search-input"
+                    type="search"
+                    name="search"
+                    placeholder="Search <?= htmlspecialchars($article_department, ENT_QUOTES, 'UTF-8') ?> articles, guides, or solutions..."
+                    aria-label="Search <?= htmlspecialchars($article_department, ENT_QUOTES, 'UTF-8') ?> knowledge base"
+                    autocomplete="off"
+                >
+            </form>
+        </div>
+    </section>
     <script>
     document.addEventListener('DOMContentLoaded', function () {
         var toggler = document.getElementById('navbarToggler');
@@ -998,7 +1222,7 @@ function renderArticleContent($text) {
             <div class="article-header">
                 <div class="article-meta">
                     <span class="category-badge">
-                        <?= htmlspecialchars($article['category']) ?>
+                        <?= htmlspecialchars($article_department, ENT_QUOTES, 'UTF-8') ?>
                     </span>
                     <span class="meta-info">
                         <i class="far fa-calendar"></i>

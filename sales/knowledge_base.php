@@ -684,6 +684,11 @@ if ($showCategoryView) {
             display: none;
         }
 
+        .kb-title-mobile,
+        .kb-mobile-home-breadcrumb {
+            display: none;
+        }
+
         .mobile-kb-back {
             display: none;
         }
@@ -1390,6 +1395,11 @@ if ($showCategoryView) {
                 font-size: 11px;
                 line-height: 1.18;
             }
+            .department-article-title {
+                font-size: 15px !important;
+                font-weight: 600;
+                line-height: 1.2;
+            }
             .department-article-date,
             .most-visited-date {
                 font-size: 10px;
@@ -1489,32 +1499,25 @@ if ($showCategoryView) {
 
         @media (max-width: 1280px) {
             .sales-employee-navbar {
-                flex-wrap: wrap;
                 padding: 15px 24px;
             }
 
             .sales-employee-navbar .navbar-toggler {
-                display: block;
+                display: none !important;
             }
 
             .sales-employee-navbar .navbar-collapse {
-                display: none;
-                width: 100%;
-                flex-direction: column;
-                margin-left: 0;
-                margin-top: 15px;
-                gap: 15px;
-                border-top: 1px solid rgba(255, 255, 255, 0.1);
-                padding-top: 15px;
-            }
-
-            .sales-employee-navbar .navbar-collapse.show {
-                display: flex;
+                display: flex !important;
+                width: auto;
+                flex: 0 0 auto;
+                margin: 0;
+                padding: 0;
+                border: 0;
             }
 
             .sales-employee-navbar .nav-right {
-                width: 100%;
-                justify-content: center;
+                width: auto;
+                justify-content: flex-end;
             }
         }
 
@@ -1537,7 +1540,18 @@ if ($showCategoryView) {
             }
 
             .sales-employee-navbar {
-                display: none;
+                position: sticky;
+                top: 0;
+                z-index: 2105;
+                width: 100%;
+                min-height: 58px;
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                align-items: center;
+                gap: 4px;
+                padding: 9px 8px;
+                border-bottom: 4px solid #f4c430;
+                box-sizing: border-box;
             }
 
             .kb-container {
@@ -1548,22 +1562,7 @@ if ($showCategoryView) {
             }
 
             .mobile-kb-back {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                gap: 9px;
-                min-height: 28px;
-                margin: 0 0 16px;
-                padding: 4px 18px;
-                border: 1px solid #176326;
-                border-radius: 999px;
-                background: #176326;
-                color: #ffffff;
-                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-                font-size: 12px;
-                font-weight: 800;
-                line-height: 1;
-                text-decoration: none;
+                display: none;
             }
 
             .mobile-kb-back i {
@@ -1572,27 +1571,30 @@ if ($showCategoryView) {
             }
 
             .sales-employee-navbar {
-                flex-wrap: wrap;
                 align-items: center;
-                gap: 10px;
-                padding: 12px 10px 10px;
             }
 
             .sales-employee-navbar .nav-left {
-                width: 100%;
+                width: auto;
                 min-width: 0;
                 display: flex;
                 align-items: center;
+                gap: 7px;
             }
 
             .sales-employee-navbar .logo-icon {
-                height: 36px;
-                width: 36px;
+                height: 32px;
+                width: 32px;
+                min-width: 32px;
                 padding: 4px;
             }
 
             .sales-employee-navbar .brand-name {
-                font-size: 16px;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: 12px;
             }
 
             .sales-employee-navbar .navbar-toggler {
@@ -1601,11 +1603,12 @@ if ($showCategoryView) {
 
             .sales-employee-navbar .navbar-collapse {
                 display: flex;
-                width: 100%;
-                flex: 0 0 100%;
+                width: auto;
+                min-width: 0;
+                flex: 0 0 auto;
                 margin: 0;
                 padding: 0;
-                border-top: 1px solid rgba(255, 255, 255, 0.12);
+                border: 0;
             }
 
             .sales-employee-navbar .nav-center {
@@ -1614,27 +1617,27 @@ if ($showCategoryView) {
 
             .sales-employee-navbar .sales-nav-right {
                 display: flex;
-                width: 100%;
-                gap: 8px;
+                width: auto;
+                gap: 4px;
                 margin-top: 0;
-                justify-content: stretch;
-                padding-top: 10px;
+                justify-content: flex-end;
+                padding: 0;
             }
 
             .sales-employee-navbar .sales-nav-link {
-                flex: 1 1 0;
+                flex: 0 0 auto;
                 min-width: 0;
                 width: auto;
-                min-height: 38px;
-                padding: 0 10px;
-                gap: 7px;
-                font-size: 12px;
+                min-height: 32px;
+                padding: 0 9px;
+                gap: 4px;
+                font-size: 10px;
                 line-height: 1;
                 white-space: nowrap;
             }
 
             .sales-employee-navbar .sales-nav-link-icon {
-                font-size: 13px;
+                font-size: 10px;
             }
 
             .home-departments .category-grid {
@@ -1695,7 +1698,7 @@ if ($showCategoryView) {
 
             .kb-header {
                 margin-bottom: 21px;
-                text-align: left;
+                text-align: center;
             }
 
             .kb-title {
@@ -1704,6 +1707,66 @@ if ($showCategoryView) {
                 font-size: 21px;
                 font-weight: 700;
                 line-height: 1.2;
+            }
+
+            .kb-header.is-department-view .kb-title {
+                margin: 0;
+                color: #086b28;
+                font-size: 19px;
+                font-weight: 700;
+                line-height: 1.2;
+                letter-spacing: 0;
+            }
+
+            .kb-title-desktop {
+                display: none;
+            }
+
+            .kb-title-mobile {
+                display: inline;
+            }
+
+            .kb-header.is-mobile-it-view .kb-title {
+                margin: 0;
+                color: #086b28;
+                font-size: 19px;
+                font-weight: 700;
+                line-height: 1.2;
+                letter-spacing: 0;
+            }
+
+            .kb-header.is-mobile-it-view .kb-subtitle {
+                display: none;
+            }
+
+            .kb-header.is-department-view .kb-breadcrumb,
+            .kb-header.is-mobile-it-view .kb-breadcrumb {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 7px;
+                margin: -3px 0 0;
+                color: #2563eb;
+                font-size: 8px;
+                font-weight: 500;
+                line-height: 1;
+            }
+
+            .kb-header.is-department-view .kb-breadcrumb a,
+            .kb-header.is-mobile-it-view .kb-breadcrumb a {
+                color: #2563eb;
+            }
+
+            .kb-header.is-department-view .kb-breadcrumb i,
+            .kb-header.is-mobile-it-view .kb-breadcrumb i {
+                color: #64748b;
+                font-size: 6px;
+            }
+
+            .kb-header.is-department-view .kb-breadcrumb .active,
+            .kb-header.is-mobile-it-view .kb-breadcrumb .active {
+                color: #2563eb;
+                font-weight: 700;
             }
 
             .kb-subtitle {
@@ -1720,6 +1783,7 @@ if ($showCategoryView) {
                 width: 100%;
                 max-width: none;
                 margin-top: 17px;
+                text-align: left;
             }
 
             .search-input {
@@ -1829,6 +1893,7 @@ if ($showCategoryView) {
             }
         }
     </style>
+<link rel="stylesheet" href="../css/sales-guest-header.css?v=2">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -1836,9 +1901,6 @@ if ($showCategoryView) {
         <div class="nav-left">
             <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo" class="logo-icon">
             <div class="brand-name">Leads DeskMetamorph</div>
-            <button class="navbar-toggler" id="navbarToggler" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="navbarCollapse">
-                <i class="fas fa-bars"></i>
-            </button>
         </div>
         <div class="navbar-collapse" id="navbarCollapse">
             <div class="nav-center" aria-hidden="true"></div>
@@ -1854,18 +1916,6 @@ if ($showCategoryView) {
             </div>
         </div>
     </nav>
-    <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        var toggler = document.getElementById('navbarToggler');
-        var collapse = document.getElementById('navbarCollapse');
-        if (!toggler || !collapse) return;
-        toggler.addEventListener('click', function () {
-            var isOpen = collapse.classList.toggle('show');
-            toggler.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        });
-    });
-    </script>
-
     <div class="kb-container">
         <?php if (!$showOtherDepartments): ?>
             <a href="<?= $showCategoryView ? 'knowledge_base.php' : 'request_ticket.php' ?>" class="mobile-kb-back">
@@ -1875,10 +1925,24 @@ if ($showCategoryView) {
         <?php endif; ?>
         
         <!-- Search & Filter Header -->
-        <div class="kb-header">
-            <h1 class="kb-title"><?= $showCategoryView ? htmlspecialchars($categoryViewTitle) . ' Knowledge Base' : 'Knowledge Base' ?></h1>
+        <div class="kb-header<?= $showCategoryView ? ' is-department-view' : ' is-mobile-it-view' ?>">
+            <h1 class="kb-title">
+                <?php if ($showCategoryView): ?>
+                    <?= htmlspecialchars($categoryViewTitle) ?> Knowledge Base
+                <?php else: ?>
+                    <span class="kb-title-desktop">Knowledge Base</span>
+                    <span class="kb-title-mobile">IT Knowledge Base</span>
+                <?php endif; ?>
+            </h1>
             <?php if (!$showCategoryView): ?>
                 <p class="kb-subtitle">Find answers, articles, and solutions across all departments.</p>
+                <div class="kb-breadcrumb kb-mobile-home-breadcrumb" aria-label="Breadcrumb">
+                    <a href="knowledge_base.php">Knowledge Base</a>
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                    <a href="knowledge_base.php">Departments</a>
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                    <span class="active">IT</span>
+                </div>
             <?php endif; ?>
             <?php if ($showCategoryView): ?>
                 <div class="kb-breadcrumb" aria-label="Breadcrumb">

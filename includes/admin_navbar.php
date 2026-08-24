@@ -1557,6 +1557,97 @@ body .tm-global-chat-fab,
     line-height: 1;
 }
 .tm-global-chat-fab .chat-badge.is-visible { display: inline-flex; }
+
+/* Shared admin tablet/desktop shell. Mobile rules below remain unchanged. */
+@media (min-width: 769px) {
+    html,
+    html body {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    html body .admin-navbar.admin-main-header {
+        width: 100%;
+        max-width: 100%;
+        padding-left: clamp(18px, 2vw, 32px);
+        padding-right: clamp(18px, 2vw, 32px);
+        box-sizing: border-box;
+    }
+
+    html body .admin-container {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        padding: clamp(22px, 2.5vw, 38px);
+        box-sizing: border-box;
+    }
+
+    html body .admin-content {
+        width: 100%;
+        max-width: 1600px;
+        min-width: 0;
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box;
+    }
+
+    html body .admin-content > * {
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    html body .admin-content :is(
+        .table-card,
+        .table-responsive,
+        .admin-table-wrapper,
+        .users-table-container,
+        .analytics-table-wrap,
+        .filters-card,
+        .filter-card,
+        .stats-grid,
+        .analytics-grid,
+        .routing-page,
+        .conference-admin-page,
+        .manage-rooms-page,
+        .kb-wrapper,
+        .edit-container,
+        .create-admin-container,
+        .profile-shell
+    ) {
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    html body .admin-content :is(.table-responsive, .admin-table-wrapper, .users-table-container, .analytics-table-wrap) {
+        width: 100%;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1180px) {
+    html body .admin-container {
+        padding: clamp(18px, 2.5vw, 28px);
+    }
+
+    html body .admin-content :is(.table-responsive, .admin-table-wrapper, .users-table-container, .analytics-table-wrap) {
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    html body .admin-content :is(.filter-form, .filters-grid, .filter-grid) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    html body .admin-page-header {
+        flex-wrap: wrap;
+        gap: 14px;
+    }
+}
+
 @media (max-width: 768px) {
     .tm-global-chat-fab { right: 16px; bottom: 16px; padding: 12px 14px; }
     .tm-global-chat-fab .tm-global-chat-label { display: none; }
