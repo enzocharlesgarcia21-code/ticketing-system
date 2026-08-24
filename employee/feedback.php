@@ -3010,38 +3010,50 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             }
 
             body.employee-feedback-page .feedback-summary-grid {
-                gap: 8px !important;
+                gap: 7px !important;
             }
 
             body.employee-feedback-page .feedback-card.feedback-average-card {
-                min-height: 82px !important;
-                padding: 10px 14px !important;
-                gap: 12px !important;
-                border-radius: 10px !important;
+                position: relative;
+                display: block !important;
+                min-height: 86px !important;
+                padding: 9px 8px !important;
+                border-radius: 7px !important;
+                box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08) !important;
             }
 
             body.employee-feedback-page .feedback-summary-icon {
-                width: 42px !important;
-                height: 42px !important;
-                flex: 0 0 42px !important;
-                font-size: 18px !important;
+                position: absolute;
+                top: 10px;
+                left: 9px;
+                width: 27px !important;
+                height: 27px !important;
+                flex: 0 0 27px !important;
+                font-size: 12px !important;
+            }
+
+            body.employee-feedback-page .feedback-card.feedback-average-card > div:last-child {
+                min-width: 0;
+                padding-left: 33px;
             }
 
             body.employee-feedback-page .feedback-card-title {
                 margin: 0 0 3px !important;
-                font-size: 12px !important;
+                font-size: 8px !important;
                 line-height: 1.2 !important;
+                white-space: nowrap;
             }
 
             body.employee-feedback-page .feedback-score-line strong {
-                font-size: 26px !important;
+                font-size: 23px !important;
                 line-height: 1 !important;
             }
 
             body.employee-feedback-page .feedback-score-note {
-                margin: 3px 0 0 !important;
-                font-size: 10px !important;
+                margin: 5px 0 0 -33px !important;
+                font-size: 7px !important;
                 line-height: 1.25 !important;
+                white-space: nowrap;
             }
         }
     </style>

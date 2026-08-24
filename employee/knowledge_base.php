@@ -1382,67 +1382,38 @@ if ($showCategoryView) {
                 grid-template-columns: 1fr;
             }
 
-            body.employee-kb-category-page {
-                border-top: 2px solid #2f8644 !important;
-            }
-
-            body.employee-kb-category-page > nav.navbar,
-            body.employee-kb-category-page > .tm-global-chat-fab {
-                display: none !important;
-            }
-
             body.employee-kb-category-page .kb-container {
-                padding: 27px 30px 34px;
+                padding: 27px 22px 34px;
             }
 
             body.employee-kb-category-page .mobile-kb-back {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                gap: 9px;
-                min-height: 30px;
-                margin: 0 0 16px;
-                padding: 4px 18px;
-                border: 1px solid #176326;
-                border-radius: 999px;
-                background: #176326;
-                color: #ffffff;
-                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-                font-size: 12px;
-                font-weight: 800;
-                line-height: 1;
-                text-decoration: none;
-            }
-
-            body.employee-kb-category-page .mobile-kb-back i {
-                color: #f6cf4a;
-                font-size: 11px;
+                display: none;
             }
 
             body.employee-kb-category-page .kb-header {
-                margin-bottom: 21px;
-                text-align: left;
+                margin-bottom: 24px;
+                text-align: center;
             }
 
             body.employee-kb-category-page .kb-title {
-                margin: 0 0 7px;
+                margin: 0 0 12px;
                 color: #087b2e;
-                font-size: 21px;
+                font-size: 24px;
                 font-weight: 700;
                 line-height: 1.2;
             }
 
             body.employee-kb-category-page .kb-breadcrumb {
-                justify-content: flex-start;
-                margin: 0 0 24px;
+                justify-content: center;
+                margin: 0 0 22px;
                 gap: 9px;
-                font-size: 12px;
+                font-size: 13px;
             }
 
             body.employee-kb-category-page .department-search {
                 width: 100%;
                 max-width: none;
-                margin-top: 28px;
+                margin-top: 0;
             }
 
             body.employee-kb-category-page .department-back-row,
@@ -1452,61 +1423,66 @@ if ($showCategoryView) {
 
             body.employee-kb-category-page .department-view {
                 width: 100%;
-                margin: 0 auto 36px;
+                margin: 0 auto 30px;
             }
 
             body.employee-kb-category-page .department-list {
-                margin-bottom: 14px;
+                margin-bottom: 18px;
                 border-radius: 12px;
             }
 
             body.employee-kb-category-page .department-article {
-                gap: 8px;
-                padding: 9px 11px;
+                gap: 10px;
+                padding: 12px;
             }
 
             body.employee-kb-category-page .department-article-main {
-                gap: 8px;
+                gap: 10px;
             }
 
             body.employee-kb-category-page .department-article-icon {
-                width: 22px;
-                height: 22px;
-                margin-top: 1px;
-                border-radius: 7px;
-                font-size: 10px;
+                width: 30px;
+                height: 30px;
+                margin-top: 0;
+                border-radius: 9px;
+                font-size: 12px;
             }
 
             body.employee-kb-category-page .department-article-title {
-                margin-bottom: 4px;
-                font-size: 11px;
-                line-height: 1.18;
+                margin-bottom: 5px;
+                font-size: 15px;
+                line-height: 1.22;
             }
 
             body.employee-kb-category-page .department-article-date {
-                font-size: 10px;
+                font-size: 11px;
             }
 
             body.employee-kb-category-page .department-article .kb-category-badge {
                 margin-bottom: 0;
-                padding: 3px 7px;
-                font-size: 9px;
+                padding: 4px 8px;
+                font-size: 10px;
             }
 
             body.employee-kb-category-page .department-categories {
-                margin-top: 10px;
+                margin-top: 16px;
             }
 
             body.employee-kb-category-page .department-categories .categories-title {
-                margin-bottom: 14px;
+                margin-bottom: 12px;
                 color: #176f32;
-                font-size: 20px;
+                font-size: 18px;
             }
 
             body.employee-kb-category-page .department-categories .category-card {
-                min-height: 74px;
-                padding: 12px 18px;
+                min-height: 82px;
+                padding: 11px 12px;
                 border-radius: 10px;
+            }
+
+            body.employee-kb-category-page .department-categories .category-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
             }
 
             .categories-section.home-departments {
@@ -1599,17 +1575,6 @@ if ($showCategoryView) {
 
     <!-- Top Navigation -->
     <?php include '../includes/employee_navbar.php'; ?>
-    <?php if ($showCategoryView): ?>
-        <style>
-            @media (max-width: 768px) {
-                html body.employee-kb-category-page > nav.navbar,
-                html body.employee-kb-category-page > .tm-global-chat-fab {
-                    display: none !important;
-                }
-            }
-        </style>
-    <?php endif; ?>
-
     <div class="kb-container">
         <?php if ($showCategoryView): ?>
             <a href="knowledge_base.php" class="mobile-kb-back">
