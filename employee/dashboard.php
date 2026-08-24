@@ -3747,19 +3747,19 @@ function dashboard_urgency_badge_html(string $priority): string
             body.employee-dashboard-page .card-filter-row {
                 position: relative !important;
                 z-index: 3 !important;
-                width: 100% !important;
+                width: max-content !important;
                 max-width: 100% !important;
-                margin: 0 0 10px !important;
-                padding: 7px 8px 7px 12px !important;
+                margin: 0 0 10px auto !important;
+                padding: 0 !important;
                 display: flex !important;
                 align-items: center !important;
                 justify-content: flex-end !important;
                 gap: 9px !important;
-                border: 1px solid rgba(211, 224, 214, 0.9) !important;
-                border-radius: 13px !important;
-                background: rgba(255, 255, 255, 0.88) !important;
-                box-shadow: 0 5px 14px rgba(20, 66, 36, 0.06) !important;
-                backdrop-filter: blur(5px) !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                backdrop-filter: none !important;
                 box-sizing: border-box !important;
             }
 
@@ -3778,8 +3778,8 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page .card-filter-trigger {
-                width: 100% !important;
-                min-width: 0 !important;
+                width: 172px !important;
+                min-width: 172px !important;
                 min-height: 36px !important;
                 padding: 0 11px !important;
                 border-color: #d8e5db !important;
@@ -3791,15 +3791,15 @@ function dashboard_urgency_badge_html(string $priority): string
 
             body.employee-dashboard-page .card-filter-dropdown {
                 position: relative !important;
-                flex: 1 1 auto !important;
-                min-width: 0 !important;
+                flex: 0 0 172px !important;
+                min-width: 172px !important;
             }
 
             body.employee-dashboard-page .card-filter-menu {
                 left: auto !important;
                 right: 0 !important;
-                width: 210px !important;
-                min-width: 210px !important;
+                width: 172px !important;
+                min-width: 172px !important;
                 max-width: calc(100vw - 24px) !important;
                 box-sizing: border-box !important;
             }

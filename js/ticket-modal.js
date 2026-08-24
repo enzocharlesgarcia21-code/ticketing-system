@@ -10,6 +10,7 @@ var TMTicketModal = (function () {
   var messengerConfirmAction = null;
   var messengerEditSubmitAction = null;
   var messengerReturnContext = null;
+  var messengerTicketOriginId = null;
   var messengerMessagesSignature = '';
   var messengerComposerSignature = '';
   var currentTicketId = null;
@@ -5146,7 +5147,7 @@ var TMTicketModal = (function () {
           '.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-title-sub,.tm-messenger-overlay.employee-style.tm-mobile-view-chat .chat-ticket-meta{display:flex!important;align-items:center!important;gap:5px!important;width:100%!important;margin-top:6px!important;padding:0!important;background:transparent!important;color:#40516d!important;font-size:8px!important;line-height:1!important;white-space:nowrap!important;overflow:hidden!important;}' +
           '.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-status-pill{flex:0 0 auto!important;height:21px!important;min-height:21px!important;padding:0 8px!important;border-radius:11px!important;font-size:8px!important;}' +
           '.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-header-actions{position:absolute!important;right:7px!important;top:50%!important;transform:translateY(-50%)!important;display:flex!important;align-items:center!important;z-index:6!important;}' +
-          '.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-header-actions .tm-messenger-menu-wrap{display:flex!important;width:30px!important;height:34px!important;}' +
+          '.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-header-actions .tm-messenger-menu-wrap{display:none!important;}' +
           '.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-header-actions .tm-messenger-menu-btn{display:inline-flex!important;width:30px!important;min-width:30px!important;max-width:30px!important;height:34px!important;min-height:34px!important;padding:0!important;border:0!important;background:transparent!important;color:#36577f!important;box-shadow:none!important;font-size:23px!important;}' +
           '.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-header-actions .tm-messenger-close{display:none!important;}' +
           '.tm-messenger-overlay.employee-style.tm-mobile-view-chat .tm-messenger-messages{flex:1 1 auto!important;min-height:0!important;margin:0!important;padding:12px 11px 18px!important;gap:0!important;background:#fff!important;overflow-y:auto!important;}' +
@@ -5332,7 +5333,12 @@ var TMTicketModal = (function () {
     if (mobileCloseBtn) mobileCloseBtn.addEventListener('click', closeMessengerChat);
     var mobileBrandBtn = qs('tmMessengerMobileBrandBtn');
     if (mobileBrandBtn) mobileBrandBtn.addEventListener('click', function () {
-      if (overlay.classList.contains('tm-mobile-view-chat')) setMessengerMobileView('list');
+      if (!overlay.classList.contains('tm-mobile-view-chat')) return;
+      if (messengerTicketOriginId) {
+        closeMessengerChat();
+        return;
+      }
+      setMessengerMobileView('list');
     });
     var mobileTabsBar = overlay.querySelector('.tm-messenger-mobile-tabs');
     var headerActions = overlay.querySelector('.tm-messenger-header-actions');
@@ -6172,6 +6178,7 @@ var TMTicketModal = (function () {
     lockMessengerMobileViewport();
     var modal = qs('tmMessengerModal');
     if (!modal) return;
+    messengerTicketOriginId = null;
     modal.style.display = 'flex';
     setMessengerMobileView('list');
     messengerOpen = true;
@@ -6188,6 +6195,7 @@ var TMTicketModal = (function () {
     messengerTicketId = String(ticketId);
     setCurrentTicketId(messengerTicketId);
     close();
+    messengerTicketOriginId = String(ticketId);
     ensureMessengerModalExists();
     lockMessengerMobileViewport();
     var modal = qs('tmMessengerModal');
@@ -6222,14 +6230,17 @@ var TMTicketModal = (function () {
     var search = qs('tmMessengerSearch');
     if (input && document.activeElement === input) input.blur();
     if (search && document.activeElement === search) search.blur();
+    var ticketOriginId = messengerTicketOriginId;
     if (modal) modal.style.display = 'none';
     hideMessengerMessageEditor();
     hideMessengerConfirm();
     messengerOpen = false;
     messengerReturnContext = null;
+    messengerTicketOriginId = null;
     clearOwnTyping('messenger');
     stopMessenger();
     unlockMessengerMobileViewport();
+    if (ticketOriginId) open(ticketOriginId);
   }
   function restoreMessengerAfterTicketClose() {
     if (!messengerReturnContext || !messengerReturnContext.ticketId) return;
