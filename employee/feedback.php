@@ -3011,37 +3011,45 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
             }
 
             body.employee-feedback-page .feedback-summary-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
                 gap: 7px !important;
             }
 
             body.employee-feedback-page .feedback-card.feedback-average-card {
                 position: relative;
                 display: block !important;
+                width: auto !important;
+                min-width: 0 !important;
                 min-height: 86px !important;
                 padding: 9px 8px !important;
+                text-align: center !important;
                 border-radius: 7px !important;
                 box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08) !important;
             }
 
             body.employee-feedback-page .feedback-summary-icon {
                 position: absolute;
-                top: 10px;
-                left: 9px;
-                width: 27px !important;
-                height: 27px !important;
-                flex: 0 0 27px !important;
-                font-size: 12px !important;
+                top: 8px;
+                left: 7px;
+                width: 18px !important;
+                height: 18px !important;
+                flex: 0 0 18px !important;
+                font-size: 8px !important;
             }
 
             body.employee-feedback-page .feedback-card.feedback-average-card > div:last-child {
                 min-width: 0;
-                padding-left: 33px;
+                width: 100%;
+                padding-left: 0;
             }
 
             body.employee-feedback-page .feedback-card-title {
                 margin: 0 0 3px !important;
+                min-height: 18px;
+                padding-left: 20px;
                 font-size: 8px !important;
-                line-height: 1.2 !important;
+                line-height: 18px !important;
+                text-align: center !important;
                 white-space: nowrap;
             }
 
@@ -3050,10 +3058,17 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 line-height: 1 !important;
             }
 
+            body.employee-feedback-page .feedback-score-line {
+                width: 100% !important;
+                justify-content: center !important;
+                text-align: center !important;
+            }
+
             body.employee-feedback-page .feedback-score-note {
-                margin: 5px 0 0 -33px !important;
+                margin: 5px 0 0 !important;
                 font-size: 7px !important;
                 line-height: 1.25 !important;
+                text-align: center !important;
                 white-space: nowrap;
             }
         }
@@ -3417,6 +3432,27 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 overflow: visible !important;
                 overflow-wrap: normal !important;
                 word-break: normal !important;
+            }
+
+            body.employee-feedback-page .feedback-table th:nth-child(3),
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(3) {
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+                text-align: center !important;
+                vertical-align: middle !important;
+            }
+
+            body.employee-feedback-page .feedback-ticket-row > td:nth-child(3) .feedback-person {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                margin: 0 auto !important;
+                padding: 0 !important;
+                text-align: center !important;
+                box-sizing: border-box !important;
             }
 
             body.employee-feedback-page .feedback-category-pill {

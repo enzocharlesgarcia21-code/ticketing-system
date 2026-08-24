@@ -5838,10 +5838,10 @@
     }
 
     #ticketModal .tm-tab[data-tab="info"] { order: 1; }
-    #ticketModal .tm-tab[data-tab="conversation"] { order: 2; }
-    #ticketModal .tm-tab[data-tab="action-history"] { order: 3; }
+    #ticketModal .tm-tab[data-tab="actions"] { order: 2; }
+    #ticketModal .tm-tab[data-tab="conversation"] { order: 3; }
+    #ticketModal .tm-tab[data-tab="action-history"] { order: 4; }
 
-    #ticketModal .tm-tab[data-tab="actions"],
     #ticketModal .tm-tabs > .tm-tabs-actions {
         display: none !important;
     }

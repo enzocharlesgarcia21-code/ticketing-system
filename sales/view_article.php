@@ -1154,6 +1154,93 @@ function renderArticleContent($text) {
                 font-size: 12px;
             }
         }
+
+        /* Keep the article hero typography consistent with the category page. */
+        .article-kb-hero {
+            padding: 64px 20px 56px;
+        }
+
+        .article-kb-heading {
+            margin: 0;
+            font-size: 30px;
+            line-height: 1.2;
+        }
+
+        .article-kb-breadcrumb {
+            gap: 10px;
+            margin: 24px 0 24px;
+            font-size: 13px;
+            line-height: 1;
+        }
+
+        .article-kb-breadcrumb,
+        .article-kb-breadcrumb a,
+        .article-kb-breadcrumb .active,
+        .article-kb-breadcrumb i {
+            color: #111827;
+        }
+
+        .article-kb-search-input {
+            min-height: 60px;
+            padding: 16px 18px 16px 54px;
+            border-radius: 12px;
+            font-size: 18px;
+        }
+
+        .article-kb-search-icon {
+            left: 16px;
+            font-size: 16px;
+        }
+
+        .article-kb-search {
+            margin-top: 0;
+        }
+
+        @media (max-width: 768px) {
+            .article-kb-hero {
+                padding: 27px 22px 34px;
+            }
+
+            .article-kb-heading {
+                margin: 0;
+                font-size: 19px;
+                line-height: 1.2;
+                letter-spacing: 0;
+            }
+
+            .article-kb-breadcrumb {
+                gap: 7px;
+                margin: 7px 0 0;
+                font-size: 8px;
+                font-weight: 500;
+                line-height: 1;
+            }
+
+            .article-kb-breadcrumb i {
+                font-size: 6px;
+            }
+
+            .article-kb-breadcrumb .active {
+                font-weight: 700;
+            }
+
+            .article-kb-search {
+                margin-top: 17px;
+            }
+
+            .article-kb-search-input {
+                min-height: 44px;
+                padding: 11px 14px 11px 47px;
+                border-radius: 8px;
+                font-size: 11px;
+                box-shadow: 0 3px 10px rgba(21, 52, 29, 0.08);
+            }
+
+            .article-kb-search-icon {
+                left: 17px;
+                font-size: 14px;
+            }
+        }
     </style>
 <link rel="stylesheet" href="../css/sales-guest-header.css?v=2">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">

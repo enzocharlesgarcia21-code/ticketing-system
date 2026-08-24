@@ -3355,6 +3355,12 @@ var TMTicketModal = (function () {
         (currentEmail !== '' && (currentEmail === assignedToEmail || currentEmail === assigneeEmail))
         || (currentName !== '' && (currentName === assignedToName || currentName === assigneeName));
     }
+    var isMobileTicketView = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(max-width: 768px)').matches;
+    if (isMobileTicketView && !isClosedTicket && !isReassignedViewOnly) {
+      hideUpdateTab = false;
+    }
     if (isReassignedViewOnly) {
       hideConversationTab = !canViewChatHistory;
     }

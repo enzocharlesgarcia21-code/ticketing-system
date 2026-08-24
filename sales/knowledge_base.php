@@ -1892,6 +1892,14 @@ if ($showCategoryView) {
                 text-align: right;
             }
         }
+
+        .kb-header.is-mobile-it-view .kb-subtitle,
+        .kb-header .kb-breadcrumb,
+        .kb-header .kb-breadcrumb a,
+        .kb-header .kb-breadcrumb .active,
+        .kb-header .kb-breadcrumb i {
+            color: #111827 !important;
+        }
     </style>
 <link rel="stylesheet" href="../css/sales-guest-header.css?v=2">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -1931,17 +1939,15 @@ if ($showCategoryView) {
                     <?= htmlspecialchars($categoryViewTitle) ?> Knowledge Base
                 <?php else: ?>
                     <span class="kb-title-desktop">Knowledge Base</span>
-                    <span class="kb-title-mobile">IT Knowledge Base</span>
+                    <span class="kb-title-mobile">Knowledge Base</span>
                 <?php endif; ?>
             </h1>
             <?php if (!$showCategoryView): ?>
                 <p class="kb-subtitle">Find answers, articles, and solutions across all departments.</p>
-                <div class="kb-breadcrumb kb-mobile-home-breadcrumb" aria-label="Breadcrumb">
+                <div class="kb-breadcrumb kb-home-breadcrumb" aria-label="Breadcrumb">
                     <a href="knowledge_base.php">Knowledge Base</a>
                     <i class="fas fa-chevron-right" aria-hidden="true"></i>
-                    <a href="knowledge_base.php">Departments</a>
-                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
-                    <span class="active">IT</span>
+                    <span class="active">Departments</span>
                 </div>
             <?php endif; ?>
             <?php if ($showCategoryView): ?>

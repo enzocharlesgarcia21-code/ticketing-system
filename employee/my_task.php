@@ -2520,6 +2520,219 @@ $showing_to = min($offset + $limit, (int) $total_records);
             body.employee-my-task-page #tasksPagination .page-btn.next {
                 grid-area: next !important;
             }
+
+            /* Compact Update tab for the My Task ticket modal on phones. */
+            body.employee-my-task-page #ticketModal #tab-actions .tm-card-ticket-update {
+                border-radius: 9px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-card-header {
+                min-height: 40px !important;
+                padding: 7px 11px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-card-title {
+                min-height: 26px !important;
+                padding-left: 33px !important;
+                font-size: 13px !important;
+                line-height: 26px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-card-title::before {
+                left: 11px !important;
+                width: 26px !important;
+                height: 26px !important;
+                border-radius: 7px !important;
+                font-size: 11px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-card-body {
+                padding: 10px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-actions-form {
+                gap: 10px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-update-layout {
+                gap: 6px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-update-mode-grid {
+                gap: 7px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-update-mode-card {
+                min-height: 62px !important;
+                gap: 10px !important;
+                padding: 9px 11px !important;
+                border-radius: 9px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-update-mode-icon {
+                width: 32px !important;
+                height: 32px !important;
+                flex-basis: 32px !important;
+                font-size: 13px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-update-mode-icon.is-lit {
+                box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.14), 0 5px 10px rgba(22, 163, 74, 0.16) !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-update-mode-copy {
+                gap: 2px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-update-mode-title {
+                font-size: 13px !important;
+                line-height: 1.2 !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-update-mode-text {
+                padding-right: 13px !important;
+                font-size: 10.5px !important;
+                line-height: 1.3 !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-update-mode-check {
+                top: 7px !important;
+                right: 7px !important;
+                font-size: 13px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-actions-fields {
+                gap: 8px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-field,
+            body.employee-my-task-page #ticketModal #tab-actions .tm-status-picker {
+                gap: 5px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-control-label,
+            body.employee-my-task-page #ticketModal #tab-actions .tm-status-trigger-label {
+                font-size: 9.5px !important;
+                line-height: 1.2 !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-select {
+                min-height: 40px !important;
+                padding: 0 34px 0 11px !important;
+                border-width: 1px !important;
+                border-radius: 9px !important;
+                font-size: 11.5px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-select-trigger {
+                position: relative !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-select-trigger-icon {
+                position: absolute !important;
+                top: 50% !important;
+                right: 11px !important;
+                margin: 0 !important;
+                transform: translateY(-50%);
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-select-trigger[aria-expanded="true"] .tm-select-trigger-icon {
+                transform: translateY(-50%) rotate(180deg) !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-select-menu {
+                top: calc(100% + 4px) !important;
+                max-height: 180px !important;
+                padding: 4px !important;
+                border-width: 1px !important;
+                border-radius: 9px !important;
+                box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12) !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-select-menu.is-above {
+                top: auto !important;
+                bottom: calc(100% + 4px) !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-select-menu-option {
+                min-height: 32px !important;
+                padding: 6px 9px !important;
+                border-radius: 6px !important;
+                font-size: 11px !important;
+                line-height: 1.2 !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-select-menu-option.is-selected {
+                border-radius: 6px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-status-button-row {
+                gap: 6px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-status-trigger {
+                min-height: 36px !important;
+                padding: 0 5px !important;
+                border-radius: 7px !important;
+                font-size: 10.5px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-status-trigger.is-selected {
+                box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.10) !important;
+                transform: none !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-note-group {
+                min-height: 0 !important;
+                margin-top: 2px !important;
+                gap: 6px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-note-label {
+                font-size: 10.5px !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-textarea {
+                min-height: 112px !important;
+                height: 112px !important;
+                padding: 11px !important;
+                border-radius: 8px !important;
+                font-size: 10.5px !important;
+                line-height: 1.45 !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-note-footer {
+                padding-top: 7px !important;
+                padding-bottom: 0 !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-actions-buttons {
+                width: 100% !important;
+                min-width: 0 !important;
+                margin: 0 !important;
+                justify-content: center !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-actions .tm-actions-buttons .tm-btn-primary {
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                flex: 1 1 100% !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                height: 38px !important;
+                min-height: 38px !important;
+                padding: 0 12px !important;
+                border-radius: 7px !important;
+                font-size: 10.5px !important;
+                text-align: center !important;
+            }
+
+            body.employee-my-task-page #ticketModal #tab-info .tm-card-description .tm-desc-text {
+                font-size: 3px !important;
+                line-height: 1.4 !important;
+            }
         }
 
     </style>
