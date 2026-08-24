@@ -1390,53 +1390,80 @@ if ($showCategoryView) {
             }
 
             body.employee-kb-category-page .mobile-kb-back {
+                position: absolute;
+                top: 10px;
+                left: 13px;
+                z-index: 2;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                gap: 9px;
-                min-height: 30px;
-                margin: 0 0 16px;
-                padding: 4px 18px;
-                border: 1px solid #176326;
-                border-radius: 999px;
-                background: #176326;
+                gap: 7px;
+                min-height: 28px;
+                margin: 0;
+                padding: 4px 14px;
+                border: 0;
+                border-radius: 10px;
+                background: #087332;
                 color: #ffffff;
-                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-                font-size: 12px;
+                box-shadow: 0 4px 10px rgba(8, 79, 37, 0.22);
+                font-size: 11px;
                 font-weight: 800;
                 line-height: 1;
                 text-decoration: none;
             }
 
             body.employee-kb-category-page .mobile-kb-back i {
-                color: #f6cf4a;
-                font-size: 11px;
+                color: #ffffff;
+                font-size: 10px;
             }
 
+            /* Keep the employee department view aligned with the sales KB mobile UI. */
             body.employee-kb-category-page .kb-header {
-                margin-bottom: 24px;
+                margin-bottom: 21px;
+                padding-top: 14px;
                 text-align: center;
             }
 
             body.employee-kb-category-page .kb-title {
-                margin: 0 0 12px;
-                color: #087b2e;
-                font-size: 24px;
+                margin: 0;
+                color: #086b28;
+                font-size: 19px;
                 font-weight: 700;
                 line-height: 1.2;
+                letter-spacing: 0;
             }
 
             body.employee-kb-category-page .kb-breadcrumb {
+                display: flex;
+                align-items: center;
                 justify-content: center;
-                margin: 0 0 22px;
-                gap: 9px;
-                font-size: 13px;
+                gap: 7px;
+                margin: -3px 0 0;
+                color: #000000;
+                font-size: 8px;
+                font-weight: 500;
+                line-height: 1;
+            }
+
+            body.employee-kb-category-page .kb-breadcrumb a {
+                color: #000000;
+            }
+
+            body.employee-kb-category-page .kb-breadcrumb i {
+                color: #000000;
+                font-size: 6px;
+            }
+
+            body.employee-kb-category-page .kb-breadcrumb .active {
+                color: #000000;
+                font-weight: 700;
             }
 
             body.employee-kb-category-page .department-search {
                 width: 100%;
                 max-width: none;
-                margin-top: 0;
+                margin-top: 17px;
+                text-align: left;
             }
 
             body.employee-kb-category-page .department-back-row,
@@ -1450,62 +1477,64 @@ if ($showCategoryView) {
             }
 
             body.employee-kb-category-page .department-list {
-                margin-bottom: 18px;
+                margin-bottom: 12px;
                 border-radius: 12px;
             }
 
             body.employee-kb-category-page .department-article {
-                gap: 10px;
-                padding: 12px;
+                gap: 8px;
+                padding: 9px 11px;
             }
 
             body.employee-kb-category-page .department-article-main {
-                gap: 10px;
+                gap: 8px;
             }
 
             body.employee-kb-category-page .department-article-icon {
-                width: 30px;
-                height: 30px;
-                margin-top: 0;
-                border-radius: 9px;
-                font-size: 12px;
+                width: 22px;
+                height: 22px;
+                margin-top: 1px;
+                border-radius: 7px;
+                font-size: 10px;
             }
 
             body.employee-kb-category-page .department-article-title {
-                margin-bottom: 5px;
-                font-size: 15px;
-                line-height: 1.22;
+                margin-bottom: 4px;
+                font-size: 15px !important;
+                font-weight: 600;
+                line-height: 1.2;
             }
 
             body.employee-kb-category-page .department-article-date {
-                font-size: 11px;
+                font-size: 10px;
             }
 
             body.employee-kb-category-page .department-article .kb-category-badge {
                 margin-bottom: 0;
-                padding: 4px 8px;
-                font-size: 10px;
+                padding: 3px 7px;
+                font-size: 9px;
             }
 
             body.employee-kb-category-page .department-categories {
-                margin-top: 16px;
+                margin-top: 10px;
             }
 
             body.employee-kb-category-page .department-categories .categories-title {
-                margin-bottom: 12px;
-                color: #176f32;
-                font-size: 18px;
+                margin-bottom: 14px;
+                color: #1B5E20;
+                font-size: 20px;
+                font-weight: 500;
             }
 
             body.employee-kb-category-page .department-categories .category-card {
-                min-height: 82px;
-                padding: 11px 12px;
+                min-height: 66px;
+                padding: 14px 18px;
                 border-radius: 10px;
             }
 
             body.employee-kb-category-page .department-categories .category-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 10px;
+                grid-template-columns: 1fr;
+                gap: 12px;
             }
 
             .categories-section.home-departments {

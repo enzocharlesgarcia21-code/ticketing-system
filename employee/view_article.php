@@ -564,6 +564,26 @@ function renderArticleContent($text) {
                 display: none !important;
             }
 
+            /* Match the compact Knowledge Base Back button. */
+            .back-link {
+                /* This page uses the shared 78% employee zoom. These values
+                   produce the same visible dimensions as the KB button. */
+                gap: 9px;
+                min-height: 36px;
+                margin-bottom: 18px;
+                padding: 5px 18px;
+                border-radius: 13px;
+                background: #087332;
+                box-shadow: 0 4px 10px rgba(8, 79, 37, 0.22);
+                font-size: 14px;
+                font-weight: 800;
+                line-height: 1;
+            }
+
+            .back-link i {
+                font-size: 13px;
+            }
+
             .article-header, .article-content, .article-video-feature {
                 padding: 24px;
             }
