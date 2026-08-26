@@ -1,0 +1,133 @@
+/* Shared account-free header for every page in /sales. */
+.sales-employee-navbar {
+    height: auto !important;
+    min-height: 90px !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px !important;
+    padding: 15px 40px !important;
+    box-sizing: border-box;
+}
+
+.sales-employee-navbar .nav-left {
+    width: auto !important;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px !important;
+}
+
+.sales-employee-navbar .logo-icon {
+    width: 56px !important;
+    min-width: 56px;
+    max-width: 56px;
+    height: 56px !important;
+    padding: 6px !important;
+    box-sizing: border-box;
+}
+
+.sales-employee-navbar .brand-name {
+    min-width: 0;
+    overflow: hidden;
+    color: #fff;
+    font-size: 18px !important;
+    font-weight: 600;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sales-employee-navbar .navbar-toggler {
+    display: none !important;
+}
+
+.sales-employee-navbar .navbar-collapse {
+    width: auto !important;
+    min-width: 0;
+    display: flex !important;
+    flex: 0 0 auto !important;
+    flex-direction: row !important;
+    align-items: center;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+}
+
+.sales-employee-navbar .nav-center {
+    display: none !important;
+}
+
+.sales-employee-navbar .sales-nav-right {
+    width: auto !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-end !important;
+    gap: 10px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.sales-employee-navbar .sales-nav-link {
+    width: auto !important;
+    min-width: 0;
+    height: 42px !important;
+    min-height: 42px !important;
+    display: inline-flex;
+    flex: 0 0 auto !important;
+    align-items: center;
+    justify-content: center;
+    gap: 10px !important;
+    padding: 0 20px !important;
+    border-radius: 999px;
+    font-size: 13px !important;
+    line-height: 1;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+
+.sales-employee-navbar .sales-nav-link-icon {
+    font-size: 16px !important;
+    line-height: 1;
+}
+
+@media (max-width: 768px) {
+    .sales-employee-navbar {
+        height: auto !important;
+        min-height: 58px !important;
+        gap: 4px !important;
+        padding: 9px 8px !important;
+    }
+
+    .sales-employee-navbar .nav-left {
+        gap: 7px !important;
+    }
+
+    .sales-employee-navbar .logo-icon {
+        width: 32px !important;
+        min-width: 32px;
+        max-width: 32px;
+        height: 32px !important;
+        padding: 4px !important;
+    }
+
+    .sales-employee-navbar .brand-name {
+        font-size: 12px !important;
+    }
+
+    .sales-employee-navbar .sales-nav-right {
+        gap: 4px !important;
+    }
+
+    .sales-employee-navbar .sales-nav-link {
+        height: 32px !important;
+        min-height: 32px !important;
+        gap: 4px !important;
+        padding: 0 9px !important;
+        font-size: 10px !important;
+    }
+
+    .sales-employee-navbar .sales-nav-link-icon {
+        font-size: 10px !important;
+    }
+}

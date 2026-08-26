@@ -288,7 +288,9 @@ function notif_priority_from_message(string $message): string
     if ($to === 'on track') return 'low';
     return $to;
 }
-?><!DOCTYPE html>
+?>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">

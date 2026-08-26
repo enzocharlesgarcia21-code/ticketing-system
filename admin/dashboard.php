@@ -14,7 +14,7 @@ function admin_sla_display_label(string $slaLevel): string
     return ticket_sla_display_label($slaLevel);
 }
 
-function time_ago_days(string $dateTime): string
+function admin_ticket_created_date(string $dateTime): string
 {
     $dateTime = trim($dateTime);
     if ($dateTime === '') return '-';
@@ -23,13 +23,6 @@ function time_ago_days(string $dateTime): string
     } catch (Throwable $e) {
         return '-';
     }
-    $now = new DateTimeImmutable('now');
-    $createdDay = $created->setTime(0, 0, 0);
-    $nowDay = $now->setTime(0, 0, 0);
-    $diff = $nowDay->diff($createdDay);
-    $days = (int) ($diff->days ?? 0);
-    if ($diff->invert !== 1) $days = 0;
-    if ($days <= 0) return 'Today';
     return $created->format('M d, Y');
 }
 
@@ -165,20 +158,20 @@ while($row = $deptQuery->fetch_assoc()) {
 
 $priorityAgg = $conn->query("
     SELECT 
-        SUM(LOWER(priority) IN ('low','medium')) AS low_count,
-        SUM(LOWER(priority) = 'high') AS high_count,
-        SUM(LOWER(priority) = 'critical') AS critical_count
+        SUM(LOWER(TRIM(priority)) = 'low') AS low_count,
+        SUM(LOWER(TRIM(priority)) = 'medium') AS medium_count,
+        SUM(LOWER(TRIM(priority)) = 'high') AS high_count
     FROM employee_tickets
     WHERE COALESCE(NULLIF(status,''),'') <> 'Trash'
 ")->fetch_assoc();
 
-$priorities = ['Low', 'High', 'Critical'];
+$priorities = ['Low', 'Medium', 'High'];
 $priorityCounts = [
     (int) ($priorityAgg['low_count'] ?? 0),
+    (int) ($priorityAgg['medium_count'] ?? 0),
     (int) ($priorityAgg['high_count'] ?? 0),
-    (int) ($priorityAgg['critical_count'] ?? 0),
 ];
-$priorityColors = ['#43A047', '#FB8C00', '#E53935'];
+$priorityColors = ['#43A047', '#F59E0B', '#E53935'];
 $priorityTotal = array_sum($priorityCounts);
 $priorityLegendItems = [];
 foreach ($priorities as $index => $priorityLabel) {
@@ -528,10 +521,12 @@ if ($recentRes) {
             align-items: center;
             gap: 16px;
             flex-wrap: wrap;
-            justify-content: flex-end;
+            justify-content: center;
             position: absolute;
-            right: 0;
+            left: 50%;
             bottom: 0;
+            transform: translateX(-50%);
+            width: max-content;
             max-width: 100%;
         }
         .priority-legend-item {
@@ -739,7 +734,7 @@ if ($recentRes) {
                                                     $origDept = !empty($t['department']) ? $t['department'] : ($t['user_department'] ?? '');
                                                     echo htmlspecialchars($origDept !== '' ? ticket_department_display_name((string) $origDept) : 'Sales');
                                                 ?></td>
-                                                <td data-label="Created"><?= htmlspecialchars(time_ago_days((string) ($t['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') ?></td>
+                                                <td data-label="Created"><?= htmlspecialchars(admin_ticket_created_date((string) ($t['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') ?></td>
                                                 <td data-label="SLA"><?= sla_badge_html((string) ($t['created_at'] ?? ''), (string) ($t['status'] ?? ''), (string) ($t['priority'] ?? '')); ?></td>
                                                 <td data-label="Assign To"><?= htmlspecialchars(assigned_target_label($t), ENT_QUOTES, 'UTF-8'); ?></td>
                                             </tr>

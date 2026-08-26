@@ -63,6 +63,9 @@ function isActive($page) {
     if ($page == 'analytics.php' && $current == 'analytics.php') {
         return 'active';
     }
+    if ($page == 'sales_analytics.php' && $current == 'sales_analytics.php') {
+        return 'active';
+    }
     return '';
 }
 
@@ -92,19 +95,14 @@ if ($isLapcSalesEmployee && $employeeViewMode === 'manager') {
     $employeeNavItems = [
         ['key' => 'dashboard', 'page' => 'dashboard.php', 'label' => 'Dashboard'],
         ['key' => 'sales_submitted_tickets', 'page' => 'sales_submitted_tickets.php', 'label' => ' Submitted Tickets'],
-        ['key' => 'analytics', 'page' => 'analytics.php', 'label' => 'Analytics'],
+        ['key' => 'sales_manager_analytics', 'page' => 'sales_analytics.php', 'label' => 'Analytics'],
     ];
 }
 
 $currentEmployeePage = basename($_SERVER['PHP_SELF'] ?? '');
-$sharedMobileSidebarPages = [
-    'my_task.php',
-    'my_tickets.php',
-    'feedback.php',
-    'knowledge_base.php',
-    'analytics.php',
-];
-$showSharedMobileSidebar = in_array($currentEmployeePage, $sharedMobileSidebarPages, true);
+// The dashboard currently renders this same sidebar beside the shared navbar.
+// Every other employee page gets it directly from this include.
+$showSharedMobileSidebar = $currentEmployeePage !== 'dashboard.php';
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style id="employee-navbar-critical-logo-styles">
@@ -310,23 +308,7 @@ $showSharedMobileSidebar = in_array($currentEmployeePage, $sharedMobileSidebarPa
 document.body && document.body.classList.add('employee-shared-mobile-sidebar-page');
 </script>
 <div id="mobileSidebar" class="mobile-sidebar" aria-hidden="true">
-    <div class="mobile-sidebar-header">
-        <img src="../assets/img/UPDATEDlogo.png" alt="Logo" width="36" height="36">
-        <span>Leads Agri</span>
-    </div>
-    <?php foreach ($employeeNavItems as $navItem): ?>
-        <?php
-            $permissionKey = (string) ($navItem['key'] ?? '');
-            $isVisible = !array_key_exists($permissionKey, $tmUserPermissions) || (int) $tmUserPermissions[$permissionKey] === 1;
-            if (!$isVisible) {
-                continue;
-            }
-        ?>
-        <a href="<?= htmlspecialchars((string) $navItem['page'], ENT_QUOTES, 'UTF-8'); ?>" class="<?= isActive((string) $navItem['page']); ?>">
-            <?= htmlspecialchars((string) $navItem['label'], ENT_QUOTES, 'UTF-8'); ?>
-        </a>
-    <?php endforeach; ?>
-    <div class="mobile-sidebar-footer">
+    <div class="mobile-sidebar-footer mobile-sidebar-header-actions" aria-label="Notifications and account">
         <a href="notifications.php" class="mobile-sidebar-icon-link" aria-label="Notifications">
             <i class="fas fa-bell"></i>
             <span id="mobileSidebarNotifBadge" class="mobile-sidebar-badge"></span>
@@ -342,6 +324,18 @@ document.body && document.body.classList.add('employee-shared-mobile-sidebar-pag
             </div>
         </div>
     </div>
+    <?php foreach ($employeeNavItems as $navItem): ?>
+        <?php
+            $permissionKey = (string) ($navItem['key'] ?? '');
+            $isVisible = !array_key_exists($permissionKey, $tmUserPermissions) || (int) $tmUserPermissions[$permissionKey] === 1;
+            if (!$isVisible) {
+                continue;
+            }
+        ?>
+        <a href="<?= htmlspecialchars((string) $navItem['page'], ENT_QUOTES, 'UTF-8'); ?>" class="<?= isActive((string) $navItem['page']); ?>">
+            <?= htmlspecialchars((string) $navItem['label'], ENT_QUOTES, 'UTF-8'); ?>
+        </a>
+    <?php endforeach; ?>
 </div>
 
 <div id="mobileSidebarOverlay" class="mobile-sidebar-overlay" aria-hidden="true"></div>
@@ -1354,22 +1348,36 @@ window.TM_MESSENGER_STYLE = 'employee';
 .tm-global-chat-fab .chat-badge.is-visible { display: inline-flex; }
 @media (max-width: 768px) {
     .tm-global-chat-fab {
-        right: 12px;
-        bottom: 12px;
-        width: 42px;
-        height: 42px;
-        min-width: 42px;
-        min-height: 42px;
+        right: 14px;
+        bottom: 14px;
+        width: 76px;
+        height: 76px;
+        min-width: 76px;
+        min-height: 76px;
         padding: 0;
         border-radius: 999px;
         justify-content: center;
         gap: 0;
     }
     .tm-global-chat-fab .tm-global-chat-label { display: none; }
-    .tm-global-chat-fab i { font-size: 16px; }
+    .tm-global-chat-fab i { font-size: 28px; }
     .tm-global-chat-fab .chat-badge {
         top: -4px;
         right: -4px;
+    }
+
+    /* One consistent mobile chat shortcut across every employee page. */
+    html body[class] > .tm-global-chat-fab {
+        width: 76px !important;
+        max-width: 76px !important;
+        min-width: 76px !important;
+        height: 76px !important;
+        min-height: 76px !important;
+        padding: 0 !important;
+    }
+
+    html body[class] > .tm-global-chat-fab i {
+        font-size: 28px !important;
     }
 }
 
@@ -1529,21 +1537,29 @@ body.employee-sales-manager-page .user-dropdown {
     body.employee-shared-mobile-sidebar-page .mobile-sidebar {
         position: fixed;
         top: 0;
-        right: -260px;
+        left: -260px;
+        right: auto;
         width: 260px;
-        height: 100vh;
+        height: var(--employee-mobile-sidebar-height, 100vh);
+        min-height: var(--employee-mobile-sidebar-height, 100vh);
+        max-height: var(--employee-mobile-sidebar-height, 100vh);
         background: #1B5E20;
         padding: 20px;
-        transition: right 0.3s ease;
+        transition: left 0.3s ease;
         z-index: 2000;
         display: flex;
         flex-direction: column;
         gap: 18px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        box-sizing: border-box;
         box-shadow: 12px 0 28px rgba(15, 23, 42, 0.25);
     }
 
     body.employee-shared-mobile-sidebar-page .mobile-sidebar.active {
-        right: 0;
+        left: 0;
+        right: auto;
     }
 
     body.employee-shared-mobile-sidebar-page .mobile-sidebar-header {
@@ -1588,12 +1604,13 @@ body.employee-sales-manager-page .user-dropdown {
     }
 
     body.employee-shared-mobile-sidebar-page .mobile-sidebar-footer {
-        margin-top: auto;
-        padding-top: 14px;
-        border-top: 1px solid rgba(255, 255, 255, 0.18);
+        margin: 0 0 8px;
+        padding: 0 0 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.18);
         display: flex;
         align-items: center;
         gap: 12px;
+        flex: 0 0 auto;
     }
 
     body.employee-shared-mobile-sidebar-page .mobile-sidebar-icon-link,
@@ -1652,7 +1669,7 @@ body.employee-sales-manager-page .user-dropdown {
     body.employee-shared-mobile-sidebar-page .mobile-sidebar-user-menu {
         position: absolute;
         right: 0;
-        bottom: calc(100% + 10px);
+        top: calc(100% + 10px);
         min-width: 170px;
         background: #ffffff;
         border-radius: 12px;
@@ -1685,7 +1702,8 @@ body.employee-sales-manager-page .user-dropdown {
         top: 0;
         left: 0;
         width: 100%;
-        height: 100%;
+        height: var(--employee-mobile-sidebar-height, 100vh);
+        min-height: var(--employee-mobile-sidebar-height, 100vh);
         background: rgba(0, 0, 0, 0.4);
         opacity: 0;
         visibility: hidden;
@@ -1704,6 +1722,286 @@ body.employee-sales-manager-page .user-dropdown {
         position: relative;
         z-index: 2105;
     }
+
+    /* One authoritative reference-style mobile header for every employee page. */
+    html body > nav.navbar,
+    html body[class] > nav.navbar {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 2105 !important;
+        width: 100% !important;
+        height: 84px !important;
+        min-height: 84px !important;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 8px !important;
+        padding: 10px 14px !important;
+        border-bottom: 4px solid #F4C430 !important;
+        background: linear-gradient(90deg, #075f28, #006a2d) !important;
+        box-sizing: border-box !important;
+        box-shadow: none !important;
+        -webkit-text-size-adjust: 100% !important;
+        text-size-adjust: 100% !important;
+    }
+
+    html body[class] > nav.navbar .nav-left {
+        width: 100% !important;
+        min-width: 0 !important;
+        display: grid !important;
+        grid-template-columns: 38px 44px minmax(0, 1fr) !important;
+        grid-template-areas: "menu logo brand" !important;
+        align-items: center !important;
+        gap: 9px !important;
+    }
+
+    html body[class] > nav.navbar .navbar-toggler {
+        grid-area: menu !important;
+        justify-self: start !important;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        min-height: 38px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    html body[class] > nav.navbar .navbar-toggler i,
+    html body[class] > nav.navbar .navbar-toggler svg {
+        width: 18px !important;
+        height: 18px !important;
+        color: #ffffff !important;
+        font-size: 18px !important;
+        line-height: 1 !important;
+    }
+
+    html body[class] > nav.navbar .logo-icon {
+        grid-area: logo !important;
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        max-width: 44px !important;
+        flex-basis: 44px !important;
+        padding: 5px !important;
+    }
+
+    html body[class] > nav.navbar .brand-name {
+        grid-area: brand !important;
+        min-width: 0 !important;
+        font-family: 'Segoe UI', Arial, sans-serif !important;
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        line-height: 1.1 !important;
+        letter-spacing: 0 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+
+    html body[class] > nav.navbar #navbarCollapse {
+        width: auto !important;
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+    }
+
+    html body[class] > nav.navbar .nav-center {
+        display: none !important;
+    }
+
+    html body[class] > nav.navbar .nav-right {
+        width: auto !important;
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 6px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    html body[class] > nav.navbar .notification-bell,
+    html body[class] > nav.navbar .user-btn {
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        min-height: 38px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    html body[class] > nav.navbar .user-btn {
+        width: 46px !important;
+        min-width: 46px !important;
+        gap: 4px !important;
+    }
+
+    html body[class] > nav.navbar .notification-bell > i,
+    html body[class] > nav.navbar .user-btn > i:first-child {
+        color: #ffffff !important;
+        font-size: 17px !important;
+    }
+
+    html body[class] > nav.navbar .user-btn > i:first-child {
+        width: 30px !important;
+        height: 30px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 50% !important;
+        background: #ffffff !important;
+        color: #176b35 !important;
+    }
+
+    html body[class] > nav.navbar .user-btn-name {
+        display: none !important;
+    }
+
+    html body[class] > nav.navbar .user-btn > i:last-child {
+        display: inline-block !important;
+        color: #ffffff !important;
+        font-size: 9px !important;
+    }
+
+    /* Keep the mobile notification popover compact without resizing the bell. */
+    html body[class] > nav.navbar .notification-dropdown {
+        left: auto !important;
+        right: 12px !important;
+        width: min(350px, calc(100vw - 32px)) !important;
+        max-height: 72vh !important;
+        margin: 0 !important;
+        border-radius: 10px !important;
+    }
+
+    /* Knowledge Base uses 100% page zoom; compensate so its header has the
+       same visible dimensions and type size as the 78%-scaled employee pages. */
+    html body.employee-knowledge-base-page > nav.navbar {
+        height: 66px !important;
+        min-height: 66px !important;
+        padding: 8px 11px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .nav-left {
+        grid-template-columns: 30px 34px minmax(0, 1fr) !important;
+        gap: 7px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .logo-icon {
+        width: 34px !important;
+        height: 34px !important;
+        min-width: 34px !important;
+        max-width: 34px !important;
+        flex-basis: 34px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .brand-name {
+        font-size: 13px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .navbar-toggler,
+    html body.employee-knowledge-base-page > nav.navbar .notification-bell {
+        width: 30px !important;
+        height: 30px !important;
+        min-width: 30px !important;
+        min-height: 30px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .navbar-toggler i,
+    html body.employee-knowledge-base-page > nav.navbar .navbar-toggler svg,
+    html body.employee-knowledge-base-page > nav.navbar .notification-bell > i {
+        width: 14px !important;
+        height: 14px !important;
+        font-size: 14px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .nav-right {
+        gap: 6px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .user-btn {
+        width: 36px !important;
+        height: 30px !important;
+        min-width: 36px !important;
+        min-height: 30px !important;
+        gap: 3px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .user-btn > i:first-child {
+        width: 24px !important;
+        height: 24px !important;
+        font-size: 12px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .user-btn > i:last-child {
+        font-size: 8px !important;
+    }
+
+    html body.employee-knowledge-base-page > nav.navbar .notification-badge {
+        padding: 1px 4px !important;
+        font-size: 9px !important;
+    }
+
+    /* Knowledge Base renders at 100% mobile scale, while the other employee
+       pages scale this shared 260px drawer. Keep its visible size consistent. */
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar {
+        left: -203px !important;
+        width: 203px !important;
+        padding: 16px !important;
+        gap: 14px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar.active {
+        left: 0 !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar a {
+        min-height: 34px !important;
+        padding: 8px 9px !important;
+        border-radius: 8px !important;
+        font-size: 13px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-footer {
+        margin-bottom: 6px !important;
+        padding-bottom: 11px !important;
+        gap: 9px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-icon-link,
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-user-btn {
+        min-height: 34px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-icon-link {
+        width: 34px !important;
+        min-width: 34px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-icon-link i,
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-user-btn i {
+        font-size: 13px !important;
+    }
+
+    html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page .mobile-sidebar-user-btn {
+        gap: 8px !important;
+        padding: 0 12px !important;
+    }
 }
 </style>
 
@@ -1718,6 +2016,24 @@ document.addEventListener('DOMContentLoaded', function () {
     const desktopNotifBadge = document.getElementById('notifBadge');
     const mobileNotifBadge = document.getElementById('mobileSidebarNotifBadge');
     const navbarCollapse = document.getElementById('navbarCollapse');
+
+    function syncMobileSidebarHeight() {
+        if (!document.documentElement || !document.body) return;
+
+        const viewportHeight = window.visualViewport && window.visualViewport.height
+            ? window.visualViewport.height
+            : window.innerHeight;
+        let bodyZoom = parseFloat(window.getComputedStyle(document.body).zoom || '1');
+
+        if (!Number.isFinite(bodyZoom) || bodyZoom <= 0) {
+            bodyZoom = 1;
+        }
+
+        document.documentElement.style.setProperty(
+            '--employee-mobile-sidebar-height',
+            Math.ceil(viewportHeight / bodyZoom) + 'px'
+        );
+    }
 
     function closeSidebar() {
         if (!sidebar || !overlay) return;
@@ -1740,6 +2056,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (!menuBtn || !sidebar || !overlay) return;
 
+    syncMobileSidebarHeight();
+    window.addEventListener('orientationchange', syncMobileSidebarHeight);
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', syncMobileSidebarHeight);
+    }
+
     menuBtn.addEventListener('click', function (event) {
         if (window.innerWidth > 768) return;
         event.preventDefault();
@@ -1748,6 +2070,7 @@ document.addEventListener('DOMContentLoaded', function () {
             event.stopImmediatePropagation();
         }
         if (navbarCollapse) navbarCollapse.classList.remove('show');
+        syncMobileSidebarHeight();
         const shouldOpen = !sidebar.classList.contains('active');
         sidebar.classList.toggle('active', shouldOpen);
         overlay.classList.toggle('active', shouldOpen);
@@ -1784,6 +2107,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     window.addEventListener('resize', function () {
+        syncMobileSidebarHeight();
         if (window.innerWidth > 768) {
             closeSidebar();
         }

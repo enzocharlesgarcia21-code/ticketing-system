@@ -167,8 +167,8 @@ function notif_company_display_map(): array
         'farmasee.ph' => 'FARMASEE',
         '@gmail.com' => 'Gmail',
         'gmail.com' => 'Gmail',
-        '@gpsci.net' => 'GPSCI',
-        'gpsci.net' => 'GPSCI',
+        '@gpsci.net' => 'GPCI',
+        'gpsci.net' => 'GPCI',
         '@leads-eh.com' => 'LEH',
         'leads-eh.com' => 'LEH',
         '@leads-farmex.com' => 'FARMEX',
@@ -1539,6 +1539,49 @@ function notif_email_lines_with_sales_request_context(array $lines): array
     return $out;
 }
 
+function notif_email_detail_value_html(string $label, string $value): string
+{
+    $escapedValue = nl2br(htmlspecialchars($value, ENT_QUOTES, 'UTF-8'));
+    if (strcasecmp(trim($label), 'Description') !== 0) {
+        return $escapedValue;
+    }
+
+    $normalized = str_replace(["\r\n", "\r"], "\n", trim($value));
+    $visualLines = [];
+    foreach (explode("\n", $normalized) as $line) {
+        $line = rtrim((string) $line);
+        if ($line === '') {
+            $visualLines[] = '';
+            continue;
+        }
+        $wrapped = wordwrap($line, 64, "\n", false);
+        foreach (explode("\n", $wrapped) as $wrappedLine) {
+            $visualLines[] = (string) $wrappedLine;
+        }
+    }
+
+    if (count($visualLines) <= 5) {
+        return $escapedValue;
+    }
+
+    $preview = implode("\n", array_slice($visualLines, 0, 5));
+    $remaining = implode("\n", array_slice($visualLines, 5));
+    $previewHtml = nl2br(htmlspecialchars($preview, ENT_QUOTES, 'UTF-8'));
+    $remainingHtml = nl2br(htmlspecialchars($remaining, ENT_QUOTES, 'UTF-8'));
+
+    if (trim($remaining) === '') {
+        return $escapedValue;
+    }
+
+    $summaryStyle = 'display:inline-block;margin-top:8px;padding:7px 12px;background:#006633;border:1px solid #006633;border-radius:5px;color:#ffffff;font-size:13px;line-height:1.2;font-weight:700;text-decoration:none;cursor:pointer;';
+
+    return '<div style="margin:0;padding:0;">' . $previewHtml . '</div>'
+        . '<details style="margin:0;padding:0;">'
+        . '<summary style="' . $summaryStyle . '">See more</summary>'
+        . '<div style="margin-top:10px;">' . $remainingHtml . '</div>'
+        . '</details>';
+}
+
 function notif_email_assignee_assignment(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
 {
     $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
@@ -1586,7 +1629,7 @@ function notif_email_assignee_assignment(string $title, array $lines, string $ct
         $rowsHtml .= '
                         <tr>
                             <td style="width:155px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -1668,7 +1711,7 @@ function notif_email_requester_ticket_submitted(string $title, array $lines, str
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -1750,7 +1793,7 @@ function notif_email_requester_ticket_claimed(string $title, array $lines, strin
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -1838,7 +1881,7 @@ function notif_email_requester_ticket_resolved(string $title, array $lines, stri
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -2014,7 +2057,7 @@ function notif_email_requester_ticket_reassigned(string $title, array $lines, st
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -2094,7 +2137,7 @@ function notif_email_requester_ticket_status_updated(string $title, array $lines
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -2128,7 +2171,7 @@ function notif_email_requester_ticket_status_updated(string $title, array $lines
 
 function notif_email_follow_up(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
 {
-    $safeTitle = htmlspecialchars('Follow Up', ENT_QUOTES, 'UTF-8');
+    $safeTitle = htmlspecialchars($title !== '' ? $title : 'Ticket Follow-up', ENT_QUOTES, 'UTF-8');
     $ctaLabelSafe = htmlspecialchars($ctaLabel !== '' ? $ctaLabel : 'View Ticket', ENT_QUOTES, 'UTF-8');
     $ctaUrlSafe = htmlspecialchars($ctaUrl, ENT_QUOTES, 'UTF-8');
     $details = [];
@@ -2168,8 +2211,8 @@ function notif_email_follow_up(string $title, array $lines, string $ctaLabel, st
         }
         $rowsHtml .= '
                         <tr>
-                            <td style="width:160px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td align="left" style="width:160px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;text-align:left;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
+                            <td align="left" style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;text-align:left;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -2178,13 +2221,13 @@ function notif_email_follow_up(string $title, array $lines, string $ctaLabel, st
         : '';
 
     $bodyHtml = '
-        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;">
-            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;">
-                <div style="background:#005c2f;padding:24px 26px 18px;color:#ffffff;">
+        <div style="font-family:Arial, Helvetica, sans-serif;color:#050505;line-height:1.45;padding:12px 0;background:#ffffff;text-align:left;">
+            <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #d7d7d7;border-radius:18px;overflow:hidden;text-align:left;">
+                <div style="background:#005c2f;padding:24px 26px 18px;color:#ffffff;text-align:left;">
                     <div style="font-size:31px;font-weight:700;line-height:1.1;letter-spacing:-0.02em;">Leads DeskMetamorph</div>
                     <div style="font-size:19px;font-weight:700;color:#fff200;margin-top:12px;line-height:1.25;">' . $safeTitle . '</div>
                 </div>
-                <div style="padding:30px 28px 26px;">
+                <div style="padding:30px 28px 26px;text-align:left;">
                     <div style="margin:0 0 28px 0;font-size:16px;line-height:1.5;color:#050505;">The requestor has provided a follow-up update.</div>
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 2px 0;">
                         ' . $rowsHtml . '
@@ -2197,7 +2240,7 @@ function notif_email_follow_up(string $title, array $lines, string $ctaLabel, st
             </div>
         </div>';
 
-    $bodyText = "Leads DeskMetamorph\nFollow Up\n\nThe requestor has provided a follow-up update.\n\n" . $lineText . "\nAction Required:\nPlease review the follow-up and provide an update to the requestor.\n\n$ctaLabel: $ctaUrl\n";
+    $bodyText = "Leads DeskMetamorph\n$title\n\nThe requestor has provided a follow-up update.\n\n" . $lineText . "\nAction Required:\nPlease review the follow-up and provide an update to the requestor.\n\n$ctaLabel: $ctaUrl\n";
     return ['html' => $bodyHtml, 'text' => $bodyText];
 }
 
@@ -2250,7 +2293,7 @@ function notif_email_pending_chat(string $title, array $lines, string $ctaLabel,
         $rowsHtml .= '
                         <tr>
                             <td style="width:160px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -2365,7 +2408,7 @@ function notif_email_priority_escalation(string $title, array $lines, string $ct
         $rowsHtml .= '
                         <tr>
                             <td style="width:170px;padding:0 22px 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:700;vertical-align:top;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</td>
-                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . nl2br(htmlspecialchars((string) $details[$label], ENT_QUOTES, 'UTF-8')) . '</td>
+                            <td style="padding:0 0 20px 0;font-size:15px;line-height:1.35;color:#050505;font-weight:400;vertical-align:top;">' . notif_email_detail_value_html($label, (string) $details[$label]) . '</td>
                         </tr>';
     }
 
@@ -2438,7 +2481,7 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
     if ($isRequesterTicketStatusUpdated) {
         return notif_email_requester_ticket_status_updated($title, $lines, $ctaLabel, $ctaUrl);
     }
-    if (in_array($normalizedTitle, ['ticket follow up', 'follow up', 'follow-up'], true)) {
+    if (in_array($normalizedTitle, ['ticket follow up', 'ticket follow-up', 'follow up', 'follow-up'], true)) {
         return notif_email_follow_up($title, $lines, $ctaLabel, $ctaUrl);
     }
     if ($normalizedTitle === 'pending chat') {
@@ -2475,6 +2518,11 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
             $line = 'Level of Urgency: ' . notif_urgency_email_label((string) ($urgencyMatch[2] ?? ''));
         }
         $lineText .= $line . "\n";
+        if (preg_match('/^([^:]+):\s*(.*)$/s', $line, $lineMatch) && strcasecmp(trim((string) ($lineMatch[1] ?? '')), 'Description') === 0) {
+            $descriptionHtml = notif_email_detail_value_html('Description', trim((string) ($lineMatch[2] ?? '')));
+            $lineHtml .= '<div style="margin:0 0 12px 0; font-size:16px; line-height:1.5; color:#0f172a;"><strong>Description:</strong><br>' . $descriptionHtml . '</div>';
+            continue;
+        }
         $safeLine = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
         if (preg_match('/^([A-Za-z][A-Za-z\s&]+:)(\s*.*)$/s', $safeLine, $matches)) {
             $safeLine = '<strong>' . $matches[1] . '</strong>' . $matches[2];

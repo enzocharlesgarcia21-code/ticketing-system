@@ -156,7 +156,8 @@ if ($stmt) {
     }
     $stmt->close();
 }
-?><!DOCTYPE html>
+?>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
@@ -415,7 +416,7 @@ if ($stmt) {
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="employee-category-articles-page">
     <?php include '../includes/employee_navbar.php'; ?>
 
     <div class="kb-container">

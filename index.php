@@ -26,7 +26,7 @@
             --auth-card-min-height: 600px;
             --auth-card-radius: 28px;
             --auth-card-padding: 40px 36px 42px;
-            --auth-card-mobile-max-width: 330px;
+            --auth-card-mobile-max-width: 360px;
             --auth-card-mobile-radius: 18px;
             --auth-card-mobile-padding: 20px 22px 34px;
             --auth-shell-max-width: 1680px;
@@ -241,12 +241,26 @@
         }
 
         @media (max-width: 768px) {
+            html {
+                width: 100%;
+                min-height: 100%;
+                overflow-x: hidden;
+            }
+
             body {
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                width: 100%;
                 min-height: 100vh;
-                padding: 16px;
+                min-height: 100svh;
+                min-height: 100dvh;
+                padding:
+                    max(16px, env(safe-area-inset-top))
+                    max(16px, env(safe-area-inset-right))
+                    max(16px, env(safe-area-inset-bottom))
+                    max(16px, env(safe-area-inset-left));
+                overflow-x: hidden;
             }
 
             body::after {
@@ -261,11 +275,14 @@
             body.portal-home-page .auth-container,
             body.portal-home-page .auth-wrapper {
                 width: 100%;
+                max-width: 100%;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 height: auto;
                 min-height: 0;
+                align-self: stretch;
+                margin: auto;
                 padding: 0;
                 gap: 0;
             }
@@ -276,14 +293,20 @@
 
             body.portal-home-page .auth-split-right {
                 width: 100%;
+                max-width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
                 flex: 0 0 auto;
                 height: auto;
+                margin: 0 auto;
             }
 
             .auth-card {
-                width: 100%;
+                width: min(100%, var(--auth-card-mobile-max-width));
                 max-width: var(--auth-card-mobile-max-width);
                 min-height: 0;
+                margin: 0 auto;
                 padding: var(--auth-card-mobile-padding);
                 border-radius: var(--auth-card-mobile-radius);
                 text-align: center;

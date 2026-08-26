@@ -333,11 +333,19 @@ $updateOk = false;
             ticket_chat_rotate_thread($conn, (int) $id);
         }
         $_SESSION['task_success'] = "Ticket #$id successfully updated.";
+        if ($requesterAssignmentChanged) {
+            $_SESSION['task_success_context'] = 'reassigned';
+            $_SESSION['task_success_ticket_id'] = $id;
+        } else {
+            unset($_SESSION['task_success_context']);
+        }
         if ($oldStatus !== $new_status && in_array($new_status, ['Open', 'In Progress', 'Resolved'], true)) {
             $_SESSION['task_success_status'] = $new_status;
             $_SESSION['task_success_ticket_id'] = $id;
-        } else {
+        } elseif (!$requesterAssignmentChanged) {
             unset($_SESSION['task_success_status'], $_SESSION['task_success_ticket_id']);
+        } else {
+            unset($_SESSION['task_success_status']);
         }
 
         $update->close();

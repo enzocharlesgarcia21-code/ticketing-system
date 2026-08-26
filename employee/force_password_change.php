@@ -87,7 +87,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $error = "Error updating password.";
     }
 }
-?><!DOCTYPE html>
+?>
+<!DOCTYPE html>
 <html>
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">

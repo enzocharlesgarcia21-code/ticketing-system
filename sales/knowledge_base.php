@@ -443,7 +443,9 @@ if ($showCategoryView) {
     }
 }
 
-?><!DOCTYPE html>
+?>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
@@ -674,8 +676,21 @@ if ($showCategoryView) {
         .kb-title {
             color: #1B5E20;
             font-size: 30px;
-            font-weight: 500;
+            font-weight: 700;
             margin-bottom: 34px;
+        }
+
+        .kb-subtitle {
+            display: none;
+        }
+
+        .kb-title-mobile,
+        .kb-mobile-home-breadcrumb {
+            display: none;
+        }
+
+        .mobile-kb-back {
+            display: none;
         }
 
         .kb-breadcrumb {
@@ -1011,6 +1026,10 @@ if ($showCategoryView) {
             color: #1E6A2D;
             font-size: 14px;
             flex: 0 0 auto;
+        }
+
+        .home-departments .category-arrow {
+            display: none;
         }
 
         .results-section {
@@ -1376,6 +1395,11 @@ if ($showCategoryView) {
                 font-size: 11px;
                 line-height: 1.18;
             }
+            .department-article-title {
+                font-size: 15px !important;
+                font-weight: 600;
+                line-height: 1.2;
+            }
             .department-article-date,
             .most-visited-date {
                 font-size: 10px;
@@ -1475,59 +1499,102 @@ if ($showCategoryView) {
 
         @media (max-width: 1280px) {
             .sales-employee-navbar {
-                flex-wrap: wrap;
                 padding: 15px 24px;
             }
 
             .sales-employee-navbar .navbar-toggler {
-                display: block;
+                display: none !important;
             }
 
             .sales-employee-navbar .navbar-collapse {
-                display: none;
-                width: 100%;
-                flex-direction: column;
-                margin-left: 0;
-                margin-top: 15px;
-                gap: 15px;
-                border-top: 1px solid rgba(255, 255, 255, 0.1);
-                padding-top: 15px;
-            }
-
-            .sales-employee-navbar .navbar-collapse.show {
-                display: flex;
+                display: flex !important;
+                width: auto;
+                flex: 0 0 auto;
+                margin: 0;
+                padding: 0;
+                border: 0;
             }
 
             .sales-employee-navbar .nav-right {
-                width: 100%;
-                justify-content: center;
+                width: auto;
+                justify-content: flex-end;
             }
         }
 
         @media (max-width: 768px) {
+            html body {
+                min-height: 100vh;
+                border-top: 2px solid #2f8644;
+                zoom: 1 !important;
+                background:
+                    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0, rgba(248, 250, 248, 0.76) 145px, #f8faf8 220px),
+                    url('../assets/img/dashboard_bg.jpg') center top / 100% 220px no-repeat,
+                    #f8faf8 !important;
+                background-attachment: scroll !important;
+                box-sizing: border-box;
+            }
+
+            html body::before,
+            html body::after {
+                display: none !important;
+            }
+
             .sales-employee-navbar {
-                display: flex;
-                flex-wrap: wrap;
+                position: sticky;
+                top: 0;
+                z-index: 2105;
+                width: 100%;
+                min-height: 58px;
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
                 align-items: center;
-                gap: 10px;
-                padding: 12px 10px 10px;
+                gap: 4px;
+                padding: 9px 8px;
+                border-bottom: 4px solid #f4c430;
+                box-sizing: border-box;
+            }
+
+            .kb-container {
+                width: 100%;
+                max-width: none;
+                padding: 27px 22px 34px;
+                box-sizing: border-box;
+            }
+
+            .mobile-kb-back {
+                display: none;
+            }
+
+            .mobile-kb-back i {
+                color: #f6cf4a;
+                font-size: 11px;
+            }
+
+            .sales-employee-navbar {
+                align-items: center;
             }
 
             .sales-employee-navbar .nav-left {
-                width: 100%;
+                width: auto;
                 min-width: 0;
                 display: flex;
                 align-items: center;
+                gap: 7px;
             }
 
             .sales-employee-navbar .logo-icon {
-                height: 36px;
-                width: 36px;
+                height: 32px;
+                width: 32px;
+                min-width: 32px;
                 padding: 4px;
             }
 
             .sales-employee-navbar .brand-name {
-                font-size: 16px;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: 12px;
             }
 
             .sales-employee-navbar .navbar-toggler {
@@ -1536,11 +1603,12 @@ if ($showCategoryView) {
 
             .sales-employee-navbar .navbar-collapse {
                 display: flex;
-                width: 100%;
-                flex: 0 0 100%;
+                width: auto;
+                min-width: 0;
+                flex: 0 0 auto;
                 margin: 0;
                 padding: 0;
-                border-top: 1px solid rgba(255, 255, 255, 0.12);
+                border: 0;
             }
 
             .sales-employee-navbar .nav-center {
@@ -1549,47 +1617,53 @@ if ($showCategoryView) {
 
             .sales-employee-navbar .sales-nav-right {
                 display: flex;
-                width: 100%;
-                gap: 8px;
+                width: auto;
+                gap: 4px;
                 margin-top: 0;
-                justify-content: stretch;
-                padding-top: 10px;
+                justify-content: flex-end;
+                padding: 0;
             }
 
             .sales-employee-navbar .sales-nav-link {
-                flex: 1 1 0;
+                flex: 0 0 auto;
                 min-width: 0;
                 width: auto;
-                min-height: 38px;
-                padding: 0 10px;
-                gap: 7px;
-                font-size: 12px;
+                min-height: 32px;
+                padding: 0 9px;
+                gap: 4px;
+                font-size: 10px;
                 line-height: 1;
                 white-space: nowrap;
             }
 
             .sales-employee-navbar .sales-nav-link-icon {
-                font-size: 13px;
+                font-size: 10px;
             }
 
             .home-departments .category-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 12px;
+                grid-template-columns: 1fr;
+                gap: 6px;
             }
 
             .home-departments .category-card {
-                min-height: 112px;
-                gap: 10px;
-                padding: 12px 10px;
+                min-height: 56px;
+                gap: 12px;
+                padding: 8px 12px;
                 align-items: center;
                 overflow: hidden;
+                border: 1px solid rgba(232, 237, 232, 0.95);
+                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.94);
+                box-shadow: 0 2px 9px rgba(24, 54, 31, 0.07);
             }
 
             .home-departments .category-icon {
-                width: 44px;
-                height: 44px;
-                flex-basis: 44px;
-                font-size: 18px;
+                width: 36px;
+                height: 36px;
+                flex-basis: 36px;
+                font-size: 16px;
+                color: #087c32;
+                background: #edf8ef;
             }
 
             .home-departments .category-info {
@@ -1598,16 +1672,155 @@ if ($showCategoryView) {
             }
 
             .home-departments .category-info h4 {
-                font-size: 13px;
-                line-height: 1.15;
+                margin-bottom: 3px;
+                color: #16231a;
+                font-size: 12px;
+                font-weight: 600;
+                line-height: 1.1;
                 overflow-wrap: anywhere;
                 word-break: normal;
             }
 
             .home-departments .category-info p {
-                font-size: 12px;
-                line-height: 1.2;
+                color: #56645b;
+                font-size: 9px;
+                font-weight: 500;
+                line-height: 1.15;
                 overflow-wrap: anywhere;
+            }
+
+            .home-departments .category-arrow {
+                display: inline-block;
+                margin-left: auto;
+                color: #2b8a47;
+                font-size: 11px;
+            }
+
+            .kb-header {
+                margin-bottom: 21px;
+                text-align: center;
+            }
+
+            .kb-title {
+                margin: 0 0 7px;
+                color: #087b2e;
+                font-size: 21px;
+                font-weight: 700;
+                line-height: 1.2;
+            }
+
+            .kb-header.is-department-view .kb-title {
+                margin: 0;
+                color: #086b28;
+                font-size: 19px;
+                font-weight: 700;
+                line-height: 1.2;
+                letter-spacing: 0;
+            }
+
+            .kb-title-desktop {
+                display: none;
+            }
+
+            .kb-title-mobile {
+                display: inline;
+            }
+
+            .kb-header.is-mobile-it-view .kb-title {
+                margin: 0;
+                color: #086b28;
+                font-size: 19px;
+                font-weight: 700;
+                line-height: 1.2;
+                letter-spacing: 0;
+            }
+
+            .kb-header.is-mobile-it-view .kb-subtitle {
+                display: none;
+            }
+
+            .kb-header.is-department-view .kb-breadcrumb,
+            .kb-header.is-mobile-it-view .kb-breadcrumb {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 7px;
+                margin: -3px 0 0;
+                color: #2563eb;
+                font-size: 8px;
+                font-weight: 500;
+                line-height: 1;
+            }
+
+            .kb-header.is-department-view .kb-breadcrumb a,
+            .kb-header.is-mobile-it-view .kb-breadcrumb a {
+                color: #2563eb;
+            }
+
+            .kb-header.is-department-view .kb-breadcrumb i,
+            .kb-header.is-mobile-it-view .kb-breadcrumb i {
+                color: #64748b;
+                font-size: 6px;
+            }
+
+            .kb-header.is-department-view .kb-breadcrumb .active,
+            .kb-header.is-mobile-it-view .kb-breadcrumb .active {
+                color: #2563eb;
+                font-weight: 700;
+            }
+
+            .kb-subtitle {
+                display: block;
+                margin: 0;
+                color: #3f4a42;
+                font-size: 11px;
+                font-weight: 400;
+                line-height: 1.4;
+            }
+
+            .search-filter-wrapper {
+                display: block;
+                width: 100%;
+                max-width: none;
+                margin-top: 17px;
+                text-align: left;
+            }
+
+            .search-input {
+                min-height: 44px;
+                padding: 11px 14px 11px 47px;
+                border: 1px solid rgba(224, 230, 225, 0.96);
+                border-radius: 8px;
+                color: #26312a;
+                font-size: 11px;
+                box-shadow: 0 3px 10px rgba(21, 52, 29, 0.08);
+            }
+
+            .search-icon {
+                left: 17px;
+                color: #68716b;
+                font-size: 14px;
+            }
+
+            .categories-section.home-departments {
+                width: 100%;
+                max-width: none;
+                margin: 0 auto;
+            }
+
+            .home-departments .categories-title {
+                position: relative;
+                margin: 0 0 14px;
+                padding-bottom: 0;
+                color: #176f32;
+                font-size: 12px;
+                font-weight: 600;
+                line-height: 1;
+            }
+
+            .home-departments .categories-title::after {
+                content: none;
+                display: none;
             }
 
             #kbResultsSection {
@@ -1679,7 +1892,16 @@ if ($showCategoryView) {
                 text-align: right;
             }
         }
+
+        .kb-header.is-mobile-it-view .kb-subtitle,
+        .kb-header .kb-breadcrumb,
+        .kb-header .kb-breadcrumb a,
+        .kb-header .kb-breadcrumb .active,
+        .kb-header .kb-breadcrumb i {
+            color: #111827 !important;
+        }
     </style>
+<link rel="stylesheet" href="../css/sales-guest-header.css?v=2">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -1687,9 +1909,6 @@ if ($showCategoryView) {
         <div class="nav-left">
             <img src="../assets/img/UPDATEDlogo.png?v=2" alt="Leads Agri Logo" class="logo-icon">
             <div class="brand-name">Leads DeskMetamorph</div>
-            <button class="navbar-toggler" id="navbarToggler" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="navbarCollapse">
-                <i class="fas fa-bars"></i>
-            </button>
         </div>
         <div class="navbar-collapse" id="navbarCollapse">
             <div class="nav-center" aria-hidden="true"></div>
@@ -1705,23 +1924,32 @@ if ($showCategoryView) {
             </div>
         </div>
     </nav>
-    <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        var toggler = document.getElementById('navbarToggler');
-        var collapse = document.getElementById('navbarCollapse');
-        if (!toggler || !collapse) return;
-        toggler.addEventListener('click', function () {
-            var isOpen = collapse.classList.toggle('show');
-            toggler.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        });
-    });
-    </script>
-
     <div class="kb-container">
+        <?php if (!$showOtherDepartments): ?>
+            <a href="<?= $showCategoryView ? 'knowledge_base.php' : 'request_ticket.php' ?>" class="mobile-kb-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Back</span>
+            </a>
+        <?php endif; ?>
         
         <!-- Search & Filter Header -->
-        <div class="kb-header">
-            <h1 class="kb-title"><?= $showCategoryView ? htmlspecialchars($categoryViewTitle) . ' Knowledge Base' : 'Knowledge Base' ?></h1>
+        <div class="kb-header<?= $showCategoryView ? ' is-department-view' : ' is-mobile-it-view' ?>">
+            <h1 class="kb-title">
+                <?php if ($showCategoryView): ?>
+                    <?= htmlspecialchars($categoryViewTitle) ?> Knowledge Base
+                <?php else: ?>
+                    <span class="kb-title-desktop">Knowledge Base</span>
+                    <span class="kb-title-mobile">Knowledge Base</span>
+                <?php endif; ?>
+            </h1>
+            <?php if (!$showCategoryView): ?>
+                <p class="kb-subtitle">Find answers, articles, and solutions across all departments.</p>
+                <div class="kb-breadcrumb kb-home-breadcrumb" aria-label="Breadcrumb">
+                    <a href="knowledge_base.php">Knowledge Base</a>
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                    <span class="active">Departments</span>
+                </div>
+            <?php endif; ?>
             <?php if ($showCategoryView): ?>
                 <div class="kb-breadcrumb" aria-label="Breadcrumb">
                     <a href="knowledge_base.php">Knowledge Base</a>
@@ -1914,6 +2142,7 @@ if ($showCategoryView) {
                                 <h4><?= htmlspecialchars($categoryCard['label']) ?></h4>
                                 <p><?= number_format((int) ($categoryCard['total_articles'] ?? 0)) ?> Article<?= (int) ($categoryCard['total_articles'] ?? 0) === 1 ? '' : 's' ?></p>
                             </div>
+                            <i class="fas fa-chevron-right category-arrow" aria-hidden="true"></i>
                         </a>
                     <?php endforeach; ?>
                 </div>
@@ -1934,6 +2163,7 @@ if ($showCategoryView) {
                                 <h4><?= htmlspecialchars($categoryCard['label']) ?></h4>
                                 <p>Browse articles</p>
                             </div>
+                            <i class="fas fa-chevron-right category-arrow" aria-hidden="true"></i>
                         </a>
                     <?php endforeach; ?>
                 </div>

@@ -3290,7 +3290,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
                                     <div class="edit-select-menu" role="listbox"></div>
                                 </div>
                                 <div class="edit-select-wrap users-filter-select-wrap users-dept-filter-wrap" data-edit-select="users-dept">
-                                    <?php $users_dept_options = array_values(array_unique(array_filter(array_merge($lapc_department_options, $pcc_department_options, $mhc_department_options)))); ?>
+                                    <?php $users_dept_options = array_values(array_unique(array_filter(array_merge($add_user_lapc_department_options, $pcc_department_options, $mhc_department_options)))); ?>
                                     <select class="domain-select users-dept-filter" id="usersDept" tabindex="-1">
                                         <option value="all" selected>All Departments</option>
                                         <?php foreach ($users_dept_options as $d): ?>
@@ -4047,10 +4047,11 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
         var companyEl = document.getElementById('usersCompany');
         if (!deptEl || !companyEl) return;
         var company = String(companyEl.value || '').trim();
-        var deptKey = Object.prototype.hasOwnProperty.call(companyDepartments, company)
+        var departmentSource = usersFilterCompanyDepartments || companyDepartments;
+        var deptKey = Object.prototype.hasOwnProperty.call(departmentSource, company)
             ? company
-            : Object.keys(companyDepartments).find(function (k) { return String(k || '').toLowerCase() === company.toLowerCase(); });
-        var departments = deptKey ? (companyDepartments[deptKey] || []) : [];
+            : Object.keys(departmentSource).find(function (k) { return String(k || '').toLowerCase() === company.toLowerCase(); });
+        var departments = deptKey ? (departmentSource[deptKey] || []) : [];
         var deptWrap = deptEl.closest ? deptEl.closest('.edit-select-wrap') : null;
         var show = !!(departments && departments.length);
         var html = '<option value="">All Departments</option>';

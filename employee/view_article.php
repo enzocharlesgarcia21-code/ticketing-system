@@ -188,7 +188,9 @@ function renderArticleContent($text) {
     
     return $output;
 }
-?><!DOCTYPE html>
+?>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
@@ -558,6 +560,30 @@ function renderArticleContent($text) {
         }
 
         @media (max-width: 768px) {
+            html body.employee-view-article-page > .tm-global-chat-fab {
+                display: none !important;
+            }
+
+            /* Match the compact Knowledge Base Back button. */
+            .back-link {
+                /* This page uses the shared 78% employee zoom. These values
+                   produce the same visible dimensions as the KB button. */
+                gap: 9px;
+                min-height: 36px;
+                margin-bottom: 18px;
+                padding: 5px 18px;
+                border-radius: 13px;
+                background: #087332;
+                box-shadow: 0 4px 10px rgba(8, 79, 37, 0.22);
+                font-size: 14px;
+                font-weight: 800;
+                line-height: 1;
+            }
+
+            .back-link i {
+                font-size: 13px;
+            }
+
             .article-header, .article-content, .article-video-feature {
                 padding: 24px;
             }
@@ -594,7 +620,7 @@ function renderArticleContent($text) {
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
-<body class="<?= $is_embed ? 'embed-preview' : '' ?>">
+<body class="employee-view-article-page<?= $is_embed ? ' embed-preview' : '' ?>">
 
     <?php if (!$is_embed): ?>
         <?php if ($current_role === 'admin'): ?>

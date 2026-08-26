@@ -120,7 +120,9 @@ $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $result = $stmt->get_result();
 
-?><!DOCTYPE html>
+?>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
@@ -129,11 +131,11 @@ $result = $stmt->get_result();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>View Tickets | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
-    <link rel="stylesheet" href="../css/view-tickets.css">
+    <link rel="stylesheet" href="../css/view-tickets.css?v=<?= (int) filemtime(__DIR__ . '/../css/view-tickets.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="employee-view-ticket-page">
 
     <!-- 2ï¸âƒ£ TOP NAVIGATION BAR -->
     <?php include '../includes/employee_navbar.php'; ?>
@@ -342,11 +344,11 @@ $result = $stmt->get_result();
         }
     </script>
 <!-- Ticket Details Modal -->
-<div id="ticketModal" class="modal-overlay">
+<div id="ticketModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="ticketModalTitle">
     <div class="modal-content">
         <div class="modal-header">
-            <h2 class="modal-title">Ticket Details</h2>
-            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <h2 class="modal-title" id="ticketModalTitle">Ticket Details</h2>
+            <button type="button" class="modal-close" onclick="closeModal()" aria-label="Close ticket details">&times;</button>
         </div>
         <div class="modal-body" id="modalBody">
             <!-- Content loaded via AJAX -->
@@ -355,11 +357,11 @@ $result = $stmt->get_result();
     </div>
 </div>
 
-<div id="chatModal" class="modal-overlay">
-    <div class="modal-content" style="width: 560px; max-width: 95%;">
+<div id="chatModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="chatModalTitle">
+    <div class="modal-content chat-modal-content" style="width: 560px; max-width: 95%;">
         <div class="modal-header">
             <div>
-                <h2 class="modal-title" style="margin-bottom: 6px;">Ticket Chat</h2>
+                <h2 class="modal-title" id="chatModalTitle" style="margin-bottom: 6px;">Ticket Chat</h2>
                 <div style="display:flex; align-items:center; gap:10px;">
                     <div id="empChatAvatar" style="width:32px; height:32px; border-radius:50%; background:#E5E7EB; color:#374151; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px;">--</div>
                     <div>
@@ -368,17 +370,19 @@ $result = $stmt->get_result();
                     </div>
                 </div>
             </div>
-            <button class="modal-close" onclick="closeChatModal()">&times;</button>
+            <button type="button" class="modal-close" onclick="closeChatModal()" aria-label="Close ticket chat">&times;</button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body chat-modal-body">
             <div class="chat-wrapper" style="margin-top: 0;">
                 <div id="chatMessages" class="chat-messages">
                     <div style="text-align:center; color:#999; margin-top:20px;">Loading chat...</div>
                 </div>
-                <div class="chat-input-area">
-                    <input type="hidden" id="chatTicketId" value="">
-                    <input type="text" id="chatInput" placeholder="Type a message..." autocomplete="off">
-                    <button id="chatSendBtn" type="button">&#10148;</button>
+                <div class="chat-local-footer">
+                    <div class="chat-input-area">
+                        <input type="hidden" id="chatTicketId" value="">
+                        <input type="text" id="chatInput" placeholder="Type a message..." autocomplete="off">
+                        <button id="chatSendBtn" type="button">&#10148;</button>
+                    </div>
                 </div>
             </div>
         </div>

@@ -306,7 +306,13 @@ if ($row = $result->fetch_assoc()) {
     $row['company'] = !empty($row['company']) ? $row['company'] : $row['user_company'];
     $row['department'] = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
     if (empty($row['department'])) {
-        $row['department'] = 'Unknown';
+        $requesterCompanyRaw = (string) ($row['company'] ?? '');
+        $requesterEmailForCompany = trim((string) (($row['requester_email'] ?? '') !== '' ? $row['requester_email'] : ($row['created_by_email'] ?? '')));
+        if ($requesterCompanyRaw === '' && $requesterEmailForCompany !== '' && strpos($requesterEmailForCompany, '@') !== false) {
+            $requesterCompanyRaw = '@' . strtolower(substr(strrchr($requesterEmailForCompany, '@'), 1));
+        }
+        $requesterCompanyLabel = ticket_company_display_name($requesterCompanyRaw);
+        $row['department'] = $requesterCompanyLabel !== '' ? $requesterCompanyLabel : 'Unknown';
     }
 
     $requester_name = trim((string)($row['requester_name'] ?? ''));
@@ -392,25 +398,23 @@ if ($row = $result->fetch_assoc()) {
         ? (string) ($row['category'] ?? $row['subject'])
         : (string) ($row['subject'] ?? '');
     
-    // Calculate Duration
+    // Resolution duration uses Philippine business time only.
     $duration = "Not Started";
-    if (!is_null($row['started_at'])) {
-        if (is_null($row['resolved_at'])) {
-            $duration = "In Progress";
+    $durationSeconds = null;
+    $resolutionStart = trim((string) ($row['started_at'] ?? ''));
+    if ($resolutionStart === '') $resolutionStart = trim((string) ($row['created_at'] ?? ''));
+    $resolutionEnd = trim((string) ($row['resolved_at'] ?? ''));
+    if ($resolutionEnd === '') $resolutionEnd = trim((string) ($row['closed_at'] ?? ''));
+    if ($resolutionStart !== '') {
+        if ($resolutionEnd === '') {
+            $duration = !is_null($row['started_at']) ? "In Progress" : "Not Started";
         } else {
-            $start = new DateTime($row['started_at']);
-            $end = new DateTime($row['resolved_at']);
-            $diff = $start->diff($end);
-            
-            $parts = [];
-            if ($diff->d > 0) $parts[] = $diff->d . ($diff->d === 1 ? " day" : " days");
-            if ($diff->h > 0) $parts[] = $diff->h . ($diff->h === 1 ? " hr" : " hrs");
-            if ($diff->i > 0) $parts[] = $diff->i . ($diff->i === 1 ? " min" : " mins");
-            
-            $duration = empty($parts) ? "0 min" : implode(" ", $parts);
+            $durationSeconds = ticket_business_seconds_between($resolutionStart, $resolutionEnd);
+            $duration = ticket_format_business_duration($durationSeconds);
         }
     }
     $row['duration'] = $duration;
+    $row['duration_seconds'] = $durationSeconds;
 
     ticket_ensure_activity_table($conn);
     $row['ticket_activity'] = [];

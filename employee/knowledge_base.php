@@ -445,7 +445,9 @@ if ($showCategoryView) {
     }
 }
 
-?><!DOCTYPE html>
+?>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
@@ -459,12 +461,49 @@ if ($showCategoryView) {
         /* Knowledge Base Specific Styles */
         body {
             background-image:
-               
+                radial-gradient(circle at -4% 18%, rgba(209, 236, 216, 0.76) 0 245px, transparent 246px),
+                radial-gradient(circle at 104% 5%, rgba(224, 244, 229, 0.78) 0 185px, transparent 186px),
+                radial-gradient(ellipse at -7% 106%, rgba(220, 241, 224, 0.78) 0 330px, transparent 331px),
+                radial-gradient(ellipse at 106% 106%, rgba(205, 234, 214, 0.86) 0 340px, transparent 341px),
+                radial-gradient(ellipse at 63% 116%, rgba(226, 244, 229, 0.78) 0 275px, transparent 276px),
+                radial-gradient(circle at 96% 17%, transparent 0 235px, rgba(199, 226, 207, 0.34) 236px 238px, transparent 239px),
+                radial-gradient(circle at 102% 34%, transparent 0 300px, rgba(199, 226, 207, 0.24) 301px 303px, transparent 304px),
+                linear-gradient(145deg, rgba(239, 249, 242, 0.84) 0%, rgba(255, 255, 255, 0.98) 22%, rgba(255, 255, 255, 0.99) 60%, rgba(239, 249, 242, 0.82) 100%);
             background-repeat: no-repeat;
-            background-position: center top;
+            background-position: left top, right top, left bottom, right bottom, center bottom, right top, right center, center top;
+            background-size: auto, auto, auto, auto, auto, auto, auto, cover;
             background-attachment: fixed;
-            background-size: cover;
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        body::before,
+        body::after {
+            content: "";
+            position: fixed;
+            pointer-events: none;
+            z-index: 0;
+            background-image: radial-gradient(circle, rgba(105, 163, 123, 0.22) 1.25px, transparent 1.6px);
+        }
+
+        body::before {
+            left: 10%;
+            top: 120px;
+            width: 112px;
+            height: 112px;
+            background-size: 15px 15px;
+        }
+
+        body::after {
+            right: 9%;
+            top: 50%;
+            width: 128px;
+            height: 128px;
+            background-size: 17px 17px;
+        }
+
+        .kb-container {
+            position: relative;
+            z-index: 1;
         }
 
         .kb-container {
@@ -485,6 +524,14 @@ if ($showCategoryView) {
             font-size: 28px;
             font-weight: 700;
             margin-bottom: 34px;
+        }
+
+        .kb-subtitle {
+            display: none;
+        }
+
+        .mobile-kb-back {
+            display: none;
         }
 
         .kb-breadcrumb {
@@ -821,6 +868,10 @@ if ($showCategoryView) {
             flex: 0 0 auto;
         }
 
+        .home-departments .category-arrow {
+            display: none;
+        }
+
         .results-section {
             margin-top: -18px;
         }
@@ -1141,15 +1192,178 @@ if ($showCategoryView) {
 
         /* Responsive adjustments */
         @media (max-width: 768px) {
+            html body {
+                min-height: 100vh;
+                border-top: 0;
+                zoom: 1 !important;
+                background-color: #eef4ef !important;
+                background-image:
+                    linear-gradient(180deg, rgba(245, 251, 246, 0.08) 0%, rgba(245, 251, 246, 0.15) 42%, rgba(238, 247, 240, 0.24) 100%),
+                    url('../assets/img/dashboard_bg.jpg') !important;
+                background-repeat: no-repeat !important;
+                background-position: center top !important;
+                background-size: cover !important;
+                background-attachment: fixed !important;
+                box-sizing: border-box;
+            }
+
+            html body::before,
+            html body::after {
+                display: none !important;
+            }
+
+            /* This page uses 100% content scale; these dimensions visually
+               match the shared 60px header on employee pages scaled to 78%. */
+            html body.employee-knowledge-base-page > nav.navbar {
+                height: 59px !important;
+                min-height: 59px !important;
+                padding: 6px 11px !important;
+            }
+
+            html body.employee-knowledge-base-page > nav.navbar .nav-left {
+                grid-template-columns: 34px 34px minmax(0, 1fr) !important;
+                grid-template-areas: "menu logo brand" !important;
+                gap: 7px !important;
+            }
+
+            html body.employee-knowledge-base-page > nav.navbar .logo-icon {
+                width: 34px !important;
+                height: 34px !important;
+                min-width: 34px !important;
+                max-width: 34px !important;
+                flex-basis: 34px !important;
+            }
+
+            html body.employee-knowledge-base-page > nav.navbar .brand-name {
+                font-size: 15px !important;
+            }
+
+            html body.employee-knowledge-base-page > nav.navbar .navbar-toggler {
+                width: 34px !important;
+                height: 34px !important;
+                min-width: 34px !important;
+                min-height: 34px !important;
+            }
+
+            html body.employee-knowledge-base-page > nav.navbar .navbar-toggler i {
+                width: 16px !important;
+                height: 16px !important;
+                font-size: 16px !important;
+            }
+
+            html body.employee-knowledge-base-page > nav.navbar .nav-right {
+                gap: 6px !important;
+            }
+
+            html body.employee-knowledge-base-page > nav.navbar .notification-bell,
+            html body.employee-knowledge-base-page > nav.navbar .user-btn {
+                width: 34px !important;
+                height: 34px !important;
+                min-width: 34px !important;
+                min-height: 34px !important;
+            }
+
+            html body.employee-knowledge-base-page > nav.navbar .user-btn {
+                width: 45px !important;
+                min-width: 45px !important;
+                gap: 5px !important;
+            }
+
+            html body.employee-knowledge-base-page > nav.navbar .notification-bell > i {
+                font-size: 16px !important;
+            }
+
+            html body.employee-knowledge-base-page > nav.navbar .user-btn > i:first-child {
+                width: 30px !important;
+                height: 30px !important;
+                font-size: 16px !important;
+            }
+
+            html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page > .tm-global-chat-fab {
+                position: fixed !important;
+                right: 16px !important;
+                bottom: 16px !important;
+                left: auto !important;
+                display: inline-flex !important;
+                width: 60px !important;
+                max-width: 60px !important;
+                min-width: 60px !important;
+                height: 60px !important;
+                min-height: 60px !important;
+                padding: 0 !important;
+                align-items: center !important;
+                justify-content: center !important;
+                flex: 0 0 60px !important;
+                border-radius: 50% !important;
+                gap: 0 !important;
+            }
+
+            html body.employee-knowledge-base-page.employee-shared-mobile-sidebar-page > .tm-global-chat-fab i {
+                font-size: 22px !important;
+                line-height: 1 !important;
+            }
+
+            body.employee-shared-mobile-sidebar-page > .tm-global-chat-fab .tm-global-chat-label {
+                display: none !important;
+            }
+
+            .kb-container {
+                width: 100%;
+                max-width: none;
+                padding: 27px 22px 34px;
+                box-sizing: border-box;
+            }
+
             .kb-header {
-                margin-bottom: 30px;
+                margin-bottom: 21px;
+                text-align: left;
             }
+
             .kb-title {
-                font-size: 24px;
+                margin: 0 0 7px;
+                color: #087b2e;
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                font-size: 21px;
+                font-weight: 700;
+                line-height: 1.2;
             }
+
+            .kb-subtitle {
+                display: block;
+                margin: 0;
+                color: #3f4a42;
+                font-size: 11px;
+                font-weight: 400;
+                line-height: 1.4;
+            }
+
             .search-input-group {
                 min-width: 100%;
             }
+
+            .search-filter-wrapper {
+                display: block;
+                width: 100%;
+                max-width: none;
+                margin-top: 17px;
+            }
+
+            .search-input {
+                min-height: 44px;
+                padding: 11px 14px 11px 47px;
+                border: 1px solid rgba(224, 230, 225, 0.96);
+                border-radius: 8px;
+                color: #26312a;
+                font-size: 11px;
+                box-shadow: 0 3px 10px rgba(21, 52, 29, 0.08);
+            }
+
+            .search-icon {
+                left: 17px;
+                color: #68716b;
+                font-size: 14px;
+            }
+
             .most-visited-section {
                 margin-top: -8px;
             }
@@ -1166,23 +1380,267 @@ if ($showCategoryView) {
             .categories-section {
                 margin-top: 0;
             }
+
             .category-grid {
                 grid-template-columns: 1fr;
+            }
+
+            body.employee-kb-category-page .kb-container {
+                padding: 27px 22px 34px;
+            }
+
+            body.employee-kb-category-page .mobile-kb-back {
+                position: absolute;
+                top: 10px;
+                left: 13px;
+                z-index: 2;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 7px;
+                min-height: 28px;
+                margin: 0;
+                padding: 4px 14px;
+                border: 0;
+                border-radius: 10px;
+                background: #087332;
+                color: #ffffff;
+                box-shadow: 0 4px 10px rgba(8, 79, 37, 0.22);
+                font-size: 11px;
+                font-weight: 800;
+                line-height: 1;
+                text-decoration: none;
+            }
+
+            body.employee-kb-category-page .mobile-kb-back i {
+                color: #ffffff;
+                font-size: 10px;
+            }
+
+            /* Keep the employee department view aligned with the sales KB mobile UI. */
+            body.employee-kb-category-page .kb-header {
+                margin-bottom: 21px;
+                padding-top: 14px;
+                text-align: center;
+            }
+
+            body.employee-kb-category-page .kb-title {
+                margin: 0;
+                color: #086b28;
+                font-size: 19px;
+                font-weight: 700;
+                line-height: 1.2;
+                letter-spacing: 0;
+            }
+
+            body.employee-kb-category-page .kb-breadcrumb {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 7px;
+                margin: -3px 0 0;
+                color: #000000;
+                font-size: 8px;
+                font-weight: 500;
+                line-height: 1;
+            }
+
+            body.employee-kb-category-page .kb-breadcrumb a {
+                color: #000000;
+            }
+
+            body.employee-kb-category-page .kb-breadcrumb i {
+                color: #000000;
+                font-size: 6px;
+            }
+
+            body.employee-kb-category-page .kb-breadcrumb .active {
+                color: #000000;
+                font-weight: 700;
+            }
+
+            body.employee-kb-category-page .department-search {
+                width: 100%;
+                max-width: none;
+                margin-top: 17px;
+                text-align: left;
+            }
+
+            body.employee-kb-category-page .department-back-row,
+            body.employee-kb-category-page .categories-section > .back-btn {
+                display: none;
+            }
+
+            body.employee-kb-category-page .department-view {
+                width: 100%;
+                margin: 0 auto 30px;
+            }
+
+            body.employee-kb-category-page .department-list {
+                margin-bottom: 12px;
+                border-radius: 12px;
+            }
+
+            body.employee-kb-category-page .department-article {
+                gap: 8px;
+                padding: 9px 11px;
+            }
+
+            body.employee-kb-category-page .department-article-main {
+                gap: 8px;
+            }
+
+            body.employee-kb-category-page .department-article-icon {
+                width: 22px;
+                height: 22px;
+                margin-top: 1px;
+                border-radius: 7px;
+                font-size: 10px;
+            }
+
+            body.employee-kb-category-page .department-article-title {
+                margin-bottom: 4px;
+                font-size: 15px !important;
+                font-weight: 600;
+                line-height: 1.2;
+            }
+
+            body.employee-kb-category-page .department-article-date {
+                font-size: 10px;
+            }
+
+            body.employee-kb-category-page .department-article .kb-category-badge {
+                margin-bottom: 0;
+                padding: 3px 7px;
+                font-size: 9px;
+            }
+
+            body.employee-kb-category-page .department-categories {
+                margin-top: 10px;
+            }
+
+            body.employee-kb-category-page .department-categories .categories-title {
+                margin-bottom: 14px;
+                color: #1B5E20;
+                font-size: 20px;
+                font-weight: 500;
+            }
+
+            body.employee-kb-category-page .department-categories .category-card {
+                min-height: 66px;
+                padding: 14px 18px;
+                border-radius: 10px;
+            }
+
+            body.employee-kb-category-page .department-categories .category-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .categories-section.home-departments {
+                width: 100%;
+                max-width: none;
+                margin: 0 auto;
+            }
+
+            .home-departments .category-grid {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+
+            .home-departments .category-card {
+                min-height: 56px;
+                gap: 12px;
+                padding: 8px 12px;
+                align-items: center;
+                overflow: hidden;
+                border: 1px solid rgba(232, 237, 232, 0.95);
+                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.94);
+                box-shadow: 0 2px 9px rgba(24, 54, 31, 0.07);
+            }
+
+            .home-departments .category-icon {
+                width: 36px;
+                height: 36px;
+                flex-basis: 36px;
+                font-size: 16px;
+                color: #087c32;
+                background: #edf8ef;
+            }
+
+            .home-departments .category-info {
+                min-width: 0;
+                flex: 1 1 auto;
+            }
+
+            .home-departments .category-info h4 {
+                margin-bottom: 3px;
+                color: #16231a;
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                font-size: 12px;
+                font-weight: 600;
+                line-height: 1.1;
+                overflow-wrap: anywhere;
+            }
+
+            .home-departments .category-info p {
+                color: #56645b;
+                font-size: 9px;
+                font-weight: 500;
+                line-height: 1.15;
+                overflow-wrap: anywhere;
+            }
+
+            .home-departments .category-arrow {
+                display: inline-block;
+                margin-left: auto;
+                color: #2b8a47;
+                font-size: 11px;
+            }
+
+            .home-departments .categories-title {
+                position: relative;
+                margin: 0 0 14px;
+                padding-bottom: 8px;
+                color: #176f32;
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                font-size: 12px;
+                font-weight: 600;
+                line-height: 1;
+            }
+
+            .home-departments .categories-title::after {
+                content: '';
+                position: absolute;
+                left: 0;
+                bottom: 0;
+                width: 24px;
+                height: 1px;
+                background: #3e9858;
             }
         }
     </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="employee-knowledge-base-page<?= $showCategoryView ? ' employee-kb-category-page' : '' ?>">
 
     <!-- Top Navigation -->
     <?php include '../includes/employee_navbar.php'; ?>
-
     <div class="kb-container">
+        <?php if ($showCategoryView): ?>
+            <a href="knowledge_base.php" class="mobile-kb-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Back</span>
+            </a>
+        <?php endif; ?>
         
         <!-- Search & Filter Header -->
         <div class="kb-header">
             <h1 class="kb-title"><?= $showCategoryView ? htmlspecialchars($categoryViewTitle) . ' Knowledge Base' : 'Knowledge Base' ?></h1>
+            <?php if (!$showCategoryView): ?>
+                <p class="kb-subtitle">Find answers, articles, and solutions across all departments.</p>
+            <?php endif; ?>
             <?php if ($showCategoryView): ?>
                 <div class="kb-breadcrumb" aria-label="Breadcrumb">
                     <a href="knowledge_base.php">Knowledge Base</a>
@@ -1384,6 +1842,7 @@ if ($showCategoryView) {
                                 <h4><?= htmlspecialchars($categoryCard['label']) ?></h4>
                                 <p><?= number_format((int) ($categoryCard['total_articles'] ?? 0)) ?> Article<?= (int) ($categoryCard['total_articles'] ?? 0) === 1 ? '' : 's' ?></p>
                             </div>
+                            <i class="fas fa-chevron-right category-arrow" aria-hidden="true"></i>
                         </a>
                     <?php endforeach; ?>
                 </div>
@@ -1404,6 +1863,7 @@ if ($showCategoryView) {
                                 <h4><?= htmlspecialchars($categoryCard['label']) ?></h4>
                                 <p>Browse articles</p>
                             </div>
+                            <i class="fas fa-chevron-right category-arrow" aria-hidden="true"></i>
                         </a>
                     <?php endforeach; ?>
                 </div>

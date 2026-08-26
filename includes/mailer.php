@@ -462,6 +462,51 @@ function smtp_last_error(?string $error = null): string
     return $lastError;
 }
 
+function smtp_email_client_safe_html(string $htmlBody): string
+{
+    $htmlBody = trim($htmlBody);
+    if ($htmlBody === '') {
+        return '';
+    }
+
+    // Zoho is stricter than Gmail with some modern CSS in HTML email. Keep the
+    // Gmail visual style, but flatten it to safer inline/table-friendly markup.
+    $replacements = [
+        'background:linear-gradient(90deg,#055f1f,#03551b);' => 'background:#005c2f;',
+        'letter-spacing:-0.02em;' => '',
+        'box-shadow:0 8px 24px rgba(15,23,42,0.06)' => '',
+        'box-shadow:0 8px 24px rgba(15, 23, 42, 0.06)' => '',
+        'max-width:720px;margin:0 auto;' => 'width:720px;max-width:720px;margin:0 auto;',
+        'max-width:640px;margin:0 auto;' => 'width:640px;max-width:640px;margin:0 auto;',
+    ];
+    $htmlBody = str_replace(array_keys($replacements), array_values($replacements), $htmlBody);
+
+    if (stripos($htmlBody, '<html') !== false) {
+        return $htmlBody;
+    }
+
+    return '<!doctype html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="x-apple-disable-message-reformatting">
+    <title>Leads DeskMetamorph</title>
+</head>
+<body style="margin:0;padding:0;background:#ffffff;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;text-align:left;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;background:#ffffff;margin:0;padding:0;text-align:left;">
+        <tr>
+            <td align="left" style="padding:0;margin:0;background:#ffffff;text-align:left;">
+                <div style="width:100%;text-align:left;">
+                    ' . $htmlBody . '
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>';
+}
+
 function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, string $textBody = '', array $attachments = [], array $options = []): bool
 {
     smtp_last_error('');
@@ -477,6 +522,7 @@ function sendSmtpEmail(array $toEmails, string $subject, string $htmlBody, strin
     }
 
     try {
+        $htmlBody = smtp_email_client_safe_html($htmlBody);
         $threading = null;
         $conferenceBookingId = isset($options['conference_booking_id']) ? (int) $options['conference_booking_id'] : 0;
         if ($conferenceBookingId > 0) {

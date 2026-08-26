@@ -178,6 +178,48 @@ window.TM_CURRENT_USER = <?php echo json_encode([
     --admin-shell-yellow: #F4C430;
 }
 
+/* Shared page background: matches employee/dashboard.php. */
+html body {
+    background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.48)),
+        url('../assets/img/dashboard_bg.jpg') !important;
+    background-repeat: no-repeat !important;
+    background-size: 100% auto !important;
+    background-position: center -28px !important;
+    background-attachment: fixed !important;
+}
+
+html body::before,
+html body::after {
+    content: "" !important;
+    position: fixed !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+    background-image: radial-gradient(circle, rgba(105, 163, 123, 0.2) 1.2px, transparent 1.55px) !important;
+}
+
+html body::before {
+    left: 4% !important;
+    top: 128px !important;
+    width: 96px !important;
+    height: 100px !important;
+    background-size: 14px 14px !important;
+}
+
+html body::after {
+    right: 5% !important;
+    top: 71% !important;
+    width: 112px !important;
+    height: 116px !important;
+    background-size: 16px 16px !important;
+}
+
+.admin-page {
+    position: relative;
+    z-index: 1;
+    background: transparent !important;
+}
+
 .admin-sidebar {
     position: fixed;
     inset: 0 auto 0 0;
@@ -1515,6 +1557,97 @@ body .tm-global-chat-fab,
     line-height: 1;
 }
 .tm-global-chat-fab .chat-badge.is-visible { display: inline-flex; }
+
+/* Shared admin tablet/desktop shell. Mobile rules below remain unchanged. */
+@media (min-width: 769px) {
+    html,
+    html body {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    html body .admin-navbar.admin-main-header {
+        width: 100%;
+        max-width: 100%;
+        padding-left: clamp(18px, 2vw, 32px);
+        padding-right: clamp(18px, 2vw, 32px);
+        box-sizing: border-box;
+    }
+
+    html body .admin-container {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        padding: clamp(22px, 2.5vw, 38px);
+        box-sizing: border-box;
+    }
+
+    html body .admin-content {
+        width: 100%;
+        max-width: 1600px;
+        min-width: 0;
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box;
+    }
+
+    html body .admin-content > * {
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    html body .admin-content :is(
+        .table-card,
+        .table-responsive,
+        .admin-table-wrapper,
+        .users-table-container,
+        .analytics-table-wrap,
+        .filters-card,
+        .filter-card,
+        .stats-grid,
+        .analytics-grid,
+        .routing-page,
+        .conference-admin-page,
+        .manage-rooms-page,
+        .kb-wrapper,
+        .edit-container,
+        .create-admin-container,
+        .profile-shell
+    ) {
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    html body .admin-content :is(.table-responsive, .admin-table-wrapper, .users-table-container, .analytics-table-wrap) {
+        width: 100%;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1180px) {
+    html body .admin-container {
+        padding: clamp(18px, 2.5vw, 28px);
+    }
+
+    html body .admin-content :is(.table-responsive, .admin-table-wrapper, .users-table-container, .analytics-table-wrap) {
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    html body .admin-content :is(.filter-form, .filters-grid, .filter-grid) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    html body .admin-page-header {
+        flex-wrap: wrap;
+        gap: 14px;
+    }
+}
+
 @media (max-width: 768px) {
     .tm-global-chat-fab { right: 16px; bottom: 16px; padding: 12px 14px; }
     .tm-global-chat-fab .tm-global-chat-label { display: none; }

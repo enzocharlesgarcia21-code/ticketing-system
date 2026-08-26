@@ -384,7 +384,7 @@ function conference_booking_company_label_map(): array
     return [
         '@leads-farmex.com' => 'FARMEX (@leads-farmex.com)',
         '@farmasee.ph' => 'FARMASEE (@farmasee.ph)',
-        '@gpsci.net' => 'GPSCI (@gpsci.net)',
+        '@gpsci.net' => 'GPCI (@gpsci.net)',
         '@leadsanimalhealth.com' => 'LAH (@leadsanimalhealth.com)',
         '@leadsagri.com' => 'LAPC (@leadsagri.com)',
         '@leads-eh.com' => 'LEH (@leads-eh.com)',

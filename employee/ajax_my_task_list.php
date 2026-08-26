@@ -58,6 +58,37 @@ function company_aliases_ajax(string $value): array
     return array_values(array_unique(array_filter(array_map('trim', $aliases), static function ($x) { return $x !== ''; })));
 }
 
+function task_company_filter_aliases_ajax(string $companyFilter): array
+{
+    $map = [
+        '@farmex_lav' => ['@leads-farmex.com', '@leadsav.com', 'leads-farmex.com', 'leadsav.com', 'farmex', 'farmex corp', 'lav', 'farmex / lav'],
+        '@farmasee.ph' => ['@farmasee.ph', 'farmasee'],
+        '@gpsci.net' => ['@gpsci.net', 'gpsci', 'gpci', 'golden primestocks chemical inc - gpsci', 'golden primestocks chemical inc - gpci'],
+        '@leadsanimalhealth.com' => ['@leadsanimalhealth.com', 'lah', 'leads animal health', 'leads animal health - lah'],
+        '@leadsagri.com' => ['@leadsagri.com', 'lapc', 'leads agri', 'leads agricultural products corporation'],
+        '@leads-eh.com' => ['@leads-eh.com', 'leh', 'leads environmental health', 'leads environmental health - leh'],
+        '@malvedaholdings.com' => ['@malvedaholdings.com', 'mhc', 'malveda holdings', 'malveda holdings corporation', 'malveda holdings corporation - mhc'],
+        '@malvedaproperties.com' => ['@malvedaproperties.com', 'mpdc', 'malveda properties', 'malveda properties & development corporation - mpdc'],
+        '@leadstech-corp.com' => ['@leadstech-corp.com', 'ltc', 'leads tech corporation - ltc'],
+        '@lingapleads.org' => ['@lingapleads.org', 'lingap', 'lingap leads foundation - lingap'],
+        '@primestocks.ph' => ['@primestocks.ph', 'pcc', 'primestocks chemical corporation - pcc'],
+    ];
+    $aliases = $map[$companyFilter] ?? [$companyFilter];
+    return array_values(array_unique(array_filter(array_map(static function ($value) {
+        return strtolower(trim((string) $value));
+    }, $aliases), static function ($value) {
+        return $value !== '';
+    })));
+}
+
+function task_company_filter_email_domains_ajax(string $companyFilter): array
+{
+    if ($companyFilter === '@farmex_lav') {
+        return ['@leads-farmex.com', '@leadsav.com'];
+    }
+    return str_starts_with($companyFilter, '@') ? [$companyFilter] : [];
+}
+
 $user_id = (int) ($_SESSION['user_id'] ?? 0);
 $user_department = (string) ($_SESSION['department'] ?? '');
 $user_company = (string) ($_SESSION['company'] ?? '');
@@ -99,6 +130,7 @@ $department = trim((string) ($_GET['department'] ?? ''));
 $company_email = trim((string) ($_GET['company_email'] ?? ''));
 $status = trim((string) ($_GET['status'] ?? ''));
 $sla = trim((string) ($_GET['sla'] ?? ''));
+$reassignment = trim((string) ($_GET['reassignment'] ?? ''));
 $page = (int) ($_GET['page'] ?? 1);
 $limit = (int) ($_GET['limit'] ?? 10);
 if ($page < 1) $page = 1;
@@ -113,13 +145,12 @@ $allowed_departments_by_company = [
     '@malvedaholdings.com' => $mhc_departments,
 ];
 $company_filter_options = [
-    '@leads-farmex.com' => 'FARMEX (@leads-farmex.com)',
+    '@farmex_lav' => 'FARMEX / LAV',
     '@farmasee.ph' => 'FARMASEE (@farmasee.ph)',
-    '@gpsci.net' => 'GPSCI (@gpsci.net)',
+    '@gpsci.net' => 'GPCI (@gpsci.net)',
     '@leadsanimalhealth.com' => 'LAH (@leadsanimalhealth.com)',
     '@leadsagri.com' => 'LAPC (@leadsagri.com)',
     '@leads-eh.com' => 'LEH (@leads-eh.com)',
-    '@leadsav.com' => 'LAV (@leadsav.com)',
     '@malvedaholdings.com' => 'MHC (@malvedaholdings.com)',
     '@malvedaproperties.com' => 'MPDC (@malvedaproperties.com)',
     '@leadstech-corp.com' => 'LTC (@leadstech-corp.com)',
@@ -128,11 +159,13 @@ $company_filter_options = [
 ];
 $allowed_statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
 $allowed_slas = ['On Track', 'At Risk', 'Breach'];
+$allowed_reassignment_filters = ['reassigned', 'not_reassigned', 'handled_by_you'];
 $selected_company_departments = $allowed_departments_by_company[$company_email] ?? [];
 if (!array_key_exists($company_email, $allowed_departments_by_company) || !in_array($department, $selected_company_departments, true)) $department = '';
 if (!array_key_exists($company_email, $company_filter_options)) $company_email = '';
 if (!in_array($status, $allowed_statuses, true)) $status = '';
 if (!in_array($sla, $allowed_slas, true) && !in_array($sla, ['Low', 'Medium', 'High'], true)) $sla = '';
+if (!in_array($reassignment, $allowed_reassignment_filters, true)) $reassignment = '';
 
 function task_source_label(array $row): string
 {
@@ -242,7 +275,7 @@ $isLapcSalesEmployeeView = $normalizedUserCompany === '@leadsagri.com'
     && (($_SESSION['employee_view_mode'] ?? 'employee') !== 'manager');
 $assignedTaskCond = $isLapcSalesEmployeeView
     ? "((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond)"
-    : "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $companyCond AND ((NOT $requiresGroupCond) OR $groupCond)))";
+    : "(((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond) OR (NOT $requesterIsCurrentCond AND $groupCond))";
 $reassignedActivityCond = count($reassignedHistoryAliases) > 0
     ? "EXISTS (SELECT 1 FROM ticket_activity ta WHERE ta.ticket_id = t.id AND ta.activity_type IN ('department_change', 'company_change') AND (" . implode(' OR ', array_fill(0, count($reassignedHistoryAliases), "UPPER(ta.description) LIKE ?")) . "))"
     : "0=1";
@@ -257,6 +290,21 @@ $reassignedNotificationCond = "EXISTS (
 $reassignedTaskCond = $isLapcSalesEmployeeView
     ? "0=1"
     : "(NOT $requesterIsCurrentCond AND (($reassignedActivityCond) OR $reassignedNotificationCond))";
+$reassignmentFilterNotificationCond = "EXISTS (
+    SELECT 1
+    FROM notifications n
+    WHERE n.ticket_id = t.id
+      AND n.user_id = ?
+      AND n.type = 'dept_assigned'
+      AND LOWER(TRIM(COALESCE(n.action_type, ''))) = 'reassign'
+)";
+$reassignmentFilterCond = $isLapcSalesEmployeeView
+    ? "0=1"
+    : "(($reassignedActivityCond) OR $reassignmentFilterNotificationCond)";
+$teamTicketsCond = $isLapcSalesEmployeeView
+    ? "((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond AND NOT ($reassignmentFilterCond))"
+    : "(NOT $requesterIsCurrentCond AND $groupCond AND NOT ($reassignmentFilterCond))";
+$handledByYouCond = "(t.assigned_to = ? AND LOWER(TRIM(COALESCE(t.status, ''))) = 'in progress')";
 
 $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $isLapcSalesEmployeeView): void {
     $params[] = $user_id;
@@ -274,12 +322,6 @@ $addAssignedTaskParams = static function () use (&$params, &$types, $user_id, $u
     $types .= "i";
     $params[] = strtolower((string) $user_email);
     $types .= "s";
-    $params[] = strtolower((string) $user_email);
-    $types .= "s";
-    foreach ($companyAliases as $co) {
-        $params[] = $co;
-        $types .= "s";
-    }
     foreach ($userDepartmentAliases as $departmentAlias) {
         $params[] = $departmentAlias;
         $types .= "s";
@@ -294,6 +336,48 @@ $addReassignedTaskParams = static function () use (&$params, &$types, $user_id, 
     $types .= "i";
     $params[] = strtolower((string) $user_email);
     $types .= "s";
+    foreach ($reassignedHistoryAliases as $historyAlias) {
+        $params[] = '%' . strtoupper($historyAlias) . '%';
+        $types .= "s";
+    }
+    $params[] = $user_id;
+    $types .= "i";
+};
+$addReassignmentFilterParams = static function () use (&$params, &$types, $user_id, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
+    if ($isLapcSalesEmployeeView) {
+        return;
+    }
+    foreach ($reassignedHistoryAliases as $historyAlias) {
+        $params[] = '%' . strtoupper($historyAlias) . '%';
+        $types .= "s";
+    }
+    $params[] = $user_id;
+    $types .= "i";
+};
+$addHandledByYouFilterParams = static function () use (&$params, &$types, $user_id): void {
+    $params[] = $user_id;
+    $types .= "i";
+};
+$addTeamTicketsFilterParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
+    if ($isLapcSalesEmployeeView) {
+        $params[] = $user_id;
+        $types .= "i";
+        $params[] = $user_id;
+        $types .= "i";
+        $params[] = $user_id;
+        $types .= "i";
+        $params[] = strtolower((string) $user_email);
+        $types .= "s";
+        return;
+    }
+    $params[] = $user_id;
+    $types .= "i";
+    $params[] = strtolower((string) $user_email);
+    $types .= "s";
+    foreach ($userDepartmentAliases as $departmentAlias) {
+        $params[] = $departmentAlias;
+        $types .= "s";
+    }
     foreach ($reassignedHistoryAliases as $historyAlias) {
         $params[] = '%' . strtoupper($historyAlias) . '%';
         $types .= "s";
@@ -343,9 +427,24 @@ if ($department !== '') {
 }
 
 if ($company_email !== '') {
-    $where[] = "LOWER($sourceCompanyExpr) = ?";
-    $params[] = strtolower((string) $company_email);
-    $types .= "s";
+    $companyFilterAliases = task_company_filter_aliases_ajax((string) $company_email);
+    $companyFilterDomains = task_company_filter_email_domains_ajax((string) $company_email);
+    $companyFilterParts = [];
+    if (count($companyFilterAliases) > 0) {
+        $companyFilterParts[] = "LOWER($sourceCompanyExpr) IN (" . implode(', ', array_fill(0, count($companyFilterAliases), '?')) . ")";
+        foreach ($companyFilterAliases as $companyFilterAlias) {
+            $params[] = $companyFilterAlias;
+            $types .= "s";
+        }
+    }
+    foreach ($companyFilterDomains as $companyFilterDomain) {
+        $companyFilterParts[] = "LOWER($sourceEmailExpr) LIKE ?";
+        $params[] = '%' . strtolower($companyFilterDomain);
+        $types .= "s";
+    }
+    if (count($companyFilterParts) > 0) {
+        $where[] = "(" . implode(" OR ", $companyFilterParts) . ")";
+    }
 }
 
 if ($status !== '') {
@@ -359,6 +458,17 @@ if ($sla !== '') {
     if ($slaCondition !== '') {
         $where[] = $slaCondition;
     }
+}
+
+if ($reassignment === 'reassigned') {
+    $where[] = $reassignmentFilterCond;
+    $addReassignmentFilterParams();
+} elseif ($reassignment === 'not_reassigned') {
+    $where[] = $teamTicketsCond;
+    $addTeamTicketsFilterParams();
+} elseif ($reassignment === 'handled_by_you') {
+    $where[] = $handledByYouCond;
+    $addHandledByYouFilterParams();
 }
 
 $sql = "SELECT t.*, u.name as user_name, u.email as user_email, u.department as user_department, u.company as user_company,
@@ -506,6 +616,7 @@ if ($total > 0) {
         $paginationHtml .= '</div>';
         $paginationHtml .= '<a href="#" data-page="' . min($totalPages, $page + 1) . '" class="page-btn next' . ($page >= $totalPages ? ' disabled' : '') . '">Next &rsaquo;</a>';
     }
+    $paginationHtml .= '<span class="my-task-mobile-page-counter" aria-label="Page ' . $page . ' of ' . $totalPages . '">' . $page . ' of ' . $totalPages . '</span>';
     $paginationHtml .= '</div>';
 }
 

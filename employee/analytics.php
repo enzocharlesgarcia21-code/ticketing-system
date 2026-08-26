@@ -20,8 +20,8 @@ $analyticsHtml = ob_get_clean();
 
 $employeeAnalyticsAdminParity = <<<'HTML'
 <style id="employeeAnalyticsAdminParity">
-body.employee-analytics-page .admin-page,
-body.employee-analytics-page .admin-page *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.analytics-title) {
+body.employee-analytics-page .admin-content,
+body.employee-analytics-page .admin-content *:not(i):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands) {
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
 }
 
@@ -49,7 +49,7 @@ body.employee-analytics-page .analytics-heading {
     max-width: 860px;
 }
 
-body.employee-analytics-page .admin-page .admin-page-header .analytics-heading .admin-page-title.analytics-title {
+body.employee-analytics-page .admin-page .admin-content .admin-page-header .analytics-heading .admin-page-title.analytics-title {
     color: #1B5E20 !important;
     font-family: 'Segoe UI', sans-serif !important;
     font-size: 28px !important;
@@ -85,12 +85,12 @@ body.employee-analytics-page .analytics-card {
         inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
-body.employee-analytics-page .trend-overview-card {
+body.employee-analytics-page:not(.sales-manager-analytics-page) .trend-overview-card {
     flex-direction: row;
     align-items: center;
 }
 
-body.employee-analytics-page .trend-delta-badge {
+body.employee-analytics-page:not(.sales-manager-analytics-page) .trend-delta-badge {
     width: auto;
     justify-content: normal;
 }
@@ -426,6 +426,601 @@ body.employee-analytics-page .task-ticket-arrow {
         font-size: 13px;
     }
 }
+
+/* Employee page background-only consistency override. */
+body.employee-analytics-page {
+    background-image:
+        radial-gradient(circle at 6% 24%, rgba(225, 244, 229, 0.82) 0 78px, transparent 79px),
+        radial-gradient(circle at -4% 83%, rgba(215, 239, 221, 0.78) 0 190px, transparent 191px),
+        radial-gradient(circle at 98% 26%, rgba(219, 241, 224, 0.76) 0 205px, transparent 206px),
+        radial-gradient(circle at 94% 76%, rgba(233, 247, 236, 0.82) 0 90px, transparent 91px),
+        radial-gradient(ellipse at 58% 108%, rgba(223, 243, 228, 0.74) 0 260px, transparent 261px),
+        radial-gradient(circle at 4% 77%, transparent 0 165px, rgba(205, 230, 213, 0.24) 166px 168px, transparent 169px),
+        radial-gradient(circle at 4% 78%, transparent 0 210px, rgba(205, 230, 213, 0.16) 211px 213px, transparent 214px),
+        radial-gradient(circle at 92% 19%, transparent 0 145px, rgba(202, 229, 211, 0.23) 146px 148px, transparent 149px),
+        radial-gradient(circle at 94% 20%, transparent 0 198px, rgba(202, 229, 211, 0.16) 199px 201px, transparent 202px),
+        linear-gradient(145deg, rgba(239, 249, 242, 0.78) 0%, rgba(255, 255, 255, 0.98) 20%, rgba(255, 255, 255, 0.99) 60%, rgba(239, 249, 242, 0.84) 100%) !important;
+    background-repeat: no-repeat !important;
+    background-attachment: fixed !important;
+}
+
+body.employee-analytics-page::before,
+body.employee-analytics-page::after {
+    content: "" !important;
+    position: fixed !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+    background-image: radial-gradient(circle, rgba(105, 163, 123, 0.2) 1.2px, transparent 1.55px);
+}
+
+body.employee-analytics-page::before {
+    left: 2%;
+    top: 132px;
+    width: 104px;
+    height: 88px;
+    background-size: 16px 16px;
+}
+
+body.employee-analytics-page::after {
+    right: 6%;
+    top: 88%;
+    width: 116px;
+    height: 96px;
+    background-size: 15px 15px;
+}
+
+body.employee-analytics-page .admin-container,
+body.employee-analytics-page .admin-content {
+    position: relative !important;
+    z-index: 1 !important;
+    background: transparent !important;
+}
+
+/* Mobile employee Analytics presentation. Navbar/chat remain shared. */
+@media (max-width: 768px) {
+    body.employee-analytics-page .admin-page {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        background: transparent !important;
+    }
+
+    body.employee-analytics-page .admin-container {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 26px 12px 40px !important;
+        box-sizing: border-box !important;
+        background:
+            linear-gradient(180deg, rgba(255,255,255,.34) 0, rgba(255,255,255,.73) 250px, rgba(247,249,248,.96) 430px),
+            url('../assets/img/dashboard_bg.jpg') center top / 100% 430px no-repeat !important;
+    }
+
+    body.employee-analytics-page .admin-content {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    body.employee-analytics-page .admin-page-header {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: end !important;
+        gap: 10px 12px !important;
+        margin: 0 8px 18px !important;
+    }
+
+    body.employee-analytics-page .analytics-heading {
+        grid-column: 1 / -1 !important;
+        gap: 7px !important;
+        max-width: 430px !important;
+    }
+
+    body.employee-analytics-page .admin-page .admin-content .admin-page-header .analytics-heading .admin-page-title.analytics-title {
+        margin: 0 !important;
+        color: #075d27 !important;
+        font-size: 27px !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
+    }
+
+    body.employee-analytics-page .analytics-subtitle {
+        max-width: 410px !important;
+        color: #334155 !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        line-height: 1.55 !important;
+    }
+
+    body.employee-analytics-page .analytics-header-actions {
+        grid-column: 2 !important;
+        justify-self: end !important;
+        width: auto !important;
+        margin: -2px 0 0 !important;
+        gap: 8px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    body.employee-analytics-page .btn-export {
+        min-width: 78px !important;
+        min-height: 38px !important;
+        height: 38px !important;
+        padding: 0 12px !important;
+        border: 1px solid #159447 !important;
+        border-radius: 9px !important;
+        background: rgba(255,255,255,.95) !important;
+        color: #147a37 !important;
+        font-size: 12px !important;
+        font-weight: 750 !important;
+        box-shadow: 0 5px 14px rgba(15,92,39,.08) !important;
+    }
+
+    body.employee-analytics-page .analytics-toolbar {
+        margin: 0 0 16px !important;
+        padding: 16px !important;
+        border: 1px solid rgba(218,229,221,.95) !important;
+        border-radius: 16px !important;
+        background: rgba(255,255,255,.96) !important;
+        box-shadow: 0 10px 24px rgba(15,23,42,.07) !important;
+    }
+
+    body.employee-analytics-page:not(.sales-manager-analytics-page) .analytics-filters {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 12px 14px !important;
+        align-items: end !important;
+    }
+
+    body.employee-analytics-page .analytics-filter:first-child {
+        grid-column: 1 / -1 !important;
+    }
+
+    body.employee-analytics-page .analytics-filter label {
+        margin-bottom: 7px !important;
+        color: #172033 !important;
+        font-size: 11px !important;
+        font-weight: 750 !important;
+    }
+
+    body.employee-analytics-page .date-inputs {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
+        align-items: center !important;
+        gap: 9px !important;
+    }
+
+    body.employee-analytics-page .date-separator {
+        display: inline-flex !important;
+        color: #334155 !important;
+        font-size: 12px !important;
+        font-weight: 750 !important;
+    }
+
+    body.employee-analytics-page .analytics-control,
+    body.employee-analytics-page .analytics-select-trigger {
+        width: 100% !important;
+        min-width: 0 !important;
+        min-height: 42px !important;
+        height: 42px !important;
+        padding: 0 12px !important;
+        border: 1px solid #d7dee7 !important;
+        border-radius: 9px !important;
+        background-color: #fff !important;
+        color: #172033 !important;
+        font-size: 12px !important;
+        box-shadow: none !important;
+        box-sizing: border-box !important;
+    }
+
+    body.employee-analytics-page .analytics-status-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        gap: 8px !important;
+        align-items: center !important;
+    }
+
+    body.employee-analytics-page .analytics-inline-clear {
+        min-width: 72px !important;
+        min-height: 42px !important;
+        padding: 0 10px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border: 1px solid #64bd7e !important;
+        border-radius: 9px !important;
+        background: #fff !important;
+        color: #147a37 !important;
+        font-size: 11px !important;
+        font-weight: 750 !important;
+        text-decoration: none !important;
+        white-space: nowrap !important;
+        box-sizing: border-box !important;
+    }
+
+    body.employee-analytics-page .analytics-metrics {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)) !important;
+        gap: 10px !important;
+        margin: 0 0 16px !important;
+    }
+
+    body.employee-analytics-page .analytics-card {
+        min-height: 126px !important;
+        padding: 13px 12px 12px !important;
+        border-radius: 13px !important;
+        box-shadow: 0 8px 19px rgba(15,23,42,.065) !important;
+    }
+
+    body.employee-analytics-page .analytics-card::before {
+        width: 3px !important;
+    }
+
+    body.employee-analytics-page .analytics-label {
+        margin: 0 0 12px !important;
+        font-size: 10px !important;
+        font-weight: 750 !important;
+    }
+
+    body.employee-analytics-page .analytics-value {
+        font-size: 27px !important;
+        font-weight: 800 !important;
+    }
+
+    body.employee-analytics-page .analytics-sub {
+        margin-top: 11px !important;
+        font-size: 9.5px !important;
+        font-weight: 550 !important;
+        line-height: 1.35 !important;
+    }
+
+    body.employee-analytics-page .analytics-icon {
+        width: 34px !important;
+        height: 34px !important;
+        border-radius: 10px !important;
+        font-size: 13px !important;
+    }
+
+    body.employee-analytics-page .analytics-charts {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)) !important;
+        gap: 9px !important;
+        margin: 0 0 16px !important;
+        align-items: stretch !important;
+    }
+
+    body.employee-analytics-page .chart-card {
+        min-width: 0 !important;
+        min-height: 390px !important;
+        height: 100% !important;
+        padding: 12px 10px !important;
+        border-radius: 13px !important;
+        box-shadow: 0 8px 19px rgba(15,23,42,.065) !important;
+        overflow: hidden !important;
+    }
+
+    body.employee-analytics-page .chart-header,
+    body.employee-analytics-page .category-card .chart-header,
+    body.employee-analytics-page .trend-card .chart-header {
+        display: block !important;
+        min-height: 54px !important;
+        margin-bottom: 8px !important;
+    }
+
+    body.employee-analytics-page .chart-title {
+        margin-bottom: 4px !important;
+        font-size: 10px !important;
+        font-weight: 800 !important;
+        line-height: 1.25 !important;
+    }
+
+    body.employee-analytics-page .chart-subtitle {
+        font-size: 8.5px !important;
+        font-weight: 550 !important;
+        line-height: 1.35 !important;
+    }
+
+    body.employee-analytics-page .chart-card.category-card .chart-container,
+    body.employee-analytics-page .chart-card.trend-card .chart-container {
+        width: 100% !important;
+        height: 185px !important;
+        min-height: 185px !important;
+    }
+
+    body.employee-analytics-page .category-legend-grid {
+        grid-template-columns: 1fr !important;
+        gap: 5px !important;
+        margin-top: 8px !important;
+    }
+
+    body.employee-analytics-page .category-legend-item,
+    body.employee-analytics-page .category-legend-text {
+        min-width: 0 !important;
+        font-size: 8px !important;
+    }
+
+    body.employee-analytics-page .category-legend-name {
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+    }
+
+    body.employee-analytics-page .trend-period-actions {
+        display: flex !important;
+        gap: 3px !important;
+        margin-top: 6px !important;
+    }
+
+    body.employee-analytics-page .trend-period-pill {
+        width: auto !important;
+        min-height: 24px !important;
+        padding: 0 7px !important;
+        border-radius: 12px !important;
+        font-size: 7.5px !important;
+    }
+
+    body.employee-analytics-page:not(.sales-manager-analytics-page) .trend-overview-card {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 6px !important;
+        width: 100% !important;
+        padding: 7px !important;
+        border-radius: 9px !important;
+    }
+
+    body.employee-analytics-page .trend-overview-icon {
+        width: 28px !important;
+        height: 28px !important;
+        flex-basis: 28px !important;
+        font-size: 11px !important;
+    }
+
+    body.employee-analytics-page .trend-overview-value {
+        font-size: 14px !important;
+    }
+
+    body.employee-analytics-page .trend-overview-label,
+    body.employee-analytics-page .trend-delta-value,
+    body.employee-analytics-page .trend-delta-label {
+        font-size: 7.5px !important;
+        line-height: 1.25 !important;
+    }
+
+    body.employee-analytics-page .trend-delta-badge {
+        width: 100% !important;
+        min-height: 32px !important;
+        padding: 5px 7px !important;
+        box-sizing: border-box !important;
+    }
+
+    body.employee-analytics-page .insight-pill {
+        display: none !important;
+    }
+
+    body.employee-analytics-page .assignee-card .chart-header {
+        min-height: 54px !important;
+    }
+
+    body.employee-analytics-page .assignee-card .assignee-list {
+        gap: 10px !important;
+        margin: 4px 0 10px !important;
+    }
+
+    body.employee-analytics-page .assignee-item {
+        gap: 6px !important;
+    }
+
+    body.employee-analytics-page .assignee-avatar {
+        width: 29px !important;
+        height: 29px !important;
+        flex-basis: 29px !important;
+        font-size: 8px !important;
+    }
+
+    body.employee-analytics-page .assignee-name,
+    body.employee-analytics-page .assignee-count {
+        font-size: 8px !important;
+    }
+
+    body.employee-analytics-page .assignee-total-pill {
+        min-height: 35px !important;
+        padding: 7px 9px !important;
+        border-radius: 18px !important;
+        font-size: 8px !important;
+    }
+
+    body.employee-analytics-page .table-card {
+        position: relative !important;
+        margin: 0 !important;
+        padding: 42px 12px 14px !important;
+        border-radius: 14px !important;
+        box-shadow: 0 8px 19px rgba(15,23,42,.065) !important;
+        overflow: hidden !important;
+    }
+
+    body.employee-analytics-page .table-card::before {
+        content: 'Ticket Overview';
+        position: absolute;
+        top: 15px;
+        left: 14px;
+        color: #172033;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+    body.employee-analytics-page .table-responsive {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    body.employee-analytics-page .analytics-task-table {
+        display: table !important;
+        width: 760px !important;
+        min-width: 760px !important;
+        max-width: none !important;
+        table-layout: auto !important;
+        border-collapse: collapse !important;
+    }
+
+    body.employee-analytics-page .analytics-task-table thead {
+        display: table-header-group !important;
+    }
+
+    body.employee-analytics-page .analytics-task-table tbody {
+        display: table-row-group !important;
+    }
+
+    body.employee-analytics-page .analytics-task-table thead tr,
+    body.employee-analytics-page .analytics-task-table tbody tr {
+        display: table-row !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    body.employee-analytics-page .analytics-task-table th,
+    body.employee-analytics-page .analytics-task-table td {
+        display: table-cell !important;
+        padding: 10px 9px !important;
+        font-size: 9px !important;
+        text-align: left !important;
+        vertical-align: middle !important;
+        white-space: nowrap !important;
+    }
+
+    body.employee-analytics-page .analytics-task-table td::before {
+        display: none !important;
+        content: none !important;
+    }
+
+    body.employee-analytics-page .analytics-task-table th {
+        font-size: 8px !important;
+        letter-spacing: .45px !important;
+    }
+
+    body.employee-analytics-page .pagination-row {
+        display: grid !important;
+        grid-template-columns: auto 1fr auto !important;
+        gap: 8px !important;
+        align-items: center !important;
+        justify-items: stretch !important;
+        margin-top: 12px !important;
+    }
+
+    body.employee-analytics-page .pagination-row > .pagination-info:first-child {
+        display: none !important;
+    }
+
+    body.employee-analytics-page .entries-row {
+        justify-self: start !important;
+        gap: 5px !important;
+        font-size: 8.5px !important;
+    }
+
+    body.employee-analytics-page .entries-select {
+        width: 58px !important;
+        min-width: 58px !important;
+        height: 34px !important;
+        padding: 0 8px !important;
+        font-size: 9px !important;
+    }
+
+    body.employee-analytics-page .pagination-info {
+        justify-self: end !important;
+        font-size: 8.5px !important;
+        text-align: right !important;
+    }
+
+    body.employee-analytics-page .pagination-controls {
+        grid-column: 1 / -1 !important;
+        justify-self: end !important;
+    }
+}
+
+@media (max-width: 520px) {
+    body.employee-analytics-page .admin-container {
+        padding-left: 9px !important;
+        padding-right: 9px !important;
+    }
+
+    body.employee-analytics-page .admin-page-header {
+        margin-left: 4px !important;
+        margin-right: 4px !important;
+    }
+
+    body.employee-analytics-page .analytics-metrics {
+        grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)) !important;
+    }
+
+    body.employee-analytics-page .analytics-charts {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    body.employee-analytics-page .chart-card {
+        min-height: 360px !important;
+        padding: 14px 13px !important;
+    }
+
+    body.employee-analytics-page .chart-title {
+        font-size: 12px !important;
+    }
+
+    body.employee-analytics-page .chart-subtitle {
+        font-size: 10px !important;
+    }
+
+    body.employee-analytics-page .chart-card.category-card .chart-container,
+    body.employee-analytics-page .chart-card.trend-card .chart-container {
+        height: 220px !important;
+        min-height: 220px !important;
+    }
+}
+
+@media (max-width: 400px) {
+    body.employee-analytics-page:not(.sales-manager-analytics-page) .analytics-filters {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    body.employee-analytics-page .analytics-filter:first-child {
+        grid-column: 1 !important;
+    }
+
+    body.employee-analytics-page .analytics-header-actions {
+        grid-column: 1 / -1 !important;
+    }
+
+    body.employee-analytics-page .analytics-card {
+        min-height: 116px !important;
+    }
+}
+
+/* Keep mobile analytics body copy at one readable size. Page headings and KPI
+   numbers retain their visual hierarchy; all labels, controls, charts and table
+   content use the shared employee-page 14px baseline. This block intentionally comes last so
+   narrower breakpoints cannot shrink individual elements again. */
+@media (max-width: 768px) {
+    body.employee-analytics-page .analytics-subtitle,
+    body.employee-analytics-page .btn-export,
+    body.employee-analytics-page .analytics-toolbar *,
+    body.employee-analytics-page .analytics-label,
+    body.employee-analytics-page .analytics-sub,
+    body.employee-analytics-page .chart-card *,
+    body.employee-analytics-page .table-card * {
+        font-size: 14px !important;
+    }
+
+    body.employee-analytics-page .table-card::before {
+        font-size: 14px !important;
+    }
+}
 </style>
 HTML;
 
@@ -542,12 +1137,27 @@ $analyticsHtml = str_replace(
     $analyticsHtml
 );
 $analyticsHtml = str_replace(
+    [
+        "size: pct <= 2 ? 7 : (pct <= 4 ? 8 : 10)",
+        "size: isMonthTrendView() ? 10 : 11",
+        "size: isMonthTrendView() ? 12 : 13",
+        "size: 13,\n                            weight: analyticsChartAxisWeight",
+    ],
+    [
+        "size: 14",
+        "size: 14",
+        "size: 14",
+        "size: 14,\n                            weight: analyticsChartAxisWeight",
+    ],
+    $analyticsHtml
+);
+$analyticsHtml = str_replace(
     "top: isEmployeeAnalyticsView ? 34 : 18,",
     "top: 18,",
     $analyticsHtml
 );
 $analyticsHtml = preg_replace(
-    '/\s*body\.employee-analytics-page \.admin-content,\s*body\.employee-analytics-page \.admin-content \*:not\(i\):not\(\.fa\):not\(\.fa-solid\):not\(\.fa-regular\):not\(\.fa-brands\)\s*\{\s*font-weight:\s*400\s*!important;\s*\}/',
+    '/\s*body\.employee-analytics-page(?::not\(\.sales-manager-analytics-page\))? \.admin-content,\s*body\.employee-analytics-page(?::not\(\.sales-manager-analytics-page\))? \.admin-content \*:not\(i\):not\(\.fa\):not\(\.fa-solid\):not\(\.fa-regular\):not\(\.fa-brands\)\s*\{\s*font-weight:\s*400\s*!important;\s*\}/',
     '',
     $analyticsHtml,
     1

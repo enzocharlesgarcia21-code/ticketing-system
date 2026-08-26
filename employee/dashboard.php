@@ -137,9 +137,10 @@ if ($regionColumnRes && $regionColumnRes->num_rows > 0) {
 }
 $userQuery = $conn->query("SELECT company, department, email" . ($hasUserRegionColumn ? ", region" : "") . " FROM users WHERE id = $user_id");
 if ($userQuery && $row = $userQuery->fetch_assoc()) {
-    $company = (string) ($row['company'] ?? '');
-    if ($company !== '') {
-        $_SESSION['company'] = $company;
+    $storedCompany = trim((string) ($row['company'] ?? ''));
+    if ($storedCompany !== '') {
+        $company = $storedCompany;
+        $_SESSION['company'] = $storedCompany;
     }
     if ($user_department === '') {
         $user_department = (string) ($row['department'] ?? '');
@@ -153,6 +154,13 @@ if ($userQuery && $row = $userQuery->fetch_assoc()) {
         $user_region = (string) ($row['region'] ?? '');
         $_SESSION['region'] = $user_region;
     }
+}
+
+// Older employee records may not have a company value saved. Use the email
+// domain as the company identifier so the dashboard can still show it.
+if (trim($company) === '' && strpos($user_email, '@') !== false) {
+    $company = '@' . strtolower(substr(strrchr($user_email, '@'), 1));
+    $_SESSION['company'] = $company;
 }
 
 /* Ticket Counts (tickets created by this employee) */
@@ -236,7 +244,7 @@ $submittedDashboardStats = [
 $recentStmt = $conn->prepare("
     SELECT
         t.*,
-        u.name AS requester_name,
+        u.name AS user_name,
         u.email AS user_email,
         u.department AS user_department,
         u.company AS user_company
@@ -295,7 +303,7 @@ $receivedTickets = [];
 $receivedStmt = $conn->prepare("
     SELECT
         t.*,
-        u.name AS requester_name,
+        u.name AS user_name,
         u.email AS user_email,
         u.department AS user_department,
         u.company AS user_company,
@@ -590,7 +598,7 @@ function dashboard_urgency_badge_html(string $priority): string
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <link rel="shortcut icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover">
     <title>Employee Dashboard | Leads DeskMetamorph</title>
     <link rel="stylesheet" href="../css/employee-dashboard.css">
     <!-- Optional: Font Awesome for Icons -->
@@ -932,22 +940,36 @@ function dashboard_urgency_badge_html(string $priority): string
         }
 
         body.employee-dashboard-page .hero-dept {
-            display: inline-flex;
+            display: flex;
             align-items: center;
             gap: 8px;
+            flex-wrap: wrap;
             margin: 0 0 14px;
-            padding: 5px 12px;
-            border-radius: 8px;
-            background: #eef2f7;
-            color: #64748b;
+            padding: 0;
+            background: transparent;
+            color: #1f6a3b;
             font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.08em;
+            font-weight: 700;
+            letter-spacing: 0.03em;
             text-transform: uppercase;
         }
 
-        body.employee-dashboard-page .company-text {
-            color: #64748b;
+        body.employee-dashboard-page .hero-meta-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 38px;
+            padding: 0 14px;
+            border: 1px solid #cfe9d6;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #f4fcf6, #e4f5e8);
+            color: #17683a;
+            box-shadow: 0 6px 14px rgba(22, 101, 52, 0.08);
+        }
+
+        body.employee-dashboard-page .hero-meta-pill i {
+            color: #22834a;
+            font-size: 15px;
         }
 
         body.employee-dashboard-page .hero-subtitle {
@@ -1284,6 +1306,23 @@ function dashboard_urgency_badge_html(string $priority): string
             border-spacing: 0;
         }
 
+        /* Both dashboard ticket views use the same column map, so their table
+           columns remain aligned when the card filter changes. */
+        @media (min-width: 769px) {
+            body.employee-dashboard-page .dashboard-ticket-table {
+                table-layout: fixed;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(1) { width: 8%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(2) { width: 20%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(3) { width: 25%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(4) { width: 10%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(6) { width: 15%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(7) { width: 8%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(8) { width: 14%; }
+            body.employee-dashboard-page .dashboard-ticket-table :is(th, td):nth-child(9) { width: 0; }
+        }
+
         body.employee-dashboard-page .dashboard-ticket-table th {
             padding: 16px 20px;
             background: #f8fafc;
@@ -1541,8 +1580,8 @@ function dashboard_urgency_badge_html(string $priority): string
 
 
         body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
-            width: min(100%, 390px);
-            height: 390px;
+            width: min(100%, 430px);
+            height: 400px;
             max-height: calc(100vh - 44px);
             border-radius: 12px;
             box-shadow: 0 20px 48px rgba(15, 23, 42, 0.28);
@@ -1552,38 +1591,45 @@ function dashboard_urgency_badge_html(string $priority): string
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header {
-            padding: 0 34px 20px;
+            padding: 0 30px;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-success-icon {
-            width: 58px;
-            height: 58px;
-            margin-bottom: 22px;
+            width: 76px;
+            height: 76px;
+            margin-bottom: 18px;
             border-width: 2px;
             background: #f0fbf3;
-            font-size: 30px;
+            font-size: 36px;
             font-weight: 400;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-title {
-            margin-bottom: 14px;
-            font-size: 23px;
+            margin-bottom: 10px;
+            font-size: 26px;
             line-height: 1.2;
             color: #0f172a;
             font-weight: 600;
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-subtitle {
-            max-width: 285px;
+            max-width: 340px;
             margin: 0 auto;
-            font-size: 15px;
+            font-size: 16px;
             line-height: 1.45;
             color: #5b6473;
         }
 
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-title,
+        body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-subtitle {
+            position: relative;
+            top: 0;
+        }
+
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
-            margin: 0 34px;
-            padding: 24px 0 0;
+            width: calc(100% - 60px);
+            margin: 32px 30px 0;
+            padding: 18px 0 0;
             display: grid;
             gap: 0;
             overflow: visible;
@@ -1629,9 +1675,11 @@ function dashboard_urgency_badge_html(string $priority): string
         }
 
         body.employee-dashboard-page .feedback-modal-dialog-success .feedback-submit-btn {
-            width: 190px;
-            min-width: 190px;
+            width: 300px;
+            min-width: 300px;
             min-height: 48px;
+            position: relative;
+            top: 12px;
             border-radius: 999px;
             background: #1B5E20;
             font-size: 16px;
@@ -1649,14 +1697,21 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
-                width: min(100%, 94vw);
-                height: 390px;
+                width: min(100%, 430px);
+                height: min(400px, calc(100vh - 24px));
             }
 
-            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header,
-            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
+            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-header {
                 padding-left: 24px;
                 padding-right: 24px;
+            }
+
+            body.employee-dashboard-page .feedback-modal-dialog-success .feedback-modal-body {
+                width: calc(100% - 48px);
+                margin-left: 24px;
+                margin-right: 24px;
+                padding-left: 0;
+                padding-right: 0;
             }
 
             body.employee-dashboard-page .feedback-modal-dialog-success .feedback-flash.is-success {
@@ -1665,6 +1720,14 @@ function dashboard_urgency_badge_html(string $priority): string
 
             body.employee-dashboard-page .feedback-modal-dialog-success .feedback-submit-btn {
                 width: 100%;
+                min-width: 0;
+            }
+        }
+
+        @media (max-width: 640px) {
+            body.employee-dashboard-page .feedback-modal-dialog.feedback-modal-dialog-success {
+                width: min(100%, 390px);
+                height: min(390px, calc(100vh - 24px));
             }
         }
 
@@ -1697,21 +1760,29 @@ function dashboard_urgency_badge_html(string $priority): string
             body.employee-dashboard-page .mobile-sidebar {
                 position: fixed;
                 top: 0;
-                right: -260px;
+                left: -260px;
+                right: auto;
                 width: 260px;
-                height: 100vh;
+                height: var(--employee-mobile-sidebar-height, 100vh);
+                min-height: var(--employee-mobile-sidebar-height, 100vh);
+                max-height: var(--employee-mobile-sidebar-height, 100vh);
                 background: #1B5E20;
                 padding: 20px;
-                transition: right 0.3s ease;
+                transition: left 0.3s ease;
                 z-index: 2000;
                 display: flex;
                 flex-direction: column;
                 gap: 18px;
+                overflow-x: hidden;
+                overflow-y: auto;
+                overscroll-behavior: contain;
+                box-sizing: border-box;
                 box-shadow: 12px 0 28px rgba(15, 23, 42, 0.25);
             }
 
             body.employee-dashboard-page .mobile-sidebar.active {
-                right: 0;
+                left: 0;
+                right: auto;
             }
 
             body.employee-dashboard-page .mobile-sidebar-header {
@@ -1756,12 +1827,13 @@ function dashboard_urgency_badge_html(string $priority): string
             }
 
             body.employee-dashboard-page .mobile-sidebar-footer {
-                margin-top: auto;
-                padding-top: 14px;
-                border-top: 1px solid rgba(255, 255, 255, 0.18);
+                margin: 0 0 8px;
+                padding: 0 0 14px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.18);
                 display: flex;
                 align-items: center;
                 gap: 12px;
+                flex: 0 0 auto;
             }
 
             body.employee-dashboard-page .mobile-sidebar-icon-link,
@@ -1820,7 +1892,7 @@ function dashboard_urgency_badge_html(string $priority): string
             body.employee-dashboard-page .mobile-sidebar-user-menu {
                 position: absolute;
                 right: 0;
-                bottom: calc(100% + 10px);
+                top: calc(100% + 10px);
                 min-width: 170px;
                 background: #ffffff;
                 border-radius: 12px;
@@ -1853,7 +1925,8 @@ function dashboard_urgency_badge_html(string $priority): string
                 top: 0;
                 left: 0;
                 width: 100%;
-                height: 100%;
+                height: var(--employee-mobile-sidebar-height, 100vh);
+                min-height: var(--employee-mobile-sidebar-height, 100vh);
                 background: rgba(0, 0, 0, 0.4);
                 opacity: 0;
                 visibility: hidden;
@@ -2800,6 +2873,318 @@ function dashboard_urgency_badge_html(string $priority): string
             }
         }
 
+        /* Match the mobile ticket-card UI from employee/my_task.php. */
+        @media (max-width: 767px) {
+            body.employee-dashboard-page .dashboard-ticket-grid,
+            body.employee-dashboard-page .dashboard-ticket-panel,
+            body.employee-dashboard-page .sales-manager-table-card,
+            body.employee-dashboard-page .dashboard-ticket-panel .table-responsive,
+            body.employee-dashboard-page .sales-manager-table-card .table-responsive {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                box-sizing: border-box;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-panel,
+            body.employee-dashboard-page .sales-manager-table-card {
+                padding: 0;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+                overflow: visible;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-panel .table-responsive,
+            body.employee-dashboard-page .sales-manager-table-card .table-responsive {
+                margin: 0;
+                overflow: visible;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table),
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                margin: 0;
+                border-collapse: separate;
+                border-spacing: 0;
+                box-sizing: border-box;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) thead {
+                display: none;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                gap: 14px;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row {
+                position: relative;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 7px 8px;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                min-height: 0;
+                height: auto;
+                margin: 0;
+                padding: clamp(13px, 4vw, 17px);
+                padding-right: clamp(42px, 12vw, 52px);
+                border: 1px solid #dde5ed;
+                border-radius: 14px;
+                background: #ffffff;
+                box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+                overflow: hidden;
+                box-sizing: border-box;
+                cursor: pointer;
+                transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row:hover {
+                border-color: #1B5E20;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row:hover td {
+                background: transparent;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row:active {
+                transform: scale(0.98);
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row td {
+                display: block;
+                width: auto;
+                min-width: 0;
+                padding: 0;
+                border: 0;
+                text-align: left;
+                box-sizing: border-box;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-id, .task-ticket-id) {
+                order: 1;
+                flex: 0 0 100%;
+                width: 100%;
+                color: #0f172a;
+                font-size: clamp(12px, 3.4vw, 14px);
+                font-weight: 800;
+                line-height: 1.2;
+                font-variant-numeric: tabular-nums;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-category, .task-ticket-category) {
+                order: 2;
+                flex: 0 0 100%;
+                width: 100%;
+                max-width: 100%;
+                margin: 0;
+                color: #1f2937;
+                font-size: clamp(13px, 3.6vw, 15px);
+                font-weight: 700;
+                line-height: 1.25;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) {
+                order: 3;
+                flex: 0 0 100%;
+                width: 100%;
+                min-width: 0;
+                margin: 2px 0 0;
+                color: #1f2937;
+                line-height: 1.3;
+                overflow: hidden;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) .user-info,
+            body.employee-dashboard-page .dashboard-ticket-requester {
+                min-width: 0;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) .user-info {
+                display: grid;
+                gap: 2px;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) br {
+                display: none;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) strong,
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) small {
+                display: block;
+                max-width: 100%;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) strong {
+                color: #111827;
+                font-size: clamp(13px, 3.7vw, 15px);
+                font-weight: 700;
+                line-height: 1.25;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-requester, .task-ticket-requester) small {
+                margin-top: 0;
+                color: #475569;
+                font-size: clamp(11px, 3.1vw, 12px);
+                font-weight: 500;
+                line-height: 1.3;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-date, .task-ticket-date) {
+                order: 4;
+                flex: 1 1 calc(50% - 4px);
+                width: calc(50% - 4px);
+                margin: 2px 0 0;
+                color: #64748b;
+                font-size: clamp(10px, 2.9vw, 12px);
+                font-weight: 600;
+                line-height: 1.2;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-department, .task-ticket-department) {
+                order: 5;
+                flex: 1 1 calc(50% - 4px);
+                width: calc(50% - 4px);
+                min-width: 0;
+                margin: 2px 0 0;
+                color: #475569;
+                font-size: clamp(10px, 2.9vw, 12px);
+                font-weight: 600;
+                line-height: 1.25;
+                text-align: right;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page :is(
+                .dashboard-ticket-priority,
+                .dashboard-ticket-status,
+                .dashboard-ticket-sla,
+                .task-ticket-urgency,
+                .task-ticket-status,
+                .task-ticket-sla
+            ) {
+                order: 6;
+                flex: 0 1 auto;
+                display: inline-flex;
+                align-items: center;
+                align-self: center;
+                width: max-content;
+                max-width: 100%;
+                margin: 3px 0 0;
+                box-sizing: border-box;
+            }
+
+            body.employee-dashboard-page :is(
+                .dashboard-priority-badge,
+                .priority-pill,
+                .dashboard-ticket-table .status-pill,
+                .sales-manager-admin-table .status-pill,
+                .dashboard-ticket-sla .badge,
+                .task-ticket-sla .badge
+            ) {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: auto;
+                min-width: 0;
+                min-height: 27px;
+                height: auto;
+                max-width: 100%;
+                padding: 5px clamp(9px, 2.8vw, 12px);
+                border-radius: 999px;
+                font-size: clamp(10px, 2.9vw, 12px);
+                font-weight: 700;
+                line-height: 1;
+                text-align: center;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                box-sizing: border-box;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-sla, .task-ticket-sla) .badge-low {
+                background: #f1f5f9;
+                color: #334155;
+                border-color: #e2e8f0;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-arrow, .task-ticket-arrow) {
+                position: absolute;
+                top: 50%;
+                right: clamp(14px, 4vw, 18px);
+                transform: translateY(-50%);
+                display: block;
+                width: auto;
+                padding: 0;
+                color: #64748b;
+                font-size: 25px;
+                font-weight: 700;
+                line-height: 1;
+                text-align: center;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-empty,
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr:not(.ticket-row) td {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                padding: 20px 12px;
+                box-sizing: border-box;
+                text-align: center;
+            }
+
+        }
+
+        @media (max-width: 359px) {
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody {
+                gap: 10px;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-table, .sales-manager-admin-table) tbody tr.ticket-row {
+                gap: 6px 7px;
+                padding: 12px 38px 12px 12px;
+                border-radius: 12px;
+            }
+
+            body.employee-dashboard-page :is(
+                .dashboard-priority-badge,
+                .priority-pill,
+                .dashboard-ticket-table .status-pill,
+                .sales-manager-admin-table .status-pill,
+                .dashboard-ticket-sla .badge,
+                .task-ticket-sla .badge
+            ) {
+                min-height: 25px;
+                padding: 4px 8px;
+            }
+
+            body.employee-dashboard-page :is(.dashboard-ticket-arrow, .task-ticket-arrow) {
+                right: 12px;
+                font-size: 22px;
+            }
+        }
+
         @media (min-width: 769px) {
             body.employee-dashboard-page .dashboard-container {
                 width: min(calc(100% - 72px), 1480px);
@@ -2813,6 +3198,1121 @@ function dashboard_urgency_badge_html(string $priority): string
         }
     </style>
     <link rel="stylesheet" href="../css/dashboard-carousel.css?v=<?= (int) filemtime(__DIR__ . '/../css/dashboard-carousel.css') ?>">
+    <style id="dashboardMobileTicketCardParity">
+        /* Keep this after dashboard-carousel.css so dashboard tickets match my_task.php on mobile. */
+        @media (max-width: 767px) {
+            body.employee-dashboard-page .dashboard-ticket-grid {
+                gap: 14px;
+                width: auto;
+                margin-inline: clamp(10px, 4vw, 22px);
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-panel {
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                padding: 0;
+                border: 0;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+                overflow: visible;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table,
+            body.employee-dashboard-page .dashboard-ticket-table tbody {
+                display: block;
+                width: 100%;
+                max-width: 100%;
+                min-width: 0;
+                margin: 0;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tbody {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                gap: 14px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card {
+                --ticket-card-padding-x: clamp(10px, 3.1vw, 13px);
+                --ticket-card-arrow-space: clamp(33px, 9.4vw, 41px);
+                --ticket-card-header-space: 36px;
+                position: relative;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 5px 6px;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 0;
+                min-height: 0;
+                height: auto;
+                margin: 0;
+                padding: var(--ticket-card-header-space) var(--ticket-card-padding-x) var(--ticket-card-padding-x);
+                padding-right: var(--ticket-card-arrow-space);
+                border: 1px solid #dde5ed;
+                border-radius: 12px;
+                background: #ffffff;
+                box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+                overflow: hidden;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card td {
+                display: block;
+                width: auto;
+                min-width: 0;
+                padding: 0;
+                border: 0;
+                text-align: left;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-id {
+                position: absolute;
+                top: 0;
+                right: 0;
+                left: 0;
+                order: 1;
+                display: flex !important;
+                align-items: center;
+                flex: none;
+                width: auto !important;
+                min-height: 29px;
+                max-width: none;
+                margin: 0;
+                padding: 8px var(--ticket-card-padding-x) !important;
+                border-radius: 11px 11px 0 0;
+                background: #1B5E20 !important;
+                color: #ffffff !important;
+                font-size: clamp(10px, 2.7vw, 11px);
+                font-weight: 800;
+                line-height: 1.2;
+                letter-spacing: 0.02em;
+                box-sizing: border-box;
+                z-index: 1;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-category {
+                order: 2;
+                display: block !important;
+                flex: 0 0 100%;
+                width: 100%;
+                max-width: 100%;
+                margin: 0;
+                color: #1f2937;
+                font-size: clamp(10px, 2.8vw, 12px);
+                font-weight: 700;
+                line-height: 1.25;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester {
+                order: 3;
+                flex: 0 0 100%;
+                width: 100%;
+                margin: 1px 0 0;
+                color: #1f2937;
+                font-size: clamp(9px, 2.6vw, 10px);
+                line-height: 1.3;
+                overflow: hidden;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester strong,
+            body.employee-dashboard-page .dashboard-ticket-requester small {
+                display: block;
+                max-width: 100%;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester strong {
+                color: #111827;
+                font-size: clamp(10px, 2.9vw, 12px);
+                font-weight: 700;
+                line-height: 1.25;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester small {
+                margin-top: 0;
+                color: #475569;
+                font-size: clamp(9px, 2.4vw, 10px);
+                font-weight: 500;
+                line-height: 1.3;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-date {
+                order: 4;
+                flex: 1 1 calc(50% - 4px);
+                width: calc(50% - 4px);
+                margin: 1px 0 0;
+                color: #64748b;
+                font-size: clamp(8px, 2.3vw, 9px);
+                font-weight: 600;
+                line-height: 1.2;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-department {
+                order: 5;
+                flex: 1 1 calc(50% - 4px);
+                width: calc(50% - 4px);
+                margin: 1px 0 0;
+                color: #475569;
+                font-size: clamp(8px, 2.3vw, 9px);
+                font-weight: 600;
+                line-height: 1.25;
+                text-align: right;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-priority,
+            body.employee-dashboard-page .dashboard-ticket-status,
+            body.employee-dashboard-page .dashboard-ticket-sla {
+                order: 6;
+                flex: 0 1 auto;
+                display: inline-flex;
+                align-items: center;
+                align-self: center;
+                justify-self: auto;
+                width: max-content;
+                max-width: 100%;
+                margin: 2px 0 0;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-badge,
+            body.employee-dashboard-page .dashboard-ticket-table .status-pill,
+            body.employee-dashboard-page .dashboard-ticket-sla .badge {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: auto;
+                min-width: 0;
+                min-height: 22px;
+                height: auto;
+                max-width: 100%;
+                padding: 4px clamp(7px, 2.2vw, 9px);
+                border-radius: 999px;
+                font-size: clamp(8px, 2.3vw, 9px);
+                line-height: 1;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-badge,
+            body.employee-dashboard-page .dashboard-ticket-table .status-pill {
+                font-weight: 600;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-sla .badge {
+                font-weight: 400;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-low {
+                color: #166534;
+                background: #f0fdf4;
+                border-color: transparent;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-medium {
+                color: #ca8a04;
+                background: #fefce8;
+                border-color: transparent;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-high {
+                color: #dc2626;
+                background: #fef2f2;
+                border-color: transparent;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-critical {
+                color: #ffffff;
+                background: #991b1b;
+                border-color: transparent;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table .status-open {
+                color: #5f5400;
+                background: #fff2b3;
+                border-color: #f8e58c;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table .status-in-progress {
+                color: #166534;
+                background: #dcfce7;
+                border-color: #bbf7d0;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table .status-resolved {
+                color: #1d4ed8;
+                background: #dbeafe;
+                border-color: #bfdbfe;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table .status-closed {
+                color: #4b5563;
+                background: #f3f4f6;
+                border-color: #e5e7eb;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-arrow {
+                position: absolute;
+                top: 50%;
+                right: clamp(11px, 3.1vw, 14px);
+                transform: translateY(-50%);
+                display: block;
+                align-self: center;
+                width: auto;
+                margin: 0;
+                padding: 0;
+                color: #64748b;
+                font-size: 20px;
+                font-weight: 700;
+                line-height: 1;
+            }
+
+            body.employee-dashboard-page .mobile-divider {
+                width: auto;
+                margin-inline: clamp(10px, 4vw, 22px);
+                padding-inline: 0;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-grid > .mobile-divider {
+                margin-inline: 0;
+            }
+
+            body.employee-dashboard-page .mobile-divider__inner {
+                gap: 8px;
+                padding: 8px 12px;
+            }
+
+            body.employee-dashboard-page .mobile-divider__icon {
+                flex-basis: 28px;
+                width: 28px;
+                height: 28px;
+                font-size: 13px;
+            }
+
+            body.employee-dashboard-page .mobile-divider__title {
+                font-size: 14px;
+            }
+
+            body.employee-dashboard-page .tm-global-chat-fab {
+                width: 42px !important;
+                max-width: 42px !important;
+                min-width: 42px !important;
+                height: 42px !important;
+                min-height: 42px !important;
+                padding: 0 !important;
+            }
+
+            body.employee-dashboard-page .tm-global-chat-fab .tm-global-chat-label {
+                display: none;
+            }
+
+            body.employee-dashboard-page .tm-global-chat-fab i {
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 359px) {
+            body.employee-dashboard-page .dashboard-ticket-table tbody {
+                gap: 10px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card {
+                --ticket-card-padding-x: 10px;
+                --ticket-card-arrow-space: 34px;
+                --ticket-card-header-space: 43px;
+                gap: 5px 6px;
+                padding: var(--ticket-card-header-space) var(--ticket-card-arrow-space) 10px var(--ticket-card-padding-x);
+                border-radius: 12px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-id {
+                border-radius: 11px 11px 0 0;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-arrow {
+                right: 12px;
+                font-size: 22px;
+            }
+        }
+
+        /* Employee page background-only consistency override. */
+        body.employee-dashboard-page {
+            background-image:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.48)),
+                url('../assets/img/dashboard_bg.jpg') !important;
+            background-repeat: no-repeat !important;
+            background-size: 100% auto !important;
+            background-position: center -28px !important;
+            background-attachment: fixed !important;
+        }
+
+        body.employee-dashboard-page::before,
+        body.employee-dashboard-page::after {
+            content: "" !important;
+            position: fixed !important;
+            pointer-events: none !important;
+            z-index: 0 !important;
+            background-image: radial-gradient(circle, rgba(105, 163, 123, 0.2) 1.2px, transparent 1.55px);
+        }
+
+        body.employee-dashboard-page::before {
+            left: 4%;
+            top: 128px;
+            width: 96px;
+            height: 100px;
+            background-size: 14px 14px;
+        }
+
+        body.employee-dashboard-page::after {
+            right: 5%;
+            top: 71%;
+            width: 112px;
+            height: 116px;
+            background-size: 16px 16px;
+        }
+
+        body.employee-dashboard-page .dashboard-container,
+        body.employee-dashboard-page .content-wrapper {
+            position: relative !important;
+            z-index: 1 !important;
+            background: transparent !important;
+        }
+
+        /* Mobile dashboard layout aligned with the supplied compact reference. */
+        @media (max-width: 767px) {
+            html,
+            body.employee-dashboard-page,
+            body.employee-dashboard-page .summary-carousel,
+            body.employee-dashboard-page .carousel__viewport,
+            body.employee-dashboard-page .dashboard-ticket-panel {
+                touch-action: pan-x pan-y pinch-zoom !important;
+            }
+
+            body.employee-dashboard-page {
+                background-color: #eef4ef !important;
+                background-image:
+                    linear-gradient(180deg, rgba(245,251,246,.08) 0%, rgba(245,251,246,.15) 42%, rgba(238,247,240,.24) 100%),
+                    url('../assets/img/dashboard_bg.jpg') !important;
+                background-repeat: no-repeat !important;
+                background-size: cover !important;
+                background-position: center top !important;
+                background-attachment: fixed !important;
+            }
+
+            body.employee-dashboard-page .dashboard-container {
+                width: 100% !important;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 0 12px 32px !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-dashboard-page .content-wrapper {
+                display: block !important;
+                width: 100% !important;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            body.employee-dashboard-page .hero-section {
+                position: relative !important;
+                display: grid !important;
+                grid-template-columns: minmax(0, 1fr) auto !important;
+                align-items: start !important;
+                gap: 10px 12px !important;
+                min-height: 0 !important;
+                margin: 0 -12px !important;
+                padding: 18px 20px 20px !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                overflow: hidden !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                text-align: left !important;
+            }
+
+            body.employee-dashboard-page .hero-section::before {
+                content: none !important;
+                display: none !important;
+            }
+
+            body.employee-dashboard-page .hero-copy {
+                position: relative !important;
+                z-index: 1 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                min-width: 0 !important;
+                text-align: left !important;
+            }
+
+            body.employee-dashboard-page .hero-title {
+                max-width: 230px !important;
+                margin: 0 0 10px !important;
+                color: #123f29 !important;
+                font-size: 23px !important;
+                font-weight: 800 !important;
+                line-height: 1.12 !important;
+                letter-spacing: -0.02em !important;
+                text-align: left !important;
+            }
+
+            body.employee-dashboard-page .hero-title::after {
+                content: " \1F44B";
+                font-size: 18px;
+            }
+
+            body.employee-dashboard-page .hero-dept {
+                display: flex !important;
+                align-items: center !important;
+                flex-wrap: wrap !important;
+                gap: 7px !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+            body.employee-dashboard-page .hero-meta-pill {
+                min-height: 25px;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 5px 9px;
+                border-radius: 999px;
+                background: rgba(238, 250, 241, 0.88);
+                color: #277348;
+                font-size: 10px;
+                font-weight: 700;
+                line-height: 1;
+                text-transform: uppercase;
+                box-shadow: 0 4px 10px rgba(20, 83, 45, 0.06);
+            }
+
+            body.employee-dashboard-page .hero-meta-pill i {
+                font-size: 10px;
+            }
+
+            body.employee-dashboard-page .hero-subtitle {
+                margin: 12px 0 0 !important;
+                color: #53665c !important;
+                font-size: 11px !important;
+                line-height: 1.35 !important;
+                text-align: left !important;
+            }
+
+            body.employee-dashboard-page .hero-action {
+                position: relative !important;
+                z-index: 1 !important;
+                align-self: start !important;
+                width: auto !important;
+                min-width: 126px !important;
+                min-height: 40px !important;
+                margin: 0 !important;
+                padding: 0 14px !important;
+                border-radius: 12px !important;
+                background: #16753a !important;
+                color: #ffffff !important;
+                font-size: 12px !important;
+                font-weight: 700 !important;
+                box-shadow: 0 8px 18px rgba(22, 117, 58, 0.18) !important;
+            }
+
+            body.employee-dashboard-page .hero-action i {
+                font-size: 16px !important;
+            }
+
+            body.employee-dashboard-page .cards-panel {
+                margin: 10px 0 14px !important;
+                padding: 0 !important;
+                border: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+            body.employee-dashboard-page .card-filter-row {
+                position: relative !important;
+                z-index: 3 !important;
+                width: max-content !important;
+                max-width: 100% !important;
+                margin: 0 0 10px auto !important;
+                padding: 0 !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: flex-end !important;
+                gap: 9px !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                backdrop-filter: none !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-dashboard-page .card-filter-row::before,
+            body.employee-dashboard-page .card-filter-row::after {
+                content: none !important;
+                display: none !important;
+            }
+
+            body.employee-dashboard-page .card-filter-label {
+                flex: 0 0 auto !important;
+                color: #496055 !important;
+                font-size: 10px !important;
+                font-weight: 700 !important;
+                white-space: nowrap !important;
+            }
+
+            body.employee-dashboard-page .card-filter-trigger {
+                width: 172px !important;
+                min-width: 172px !important;
+                min-height: 36px !important;
+                padding: 0 11px !important;
+                border-color: #d8e5db !important;
+                border-radius: 10px !important;
+                background: rgba(250, 253, 250, 0.98) !important;
+                font-size: 10px !important;
+                box-shadow: none !important;
+            }
+
+            body.employee-dashboard-page .card-filter-dropdown {
+                position: relative !important;
+                flex: 0 0 172px !important;
+                min-width: 172px !important;
+            }
+
+            body.employee-dashboard-page .card-filter-menu {
+                left: auto !important;
+                right: 0 !important;
+                width: 172px !important;
+                min-width: 172px !important;
+                max-width: calc(100vw - 24px) !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-dashboard-page .card-filter-option {
+                box-sizing: border-box !important;
+                gap: 8px !important;
+                padding: 0 9px !important;
+                overflow: visible !important;
+                font-size: 11px !important;
+            }
+
+            body.employee-dashboard-page .card-filter-option-label {
+                min-width: 0 !important;
+                flex: 1 1 auto !important;
+                overflow: visible !important;
+                white-space: nowrap !important;
+            }
+
+            body.employee-dashboard-page .card-filter-option-check {
+                flex: 0 0 auto !important;
+            }
+
+            body.employee-dashboard-page .summary-carousel {
+                width: 100% !important;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            body.employee-dashboard-page .carousel__viewport {
+                width: 100% !important;
+                overflow: visible !important;
+            }
+
+            body.employee-dashboard-page .carousel__track {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 10px !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                transform: none !important;
+                transition: none !important;
+            }
+
+            body.employee-dashboard-page .carousel__slide {
+                display: block !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                padding: 0 !important;
+            }
+
+            body.employee-dashboard-page .carousel__slide:last-child:nth-child(odd) {
+                grid-column: 1 / -1 !important;
+            }
+
+            /* The carousel script adds .is-compact on phones. Override its
+               one-slide scroll layout so every summary remains visible. */
+            body.employee-dashboard-page .summary-carousel.is-compact .carousel__viewport {
+                overflow: visible !important;
+                padding: 0 !important;
+                scroll-behavior: auto !important;
+                scroll-snap-type: none !important;
+                touch-action: pan-x pan-y pinch-zoom !important;
+            }
+
+            body.employee-dashboard-page .summary-carousel.is-compact .carousel__track {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 10px !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                transform: none !important;
+                transition: none !important;
+                will-change: auto !important;
+            }
+
+            body.employee-dashboard-page .summary-carousel.is-compact .carousel__slide {
+                display: block !important;
+                flex: none !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                padding: 0 !important;
+                scroll-snap-align: none !important;
+            }
+
+            body.employee-dashboard-page .summary-carousel.is-compact .carousel__slide:last-child:nth-child(odd) {
+                grid-column: 1 / -1 !important;
+            }
+
+            body.employee-dashboard-page .summary-card {
+                width: 100% !important;
+                max-width: none !important;
+                min-height: 92px !important;
+                height: 100% !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
+                justify-content: center !important;
+                gap: 5px !important;
+                margin: 0 !important;
+                padding: 12px 12px 10px 16px !important;
+                border: 1px solid #edf1ef !important;
+                border-left: 4px solid var(--stat-accent, #22c55e) !important;
+                border-radius: 11px !important;
+                background: #ffffff !important;
+                box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06) !important;
+                text-align: left !important;
+            }
+
+            body.employee-dashboard-page .summary-card.total { --stat-accent: #22a85a; }
+            body.employee-dashboard-page .summary-card.open { --stat-accent: #f4c430; }
+            body.employee-dashboard-page .summary-card.progress { --stat-accent: #8b5cf6; }
+            body.employee-dashboard-page .summary-card.resolved { --stat-accent: #2dd486; }
+            body.employee-dashboard-page .summary-card.closed { --stat-accent: #8090a6; }
+
+            body.employee-dashboard-page .summary-card .stat-main {
+                display: grid !important;
+                grid-template-columns: 40px minmax(0, 1fr) !important;
+                align-items: center !important;
+                justify-content: start !important;
+                gap: 10px !important;
+                text-align: left !important;
+            }
+
+            body.employee-dashboard-page .summary-card .stat-icon {
+                width: 40px !important;
+                height: 40px !important;
+                flex: 0 0 40px !important;
+                margin: 0 !important;
+                border-radius: 11px !important;
+                font-size: 18px !important;
+            }
+
+            body.employee-dashboard-page .summary-card .stat-label {
+                margin: 0 0 2px !important;
+                font-size: 11px !important;
+                font-weight: 700 !important;
+                line-height: 1.2 !important;
+            }
+
+            body.employee-dashboard-page .summary-card .stat-value {
+                font-size: 25px !important;
+                font-weight: 800 !important;
+                line-height: 1 !important;
+            }
+
+            body.employee-dashboard-page .summary-card .stat-subtext {
+                margin: 0 0 0 50px !important;
+                color: #718096 !important;
+                font-size: 9px !important;
+                line-height: 1.25 !important;
+                text-align: left !important;
+            }
+
+            body.employee-dashboard-page .summary-card .stat-action,
+            body.employee-dashboard-page .carousel__nav,
+            body.employee-dashboard-page .carousel__dots {
+                display: none !important;
+            }
+
+            body.employee-dashboard-page .mobile-divider[data-ticket-set] {
+                display: block !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 1px solid #edf1ef !important;
+                border-bottom: 0 !important;
+                border-radius: 12px 12px 0 0 !important;
+                background: #ffffff !important;
+                box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04) !important;
+            }
+
+            body.employee-dashboard-page .mobile-divider[data-ticket-set] .mobile-divider__inner {
+                width: 100% !important;
+                min-height: 46px !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 8px !important;
+                padding: 0 4px !important;
+                border: 0 !important;
+                background: transparent !important;
+                color: #12211a !important;
+            }
+
+            body.employee-dashboard-page .mobile-divider__icon {
+                display: none !important;
+            }
+
+            body.employee-dashboard-page .mobile-divider__title {
+                color: #17211c !important;
+                font-size: 14px !important;
+                font-weight: 800 !important;
+            }
+
+            body.employee-dashboard-page .mobile-dashboard-view-all {
+                margin-left: auto;
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                color: #237a43;
+                font-size: 10px;
+                font-weight: 700;
+                text-decoration: none;
+            }
+
+            body.employee-dashboard-page .mobile-dashboard-view-all i {
+                font-size: 9px;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-grid {
+                display: block !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 1px solid #edf1ef !important;
+                border-radius: 0 0 12px 12px !important;
+                background: #ffffff !important;
+                box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05) !important;
+                overflow: hidden !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-panel {
+                display: block !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+                -webkit-overflow-scrolling: touch !important;
+                overscroll-behavior-x: contain !important;
+                touch-action: pan-x pan-y pinch-zoom !important;
+                scrollbar-width: thin !important;
+            }
+
+            body.employee-dashboard-page [data-ticket-set][hidden] {
+                display: none !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table {
+                display: table !important;
+                width: 620px !important;
+                min-width: 620px !important;
+                max-width: none !important;
+                table-layout: auto !important;
+                border-collapse: collapse !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table thead {
+                display: table-header-group !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tbody {
+                display: table-row-group !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tr,
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card {
+                display: table-row !important;
+                width: auto !important;
+                min-height: 0 !important;
+                height: auto !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                border-radius: 0 !important;
+                background: #ffffff !important;
+                box-shadow: none !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th,
+            body.employee-dashboard-page .dashboard-ticket-table tr.ticket-card td {
+                display: table-cell !important;
+                position: static !important;
+                width: auto !important;
+                min-width: 0 !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 10px 7px !important;
+                border: 0 !important;
+                border-bottom: 1px solid #eef2f0 !important;
+                background: transparent !important;
+                color: #334155 !important;
+                font-size: 11px !important;
+                font-weight: 500 !important;
+                line-height: 1.25 !important;
+                text-align: left !important;
+                vertical-align: middle !important;
+                white-space: nowrap !important;
+                overflow: visible !important;
+                text-overflow: clip !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th {
+                padding-top: 9px !important;
+                padding-bottom: 8px !important;
+                color: #718096 !important;
+                font-size: 8.5px !important;
+                font-weight: 800 !important;
+                text-transform: uppercase !important;
+                white-space: nowrap !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(1),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(1) {
+                width: 84px !important;
+                color: #264438 !important;
+                font-weight: 700 !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(2),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(2) {
+                width: 180px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(3),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(3) {
+                width: 180px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(6),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(6) {
+                width: 118px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(9),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(9) {
+                width: 22px !important;
+                text-align: center !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(4),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(4),
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(5),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(5),
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(7),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(7),
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(8),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(8) {
+                display: none !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tbody tr:nth-child(n + 6) {
+                display: none !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table tbody tr:last-child td,
+            body.employee-dashboard-page .dashboard-ticket-table tbody tr:nth-child(5) td {
+                border-bottom: 0 !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester strong {
+                display: block !important;
+                overflow: visible !important;
+                text-overflow: clip !important;
+                white-space: nowrap !important;
+                font-size: 11px !important;
+                font-weight: 500 !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-requester small {
+                display: none !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table .status-pill {
+                min-width: 0 !important;
+                min-height: 19px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                padding: 3px 7px !important;
+                border-radius: 999px !important;
+                font-size: 8px !important;
+                font-weight: 700 !important;
+                line-height: 1 !important;
+                white-space: nowrap !important;
+            }
+
+            body.employee-dashboard-page .dashboard-priority-badge,
+            body.employee-dashboard-page .dashboard-ticket-sla .badge {
+                min-width: 0 !important;
+                min-height: 19px !important;
+                height: auto !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                margin: 0 !important;
+                padding: 3px 7px !important;
+                border-radius: 999px !important;
+                font-size: 8px !important;
+                font-weight: 700 !important;
+                line-height: 1 !important;
+                white-space: nowrap !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-arrow {
+                color: #64748b !important;
+                font-size: 17px !important;
+                font-weight: 700 !important;
+            }
+
+            /* Keep every mobile table heading aligned with its ticket value. */
+            body.employee-dashboard-page .dashboard-ticket-panel {
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table {
+                width: 805px !important;
+                min-width: 805px !important;
+                table-layout: fixed !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(4),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(4),
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(5),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(5),
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(7),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(7),
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(8),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(8) {
+                display: table-cell !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(1),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(1) {
+                width: 70px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(2),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(2) {
+                width: 130px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(3),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(3) {
+                width: 125px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(4),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(4) {
+                width: 105px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(5),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(5) {
+                width: 75px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(6),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(6) {
+                width: 95px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(7),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(7) {
+                width: 75px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(8),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(8) {
+                width: 105px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th:nth-child(9),
+            body.employee-dashboard-page .dashboard-ticket-table td:nth-child(9) {
+                width: 34px !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table td.dashboard-ticket-arrow {
+                position: static !important;
+                padding: 6px 8px !important;
+                font-size: 0 !important;
+                line-height: 1 !important;
+                text-align: center !important;
+                overflow: hidden !important;
+                vertical-align: middle !important;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-arrow-icon {
+                position: relative;
+                width: 18px;
+                height: 18px;
+                display: block;
+                margin: 0 auto;
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-arrow-icon::before {
+                content: '';
+                position: absolute;
+                top: 50%;
+                left: 46%;
+                width: 5px;
+                height: 5px;
+                border-right: 1.5px solid #52615a;
+                border-bottom: 1.5px solid #52615a;
+                transform: translate(-50%, -50%) rotate(-45deg);
+            }
+
+            body.employee-dashboard-page .dashboard-ticket-table th {
+                color: #264438 !important;
+                font-weight: 800 !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+        }
+    </style>
 </head>
 <body class="employee-dashboard-page">
 
@@ -2820,17 +4320,7 @@ function dashboard_urgency_badge_html(string $priority): string
     <?php include '../includes/employee_navbar.php'; ?>
 
     <div id="mobileSidebar" class="mobile-sidebar" aria-hidden="true">
-        <div class="mobile-sidebar-header">
-            <img src="../assets/img/UPDATEDlogo.png" alt="Logo">
-            <span>Leads Agri</span>
-        </div>
-        <a href="dashboard.php" class="active">Dashboard</a>
-        <a href="request_ticket.php">Create Ticket</a>
-        <a href="my_task.php">Assigned Tickets</a>
-        <a href="my_tickets.php">My Submitted Tickets</a>
-        <a href="feedback.php">Feedback</a>
-        <a href="knowledge_base.php">Knowledge Base</a>
-        <div class="mobile-sidebar-footer">
+        <div class="mobile-sidebar-footer mobile-sidebar-header-actions" aria-label="Notifications and account">
             <a href="notifications.php" class="mobile-sidebar-icon-link" aria-label="Notifications">
                 <i class="fas fa-bell"></i>
                 <span id="mobileSidebarNotifBadge" class="mobile-sidebar-badge"></span>
@@ -2846,6 +4336,19 @@ function dashboard_urgency_badge_html(string $priority): string
                 </div>
             </div>
         </div>
+        <a href="dashboard.php" class="active">Dashboard</a>
+        <a href="request_ticket.php">Create Ticket</a>
+        <a href="my_task.php">Assigned Tickets</a>
+        <a href="my_tickets.php">My Submitted Tickets</a>
+        <a href="feedback.php">Feedback</a>
+        <a href="knowledge_base.php">Knowledge Base</a>
+        <?php if ($isLapcSalesEmployee && $employeeViewMode === 'manager'): ?>
+            <?php if (!array_key_exists('sales_manager_analytics', $tmUserPermissions) || (int) $tmUserPermissions['sales_manager_analytics'] === 1): ?>
+                <a href="sales_analytics.php">Analytics</a>
+            <?php endif; ?>
+        <?php elseif (!array_key_exists('analytics', $tmUserPermissions) || (int) $tmUserPermissions['analytics'] === 1): ?>
+            <a href="analytics.php">Analytics</a>
+        <?php endif; ?>
     </div>
 
     <div id="mobileSidebarOverlay" class="mobile-sidebar-overlay" aria-hidden="true"></div>
@@ -2887,12 +4390,21 @@ function dashboard_urgency_badge_html(string $priority): string
                                 && $heroRegion !== '';
                         ?>
                         <?php if ($heroDepartment !== ''): ?>
-                            <?= htmlspecialchars($heroIsLapcSales ? $heroRegion : ($heroDepartment . ' Department')); ?>
+                            <span class="hero-meta-pill">
+                                <i class="fas fa-id-badge" aria-hidden="true"></i>
+                                <?= htmlspecialchars($heroIsLapcSales ? $heroRegion : ($heroDepartment . ' Department')); ?>
+                            </span>
                             <?php if ($heroCompanyLabel !== ''): ?>
-                                <span class="company-text">&bull; <?= htmlspecialchars($heroCompanyLabel); ?></span>
+                                <span class="company-text hero-meta-pill">
+                                    <i class="fas fa-building" aria-hidden="true"></i>
+                                    <?= htmlspecialchars($heroCompanyLabel); ?>
+                                </span>
                             <?php endif; ?>
                         <?php elseif ($heroCompanyLabel !== ''): ?>
-                            <?= htmlspecialchars($heroCompanyLabel); ?>
+                            <span class="company-text hero-meta-pill">
+                                <i class="fas fa-building" aria-hidden="true"></i>
+                                <?= htmlspecialchars($heroCompanyLabel); ?>
+                            </span>
                         <?php endif; ?>
                     </div>
                     <p class="hero-subtitle"><?= $isSalesManagerView ? 'View all ticket submissions from your assigned sales region.' : "Here's an overview of your helpdesk activity."; ?></p>
@@ -3038,16 +4550,17 @@ function dashboard_urgency_badge_html(string $priority): string
             </div>
             <?php else: ?>
             <!-- Mobile divider: visually separates carousel from ticket lists -->
-            <div class="mobile-divider" aria-hidden="false">
+            <div class="mobile-divider" data-ticket-set="assigned" aria-hidden="false">
                 <div class="mobile-divider__inner">
                     <span class="mobile-divider__icon" aria-hidden="true">&#10003;</span>
                     <span class="mobile-divider__title">Assigned Tickets</span>
+                    <a class="mobile-dashboard-view-all" href="my_task.php">View all <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
                 </div>
             </div>
 
             <!-- 5ï¸âƒ£ RECENT TICKETS SECTION -->
             <div class="dashboard-ticket-grid">
-                <section class="dashboard-ticket-panel" aria-labelledby="receivedTicketsTitle">
+                <section class="dashboard-ticket-panel" data-ticket-set="assigned" aria-labelledby="receivedTicketsTitle">
                     <h2 id="receivedTicketsTitle" class="dashboard-ticket-title mobile-heading-sr-only">Assigned Tickets</h2>
                     <table class="dashboard-ticket-table">
                         <thead>
@@ -3086,7 +4599,7 @@ function dashboard_urgency_badge_html(string $priority): string
                                         </td>
                                         <td class="dashboard-ticket-sla ticket-card__badges"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
                                         <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
+                                        <td class="dashboard-ticket-arrow" aria-hidden="true"><span class="dashboard-ticket-arrow-icon"></span></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -3099,14 +4612,15 @@ function dashboard_urgency_badge_html(string $priority): string
                 </section>
 
                 <!-- Mobile divider: visually separates submitted ticket lists -->
-                <div class="mobile-divider mobile-divider--submitted" aria-hidden="false">
+                <div class="mobile-divider mobile-divider--submitted" data-ticket-set="submitted" aria-hidden="true" hidden>
                     <div class="mobile-divider__inner">
                         <span class="mobile-divider__icon" aria-hidden="true">&#10003;</span>
                         <span class="mobile-divider__title">My Submitted Tickets</span>
+                        <a class="mobile-dashboard-view-all" href="my_tickets.php">View all <i class="fas fa-chevron-right" aria-hidden="true"></i></a>
                     </div>
                 </div>
 
-                <section class="dashboard-ticket-panel" aria-labelledby="raisedTicketsTitle">
+                <section class="dashboard-ticket-panel" data-ticket-set="submitted" aria-labelledby="raisedTicketsTitle" hidden>
                     <h2 id="raisedTicketsTitle" class="dashboard-ticket-title mobile-heading-sr-only">My Submitted Tickets</h2>
                     <table class="dashboard-ticket-table">
                         <thead>
@@ -3145,7 +4659,7 @@ function dashboard_urgency_badge_html(string $priority): string
                                         </td>
                                         <td class="dashboard-ticket-sla ticket-card__badges"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
                                         <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td class="dashboard-ticket-arrow" aria-hidden="true">&rsaquo;</td>
+                                        <td class="dashboard-ticket-arrow" aria-hidden="true"><span class="dashboard-ticket-arrow-icon"></span></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -3251,6 +4765,24 @@ function dashboard_urgency_badge_html(string $priority): string
         const desktopNotifBadge = document.getElementById('notifBadge');
         const mobileNotifBadge = document.getElementById('mobileSidebarNotifBadge');
 
+        function syncMobileSidebarHeight() {
+            if (!document.documentElement || !document.body) return;
+
+            const viewportHeight = window.visualViewport && window.visualViewport.height
+                ? window.visualViewport.height
+                : window.innerHeight;
+            let bodyZoom = parseFloat(window.getComputedStyle(document.body).zoom || '1');
+
+            if (!Number.isFinite(bodyZoom) || bodyZoom <= 0) {
+                bodyZoom = 1;
+            }
+
+            document.documentElement.style.setProperty(
+                '--employee-mobile-sidebar-height',
+                Math.ceil(viewportHeight / bodyZoom) + 'px'
+            );
+        }
+
         function closeSidebar() {
             if (!sidebar || !overlay) return;
             sidebar.classList.remove('active');
@@ -3270,10 +4802,18 @@ function dashboard_urgency_badge_html(string $priority): string
         }
 
         if (menuBtn && sidebar && overlay) {
+            syncMobileSidebarHeight();
+            window.addEventListener('resize', syncMobileSidebarHeight);
+            window.addEventListener('orientationchange', syncMobileSidebarHeight);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', syncMobileSidebarHeight);
+            }
+
             menuBtn.addEventListener('click', function (event) {
                 if (window.innerWidth > 768) return;
                 event.preventDefault();
                 event.stopPropagation();
+                syncMobileSidebarHeight();
                 const shouldOpen = !sidebar.classList.contains('active');
                 sidebar.classList.toggle('active', shouldOpen);
                 overlay.classList.toggle('active', shouldOpen);
@@ -3434,11 +4974,49 @@ function dashboard_urgency_badge_html(string $priority): string
         var filterIcon = filter ? filter.querySelector('.card-filter-trigger-icon') : null;
         var options = document.querySelectorAll('[data-card-filter-value]');
         var grids = document.querySelectorAll('[data-card-set]');
+        var ticketSets = document.querySelectorAll('[data-ticket-set]');
         if (!filter || !filterMenu || !filterText || !filterIcon || !grids.length || !options.length) return;
+
+        // The two card sets can have different natural heights. Reserve the taller
+        // height so the ticket table remains in the same position when switching.
+        function reserveCardsPanelHeight() {
+            var cardsPanel = document.querySelector('.cards-panel');
+            if (!cardsPanel) return;
+            if (window.innerWidth < 769) {
+                cardsPanel.style.minHeight = '';
+                return;
+            }
+
+            var activeStates = Array.prototype.map.call(grids, function (grid) {
+                return grid.hidden;
+            });
+            var tallestHeight = 0;
+
+            cardsPanel.style.minHeight = '';
+            grids.forEach(function (candidate) {
+                grids.forEach(function (grid) {
+                    grid.hidden = grid !== candidate;
+                });
+                tallestHeight = Math.max(tallestHeight, cardsPanel.offsetHeight);
+            });
+
+            grids.forEach(function (grid, index) {
+                grid.hidden = activeStates[index];
+            });
+            cardsPanel.style.minHeight = Math.ceil(tallestHeight) + 'px';
+        }
 
         function setActiveCardSet(value, label, iconClass) {
             grids.forEach(function (grid) {
                 grid.hidden = grid.getAttribute('data-card-set') !== value;
+            });
+            ticketSets.forEach(function (ticketSet) {
+                var isActive = ticketSet.getAttribute('data-ticket-set') === value;
+                ticketSet.hidden = !isActive;
+                ticketSet.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+                if (isActive && ticketSet.classList.contains('dashboard-ticket-panel')) {
+                    ticketSet.scrollLeft = 0;
+                }
             });
             options.forEach(function (option) {
                 option.classList.toggle('is-active', option.getAttribute('data-card-filter-value') === value);
@@ -3446,6 +5024,7 @@ function dashboard_urgency_badge_html(string $priority): string
             filterText.textContent = label;
             filterIcon.className = 'fas ' + iconClass + ' card-filter-trigger-icon';
             filter.setAttribute('data-card-filter-value', value);
+            reserveCardsPanelHeight();
         }
 
         function closeMenu() {
@@ -3469,6 +5048,12 @@ function dashboard_urgency_badge_html(string $priority): string
                 closeMenu();
             });
         });
+
+        reserveCardsPanelHeight();
+        window.addEventListener('load', function () {
+            window.requestAnimationFrame(reserveCardsPanelHeight);
+        }, { once: true });
+        window.addEventListener('resize', reserveCardsPanelHeight);
 
         document.addEventListener('click', function (event) {
             if (!filterMenu.hidden && !event.target.closest('.card-filter-dropdown')) {

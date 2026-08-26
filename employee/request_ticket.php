@@ -42,6 +42,156 @@ if ($selectedAssignedGroup === '' && count($initialDepartmentOptions) === 1) {
     $selectedAssignedGroup = (string) ($initialDepartmentOptions[0] ?? '');
 }
 
+$requestTicketDefaultCategories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'];
+$requestTicketMpdcCategories = ['Engineerings', 'Client Referral', 'Others'];
+$requestTicketLingapCategories = ['Lakbay Kalusugan Request (Medical Mission)', 'Others'];
+$requestTicketOthersOnlyCompanies = ['@primestocks.ph', '@leadstech-corp.com', '@gpsci.net', '@farmasee.ph', '@leads-farmex.com', '@leadsav.com'];
+$requestTicketLapcDepartmentCategories = [
+    'Admin & Legal' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
+    'Banana Farm Operations' => ['Others'],
+    'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request', 'Others'],
+    'Digital Agri Solutions and Innovations' => ['Others'],
+    'E-Commerce' => ['Others'],
+    'Executive' => ['Others'],
+    'Finance and Accounting' => ['Others'],
+    'Institutional Sales (Bidding)' => ['Others'],
+    'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Incident Report', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
+    'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Others'],
+    'Machineries' => ['Others'],
+    'Management' => ['Others'],
+    'Marketing' => ['Marketing Operations', 'Channel & Campaigns', 'Others'],
+    'New Business Segment' => ['Others'],
+    'Seed Production' => ['Others'],
+    'Supply Chain' => [
+        'Product / Material Request',
+        'Inventory Concern',
+        'Delivery / Dispatch Request',
+        'Transportation / Trucking Request',
+        'Delivery Concern / Exception',
+        'Product Return / Retrieval',
+        'Documentation Request',
+        'Supplier / Vendor Concern',
+        'Demand / Replenishment Request',
+        'Logistics / Supply Chain Inquiry',
+    ],
+    'Supply Chain Innovation' => ['Others'],
+    'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations', 'Others'],
+];
+$lapcSupplyChainRequestTypes = [
+    'Product / Material Request' => ['Request for Seeds', 'Fertilizer', 'Packaging Materials', 'Warehouse Supplies', 'Other Materials'],
+    'Inventory Concern' => ['Stock Availability', 'Inventory Discrepancy', 'Missing Stock', 'Excess Stock', 'Damaged Stock', 'Lot/Batch Concern'],
+    'Delivery / Dispatch Request' => ['Delivery Scheduling', 'Delivery Rescheduling', 'Urgent Delivery', 'Additional Delivery', 'Delivery Follow-up'],
+    'Transportation / Trucking Request' => ['Truck Request', 'Truck Assignment', 'Truck Rescheduling', 'Truck Replacement', 'Delivery Vehicle Concern'],
+    'Delivery Concern / Exception' => ['Late Delivery', 'Failed Delivery', 'Wrong Product', 'Short/Over Delivery', 'Damaged Product', 'Missing Documents'],
+    'Product Return / Retrieval' => ['Product Return', 'Damaged Return', 'Excess Return', 'Pull-out/Retrieval'],
+    'Documentation Request' => ['DR', 'Delivery Documents', 'POD', 'Shipping Documents', 'NSQCS Documents', 'Other Supply Chain Documents'],
+    'Supplier / Vendor Concern' => ['Supplier Delivery', 'Supplier Shortage', 'Supplier Delay', 'Product Quality Issue', 'Supplier Coordination'],
+    'Demand / Replenishment Request' => ['Stock Replenishment', 'Allocation Request', 'Regional Stock Requirement', 'Urgent Stock Requirement'],
+    'Logistics / Supply Chain Inquiry' => ['Delivery Status', 'Inventory Status', 'Order Status', 'Shipment Tracking', 'General Inquiry'],
+];
+$lapcSupplyChainDetailFields = [
+    'Product / Material Request' => ['Product/Material Name', 'SKU/Code', 'Quantity', 'UOM', 'Purpose', 'Required Date', 'Destination'],
+    'Inventory Concern' => ['Product', 'SKU', 'Lot/Batch No.', 'System Qty', 'Actual Qty', 'Variance', 'Warehouse', 'Supporting Photo'],
+    'Delivery / Dispatch Request' => ['Customer/DOP', 'Delivery Location', 'SO/DR No.', 'Product', 'Quantity', 'Required Delivery Date', 'Priority'],
+    'Transportation / Trucking Request' => ['Origin', 'Destination', 'Truck Type', 'Required Date/Time', 'Quantity/CBM/Tonnage', 'Special Requirements'],
+    'Delivery Concern / Exception' => ['DR/SO No.', 'Delivery Date', 'Customer/DOP', 'Product', 'Issue Type', 'Quantity Affected', 'Details/Photos'],
+    'Product Return / Retrieval' => ['Product', 'Quantity', 'Lot/Batch', 'Reason', 'Origin', 'Return Destination', 'Supporting Documents'],
+    'Documentation Request' => ['Document Type', 'Reference No.', 'Product', 'Customer/DOP', 'Delivery Date', 'Required Date'],
+    'Supplier / Vendor Concern' => ['Supplier', 'PO No.', 'Product', 'Quantity', 'Expected Date', 'Issue/Concern'],
+    'Demand / Replenishment Request' => ['Product', 'Required Quantity', 'Destination/Region', 'Required Date', 'Current Stock', 'Reason'],
+    'Logistics / Supply Chain Inquiry' => ['Reference No.', 'Product', 'Location', 'Date', 'Specific Inquiry'],
+];
+$requestTicketLapcAdminLegalRequestCategories = [
+    'Aimi Bing Santos (Bing)' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Others'],
+    'Ace Loui Rosal (Ace)' => ['Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Others'],
+    'Cherry Jane Cabote (CJ)' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
+    'Others' => ['Others'],
+];
+$requestTicketMhcDepartmentCategories = [
+    'Marketing Creatives' => ['Marketing Request', 'Others'],
+    'IT' => ['Others'],
+    'Executive' => ['Others'],
+    'Institutional Sales' => ['Others'],
+    'Accounting' => ['Others'],
+];
+$requestTicketSidebarCompanyMeta = [
+    '@farmasee.ph' => ['icon' => 'fa-store', 'tone' => 'emerald'],
+    '@leads-farmex.com' => ['icon' => 'fa-seedling', 'tone' => 'green'],
+    '@gpsci.net' => ['icon' => 'fa-flask', 'tone' => 'violet'],
+    '@leadsagri.com' => ['icon' => 'fa-leaf', 'tone' => 'lime'],
+    '@lingapleads.org' => ['icon' => 'fa-hand-holding-heart', 'tone' => 'rose'],
+    '@leadstech-corp.com' => ['icon' => 'fa-microchip', 'tone' => 'blue'],
+    '@malvedaholdings.com' => ['icon' => 'fa-building', 'tone' => 'amber'],
+    '@malvedaproperties.com' => ['icon' => 'fa-helmet-safety', 'tone' => 'cyan'],
+    '@primestocks.ph' => ['icon' => 'fa-industry', 'tone' => 'orange'],
+];
+
+$requestTicketHideGuidanceCategoriesFor = [
+    '@farmasee.ph',
+    '@leads-farmex.com',
+    '@leadsav.com',
+    '@gpsci.net',
+    '@leadstech-corp.com',
+    '@primestocks.ph',
+];
+$requestTicketSidebarCompanies = [];
+$requestTicketSidebarAllowedCompanies = ['@leadsagri.com', '@malvedaholdings.com', '@malvedaproperties.com', '@lingapleads.org'];
+foreach ($requestTicketCompanyOptions as $companyValue => $companyLabel) {
+    if (!in_array((string) $companyValue, $requestTicketSidebarAllowedCompanies, true)) {
+        continue;
+    }
+    $hideSidebarCategories = in_array((string) $companyValue, $requestTicketHideGuidanceCategoriesFor, true);
+    $sidebarRequiresDepartment = ticket_company_requires_department((string) $companyValue);
+    $sidebarDepartments = $sidebarRequiresDepartment
+        ? ticket_receiving_available_departments($conn, (string) $companyValue)
+        : [];
+    if ($companyValue === '@malvedaholdings.com') {
+        $sidebarDepartments = array_values(array_filter($sidebarDepartments, static function ($department): bool {
+            return (string) $department === 'Marketing Creatives';
+        }));
+    }
+
+    $sidebarDirectCategories = $requestTicketDefaultCategories;
+    if ($companyValue === '@malvedaproperties.com') {
+        $sidebarDirectCategories = $requestTicketMpdcCategories;
+    } elseif ($companyValue === '@lingapleads.org') {
+        $sidebarDirectCategories = $requestTicketLingapCategories;
+    }
+    if ($hideSidebarCategories) {
+        $sidebarDirectCategories = [];
+    }
+
+    $sidebarDepartmentRows = [];
+    foreach ($sidebarDepartments as $sidebarDepartment) {
+        $sidebarCategories = $requestTicketDefaultCategories;
+        if ($companyValue === '@malvedaholdings.com' && isset($requestTicketMhcDepartmentCategories[$sidebarDepartment])) {
+            $sidebarCategories = $requestTicketMhcDepartmentCategories[$sidebarDepartment];
+        } elseif ($companyValue === '@leadsagri.com' && isset($requestTicketLapcDepartmentCategories[$sidebarDepartment])) {
+            $sidebarCategories = $requestTicketLapcDepartmentCategories[$sidebarDepartment];
+        }
+        if ($hideSidebarCategories) {
+            $sidebarCategories = [];
+        }
+
+        $sidebarDepartmentRows[] = [
+            'name' => (string) $sidebarDepartment,
+            'categories' => array_values($sidebarCategories),
+        ];
+    }
+
+    $requestTicketSidebarCompanies[] = [
+        'value' => (string) $companyValue,
+        'label' => (string) $companyLabel,
+        'icon' => (string) ($requestTicketSidebarCompanyMeta[$companyValue]['icon'] ?? 'fa-building'),
+        'tone' => (string) ($requestTicketSidebarCompanyMeta[$companyValue]['tone'] ?? 'green'),
+        'requires_department' => $sidebarRequiresDepartment,
+        'departments' => $sidebarDepartmentRows,
+        'categories' => array_values($sidebarDirectCategories),
+    ];
+}
+
+$requestTicketSidebarOpenCompany = $selectedAssignedCompany !== '' ? $selectedAssignedCompany : '@leadsagri.com';
+
 function find_domain_recipient_ids(mysqli $conn, string $domain): array
 {
     $domain = strtolower(trim($domain));
@@ -558,14 +708,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $default_categories = ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'];
     $mpdc_categories = ['Engineerings', 'Client Referral', 'Others'];
     $lingap_categories = ['Lakbay Kalusugan Request (Medical Mission)', 'Others'];
+    $others_only_companies = ['@primestocks.ph', '@leadstech-corp.com', '@gpsci.net', '@farmasee.ph', '@leads-farmex.com', '@leadsav.com'];
     $lapc_department_categories = [
         'Admin & Legal' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
+        'Banana Farm Operations' => ['Others'],
         'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request', 'Others'],
-        'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
+        'Digital Agri Solutions and Innovations' => ['Others'],
+        'E-Commerce' => ['Others'],
+        'Executive' => ['Others'],
+        'Finance and Accounting' => ['Others'],
+        'Institutional Sales (Bidding)' => ['Others'],
         'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Incident Report', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
         'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Others'],
-        'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
+        'Machineries' => ['Others'],
+        'Management' => ['Others'],
         'Marketing' => ['Marketing Operations', 'Channel & Campaigns', 'Others'],
+        'New Business Segment' => ['Others'],
+        'Seed Production' => ['Others'],
+        'Supply Chain' => [
+            'Product / Material Request',
+            'Inventory Concern',
+            'Delivery / Dispatch Request',
+            'Transportation / Trucking Request',
+            'Delivery Concern / Exception',
+            'Product Return / Retrieval',
+            'Documentation Request',
+            'Supplier / Vendor Concern',
+            'Demand / Replenishment Request',
+            'Logistics / Supply Chain Inquiry',
+        ],
+        'Supply Chain Innovation' => ['Others'],
         'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations', 'Others'],
     ];
     $lapc_admin_legal_request_categories = [
@@ -575,6 +747,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     ];
     $mhc_department_categories = [
         'Marketing Creatives' => ['Marketing Request', 'Others'],
+        'IT' => ['Others'],
+        'Executive' => ['Others'],
+        'Institutional Sales' => ['Others'],
+        'Accounting' => ['Others'],
     ];
     $category = trim((string) ($_POST['category'] ?? ''));
     $admin_legal_request_for = trim((string) ($_POST['admin_legal_request_for'] ?? ''));
@@ -607,6 +783,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $area_code = trim((string) ($_POST['area_code'] ?? ''));
     $marketing_department = trim((string) ($_POST['marketing_department'] ?? ''));
     $marketing_subcategory = trim((string) ($_POST['marketing_subcategory'] ?? ''));
+    $supply_chain_details = is_array($_POST['supply_chain_details'] ?? null) ? $_POST['supply_chain_details'] : [];
     $requested_materials = request_ticket_clean_string_array($_POST['requested_materials'] ?? []);
     $requested_materials_other = trim((string) ($_POST['requested_materials_other'] ?? ''));
     $material_size_unit = trim((string) ($_POST['material_size_unit'] ?? ''));
@@ -661,7 +838,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $assigned_group = isset($_POST['assigned_group']) ? trim((string) $_POST['assigned_group']) : '';
     $assigned_company = ticket_normalize_company($assigned_company);
     $allowed_categories = $default_categories;
-    if ($assigned_company === '@malvedaproperties.com') {
+    if (in_array($assigned_company, $others_only_companies, true)) {
+        $allowed_categories = ['Others'];
+    } elseif ($assigned_company === '@malvedaproperties.com') {
         $allowed_categories = $mpdc_categories;
     } elseif ($assigned_company === '@lingapleads.org') {
         $allowed_categories = $lingap_categories;
@@ -745,6 +924,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $isLapcItEmailRequest = ($isLapcItTicket && $category === 'Email');
     $isLapcItSapRequest = ($isLapcItTicket && $category === 'SAP');
     $isLapcMarketingTicket = ($assigned_company === '@leadsagri.com' && $assigned_group === 'Marketing' && ($category === 'Marketing Operations' || $category === 'Channel & Campaigns'));
+    $isLapcSupplyChainTicket = ($assigned_company === '@leadsagri.com' && $assigned_group === 'Supply Chain' && isset($lapcSupplyChainRequestTypes[$category]));
     $requiresKamiAttachment = $isHrAttendanceCategory;
 
     if ($category === '' || !in_array($category, $allowed_categories, true)) {
@@ -883,6 +1063,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         header("Location: request_ticket.php");
         exit();
     }
+    if ($isLapcSupplyChainTicket && !in_array($marketing_subcategory, $lapcSupplyChainRequestTypes[$category] ?? [], true)) {
+        if ($isAjax) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Please choose a valid Request Type / Concern.'], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
+        $_SESSION['error'] = 'Please choose a valid Request Type / Concern.';
+        header("Location: request_ticket.php");
+        exit();
+    }
+    if ($isLapcSupplyChainTicket) {
+        foreach ($lapcSupplyChainDetailFields[$category] as $fieldLabel) {
+            if (in_array($fieldLabel, ['Supporting Photo', 'Supporting Documents'], true)) continue;
+            if (trim((string) ($supply_chain_details[$fieldLabel] ?? '')) === '') {
+                if ($isAjax) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    http_response_code(400);
+                    echo json_encode(['ok' => false, 'error' => 'Please complete all Supply Chain request details.'], JSON_UNESCAPED_UNICODE);
+                    exit();
+                }
+                $_SESSION['error'] = 'Please complete all Supply Chain request details.';
+                header("Location: request_ticket.php");
+                exit();
+            }
+        }
+    }
 
     if ($isHrSssCategory && $description === '') {
         $description = 'SSS Notification and Benefits Concern submission.';
@@ -891,6 +1098,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $subject = $category . ' Concern';
     if ($isLapcMarketingTicket && $marketing_subcategory !== '') {
         $description = "Sub-Category: " . $marketing_subcategory . "\n\n" . $description;
+    }
+    if ($isLapcSupplyChainTicket && $marketing_subcategory !== '') {
+        $description = "Request Type / Concern: " . $marketing_subcategory . "\n\n" . $description;
+        $detailLines = [];
+        foreach ($lapcSupplyChainDetailFields[$category] as $fieldLabel) {
+            $fieldValue = trim((string) ($supply_chain_details[$fieldLabel] ?? ''));
+            if ($fieldValue !== '') $detailLines[] = $fieldLabel . ': ' . $fieldValue;
+        }
+        if (count($detailLines) > 0) {
+            $description = "Supply Chain Details:\n" . implode("\n", $detailLines) . "\n\n" . $description;
+        }
     }
     if ($isLapcAdminLegalTicket && $admin_legal_request_for !== '') {
         $description = "Request For: " . $admin_legal_request_for . "\n\n" . $description;
@@ -1289,7 +1507,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         header("Location: request_ticket.php");
         exit();
     }
-    if ($description === '') {
+    if ($description === '' && !$isLapcSupplyChainTicket) {
         if ($isAjax) {
             header('Content-Type: application/json; charset=utf-8');
             http_response_code(400);
@@ -1599,6 +1817,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($isLapcMarketingTicket) {
         $ticketMeta['marketing_subcategory'] = $marketing_subcategory;
     }
+    if ($isLapcSupplyChainTicket) {
+        $ticketMeta['supply_chain_request_type'] = $marketing_subcategory;
+        $ticketMeta['supply_chain_details'] = json_encode($supply_chain_details, JSON_UNESCAPED_UNICODE);
+    }
     if ($isLapcAdminLegalTicket && $admin_legal_request_for !== '') {
         $ticketMeta['admin_legal_request_for'] = $admin_legal_request_for;
     }
@@ -1798,7 +2020,9 @@ if (count($emailCreationEntries) === 0) {
     $emailCreationEntries = [request_ticket_blank_email_creation()];
 }
 
-?><!DOCTYPE html>
+?>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <link rel="icon" type="image/png" href="../assets/img/leads-favicon.png?v=3">
@@ -1933,7 +2157,7 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page #areaCodeWrapper .custom-select-menu,
         body.employee-request-ticket-page #marketingDepartmentWrapper .custom-select-menu,
         body.employee-request-ticket-page #requestedMaterialsGroup .custom-select-menu,
-        body.employee-request-ticket-page #cropWrapper .custom-select-menu,
+        body.employee-request-ticket-page #cropGroup .custom-select-menu,
         body.employee-request-ticket-page #concernTypeWrapper .custom-select-menu,
         body.employee-request-ticket-page #urgencyWrapper .custom-select-menu {
             position: absolute;
@@ -2078,7 +2302,7 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page .sss-benefits-card-title {
             margin: 0 0 8px;
             color: #0f172a;
-            font-size: 17px;
+            font-size: 13px;
             font-weight: 600;
             font-family: inherit;
         }
@@ -2237,6 +2461,19 @@ if (count($emailCreationEntries) === 0) {
             font-size: 13px;
             text-align: left;
             line-height: 1.5;
+        }
+        body.employee-request-ticket-page #attachment-preview .attachment-remove-button {
+            width: 40px !important;
+            min-width: 40px !important;
+            max-width: 40px !important;
+            height: 40px !important;
+            min-height: 40px !important;
+            padding: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex: 0 0 40px !important;
+            line-height: 1 !important;
         }
         body.employee-request-ticket-page .sss-benefits-file-chip-link {
             border: none;
@@ -2562,6 +2799,255 @@ if (count($emailCreationEntries) === 0) {
             border-top: none !important;
             box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
         }
+        body.employee-request-ticket-page .request-ticket-layout {
+            display: grid;
+            grid-template-columns: minmax(390px, 450px) minmax(0, 1fr);
+            gap: 24px;
+            align-items: start;
+        }
+        body.employee-request-ticket-page .request-ticket-layout > .form-card {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+        }
+        body.employee-request-ticket-page .request-guidance-sidebar {
+            position: sticky;
+            top: 104px;
+            display: grid;
+            gap: 14px;
+            min-width: 0;
+        }
+        body.employee-request-ticket-page .request-guidance-card,
+        body.employee-request-ticket-page .request-tips-card {
+            overflow: hidden;
+            border: 1px solid #dbe4df;
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+        }
+        body.employee-request-ticket-page .request-guidance-heading {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 17px 18px 15px;
+            border-bottom: 1px solid #e5ebe7;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfefc 100%);
+        }
+        body.employee-request-ticket-page .request-guidance-heading-icon,
+        body.employee-request-ticket-page .request-tips-icon {
+            width: 28px;
+            height: 28px;
+            flex: 0 0 28px;
+            border: 2px solid #147233;
+            border-radius: 999px;
+            color: #147233;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        body.employee-request-ticket-page .request-guidance-heading h2,
+        body.employee-request-ticket-page .request-tips-title {
+            margin: 0;
+            color: #14532d;
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+        body.employee-request-ticket-page .request-guidance-heading p {
+            margin: 3px 0 0;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        body.employee-request-ticket-page .request-guidance-directory {
+            max-height: min(520px, calc(100vh - 400px));
+            min-height: 280px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding: 10px;
+            scrollbar-width: thin;
+            scrollbar-color: #9fb1a5 #eef4f0;
+        }
+        body.employee-request-ticket-page .request-guidance-directory::-webkit-scrollbar {
+            width: 7px;
+        }
+        body.employee-request-ticket-page .request-guidance-directory::-webkit-scrollbar-track {
+            background: #eef4f0;
+            border-radius: 999px;
+        }
+        body.employee-request-ticket-page .request-guidance-directory::-webkit-scrollbar-thumb {
+            background: #9fb1a5;
+            border-radius: 999px;
+        }
+        body.employee-request-ticket-page .request-company-guide {
+            margin: 0 0 8px;
+            border: 1px solid #dfe7e2;
+            border-radius: 12px;
+            background: #ffffff;
+        }
+        body.employee-request-ticket-page .request-company-guide:last-child {
+            margin-bottom: 0;
+        }
+        body.employee-request-ticket-page .request-company-guide summary {
+            position: relative;
+            display: grid;
+            grid-template-columns: 32px minmax(0, 1fr) 18px;
+            gap: 10px;
+            align-items: center;
+            min-height: 54px;
+            padding: 8px 12px;
+            cursor: pointer;
+            list-style: none;
+        }
+        body.employee-request-ticket-page .request-company-guide summary::-webkit-details-marker {
+            display: none;
+        }
+        body.employee-request-ticket-page .request-company-guide[open] summary {
+            border-bottom: 1px solid #e5ebe7;
+            background: #f7fcf8;
+        }
+        body.employee-request-ticket-page .request-company-icon,
+        body.employee-request-ticket-page .request-department-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            background: #eaf8ee;
+            color: #147233;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+        }
+        body.employee-request-ticket-page .request-company-icon.is-emerald { background: #e7f8f0; color: #047857; }
+        body.employee-request-ticket-page .request-company-icon.is-green { background: #eaf8ee; color: #15803d; }
+        body.employee-request-ticket-page .request-company-icon.is-violet { background: #f1eafe; color: #7c3aed; }
+        body.employee-request-ticket-page .request-company-icon.is-lime { background: #eff9df; color: #4d7c0f; }
+        body.employee-request-ticket-page .request-company-icon.is-rose { background: #fff0f3; color: #e11d48; }
+        body.employee-request-ticket-page .request-company-icon.is-blue { background: #eaf2ff; color: #2563eb; }
+        body.employee-request-ticket-page .request-company-icon.is-amber { background: #fff7df; color: #b45309; }
+        body.employee-request-ticket-page .request-company-icon.is-cyan { background: #e6f8fb; color: #0891b2; }
+        body.employee-request-ticket-page .request-company-icon.is-orange { background: #fff0e5; color: #ea580c; }
+        body.employee-request-ticket-page .request-company-copy {
+            min-width: 0;
+        }
+        body.employee-request-ticket-page .request-company-name {
+            display: block;
+            color: #14532d;
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+        body.employee-request-ticket-page .request-company-domain {
+            display: block;
+            margin-top: 2px;
+            overflow: hidden;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.3;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        body.employee-request-ticket-page .request-company-chevron {
+            color: #64748b;
+            font-size: 11px;
+            transition: transform 0.18s ease;
+        }
+        body.employee-request-ticket-page .request-company-guide[open] .request-company-chevron {
+            transform: rotate(90deg);
+        }
+        body.employee-request-ticket-page .request-department-list {
+            display: grid;
+            gap: 0;
+        }
+        body.employee-request-ticket-page .request-department-guide {
+            display: grid;
+            grid-template-columns: 32px minmax(0, 1fr);
+            gap: 10px;
+            align-items: start;
+            padding: 11px 12px;
+            border-bottom: 1px solid #edf1ee;
+        }
+        body.employee-request-ticket-page .request-department-guide:last-child {
+            border-bottom: 0;
+        }
+        body.employee-request-ticket-page .request-department-icon {
+            background: #f1f5f9;
+            color: #2563eb;
+        }
+        body.employee-request-ticket-page .request-department-icon.is-admin { background: #eaf8ee; color: #15803d; }
+        body.employee-request-ticket-page .request-department-icon.is-it { background: #eaf2ff; color: #2563eb; }
+        body.employee-request-ticket-page .request-department-icon.is-hr { background: #f3e8ff; color: #9333ea; }
+        body.employee-request-ticket-page .request-department-icon.is-health { background: #fff0f3; color: #e11d48; }
+        body.employee-request-ticket-page .request-department-icon.is-marketing { background: #fce7f3; color: #db2777; }
+        body.employee-request-ticket-page .request-department-icon.is-technical { background: #fff0e5; color: #ea580c; }
+        body.employee-request-ticket-page .request-department-icon.is-accounting { background: #fff7df; color: #b45309; }
+        body.employee-request-ticket-page .request-department-icon.is-supply { background: #e6f8fb; color: #0891b2; }
+        body.employee-request-ticket-page .request-department-icon.is-agriculture { background: #eff9df; color: #4d7c0f; }
+        body.employee-request-ticket-page .request-department-icon.is-machinery { background: #eef2f7; color: #334155; }
+        body.employee-request-ticket-page .request-department-icon.is-management { background: #f1eafe; color: #7c3aed; }
+        body.employee-request-ticket-page .request-department-icon.is-sales { background: #e8f4ff; color: #0369a1; }
+        body.employee-request-ticket-page .request-department-icon.is-operations { background: #eef2f7; color: #475569; }
+        body.employee-request-ticket-page .request-department-icon.is-category { background: #ecfdf3; color: #047857; }
+        body.employee-request-ticket-page .request-department-name {
+            margin: 0 0 3px;
+            color: #1e293b;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.35;
+        }
+        body.employee-request-ticket-page .request-category-list {
+            margin: 0;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.55;
+            overflow-wrap: anywhere;
+        }
+        body.employee-request-ticket-page .request-guide-empty {
+            margin: 0;
+            padding: 13px 14px;
+            color: #64748b;
+            font-size: 11px;
+            line-height: 1.45;
+        }
+        body.employee-request-ticket-page .request-tips-card {
+            padding: 15px 16px 16px;
+            border-color: #cfe8d6;
+            background: linear-gradient(180deg, #f3fbf5 0%, #eef9f1 100%);
+        }
+        body.employee-request-ticket-page .request-tips-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        body.employee-request-ticket-page .request-tips-icon {
+            width: 24px;
+            height: 24px;
+            flex-basis: 24px;
+            border: 0;
+            font-size: 16px;
+        }
+        body.employee-request-ticket-page .request-tips-list {
+            display: grid;
+            gap: 7px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+        body.employee-request-ticket-page .request-tips-list li {
+            display: grid;
+            grid-template-columns: 15px minmax(0, 1fr);
+            gap: 7px;
+            color: #475569;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        body.employee-request-ticket-page .request-tips-list i {
+            margin-top: 2px;
+            color: #15803d;
+            font-size: 10px;
+        }
         body.employee-request-ticket-page .form-section-title {
             margin: 0 -24px 22px;
             padding: 18px 24px;
@@ -2572,6 +3058,36 @@ if (count($emailCreationEntries) === 0) {
             font-weight: 700;
             line-height: 1.25;
             font-family: inherit;
+        }
+        @media (max-width: 1180px) {
+            body.employee-request-ticket-page .request-ticket-layout {
+                grid-template-columns: 1fr;
+            }
+            body.employee-request-ticket-page .request-guidance-sidebar {
+                position: static;
+            }
+            body.employee-request-ticket-page .request-guidance-directory {
+                max-height: 380px;
+                min-height: 0;
+            }
+        }
+        @media (min-width: 1181px) {
+            body.employee-request-ticket-page .request-ticket-layout {
+                align-items: stretch;
+            }
+            body.employee-request-ticket-page .request-guidance-sidebar,
+            body.employee-request-ticket-page .request-ticket-layout > .form-card {
+                height: 100%;
+            }
+            body.employee-request-ticket-page .request-ticket-layout > .form-card > #ticketForm {
+                display: flex;
+                flex-direction: column;
+                min-height: 100%;
+            }
+            body.employee-request-ticket-page .request-ticket-layout > .form-card .form-actions {
+                margin-top: auto;
+                padding-top: 40px;
+            }
         }
         body.employee-request-ticket-page .medical-cash-list {
             display: grid;
@@ -2736,6 +3252,21 @@ if (count($emailCreationEntries) === 0) {
             display: grid;
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             gap: 14px;
+        }
+        body.employee-request-ticket-page .marketing-request-details-row {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        body.employee-request-ticket-page .marketing-request-inline-row .supply-chain-full-row {
+            grid-column: 1 / -1;
+        }
+        body.employee-request-ticket-page .marketing-request-inline-row .marketing-crop-card {
+            grid-column: 2;
+        }
+        body.employee-request-ticket-page .marketing-crop-inline {
+            margin-top: 18px;
+        }
+        body.employee-request-ticket-page #marketingRequestSection #project_deadline {
+            font-weight: 400;
         }
         body.employee-request-ticket-page .medical-cash-card {
             border: 1px solid #dbe4ef;
@@ -2937,11 +3468,36 @@ if (count($emailCreationEntries) === 0) {
             display: block;
             margin-bottom: 10px;
         }
+        /* Supply Chain uses the same two-column form layout without a card around
+           every input, keeping the request form less visually busy. */
+        body.employee-request-ticket-page #supplyChainDetailsFields > .supply-chain-field {
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        body.employee-request-ticket-page #supplyChainDetailsFields > .supply-chain-field .form-group {
+            margin: 0;
+        }
+        body.employee-request-ticket-page #supplyChainDetailsFields > .supply-chain-field label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        body.employee-request-ticket-page #supplyChainAttachmentHost {
+            margin-top: 14px;
+        }
+        body.employee-request-ticket-page #supplyChainAttachmentHost #attachmentContainer {
+            margin: 0;
+        }
         body.employee-request-ticket-page .marketing-request-card-title {
             display: block;
             margin-bottom: 16px;
             font-weight: 700;
             color: #0f172a;
+        }
+        body.employee-request-ticket-page .marketing-request-card-title.is-regular-label {
+            font-weight: 400;
         }
         body.employee-request-ticket-page .marketing-request-option-list {
             display: grid;
@@ -3224,6 +3780,24 @@ if (count($emailCreationEntries) === 0) {
             margin-bottom: 16px;
             font-weight: 700;
             color: #0f172a;
+        }
+        body.employee-request-ticket-page .company-property-card-title.is-regular-label,
+        body.employee-request-ticket-page .coe-request-card-title.is-regular-label {
+            font-weight: 400;
+        }
+        /* Keep all LAPC HR form field text consistent with the Type of Concern field. */
+        body.employee-request-ticket-page :is(#kamiBannerContainer, #medicalCashAdvanceSection, #trainingRequestSection, #companyPropertySection, #coeRequestSection, #colRequestSection, #incidentReportSection) :is(label, span, p, input, select, textarea) {
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.45;
+        }
+        body.employee-request-ticket-page #marketingRequestSection :is(label, span, p, input, select, textarea, button) {
+            font-size: 13px;
+            font-weight: 600;
+        }
+        body.employee-request-ticket-page #marketingRequestSection .custom-select-option {
+            font-weight: 400;
         }
         body.employee-request-ticket-page .company-property-option-list {
             display: grid;
@@ -3537,6 +4111,9 @@ if (count($emailCreationEntries) === 0) {
             body.employee-request-ticket-page .marketing-request-inline-row {
                 grid-template-columns: 1fr;
             }
+            body.employee-request-ticket-page .marketing-request-inline-row .marketing-crop-card {
+                grid-column: 1;
+            }
             body.employee-request-ticket-page .attachment-preview-modal {
                 padding: 72px 68px 28px;
             }
@@ -3634,7 +4211,11 @@ if (count($emailCreationEntries) === 0) {
             border-bottom-left-radius: 0;
             border-bottom-right-radius: 0;
             border-bottom: none;
-            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+            box-shadow: none;
+        }
+        body.employee-request-ticket-page.kami-section-active #kamiBannerContainer .kami-list {
+            gap: 0;
+            padding-bottom: 0;
         }
         body.employee-request-ticket-page.kami-section-active #otherDescriptionSection {
             margin-top: 0;
@@ -3985,13 +4566,14 @@ if (count($emailCreationEntries) === 0) {
         body.employee-request-ticket-page .ticket-modal[data-state="success"] .ticket-modal-progress span { width: 100% !important; }
         body.employee-request-ticket-page .ticket-modal-ticket-label,
         body.employee-request-ticket-page .ticket-modal-ticket-number {
-            font-weight: 600;
+            font-weight: 800;
         }
         body.employee-request-ticket-page .ticket-modal-ticket-label {
             color: #3f4861;
         }
         body.employee-request-ticket-page .ticket-modal-ticket-number {
             color: #166534;
+            font-weight: 800;
         }
         body.employee-request-ticket-page .ticket-modal[data-state="error"] .ticket-modal-progress span { background: linear-gradient(90deg, #ef4444, #f97316); }
         @keyframes follow-up-feedback-spin {
@@ -4271,12 +4853,14 @@ if (count($emailCreationEntries) === 0) {
             }
 
             body.employee-request-ticket-page .mobile-sidebar-footer {
-                margin-top: auto;
-                padding-top: 14px;
-                border-top: 1px solid rgba(255, 255, 255, 0.18);
+                margin: 0 0 8px;
+                padding: 0 0 14px;
+                border-top: 0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.18);
                 display: flex;
                 align-items: center;
                 gap: 12px;
+                flex: 0 0 auto;
             }
 
             body.employee-request-ticket-page .mobile-sidebar-icon-link,
@@ -4335,7 +4919,8 @@ if (count($emailCreationEntries) === 0) {
             body.employee-request-ticket-page .mobile-sidebar-user-menu {
                 position: absolute;
                 right: 0;
-                bottom: calc(100% + 10px);
+                top: calc(100% + 10px);
+                bottom: auto;
                 min-width: 170px;
                 background: #ffffff;
                 border-radius: 12px;
@@ -4388,49 +4973,1073 @@ if (count($emailCreationEntries) === 0) {
                 z-index: 2105;
             }
         }
+
+        /* Reference-aligned request ticket layout */
+        body.employee-request-ticket-page {
+            background: #f7f9f8;
+        }
+
+        body.employee-request-ticket-page .dashboard-container {
+            padding: 22px 8px 42px;
+        }
+
+        body.employee-request-ticket-page .content-wrapper {
+            width: 100%;
+            max-width: none;
+            margin: 0 auto;
+        }
+
+        body.employee-request-ticket-page .request-page-header {
+            width: 100%;
+            margin: 0 0 14px !important;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transform: none;
+        }
+
+        body.employee-request-ticket-page .request-page-header h1 {
+            margin: 0 0 4px;
+            color: #166534;
+            font-size: 27px;
+            line-height: 1.2;
+            font-weight: 700;
+        }
+
+        body.employee-request-ticket-page .request-page-header p {
+            margin: 0;
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        body.employee-request-ticket-page .request-ticket-layout {
+            display: grid;
+            grid-template-columns: minmax(390px, 460px) minmax(0, 1fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        body.employee-request-ticket-page .request-guidance-sidebar {
+            position: sticky;
+            top: 96px;
+            display: grid;
+            gap: 14px;
+            height: auto !important;
+            min-width: 0;
+        }
+
+        body.employee-request-ticket-page .request-main-column {
+            display: grid;
+            gap: 14px;
+            min-width: 0;
+        }
+
+        body.employee-request-ticket-page .request-ticket-layout > .form-card,
+        body.employee-request-ticket-page .request-main-column > .form-card {
+            height: auto !important;
+            min-height: 0;
+        }
+
+        body.employee-request-ticket-page .request-guidance-card,
+        body.employee-request-ticket-page .request-routing-help,
+        body.employee-request-ticket-page .request-tips-card-main,
+        body.employee-request-ticket-page .request-main-column > .form-card {
+            border: 1px solid #e1e7e3;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.045);
+        }
+
+        body.employee-request-ticket-page .request-guidance-card {
+            overflow: hidden;
+        }
+
+        body.employee-request-ticket-page .request-guidance-heading {
+            padding: 18px 20px 12px;
+            border-bottom: 0;
+        }
+
+        body.employee-request-ticket-page .request-guidance-title {
+            font-size: 15px;
+            line-height: 1.35;
+        }
+
+        body.employee-request-ticket-page .request-guidance-copy {
+            margin-top: 3px;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        body.employee-request-ticket-page .request-guidance-search {
+            position: relative;
+            margin: 0 16px 8px;
+        }
+
+        body.employee-request-ticket-page .request-guidance-search i {
+            position: absolute;
+            top: 50%;
+            left: 15px;
+            z-index: 1;
+            color: #64748b;
+            font-size: 14px;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        body.employee-request-ticket-page .request-guidance-search input {
+            width: 100%;
+            height: 42px;
+            padding: 0 14px 0 43px;
+            border: 1px solid #dbe3de;
+            border-radius: 9px;
+            outline: none;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 13px;
+            box-sizing: border-box;
+        }
+
+        body.employee-request-ticket-page .request-guidance-search input:focus {
+            border-color: #16a34a;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+        }
+
+        body.employee-request-ticket-page .request-guidance-no-results {
+            margin: 0 16px 16px;
+            padding: 14px;
+            border: 1px dashed #cbd5e1;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.45;
+            text-align: center;
+        }
+
+        body.employee-request-ticket-page .request-company-guide.is-search-match > summary,
+        body.employee-request-ticket-page .request-department-guide.is-search-match {
+            background: #ecfdf3;
+            box-shadow: inset 3px 0 0 #16a34a;
+        }
+
+        body.employee-request-ticket-page .request-guidance-directory {
+            max-height: 510px;
+            min-height: 0;
+            padding: 0 16px 8px;
+        }
+
+        body.employee-request-ticket-page .request-company-guide {
+            margin-bottom: 6px;
+            border-radius: 11px;
+        }
+
+        body.employee-request-ticket-page .request-company-guide summary {
+            min-height: 52px;
+            padding: 8px 12px;
+        }
+
+        body.employee-request-ticket-page .request-company-guide-name {
+            font-size: 15px;
+        }
+
+        body.employee-request-ticket-page .request-company-guide-domain,
+        body.employee-request-ticket-page .request-department-guide-copy {
+            font-size: 12px;
+        }
+
+        body.employee-request-ticket-page .request-department-guide {
+            padding: 10px 12px;
+        }
+
+        body.employee-request-ticket-page .request-department-guide.is-guidance-extra {
+            display: none;
+        }
+
+        body.employee-request-ticket-page .request-company-guide.show-all-departments .request-department-guide.is-guidance-extra,
+        body.employee-request-ticket-page .request-guidance-directory.is-searching .request-department-guide.is-guidance-extra {
+            display: grid;
+        }
+
+        body.employee-request-ticket-page .request-guidance-directory.is-searching .request-view-departments {
+            display: none;
+        }
+
+        body.employee-request-ticket-page .request-guidance-directory .request-department-guide[hidden],
+        body.employee-request-ticket-page .request-guidance-directory .request-company-guide[hidden] {
+            display: none !important;
+        }
+
+        body.employee-request-ticket-page .request-view-departments {
+            width: 100%;
+            min-height: 45px;
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border: 0;
+            border-top: 1px solid #e5e7eb;
+            background: #ffffff;
+            color: #1f2937;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        body.employee-request-ticket-page .request-view-departments > i:first-child {
+            color: #64748b;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        body.employee-request-ticket-page .request-view-departments > i:last-child {
+            color: #64748b;
+            font-size: 11px;
+            transition: transform 0.18s ease;
+        }
+
+        body.employee-request-ticket-page .request-company-guide.show-all-departments .request-view-departments > i:last-child {
+            transform: rotate(90deg);
+        }
+
+        body.employee-request-ticket-page .request-routing-help {
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr);
+            gap: 10px;
+            padding: 14px 16px;
+            border-color: #f2d679;
+            background: #fffdf6;
+            box-shadow: none;
+        }
+
+        body.employee-request-ticket-page .request-routing-help-icon {
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1.5px solid #eab308;
+            border-radius: 50%;
+            color: #d39e00;
+            font-size: 13px;
+        }
+
+        body.employee-request-ticket-page .request-routing-help h2 {
+            margin: 0 0 5px;
+            color: #8a5b0a;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        body.employee-request-ticket-page .request-routing-help p {
+            margin: 0;
+            color: #596579;
+            font-size: 11.5px;
+            line-height: 1.55;
+        }
+
+        body.employee-request-ticket-page .request-main-column > .form-card {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            padding: 20px 24px;
+            overflow: visible;
+            box-sizing: border-box;
+        }
+
+        body.employee-request-ticket-page .request-main-column .form-section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 20px;
+            padding: 0 0 15px;
+            border-bottom: 1px solid #dfe5e1;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            color: #166534;
+            font-size: 15px;
+            line-height: 1.3;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        body.employee-request-ticket-page .request-main-column .form-section-title::before {
+            content: "\f15c";
+            color: #15803d;
+            font-family: "Font Awesome 6 Free";
+            font-size: 20px;
+            font-weight: 900;
+        }
+
+        body.employee-request-ticket-page .request-main-column .form-group {
+            margin-bottom: 16px;
+        }
+
+        body.employee-request-ticket-page .request-main-column .form-group > label {
+            margin-bottom: 7px;
+            color: #111827;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        body.employee-request-ticket-page .request-main-column .request-grid-row {
+            gap: 20px;
+        }
+
+        body.employee-request-ticket-page .request-main-column .form-control,
+        body.employee-request-ticket-page .request-main-column .form-group input,
+        body.employee-request-ticket-page .request-main-column .form-group select,
+        body.employee-request-ticket-page .request-main-column .form-group textarea {
+            min-height: 48px;
+            height: 48px;
+            padding: 11px 14px;
+            border: 1px solid #d5ddd8;
+            border-radius: 10px;
+            background: #ffffff;
+            box-shadow: none;
+            color: #1f2937;
+            font-size: 14px;
+        }
+
+        body.employee-request-ticket-page .request-main-column .form-control:focus,
+        body.employee-request-ticket-page .request-main-column .form-group input:focus,
+        body.employee-request-ticket-page .request-main-column .form-group select:focus,
+        body.employee-request-ticket-page .request-main-column .form-group textarea:focus {
+            border-color: #16a34a;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+        }
+
+        body.employee-request-ticket-page .request-main-column textarea.form-control,
+        body.employee-request-ticket-page .request-main-column #descriptionField {
+            height: 136px;
+            min-height: 136px;
+            padding: 14px;
+            resize: none;
+        }
+
+        body.employee-request-ticket-page .request-main-column .attachment-upload-shell {
+            min-height: 64px;
+            padding: 10px 12px;
+            border: 1px solid #e1e7e3 !important;
+            border-radius: 10px !important;
+            background: #ffffff !important;
+        }
+
+        body.employee-request-ticket-page .request-main-column .file-button {
+            min-width: 128px;
+            height: 42px;
+            padding: 0 15px !important;
+            border: 1px solid #bbdfc5 !important;
+            border-radius: 8px !important;
+            background: #f0fdf4 !important;
+            color: #166534;
+            font-size: 13px !important;
+        }
+
+        body.employee-request-ticket-page .request-main-column .attachment-file-name {
+            font-size: 13px;
+        }
+
+        body.employee-request-ticket-page .request-main-column .form-text {
+            margin-top: 7px;
+            color: #64748b;
+            font-size: 11px;
+        }
+
+        body.employee-request-ticket-page .request-main-column .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 18px;
+        }
+
+        body.employee-request-ticket-page .request-main-column .btn-submit {
+            width: auto;
+            min-width: 180px;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            margin: 0;
+            padding: 0 22px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        body.employee-request-ticket-page .request-main-column .btn-submit::before {
+            content: "\f1d8";
+            font-family: "Font Awesome 6 Free";
+            font-size: 14px;
+            font-weight: 900;
+        }
+
+        body.employee-request-ticket-page .request-tips-card-main {
+            padding: 15px 22px 17px;
+        }
+
+        body.employee-request-ticket-page .request-tips-card-main .request-tips-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e4e9e6;
+        }
+
+        body.employee-request-ticket-page .request-tips-card-main .request-tips-icon {
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: #ecfdf3;
+            color: #16803d;
+            font-size: 15px;
+        }
+
+        body.employee-request-ticket-page .request-tips-card-main .request-tips-title {
+            margin: 0;
+            color: #166534;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        /* Keep the page's three primary guidance headings visually consistent. */
+        body.employee-request-ticket-page .request-guidance-heading-title,
+        body.employee-request-ticket-page .request-main-column .form-section-title,
+        body.employee-request-ticket-page .request-tips-card-main .request-tips-title {
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        body.employee-request-ticket-page .request-tips-card-main .request-tips-list {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0;
+            margin: 14px 0 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        body.employee-request-ticket-page .request-tips-card-main .request-tips-list li {
+            min-width: 0;
+            display: grid;
+            grid-template-columns: 34px minmax(0, 1fr);
+            align-items: center;
+            gap: 10px;
+            padding: 0 20px;
+            color: #465469;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        body.employee-request-ticket-page .request-tips-card-main .request-tips-list li:first-child {
+            padding-left: 0;
+        }
+
+        body.employee-request-ticket-page .request-tips-card-main .request-tips-list li:last-child {
+            padding-right: 0;
+        }
+
+        body.employee-request-ticket-page .request-tips-card-main .request-tips-list li + li {
+            border-left: 1px solid #dfe5e1;
+        }
+
+        body.employee-request-ticket-page .request-tips-card-main .request-tips-list i {
+            margin: 0;
+            color: #159447;
+            font-size: 27px;
+        }
+
+        body.employee-request-ticket-page .request-guidance-heading {
+            width: 100%;
+            border: 0;
+            font-family: inherit;
+            text-align: left;
+            box-sizing: border-box;
+            cursor: default;
+        }
+
+        body.employee-request-ticket-page .request-guidance-heading-copy {
+            display: block;
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        body.employee-request-ticket-page .request-guidance-heading-title {
+            display: block;
+            margin: 0;
+            color: #166534;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        body.employee-request-ticket-page .request-guidance-heading-description {
+            display: block;
+            margin-top: 3px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 1.45;
+        }
+
+        body.employee-request-ticket-page .request-guidance-toggle-icon {
+            display: none;
+        }
+
+        body.employee-request-ticket-page .request-guidance-body {
+            display: block;
+        }
+
+        @media (max-width: 1180px) {
+            body.employee-request-ticket-page .request-ticket-layout {
+                grid-template-columns: 1fr;
+            }
+
+            body.employee-request-ticket-page .request-guidance-sidebar {
+                position: static;
+            }
+
+            body.employee-request-ticket-page .request-guidance-directory {
+                max-height: 390px;
+            }
+        }
+
+        @media (min-width: 1181px) {
+            body.employee-request-ticket-page .request-page-header {
+                width: calc(100% - 478px);
+                margin-left: 478px !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body.employee-request-ticket-page .dashboard-container {
+                padding: 14px 12px 86px;
+            }
+
+            body.employee-request-ticket-page .request-page-header {
+                margin: 0 0 12px !important;
+            }
+
+            body.employee-request-ticket-page .request-page-header h1 {
+                font-size: 23px;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading {
+                display: grid;
+                grid-template-columns: 24px minmax(0, 1fr) 12px;
+                align-items: center;
+                gap: 10px;
+                height: 70px;
+                min-height: 70px;
+                padding: 10px 12px;
+                cursor: pointer;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            body.employee-request-ticket-page .request-guidance-sidebar {
+                grid-template-columns: minmax(0, 1fr);
+                justify-items: stretch;
+                width: 100%;
+                max-width: 100%;
+            }
+
+            body.employee-request-ticket-page .request-routing-help {
+                order: 1;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card {
+                order: 2;
+            }
+
+            body.employee-request-ticket-page .request-mobile-info-card {
+                width: 100% !important;
+                max-width: 100% !important;
+                inline-size: 100% !important;
+                margin: 0;
+                align-self: stretch;
+                border-width: 1px !important;
+                border-style: solid !important;
+                border-radius: 14px !important;
+                box-shadow: none !important;
+                overflow: hidden !important;
+                box-sizing: border-box !important;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card.request-mobile-info-card:not(.is-expanded),
+            body.employee-request-ticket-page .request-routing-help.request-mobile-info-card {
+                height: 72px !important;
+                min-height: 72px !important;
+                max-height: 72px !important;
+                block-size: 72px !important;
+                min-block-size: 72px !important;
+                max-block-size: 72px !important;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading:focus-visible {
+                outline: 3px solid rgba(22, 163, 74, 0.22);
+                outline-offset: -3px;
+            }
+
+            body.employee-request-ticket-page .request-guidance-toggle-icon {
+                display: inline-block;
+                flex: 0 0 auto;
+                margin: 0;
+                color: #166534;
+                font-size: 13px;
+                transition: transform 0.2s ease;
+            }
+
+            body.employee-request-ticket-page .request-routing-help {
+                grid-template-columns: 24px minmax(0, 1fr) 12px;
+                align-items: center;
+                gap: 10px;
+                padding: 10px 12px;
+                -webkit-text-size-adjust: none;
+                text-size-adjust: none;
+            }
+
+            body.employee-request-ticket-page .request-routing-help::after {
+                width: 12px;
+                content: "";
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-icon,
+            body.employee-request-ticket-page .request-routing-help-icon {
+                width: 24px;
+                height: 24px;
+                border-width: 1.5px;
+                font-size: 11px;
+                box-sizing: border-box;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-copy,
+            body.employee-request-ticket-page .request-routing-help > div {
+                min-width: 0;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-title,
+            body.employee-request-ticket-page .request-routing-help h2 {
+                margin: 0;
+                overflow: hidden;
+                color: #166534;
+                font-family: inherit;
+                font-size: 11px;
+                font-weight: 700;
+                line-height: 1.25;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+            }
+
+            body.employee-request-ticket-page .request-routing-help h2 {
+                color: #8a5b0a;
+                font-size: 11px !important;
+                font-weight: 700 !important;
+                line-height: 1.25;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-description,
+            body.employee-request-ticket-page .request-routing-help p {
+                display: -webkit-box;
+                margin: 2px 0 0;
+                overflow: hidden;
+                color: #64748b;
+                font-family: inherit;
+                font-size: 9px;
+                font-weight: 400;
+                line-height: 1.35;
+                -webkit-box-orient: vertical;
+                -webkit-line-clamp: 2;
+            }
+
+            body.employee-request-ticket-page .request-routing-help p {
+                color: #596579;
+                font-size: 9px !important;
+                line-height: 1.35;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card:not(.is-expanded) .request-guidance-body {
+                display: none;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card.is-expanded .request-guidance-toggle-icon {
+                transform: rotate(180deg);
+            }
+
+            body.employee-request-ticket-page .request-main-column > .form-card {
+                padding: 17px 16px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-section-title {
+                margin: 0 0 18px;
+                padding: 0 0 13px;
+                border-bottom: 1px solid #dfe5e1;
+                border-radius: 0;
+                background: transparent;
+                box-shadow: none;
+                color: #166534;
+                font-size: 14px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .request-grid-row {
+                grid-template-columns: 1fr;
+                gap: 0;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-control,
+            body.employee-request-ticket-page .request-main-column .form-group input,
+            body.employee-request-ticket-page .request-main-column .form-group select,
+            body.employee-request-ticket-page .request-main-column .form-group textarea {
+                border: 1px solid #d5ddd8;
+                border-radius: 10px;
+                box-shadow: none;
+            }
+
+            body.employee-request-ticket-page .request-main-column .btn-submit {
+                width: 100%;
+                min-width: 0;
+            }
+
+            body.employee-request-ticket-page .request-tips-card-main .request-tips-list {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            body.employee-request-ticket-page .request-tips-card-main .request-tips-list li,
+            body.employee-request-ticket-page .request-tips-card-main .request-tips-list li:first-child,
+            body.employee-request-ticket-page .request-tips-card-main .request-tips-list li:last-child {
+                padding: 0;
+            }
+
+            body.employee-request-ticket-page .request-tips-card-main .request-tips-list li + li {
+                padding-top: 12px;
+                border-top: 1px solid #e4e9e6;
+                border-left: 0;
+            }
+        }
+
+        /* Employee page background-only consistency override. */
+        body.employee-request-ticket-page {
+            background-image:
+                radial-gradient(circle at -4% 10%, rgba(217, 240, 223, 0.78) 0 160px, transparent 161px),
+                radial-gradient(circle at 9% 39%, rgba(233, 247, 236, 0.78) 0 44px, transparent 45px),
+                radial-gradient(circle at 97% 40%, rgba(221, 242, 226, 0.76) 0 84px, transparent 85px),
+                radial-gradient(circle at 105% 80%, rgba(213, 237, 220, 0.82) 0 170px, transparent 171px),
+                radial-gradient(ellipse at 23% 106%, rgba(225, 244, 229, 0.82) 0 180px, transparent 181px),
+                radial-gradient(circle at 1% 2%, transparent 0 110px, rgba(205, 230, 213, 0.25) 111px 113px, transparent 114px),
+                radial-gradient(circle at 2% 4%, transparent 0 165px, rgba(205, 230, 213, 0.17) 166px 168px, transparent 169px),
+                radial-gradient(circle at 98% 58%, transparent 0 165px, rgba(202, 229, 211, 0.22) 166px 168px, transparent 169px),
+                radial-gradient(circle at 100% 60%, transparent 0 215px, rgba(202, 229, 211, 0.15) 216px 218px, transparent 219px),
+                linear-gradient(145deg, rgba(239, 249, 242, 0.78) 0%, rgba(255, 255, 255, 0.98) 20%, rgba(255, 255, 255, 0.99) 60%, rgba(239, 249, 242, 0.84) 100%) !important;
+            background-repeat: no-repeat !important;
+            background-attachment: fixed !important;
+        }
+
+        body.employee-request-ticket-page::before,
+        body.employee-request-ticket-page::after {
+            content: "" !important;
+            position: fixed !important;
+            pointer-events: none !important;
+            z-index: 0 !important;
+            background-image: radial-gradient(circle, rgba(105, 163, 123, 0.2) 1.2px, transparent 1.55px);
+        }
+
+        body.employee-request-ticket-page::before {
+            left: 2%;
+            top: 54%;
+            width: 100px;
+            height: 112px;
+            background-size: 16px 16px;
+        }
+
+        body.employee-request-ticket-page::after {
+            right: 4%;
+            top: 128px;
+            width: 104px;
+            height: 104px;
+            background-size: 15px 15px;
+        }
+
+        body.employee-request-ticket-page .dashboard-container,
+        body.employee-request-ticket-page .content-wrapper {
+            position: relative !important;
+            z-index: 1 !important;
+            background: transparent !important;
+        }
+        /* Use only the shared image background; do not leave an old overlay or page seam. */
+        body.employee-request-ticket-page {
+            background-image: url('../assets/img/dashboard_bg.jpg') !important;
+            background-repeat: no-repeat !important;
+            background-size: cover !important;
+            background-position: center -28px !important;
+            background-attachment: fixed !important;
+        }
+        body.employee-request-ticket-page::before,
+        body.employee-request-ticket-page::after {
+            content: none !important;
+        }
+
+        /* Compact phone layout matching the mobile request-ticket reference. */
+        @media (max-width: 768px) {
+            body.employee-request-ticket-page {
+                min-height: 100vh;
+                background: #eef1f1 !important;
+            }
+
+            body.employee-request-ticket-page .navbar {
+                min-height: 4px !important;
+                height: 4px !important;
+                padding: 0 !important;
+                border-bottom: 4px solid #f4c430 !important;
+                background: #174f25 !important;
+                box-shadow: none !important;
+                overflow: visible;
+            }
+
+            body.employee-request-ticket-page .navbar > * {
+                display: none !important;
+            }
+
+            body.employee-request-ticket-page .dashboard-container {
+                max-width: none;
+                min-height: calc(100vh - 4px);
+                margin: 0;
+                padding: 24px 22px 58px;
+                background-color: #eef1f1 !important;
+                background-image:
+                    linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0, rgba(255, 255, 255, 0.72) 112px, #eef1f1 160px),
+                    url('../assets/img/dashboard_bg.jpg') !important;
+                background-repeat: no-repeat !important;
+                background-position: center top !important;
+                background-size: 100% 160px, cover !important;
+                box-sizing: border-box;
+            }
+
+            body.employee-request-ticket-page .content-wrapper {
+                display: block;
+            }
+
+            body.employee-request-ticket-page .request-page-header {
+                margin: 0 0 22px !important;
+            }
+
+            body.employee-request-ticket-page .request-page-header h1 {
+                margin-bottom: 7px;
+                color: #075d25;
+                font-size: 19px;
+                line-height: 1.15;
+                font-weight: 750;
+            }
+
+            body.employee-request-ticket-page .request-page-header p {
+                color: #334155;
+                font-size: 10px;
+                line-height: 1.35;
+            }
+
+            body.employee-request-ticket-page .request-ticket-layout {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                gap: 14px;
+            }
+
+            body.employee-request-ticket-page .request-guidance-sidebar {
+                display: block;
+            }
+
+            body.employee-request-ticket-page .request-routing-help,
+            body.employee-request-ticket-page .request-tips-card-main,
+            body.employee-request-ticket-page .tm-global-chat-fab {
+                display: none !important;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card {
+                order: initial;
+                border: 1px solid #dfe5e1 !important;
+                border-radius: 13px !important;
+                background: rgba(255, 255, 255, 0.96);
+                box-shadow: 0 7px 17px rgba(15, 23, 42, 0.08) !important;
+            }
+
+            body.employee-request-ticket-page .request-guidance-card.request-mobile-info-card:not(.is-expanded) {
+                height: 70px !important;
+                min-height: 70px !important;
+                max-height: 70px !important;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading {
+                height: 68px;
+                min-height: 68px;
+                grid-template-columns: 25px minmax(0, 1fr) 12px;
+                gap: 9px;
+                padding: 9px 13px;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-icon {
+                width: 21px;
+                height: 21px;
+                border-color: #087330;
+                color: #087330;
+                font-size: 10px;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-title {
+                color: #075d25;
+                font-size: 10px;
+                white-space: normal;
+                text-overflow: clip;
+            }
+
+            body.employee-request-ticket-page .request-guidance-heading-description {
+                margin-top: 5px;
+                color: #263448;
+                font-size: 9px;
+                line-height: 1.42;
+            }
+
+            body.employee-request-ticket-page .request-guidance-toggle-icon {
+                color: #075d25;
+                font-size: 10px;
+            }
+
+            body.employee-request-ticket-page .request-main-column {
+                display: block;
+            }
+
+            body.employee-request-ticket-page .request-main-column > .form-card {
+                padding: 15px 14px 13px;
+                border: 1px solid #dfe5e1;
+                border-radius: 13px;
+                background: rgba(255, 255, 255, 0.97);
+                box-shadow: 0 7px 18px rgba(15, 23, 42, 0.07);
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-section-title {
+                gap: 8px;
+                margin: 0 0 13px;
+                padding: 0 0 11px;
+                color: #075d25;
+                font-size: 8px;
+                line-height: 1.2;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-section-title::before {
+                font-size: 15px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-group {
+                margin-bottom: 12px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-group > label {
+                margin-bottom: 5px;
+                font-size: 9px;
+                line-height: 1.25;
+            }
+
+            body.employee-request-ticket-page .required-asterisk {
+                font-size: 9px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-control,
+            body.employee-request-ticket-page .request-main-column .form-group input,
+            body.employee-request-ticket-page .request-main-column .form-group select,
+            body.employee-request-ticket-page .request-main-column .form-group textarea {
+                min-height: 34px;
+                height: 34px;
+                padding: 8px 10px;
+                border: 1px solid #d5ddd8;
+                border-radius: 6px;
+                color: #263448;
+                font-size: 9px;
+            }
+
+            body.employee-request-ticket-page .select-wrapper .select-icon {
+                right: 10px;
+                font-size: 8px;
+            }
+
+            body.employee-request-ticket-page .request-main-column textarea.form-control,
+            body.employee-request-ticket-page .request-main-column #descriptionField {
+                height: 86px;
+                min-height: 86px;
+                padding: 9px 10px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .attachment-upload-shell {
+                min-height: 36px;
+                padding: 5px 7px;
+                border-radius: 7px !important;
+            }
+
+            body.employee-request-ticket-page .request-main-column .file-button {
+                min-width: 92px;
+                height: 27px;
+                min-height: 27px;
+                padding: 0 9px !important;
+                border: 0 !important;
+                border-radius: 5px !important;
+                background: #eafaf0 !important;
+                font-size: 9px !important;
+            }
+
+            body.employee-request-ticket-page .request-main-column .file-button svg {
+                width: 11px;
+                height: 11px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .attachment-file-name {
+                font-size: 9px;
+            }
+
+            body.employee-request-ticket-page #attachment-preview .attachment-remove-button {
+                width: 32px !important;
+                min-width: 32px !important;
+                max-width: 32px !important;
+                height: 32px !important;
+                min-height: 32px !important;
+                flex-basis: 32px !important;
+                border-radius: 8px !important;
+                font-size: 16px !important;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-text {
+                margin-top: 5px;
+                font-size: 7px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .form-actions {
+                margin-top: 12px;
+            }
+
+            body.employee-request-ticket-page .request-main-column .btn-submit {
+                min-height: 37px;
+                height: 37px;
+                padding: 0 15px;
+                border-radius: 6px;
+                font-size: 11px;
+                box-shadow: 0 4px 10px rgba(7, 93, 37, 0.16);
+            }
+
+            body.employee-request-ticket-page .request-main-column .btn-submit::before {
+                font-size: 11px;
+            }
+        }
     </style>
 </head>
 <body class="employee-request-ticket-page">
 
     <!-- 2️⃣ TOP NAVIGATION BAR -->
     <?php include '../includes/employee_navbar.php'; ?>
-
-    <div id="mobileSidebar" class="mobile-sidebar" aria-hidden="true">
-        <div class="mobile-sidebar-header">
-            <img src="../assets/img/UPDATEDlogo.png" alt="Logo">
-            <span>Leads Agri</span>
-        </div>
-        <?php foreach ($employeeNavItems as $navItem): ?>
-            <?php
-                $permissionKey = (string) ($navItem['key'] ?? '');
-                $isVisible = !array_key_exists($permissionKey, $tmUserPermissions) || (int) $tmUserPermissions[$permissionKey] === 1;
-                if (!$isVisible) {
-                    continue;
-                }
-            ?>
-            <a href="<?= htmlspecialchars((string) $navItem['page'], ENT_QUOTES, 'UTF-8'); ?>" class="<?= isActive((string) $navItem['page']); ?>">
-                <?= htmlspecialchars((string) $navItem['label'], ENT_QUOTES, 'UTF-8'); ?>
-            </a>
-        <?php endforeach; ?>
-        <div class="mobile-sidebar-footer">
-            <a href="notifications.php" class="mobile-sidebar-icon-link" aria-label="Notifications">
-                <i class="fas fa-bell"></i>
-                <span id="mobileSidebarNotifBadge" class="mobile-sidebar-badge"></span>
-            </a>
-            <div class="mobile-sidebar-user">
-                <button type="button" id="mobileSidebarUserBtn" class="mobile-sidebar-user-btn" aria-label="Account menu">
-                    <i class="fas fa-user"></i>
-                    <i class="fas fa-chevron-down" style="font-size: 11px;"></i>
-                </button>
-                <div id="mobileSidebarUserMenu" class="mobile-sidebar-user-menu">
-                    <a href="my_profile.php">My Profile</a>
-                    <a href="logout.php">Logout</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="mobileSidebarOverlay" class="mobile-sidebar-overlay" aria-hidden="true"></div>
 
     <div class="dashboard-container">
         <div class="content-wrapper">
@@ -4441,13 +6050,142 @@ if (count($emailCreationEntries) === 0) {
                 <?php unset($_SESSION['error']); ?>
             <?php endif; ?>
 
-            <!-- 4️⃣ REQUEST TICKET PAGE – REDESIGN -->
-            <div class="page-header" style="text-align: center; margin-bottom: 40px;">
+            <div class="page-header request-page-header">
                 <h1 class="page-title">Create a Ticket</h1>
-                <p class="page-subtitle">Please fill out the form below.</p>
+                <p class="page-subtitle">Please fill out the form below to submit your concern.</p>
             </div>
 
-            <div class="form-card">
+            <div class="request-ticket-layout">
+                <aside class="request-guidance-sidebar" aria-label="Ticket routing guide">
+                    <section class="request-guidance-card request-mobile-info-card" id="requestGuidanceCard">
+                        <button type="button" class="request-guidance-heading" id="requestGuidanceToggle" aria-expanded="false" aria-controls="requestGuidanceBody">
+                            <span class="request-guidance-heading-icon" aria-hidden="true"><i class="fas fa-info"></i></span>
+                            <span class="request-guidance-heading-copy">
+                                <span class="request-guidance-heading-title" role="heading" aria-level="2">Guidelines: Where to Submit Your Concern</span>
+                                <span class="request-guidance-heading-description">Choose a subsidiary, then use the Department field when it appears and select the matching category.</span>
+                            </span>
+                            <i class="fas fa-chevron-down request-guidance-toggle-icon" aria-hidden="true"></i>
+                        </button>
+                        <div class="request-guidance-body" id="requestGuidanceBody">
+                        <div class="request-guidance-search">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input type="search" id="requestGuidanceSearch" placeholder="Search subsidiary, department, or category..." aria-label="Search subsidiary, department, or category">
+                        </div>
+                        <div class="request-guidance-directory">
+                            <?php foreach ($requestTicketSidebarCompanies as $sidebarCompany): ?>
+                                <?php
+                                    $sidebarCompanyIsOpen = (string) $sidebarCompany['value'] === $requestTicketSidebarOpenCompany;
+                                    $sidebarCompanyRequiresDepartment = !empty($sidebarCompany['requires_department']);
+                                    $sidebarCompanyIcon = (string) ($sidebarCompany['icon'] ?? 'fa-building');
+                                    $sidebarCompanyTone = (string) ($sidebarCompany['tone'] ?? 'green');
+                                ?>
+                                <details class="request-company-guide"<?= $sidebarCompanyIsOpen ? ' open' : ''; ?>>
+                                    <summary>
+                                        <span class="request-company-icon is-<?= htmlspecialchars($sidebarCompanyTone, ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"><i class="fas <?= htmlspecialchars($sidebarCompanyIcon, ENT_QUOTES, 'UTF-8'); ?>"></i></span>
+                                        <span class="request-company-copy">
+                                            <strong class="request-company-name"><?= htmlspecialchars((string) $sidebarCompany['label'], ENT_QUOTES, 'UTF-8'); ?></strong>
+                                            <span class="request-company-domain"><?= htmlspecialchars((string) $sidebarCompany['value'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                        </span>
+                                        <i class="fas fa-chevron-right request-company-chevron" aria-hidden="true"></i>
+                                    </summary>
+                                    <div class="request-department-list">
+                                        <?php if ($sidebarCompanyRequiresDepartment): ?>
+                                            <?php if (empty($sidebarCompany['departments'])): ?>
+                                                <p class="request-guide-empty">No departments are currently available in the Department dropdown.</p>
+                                            <?php endif; ?>
+                                            <?php foreach ($sidebarCompany['departments'] as $sidebarDepartmentIndex => $sidebarDepartment): ?>
+                                                <?php
+                                                    $sidebarDepartmentName = (string) ($sidebarDepartment['name'] ?? '');
+                                                    $sidebarDepartmentLookup = strtolower($sidebarDepartmentName);
+                                                    $sidebarDepartmentIcon = 'fa-sitemap';
+                                                    $sidebarDepartmentTone = 'operations';
+                                                    if (str_contains($sidebarDepartmentLookup, 'admin') || str_contains($sidebarDepartmentLookup, 'legal')) {
+                                                        $sidebarDepartmentIcon = 'fa-scale-balanced';
+                                                        $sidebarDepartmentTone = 'admin';
+                                                    } elseif ($sidebarDepartmentLookup === 'it' || str_contains($sidebarDepartmentLookup, 'digital')) {
+                                                        $sidebarDepartmentIcon = 'fa-desktop';
+                                                        $sidebarDepartmentTone = 'it';
+                                                    } elseif ($sidebarDepartmentLookup === 'hr') {
+                                                        $sidebarDepartmentIcon = 'fa-users';
+                                                        $sidebarDepartmentTone = 'hr';
+                                                    } elseif (str_contains($sidebarDepartmentLookup, 'diagnostic') || str_contains($sidebarDepartmentLookup, 'lingap')) {
+                                                        $sidebarDepartmentIcon = 'fa-heart-pulse';
+                                                        $sidebarDepartmentTone = 'health';
+                                                    } elseif (str_contains($sidebarDepartmentLookup, 'marketing') || str_contains($sidebarDepartmentLookup, 'e-commerce')) {
+                                                        $sidebarDepartmentIcon = 'fa-bullhorn';
+                                                        $sidebarDepartmentTone = 'marketing';
+                                                    } elseif (str_contains($sidebarDepartmentLookup, 'technical')) {
+                                                        $sidebarDepartmentIcon = 'fa-flask';
+                                                        $sidebarDepartmentTone = 'technical';
+                                                    } elseif (str_contains($sidebarDepartmentLookup, 'account')) {
+                                                        $sidebarDepartmentIcon = 'fa-calculator';
+                                                        $sidebarDepartmentTone = 'accounting';
+                                                    } elseif (str_contains($sidebarDepartmentLookup, 'supply')) {
+                                                        $sidebarDepartmentIcon = 'fa-truck';
+                                                        $sidebarDepartmentTone = 'supply';
+                                                    } elseif (str_contains($sidebarDepartmentLookup, 'farm') || str_contains($sidebarDepartmentLookup, 'seed')) {
+                                                        $sidebarDepartmentIcon = 'fa-tractor';
+                                                        $sidebarDepartmentTone = 'agriculture';
+                                                    } elseif (str_contains($sidebarDepartmentLookup, 'machiner')) {
+                                                        $sidebarDepartmentIcon = 'fa-gears';
+                                                        $sidebarDepartmentTone = 'machinery';
+                                                    } elseif (str_contains($sidebarDepartmentLookup, 'executive') || str_contains($sidebarDepartmentLookup, 'management') || str_contains($sidebarDepartmentLookup, 'business')) {
+                                                        $sidebarDepartmentIcon = 'fa-briefcase';
+                                                        $sidebarDepartmentTone = 'management';
+                                                    } elseif (str_contains($sidebarDepartmentLookup, 'institutional') || str_contains($sidebarDepartmentLookup, 'bidding') || str_contains($sidebarDepartmentLookup, 'sales')) {
+                                                        $sidebarDepartmentIcon = 'fa-file-contract';
+                                                        $sidebarDepartmentTone = 'sales';
+                                                    }
+                                                    $sidebarCategoryText = implode('  •  ', array_map('strval', (array) ($sidebarDepartment['categories'] ?? [])));
+                                                ?>
+                                                <div class="request-department-guide<?= $sidebarDepartmentIndex >= 3 ? ' is-guidance-extra' : ''; ?>">
+                                                    <span class="request-department-icon is-<?= htmlspecialchars($sidebarDepartmentTone, ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"><i class="fas <?= htmlspecialchars($sidebarDepartmentIcon, ENT_QUOTES, 'UTF-8'); ?>"></i></span>
+                                                    <div>
+                                                        <h3 class="request-department-name"><?= htmlspecialchars($sidebarDepartmentName, ENT_QUOTES, 'UTF-8'); ?></h3>
+                                                        <?php if ($sidebarCategoryText !== ''): ?>
+                                                        <p class="request-category-list"><?= htmlspecialchars($sidebarCategoryText, ENT_QUOTES, 'UTF-8'); ?></p>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                            <?php if (count($sidebarCompany['departments']) > 3): ?>
+                                                <button type="button" class="request-view-departments" aria-expanded="false">
+                                                    <i class="fas fa-border-all" aria-hidden="true"></i>
+                                                    <span>View all departments</span>
+                                                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                                                </button>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <?php $sidebarCategoryText = implode('  •  ', array_map('strval', (array) ($sidebarCompany['categories'] ?? []))); ?>
+                                            <?php if ($sidebarCategoryText !== ''): ?>
+                                            <div class="request-department-guide request-direct-category-guide">
+                                                <span class="request-department-icon is-category" aria-hidden="true"><i class="fas fa-tags"></i></span>
+                                                <div>
+                                                    <h3 class="request-department-name">Categories</h3>
+                                                    <p class="request-category-list"><?= htmlspecialchars($sidebarCategoryText, ENT_QUOTES, 'UTF-8'); ?></p>
+                                                </div>
+                                            </div>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                    </div>
+                                </details>
+                            <?php endforeach; ?>
+                        </div>
+                        <p class="request-guidance-no-results" id="requestGuidanceNoResults" hidden>No matching subsidiary, department, or category found.</p>
+                        </div>
+                    </section>
+
+                    <section class="request-routing-help request-mobile-info-card" aria-label="Routing help">
+                        <span class="request-routing-help-icon" aria-hidden="true"><i class="fas fa-question"></i></span>
+                        <div>
+                            <h2>Not sure where to send your concern?</h2>
+                            <p>Select the department “Others” under the most relevant subsidiary or choose the category “Others”.</p>
+                        </div>
+                    </section>
+                </aside>
+
+                <div class="request-main-column">
+                <div class="form-card">
                 <form id="ticketForm" method="POST" enctype="multipart/form-data">
                     <?php echo csrf_field(); ?>
                     <div class="alert alert-error" id="ajaxError" style="background:#fee2e2;color:#991b1b;padding:15px;border-radius:8px;margin-bottom:20px;border:1px solid #fecaca;font-weight:700; display:none;"></div>
@@ -4474,16 +6212,16 @@ if (count($emailCreationEntries) === 0) {
                         </div>
 
                         <div class="form-group" id="departmentContainer" style="display:none;">
-                            <label>Assigned Department <span class="required-asterisk">*</span></label>
+                            <label>Department <span class="required-asterisk">*</span></label>
                             <div class="select-wrapper" id="assignedGroupWrapper">
                                 <select name="assigned_group" id="assigned_group" class="form-control custom-select-native" required disabled data-selected="<?= htmlspecialchars($selectedAssignedGroup, ENT_QUOTES, 'UTF-8'); ?>">
-                                    <option value="" disabled <?= $selectedAssignedGroup === '' ? 'selected' : ''; ?> hidden>Choose department</option>
+                                    <option value="" disabled <?= $selectedAssignedGroup === '' ? 'selected' : ''; ?> hidden>Select department</option>
                                     <?php foreach ($initialDepartmentOptions as $departmentOption): ?>
                                         <option value="<?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8'); ?>" <?= $selectedAssignedGroup === $departmentOption ? 'selected' : ''; ?>><?= htmlspecialchars($departmentOption, ENT_QUOTES, 'UTF-8'); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                                 <button type="button" class="form-control custom-select-trigger" id="assignedGroupTrigger" aria-haspopup="listbox" aria-expanded="false" disabled>
-                                    <span class="custom-select-value" id="assignedGroupTriggerValue">Choose department</span>
+                                    <span class="custom-select-value" id="assignedGroupTriggerValue">Select department</span>
                                 </button>
                                 <div class="custom-select-menu" id="assignedGroupMenu" role="listbox" hidden></div>
                                 <i class="fas fa-chevron-down select-icon"></i>
@@ -4570,6 +6308,14 @@ if (count($emailCreationEntries) === 0) {
                             </div>
                         </div>
                     </div>
+
+                    <section class="marketing-request-group" id="supplyChainDetailsRow">
+                        <h3 class="marketing-request-head">Supply Chain Request</h3>
+                        <div class="marketing-request-list">
+                            <div class="marketing-request-inline-row" id="supplyChainDetailsFields"></div>
+                            <div id="supplyChainAttachmentHost"></div>
+                        </div>
+                    </section>
 
                     <section class="kami-group" id="kamiBannerContainer">
                         <h3 class="kami-banner-head">Attendance and Timekeeping (KAMI)</h3>
@@ -4717,7 +6463,7 @@ if (count($emailCreationEntries) === 0) {
                                 <p class="company-property-copy">First issuance of company property is free. Payment is required for requests due to lost or replacement.</p>
                             </section>
                             <section class="company-property-card">
-                                <span class="company-property-card-title">Type of Company Property: <span class="required-asterisk">*</span></span>
+                                <span class="company-property-card-title is-regular-label">Type of Company Property: <span class="required-asterisk">*</span></span>
                                 <div class="company-property-option-list">
                                     <?php foreach (['Company ID', 'Company Lanyard', 'Company Uniform', 'Business Card'] as $propertyOption): ?>
                                         <label class="company-property-option">
@@ -4728,7 +6474,7 @@ if (count($emailCreationEntries) === 0) {
                                 </div>
                             </section>
                             <section class="company-property-card">
-                                <span class="company-property-card-title">Reason of Request: <span class="required-asterisk">*</span></span>
+                                <span class="company-property-card-title is-regular-label">Reason of Request: <span class="required-asterisk">*</span></span>
                                 <div class="company-property-option-list">
                                     <?php foreach (['Lost', 'Replacement', 'No issuance'] as $reasonOption): ?>
                                         <label class="company-property-option">
@@ -5088,7 +6834,7 @@ if (count($emailCreationEntries) === 0) {
                     </template>
 
                     <section class="marketing-request-group" id="marketingRequestSection">
-                        <h3 class="marketing-request-head">MHC Marketing Request</h3>
+                        <h3 class="marketing-request-head">Marketing Request</h3>
                         <div class="marketing-request-list">
                             <section class="marketing-request-card">
                                 <div class="form-group">
@@ -5169,7 +6915,7 @@ if (count($emailCreationEntries) === 0) {
                             <div class="marketing-request-inline-row">
                                 <section class="marketing-request-card">
                                     <div class="form-group">
-                                        <span class="marketing-request-card-title">Size of Material <span class="required-asterisk">*</span></span>
+                                        <span class="marketing-request-card-title is-regular-label">Size of Material <span class="required-asterisk">*</span></span>
                                         <?php
                                             $selectedMaterialSizeUnit = trim((string) ($_POST['material_size_unit'] ?? ''));
                                             $selectedMaterialSizeInput = trim((string) ($_POST['material_size_value'] ?? ''));
@@ -5186,6 +6932,7 @@ if (count($emailCreationEntries) === 0) {
                                             $selectedMaterialSizeValue = ($selectedMaterialSizeUnit !== '' && $selectedMaterialSizeInput !== '') ? $selectedMaterialSizeUnit . ': ' . $selectedMaterialSizeInput : '';
                                         ?>
                                         <input type="hidden" name="material_size" id="material_size" value="<?= htmlspecialchars($selectedMaterialSizeValue, ENT_QUOTES, 'UTF-8'); ?>">
+                                        <small class="marketing-request-help">Select one size unit, then enter the measurement.</small>
                                         <div class="marketing-request-option-list marketing-size-options">
                                             <?php foreach (['Inches', 'Feet', 'Centimeters'] as $sizeOption): ?>
                                                 <div class="marketing-request-option marketing-size-option">
@@ -5197,45 +6944,41 @@ if (count($emailCreationEntries) === 0) {
                                                 </div>
                                             <?php endforeach; ?>
                                         </div>
-                                        <small class="marketing-request-help">Select one size unit, then enter the measurement.</small>
                                     </div>
                                 </section>
                                 <section class="marketing-request-card">
                                     <div class="form-group">
                                         <label for="project_deadline">Project Deadline <span class="required-asterisk">*</span></label>
-                                        <input type="date" name="project_deadline" id="project_deadline" class="form-control" value="<?= htmlspecialchars((string) ($_POST['project_deadline'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                         <small class="marketing-request-help" id="projectDeadlineHelp">Must be at least 3 working days from today.</small>
+                                        <input type="date" name="project_deadline" id="project_deadline" class="form-control" value="<?= htmlspecialchars((string) ($_POST['project_deadline'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                                         <div class="marketing-request-error" id="projectDeadlineError"></div>
+
+                                        <div class="marketing-crop-inline">
+                                            <label for="crop">Crop <span class="required-asterisk">*</span></label>
+                                            <?php $selectedCrops = request_ticket_clean_string_array($_POST['crop'] ?? []); ?>
+                                            <div class="select-wrapper" id="cropGroup">
+                                                <select name="crop[]" id="crop" class="form-control custom-select-native">
+                                                    <option value="" disabled <?= count($selectedCrops) === 0 ? 'selected' : ''; ?> hidden>Choose crop</option>
+                                                    <?php foreach (['Rice', 'Lowland Vegetable', 'Upland Vegetable', 'Sugarcane', 'Corn', 'Mango', 'Other'] as $cropOption): ?>
+                                                        <option value="<?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($cropOption, $selectedCrops, true) ? 'selected' : ''; ?>>
+                                                            <?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <button type="button" class="form-control custom-select-trigger" id="cropTrigger" aria-haspopup="listbox" aria-expanded="false">
+                                                    <span class="custom-select-value" id="cropTriggerValue">Choose crop</span>
+                                                </button>
+                                                <div class="custom-select-menu" id="cropMenu" role="listbox" hidden></div>
+                                                <i class="fas fa-chevron-down select-icon"></i>
+                                            </div>
+                                            <div class="marketing-request-other-row" id="cropOtherRow">
+                                                <label for="crop_other">Other crop <span class="required-asterisk">*</span></label>
+                                                <input type="text" name="crop_other" id="crop_other" class="form-control" value="<?= htmlspecialchars((string) ($_POST['crop_other'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Please specify">
+                                            </div>
+                                        </div>
                                     </div>
                                 </section>
                             </div>
-
-                            <section class="marketing-request-card">
-                                <div class="form-group">
-                                    <label for="crop">Crop <span class="required-asterisk">*</span></label>
-                                    <?php $selectedCrops = request_ticket_clean_string_array($_POST['crop'] ?? []); ?>
-                                    <div class="select-wrapper" id="cropGroup">
-                                        <select name="crop[]" id="crop" class="form-control custom-select-native">
-                                            <option value="" disabled <?= count($selectedCrops) === 0 ? 'selected' : ''; ?> hidden>Choose crop</option>
-                                            <?php foreach (['Rice', 'Lowland Vegetable', 'Upland Vegetable', 'Sugarcane', 'Corn', 'Mango', 'Other'] as $cropOption): ?>
-                                                <option value="<?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($cropOption, $selectedCrops, true) ? 'selected' : ''; ?>>
-                                                    <?= htmlspecialchars($cropOption, ENT_QUOTES, 'UTF-8'); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <button type="button" class="form-control custom-select-trigger" id="cropTrigger" aria-haspopup="listbox" aria-expanded="false">
-                                            <span class="custom-select-value" id="cropTriggerValue">Choose crop</span>
-                                        </button>
-                                        <div class="custom-select-menu" id="cropMenu" role="listbox" hidden></div>
-                                        <i class="fas fa-chevron-down select-icon"></i>
-                                    </div>
-                                    <div class="marketing-request-other-row" id="cropOtherRow">
-                                        <label for="crop_other">Other crop <span class="required-asterisk">*</span></label>
-                                        <input type="text" name="crop_other" id="crop_other" class="form-control" value="<?= htmlspecialchars((string) ($_POST['crop_other'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" placeholder="Please specify">
-                                    </div>
-                                </div>
-                            </section>
-
                             <section class="marketing-request-card" id="marketingDescriptionCard">
                                 <div id="marketingDescriptionHost"></div>
                             </section>
@@ -5362,6 +7105,19 @@ if (count($emailCreationEntries) === 0) {
                         <button type="submit" class="btn-submit">Submit Ticket</button>
                     </div>
                 </form>
+                </div>
+                <section class="request-tips-card request-tips-card-main" aria-labelledby="requestTipsTitle">
+                    <div class="request-tips-head">
+                        <span class="request-tips-icon" aria-hidden="true"><i class="far fa-lightbulb"></i></span>
+                        <h2 class="request-tips-title" id="requestTipsTitle">Tips Before Submitting</h2>
+                    </div>
+                    <ul class="request-tips-list">
+                        <li><i class="far fa-check-circle" aria-hidden="true"></i><span>Select the correct<br>subsidiary first.</span></li>
+                        <li><i class="far fa-check-circle" aria-hidden="true"></i><span>If the Department field appears,<br>choose the best matching department.</span></li>
+                        <li><i class="far fa-check-circle" aria-hidden="true"></i><span>Select the most<br>appropriate category.</span></li>
+                    </ul>
+                </section>
+                </div>
             </div>
 
         </div>
@@ -5400,6 +7156,7 @@ if (count($emailCreationEntries) === 0) {
     <script src="../js/employee-dashboard.js"></script>
 
     <script>
+    if (!document.body.classList.contains('employee-shared-mobile-sidebar-page')) {
     (function () {
         const menuBtn = document.getElementById('navbarToggler');
         const sidebar = document.getElementById('mobileSidebar');
@@ -5486,6 +7243,7 @@ if (count($emailCreationEntries) === 0) {
             }
         }
     })();
+    }
     </script>
 
     <script>
@@ -5522,6 +7280,9 @@ if (count($emailCreationEntries) === 0) {
         const marketingSubcategoryTrigger = document.getElementById('marketingSubcategoryTrigger');
         const marketingSubcategoryTriggerValue = document.getElementById('marketingSubcategoryTriggerValue');
         const marketingSubcategoryMenu = document.getElementById('marketingSubcategoryMenu');
+        const supplyChainDetailsRow = document.getElementById('supplyChainDetailsRow');
+        const supplyChainDetailsFields = document.getElementById('supplyChainDetailsFields');
+        const supplyChainAttachmentHost = document.getElementById('supplyChainAttachmentHost');
         const kamiBannerContainer = document.getElementById('kamiBannerContainer');
         const concernTypeContainer = document.getElementById('concernTypeContainer');
         const concernTypeSelect = document.getElementById('hr_concern_type');
@@ -5659,28 +7420,16 @@ if (count($emailCreationEntries) === 0) {
             '@primestocks.ph': pccDepartments,
             '@malvedaholdings.com': mhcDepartments
         };
-        const defaultCategories = <?= json_encode(['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const mpdcCategories = <?= json_encode(['Engineerings', 'Client Referral', 'Others'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const lingapCategories = <?= json_encode(['Lakbay Kalusugan Request (Medical Mission)', 'Others'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const lapcDepartmentCategories = <?= json_encode([
-            'Admin & Legal' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
-            'Diagnostics / Lingap' => ['Medical consultations', 'Laboratory Request', 'Medicine Request', 'Back to work Clearance', 'Medical Reimbursement', 'Sick Leave Appliccation/Request', 'Others'],
-            'Institutional Sales (Bidding)' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
-            'HR' => ['Attendance & Timekeeping', 'Certificate of Employment', 'Certificate of Leave', 'Incident Report', 'Leave Concern', 'Medical Cash Advance', 'Request for Company Property', 'SSS Sickness and Benefit Concern', 'Training Request', 'Others'],
-            'IT' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'SAP', 'Software', 'Others'],
-            'Machineries' => ['Documentation', 'Email', 'Hardware', 'Internet Concerns', 'Procurement', 'Software', 'Others'],
-            'Marketing' => ['Marketing Operations', 'Channel & Campaigns', 'Others'],
-            'Technical' => ['CPR', 'MSDS', 'Technical Information/ Brochure', 'COA', 'Certificate of Distributorship', 'Certificate of Authorized Dealer', 'Updated Label', 'Product Presentations', 'Others'],
-        ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const lapcAdminLegalRequestCategories = <?= json_encode([
-            'Aimi Bing Santos (Bing)' => ['Fleetcard', 'Office Supplies', 'Temporary Vehicle', 'Others'],
-            'Ace Loui Rosal (Ace)' => ['Office Supplies(HO,Warehouse Bulacan,Norza)', 'Repair Concern(HO)', 'Others'],
-            'Cherry Jane Cabote (CJ)' => ['Phone Plan / Simcard', 'FleetCard Request', 'Supplies', 'Others'],
-            'Others' => ['Others'],
-        ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
-        const mhcDepartmentCategories = <?= json_encode([
-            'Marketing Creatives' => ['Marketing Request', 'Others'],
-        ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const defaultCategories = <?= json_encode($requestTicketDefaultCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const mpdcCategories = <?= json_encode($requestTicketMpdcCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const lingapCategories = <?= json_encode($requestTicketLingapCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const othersOnlyCompanies = <?= json_encode($requestTicketOthersOnlyCompanies, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const lapcDepartmentCategories = <?= json_encode($requestTicketLapcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const lapcAdminLegalRequestCategories = <?= json_encode($requestTicketLapcAdminLegalRequestCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const mhcDepartmentCategories = <?= json_encode($requestTicketMhcDepartmentCategories, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const lapcSupplyChainRequestTypes = <?= json_encode($lapcSupplyChainRequestTypes, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const lapcSupplyChainDetailFields = <?= json_encode($lapcSupplyChainDetailFields, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const savedSupplyChainDetails = <?= json_encode($_POST['supply_chain_details'] ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const lapcMarketingSubcategories = <?= json_encode([
             'Marketing Operations' => [
                 'Promo materials',
@@ -5972,8 +7721,8 @@ if (count($emailCreationEntries) === 0) {
             const placeholderOption = departmentSelect.querySelector('option[value=""]');
             const nextLabel = selectedOption && String(selectedOption.value || '') !== ''
                 ? String(selectedOption.textContent || '').trim()
-                : String((placeholderOption && placeholderOption.textContent) || 'Choose department').trim();
-            departmentTriggerValue.textContent = nextLabel || 'Choose department';
+                : String((placeholderOption && placeholderOption.textContent) || 'Select department').trim();
+            departmentTriggerValue.textContent = nextLabel || 'Select department';
         }
         function renderDepartmentDropdownOptions() {
             if (!departmentSelect || !departmentMenu || !departmentTrigger) return;
@@ -6011,7 +7760,7 @@ if (count($emailCreationEntries) === 0) {
         function populateDepartments(options) {
             if (!departmentSelect) return;
             const selectedValue = String(departmentSelect.getAttribute('data-selected') || departmentSelect.value || '');
-            departmentSelect.innerHTML = '<option value="" disabled selected hidden>Choose department</option>';
+            departmentSelect.innerHTML = '<option value="" disabled selected hidden>Select department</option>';
             options.forEach(function(optionValue) {
                 const option = document.createElement('option');
                 option.value = optionValue;
@@ -6238,9 +7987,9 @@ if (count($emailCreationEntries) === 0) {
             const recipientValue = String(recipientDropdown.value || '');
             const departmentValue = String(departmentSelect.value || '');
             const selectedCategory = String(categorySelect.value || '');
-            return recipientValue === '@leadsagri.com'
-                && departmentValue === 'Marketing'
-                && Object.prototype.hasOwnProperty.call(lapcMarketingSubcategories, selectedCategory);
+            if (recipientValue !== '@leadsagri.com') return false;
+            return (departmentValue === 'Marketing' && Object.prototype.hasOwnProperty.call(lapcMarketingSubcategories, selectedCategory))
+                || (departmentValue === 'Supply Chain' && Object.prototype.hasOwnProperty.call(lapcSupplyChainRequestTypes, selectedCategory));
         }
         function toggleMarketingSubcategory() {
             if (!marketingSubcategoryRow || !marketingSubcategoryContainer || !marketingSubcategorySelect) return;
@@ -6251,7 +8000,10 @@ if (count($emailCreationEntries) === 0) {
             if (shouldShow) {
                 marketingSubcategorySelect.disabled = false;
                 marketingSubcategorySelect.setAttribute('required', 'required');
-                populateMarketingSubcategories(lapcMarketingSubcategories[selectedCategory] || []);
+                const requestTypeOptions = String(departmentSelect.value || '') === 'Supply Chain'
+                    ? (lapcSupplyChainRequestTypes[selectedCategory] || [])
+                    : (lapcMarketingSubcategories[selectedCategory] || []);
+                populateMarketingSubcategories(requestTypeOptions);
             } else {
                 marketingSubcategorySelect.value = '';
                 marketingSubcategorySelect.setAttribute('data-selected', '');
@@ -6259,6 +8011,82 @@ if (count($emailCreationEntries) === 0) {
                 marketingSubcategorySelect.removeAttribute('required');
                 populateMarketingSubcategories([]);
                 closeMarketingSubcategoryDropdown();
+            }
+            toggleSupplyChainDetails();
+        }
+
+        function toggleSupplyChainDetails() {
+            if (!supplyChainDetailsRow || !supplyChainDetailsFields || !recipientDropdown || !departmentSelect || !categorySelect || !marketingSubcategorySelect) return;
+            const category = String(categorySelect.value || '');
+            const shouldShow = String(recipientDropdown.value || '') === '@leadsagri.com'
+                && String(departmentSelect.value || '') === 'Supply Chain'
+                && Object.prototype.hasOwnProperty.call(lapcSupplyChainDetailFields, category)
+                && String(marketingSubcategorySelect.value || '') !== '';
+            supplyChainDetailsRow.classList.toggle('is-visible', shouldShow);
+            toggleSupplyChainOptionalSections(shouldShow);
+            supplyChainDetailsFields.innerHTML = '';
+            if (!shouldShow) return;
+
+            (lapcSupplyChainDetailFields[category] || []).forEach(function(label, index) {
+                if (/^(Supporting Photo|Supporting Documents)$/i.test(label)) return;
+                const group = document.createElement('div');
+                group.className = 'supply-chain-field';
+                const formGroup = document.createElement('div');
+                formGroup.className = 'form-group';
+                const fieldLabel = document.createElement('label');
+                fieldLabel.textContent = label;
+                const isLongText = /Purpose|Special Requirements|Details\/Photos|Reason|Issue\/Concern|Specific Inquiry/i.test(label);
+                if (isLongText) group.classList.add('supply-chain-full-row');
+                const field = document.createElement(isLongText ? 'textarea' : 'input');
+                field.className = 'form-control';
+                field.name = 'supply_chain_details[' + label + ']';
+                field.required = true;
+                field.value = String(savedSupplyChainDetails[label] || '');
+                if (!isLongText && /Date\/Time/i.test(label)) field.type = 'datetime-local';
+                else if (!isLongText && /Date/i.test(label)) field.type = 'date';
+                else if (!isLongText) field.type = 'text';
+                if (isLongText) field.rows = 3;
+                const requiredMark = document.createElement('span');
+                requiredMark.className = 'required-asterisk';
+                requiredMark.textContent = '*';
+                fieldLabel.appendChild(document.createTextNode(' '));
+                fieldLabel.appendChild(requiredMark);
+                formGroup.append(fieldLabel, field);
+                group.appendChild(formGroup);
+                supplyChainDetailsFields.appendChild(group);
+            });
+        }
+
+        function toggleSupplyChainOptionalSections(isSupplyChainRequest) {
+            if (isSupplyChainRequest) {
+                const supportAttachmentLabel = (lapcSupplyChainDetailFields[String(categorySelect.value || '')] || []).find(function(label) {
+                    return /^(Supporting Photo|Supporting Documents)$/i.test(label);
+                });
+                const showStandardAttachment = String(categorySelect.value || '') === 'Delivery Concern / Exception';
+                const shouldShowAttachment = !!supportAttachmentLabel || showStandardAttachment;
+                if (descriptionContainer) {
+                    descriptionContainer.style.display = 'none';
+                    descriptionContainer.dataset.supplyChainHidden = 'true';
+                }
+                if (attachmentContainer) {
+                    if (shouldShowAttachment && supplyChainAttachmentHost) {
+                        moveAttachmentContainer(supplyChainAttachmentHost);
+                    }
+                    attachmentContainer.style.display = shouldShowAttachment ? '' : 'none';
+                    attachmentContainer.dataset.supplyChainHidden = 'true';
+                }
+                if (attachmentLabelText) attachmentLabelText.textContent = supportAttachmentLabel || 'Attachment';
+                if (descriptionField) descriptionField.removeAttribute('required');
+            } else if (descriptionContainer && descriptionContainer.dataset.supplyChainHidden === 'true') {
+                descriptionContainer.style.display = '';
+                delete descriptionContainer.dataset.supplyChainHidden;
+                if (attachmentContainer) {
+                    if (attachmentOriginalHost) moveAttachmentContainer(attachmentOriginalHost);
+                    attachmentContainer.style.display = '';
+                    delete attachmentContainer.dataset.supplyChainHidden;
+                }
+                if (attachmentLabelText) attachmentLabelText.textContent = 'Attachment';
+                if (descriptionField) descriptionField.setAttribute('required', 'required');
             }
         }
         function toggleDepartment() {
@@ -6315,11 +8143,18 @@ if (count($emailCreationEntries) === 0) {
             const departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
             return recipientValue === '@leadsagri.com' && departmentValue === 'Admin & Legal';
         }
+        function areRoutingSelectionsComplete() {
+            if (!recipientDropdown || String(recipientDropdown.value || '') === '') return false;
+            return !departmentSelect || departmentSelect.disabled || String(departmentSelect.value || '') !== '';
+        }
         function getCategoryOptions() {
             if (!recipientDropdown) return defaultCategories;
             const recipientValue = String(recipientDropdown.value || '');
             const departmentValue = departmentSelect ? String(departmentSelect.value || '') : '';
             const requestForValue = adminLegalRequestForSelect ? String(adminLegalRequestForSelect.value || '') : '';
+            if (othersOnlyCompanies.indexOf(recipientValue) !== -1) {
+                return ['Others'];
+            }
             if (recipientValue === '@malvedaproperties.com') {
                 return mpdcCategories;
             }
@@ -6360,6 +8195,29 @@ if (count($emailCreationEntries) === 0) {
                     closeAdminLegalRequestForDropdown();
                 }
                 renderAdminLegalRequestForDropdownOptions();
+            }
+            const routingSelectionsComplete = areRoutingSelectionsComplete();
+            if (urgencySelect) {
+                urgencySelect.disabled = !routingSelectionsComplete;
+                if (routingSelectionsComplete) {
+                    urgencySelect.setAttribute('required', 'required');
+                } else {
+                    urgencySelect.value = '';
+                    urgencySelect.removeAttribute('required');
+                    if (priorityHidden) priorityHidden.value = '';
+                }
+                renderUrgencyDropdownOptions();
+            }
+            if (!routingSelectionsComplete) {
+                if (categoryContainer) categoryContainer.style.display = '';
+                categorySelect.value = '';
+                categorySelect.setAttribute('data-selected', '');
+                categorySelect.disabled = true;
+                categorySelect.removeAttribute('required');
+                populateCategories([]);
+                toggleMarketingSubcategory();
+                syncRequestGridRows();
+                return;
             }
             if (adminLegalSelected && requestForValue === '') {
                 if (categoryContainer) categoryContainer.style.display = 'none';
@@ -6772,7 +8630,7 @@ if (count($emailCreationEntries) === 0) {
             if (!departmentSelect) return;
             const currentValue = keepExistingValue ? String(departmentSelect.value || '').trim() : '';
             const options = getEmailCreationDepartmentOptions(subsidiarySelect ? subsidiarySelect.value : '');
-            departmentSelect.innerHTML = '<option value="" disabled selected hidden>Choose department</option>';
+            departmentSelect.innerHTML = '<option value="" disabled selected hidden>Select department</option>';
             options.forEach(function(optionValue) {
                 const option = document.createElement('option');
                 option.value = optionValue;
@@ -7502,9 +9360,6 @@ if (count($emailCreationEntries) === 0) {
                 if (cropOtherInput) cropOtherInput.removeAttribute('required');
             }
 
-            if (attachmentOptionalText && shouldShowMarketingRequest) {
-                attachmentOptionalText.style.display = 'none';
-            }
 
             if (!shouldShowUrgency) {
                 priorityHidden.value = '';
@@ -7519,6 +9374,7 @@ if (count($emailCreationEntries) === 0) {
             }
 
             syncUrgencyInputs();
+            toggleSupplyChainOptionalSections(!!(supplyChainDetailsRow && supplyChainDetailsRow.classList.contains('is-visible')));
             syncRequestGridRows();
         }
         if (recipientDropdown) {
@@ -7787,6 +9643,7 @@ if (count($emailCreationEntries) === 0) {
                 marketingSubcategorySelect.setAttribute('data-selected', String(marketingSubcategorySelect.value || ''));
                 syncMarketingSubcategoryTriggerLabel();
                 renderMarketingSubcategoryDropdownOptions();
+                toggleSupplyChainDetails();
             });
         }
         if (marketingSubcategoryTrigger && marketingSubcategoryMenu && marketingSubcategoryWrapper) {
@@ -8427,7 +10284,9 @@ if (count($emailCreationEntries) === 0) {
 
                 var removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
-                removeBtn.textContent = 'x';
+                removeBtn.className = 'attachment-remove-button';
+                removeBtn.textContent = '\u00d7';
+                removeBtn.setAttribute('aria-label', 'Remove ' + file.name);
                 removeBtn.style.border = '1px solid #e2e8f0';
                 removeBtn.style.background = '#ffffff';
                 removeBtn.style.color = '#ef4444';
@@ -8668,9 +10527,11 @@ if (count($emailCreationEntries) === 0) {
                     setInlineFormError('Please choose the level of urgency.');
                     return;
                 }
-                if (isLapcMarketingSelected && Object.prototype.hasOwnProperty.call(lapcMarketingSubcategories, selectedCategory) && marketingSubcategorySelect && !String(marketingSubcategorySelect.value || '').trim()) {
+                var requiresLapcRequestType = (isLapcMarketingSelected && Object.prototype.hasOwnProperty.call(lapcMarketingSubcategories, selectedCategory))
+                    || (recipientDropdown && departmentSelect && String(recipientDropdown.value || '') === '@leadsagri.com' && String(departmentSelect.value || '') === 'Supply Chain' && Object.prototype.hasOwnProperty.call(lapcSupplyChainRequestTypes, selectedCategory));
+                if (requiresLapcRequestType && marketingSubcategorySelect && !String(marketingSubcategorySelect.value || '').trim()) {
                     e.preventDefault();
-                    setInlineFormError('Please choose the Sub-Category.');
+                    setInlineFormError('Please choose the Request Type / Concern.');
                     return;
                 }
                 if (isMhcMarketingSelected) {
@@ -9127,6 +10988,100 @@ if (count($emailCreationEntries) === 0) {
         if (!pageError) return;
         window.requestAnimationFrame(function () {
             pageError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    })();
+
+    (function () {
+        var guidanceCard = document.getElementById('requestGuidanceCard');
+        var guidanceToggle = document.getElementById('requestGuidanceToggle');
+        var mobileGuidanceQuery = window.matchMedia('(max-width: 768px)');
+        var search = document.getElementById('requestGuidanceSearch');
+        var directory = document.querySelector('.request-guidance-directory');
+        var noResults = document.getElementById('requestGuidanceNoResults');
+
+        function setGuidanceExpanded(expanded) {
+            if (!guidanceCard || !guidanceToggle) return;
+            guidanceCard.classList.toggle('is-expanded', expanded);
+            guidanceToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        }
+
+        function syncGuidanceDisplay(event) {
+            var isMobile = event ? event.matches : mobileGuidanceQuery.matches;
+            setGuidanceExpanded(!isMobile);
+            if (guidanceToggle) guidanceToggle.tabIndex = isMobile ? 0 : -1;
+        }
+
+        syncGuidanceDisplay();
+
+        if (guidanceToggle) {
+            guidanceToggle.addEventListener('click', function () {
+                if (!mobileGuidanceQuery.matches) return;
+                setGuidanceExpanded(!guidanceCard.classList.contains('is-expanded'));
+            });
+        }
+
+        if (typeof mobileGuidanceQuery.addEventListener === 'function') {
+            mobileGuidanceQuery.addEventListener('change', syncGuidanceDisplay);
+        } else if (typeof mobileGuidanceQuery.addListener === 'function') {
+            mobileGuidanceQuery.addListener(syncGuidanceDisplay);
+        }
+
+        if (!directory) return;
+
+        var companyGuides = Array.prototype.slice.call(directory.querySelectorAll('.request-company-guide'));
+        companyGuides.forEach(function (guide) {
+            guide.dataset.initiallyOpen = guide.open ? 'true' : 'false';
+        });
+
+        directory.querySelectorAll('.request-view-departments').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var guide = button.closest('.request-company-guide');
+                if (!guide) return;
+
+                var expanded = guide.classList.toggle('show-all-departments');
+                var label = button.querySelector('span');
+                button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                if (label) label.textContent = expanded ? 'Show fewer departments' : 'View all departments';
+            });
+        });
+
+        if (!search) return;
+
+        search.addEventListener('input', function () {
+            var query = search.value.trim().toLowerCase();
+            directory.classList.toggle('is-searching', query !== '');
+            var visibleCompanies = 0;
+
+            companyGuides.forEach(function (guide) {
+                var summary = guide.querySelector('summary');
+                var companyText = summary ? summary.textContent.toLowerCase() : '';
+                var companyMatches = query !== '' && companyText.indexOf(query) !== -1;
+                var departmentMatches = false;
+                var departments = Array.prototype.slice.call(guide.querySelectorAll('.request-department-guide'));
+
+                departments.forEach(function (department) {
+                    var departmentMatchesQuery = query !== '' && department.textContent.toLowerCase().indexOf(query) !== -1;
+                    var matches = query === '' || companyMatches || departmentMatchesQuery;
+                    department.hidden = !matches;
+                    department.style.display = matches ? '' : 'none';
+                    department.classList.toggle('is-search-match', departmentMatchesQuery);
+                    if (departmentMatchesQuery) departmentMatches = true;
+                });
+
+                guide.hidden = Boolean(query && !companyMatches && !departmentMatches);
+                guide.classList.toggle('is-search-match', companyMatches);
+                if (!guide.hidden) visibleCompanies += 1;
+                if (query && !guide.hidden) {
+                    guide.open = true;
+                } else if (!query) {
+                    guide.open = guide.dataset.initiallyOpen === 'true';
+                    departments.forEach(function (department) {
+                        department.style.display = '';
+                    });
+                }
+            });
+
+            if (noResults) noResults.hidden = query === '' || visibleCompanies > 0;
         });
     })();
     </script>
