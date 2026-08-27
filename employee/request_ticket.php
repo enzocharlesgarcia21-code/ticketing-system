@@ -5276,6 +5276,44 @@ if (count($emailCreationEntries) === 0) {
             font-weight: 900;
         }
 
+        body.employee-request-ticket-page .request-main-column .request-destination-heading {
+            margin: 0 0 14px;
+        }
+
+        body.employee-request-ticket-page .request-main-column .request-destination-heading-main {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #166534;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .04em;
+            line-height: 1.35;
+            text-transform: uppercase;
+        }
+
+        body.employee-request-ticket-page .request-main-column .request-destination-heading-main::before {
+            content: "\f3c5";
+            color: #15803d;
+            font-family: "Font Awesome 6 Free";
+            font-size: 13px;
+            font-weight: 900;
+        }
+
+        body.employee-request-ticket-page .request-main-column .request-destination-heading-main::after {
+            content: "";
+            height: 1px;
+            flex: 1 1 auto;
+            background: #dfe8e2;
+        }
+
+        body.employee-request-ticket-page .request-main-column .request-destination-heading p {
+            margin: 4px 0 0;
+            color: #64748b;
+            font-size: 11.5px;
+            line-height: 1.45;
+        }
+
         body.employee-request-ticket-page .request-main-column .form-group {
             margin-bottom: 16px;
         }
@@ -6192,6 +6230,11 @@ if (count($emailCreationEntries) === 0) {
                     
                     <!-- 🔹 Request Information -->
                     <h3 class="form-section-title">Request Information</h3>
+
+                    <div class="request-destination-heading" aria-labelledby="ticketDestinationHeading">
+                        <div class="request-destination-heading-main" id="ticketDestinationHeading">Ticket destination</div>
+                        <p>Choose where you want this ticket to be routed.</p>
+                    </div>
 
                     <div class="request-grid-row is-single" id="recipientDepartmentRow">
                         <div class="form-group">

@@ -2376,15 +2376,18 @@ var TMTicketModal = (function () {
     var title = 'Description';
     var descriptionText = String((data && data.description) || '');
     var descriptionHtml = '';
+    var isStructuredForm = false;
     if (descriptionText) {
       var emailCreationHtml = renderEmailCreationDescriptionHtml(data, descriptionText);
       var sapDescriptionHtml = emailCreationHtml ? '' : renderSapDescriptionHtml(data, descriptionText);
       if (emailCreationHtml) {
         title = 'Creation of Email';
         descriptionHtml = emailCreationHtml;
+        isStructuredForm = true;
       } else if (sapDescriptionHtml) {
         title = 'SAP Form';
         descriptionHtml = sapDescriptionHtml;
+        isStructuredForm = true;
       } else {
       var salesMeta = parseSalesTicketDescriptionMeta(data);
       var lines = salesMeta.cleanedLines.length ? salesMeta.cleanedLines : descriptionText.split(/\r?\n/).map(function (line) { return String(line || '').trim(); }).filter(function (line) { return line !== ''; });
@@ -2419,7 +2422,8 @@ var TMTicketModal = (function () {
       }
     }
     var emptyHtml = !descriptionHtml ? '<div class="tm-info-value">-</div>' : '';
-    return '<div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(title) + '</span></div><div class="tm-card-body"><div class="tm-ticket-content-scroll tm-ticket-description-scroll">' + descriptionHtml + emptyHtml + '</div>' + String(footerHtml || '') + '</div></div>';
+    var descriptionScrollClass = 'tm-ticket-content-scroll tm-ticket-description-scroll' + (isStructuredForm ? ' tm-structured-form-scroll' : '');
+    return '<div class="tm-card tm-card-description"><div class="tm-card-header"><span class="tm-card-title">' + escapeHtml(title) + '</span></div><div class="tm-card-body"><div class="' + descriptionScrollClass + '">' + descriptionHtml + emptyHtml + '</div>' + String(footerHtml || '') + '</div></div>';
   }
   function renderAttachmentCard(data, footerHtml, preparedAttachmentsHtml) {
     var attachmentsHtml = preparedAttachmentsHtml || renderAttachmentsBlock(data, { showAll: true });
@@ -3414,6 +3418,8 @@ var TMTicketModal = (function () {
     }
     var assignedCompanyValue = resolveCompanyIdentity(data.assigned_company || data.company || '', data.assigned_company_name || data.company_name || '');
     var assignedDeptValue = data.assigned_department || data.assigned_group || data.department || '';
+    var requesterCompanyDisplay = dashIfUnknown(data.requester_company || companyDisplayName(data.company || data.user_company || ''));
+    var requesterDepartmentDisplay = dashIfUnknown(data.requester_department != null ? data.requester_department : data.department);
     var emailRequestTypeDisplay = getEmailRequestTypeDisplay(data);
     var emailRequestTypeInfoHtml = emailRequestTypeDisplay
       ? ('        <div class="tm-info-label">Email request type</div><div class="tm-info-value">' + escapeHtml(emailRequestTypeDisplay) + '</div>')
@@ -3519,7 +3525,8 @@ var TMTicketModal = (function () {
       '      <div class="tm-card tm-card-ticket-info"><div class="tm-card-header"><span class="tm-card-title">Ticket Information</span></div><div class="tm-card-body"><div class="tm-info-grid">' +
       '        <div class="tm-info-label">Created by</div><div class="tm-info-value">' + (data.created_by_name ? escapeHtml(String(data.created_by_name)) : '-') + '</div>' +
       '        <div class="tm-info-label">Email</div><div class="tm-info-value">' + (data.created_by_email ? escapeHtml(String(data.created_by_email)) : '-') + '</div>' +
-      '        <div class="tm-info-label">Department</div><div class="tm-info-value">' + escapeHtml(dashIfUnknown(data.department)) + '</div>' +
+      '        <div class="tm-info-label">Company</div><div class="tm-info-value">' + escapeHtml(requesterCompanyDisplay) + '</div>' +
+      '        <div class="tm-info-label">Department</div><div class="tm-info-value">' + escapeHtml(requesterDepartmentDisplay) + '</div>' +
       salesTicketInfoHtml +
       '        <div class="tm-info-label">Category</div><div class="tm-info-value">' + (data.category ? escapeHtml(String(data.category)) : '-') + '</div>' +
       '        <div class="tm-info-label">Urgency</div><div class="tm-info-value">' + (data.urgency ? escapeHtml(String(data.urgency)) : '-') + '</div>' +
@@ -3539,11 +3546,6 @@ var TMTicketModal = (function () {
       resolutionCardHtml +
       '      ' + ((data.impact && data.impact !== '-') ? '<div class="tm-card tm-card-impact"><div class="tm-card-header"><span class="tm-card-title">Impact</span></div><div class="tm-card-body"><div class="tm-info-value">' + escapeHtml(String(data.impact)) + '</div></div></div>' : '') +
       '    </div>' +
-      '    <nav class="tm-mobile-section-nav" aria-label="Ticket information sections">' +
-      '      <button type="button" class="tm-mobile-section-btn" data-mobile-section-previous disabled onclick="TMTicketModal.stepMobileInfoSection(-1)"><i class="fas fa-chevron-left" aria-hidden="true"></i><span>Previous</span></button>' +
-      '      <div class="tm-mobile-section-status" aria-live="polite"><strong data-mobile-section-title>Ticket Information</strong><span data-mobile-section-counter>1 of 3</span></div>' +
-      '      <button type="button" class="tm-mobile-section-btn is-primary" data-mobile-section-next onclick="TMTicketModal.stepMobileInfoSection(1)"><span>Next</span><i class="fas fa-chevron-right" aria-hidden="true"></i></button>' +
-      '    </nav>' +
       '    </div>' +
       '  </div>' +
       (hideActionHistoryTab ? '' : '  <div id="tab-action-history" class="tm-tab-content">' +
@@ -3670,6 +3672,8 @@ var TMTicketModal = (function () {
     var priority = safe && safe.priority ? String(safe.priority) : (safe && safe.urgency ? String(safe.urgency) : '-');
     var requester = safe && safe.created_by_name ? String(safe.created_by_name) : '-';
     var requesterEmail = safe && safe.created_by_email ? String(safe.created_by_email) : '-';
+    var requesterCompany = dashIfUnknown(safe.requester_company || companyDisplayName(safe.company || safe.user_company || ''));
+    var requesterDepartment = dashIfUnknown(safe.requester_department != null ? safe.requester_department : safe.department);
     var assignedInfo = getAssignedTargetParts(safe);
     var department = assignedInfo.primary
       ? ((!assignedInfo.showDepartment && assignedInfo.company && assignedInfo.primary === assignedInfo.company)
@@ -3701,6 +3705,8 @@ var TMTicketModal = (function () {
       '      <div class="tm-card tm-card-ticket-info"><div class="tm-card-header"><span class="tm-card-title">Ticket Information</span></div><div class="tm-card-body"><div class="tm-info-grid">' +
       '        <div class="tm-info-label">CREATED BY</div><div class="tm-info-value">' + escapeHtml(requester) + '</div>' +
       '        <div class="tm-info-label">EMAIL</div><div class="tm-info-value">' + escapeHtml(requesterEmail) + '</div>' +
+      '        <div class="tm-info-label">COMPANY</div><div class="tm-info-value">' + escapeHtml(requesterCompany) + '</div>' +
+      '        <div class="tm-info-label">DEPARTMENT</div><div class="tm-info-value">' + escapeHtml(requesterDepartment) + '</div>' +
       '        <div class="tm-info-label">CATEGORY</div><div class="tm-info-value">' + (safe.category ? escapeHtml(String(safe.category)) : '-') + '</div>' +
       '        <div class="tm-info-label">URGENCY</div><div class="tm-info-value">' + (safe.urgency ? escapeHtml(String(safe.urgency)) : '-') + '</div>' +
       emailRequestTypeInfoHtml +
@@ -3815,40 +3821,6 @@ var TMTicketModal = (function () {
         if (btn) btn.disabled = false;
       });
   }
-  var mobileInfoSectionLabels = ['Ticket Information', 'Description', 'Ticket Activity'];
-  function setMobileInfoSection(index, shouldScroll) {
-    var panel = qs('tab-info');
-    if (!panel) return;
-    var nextIndex = Math.max(0, Math.min(mobileInfoSectionLabels.length - 1, Number(index) || 0));
-    panel.setAttribute('data-mobile-section', String(nextIndex));
-
-    var title = panel.querySelector('[data-mobile-section-title]');
-    var counter = panel.querySelector('[data-mobile-section-counter]');
-    var previous = panel.querySelector('[data-mobile-section-previous]');
-    var next = panel.querySelector('[data-mobile-section-next]');
-    if (title) title.textContent = mobileInfoSectionLabels[nextIndex];
-    if (counter) counter.textContent = String(nextIndex + 1) + ' of ' + String(mobileInfoSectionLabels.length);
-    if (previous) previous.disabled = nextIndex === 0;
-    if (next) next.disabled = nextIndex === mobileInfoSectionLabels.length - 1;
-
-    if (shouldScroll && window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
-      var activeSection = nextIndex === 1
-        ? panel.querySelector('.tm-desc-col')
-        : panel.querySelector('.tm-info-col');
-      var scrollTarget = activeSection || panel;
-      if (typeof scrollTarget.scrollTo === 'function') {
-        scrollTarget.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        scrollTarget.scrollTop = 0;
-      }
-    }
-  }
-  function stepMobileInfoSection(delta) {
-    var panel = qs('tab-info');
-    if (!panel) return;
-    var currentIndex = parseInt(panel.getAttribute('data-mobile-section') || '0', 10);
-    setMobileInfoSection(currentIndex + Number(delta || 0), true);
-  }
   function switchTab(tabName) {
     document.querySelectorAll('.tm-tab-content').forEach(function (c) { c.classList.remove('active'); });
     document.querySelectorAll('.tm-tab').forEach(function (t) { t.classList.remove('active'); });
@@ -3860,7 +3832,6 @@ var TMTicketModal = (function () {
       var noteEl = qs('tmAdminNote');
       if (noteEl) noteEl.value = '';
     }
-    if (tabName === 'info') setMobileInfoSection(0, false);
     if (tabName === 'chat') { /* no-op: chat now opens in separate modal */ }
   }
   function claimTicket(ticketId, buttonEl) {
@@ -6316,7 +6287,6 @@ var TMTicketModal = (function () {
           console.error('Ticket modal render failed:', renderError, data);
           modalContent.innerHTML = buildFallbackHtml(data);
         }
-        setMobileInfoSection(0, false);
         try {
           if (data && data.id != null && data.hide_conversation_tab !== true && (data.is_sales_ticket !== true || data.sales_manager_regional_access === true || data.sales_assignee_chat_access === true) && (data.reassigned_view_only !== true || data.can_view_chat_history === true)) {
             var tabsEl = modalContent.querySelector('.tm-tabs');
@@ -6589,7 +6559,6 @@ var TMTicketModal = (function () {
     openFilePreviewFromCard: openFilePreviewFromCard,
     closeFilePreview: closeFilePreview,
     toggleTimeline: toggleTimeline,
-    stepMobileInfoSection: stepMobileInfoSection,
     getCurrentTicketId: getCurrentTicketId
   };
 })(); 

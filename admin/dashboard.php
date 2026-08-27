@@ -198,9 +198,10 @@ $recentTickets = [];
 $recentRes = $conn->query("
     SELECT
         t.id,
-        u.name AS requester_name,
-        u.email AS requester_email,
+        COALESCE(NULLIF(TRIM(t.requester_name), ''), u.name) AS requester_name,
+        COALESCE(NULLIF(TRIM(t.requester_email), ''), u.email) AS requester_email,
         t.department,
+        u.company AS user_company,
         u.department AS user_department,
         t.company,
         t.assigned_company,
@@ -731,8 +732,8 @@ if ($recentRes) {
                                                     <?php endif; ?>
                                                 </td>
                                                 <td data-label="Department"><?php
-                                                    $origDept = !empty($t['department']) ? $t['department'] : ($t['user_department'] ?? '');
-                                                    echo htmlspecialchars($origDept !== '' ? ticket_department_display_name((string) $origDept) : 'Sales');
+                                                    $requesterOrganization = ticket_requester_organization_fields($t);
+                                                    echo htmlspecialchars((string) $requesterOrganization['department'], ENT_QUOTES, 'UTF-8');
                                                 ?></td>
                                                 <td data-label="Created"><?= htmlspecialchars(admin_ticket_created_date((string) ($t['created_at'] ?? '')), ENT_QUOTES, 'UTF-8') ?></td>
                                                 <td data-label="SLA"><?= sla_badge_html((string) ($t['created_at'] ?? ''), (string) ($t['status'] ?? ''), (string) ($t['priority'] ?? '')); ?></td>

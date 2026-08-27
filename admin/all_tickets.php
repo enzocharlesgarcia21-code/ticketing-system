@@ -99,17 +99,18 @@ $view       = (string) ($_GET['view'] ?? '');
 $view = $view === 'trash' ? '' : $view;
 $department_key = $department !== '' ? ticket_department_key_from_value((string) $department) : '';
 $departmentFilterOptionsByCompany = [
-    '@leadsagri.com' => ticket_company_allowed_groups('@leadsagri.com'),
+    '@leadsagri.com' => ticket_lapc_department_filter_options(),
     '@malvedaholdings.com' => ticket_company_allowed_groups('@malvedaholdings.com'),
 ];
 $normalizedCompanyFilter = ticket_normalize_company((string) $company_email);
+$salesDepartmentFilter = $normalizedCompanyFilter === '@leadsagri.com' && strcasecmp(trim((string) $department), 'Sales') === 0;
 $initialDepartmentFilterOptions = $departmentFilterOptionsByCompany[$normalizedCompanyFilter] ?? [];
 $adminId = (int) ($_SESSION['user_id'] ?? 0);
 $allowedViews = ['all', 'my_open', 'resolved'];
 if (!in_array($view, $allowedViews, true)) $view = '';
 
 $query = "
-SELECT employee_tickets.*, users.name, users.email, users.department AS user_department
+SELECT employee_tickets.*, users.name, users.email, users.company AS user_company, users.department AS user_department
 FROM employee_tickets
 LEFT JOIN users ON employee_tickets.user_id = users.id
 WHERE 1
@@ -127,6 +128,9 @@ if ($view !== '') {
 $query .= " AND COALESCE(NULLIF(employee_tickets.status,''),'') <> 'Trash'";
 
 if (!empty($department)) {
+    if ($salesDepartmentFilter) {
+        $query .= " AND " . ticket_sales_origin_condition_sql('employee_tickets');
+    } else {
     $deptKey = $department_key !== '' ? $department_key : ticket_department_key_from_value((string) $department);
     $deptAliases = ticket_department_aliases_for_key($deptKey);
     $deptAliases[] = $deptKey;
@@ -136,9 +140,10 @@ if (!empty($department)) {
         $deptConds = [];
         foreach ($deptAliases as $a) {
             $aEsc = $conn->real_escape_string($a);
-            $deptConds[] = "UPPER(COALESCE(NULLIF(employee_tickets.assigned_group,''), NULLIF(employee_tickets.assigned_department,''), NULLIF(employee_tickets.department,''), NULLIF(users.department,''))) = '$aEsc'";
+            $deptConds[] = "UPPER(COALESCE(NULLIF(employee_tickets.department,''), NULLIF(users.department,''))) = '$aEsc'";
         }
         $query .= " AND (" . implode(" OR ", $deptConds) . ")";
+    }
     }
 }
 
@@ -162,12 +167,24 @@ if (!empty($status)) {
 
 if (!empty($company_email)) {
     $domain = strtolower(trim((string) $company_email));
+    $requesterCompanyExpr = ticket_requester_company_filter_expression_sql('employee_tickets', 'users');
     if ($domain === '__farmex_lav__') {
-        $query .= " AND LOWER(COALESCE(NULLIF(employee_tickets.assigned_company,''), NULLIF(employee_tickets.company,''))) IN ('@leads-farmex.com', '@leadsav.com')";
+        $companyAliases = array_merge(
+            ticket_company_filter_aliases('@leads-farmex.com'),
+            ticket_company_filter_aliases('@leadsav.com')
+        );
     } elseif ($domain !== '') {
         if ($domain[0] !== '@') $domain = '@' . $domain;
-        $domainEsc = $conn->real_escape_string($domain);
-        $query .= " AND LOWER(COALESCE(NULLIF(employee_tickets.assigned_company,''), NULLIF(employee_tickets.company,''))) = '$domainEsc'";
+        $companyAliases = ticket_company_filter_aliases($domain);
+    } else {
+        $companyAliases = [];
+    }
+    $companyAliases = array_values(array_unique($companyAliases));
+    if (count($companyAliases) > 0) {
+        $quotedAliases = array_map(static function ($alias) use ($conn): string {
+            return "'" . $conn->real_escape_string((string) $alias) . "'";
+        }, $companyAliases);
+        $query .= " AND LOWER(($requesterCompanyExpr)) IN (" . implode(', ', $quotedAliases) . ")";
     }
 }
 
@@ -770,6 +787,9 @@ $result = $stmt->get_result();
                                                     }
                                                 }
                                             }
+                                            $requesterTableRow = $row;
+                                            $requesterTableRow['requester_email'] = $dispEmail;
+                                            $requesterOrganization = ticket_requester_organization_fields($requesterTableRow);
                                         ?>
                                         <strong><?= htmlspecialchars($dispName, ENT_QUOTES, 'UTF-8'); ?></strong><br>
                                         <small><?= htmlspecialchars($dispEmail, ENT_QUOTES, 'UTF-8'); ?></small>
@@ -783,10 +803,7 @@ $result = $stmt->get_result();
                                         <span class="new-badge">NEW</span>
                                     <?php endif; ?>
                                 </td>
-                                <td data-label="Department"><?php 
-                                    $origDept = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
-                                    echo htmlspecialchars($origDept !== '' ? ticket_department_display_name((string) $origDept) : 'Sales');
-                                ?></td>
+                                <td data-label="Department"><?= htmlspecialchars((string) $requesterOrganization['department'], ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td data-label="Created"><?= htmlspecialchars(admin_ticket_created_date((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td data-label="SLA"><?= sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
                                 <td data-label="Assign To"><?= htmlspecialchars(assigned_target_label($row), ENT_QUOTES, 'UTF-8'); ?></td>

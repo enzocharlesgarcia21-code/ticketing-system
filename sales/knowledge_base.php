@@ -1526,11 +1526,12 @@ if ($showCategoryView) {
                 min-height: 100vh;
                 border-top: 2px solid #2f8644;
                 zoom: 1 !important;
-                background:
-                    linear-gradient(to bottom, rgba(255, 255, 255, 0.16) 0, rgba(248, 250, 248, 0.76) 145px, #f8faf8 220px),
-                    url('../assets/img/dashboard_bg.jpg') center top / 100% 220px no-repeat,
-                    #f8faf8 !important;
-                background-attachment: scroll !important;
+                background-color: #f7f9f8 !important;
+                background-image: url('../assets/img/dashboard_bg.jpg') !important;
+                background-repeat: no-repeat !important;
+                background-size: cover !important;
+                background-position: center -28px !important;
+                background-attachment: fixed !important;
                 box-sizing: border-box;
             }
 

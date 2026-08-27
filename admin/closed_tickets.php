@@ -596,8 +596,11 @@ function openModal(id) {
                                     <div class="tm-info-label">EMAIL</div>
                                     <div class="tm-info-value">${data.created_by_email ? escapeHtml(String(data.created_by_email)) : '-'}</div>
 
+                                    <div class="tm-info-label">COMPANY</div>
+                                    <div class="tm-info-value">${data.requester_company ? escapeHtml(String(data.requester_company)) : '-'}</div>
+
                                     <div class="tm-info-label">DEPARTMENT</div>
-                                    <div class="tm-info-value">${data.department ? escapeHtml(String(data.department)) : '-'}</div>
+                                    <div class="tm-info-value">${data.requester_department ? escapeHtml(String(data.requester_department)) : '-'}</div>
 
                                     <div class="tm-info-label">CREATED AT</div>
                                     <div class="tm-info-value">${data.created_at ? formatTimelineTime(data.created_at) : '-'}</div>

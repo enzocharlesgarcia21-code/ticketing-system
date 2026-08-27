@@ -67,6 +67,8 @@ function my_tickets_filter_clauses(mysqli $conn, string $search, string $company
     $department = trim($department);
     $status = trim($status);
     $sla = trim($sla);
+    $isLapcCompanyFilter = ticket_normalize_company($company) === '@leadsagri.com';
+    $isSalesDepartmentFilter = $isLapcCompanyFilter && strcasecmp($department, 'Sales') === 0;
 
     if ($search !== '') {
         $like = '%' . $search . '%';
@@ -89,7 +91,10 @@ function my_tickets_filter_clauses(mysqli $conn, string $search, string $company
             return $value !== '';
         })));
         if (count($aliases) > 0) {
-            $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_company, ''), t.company, ''))) IN (" . implode(',', array_fill(0, count($aliases), '?')) . ")";
+            $companyCondition = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_company, ''), t.company, ''))) IN (" . implode(',', array_fill(0, count($aliases), '?')) . ")";
+            $where[] = $isLapcCompanyFilter
+                ? "($companyCondition OR " . ticket_sales_origin_condition_sql('t') . ")"
+                : $companyCondition;
             $types .= str_repeat('s', count($aliases));
             foreach ($aliases as $alias) {
                 $params[] = $alias;
@@ -97,12 +102,16 @@ function my_tickets_filter_clauses(mysqli $conn, string $search, string $company
         }
     }
 
-    if ($department !== '' && ticket_normalize_company($company) === '@leadsagri.com') {
-        $allowedDepartments = ticket_lapc_departments();
+    if ($department !== '' && $isLapcCompanyFilter) {
+        $allowedDepartments = ticket_lapc_department_filter_options();
         if (in_array($department, $allowedDepartments, true)) {
-            $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department, ''))) = UPPER(?)";
-            $types .= 's';
-            $params[] = $department;
+            if ($isSalesDepartmentFilter) {
+                $where[] = ticket_sales_origin_condition_sql('t');
+            } else {
+                $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department, ''))) = UPPER(?)";
+                $types .= 's';
+                $params[] = $department;
+            }
         }
     }
 
@@ -397,7 +406,7 @@ $slaFilter = trim((string) ($_GET['sla'] ?? ''));
 if ($page < 1) $page = 1;
 if ($limit < 1) $limit = 1;
 if ($limit > 100) $limit = 100;
-if (ticket_normalize_company($companyFilter) !== '@leadsagri.com' || !in_array($departmentFilter, ticket_lapc_departments(), true)) {
+if (ticket_normalize_company($companyFilter) !== '@leadsagri.com' || !in_array($departmentFilter, ticket_lapc_department_filter_options(), true)) {
     $departmentFilter = '';
 }
 if (my_tickets_normalize_sla_filter($slaFilter) === '') {

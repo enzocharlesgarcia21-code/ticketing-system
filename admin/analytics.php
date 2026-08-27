@@ -320,8 +320,25 @@ function analytics_apply_company_filter(array &$where, array &$params, string &$
         return;
     }
 
-    $where[] = "$fieldExpr = ?";
+    $companyCondition = "$fieldExpr = ?";
+    $where[] = $companyFilter === '@leadsagri.com'
+        ? "($companyCondition OR " . ticket_sales_origin_condition_sql('t') . ")"
+        : $companyCondition;
     $params[] = $companyFilter;
+    $types .= 's';
+}
+
+function analytics_apply_department_filter(array &$where, array &$params, string &$types, string $fieldExpr, string $departmentFilter, string $ticketAlias = 't'): void
+{
+    if ($departmentFilter === '') {
+        return;
+    }
+    if (strcasecmp($departmentFilter, 'Sales') === 0) {
+        $where[] = ticket_sales_origin_condition_sql($ticketAlias);
+        return;
+    }
+    $where[] = "$fieldExpr = ?";
+    $params[] = $departmentFilter;
     $types .= 's';
 }
 
@@ -437,12 +454,14 @@ $company_options = [
 ];
 if ($company_filter !== '' && !array_key_exists($company_filter, $company_options)) $company_filter = '';
 
-$department_options = ticket_lapc_departments();
+$department_options = ticket_lapc_department_filter_options();
 $department_options_by_company = [];
 foreach ($company_options as $companyOption => $_companyLabel) {
     $department_options_by_company[$companyOption] = analytics_is_combined_farmex_lav_filter($companyOption)
         ? []
-        : ticket_company_allowed_groups($companyOption);
+        : ($companyOption === '@leadsagri.com'
+            ? ticket_lapc_department_filter_options()
+            : ticket_company_allowed_groups($companyOption));
 }
 if (!$analyticsIsEmployeeView || $analyticsIsSalesManagerView) {
     $department_options = $company_filter !== '' ? ($department_options_by_company[$company_filter] ?? []) : [];
@@ -500,11 +519,7 @@ analytics_apply_company_filter(
     "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))",
     $company_filter
 );
-if ($department_filter !== '') {
-    $ticket_where[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
-    $ticket_params[] = $department_filter;
-    $ticket_types .= "s";
-}
+analytics_apply_department_filter($ticket_where, $ticket_params, $ticket_types, "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''))", $department_filter);
 if ($status_filter !== '') {
     $ticket_where[] = "t.status = ?";
     $ticket_params[] = $status_filter;
@@ -648,11 +663,7 @@ analytics_apply_company_filter(
     "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))",
     $company_filter
 );
-if ($department_filter !== '') {
-    $resolutionRangeWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
-    $resolutionRangeParams[] = $department_filter;
-    $resolutionRangeTypes .= "s";
-}
+analytics_apply_department_filter($resolutionRangeWhere, $resolutionRangeParams, $resolutionRangeTypes, "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''))", $department_filter);
 if ($status_filter !== '') {
     $resolutionRangeWhere[] = "t.status = ?";
     $resolutionRangeParams[] = $status_filter;
@@ -721,11 +732,7 @@ analytics_apply_company_filter(
     "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))",
     $company_filter
 );
-if ($department_filter !== '') {
-    $dailyTrendWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
-    $dailyTrendParams[] = $department_filter;
-    $dailyTrendTypes .= "s";
-}
+analytics_apply_department_filter($dailyTrendWhere, $dailyTrendParams, $dailyTrendTypes, "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''))", $department_filter);
 if ($status_filter !== '') {
     $dailyTrendWhere[] = "t.status = ?";
     $dailyTrendParams[] = $status_filter;
@@ -850,11 +857,7 @@ analytics_apply_company_filter(
     "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))",
     $company_filter
 );
-if ($department_filter !== '') {
-    $resolutionBucketWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
-    $resolutionBucketParams[] = $department_filter;
-    $resolutionBucketTypes .= "s";
-}
+analytics_apply_department_filter($resolutionBucketWhere, $resolutionBucketParams, $resolutionBucketTypes, "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''))", $department_filter);
 if ($status_filter !== '') {
     $resolutionBucketWhere[] = "t.status = ?";
     $resolutionBucketParams[] = $status_filter;
@@ -981,7 +984,7 @@ if (isset($_GET['ajax_trend'])) {
 }
 
 $companyExpr = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''), '')";
-$departmentExpr = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''), '')";
+$departmentExpr = "CASE WHEN " . ticket_sales_origin_condition_sql('t') . " THEN 'Sales' ELSE COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''), '') END";
 $lapcCompanySql = "LOWER(TRIM($companyExpr)) IN ('@leadsagri.com', 'leadsagri.com', 'lapc', 'lapc (@leadsagri.com)', 'leads agricultural products corporation - lapc')";
 
 $companyChartWhere = ["COALESCE(NULLIF(t.status,''),'') <> 'Trash'"];
@@ -1010,12 +1013,11 @@ analytics_apply_company_filter(
 $lapcDepartmentLabels = [];
 $lapcDepartmentCounts = [];
 $lapcWhere = $companyChartWhere;
-$lapcWhere[] = $lapcCompanySql;
+$lapcWhere[] = "($lapcCompanySql OR " . ticket_sales_origin_condition_sql('t') . ")";
 if ($department_filter !== '') {
-    $lapcWhere[] = "$departmentExpr = ?";
     $companyChartParamsForLapc = $companyChartParams;
-    $companyChartParamsForLapc[] = $department_filter;
-    $lapcTypes = $companyChartTypes . "s";
+    $lapcTypes = $companyChartTypes;
+    analytics_apply_department_filter($lapcWhere, $companyChartParamsForLapc, $lapcTypes, $departmentExpr, $department_filter);
 } else {
     $companyChartParamsForLapc = $companyChartParams;
     $lapcTypes = $companyChartTypes;
@@ -1087,9 +1089,7 @@ if ((!$analyticsIsEmployeeView || $analyticsIsSalesManagerView) && $company_filt
     $adminCategoryParams = $companyChartParams;
     $adminCategoryTypes = $companyChartTypes;
     if ($department_filter !== '') {
-        $adminCategoryWhere[] = "$departmentExpr = ?";
-        $adminCategoryParams[] = $department_filter;
-        $adminCategoryTypes .= "s";
+        analytics_apply_department_filter($adminCategoryWhere, $adminCategoryParams, $adminCategoryTypes, $departmentExpr, $department_filter);
 
         $adminAllowedCategories = analytics_allowed_categories_for_department($company_filter, $department_filter);
         if (count($adminAllowedCategories) > 0) {
@@ -1354,11 +1354,7 @@ analytics_apply_company_filter(
     "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))",
     $company_filter
 );
-if ($department_filter !== '') {
-    $assigneeWhere[] = "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,'')) = ?";
-    $assigneeParams[] = $department_filter;
-    $assigneeTypes .= "s";
-}
+analytics_apply_department_filter($assigneeWhere, $assigneeParams, $assigneeTypes, "COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''))", $department_filter);
 if ($analyticsIsEmployeeView && !$analyticsIsSalesManagerView && $department_filter !== '') {
     $assigneeWhere[] = "UPPER(TRIM(COALESCE(a.department, ''))) = UPPER(TRIM(?))";
     $assigneeParams[] = $department_filter;
@@ -3054,10 +3050,10 @@ if ($ticketsStmt) {
                     <p class="analytics-subtitle"><?= $analyticsIsSalesManagerView ? 'Provides an overview of Sales tickets submitted from ' . htmlspecialchars($analyticsSalesRegion, ENT_QUOTES, 'UTF-8') . '.' : ($analyticsUsesEmployeePresentation ? 'Track ticket analytics, performance trends, department activity, and resolution progress.' : 'Provides an overview of ticket analytics, performance trends, department activity, and resolution progress to help administrators monitor and manage support operations effectively.') ?></p>
                 </div>
                 <div class="analytics-header-actions">
-                    <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" target="_blank">
+                    <a href="<?= htmlspecialchars($analyticsPdfHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-pdf" download>
                         <i class="fa-regular fa-file-pdf"></i> PDF
                     </a>
-                    <a href="<?= htmlspecialchars($analyticsExcelHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-excel" target="_blank">
+                    <a href="<?= htmlspecialchars($analyticsExcelHref, ENT_QUOTES, 'UTF-8') ?>" class="btn-export btn-export-excel" download>
                         <i class="fa-regular fa-file-excel"></i> Excel
                     </a>
                 </div>

@@ -135,7 +135,7 @@ if ($slaLevel !== '') {
     || (company_code((string) $user_company) === 'LAPC')
     || ($userEmailNorm !== '' && str_ends_with($userEmailNorm, '@leadsagri.com'));
 
-$lapc_departments = ticket_lapc_departments();
+$lapc_departments = ticket_lapc_department_filter_options();
 $mhc_departments = ['Marketing Creatives'];
 $allowed_departments = $lapc_departments;
 $allowed_departments_by_company = [
@@ -350,13 +350,20 @@ $reassignmentFilterNotificationCond = "EXISTS (
     SELECT 1
     FROM notifications n
     WHERE n.ticket_id = t.id
-      AND n.user_id = ?
-      AND n.type = 'dept_assigned'
       AND LOWER(TRIM(COALESCE(n.action_type, ''))) = 'reassign'
+)";
+$reassignmentFilterActivityCond = "EXISTS (
+    SELECT 1
+    FROM ticket_activity ta
+    WHERE ta.ticket_id = t.id
+      AND ta.activity_type IN ('department_change', 'company_change')
+      AND UPPER(TRIM(COALESCE(ta.description, ''))) REGEXP '^REASSIGNED (FROM (COMPANY )?[^[:space:]]|TO [^[:space:]])'
 )";
 $reassignmentFilterCond = $isLapcSalesEmployeeView
     ? "0=1"
-    : "(($reassignedActivityCond) OR $reassignmentFilterNotificationCond)";
+    : "((($reassignmentFilterNotificationCond) OR ($reassignmentFilterActivityCond))
+        AND COALESCE(t.assigned_user_id, 0) <> ?
+        AND COALESCE(t.assigned_to, 0) <> ?)";
 $teamTicketsCond = $isLapcSalesEmployeeView
     ? "((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond AND NOT ($reassignmentFilterCond))"
     : "(NOT $requesterIsCurrentCond AND ($groupCond OR $linkedItTaskCond) AND NOT ($reassignmentFilterCond))";
@@ -399,14 +406,12 @@ $addReassignedTaskParams = static function () use (&$params, &$types, $user_id, 
     $params[] = (int) $user_id;
     $types .= "i";
 };
-$addReassignmentFilterParams = static function () use (&$params, &$types, $user_id, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
+$addReassignmentFilterParams = static function () use (&$params, &$types, $user_id, $isLapcSalesEmployeeView): void {
     if ($isLapcSalesEmployeeView) {
         return;
     }
-    foreach ($reassignedHistoryAliases as $historyAlias) {
-        $params[] = '%' . strtoupper($historyAlias) . '%';
-        $types .= "s";
-    }
+    $params[] = (int) $user_id;
+    $types .= "i";
     $params[] = (int) $user_id;
     $types .= "i";
 };
@@ -414,7 +419,7 @@ $addHandledByYouFilterParams = static function () use (&$params, &$types, $user_
     $params[] = (int) $user_id;
     $types .= "i";
 };
-$addTeamTicketsFilterParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
+$addTeamTicketsFilterParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $isLapcSalesEmployeeView): void {
     if ($isLapcSalesEmployeeView) {
         $params[] = (int) $user_id;
         $types .= "i";
@@ -434,10 +439,8 @@ $addTeamTicketsFilterParams = static function () use (&$params, &$types, $user_i
         $params[] = $departmentAlias;
         $types .= "s";
     }
-    foreach ($reassignedHistoryAliases as $historyAlias) {
-        $params[] = '%' . strtoupper($historyAlias) . '%';
-        $types .= "s";
-    }
+    $params[] = (int) $user_id;
+    $types .= "i";
     $params[] = (int) $user_id;
     $types .= "i";
 };
@@ -477,6 +480,9 @@ if (!empty($search)) {
 }
 
 if ($department !== '') {
+    if ($company_email === '@leadsagri.com' && strcasecmp((string) $department, 'Sales') === 0) {
+        $where[] = ticket_sales_origin_condition_sql('t');
+    } else {
     $deptKey = ticket_department_key_from_value((string) $department);
     $deptAliases = ticket_department_aliases_for_key($deptKey);
     $deptAliases[] = $deptKey;
@@ -491,6 +497,7 @@ if ($department !== '') {
             $types .= "s";
         }
         $where[] = "(" . implode(" OR ", $deptConds) . ")";
+    }
     }
 }
 
@@ -511,6 +518,9 @@ if ($company_email !== '') {
         $types .= "s";
     }
     if (count($companyFilterParts) > 0) {
+        if ($company_email === '@leadsagri.com') {
+            $companyFilterParts[] = ticket_sales_origin_condition_sql('t');
+        }
         $where[] = "(" . implode(" OR ", $companyFilterParts) . ")";
     }
 }

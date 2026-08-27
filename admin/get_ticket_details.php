@@ -305,15 +305,6 @@ if ($row = $result->fetch_assoc()) {
     // Fallbacks for display
     $row['company'] = !empty($row['company']) ? $row['company'] : $row['user_company'];
     $row['department'] = !empty($row['department']) ? $row['department'] : ($row['user_department'] ?? '');
-    if (empty($row['department'])) {
-        $requesterCompanyRaw = (string) ($row['company'] ?? '');
-        $requesterEmailForCompany = trim((string) (($row['requester_email'] ?? '') !== '' ? $row['requester_email'] : ($row['created_by_email'] ?? '')));
-        if ($requesterCompanyRaw === '' && $requesterEmailForCompany !== '' && strpos($requesterEmailForCompany, '@') !== false) {
-            $requesterCompanyRaw = '@' . strtolower(substr(strrchr($requesterEmailForCompany, '@'), 1));
-        }
-        $requesterCompanyLabel = ticket_company_display_name($requesterCompanyRaw);
-        $row['department'] = $requesterCompanyLabel !== '' ? $requesterCompanyLabel : 'Unknown';
-    }
 
     $requester_name = trim((string)($row['requester_name'] ?? ''));
     $requester_email = trim((string)($row['requester_email'] ?? ''));
@@ -331,7 +322,13 @@ if ($row = $result->fetch_assoc()) {
     }
 
     if ($requester_name !== '') $row['created_by_name'] = $requester_name;
-    if ($requester_email !== '') $row['created_by_email'] = $requester_email;
+    if ($requester_email !== '') {
+        $row['created_by_email'] = $requester_email;
+        $row['requester_email'] = $requester_email;
+    }
+    $requesterOrganization = ticket_requester_organization_fields($row);
+    $row['requester_company'] = $requesterOrganization['company'];
+    $row['requester_department'] = $requesterOrganization['department'];
     $row['description'] = $clean_desc;
     $row = ticket_chat_apply_effective_handler($row);
     $userContext = ticket_build_user_context($conn, $currentUserId, $_SESSION);

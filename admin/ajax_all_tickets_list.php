@@ -97,6 +97,8 @@ $department = trim((string) ($_GET['department'] ?? ''));
 $sla = trim((string) ($_GET['sla'] ?? ($_GET['priority'] ?? '')));
 $status = trim((string) ($_GET['status'] ?? ''));
 $companyEmail = trim((string) ($_GET['company_email'] ?? ''));
+$normalizedCompanyFilter = ticket_normalize_company($companyEmail);
+$salesDepartmentFilter = $normalizedCompanyFilter === '@leadsagri.com' && strcasecmp($department, 'Sales') === 0;
 $view = trim((string) ($_GET['view'] ?? ''));
 $view = $view === 'trash' ? '' : $view;
 $page = (int) ($_GET['page'] ?? 1);
@@ -125,17 +127,21 @@ if ($view !== '') {
 }
 
 if ($department !== '') {
+    if ($salesDepartmentFilter) {
+        $where[] = ticket_sales_origin_condition_sql('t');
+    } else {
     $deptKey = ticket_department_key_from_value($department);
     $aliases = ticket_department_aliases_for_key($deptKey);
     $aliases[] = $deptKey;
     $aliases = array_values(array_unique(array_filter(array_map('strtoupper', array_map('trim', $aliases)), static function ($v) { return is_string($v) && $v !== ''; })));
     if (count($aliases) > 0) {
         $placeholders = implode(',', array_fill(0, count($aliases), '?'));
-        $where[] = "UPPER(COALESCE(NULLIF(t.assigned_group,''), NULLIF(t.assigned_department,''), NULLIF(t.department,''), NULLIF(u.department,''))) IN ($placeholders)";
+        $where[] = "UPPER(COALESCE(NULLIF(t.department,''), NULLIF(u.department,''))) IN ($placeholders)";
         foreach ($aliases as $a) {
             $params[] = $a;
             $types .= 's';
         }
+    }
     }
 }
 
@@ -159,17 +165,22 @@ if ($status !== '') {
 }
 
 if ($companyEmail !== '') {
+    $requesterCompanyExpr = ticket_requester_company_filter_expression_sql('t', 'u');
     if (trim(strtolower((string) $companyEmail)) === '__farmex_lav__') {
-        $where[] = "LOWER(COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))) IN (?, ?)";
-        $params[] = '@leads-farmex.com';
-        $params[] = '@leadsav.com';
-        $types .= 'ss';
+        $companyAliases = array_merge(
+            ticket_company_filter_aliases('@leads-farmex.com'),
+            ticket_company_filter_aliases('@leadsav.com')
+        );
     } else {
         $domain = normalize_domain($companyEmail);
-        if ($domain !== '') {
-        $where[] = "LOWER(COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,''))) = ?";
-        $params[] = $domain;
-        $types .= 's';
+        $companyAliases = $domain !== '' ? ticket_company_filter_aliases($domain) : [];
+    }
+    $companyAliases = array_values(array_unique($companyAliases));
+    if (count($companyAliases) > 0) {
+        $where[] = "LOWER(($requesterCompanyExpr)) IN (" . implode(', ', array_fill(0, count($companyAliases), '?')) . ")";
+        foreach ($companyAliases as $companyAlias) {
+            $params[] = $companyAlias;
+            $types .= 's';
         }
     }
 }
@@ -224,7 +235,7 @@ if ($totalPages < 1) $totalPages = 1;
 if ($page > $totalPages) $page = $totalPages;
 $offset = ($page - 1) * $limit;
 
-$sql = "SELECT t.*, u.name, u.email, u.department AS user_department" . $baseFrom . $whereSql . " ORDER BY t.created_at DESC LIMIT ?, ?";
+$sql = "SELECT t.*, u.name, u.email, u.company AS user_company, u.department AS user_department" . $baseFrom . $whereSql . " ORDER BY t.created_at DESC LIMIT ?, ?";
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
     http_response_code(500);
@@ -259,8 +270,10 @@ while ($res && ($row = $res->fetch_assoc())) {
         if (($row['requester_email'] ?? '') === '' && $pe !== '') $dispEmail = $pe;
     }
 
-    $origDept = (string) (($row['department'] ?? '') !== '' ? $row['department'] : (($row['user_department'] ?? '') !== '' ? $row['user_department'] : 'Sales'));
-    $origDeptDisplay = $origDept !== 'Sales' ? ticket_department_display_name($origDept) : 'Sales';
+    $requesterTableRow = $row;
+    $requesterTableRow['requester_email'] = $dispEmail;
+    $requesterOrganization = ticket_requester_organization_fields($requesterTableRow);
+    $origDeptDisplay = (string) $requesterOrganization['department'];
     $assignedDept = ticket_department_key_from_value((string) ($row['assigned_department'] ?? ''));
     $showNewBadge = ticket_admin_new_badge_visible($row);
     $id = (int) ($row['id'] ?? 0);

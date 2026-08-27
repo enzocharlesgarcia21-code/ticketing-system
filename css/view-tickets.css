@@ -6758,7 +6758,79 @@
     #ticketModal .tm-desc-text {
         min-height: 54px !important;
         padding: 12px !important;
+        font-size: 11.5px !important;
+        line-height: 1.45 !important;
+    }
+
+    /* Match structured description fields to the rest of the mobile ticket details. */
+    #ticketModal .tm-card-description .tm-sap-card-title {
         font-size: 12px !important;
         line-height: 1.45 !important;
     }
+
+    #ticketModal .tm-card-description .tm-sap-label,
+    #ticketModal .tm-card-description .tm-desc-label,
+    #ticketModal .tm-card-description .tm-info-label {
+        font-size: 10.5px !important;
+        line-height: 1.4 !important;
+    }
+
+    #ticketModal .tm-card-description .tm-sap-value,
+    #ticketModal .tm-card-description .tm-desc-value,
+    #ticketModal .tm-card-description .tm-info-value {
+        font-size: 11.5px !important;
+        line-height: 1.4 !important;
+    }
+
+    #ticketModal .tm-card-description .tm-desc-lead,
+    #ticketModal .tm-card-description .tm-incident-summary-box {
+        font-size: 11.5px !important;
+        line-height: 1.4 !important;
+    }
+
+    /* Do not clip multi-entry form fields or their Previous/Next footer on phones. */
+    #ticketModal .tm-card-description .tm-ticket-description-scroll.tm-structured-form-scroll {
+        max-height: none !important;
+        overflow: visible !important;
+        padding-right: 0 !important;
+    }
+
+    #ticketModal .tm-structured-form-scroll .tm-sap-actions {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
+        align-items: center !important;
+        gap: 7px !important;
+        padding: 10px !important;
+    }
+
+    #ticketModal .tm-structured-form-scroll .tm-sap-nav-btn {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 88px !important;
+        min-height: 34px !important;
+        padding: 0 8px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        font-size: 10.5px !important;
+        line-height: 1 !important;
+    }
+
+    #ticketModal .tm-structured-form-scroll .tm-sap-nav-btn.primary {
+        justify-self: end !important;
+    }
+
+    #ticketModal .tm-structured-form-scroll .tm-sap-counter {
+        min-width: max-content !important;
+        font-size: 11px !important;
+        line-height: 1 !important;
+        white-space: nowrap !important;
+    }
+
+    body.employee-view-ticket-page.ticket-modal-mobile-open {
+        width: 100% !important;
+        zoom: 1 !important;
+    }
+
 }

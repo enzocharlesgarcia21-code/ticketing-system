@@ -289,6 +289,67 @@ function ticket_lapc_departments(): array
     ];
 }
 
+function ticket_lapc_department_filter_options(): array
+{
+    $departments = ticket_lapc_departments();
+    if (!in_array('Sales', $departments, true)) {
+        $departments[] = 'Sales';
+    }
+    sort($departments, SORT_NATURAL | SORT_FLAG_CASE);
+    return $departments;
+}
+
+function ticket_sales_origin_condition_sql(string $ticketAlias = 't'): string
+{
+    $ticketAlias = preg_replace('/[^a-zA-Z0-9_]/', '', $ticketAlias) ?: 't';
+    return "(UPPER(TRIM(COALESCE({$ticketAlias}.department, ''))) = 'SALES'
+        OR EXISTS (
+            SELECT 1
+            FROM users ticket_sales_origin_user
+            WHERE ticket_sales_origin_user.id = {$ticketAlias}.user_id
+              AND (
+                    LOWER(TRIM(COALESCE(ticket_sales_origin_user.company, ''))) = 'sales'
+                 OR UPPER(TRIM(COALESCE(ticket_sales_origin_user.department, ''))) = 'SALES'
+                 OR LOWER(TRIM(COALESCE(ticket_sales_origin_user.email, ''))) = 'sales_guest@leadsagri.com'
+              )
+        ))";
+}
+
+function ticket_requester_company_filter_expression_sql(string $ticketAlias = 't', string $userAlias = 'u'): string
+{
+    $ticketAlias = preg_replace('/[^a-zA-Z0-9_]/', '', $ticketAlias) ?: 't';
+    $userAlias = preg_replace('/[^a-zA-Z0-9_]/', '', $userAlias) ?: 'u';
+    $salesCondition = ticket_sales_origin_condition_sql($ticketAlias);
+
+    return "CASE
+        WHEN $salesCondition THEN '@leadsagri.com'
+        WHEN TRIM(COALESCE({$ticketAlias}.requester_email, '')) LIKE '%@%'
+            THEN CONCAT('@', LOWER(SUBSTRING_INDEX(TRIM({$ticketAlias}.requester_email), '@', -1)))
+        WHEN TRIM(COALESCE({$userAlias}.company, '')) <> ''
+            THEN LOWER(TRIM({$userAlias}.company))
+        WHEN TRIM(COALESCE({$userAlias}.email, '')) LIKE '%@%'
+            THEN CONCAT('@', LOWER(SUBSTRING_INDEX(TRIM({$userAlias}.email), '@', -1)))
+        ELSE LOWER(TRIM(COALESCE({$ticketAlias}.company, '')))
+    END";
+}
+
+function ticket_company_filter_aliases(string $company): array
+{
+    $companyKey = ticket_normalize_company($company);
+    $display = ticket_company_display_name($companyKey !== '' ? $companyKey : $company);
+    $aliases = array_merge(
+        [$companyKey, ltrim($companyKey, '@'), $display],
+        ticket_company_aliases($display),
+        ticket_company_aliases($companyKey)
+    );
+    $companyKeyLower = strtolower($companyKey);
+    return array_values(array_unique(array_filter(array_map(static function ($value): string {
+        return strtolower(trim((string) $value));
+    }, $aliases), static function ($value) use ($companyKeyLower): bool {
+        return $value !== '' && strtolower(ticket_normalize_company($value)) === $companyKeyLower;
+    })));
+}
+
 function ticket_pcc_departments(): array
 {
     return [
@@ -2865,6 +2926,73 @@ function ticket_company_display_name(string $company): string
     }
 
     return $company;
+}
+
+function ticket_requester_organization_fields(array $ticket): array
+{
+    $submittedRequesterEmail = trim((string) ($ticket['requester_email'] ?? ''));
+    $accountEmail = trim((string) ($ticket['created_by_email'] ?? ($ticket['user_email'] ?? '')));
+    $userCompanyRaw = trim((string) ($ticket['user_company'] ?? ''));
+    $userDepartmentRaw = trim((string) ($ticket['user_department'] ?? ''));
+    $ticketDepartmentRaw = trim((string) ($ticket['department'] ?? ''));
+    $isSalesTicket = !empty($ticket['is_sales_ticket'])
+        || strcasecmp($userCompanyRaw, 'Sales') === 0
+        || strcasecmp($userDepartmentRaw, 'Sales') === 0
+        || strcasecmp($ticketDepartmentRaw, 'Sales') === 0
+        || strtolower($accountEmail) === 'sales_guest@leadsagri.com';
+
+    // Sales request tickets belong to the LAPC Sales organization even when
+    // the requester supplied a personal email address such as Gmail.
+    if ($isSalesTicket) {
+        return [
+            'company' => ticket_company_display_name('@leadsagri.com'),
+            'department' => ticket_department_display_name('Sales'),
+        ];
+    }
+
+    $companyRaw = '';
+
+    // Public/sales request forms use a shared account and store the selected
+    // destination in tickets.company. The submitted requester's email is the
+    // authoritative source for the requester's company in those tickets.
+    if ($submittedRequesterEmail !== '' && strpos($submittedRequesterEmail, '@') !== false) {
+        $companyRaw = '@' . strtolower((string) substr(strrchr($submittedRequesterEmail, '@'), 1));
+    }
+
+    if ($companyRaw === '') {
+        $companyRaw = $userCompanyRaw;
+    }
+    if ($companyRaw === '' || strcasecmp($companyRaw, 'Sales') === 0) {
+        $ticketCompany = trim((string) ($ticket['company'] ?? ''));
+        if ($ticketCompany !== '') {
+            $companyRaw = $ticketCompany;
+        }
+    }
+    if (($companyRaw === '' || strcasecmp($companyRaw, 'Sales') === 0) && strpos($accountEmail, '@') !== false) {
+        $companyRaw = '@' . strtolower((string) substr(strrchr($accountEmail, '@'), 1));
+    }
+
+    $companyKey = ticket_normalize_company($companyRaw);
+    $companyDisplay = ticket_company_display_name($companyKey !== '' ? $companyKey : $companyRaw);
+    if (strtolower($companyKey) === '@gmail.com') {
+        $companyDisplay = '';
+    }
+    $departmentRaw = trim((string) (($ticket['department'] ?? '') !== ''
+        ? $ticket['department']
+        : ($ticket['user_department'] ?? '')));
+
+    // Company-level requesters do not have a department. Ignore stale/default
+    // department values that may remain on older user or ticket records.
+    if ($companyKey !== '' && !ticket_company_requires_department($companyKey)) {
+        $departmentRaw = '';
+    }
+
+    $departmentDisplay = $departmentRaw !== '' ? ticket_department_display_name($departmentRaw) : '';
+
+    return [
+        'company' => $companyDisplay !== '' ? $companyDisplay : '-',
+        'department' => $departmentDisplay !== '' ? $departmentDisplay : '-',
+    ];
 }
 
 function ticket_ensure_priority_escalation_columns(mysqli $conn): void

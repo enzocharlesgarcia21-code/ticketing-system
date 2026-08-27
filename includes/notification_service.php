@@ -1542,44 +1542,7 @@ function notif_email_lines_with_sales_request_context(array $lines): array
 function notif_email_detail_value_html(string $label, string $value): string
 {
     $escapedValue = nl2br(htmlspecialchars($value, ENT_QUOTES, 'UTF-8'));
-    if (strcasecmp(trim($label), 'Description') !== 0) {
-        return $escapedValue;
-    }
-
-    $normalized = str_replace(["\r\n", "\r"], "\n", trim($value));
-    $visualLines = [];
-    foreach (explode("\n", $normalized) as $line) {
-        $line = rtrim((string) $line);
-        if ($line === '') {
-            $visualLines[] = '';
-            continue;
-        }
-        $wrapped = wordwrap($line, 64, "\n", false);
-        foreach (explode("\n", $wrapped) as $wrappedLine) {
-            $visualLines[] = (string) $wrappedLine;
-        }
-    }
-
-    if (count($visualLines) <= 5) {
-        return $escapedValue;
-    }
-
-    $preview = implode("\n", array_slice($visualLines, 0, 5));
-    $remaining = implode("\n", array_slice($visualLines, 5));
-    $previewHtml = nl2br(htmlspecialchars($preview, ENT_QUOTES, 'UTF-8'));
-    $remainingHtml = nl2br(htmlspecialchars($remaining, ENT_QUOTES, 'UTF-8'));
-
-    if (trim($remaining) === '') {
-        return $escapedValue;
-    }
-
-    $summaryStyle = 'display:inline-block;margin-top:8px;padding:7px 12px;background:#006633;border:1px solid #006633;border-radius:5px;color:#ffffff;font-size:13px;line-height:1.2;font-weight:700;text-decoration:none;cursor:pointer;';
-
-    return '<div style="margin:0;padding:0;">' . $previewHtml . '</div>'
-        . '<details style="margin:0;padding:0;">'
-        . '<summary style="' . $summaryStyle . '">See more</summary>'
-        . '<div style="margin-top:10px;">' . $remainingHtml . '</div>'
-        . '</details>';
+    return $escapedValue;
 }
 
 function notif_email_assignee_assignment(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
