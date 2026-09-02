@@ -2826,7 +2826,6 @@ $showing_to = min($offset + $limit, (int) $total_records);
                         <select name="reassignment" class="my-tickets-filter-select" id="filterReassignment">
                             <option value="" <?= $reassignment === '' ? 'selected' : '' ?> hidden>All Tickets</option>
                             <option value="handled_by_you" <?= $reassignment === 'handled_by_you' ? 'selected' : '' ?>>Handled by you</option>
-                            <option value="not_reassigned" <?= $reassignment === 'not_reassigned' ? 'selected' : '' ?>>Team Tickets</option>
                             <option value="reassigned" <?= $reassignment === 'reassigned' ? 'selected' : '' ?>>Reassigned</option>
                         </select>
                     </div>

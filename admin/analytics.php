@@ -1334,6 +1334,9 @@ if ($analyticsIsEmployeeView && !$analyticsIsSalesManagerView) {
 
 $assigneeLabels = [];
 $assigneeCounts = [];
+$submissionSourceLabels = [];
+$submissionSourceCounts = [];
+$submissionSourceTypesDisplay = [];
 $assigneeWhere = ["COALESCE(NULLIF(t.status,''),'') <> 'Trash'"];
 $assigneeParams = [];
 $assigneeTypes = "";
@@ -1364,6 +1367,14 @@ if ($status_filter !== '') {
     $assigneeWhere[] = "t.status = ?";
     $assigneeParams[] = $status_filter;
     $assigneeTypes .= "s";
+}
+$submissionSourceWhere = $assigneeWhere;
+$submissionSourceParams = $assigneeParams;
+$submissionSourceTypes = $assigneeTypes;
+if (!$analyticsIsSalesManagerView) {
+    $submissionSourceWhere = array_values(array_filter($submissionSourceWhere, static function ($condition) {
+        return $condition !== "t.assigned_user_id IS NOT NULL";
+    }));
 }
 $assigneeSql = $analyticsIsSalesManagerView
     ? "
@@ -1403,6 +1414,40 @@ if ($asStmt) {
         $assigneeCounts[] = (int) ($r['total'] ?? 0);
     }
     $asStmt->close();
+}
+
+if (!$analyticsIsEmployeeView) {
+    $submissionSourceSql = "
+        SELECT
+            COALESCE(NULLIF(TRIM(t.department), ''), NULLIF(TRIM(t.company), ''), NULLIF(TRIM(submitter.company), ''), 'Unspecified') AS source_name,
+            CASE WHEN NULLIF(TRIM(t.department), '') IS NOT NULL THEN 'Department' ELSE 'Company' END AS source_type,
+            COUNT(*) AS total
+        FROM employee_tickets t
+        LEFT JOIN users submitter ON t.user_id = submitter.id
+        WHERE " . implode(" AND ", $submissionSourceWhere) . "
+        GROUP BY source_name, source_type
+        ORDER BY total DESC, source_name ASC
+        LIMIT 5
+    ";
+    $submissionSourceStmt = $conn->prepare($submissionSourceSql);
+    if ($submissionSourceStmt) {
+        if ($submissionSourceTypes !== '') {
+            $bind = [];
+            $bind[] = $submissionSourceTypes;
+            foreach ($submissionSourceParams as $k => $p) {
+                $bind[] = &$submissionSourceParams[$k];
+            }
+            call_user_func_array([$submissionSourceStmt, 'bind_param'], $bind);
+        }
+        $submissionSourceStmt->execute();
+        $submissionSourceRes = $submissionSourceStmt->get_result();
+        while ($r = $submissionSourceRes->fetch_assoc()) {
+            $submissionSourceLabels[] = (string) ($r['source_name'] ?? 'Unspecified');
+            $submissionSourceCounts[] = (int) ($r['total'] ?? 0);
+            $submissionSourceTypesDisplay[] = (string) ($r['source_type'] ?? 'Company');
+        }
+        $submissionSourceStmt->close();
+    }
 }
 
 $companyPalette = ['#2f8cff', '#2fa36b', '#ff9f1c', '#ef4444', '#9b7bf4', '#21b7d8', '#88d05f', '#f97316', '#14b8a6', '#eab308'];
@@ -1515,6 +1560,77 @@ foreach ($assigneeLabels as $idx => $name) {
         'text' => $accent['text'],
         'bar' => $accent['bar'],
     ];
+}
+$submissionSourceMax = !empty($submissionSourceCounts) ? max($submissionSourceCounts) : 0;
+$submissionSourceCards = [];
+foreach ($submissionSourceLabels as $idx => $name) {
+    $count = (int) ($submissionSourceCounts[$idx] ?? 0);
+    $accent = $assigneeAccentSets[$idx % count($assigneeAccentSets)];
+    $submissionSourceCards[] = [
+        'name' => $name,
+        'source_type' => (string) ($submissionSourceTypesDisplay[$idx] ?? 'Company'),
+        'initials' => initials_from_name((string) $name),
+        'count' => $count,
+        'percent' => $submissionSourceMax > 0 ? max(18, (int) round(($count / $submissionSourceMax) * 100)) : 0,
+        'bg' => $accent['bg'],
+        'text' => $accent['text'],
+        'bar' => $accent['bar'],
+    ];
+}
+$submissionEmployeeCardsBySource = [];
+if (!$analyticsIsEmployeeView) {
+    $submissionSourceExpression = "COALESCE(NULLIF(TRIM(t.department), ''), NULLIF(TRIM(t.company), ''), NULLIF(TRIM(submitter.company), ''), 'Unspecified')";
+    foreach ($submissionSourceLabels as $sourceIndex => $sourceName) {
+        $sourceEmployeeLabels = [];
+        $sourceEmployeeCounts = [];
+        $sourceEmployeeWhere = $submissionSourceWhere;
+        $sourceEmployeeParams = $submissionSourceParams;
+        $sourceEmployeeTypes = $submissionSourceTypes;
+        $sourceEmployeeWhere[] = $submissionSourceExpression . " = ?";
+        $sourceEmployeeParams[] = $sourceName;
+        $sourceEmployeeTypes .= "s";
+        $sourceEmployeeSql = "
+            SELECT COALESCE(NULLIF(TRIM(t.requester_name), ''), NULLIF(TRIM(requester.name), ''), 'Unknown') AS employee_name, COUNT(*) AS total
+            FROM employee_tickets t
+            LEFT JOIN users submitter ON t.user_id = submitter.id
+            LEFT JOIN users requester ON t.user_id = requester.id
+            WHERE " . implode(" AND ", $sourceEmployeeWhere) . "
+            GROUP BY COALESCE(NULLIF(TRIM(t.requester_name), ''), NULLIF(TRIM(requester.name), ''), 'Unknown')
+            ORDER BY total DESC, employee_name ASC
+            LIMIT 5
+        ";
+        $sourceEmployeeStmt = $conn->prepare($sourceEmployeeSql);
+        if ($sourceEmployeeStmt) {
+            $bind = [];
+            $bind[] = $sourceEmployeeTypes;
+            foreach ($sourceEmployeeParams as $k => $p) {
+                $bind[] = &$sourceEmployeeParams[$k];
+            }
+            call_user_func_array([$sourceEmployeeStmt, 'bind_param'], $bind);
+            $sourceEmployeeStmt->execute();
+            $sourceEmployeeRes = $sourceEmployeeStmt->get_result();
+            while ($r = $sourceEmployeeRes->fetch_assoc()) {
+                $sourceEmployeeLabels[] = (string) ($r['employee_name'] ?? 'Unknown');
+                $sourceEmployeeCounts[] = (int) ($r['total'] ?? 0);
+            }
+            $sourceEmployeeStmt->close();
+        }
+        $sourceEmployeeMax = !empty($sourceEmployeeCounts) ? max($sourceEmployeeCounts) : 0;
+        $submissionEmployeeCardsBySource[$sourceIndex] = [];
+        foreach ($sourceEmployeeLabels as $employeeIndex => $employeeName) {
+            $employeeCount = (int) ($sourceEmployeeCounts[$employeeIndex] ?? 0);
+            $accent = $assigneeAccentSets[$employeeIndex % count($assigneeAccentSets)];
+            $submissionEmployeeCardsBySource[$sourceIndex][] = [
+                'name' => $employeeName,
+                'initials' => initials_from_name($employeeName),
+                'count' => $employeeCount,
+                'percent' => $sourceEmployeeMax > 0 ? max(18, (int) round(($employeeCount / $sourceEmployeeMax) * 100)) : 0,
+                'bg' => $accent['bg'],
+                'text' => $accent['text'],
+                'bar' => $accent['bar'],
+            ];
+        }
+    }
 }
 
 $trendSubtitle = 'Daily average (last 5 weekdays)';
@@ -2276,6 +2392,9 @@ if ($ticketsStmt) {
             margin-bottom: 24px;
             align-items: stretch;
         }
+        body:not(.employee-analytics-page) .analytics-charts {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
         .chart-card {
             padding: 22px 26px 20px;
             min-width: 0;
@@ -2308,6 +2427,46 @@ if ($ticketsStmt) {
             color: #8a94a6;
             font-size: 14px;
             font-weight: 600;
+        }
+        @media (min-width: 1281px) {
+            body:not(.employee-analytics-page) .analytics-charts {
+                grid-auto-rows: 640px;
+            }
+            body:not(.employee-analytics-page) .analytics-charts > .chart-card {
+                min-height: 640px;
+                height: 640px;
+            }
+            body:not(.employee-analytics-page) .category-card .chart-container {
+                margin-top: 14px;
+            }
+            body:not(.employee-analytics-page) .assignee-card .assignee-total-pill {
+                margin-top: auto;
+            }
+            body:not(.employee-analytics-page) .analytics-charts > .chart-card > .chart-header {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                justify-content: flex-start;
+                gap: 0;
+                margin-bottom: 14px;
+                min-height: 112px;
+                height: 112px;
+            }
+            body:not(.employee-analytics-page) .analytics-charts > .chart-card > .chart-header .chart-heading {
+                flex: 0 0 auto;
+                min-width: 0;
+            }
+            body:not(.employee-analytics-page) .analytics-charts > .chart-card > .chart-header .chart-title,
+            body:not(.employee-analytics-page) .analytics-charts > .chart-card > .chart-header .chart-subtitle {
+                overflow-wrap: break-word;
+            }
+            body:not(.employee-analytics-page) .analytics-charts > .chart-card > .chart-header .company-chart-toggle,
+            body:not(.employee-analytics-page) .analytics-charts > .chart-card > .chart-header .trend-period-actions,
+            body:not(.employee-analytics-page) .analytics-charts > .chart-card > .chart-header .assignee-view-toggle {
+                flex: 0 0 auto;
+                align-self: flex-end;
+                margin-top: auto;
+            }
         }
         .company-chart-toggle {
             display: inline-flex;
@@ -2358,8 +2517,8 @@ if ($ticketsStmt) {
             flex: 1 1 260px;
         }
         .chart-card.trend-card.month-view .chart-container {
-            height: 310px;
-            flex-basis: 310px;
+            height: 260px;
+            flex-basis: 260px;
         }
         .trend-card {
             gap: 14px;
@@ -2600,6 +2759,89 @@ if ($ticketsStmt) {
             gap: 16px;
             flex: 0 0 auto;
             min-height: 0;
+        }
+        .assignee-view-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            padding: 4px;
+            border: 1px solid #dbe3ef;
+            border-radius: 13px;
+            background: #f8fafc;
+            flex: 0 0 auto;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+        }
+        .assignee-view-toggle button {
+            border: 0;
+            border-radius: 9px;
+            min-height: 34px;
+            padding: 0 12px;
+            background: transparent;
+            color: #556171;
+            font-size: 13px;
+            font-weight: 800;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .assignee-view-toggle button.active {
+            background: #1B5E20;
+            color: #ffffff;
+            box-shadow: 0 6px 14px rgba(27, 94, 32, 0.2);
+        }
+        .assignee-view-toggle[hidden] {
+            display: none;
+        }
+        .assignee-view-pane[hidden] {
+            display: none;
+        }
+        .submission-source-item {
+            width: 100%;
+            border: 0;
+            padding: 0;
+            background: transparent;
+            text-align: left;
+            cursor: pointer;
+        }
+        .submission-source-item:hover .assignee-name {
+            color: #166534;
+        }
+        .submission-source-item:focus-visible {
+            outline: 2px solid rgba(22, 101, 52, 0.35);
+            outline-offset: 4px;
+            border-radius: 10px;
+        }
+        .submission-detail-back {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: 22px;
+            left: 26px;
+            width: 38px;
+            height: 38px;
+            margin: 0;
+            border: 1px solid #dbe3ee;
+            border-radius: 10px;
+            padding: 0;
+            background: #ffffff;
+            color: #166534;
+            font: inherit;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .assignee-card {
+            position: relative;
+        }
+        body:not(.employee-analytics-page) .assignee-card .chart-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .assignee-card.detail-view .chart-header {
+            padding-left: 50px;
         }
         .assignee-item {
             display: grid;
@@ -2927,6 +3169,10 @@ if ($ticketsStmt) {
             .chart-card.category-card .chart-container,
             .chart-card.trend-card .chart-container {
                 height: 250px;
+            }
+            .chart-card.trend-card.month-view .chart-container {
+                height: 250px;
+                flex-basis: 250px;
             }
             .chart-card {
                 min-height: auto;
@@ -3284,9 +3530,18 @@ if ($ticketsStmt) {
                 </div>
                 <div class="chart-card assignee-card">
                     <div class="chart-header">
-                        <div class="chart-title"><?= $analyticsIsSalesManagerView ? 'Most Submitted Tickets' : 'Tickets per Assignee' ?></div>
-                        <p class="chart-subtitle"><?= $analyticsIsSalesManagerView ? 'Top 5 employees with the most submitted tickets' : 'Top 5 assignees by selected tickets' ?></p>
+                        <div class="chart-heading">
+                            <div class="chart-title" id="assigneeCardTitle"><?= $analyticsIsSalesManagerView ? 'Most Submitted Tickets' : 'Tickets per Assignee' ?></div>
+                            <p class="chart-subtitle" id="assigneeCardSubtitle"><?= $analyticsIsSalesManagerView ? 'Top 5 employees with the most submitted tickets' : 'Top 5 assignees by selected tickets' ?></p>
+                        </div>
+                        <?php if (!$analyticsIsEmployeeView): ?>
+                            <div class="assignee-view-toggle" role="group" aria-label="Tickets per assignee view">
+                                <button type="button" class="active" data-assignee-view="assignees" aria-pressed="true">Top Assignees</button>
+                                <button type="button" data-assignee-view="departments" aria-pressed="false">Top Departments</button>
+                            </div>
+                        <?php endif; ?>
                     </div>
+                    <div class="assignee-view-pane" data-assignee-pane="assignees">
                     <?php if (count($assigneeCards) > 0): ?>
                         <div class="assignee-list">
                             <?php foreach ($assigneeCards as $person): ?>
@@ -3307,9 +3562,62 @@ if ($ticketsStmt) {
                     <?php else: ?>
                         <div class="assignee-empty">No assignee data for the selected filters.</div>
                     <?php endif; ?>
+                    </div>
+                    <?php if (!$analyticsIsEmployeeView): ?>
+                        <div class="assignee-view-pane" data-assignee-pane="departments" hidden>
+                        <?php if (count($submissionSourceCards) > 0): ?>
+                            <div class="assignee-list">
+                                <?php foreach ($submissionSourceCards as $sourceIndex => $source): ?>
+                                    <div class="submission-source-item" role="button" tabindex="0" data-submission-source-index="<?= (int) $sourceIndex ?>" data-submission-source-name="<?= htmlspecialchars($source['name'], ENT_QUOTES, 'UTF-8') ?>" data-submission-source-type="<?= htmlspecialchars($source['source_type'], ENT_QUOTES, 'UTF-8') ?>" data-submission-source-total="<?= (int) $source['count'] ?>" aria-label="View top submitting employees for <?= htmlspecialchars($source['name'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <div class="assignee-item">
+                                        <div class="assignee-avatar" style="background: <?= htmlspecialchars($source['bg'], ENT_QUOTES, 'UTF-8') ?>; color: <?= htmlspecialchars($source['text'], ENT_QUOTES, 'UTF-8') ?>;">
+                                            <?= htmlspecialchars($source['initials'], ENT_QUOTES, 'UTF-8') ?>
+                                        </div>
+                                        <div class="assignee-main">
+                                            <div class="assignee-name"><?= htmlspecialchars($source['name'], ENT_QUOTES, 'UTF-8') ?></div>
+                                            <div class="assignee-bar-track">
+                                                <div class="assignee-bar-fill" style="width: <?= (int) $source['percent'] ?>%; background: <?= htmlspecialchars($source['bar'], ENT_QUOTES, 'UTF-8') ?>;"></div>
+                                            </div>
+                                        </div>
+                                        <div class="assignee-count"><?= number_format((int) $source['count']) ?></div>
+                                    </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="assignee-empty">No department or company submission data for the selected filters.</div>
+                        <?php endif; ?>
+                        </div>
+                        <?php foreach ($submissionSourceCards as $sourceIndex => $source): ?>
+                            <div class="assignee-view-pane" data-assignee-pane="employees" data-submission-detail-index="<?= (int) $sourceIndex ?>" hidden>
+                                <button type="button" class="submission-detail-back" aria-label="Back to Departments"><i class="fa-solid fa-arrow-left"></i></button>
+                                <?php $employeeCards = $submissionEmployeeCardsBySource[$sourceIndex] ?? []; ?>
+                                <?php if (count($employeeCards) > 0): ?>
+                                    <div class="assignee-list">
+                                        <?php foreach ($employeeCards as $employee): ?>
+                                            <div class="assignee-item">
+                                                <div class="assignee-avatar" style="background: <?= htmlspecialchars($employee['bg'], ENT_QUOTES, 'UTF-8') ?>; color: <?= htmlspecialchars($employee['text'], ENT_QUOTES, 'UTF-8') ?>;">
+                                                    <?= htmlspecialchars($employee['initials'], ENT_QUOTES, 'UTF-8') ?>
+                                                </div>
+                                                <div class="assignee-main">
+                                                    <div class="assignee-name"><?= htmlspecialchars($employee['name'], ENT_QUOTES, 'UTF-8') ?></div>
+                                                    <div class="assignee-bar-track">
+                                                        <div class="assignee-bar-fill" style="width: <?= (int) $employee['percent'] ?>%; background: <?= htmlspecialchars($employee['bar'], ENT_QUOTES, 'UTF-8') ?>;"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="assignee-count"><?= number_format((int) $employee['count']) ?></div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="assignee-empty">No employee submission data for this department or company.</div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                     <div class="assignee-total-pill">
                         <i class="fa-solid fa-circle"></i>
-                        <span>Total Open Tickets: <strong><?= number_format((int) ($summary['open'] ?? 0)) ?></strong></span>
+                        <span id="assigneeCardTotal">Total Open Tickets: <strong><?= number_format((int) ($summary['open'] ?? 0)) ?></strong></span>
                     </div>
                 </div>
             </div>
@@ -3738,6 +4046,78 @@ if ($ticketsStmt) {
     const isEmployeeAnalyticsView = <?= $analyticsUsesEmployeePresentation ? 'true' : 'false' ?>;
     const analyticsChartTextWeight = isEmployeeAnalyticsView ? '400' : '800';
     const analyticsChartAxisWeight = isEmployeeAnalyticsView ? '400' : '600';
+    (function () {
+        const buttons = document.querySelectorAll('[data-assignee-view]');
+        if (!buttons.length) return;
+
+        const panes = document.querySelectorAll('[data-assignee-pane]');
+        const title = document.getElementById('assigneeCardTitle');
+        const subtitle = document.getElementById('assigneeCardSubtitle');
+        const toggle = document.querySelector('.assignee-view-toggle');
+        const total = document.getElementById('assigneeCardTotal');
+        const card = document.querySelector('.assignee-card');
+        const defaultTotal = total ? total.innerHTML : '';
+
+        function setAssigneeView(view) {
+            panes.forEach(function (pane) {
+                pane.hidden = pane.getAttribute('data-assignee-pane') !== view;
+            });
+            buttons.forEach(function (button) {
+                const active = button.getAttribute('data-assignee-view') === view;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+            if (title) title.textContent = view === 'departments' ? 'Most Submitted Tickets' : 'Tickets per Assignee';
+            if (subtitle) subtitle.textContent = view === 'departments'
+                ? 'Top 5 departments or companies with the most ticket submissions'
+                : 'Top 5 assignees by selected tickets';
+            if (toggle) toggle.hidden = false;
+            if (total) total.innerHTML = defaultTotal;
+            if (card) card.classList.remove('detail-view');
+        }
+
+        function showSubmissionEmployees(button) {
+            const sourceIndex = button.getAttribute('data-submission-source-index');
+            const detail = document.querySelector('[data-submission-detail-index="' + sourceIndex + '"]');
+            if (!detail) return;
+            panes.forEach(function (pane) {
+                pane.hidden = pane !== detail;
+            });
+            if (toggle) toggle.hidden = true;
+            const sourceName = button.getAttribute('data-submission-source-name') || 'Submitted Tickets';
+            if (title) title.textContent = sourceName + ' ' + (button.getAttribute('data-submission-source-type') || 'Department');
+            if (subtitle) subtitle.textContent = 'Top 5 employees with the most submitted tickets';
+            if (total) {
+                total.textContent = 'Total ' + sourceName + ' Tickets: ';
+                const count = document.createElement('strong');
+                count.textContent = Number(button.getAttribute('data-submission-source-total') || 0).toLocaleString();
+                total.appendChild(count);
+            }
+            if (card) card.classList.add('detail-view');
+        }
+
+        buttons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                setAssigneeView(button.getAttribute('data-assignee-view'));
+            });
+        });
+        document.querySelectorAll('.submission-source-item').forEach(function (button) {
+            button.addEventListener('click', function () {
+                showSubmissionEmployees(button);
+            });
+            button.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    showSubmissionEmployees(button);
+                }
+            });
+        });
+        document.querySelectorAll('.submission-detail-back').forEach(function (button) {
+            button.addEventListener('click', function () {
+                setAssigneeView('departments');
+            });
+        });
+    })();
     const catCtx = document.getElementById('categoryChart').getContext('2d');
     const companyChart = new Chart(catCtx, {
         type: 'doughnut',
