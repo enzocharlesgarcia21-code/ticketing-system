@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
+require_once '../includes/auth_security.php';
 
 if (isset($_SESSION['user_id']) && isset($_SESSION['role'])) {
     if ($_SESSION['role'] === 'employee') {
@@ -17,19 +18,29 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role'])) {
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
     $email = trim($_POST['email']);
+    $rateError = auth_rate_limit_or_error($conn, 'password_reset_request', security_client_ip() . '|' . strtolower($email), 5, 900, 1800);
 
-    if (!empty($email)) {
+    if ($rateError !== null) {
+        $error = $rateError;
+    } elseif (!empty($email)) {
         $stmt = $conn->prepare("SELECT id, name, role FROM users WHERE email = ? AND role IN ('employee', 'admin')");
         $stmt->bind_param("s", $email);
         $stmt->execute();
         $res = $stmt->get_result();
 
         if ($user = $res->fetch_assoc()) {
-            $otp = rand(100000, 999999);
+            $otpIssue = auth_otp_issue($conn, 'password_reset', $email, 300, 60, 5);
+            if (empty($otpIssue['ok'])) {
+                $wait = max(1, (int) ($otpIssue['cooldown'] ?? 60));
+                $error = 'Please wait ' . $wait . ' seconds before requesting another code.';
+                $stmt->close();
+                goto forgot_password_complete;
+            }
+            $otp = (string) $otpIssue['otp'];
             $expiry = date("Y-m-d H:i:s", strtotime("+5 minutes"));
 
-            $update = $conn->prepare("UPDATE users SET reset_otp = ?, reset_otp_expiry = ? WHERE id = ?");
-            $update->bind_param("ssi", $otp, $expiry, $user['id']);
+            $update = $conn->prepare("UPDATE users SET reset_otp = NULL, reset_otp_expiry = ? WHERE id = ?");
+            $update->bind_param("si", $expiry, $user['id']);
 
             if ($update->execute()) {
                 $nameSafe = htmlspecialchars((string) $user['name']);
@@ -71,6 +82,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error = "Please enter your email.";
     }
 }
+forgot_password_complete:
 ?>
 
 <!DOCTYPE html>

@@ -18,3 +18,6 @@ RedirectMatch 403 /\.git
 
 # Disable directory listing
 Options -Indexes
+
+# Operations and migration scripts are CLI-only.
+RedirectMatch 404 /(?:cron|tools|database|logs|storage)(?:/|$)

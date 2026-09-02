@@ -5783,7 +5783,7 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             }
         }).then((result) => {
             if (result.isConfirmed) {
-                window.location.href = 'add_admin.php?id=' + userId;
+                submitAdminSecurityAction('add_admin.php', userId);
             }
         });
     }
@@ -5807,9 +5807,26 @@ activity_log($conn, (int) ($_SESSION['user_id'] ?? 0), 'OPEN_ADMIN_MANAGEMENT', 
             }
         }).then((result) => {
             if (result.isConfirmed) {
-                window.location.href = 'remove_admin.php?id=' + adminId;
+                submitAdminSecurityAction('remove_admin.php', adminId);
             }
         });
+    }
+
+    function submitAdminSecurityAction(action, id) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = action;
+        const idInput = document.createElement('input');
+        idInput.type = 'hidden';
+        idInput.name = 'id';
+        idInput.value = String(id);
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf_token';
+        csrfInput.value = <?= json_encode(csrf_token(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        form.append(idInput, csrfInput);
+        document.body.appendChild(form);
+        form.submit();
     }
 
     <?php if (isset($_SESSION['admin_added'])): ?>

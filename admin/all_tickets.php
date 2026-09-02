@@ -35,9 +35,9 @@ function admin_ticket_created_date(string $dateTime): string
     return $created->format('M d, Y');
 }
 
-function sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+function sla_badge_html(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    return ticket_sla_badge_html($createdAt, $status, $priority, '<span class="sla-empty">-</span>');
+    return ticket_sla_badge_html($createdAt, $status, $priority, '<span class="sla-empty">-</span>', $holdStartedAt, $holdSeconds);
 }
 
 function sla_filter_condition_sql(string $tableAlias, string $sla): string
@@ -796,8 +796,9 @@ $result = $stmt->get_result();
                                     </div>
                                 </td>
                                 <td data-label="Status">
-                                    <span class="status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                                        <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
+                                    <?php $adminStatusDisplay = !empty($row['hold_started_at']) ? 'On Hold' : (string) $row['status']; ?>
+                                    <span class="status-<?= strtolower(str_replace(' ', '-', $adminStatusDisplay)); ?>">
+                                        <?= htmlspecialchars($adminStatusDisplay, ENT_QUOTES, 'UTF-8'); ?>
                                     </span>
                                     <?php if (ticket_admin_new_badge_visible($row)): ?>
                                         <span class="new-badge">NEW</span>
@@ -805,7 +806,7 @@ $result = $stmt->get_result();
                                 </td>
                                 <td data-label="Department"><?= htmlspecialchars((string) $requesterOrganization['department'], ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td data-label="Created"><?= htmlspecialchars(admin_ticket_created_date((string) ($row['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></td>
-                                <td data-label="SLA"><?= sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
+                                <td data-label="SLA"><?= sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0)); ?></td>
                                 <td data-label="Assign To"><?= htmlspecialchars(assigned_target_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
                             </tr>
                             <?php } ?>

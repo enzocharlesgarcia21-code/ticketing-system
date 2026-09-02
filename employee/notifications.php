@@ -397,6 +397,16 @@ function notif_priority_from_message(string $message): string
         .notif-item-row.notif-follow-up.unread::after {
             background: #f4c542;
         }
+        .notif-item-row.notif-hold {
+            background: #ffffff;
+        }
+        .notif-item-row.notif-hold::before,
+        .notif-item-row.notif-hold.unread::after {
+            background: #f59e0b;
+        }
+        .notif-item-row.notif-hold.unread {
+            background: #fffaf0;
+        }
         .notif-follow-up .notif-title {
             color: #111827;
         }
@@ -530,6 +540,14 @@ function notif_priority_from_message(string $message): string
         }
         .notif-pill.variant-note .notif-pill-icon {
             background: linear-gradient(135deg, #fcd34d, #f59e0b);
+        }
+        .notif-pill.variant-hold {
+            color: #e99000;
+            background: #fff8e6;
+            border-color: #f59e0b;
+        }
+        .notif-pill.variant-hold .notif-pill-icon {
+            background: linear-gradient(135deg, #ffb52e, #f59e0b);
         }
         .notif-pill.variant-reassign {
             color: #9333ea;
@@ -1040,7 +1058,7 @@ function notif_priority_from_message(string $message): string
                 </button>
                 <div id="mobileSidebarUserMenu" class="mobile-sidebar-user-menu">
                     <a href="my_profile.php">My Profile</a>
-                    <a href="logout.php">Logout</a>
+                    <form method="post" action="logout.php" style="display:contents"><?= csrf_field(); ?><button type="submit" style="border:0;width:100%;text-align:left">Logout</button></form>
                 </div>
             </div>
         </div>
@@ -1093,7 +1111,14 @@ function notif_priority_from_message(string $message): string
                             $dotColor = '#94a3b8';
                             $ticketIdJs = isset($row['ticket_id']) && $row['ticket_id'] !== null ? (int) $row['ticket_id'] : null;
                             $actionType = notif_normalize_action_type((string) ($row['action_type'] ?? ''), $typeJs);
-                            if ($typeJs === 'priority_escalated' && in_array($priorityKey, ['high', 'critical'], true)) {
+                            $isHoldStatus = in_array($typeJs, ['ticket_on_hold', 'hold_approved'], true);
+                            if ($isHoldStatus) {
+                                $iconClass = 'fa-pause';
+                                $bgClass = 'linear-gradient(135deg, #ffb52e, #f59e0b)';
+                                $colorClass = '#ffffff';
+                                $accentColor = '#f59e0b';
+                                $dotColor = '#f59e0b';
+                            } elseif ($typeJs === 'priority_escalated' && in_array($priorityKey, ['high', 'critical'], true)) {
                                 $iconClass = 'fa-exclamation';
                                 $bgClass = 'linear-gradient(135deg, #ef4444, #dc2626)';
                                 $colorClass = '#ffffff';
@@ -1188,7 +1213,7 @@ function notif_priority_from_message(string $message): string
                                 $colorClass = '#ffffff';
                                 $accentColor = '#9333ea';
                                 $dotColor = '#9333ea';
-                            } elseif ($actionType === 'update' && $typeJs !== 'note_added' && $priorityKey === '') {
+                            } elseif ($actionType === 'update' && $typeJs !== 'note_added' && $priorityKey === '' && !$isHoldStatus) {
                                 $iconClass = 'fa-rotate';
                                 $bgClass = 'linear-gradient(135deg, #34d399, #0f766e)';
                                 $colorClass = '#ffffff';
@@ -1202,7 +1227,8 @@ function notif_priority_from_message(string $message): string
                             $isResolvedStatus = ($actionType === 'update' || $typeJs === 'status_update') && preg_match('/\bresolved\b/i', $displayMessage);
 
                             $titleText = 'Ticket Update';
-                            if ($isPriorityEscalation && in_array($priorityKey, ['medium', 'high', 'critical'], true)) $titleText = 'Priority Escalation';
+                            if ($isHoldStatus) $titleText = 'Status Update';
+                            elseif ($isPriorityEscalation && in_array($priorityKey, ['medium', 'high', 'critical'], true)) $titleText = 'Priority Escalation';
                             elseif ($typeJs === 'conference_booking_created') $titleText = 'Conference Booking Created';
                             elseif ($typeJs === 'conference_booking_cancelled') $titleText = 'Conference Booking Cancelled';
                             elseif ($typeJs === 'conference_booking_deleted') $titleText = 'Conference Booking Deleted';
@@ -1219,7 +1245,11 @@ function notif_priority_from_message(string $message): string
                             $pillExtraClass = '';
                             $pillText = 'Updated';
                             $pillIconClass = 'fa-rotate';
-                            if ($isChatPending) {
+                            if ($isHoldStatus) {
+                                $pillVariantClass = 'variant-hold';
+                                $pillText = 'HOLD';
+                                $pillIconClass = 'fa-pause';
+                            } elseif ($isChatPending) {
                                 $pillVariantClass = 'variant-update';
                                 $pillExtraClass = 'notif-chat-pill';
                                 $pillText = 'Chat';
@@ -1283,6 +1313,10 @@ function notif_priority_from_message(string $message): string
                                 $pillExtraClass = '';
                                 $pillText = 'Reassigned';
                                 $pillIconClass = 'fa-retweet';
+                            }
+                            $displayMessageHtml = notif_message_highlight_html($displayMessage);
+                            if ($isHoldStatus) {
+                                $displayMessageHtml = (string) preg_replace('/\s+Reason:/i', '<br>Reason:', $displayMessageHtml, 1);
                             }
                         ?>
                         <?php if ($sectionLabel !== $currentSection): ?>
@@ -1355,7 +1389,7 @@ function notif_priority_from_message(string $message): string
                             </div>
                             <?php continue; ?>
                         <?php endif; ?>
-                        <div class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?> <?= $typeJs === 'hr_chat_pending' ? 'notif-chat-pending' : '' ?> <?= $typeJs === 'follow_up' ? 'notif-follow-up' : '' ?> <?= $typeJs === 'priority_escalated' ? 'notif-priority-escalation' : '' ?>"
+                        <div class="notif-item-row <?= $row['is_read'] == 0 ? 'unread' : '' ?> <?= $typeJs === 'hr_chat_pending' ? 'notif-chat-pending' : '' ?> <?= $typeJs === 'follow_up' ? 'notif-follow-up' : '' ?> <?= $isHoldStatus ? 'notif-hold' : '' ?> <?= $typeJs === 'priority_escalated' ? 'notif-priority-escalation' : '' ?>"
                              style="--notif-accent: <?= htmlspecialchars($accentColor, ENT_QUOTES, 'UTF-8') ?>; --notif-dot: <?= htmlspecialchars($dotColor, ENT_QUOTES, 'UTF-8') ?>;"
                              role="button"
                              tabindex="0"
@@ -1374,7 +1408,7 @@ function notif_priority_from_message(string $message): string
                                     </span>
                                     <span class="notif-title-text"><?= htmlspecialchars($titleText, ENT_QUOTES, 'UTF-8') ?></span>
                                 </div>
-                                <div class="notif-text"><?= notif_message_highlight_html($displayMessage) ?></div>
+                                <div class="notif-text"><?= $displayMessageHtml ?></div>
                                 <div class="notif-date" data-timestamp="<?= htmlspecialchars((string) $row['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= time_elapsed_string($row['created_at']) ?></div>
                             </div>
                         </div>
@@ -1537,7 +1571,7 @@ function employeeNotificationTargetUrl(ticketId, type) {
     if (notifType === 'hr_chat_pending') {
         return `my_task.php?ticket_id=${ticketId}&chat=1`;
     }
-    const taskTypes = new Set(['dept_assigned', 'reassigned', 'priority_escalated', 'new_ticket', 'follow_up', 'hr_chat_pending']);
+    const taskTypes = new Set(['dept_assigned', 'reassigned', 'priority_escalated', 'new_ticket', 'follow_up', 'hr_chat_pending', 'hold_approval_requested', 'hold_approved', 'hold_rejected']);
     return taskTypes.has(notifType)
         ? `my_task.php?ticket_id=${ticketId}`
         : `my_tickets.php?ticket_id=${ticketId}`;

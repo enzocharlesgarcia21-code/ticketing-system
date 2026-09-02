@@ -201,14 +201,14 @@ function feedback_assignee_display(array $ticket): array
     ];
 }
 
-function my_tickets_effective_sla_level(string $createdAt, string $status, string $priority = ''): string
+function my_tickets_effective_sla_level(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    return ticket_effective_sla_level($createdAt, $status, $priority);
+    return ticket_effective_sla_level($createdAt, $status, $priority, $holdStartedAt, $holdSeconds);
 }
 
-function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    $slaLevel = my_tickets_effective_sla_level($createdAt, $status, $priority);
+    $slaLevel = my_tickets_effective_sla_level($createdAt, $status, $priority, $holdStartedAt, $holdSeconds);
     if ($slaLevel === '') return '-';
     return '<span class="badge badge-' . strtolower($slaLevel) . '">' . htmlspecialchars(my_tickets_sla_display_label($slaLevel), ENT_QUOTES, 'UTF-8') . '</span>';
 }
@@ -980,6 +980,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
     exit();
 }
+ticket_ensure_assignment_columns($conn);
 
 follow_up_ensure_cooldown_columns($conn);
 
@@ -4540,13 +4541,14 @@ $successMessage = '';
                                         <strong><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                     </td>
                                     <td data-label="Status">
-                                        <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                                            <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
+                                        <?php $requesterStatusDisplay = !empty($row['hold_started_at']) ? 'On Hold' : (string) $row['status']; ?>
+                                        <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $requesterStatusDisplay)); ?>">
+                                            <?= htmlspecialchars($requesterStatusDisplay, ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
                                     <td data-label="Passed To"><?= htmlspecialchars(submitted_ticket_target_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td data-label="Date"><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
-                                    <td data-label="SLA" class="my-tickets-sla-cell"><?= my_tickets_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
+                                    <td data-label="SLA" class="my-tickets-sla-cell"><?= my_tickets_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0)); ?></td>
                                     <td data-label="Action" class="follow-up-cell">
                                         <div class="ticket-action-buttons">
                                         <?php if (can_follow_up_ticket_status((string) ($row['status'] ?? ''))): ?>

@@ -54,9 +54,9 @@ function admin_ticket_created_date(string $dateTime): string
     return $created->format('M d, Y');
 }
 
-function sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+function sla_badge_html(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    return ticket_sla_badge_html($createdAt, $status, $priority, '<span class="sla-empty">-</span>');
+    return ticket_sla_badge_html($createdAt, $status, $priority, '<span class="sla-empty">-</span>', $holdStartedAt, $holdSeconds);
 }
 
 function sla_filter_condition_sql(string $tableAlias, string $sla): string
@@ -277,10 +277,10 @@ while ($res && ($row = $res->fetch_assoc())) {
     $assignedDept = ticket_department_key_from_value((string) ($row['assigned_department'] ?? ''));
     $showNewBadge = ticket_admin_new_badge_visible($row);
     $id = (int) ($row['id'] ?? 0);
-    $statusVal = (string) ($row['status'] ?? '');
+    $statusVal = !empty($row['hold_started_at']) ? 'On Hold' : (string) ($row['status'] ?? '');
     $createdAt = (string) ($row['created_at'] ?? '');
     $dateStr = $createdAt !== '' ? admin_ticket_created_date($createdAt) : '';
-    $slaHtml = sla_badge_html($createdAt, $statusVal, (string) ($row['priority'] ?? ''));
+    $slaHtml = sla_badge_html($createdAt, $statusVal, (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0));
     $rowsHtml .= '<tr class="ticket-row" data-id="' . (string) $id . '" style="cursor:pointer;' . ($showNewBadge ? 'background:rgba(27, 94, 32, 0.08);' : '') . '">';
     $rowsHtml .= '<td data-label="ID">#' . str_pad((string) $id, 6, '0', STR_PAD_LEFT) . '</td>';
     $rowsHtml .= '<td data-label="Requested By"><div class="user-info"><strong>' . h($dispName) . '</strong><br><small>' . h($dispEmail) . '</small></div></td>';

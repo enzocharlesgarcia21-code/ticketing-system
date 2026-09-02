@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/mailer.php';
+require_once '../includes/auth_security.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -22,13 +23,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
 
     if (isset($_POST['resend']) && $_POST['resend'] === '1') {
-        $otp = (string) rand(100000, 999999);
-        $updateOtp = $conn->prepare("UPDATE users SET otp_code = ? WHERE email = ? AND is_verified = 0");
-        if ($updateOtp) {
-            $updateOtp->bind_param("ss", $otp, $email);
-            $updateOtp->execute();
-            $updateOtp->close();
+        $resendRateError = auth_rate_limit_or_error($conn, 'email_verify_resend', security_client_ip() . '|' . strtolower($email), 5, 3600, 3600);
+        $otpIssue = $resendRateError === null ? auth_otp_issue($conn, 'email_verify', $email, 600, 60, 5) : ['ok' => false];
+        if ($resendRateError !== null) {
+            $error = $resendRateError;
+        } elseif (empty($otpIssue['ok'])) {
+            $error = 'Please wait ' . max(1, (int) ($otpIssue['cooldown'] ?? 60)) . ' seconds before requesting another code.';
         }
+        $otp = !empty($otpIssue['ok']) ? (string) $otpIssue['otp'] : '';
 
         $name = '';
         $nameStmt = $conn->prepare("SELECT name FROM users WHERE email = ? LIMIT 1");
@@ -59,25 +61,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             . "Your OTP code is: $otp\n\n"
             . "Please enter this code to activate your account.\n";
 
-        $ok = sendSmtpEmail([$email], $subjectLine, $bodyHtml, $bodyText);
-        if ($ok) {
-            $success = "OTP sent. Please check your inbox (and Spam folder).";
-        } else {
-            $error = "Failed to send OTP. Please try again later or contact the administrator.";
+        if ($otp !== '') {
+            $ok = sendSmtpEmail([$email], $subjectLine, $bodyHtml, $bodyText);
+            if ($ok) {
+                $success = "OTP sent. Please check your inbox (and Spam folder).";
+            } else {
+                $error = "Failed to send OTP. Please try again later or contact the administrator.";
+            }
         }
     } else {
-    $enteredOtp = trim($_POST['otp']);
+    $enteredOtp = trim((string) ($_POST['otp'] ?? ''));
+    $rateIdentifier = security_client_ip() . '|' . strtolower($email);
+    $verifyRateError = auth_rate_limit_or_error($conn, 'email_verify_attempt', $rateIdentifier, 6, 600, 900);
+    $verification = $verifyRateError === null
+        ? auth_otp_verify($conn, 'email_verify', $email, $enteredOtp)
+        : ['ok' => false, 'error' => $verifyRateError];
 
-    $stmt = $conn->prepare("
-        SELECT otp_code FROM users 
-        WHERE email = ? AND is_verified = 0
-    ");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
-
-    if ($user && $enteredOtp == $user['otp_code']) {
+    if (!empty($verification['ok'])) {
 
         $update = $conn->prepare("
             UPDATE users 
@@ -86,6 +86,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         ");
         $update->bind_param("s", $email);
         $update->execute();
+        $update->close();
+        auth_otp_delete($conn, 'email_verify', $email);
+        auth_rate_limit_clear($conn, 'email_verify_attempt', $rateIdentifier);
 
         unset($_SESSION['verify_email']);
 
@@ -93,10 +96,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
 
     } else {
-        $error = "Invalid OTP.";
+        $error = (string) ($verification['error'] ?? 'Invalid OTP.');
     }
-
-    $stmt->close();
     }
 }
 ?>

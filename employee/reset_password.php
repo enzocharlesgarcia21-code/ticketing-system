@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/auth_security.php';
 
 if (!isset($_SESSION['reset_email'])) {
     header("Location: forgot_password.php");
@@ -17,6 +18,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $pass = (string) ($_POST['password'] ?? '');
     $confirm = (string) ($_POST['confirm_password'] ?? '');
     $email = (string) ($_SESSION['reset_email'] ?? '');
+    $resetRateError = auth_rate_limit_or_error($conn, 'password_reset_complete', security_client_ip() . '|' . strtolower($email), 5, 3600, 3600);
     $currentPasswordHash = '';
 
     if ($email !== '') {
@@ -32,7 +34,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // Validation
-    if ($pass !== $confirm) {
+    if ($resetRateError !== null) {
+        $error = $resetRateError;
+    } elseif ($pass !== $confirm) {
         $error = "Passwords do not match.";
     } elseif (strlen($pass) < 8 || !preg_match('/[A-Z]/', $pass) || !preg_match('/[a-z]/', $pass) || !preg_match('/[0-9]/', $pass) || !preg_match('/[^A-Za-z0-9]/', $pass)) {
         $error = "Password must be at least 8 chars, include uppercase, lowercase, number, and special char.";
@@ -45,6 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $update->bind_param("ss", $hash, $email);
 
         if ($update->execute()) {
+            auth_otp_delete($conn, 'password_reset', $email);
             $role = (string) ($_SESSION['reset_role'] ?? 'employee');
             unset($_SESSION['reset_email']);
             unset($_SESSION['otp_verified']);

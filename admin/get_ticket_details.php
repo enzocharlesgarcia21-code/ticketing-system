@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/pdf_thumbnail.php';
+require_once '../includes/private_attachments.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     http_response_code(403);
@@ -331,6 +332,11 @@ if ($row = $result->fetch_assoc()) {
     $row['requester_department'] = $requesterOrganization['department'];
     $row['description'] = $clean_desc;
     $row = ticket_chat_apply_effective_handler($row);
+    $isOnHold = trim((string) ($row['hold_started_at'] ?? '')) !== '';
+    $row['is_on_hold'] = $isOnHold;
+    $row['can_hold_ticket'] = false;
+    $row['can_resume_ticket'] = false;
+    if ($isOnHold) $row['can_update_tab'] = false;
     $userContext = ticket_build_user_context($conn, $currentUserId, $_SESSION);
     $row['can_claim_ticket'] = false;
     $chatClosedMessage = ticket_chat_closed_status_message($row);
@@ -385,6 +391,10 @@ if ($row = $result->fetch_assoc()) {
         $attStmt->close();
     }
     $row['attachments'] = array_map('ticket_enrich_attachment_preview', ticket_sort_attachments($attachments));
+    foreach ($row['attachments'] as &$attachmentItem) {
+        $attachmentItem['download_url'] = private_attachment_url($id, (string) ($attachmentItem['stored_name'] ?? ''));
+    }
+    unset($attachmentItem);
     $row['request_meta'] = ticket_request_meta_load($conn, $id);
     $row['urgency'] = ticket_format_urgency($row['priority'] ?? '');
     $row['hr_display'] = ticket_build_hr_display($row, $row['attachments'], $row['request_meta']);
@@ -403,10 +413,16 @@ if ($row = $result->fetch_assoc()) {
     $resolutionEnd = trim((string) ($row['resolved_at'] ?? ''));
     if ($resolutionEnd === '') $resolutionEnd = trim((string) ($row['closed_at'] ?? ''));
     if ($resolutionStart !== '') {
-        if ($resolutionEnd === '') {
-            $duration = !is_null($row['started_at']) ? "In Progress" : "Not Started";
+        $durationEnd = $resolutionEnd !== '' ? $resolutionEnd : null;
+        if ($durationEnd === null && $isOnHold) $durationEnd = (string) $row['hold_started_at'];
+        $durationSeconds = max(0,
+            ticket_business_seconds_between($resolutionStart, $durationEnd)
+            - max(0, (int) ($row['sla_hold_seconds'] ?? 0))
+        );
+        if ($resolutionEnd === '' && is_null($row['started_at'])) {
+            $duration = "Not Started";
+            $durationSeconds = null;
         } else {
-            $durationSeconds = ticket_business_seconds_between($resolutionStart, $resolutionEnd);
             $duration = ticket_format_business_duration($durationSeconds);
         }
     }

@@ -2,6 +2,8 @@
 require_once '../config/database.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/pdf_thumbnail.php';
+require_once '../includes/private_attachments.php';
+require_once '../includes/hold_approval.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     http_response_code(403);
@@ -550,6 +552,9 @@ if ($row = $result->fetch_assoc()) {
         }
     }
     $isRequesterForAccess = ticket_user_matches_requester($row, $currentUserId, $userContext);
+    $row['can_manage_requester_url'] = !$isRequesterForAccess
+        && ($isCurrentHandler || $isCurrentAssignedUser)
+        && empty($row['reassigned_view_only']);
     $handlerCandidateAccess = ticket_user_is_handler_candidate($row, $currentUserId, $userContext);
     if (!$isRequesterForAccess && $specificUserLocked && $lockedAssignedUserId !== $currentUserId) {
         $handlerCandidateAccess = false;
@@ -558,12 +563,22 @@ if ($row = $result->fetch_assoc()) {
         && !empty($row['is_sales_ticket'])
         && ($handlerCandidateAccess || $isCurrentHandler || $isCurrentAssignedUser || !empty($row['can_claim_ticket']));
     $row['sales_assignee_chat_access'] = $salesAssigneeChatAccess;
+    $canReviewDepartmentHold = hold_approval_user_can_review($conn, $currentUserId, $row);
     $hasAccess = $isRequesterForAccess
         || $handlerCandidateAccess
         || $hasFeedbackAccess
         || $salesManagerRegionalAccess
+        || $canReviewDepartmentHold
         || !empty($row['can_claim_ticket']);
-    if (!$hasAccess) {
+    $taskReadOnlyAccess = !$hasAccess
+        && ticket_user_has_task_read_access($conn, $row, $currentUserId, $userContext);
+    if (!$hasAccess && !$taskReadOnlyAccess) {
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['error' => 'You are not authorized to view this ticket.']);
+        exit;
+    }
+    if ($taskReadOnlyAccess) {
         $row['reassigned_view_only'] = true;
         $isDepartmentClaimLock = $groupOk
             && !$isRequesterForAccess
@@ -571,26 +586,9 @@ if ($row = $result->fetch_assoc()) {
             && !empty($row['assigned_to_name']);
         if ($isDepartmentClaimLock) {
             $assignedStaffLabel = unavailable_assigned_staff_label($row);
-            $isSameDepartmentReassignment = false;
-            $reassignCheckStmt = $conn->prepare("
-                SELECT 1
-                FROM notifications
-                WHERE ticket_id = ?
-                  AND COALESCE(NULLIF(LOWER(TRIM(action_type)), ''), 'assign') = 'reassign'
-                LIMIT 1
-            ");
-            if ($reassignCheckStmt) {
-                $reassignCheckStmt->bind_param("i", $id);
-                $reassignCheckStmt->execute();
-                $reassignCheckRes = $reassignCheckStmt->get_result();
-                $isSameDepartmentReassignment = (bool) ($reassignCheckRes && $reassignCheckRes->fetch_row());
-                $reassignCheckStmt->close();
-            }
             $row['reassigned_banner_tone'] = 'assigned';
-            $row['reassigned_banner_heading'] = ($isSameDepartmentReassignment ? 'Ticket Reassigned to ' : 'Ticket Assigned to ') . trim((string) ($row['assigned_to_name'] ?? ''));
-            $row['reassigned_title'] = $isSameDepartmentReassignment
-                ? 'This ticket has been reassigned to ' . $assignedStaffLabel . '.'
-                : 'This ticket is currently assigned to ' . $assignedStaffLabel . '.';
+            $row['reassigned_banner_heading'] = 'Ticket Assigned to ' . trim((string) ($row['assigned_to_name'] ?? ''));
+            $row['reassigned_title'] = 'This ticket is currently assigned to ' . $assignedStaffLabel . '.';
         } else {
             $targetLabel = unavailable_reassignment_target_label($row);
             $row['reassigned_banner_tone'] = 'reassigned';
@@ -599,6 +597,34 @@ if ($row = $result->fetch_assoc()) {
         }
         $row['reassigned_message'] = 'You can still view the ticket details and chat history, but you can no longer respond.';
         $row['can_update_tab'] = false;
+        $row['can_claim_ticket'] = false;
+    }
+    $isOnHold = trim((string) ($row['hold_started_at'] ?? '')) !== '';
+    $isCurrentAssignee = $isCurrentHandler || $isCurrentAssignedUser;
+    $pendingHoldRequest = hold_approval_pending_request($conn, $id);
+    $pendingHoldRequesterId = (int) ($pendingHoldRequest['requested_by'] ?? 0);
+    $canReviewPendingHold = $pendingHoldRequest
+        && $canReviewDepartmentHold
+        && $pendingHoldRequesterId !== $currentUserId;
+    $canSeePendingHold = $pendingHoldRequest
+        && ($canReviewPendingHold || $pendingHoldRequesterId === $currentUserId);
+    $row['is_on_hold'] = $isOnHold;
+    $row['hold_approval_pending'] = (bool) $canSeePendingHold;
+    $row['can_review_hold_request'] = (bool) $canReviewPendingHold;
+    $row['hold_request_reason'] = $canSeePendingHold
+        ? (string) ($pendingHoldRequest['reason'] ?? '')
+        : '';
+    $row['hold_requested_by_name'] = $canReviewPendingHold
+        ? (string) ($pendingHoldRequest['requester_name'] ?? '')
+        : '';
+    $row['can_hold_ticket'] = !$taskReadOnlyAccess
+        && $isCurrentAssignee
+        && !$isOnHold
+        && !$pendingHoldRequest
+        && strcasecmp((string) ($row['status'] ?? ''), 'In Progress') === 0;
+    $row['can_resume_ticket'] = !$taskReadOnlyAccess && $isCurrentAssignee && $isOnHold;
+    if ($isOnHold) {
+        $row['can_update_tab'] = !$taskReadOnlyAccess && $isCurrentAssignee;
         $row['can_claim_ticket'] = false;
     }
     $chatClosedMessage = ticket_chat_closed_status_message($row);
@@ -667,6 +693,10 @@ if ($row = $result->fetch_assoc()) {
         $attStmt->close();
     }
     $row['attachments'] = array_map('ticket_enrich_attachment_preview', ticket_sort_attachments($attachments));
+    foreach ($row['attachments'] as &$attachmentItem) {
+        $attachmentItem['download_url'] = private_attachment_url($id, (string) ($attachmentItem['stored_name'] ?? ''));
+    }
+    unset($attachmentItem);
     $row['request_meta'] = ticket_request_meta_load($conn, $id);
     $row['urgency'] = ticket_format_urgency($row['priority'] ?? '');
     $row['hr_display'] = ticket_build_hr_display($row, $row['attachments'], $row['request_meta']);
@@ -685,10 +715,18 @@ if ($row = $result->fetch_assoc()) {
     $resolutionEnd = trim((string) ($row['resolved_at'] ?? ''));
     if ($resolutionEnd === '') $resolutionEnd = trim((string) ($row['closed_at'] ?? ''));
     if ($resolutionStart !== '') {
-        if ($resolutionEnd === '') {
-            $duration = !is_null($row['started_at']) ? "In Progress" : "Not Started";
+        $durationEnd = $resolutionEnd !== '' ? $resolutionEnd : null;
+        if ($durationEnd === null && $isOnHold) {
+            $durationEnd = (string) $row['hold_started_at'];
+        }
+        $durationSeconds = max(0,
+            ticket_business_seconds_between($resolutionStart, $durationEnd)
+            - max(0, (int) ($row['sla_hold_seconds'] ?? 0))
+        );
+        if ($resolutionEnd === '' && is_null($row['started_at'])) {
+            $duration = "Not Started";
+            $durationSeconds = null;
         } else {
-            $durationSeconds = ticket_business_seconds_between($resolutionStart, $resolutionEnd);
             $duration = ticket_format_business_duration($durationSeconds);
         }
     }

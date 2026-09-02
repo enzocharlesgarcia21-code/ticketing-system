@@ -2,10 +2,11 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/activity_logger.php';
+require_once '../includes/user_permissions.php';
 
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin' || !user_permissions_can_manage($conn)) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'Unauthorized']);
     exit;

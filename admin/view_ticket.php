@@ -3,6 +3,7 @@ require_once '../config/database.php';
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/private_attachments.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header("Location: admin_login.php");
@@ -14,8 +15,6 @@ if (!isset($_GET['id'])) {
 }
 
 $id = (int) $_GET['id'];
-
-$conn->query("UPDATE employee_tickets SET is_read = 1 WHERE id = $id");
 
 /* Get full ticket + employee info */
 $stmt = $conn->prepare("
@@ -230,7 +229,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <ul style="margin-top: 8px; margin-bottom: 14px;">
             <?php foreach ($groupItems as $groupItem) { ?>
                 <li>
-                    <a href="../uploads/<?= htmlspecialchars((string) $groupItem['stored_name']); ?>" target="_blank">
+                    <a href="<?= htmlspecialchars(private_attachment_url($id, (string) $groupItem['stored_name']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener">
                         <?= htmlspecialchars((string) $groupItem['display_name']); ?>
                     </a>
                 </li>
@@ -278,5 +277,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 </div>
 
+<script>
+(function () {
+    const body = new URLSearchParams();
+    body.set('ticket_id', <?= json_encode($id); ?>);
+    body.set('csrf_token', <?= json_encode(csrf_token()); ?>);
+    fetch('mark_ticket_read.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: body.toString()
+    }).catch(function () {});
+})();
+</script>
 </body>
 </html>

@@ -32,6 +32,13 @@ if (!function_exists('user_permissions_definitions')) {
                 'section' => 'Tickets',
                 'default_enabled' => 1,
             ],
+            'hold_approver' => [
+                'label' => 'Approve Ticket Holds',
+                'nav_label' => '',
+                'path' => '',
+                'section' => 'Tickets',
+                'default_enabled' => 0,
+            ],
             'feedback' => [
                 'label' => 'Feedback',
                 'nav_label' => 'Feedback',

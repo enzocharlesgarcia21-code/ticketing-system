@@ -9,6 +9,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     exit();
 }
 
+ticket_ensure_assignment_columns($conn);
 ticket_apply_sla_priority($conn);
 
 $user_id = (int) $_SESSION['user_id'];
@@ -566,9 +567,9 @@ function dashboard_sla_rank(string $createdAt, string $status, string $priority 
     return 3;
 }
 
-function dashboard_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+function dashboard_sla_badge_html(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    return ticket_sla_badge_html($createdAt, $status, $priority);
+    return ticket_sla_badge_html($createdAt, $status, $priority, '-', $holdStartedAt, $holdSeconds);
 }
 
 function dashboard_priority_badge_html(array $row): string
@@ -3451,6 +3452,12 @@ function dashboard_urgency_badge_html(string $priority): string
                 border-color: #bbf7d0;
             }
 
+            body.employee-dashboard-page .dashboard-ticket-table .status-on-hold {
+                color: #166534;
+                background: #dcfce7;
+                border-color: #bbf7d0;
+            }
+
             body.employee-dashboard-page .dashboard-ticket-table .status-resolved {
                 color: #1d4ed8;
                 background: #dbeafe;
@@ -4332,7 +4339,7 @@ function dashboard_urgency_badge_html(string $priority): string
                 </button>
                 <div id="mobileSidebarUserMenu" class="mobile-sidebar-user-menu">
                     <a href="my_profile.php">My Profile</a>
-                    <a href="logout.php">Logout</a>
+                    <form method="post" action="logout.php" style="display:contents"><?= csrf_field(); ?><button type="submit" style="border:0;width:100%;text-align:left">Logout</button></form>
                 </div>
             </div>
         </div>
@@ -4516,7 +4523,7 @@ function dashboard_urgency_badge_html(string $priority): string
                         <tbody>
                             <?php if (count($managerSalesTickets) > 0): ?>
                                 <?php foreach ($managerSalesTickets as $row): ?>
-                                    <?php $status = (string) ($row['status'] ?? ''); ?>
+                                    <?php $status = !empty($row['hold_started_at']) ? 'On Hold' : (string) ($row['status'] ?? ''); ?>
                                     <?php $requester = dashboard_requester_info($row); ?>
                                     <tr class="ticket-row sales-manager-ticket-row" data-id="<?= (int) $row['id']; ?>" style="cursor:pointer;">
                                         <td class="task-ticket-id">#<?= str_pad((string) (int) $row['id'], 6, '0', STR_PAD_LEFT); ?></td>
@@ -4534,7 +4541,7 @@ function dashboard_urgency_badge_html(string $priority): string
                                                 <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
                                             </span>
                                         </td>
-                                        <td class="task-ticket-sla"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
+                                        <td class="task-ticket-sla"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0)); ?></td>
                                         <td class="task-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>
                                     </tr>
@@ -4579,7 +4586,7 @@ function dashboard_urgency_badge_html(string $priority): string
                         <tbody>
                             <?php if (count($receivedTickets) > 0): ?>
                                 <?php foreach ($receivedTickets as $row): ?>
-                                    <?php $status = (string) ($row['status'] ?? ''); ?>
+                                    <?php $status = !empty($row['hold_started_at']) ? 'On Hold' : (string) ($row['status'] ?? ''); ?>
                                     <?php $requester = dashboard_requester_info($row); ?>
                                     <tr class="ticket-row ticket-card received-ticket-row" data-id="<?= (int) $row['id']; ?>">
                                         <td class="dashboard-ticket-id ticket-card__meta">#<?= str_pad((string) (int) $row['id'], 6, '0', STR_PAD_LEFT); ?></td>
@@ -4597,7 +4604,7 @@ function dashboard_urgency_badge_html(string $priority): string
                                                 <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
                                             </span>
                                         </td>
-                                        <td class="dashboard-ticket-sla ticket-card__badges"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
+                                        <td class="dashboard-ticket-sla ticket-card__badges"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0)); ?></td>
                                         <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td class="dashboard-ticket-arrow" aria-hidden="true"><span class="dashboard-ticket-arrow-icon"></span></td>
                                     </tr>
@@ -4639,7 +4646,7 @@ function dashboard_urgency_badge_html(string $priority): string
                         <tbody>
                             <?php if (count($raisedTickets) > 0): ?>
                                 <?php foreach ($raisedTickets as $row): ?>
-                                    <?php $status = (string) ($row['status'] ?? ''); ?>
+                                    <?php $status = !empty($row['hold_started_at']) ? 'On Hold' : (string) ($row['status'] ?? ''); ?>
                                     <?php $requester = dashboard_requester_info($row); ?>
                                     <tr class="ticket-row ticket-card raised-ticket-row" data-id="<?= (int) $row['id']; ?>">
                                         <td class="dashboard-ticket-id ticket-card__meta">#<?= str_pad((string) (int) $row['id'], 6, '0', STR_PAD_LEFT); ?></td>
@@ -4657,7 +4664,7 @@ function dashboard_urgency_badge_html(string $priority): string
                                                 <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
                                             </span>
                                         </td>
-                                        <td class="dashboard-ticket-sla ticket-card__badges"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? '')); ?></td>
+                                        <td class="dashboard-ticket-sla ticket-card__badges"><?= dashboard_sla_badge_html((string) ($row['created_at'] ?? ''), $status, (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0)); ?></td>
                                         <td class="dashboard-ticket-date"><?= htmlspecialchars(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td class="dashboard-ticket-arrow" aria-hidden="true"><span class="dashboard-ticket-arrow-icon"></span></td>
                                     </tr>
@@ -4698,8 +4705,9 @@ function dashboard_urgency_badge_html(string $priority): string
                                     <td class="recent-ticket-category" data-label="Category"><?= htmlspecialchars($row['category']); ?></td>
                                     <td class="recent-ticket-title" data-label="Reported Concern"><?= htmlspecialchars($row['subject']); ?></td>
                                     <td class="recent-ticket-status" data-label="Status">
-                                        <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                                            <?= htmlspecialchars($row['status']); ?>
+                                        <?php $recentStatus = !empty($row['hold_started_at']) ? 'On Hold' : (string) ($row['status'] ?? ''); ?>
+                                        <span class="status-pill status-<?= htmlspecialchars(dashboard_status_class($recentStatus), ENT_QUOTES, 'UTF-8'); ?>">
+                                            <?= htmlspecialchars($recentStatus, ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
 

@@ -1,9 +1,6 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 
 // Access Control
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
@@ -11,8 +8,14 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-if (isset($_GET['id'])) {
-    $article_id = (int)$_GET['id'];
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    exit('Method Not Allowed');
+}
+csrf_validate();
+
+if (isset($_POST['id'])) {
+    $article_id = (int)$_POST['id'];
     
     // First get the image path to delete the file if it exists
     $stmt = $conn->prepare("SELECT image_path, article_presentation, article_video FROM knowledge_base WHERE id = ?");

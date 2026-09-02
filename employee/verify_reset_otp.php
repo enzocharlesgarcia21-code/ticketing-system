@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
+require_once '../includes/auth_security.php';
 
 if (!isset($_SESSION['reset_email'])) {
     header("Location: forgot_password.php");
@@ -8,41 +9,25 @@ if (!isset($_SESSION['reset_email'])) {
 }
 
 if (isset($_GET['error']) && $_GET['error'] == 'smtp_failed') {
-    $email = $_SESSION['reset_email'];
-    $stmt = $conn->prepare("SELECT reset_otp FROM users WHERE email = ?");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    if ($user = $res->fetch_assoc()) {
-        $error = "We couldn't send the password reset email. Please use this code: <strong>" . $user['reset_otp'] . "</strong>";
-    }
-    $stmt->close();
+    $error = "We couldn't send the password reset email. Please try again later.";
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
     $otp = trim($_POST['otp']);
     $email = $_SESSION['reset_email'];
-
-    $stmt = $conn->prepare("SELECT id, reset_otp, reset_otp_expiry FROM users WHERE email = ?");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $res = $stmt->get_result();
-
-    if ($user = $res->fetch_assoc()) {
-        if ($user['reset_otp'] === $otp) {
-            if (strtotime($user['reset_otp_expiry']) > time()) {
-                $_SESSION['otp_verified'] = true;
-                header("Location: reset_password.php");
-                exit();
-            } else {
-                $error = "OTP has expired.";
-            }
-        } else {
-            $error = "Invalid OTP code.";
-        }
+    $rateError = auth_rate_limit_or_error($conn, 'password_reset_verify', security_client_ip() . '|' . strtolower($email), 6, 600, 900);
+    if ($rateError !== null) {
+        $error = $rateError;
     } else {
-        $error = "User not found.";
+        $verification = auth_otp_verify($conn, 'password_reset', $email, $otp);
+        if (!empty($verification['ok'])) {
+            auth_rate_limit_clear($conn, 'password_reset_verify', security_client_ip() . '|' . strtolower($email));
+            $_SESSION['otp_verified'] = true;
+            header("Location: reset_password.php");
+            exit();
+        }
+        $error = (string) ($verification['error'] ?? 'Invalid OTP code.');
     }
 }
 ?>

@@ -327,6 +327,7 @@ function analytics_apply_company_filter(array &$where, array &$params, string &$
     $params[] = $companyFilter;
     $types .= 's';
 }
+ticket_ensure_assignment_columns($conn);
 
 function analytics_apply_department_filter(array &$where, array &$params, string &$types, string $fieldExpr, string $departmentFilter, string $ticketAlias = 't'): void
 {
@@ -1687,7 +1688,7 @@ $ticketsOrderSql = $analyticsUsesEmployeePresentation
         t.id DESC"
     : "t.created_at DESC";
 $ticketCompletionExpr = "COALESCE(t.resolved_at, t.closed_at)";
-$ticketDurationSecondsExpr = ticket_business_seconds_sql('t.started_at', $ticketCompletionExpr);
+$ticketDurationSecondsExpr = ticket_sla_elapsed_seconds_sql('t', 't.started_at', $ticketCompletionExpr);
 $ticketsSql = "
     SELECT
         t.id,
@@ -1708,6 +1709,8 @@ $ticketsSql = "
         t.started_at,
         $ticketCompletionExpr as resolved_at,
         t.status,
+        t.hold_started_at,
+        t.sla_hold_seconds,
         $ticketDurationSecondsExpr as duration_seconds
     FROM employee_tickets t
     LEFT JOIN users u ON t.user_id = u.id
@@ -2975,6 +2978,11 @@ if ($ticketsStmt) {
             border-color: #bbf7d0;
             color: #166534;
         }
+        .status-on-hold {
+            background: #dcfce7;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
         .status-resolved {
             background: #dbeafe;
             border-color: #bfdbfe;
@@ -3659,9 +3667,11 @@ if ($ticketsStmt) {
                             <?php if (count($tickets) > 0): ?>
                                 <?php foreach ($tickets as $t): ?>
                                     <?php
-                                        $status = (string) ($t['status'] ?? '');
+                                        $status = !empty($t['hold_started_at'])
+                                            ? 'On Hold'
+                                            : (string) ($t['status'] ?? '');
                                         $statusSlug = strtolower(str_replace(' ', '-', $status));
-                                        if (!in_array($statusSlug, ['open','in-progress','resolved','closed'], true)) $statusSlug = 'open';
+                                        if (!in_array($statusSlug, ['open','in-progress','on-hold','resolved','closed'], true)) $statusSlug = 'open';
                                         $startedAt = (string) ($t['started_at'] ?? '');
                                         $resolvedAt = (string) ($t['resolved_at'] ?? '');
                                         $durationSec = (int) ($t['duration_seconds'] ?? 0);
@@ -3680,7 +3690,7 @@ if ($ticketsStmt) {
                                         </td>
                                         <td class="task-ticket-department"><?= htmlspecialchars(analytics_source_label($t), ENT_QUOTES, 'UTF-8') ?></td>
                                         <td class="task-ticket-status"><span class="status-pill status-<?= htmlspecialchars($statusSlug, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($status !== '' ? $status : '-', ENT_QUOTES, 'UTF-8') ?></span></td>
-                                        <td class="task-ticket-sla"><?= ticket_sla_badge_html((string) ($t['created_at'] ?? ''), $status, (string) ($t['priority'] ?? '')) ?></td>
+                                        <td class="task-ticket-sla"><?= ticket_sla_badge_html((string) ($t['created_at'] ?? ''), $status, (string) ($t['priority'] ?? ''), '-', (string) ($t['hold_started_at'] ?? ''), (int) ($t['sla_hold_seconds'] ?? 0)) ?></td>
                                         <td class="task-ticket-date"><?= !empty($t['created_at']) ? htmlspecialchars(date('M d, Y', strtotime((string) $t['created_at'])), ENT_QUOTES, 'UTF-8') : '-' ?></td>
                                         <td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>
                                         <?php else: ?>

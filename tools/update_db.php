@@ -1,4 +1,8 @@
 <?php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit('Not Found');
+}
 $conn = new mysqli('127.0.0.1', 'root', '', 'ticketing_system', 3306);
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);

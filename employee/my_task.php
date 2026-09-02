@@ -214,9 +214,9 @@ function task_normalize_sla_filter(string $sla): string
     return ticket_normalize_sla_level($sla);
 }
 
-function task_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+function task_sla_badge_html(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    return ticket_sla_badge_html($createdAt, $status, $priority);
+    return ticket_sla_badge_html($createdAt, $status, $priority, '-', $holdStartedAt, $holdSeconds);
 }
 
 function task_urgency_badge_html(string $priority): string
@@ -2891,12 +2891,13 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                     <td class="task-ticket-department"><?= htmlspecialchars(task_source_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
 
                                     <td class="task-ticket-status">
-                                        <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                                            <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
+                                        <?php $taskStatusDisplay = !empty($row['hold_started_at']) ? 'On Hold' : (string) $row['status']; ?>
+                                        <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $taskStatusDisplay)); ?>">
+                                            <?= htmlspecialchars($taskStatusDisplay, ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
 
-                                    <td class="task-ticket-sla"><?= task_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
+                                    <td class="task-ticket-sla"><?= task_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0)); ?></td>
                                     <td class="task-ticket-date"><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
                                     <td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>
                                 </tr>

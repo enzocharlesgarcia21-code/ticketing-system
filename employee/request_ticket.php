@@ -1,7 +1,4 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 require_once '../config/database.php';
 
 require_once '../includes/mailer.php';
@@ -280,13 +277,14 @@ function request_ticket_admin_legal_all_recipients(mysqli $conn): array
 
 function request_ticket_upload_dir(): string
 {
-    return __DIR__ . '/../uploads';
+    require_once __DIR__ . '/../includes/private_attachments.php';
+    return private_attachment_storage_dir();
 }
 
 function request_ticket_debug_log(string $message, array $context = []): void
 {
-    $logDir = request_ticket_upload_dir();
-    if (!is_dir($logDir) && !@mkdir($logDir, 0777, true) && !is_dir($logDir)) {
+    $logDir = __DIR__ . '/../logs';
+    if (!is_dir($logDir) && !@mkdir($logDir, 0700, true) && !is_dir($logDir)) {
         return;
     }
 
@@ -297,7 +295,7 @@ function request_ticket_debug_log(string $message, array $context = []): void
             $line .= ' ' . $json;
         }
     }
-    @file_put_contents($logDir . '/request_ticket_upload_debug.log', $line . PHP_EOL, FILE_APPEND);
+    @file_put_contents($logDir . '/request_ticket_upload_debug.log', $line . PHP_EOL, FILE_APPEND | LOCK_EX);
 }
 
 function request_ticket_cleanup_uploaded_files(array $files): void

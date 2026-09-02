@@ -1,6 +1,7 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/ticket_assignment.php';
+require_once '../includes/csrf.php';
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
     header('Location: employee_login.php');
@@ -8,7 +9,12 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
 }
 
 $userId = (int) $_SESSION['user_id'];
-$mode = strtolower(trim((string) ($_GET['mode'] ?? 'employee')));
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    exit('Method Not Allowed');
+}
+csrf_validate();
+$mode = strtolower(trim((string) ($_POST['mode'] ?? 'employee')));
 if (!in_array($mode, ['employee', 'manager'], true)) {
     $mode = 'employee';
 }

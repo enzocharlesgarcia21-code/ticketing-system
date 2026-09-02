@@ -131,10 +131,10 @@ foreach ($adminNavSections as $items) {
                     <i class="fas fa-user"></i>
                     <span>Profile</span>
                 </a>
-                <a href="<?= htmlspecialchars(admin_nav_url('logout.php'), ENT_QUOTES, 'UTF-8'); ?>" class="admin-user-menu-item" role="menuitem">
+                <form method="post" action="<?= htmlspecialchars(admin_nav_url('logout.php'), ENT_QUOTES, 'UTF-8'); ?>" style="display:contents"><?= csrf_field(); ?><button type="submit" class="admin-user-menu-item" role="menuitem" style="border:0;width:100%;text-align:left">
                     <i class="fas fa-right-from-bracket"></i>
                     <span>Logout</span>
-                </a>
+                </button></form>
             </div>
         </div>
     </div>
@@ -1930,7 +1930,15 @@ function consumeAdminNotificationUnread(notifItem) {
 }
 
 function fetchAdminNotifications() {
-    fetch(adminNavUrl('fetch_notifications.php') + '?_=' + Date.now(), { cache: 'no-store' })
+    const notificationBody = new URLSearchParams();
+    notificationBody.set('csrf_token', String(window.TM_CSRF_TOKEN || ''));
+    fetch(adminNavUrl('fetch_notifications.php'), {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: notificationBody.toString()
+    })
         .then(response => {
             if (response.status === 403) {
                 // Session expired

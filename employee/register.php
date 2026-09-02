@@ -1,10 +1,8 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 require_once '../config/database.php';
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
+require_once '../includes/auth_security.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -22,6 +20,8 @@ if (isset($_SESSION['user_id'])) {
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
 
+    $registrationRateError = auth_rate_limit_or_error($conn, 'registration', security_client_ip(), 5, 3600, 3600);
+
     $name       = trim($_POST['name']);
     $email      = trim($_POST['email']);
     $company    = trim($_POST['company']);
@@ -31,7 +31,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     /* === ADDED SAFE VALIDATION === */
     $confirm_password = $_POST['confirm_password'];
 
-    if ($password !== $confirm_password) {
+    if ($registrationRateError !== null) {
+        $error = $registrationRateError;
+    } elseif ($password !== $confirm_password) {
         $error = "Passwords do not match.";
     } elseif (
         strlen($password) < 8 ||
@@ -57,7 +59,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } else {
 
             $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-            $otp = rand(100000, 999999);
+            $otpIssue = auth_otp_issue($conn, 'email_verify', $email, 600, 60, 5);
+            if (empty($otpIssue['ok'])) {
+                $error = 'Unable to create a verification code right now.';
+                $check->close();
+                goto registration_complete;
+            }
+            $otp = (string) $otpIssue['otp'];
+            $legacyOtp = null;
 
             $stmt = $conn->prepare("
                 INSERT INTO users 
@@ -65,7 +74,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 VALUES (?, ?, ?, ?, ?, 'employee', ?, 0)
             ");
 
-            $stmt->bind_param("ssssss", $name, $email, $company, $department, $hashedPassword, $otp);
+            $stmt->bind_param("ssssss", $name, $email, $company, $department, $hashedPassword, $legacyOtp);
 
             if ($stmt->execute()) {
                 $nameSafe = htmlspecialchars($name);
@@ -108,6 +117,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error = "Please fill in all fields.";
     }
 }
+registration_complete:
 ?>
 <!DOCTYPE html>
 <html>

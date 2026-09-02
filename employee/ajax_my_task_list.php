@@ -203,9 +203,9 @@ function task_normalize_sla_filter(string $sla): string
     return ticket_normalize_sla_level($sla);
 }
 
-function task_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+function task_sla_badge_html(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    return ticket_sla_badge_html($createdAt, $status, $priority);
+    return ticket_sla_badge_html($createdAt, $status, $priority, '-', $holdStartedAt, $holdSeconds);
 }
 
 function task_urgency_badge_html(string $priority): string
@@ -563,8 +563,9 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '<td class="task-ticket-urgency">' . task_urgency_badge_html((string) ($row['priority'] ?? '')) . '</td>';
         $rowsHtml .= '<td class="task-ticket-requester"><div class="user-info"><strong>' . h((string) $dispName) . '</strong><br><small>' . h((string) $dispEmail) . '</small></div></td>';
         $rowsHtml .= '<td class="task-ticket-department">' . h(task_source_label($row)) . '</td>';
-        $rowsHtml .= '<td class="task-ticket-status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', (string) $row['status'])) . '">' . h((string) $row['status']) . '</span></td>';
-        $rowsHtml .= '<td class="task-ticket-sla">' . task_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')) . '</td>';
+        $taskStatusDisplay = !empty($row['hold_started_at']) ? 'On Hold' : (string) $row['status'];
+        $rowsHtml .= '<td class="task-ticket-status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', $taskStatusDisplay)) . '">' . h($taskStatusDisplay) . '</span></td>';
+        $rowsHtml .= '<td class="task-ticket-sla">' . task_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0)) . '</td>';
         $rowsHtml .= '<td class="task-ticket-date">' . h(date("M d, Y", strtotime((string) $row['created_at']))) . '</td>';
         $rowsHtml .= '<td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>';
         $rowsHtml .= '</tr>';

@@ -2,6 +2,7 @@
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/activity_logger.php';
+require_once '../includes/auth_security.php';
 
 function employee_login_safe_redirect($value): string
 {
@@ -67,6 +68,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $email = $email . $email_domain;
     }
     $password = trim($_POST['password']);
+    $rateIdentifier = security_client_ip() . '|' . strtolower($email);
+    $rateError = auth_rate_limit_or_error($conn, 'login', $rateIdentifier, 10, 900, 900);
 
     if ($email !== '') {
         $at_pos = strpos($email, '@');
@@ -80,7 +83,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $email_value = $email;
     }
 
-    if (!empty($email) && !empty($password)) {
+    if ($rateError !== null) {
+        $error = $rateError;
+    } elseif (!empty($email) && !empty($password)) {
         $stmt = $conn->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
         if (!$stmt) {
             $error = "System error. Please try again.";
@@ -97,6 +102,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 } elseif ($role === 'employee' && (int) ($user['is_verified'] ?? 0) !== 1) {
                     $error = "Please verify your email first.";
                 } elseif (password_verify($password, (string) $user['password'])) {
+                    auth_rate_limit_clear($conn, 'login', $rateIdentifier);
+                    security_regenerate_authenticated_session();
+                    unset($_SESSION['csrf_token']);
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['name'] = $user['name'];
                     $_SESSION['email'] = $user['email'];

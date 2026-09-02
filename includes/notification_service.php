@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/private_attachments.php';
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/mailer.php';
@@ -910,8 +911,8 @@ function notif_ticket_email_attachments(mysqli $conn, int $ticketId, string $leg
             if ($storedName === '') {
                 continue;
             }
-            $path = realpath(__DIR__ . '/../uploads/' . $storedName);
-            if ($path === false || !is_file($path)) {
+            $path = private_attachment_resolve_path($storedName);
+            if ($path === '' || !is_file($path)) {
                 continue;
             }
             $name = trim((string) ($row['original_name'] ?? ''));
@@ -936,8 +937,8 @@ function notif_ticket_email_attachments(mysqli $conn, int $ticketId, string $leg
 
     $legacyAttachment = trim($legacyAttachment);
     if ($legacyAttachment !== '') {
-        $legacyPath = realpath(__DIR__ . '/../uploads/' . $legacyAttachment);
-        if ($legacyPath !== false && is_file($legacyPath)) {
+        $legacyPath = private_attachment_resolve_path($legacyAttachment);
+        if ($legacyPath !== '' && is_file($legacyPath)) {
             $pathKey = strtolower($legacyPath);
             $key = $pathKey . '|' . strtolower(basename($legacyPath));
             if (!isset($seen[$pathKey]) && !isset($seen[$key])) {
@@ -1835,7 +1836,7 @@ function notif_email_requester_ticket_resolved(string $title, array $lines, stri
         $details['Current Status'] = 'Resolved';
     }
     notif_email_extract_sales_request_context($details);
-    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Resolved By', 'Email', 'Position', 'Region', 'Date Submitted', 'Date Resolved', 'Level of Urgency', 'Description'];
+    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Resolved By', 'Email', 'Position', 'Region', 'Date Submitted', 'Date Resolved', 'Level of Urgency', 'Description', 'Action Taken/Comments'];
     $rowsHtml = '';
     foreach ($orderedLabels as $label) {
         if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
@@ -2010,7 +2011,7 @@ function notif_email_requester_ticket_reassigned(string $title, array $lines, st
         : 'Your ticket has been reassigned to another department for further handling.';
 
     notif_email_extract_sales_request_context($details);
-    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Claimed By', 'Email', 'Position', 'Region', 'Date Reassigned', 'Level of Urgency', 'Description', 'Note'];
+    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Claimed By', 'Email', 'Position', 'Region', 'Date Reassigned', 'Level of Urgency', 'Description', 'Action Taken/Comments', 'Note'];
     $rowsHtml = '';
     foreach ($orderedLabels as $label) {
         if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
@@ -2090,7 +2091,7 @@ function notif_email_requester_ticket_status_updated(string $title, array $lines
     }
 
     notif_email_extract_sales_request_context($details);
-    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Assignee', 'Email', 'Position', 'Region', 'Level of Urgency', 'Description'];
+    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Assignee', 'Email', 'Position', 'Region', 'Level of Urgency', 'Description', 'Action Taken/Comments'];
     $rowsHtml = '';
     foreach ($orderedLabels as $label) {
         if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
@@ -2487,7 +2488,7 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
             continue;
         }
         $safeLine = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
-        if (preg_match('/^([A-Za-z][A-Za-z\s&]+:)(\s*.*)$/s', $safeLine, $matches)) {
+        if (preg_match('/^([A-Za-z][A-Za-z\s&\/]+:)(\s*.*)$/s', $safeLine, $matches)) {
             $safeLine = '<strong>' . $matches[1] . '</strong>' . $matches[2];
         }
         $lineHtml .= '<div style="margin:0 0 12px 0; font-size:16px; line-height:1.5; color:#0f172a;">' . nl2br($safeLine) . '</div>';

@@ -19,7 +19,8 @@ $user = $result->fetch_assoc();
 $stmt->close();
 
 if (!$user) {
-    header("Location: logout.php");
+    security_clear_session();
+    header("Location: ../index.php");
     exit();
 }
 ?>

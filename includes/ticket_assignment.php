@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/notification_service.php';
 require_once __DIR__ . '/pdf_thumbnail.php';
+require_once __DIR__ . '/private_attachments.php';
 require_once __DIR__ . '/sla_calendar.php';
 
 function ticket_ensure_activity_table(mysqli $conn): void
@@ -1481,6 +1482,12 @@ function ticket_ensure_assignment_columns(mysqli $conn): void
         'assigned_user_id' => "INT NULL",
         'assigned_to' => "INT NULL",
         'admin_viewed_at' => "DATETIME NULL",
+        'requester_url' => "TEXT NULL",
+        'hold_started_at' => "DATETIME NULL",
+        'hold_reason' => "TEXT NULL",
+        'hold_by' => "INT NULL",
+        'sla_hold_seconds' => "INT UNSIGNED NOT NULL DEFAULT 0",
+        'sla_hold_seconds_at_high' => "INT UNSIGNED NOT NULL DEFAULT 0",
     ];
     $existing = [];
     $res = $conn->query("SHOW COLUMNS FROM employee_tickets");
@@ -1798,6 +1805,86 @@ function ticket_user_matches_requester(array $ticket, int $userId, ?array $userC
     $requesterEmail = ticket_requester_email($ticket);
 
     return $userEmail !== '' && $requesterEmail !== '' && $userEmail === $requesterEmail;
+}
+
+function ticket_task_history_aliases(array $userContext): array
+{
+    $company = trim((string) ($userContext['company'] ?? ''));
+    $department = trim((string) ($userContext['department'] ?? ''));
+    $aliases = ticket_company_aliases($company);
+    $companyDisplay = ticket_company_display_name($company);
+    if ($company !== '') $aliases[] = $company;
+    if ($companyDisplay !== '') $aliases[] = $companyDisplay;
+
+    $departmentKey = ticket_department_key_from_value($department);
+    $aliases = array_merge($aliases, [$department, $departmentKey], ticket_department_aliases_for_key($departmentKey));
+
+    return array_values(array_unique(array_filter(array_map(static function ($value): string {
+        return strtoupper(trim((string) $value));
+    }, $aliases), static function ($value): bool {
+        return $value !== '';
+    })));
+}
+
+/**
+ * Read-only access for tickets intentionally shown in an employee's My Task
+ * history. This does not grant update, claim, or chat-send permission.
+ */
+function ticket_user_has_task_read_access(mysqli $conn, array $ticket, int $userId, ?array $userContext = null): bool
+{
+    $ticketId = (int) ($ticket['id'] ?? 0);
+    if ($ticketId <= 0 || $userId <= 0 || $userContext === null) return false;
+    if (ticket_user_matches_requester($ticket, $userId, $userContext)) return false;
+
+    $assignedUserId = (int) ($ticket['assigned_user_id'] ?? 0);
+    $assignedTo = (int) ($ticket['assigned_to'] ?? 0);
+    if ($assignedUserId === $userId || $assignedTo === $userId) return true;
+
+    $isSalesEmployeeView = ticket_normalize_company((string) ($userContext['company'] ?? '')) === '@leadsagri.com'
+        && strcasecmp((string) ($userContext['department'] ?? ''), 'Sales') === 0
+        && strcasecmp((string) ($userContext['employee_view_mode'] ?? 'employee'), 'manager') !== 0;
+    if ($isSalesEmployeeView) return false;
+
+    // Current department/company team tickets are part of My Task even when
+    // another team member has already claimed the ticket.
+    if (ticket_user_is_handler_candidate($ticket, $userId, $userContext)) return true;
+
+    // Direct assignment notifications provide user-specific evidence that the
+    // ticket legitimately appeared in this employee's task history.
+    $notificationStmt = $conn->prepare("SELECT 1 FROM notifications
+        WHERE ticket_id = ? AND user_id = ? AND type = 'dept_assigned'
+          AND COALESCE(NULLIF(LOWER(TRIM(action_type)), ''), 'assign') IN ('assign', 'reassign')
+        LIMIT 1");
+    if ($notificationStmt) {
+        $notificationStmt->bind_param('ii', $ticketId, $userId);
+        $notificationStmt->execute();
+        $notified = (bool) $notificationStmt->get_result()->fetch_row();
+        $notificationStmt->close();
+        if ($notified) return true;
+    }
+
+    // My Task also retains tickets after they leave the employee's department
+    // or company. Match only structured reassignment activity for that scope.
+    $aliases = ticket_task_history_aliases($userContext);
+    if (!$aliases) return false;
+    ticket_ensure_activity_table($conn);
+    $activityStmt = $conn->prepare("SELECT description FROM ticket_activity
+        WHERE ticket_id = ? AND activity_type IN ('department_change', 'company_change')");
+    if (!$activityStmt) return false;
+    $activityStmt->bind_param('i', $ticketId);
+    $activityStmt->execute();
+    $activityResult = $activityStmt->get_result();
+    while ($activityResult && ($activity = $activityResult->fetch_assoc())) {
+        $description = strtoupper((string) ($activity['description'] ?? ''));
+        foreach ($aliases as $alias) {
+            if (strpos($description, $alias) !== false) {
+                $activityStmt->close();
+                return true;
+            }
+        }
+    }
+    $activityStmt->close();
+    return false;
 }
 
 function ticket_description_field_value(array $ticket, string $field): string
@@ -2256,7 +2343,7 @@ function ticket_chat_attachment_is_image(string $filename): bool
 
 function ticket_chat_upload_dir(): string
 {
-    return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
+    return private_attachment_storage_dir();
 }
 
 function ticket_chat_attachment_max_bytes(): int
@@ -3009,6 +3096,11 @@ function ticket_ensure_priority_escalation_columns(mysqli $conn): void
         'auto_escalated_high_emailed_at' => "DATETIME NULL",
         'auto_escalated_critical_notified_at' => "DATETIME NULL",
         'auto_escalated_critical_emailed_at' => "DATETIME NULL",
+        'hold_started_at' => "DATETIME NULL",
+        'hold_reason' => "TEXT NULL",
+        'hold_by' => "INT NULL",
+        'sla_hold_seconds' => "INT UNSIGNED NOT NULL DEFAULT 0",
+        'sla_hold_seconds_at_high' => "INT UNSIGNED NOT NULL DEFAULT 0",
     ];
     $existing = [];
     $res = $conn->query("SHOW COLUMNS FROM employee_tickets");
@@ -3060,12 +3152,50 @@ function ticket_sla_age_days(string $createdAt): int
     return intdiv(ticket_sla_business_seconds_between($createdAt), ticket_sla_workday_seconds());
 }
 
-function ticket_effective_sla_level(string $createdAt, string $status, string $priority = ''): string
+function ticket_sla_total_hold_seconds(array $ticket, $endValue = null): int
+{
+    $seconds = max(0, (int) ($ticket['sla_hold_seconds'] ?? 0));
+    $holdStartedAt = trim((string) ($ticket['hold_started_at'] ?? ''));
+    if ($holdStartedAt !== '') {
+        $seconds += ticket_sla_business_seconds_between($holdStartedAt, $endValue);
+    }
+    return max(0, $seconds);
+}
+
+function ticket_sla_elapsed_seconds(array $ticket, string $referenceField = 'created_at', $endValue = null, int $holdSnapshot = 0): int
+{
+    $reference = trim((string) ($ticket[$referenceField] ?? ''));
+    if ($reference === '') return 0;
+    $effectiveEnd = $endValue;
+    if ($effectiveEnd === null && trim((string) ($ticket['hold_started_at'] ?? '')) !== '') {
+        $effectiveEnd = (string) $ticket['hold_started_at'];
+    }
+    $base = ticket_sla_business_seconds_between($reference, $effectiveEnd);
+    $paused = max(0, ticket_sla_total_hold_seconds($ticket, $effectiveEnd) - max(0, $holdSnapshot));
+    return max(0, $base - $paused);
+}
+
+function ticket_sla_elapsed_seconds_sql(string $tableAlias, string $referenceExpression, string $holdSnapshotExpression = '0'): string
+{
+    $prefix = trim($tableAlias);
+    if ($prefix !== '') $prefix .= '.';
+    $effectiveEnd = "COALESCE({$prefix}hold_started_at, NOW())";
+    $base = ticket_sla_business_seconds_sql($referenceExpression, $effectiveEnd);
+    $paused = "GREATEST(0, COALESCE({$prefix}sla_hold_seconds, 0) - COALESCE($holdSnapshotExpression, 0))";
+    return "GREATEST(0, ($base) - ($paused))";
+}
+
+function ticket_effective_sla_level(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
     $statusKey = strtolower(trim($status));
     if ($statusKey === 'resolved' || $statusKey === 'closed') return '';
 
-    $businessSeconds = ticket_sla_business_seconds_between($createdAt);
+    $ticket = [
+        'created_at' => $createdAt,
+        'hold_started_at' => $holdStartedAt,
+        'sla_hold_seconds' => $holdSeconds,
+    ];
+    $businessSeconds = ticket_sla_elapsed_seconds($ticket);
 
     if ($businessSeconds >= 6 * ticket_sla_workday_seconds()) {
         return 'High';
@@ -3076,9 +3206,9 @@ function ticket_effective_sla_level(string $createdAt, string $status, string $p
     return 'Low';
 }
 
-function ticket_sla_badge_html(string $createdAt, string $status, string $priority = '', string $emptyHtml = '-'): string
+function ticket_sla_badge_html(string $createdAt, string $status, string $priority = '', string $emptyHtml = '-', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    $slaLevel = ticket_effective_sla_level($createdAt, $status, $priority);
+    $slaLevel = ticket_effective_sla_level($createdAt, $status, $priority, $holdStartedAt, $holdSeconds);
     if ($slaLevel === '') return $emptyHtml;
     $class = strtolower($slaLevel);
     return '<span class="badge badge-' . htmlspecialchars($class, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars(ticket_sla_display_label($slaLevel), ENT_QUOTES, 'UTF-8') . '</span>';
@@ -3092,7 +3222,7 @@ function ticket_sla_filter_condition_sql(string $tableAlias, string $sla): strin
     $prefix = trim($tableAlias);
     if ($prefix !== '') $prefix .= '.';
     $statusExpr = "LOWER(TRIM(COALESCE({$prefix}status, '')))";
-    $businessSeconds = ticket_sla_business_seconds_sql("{$prefix}created_at");
+    $businessSeconds = ticket_sla_elapsed_seconds_sql($tableAlias, "{$prefix}created_at");
     $ageBreach = "$businessSeconds >= " . (6 * ticket_sla_workday_seconds());
     $ageRisk = "$businessSeconds >= " . (3 * ticket_sla_workday_seconds());
     $activeExpr = "{$prefix}created_at IS NOT NULL AND $statusExpr NOT IN ('resolved', 'closed')";
@@ -3193,9 +3323,13 @@ function ticket_priority_escalation_due_at(array $ticket, string $targetPriority
         return null;
     }
 
+    $holdSnapshot = $targetPriority === 'Critical'
+        ? max(0, (int) ($ticket['sla_hold_seconds_at_high'] ?? 0))
+        : 0;
+    $pausedAfterReference = max(0, ticket_sla_total_hold_seconds($ticket) - $holdSnapshot);
     $dueAt = ticket_sla_add_business_seconds(
         $reference,
-        (int) ($config['days'] ?? 0) * ticket_sla_workday_seconds()
+        ((int) ($config['days'] ?? 0) * ticket_sla_workday_seconds()) + $pausedAfterReference
     );
     return $dueAt ? $dueAt->format('Y-m-d H:i:s') : null;
 }
@@ -3255,6 +3389,10 @@ function ticket_load_priority_escalation_ticket(mysqli $conn, int $ticketId): ?a
             t.auto_escalated_critical_at,
             t.auto_escalated_critical_notified_at,
             t.auto_escalated_critical_emailed_at,
+            t.hold_started_at,
+            t.hold_reason,
+            t.sla_hold_seconds,
+            t.sla_hold_seconds_at_high,
             assignee.department AS assignee_department,
             " . ticket_escalation_reference_sql('t') . " AS reference_time
         FROM employee_tickets t
@@ -3364,6 +3502,7 @@ function ticket_process_priority_escalation_stage(mysqli $conn, int $ticketId, s
 
     $status = trim((string) ($ticket['status'] ?? ''));
     if ($status === 'Resolved' || $status === 'Closed') return null;
+    if (trim((string) ($ticket['hold_started_at'] ?? '')) !== '') return null;
 
     $dueAt = ticket_priority_escalation_due_at($ticket, $targetPriority);
     if ($dueAt === null) return null;
@@ -3382,15 +3521,21 @@ function ticket_process_priority_escalation_stage(mysqli $conn, int $ticketId, s
         $priorityCondition = $targetPriority === 'High'
             ? "(priority = 'Low' OR priority = '' OR priority IS NULL)"
             : "priority = 'High'";
+        $pauseSnapshot = ticket_sla_total_hold_seconds($ticket);
+        $snapshotSet = $targetPriority === 'High' ? ', sla_hold_seconds_at_high = ?' : '';
         $sql = "UPDATE employee_tickets
-                SET priority = ?, $escalatedAtColumn = ?
+                SET priority = ?, $escalatedAtColumn = ?$snapshotSet
                 WHERE id = ?
                   AND status NOT IN ('Resolved', 'Closed')
                   AND $priorityCondition
                   AND $escalatedAtColumn IS NULL";
         $stmt = $conn->prepare($sql);
         if ($stmt) {
-            $stmt->bind_param("ssi", $targetPriority, $dueAt, $ticketId);
+            if ($targetPriority === 'High') {
+                $stmt->bind_param("ssii", $targetPriority, $dueAt, $pauseSnapshot, $ticketId);
+            } else {
+                $stmt->bind_param("ssi", $targetPriority, $dueAt, $ticketId);
+            }
             $stmt->execute();
             $escalated = $stmt->affected_rows > 0;
             $stmt->close();
@@ -3559,8 +3704,8 @@ function ticket_apply_sla_priority(mysqli $conn, bool $force = false): array
     ];
 
     $referenceSql = ticket_escalation_reference_sql();
-    $highAgeSql = ticket_sla_business_seconds_sql($referenceSql);
-    $criticalAgeFromHighSql = ticket_sla_business_seconds_sql('auto_escalated_high_at');
+    $highAgeSql = ticket_sla_elapsed_seconds_sql('', $referenceSql);
+    $criticalAgeFromHighSql = ticket_sla_elapsed_seconds_sql('', 'auto_escalated_high_at', 'sla_hold_seconds_at_high');
     $highThresholdSeconds = 3 * ticket_sla_workday_seconds();
     $criticalThresholdSeconds = 6 * ticket_sla_workday_seconds();
 
@@ -3568,6 +3713,7 @@ function ticket_apply_sla_priority(mysqli $conn, bool $force = false): array
         SELECT id
         FROM employee_tickets
         WHERE status NOT IN ('Resolved', 'Closed')
+          AND hold_started_at IS NULL
           AND (
                 (
                     COALESCE(priority, '') IN ('', 'Low', 'High')

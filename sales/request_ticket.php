@@ -1,11 +1,9 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 require_once '../config/database.php';
 
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
+require_once '../includes/auth_security.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/notification_service.php';
 
@@ -538,7 +536,8 @@ function sales_request_is_weekend_date(string $targetDate): bool
 
 function sales_request_upload_dir(): string
 {
-    return __DIR__ . '/../uploads';
+    require_once __DIR__ . '/../includes/private_attachments.php';
+    return private_attachment_storage_dir();
 }
 
 function sales_request_cleanup_uploaded_files(array $files): void
@@ -753,7 +752,9 @@ function finish_ticket_submit_response(bool $isAjax, array $payload = []): void
 
 function sales_email_debug_log(array $context): void
 {
-    $logPath = __DIR__ . '/../uploads/email_debug.log';
+    $logDir = __DIR__ . '/../logs';
+    if (!is_dir($logDir)) @mkdir($logDir, 0700, true);
+    $logPath = $logDir . '/email_debug.log';
     $entry = [
         'timestamp' => date('Y-m-d H:i:s'),
     ] + $context;
@@ -799,6 +800,11 @@ function sales_request_clean_email_description(string $description): string
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
     ticket_ensure_assignment_columns($conn);
+
+    $guestRateError = auth_rate_limit_or_error($conn, 'guest_ticket_submit', security_client_ip(), 10, 3600, 3600);
+    if ($guestRateError !== null) {
+        $error_msg = $guestRateError;
+    }
 
     $full_name  = trim((string)($_POST['full_name'] ?? ''));
     $email      = trim((string)($_POST['email'] ?? ''));
@@ -1445,7 +1451,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $guest_company = 'Sales';
         $guest_department = 'SALES';
         $guest_role = 'employee';
-        $guest_otp = '000000';
+        $guest_otp = null;
         $guest_verified = 1;
 
         $insert_stmt = $conn->prepare("

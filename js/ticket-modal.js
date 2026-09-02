@@ -1135,11 +1135,11 @@ var TMTicketModal = (function () {
     });
     return text;
   }
-  function viewButtonIfImage(filename) {
+  function viewButtonIfImage(filename, sourceUrl) {
     var ext = filename.split('.').pop().toLowerCase();
     var isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
     if (!isImage) return '';
-    var src = '../uploads/' + escapeHtml(filename);
+    var src = sourceUrl || ('../download_attachment.php?file=' + encodeURIComponent(filename));
     return '<button type="button" class="tm-action-btn tm-view-btn" data-src="' + src + '" onclick="event.stopPropagation(); TMTicketModal.viewImage(this.dataset.src)">' +
            '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>' +
            'View</button>';
@@ -1189,7 +1189,9 @@ var TMTicketModal = (function () {
     }
     if (!filename) return '';
     filename = attachmentStoredName(filename);
-    var src = '../uploads/' + encodeURIComponent(filename);
+    var src = (att && typeof att === 'object' && (att.download_url || att.downloadUrl))
+      ? String(att.download_url || att.downloadUrl)
+      : ('../download_attachment.php?file=' + encodeURIComponent(filename));
     var isPdf = (att && att.is_pdf) || isPdfFile(filename);
     var isWord = isWordFile(filename);
     var wordType = wordFileType(filename);
@@ -1219,7 +1221,7 @@ var TMTicketModal = (function () {
       '  <div class="tm-att-details">' +
       '    <div class="tm-att-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</div>' +
       '    <div class="tm-att-actions">' +
-      viewButtonIfImage(filename) +
+      viewButtonIfImage(filename, src) +
       downloadButton +
       '    </div>' +
       '  </div>' +
@@ -1232,6 +1234,7 @@ var TMTicketModal = (function () {
     var thumbnailAvailable = false;
     var isPdf = false;
     var isWord = false;
+    var downloadUrl = '';
     if (typeof att === 'string') {
       filename = att;
       displayName = att;
@@ -1242,12 +1245,14 @@ var TMTicketModal = (function () {
       thumbnailAvailable = !!att.thumbnail_available;
       isPdf = !!(att.is_pdf || att.isPdf);
       isWord = !!(att.is_word || att.isWord);
+      downloadUrl = att.download_url || att.downloadUrl || '';
     }
     return {
       filename: attachmentStoredName(filename),
       displayName: displayName,
       thumbnailUrl: thumbnailUrl,
       thumbnail_available: thumbnailAvailable,
+      downloadUrl: downloadUrl,
       isPdf: isPdf || isPdfFile(filename),
       isWord: isWord || isWordFile(filename)
     };
@@ -1267,7 +1272,8 @@ var TMTicketModal = (function () {
           isImage: isImageFile(n.filename),
           isPdf: n.isPdf,
           isWord: n.isWord,
-          thumbnailUrl: n.thumbnailUrl
+          thumbnailUrl: n.thumbnailUrl,
+          downloadUrl: n.downloadUrl
         };
       }).filter(function (att) { return !!att; }) : [];
       if (!attachments.length) return null;
@@ -1291,7 +1297,7 @@ var TMTicketModal = (function () {
           '</div>' +
           '<div class="tm-hr-category-media-grid' + (group.attachments.length === 1 ? ' is-single' : '') + '">' +
           group.attachments.map(function (item) {
-            var src = '../uploads/' + encodeURIComponent(attachmentStoredName(item.filename));
+            var src = item.downloadUrl || ('../download_attachment.php?file=' + encodeURIComponent(attachmentStoredName(item.filename)));
             if (item.isImage) {
               return '<button type="button" class="tm-hr-category-media is-image" data-src="' + src + '" onclick="TMTicketModal.viewImage(this.dataset.src)">' +
                 '<img class="tm-hr-category-image" src="' + src + '" alt="' + escapeHtml(item.displayName) + '">' +
@@ -1415,7 +1421,7 @@ var TMTicketModal = (function () {
     function renderAttachmentRow(att) {
       var n = normalizeAttachment(att);
       if (!n.filename) return '';
-      var src = '../uploads/' + encodeURIComponent(n.filename);
+      var src = n.downloadUrl || ('../download_attachment.php?file=' + encodeURIComponent(n.filename));
       var isImage = isImageFile(n.filename);
       var previewHtml = '';
       if (isImage) {
@@ -1863,7 +1869,7 @@ var TMTicketModal = (function () {
   }
   function getChatAttachmentUrl(storedName) {
     var safeName = safeAttachmentPathSegment(storedName);
-    return safeName ? ('../uploads/' + safeName) : '';
+    return safeName ? ('../download_attachment.php?file=' + safeName) : '';
   }
   function formatAttachmentSize(bytes) {
     var size = Number(bytes || 0);
@@ -2306,7 +2312,7 @@ var TMTicketModal = (function () {
     return '<div class="tm-incident-file-list">' + list.map(function (att) {
       var n = normalizeAttachment(att);
       if (!n.filename) return '';
-      var src = '../uploads/' + encodeURIComponent(n.filename);
+      var src = n.downloadUrl || ('../download_attachment.php?file=' + encodeURIComponent(n.filename));
       var iconClass = n.isPdf ? 'fa-file-pdf' : (n.isWord ? 'fa-file-word' : (isImageFile(n.filename) ? 'fa-image' : 'fa-file'));
       var labelHtml = '<span class="tm-incident-file-icon"><i class="fas ' + iconClass + '"></i></span>' +
         '<span class="tm-incident-file-name">' + escapeHtml(String(n.displayName || n.filename)) + '</span>';
@@ -2529,11 +2535,117 @@ var TMTicketModal = (function () {
   function updateStatusColor(select, explicitValue) {
     if (!select) return;
     var status = typeof explicitValue === 'string' ? explicitValue : select.value;
-    select.classList.remove('status-open', 'status-progress', 'status-resolved', 'status-closed');
+    select.classList.remove('status-open', 'status-progress', 'status-hold', 'status-resolved', 'status-closed');
     if (status === 'Open') select.classList.add('status-open');
     else if (status === 'In Progress') select.classList.add('status-progress');
+    else if (status === 'Hold') select.classList.add('status-hold');
     else if (status === 'Resolved') select.classList.add('status-resolved');
     else if (status === 'Closed') select.classList.add('status-closed');
+  }
+  function showActionNoteRequiredPopup(noteEl) {
+    var existing = document.getElementById('tmRequiredNotePopup');
+    if (existing) existing.parentNode.removeChild(existing);
+
+    var overlay = document.createElement('div');
+    overlay.id = 'tmRequiredNotePopup';
+    overlay.className = 'tm-required-note-popup';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'tmRequiredNoteTitle');
+    overlay.innerHTML =
+      '<div class="tm-required-note-dialog">' +
+      '  <div class="tm-required-note-icon" aria-hidden="true">!</div>' +
+      '  <h2 class="tm-required-note-title" id="tmRequiredNoteTitle">Action Required</h2>' +
+      '  <p class="tm-required-note-message">Please fill out the required reason or comments field before clicking Save Ticket.</p>' +
+      '  <button type="button" class="tm-required-note-button">OK</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var okButton = overlay.querySelector('.tm-required-note-button');
+    function closePopup() {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      document.removeEventListener('keydown', handleKeydown);
+      if (noteEl) noteEl.blur();
+    }
+    function handleKeydown(event) {
+      if (event.key === 'Escape' || event.key === 'Enter') {
+        event.preventDefault();
+        closePopup();
+      }
+    }
+    if (okButton) okButton.addEventListener('click', closePopup);
+    overlay.addEventListener('click', function (event) {
+      if (event.target === overlay) closePopup();
+    });
+    document.addEventListener('keydown', handleKeydown);
+    if (okButton) okButton.focus();
+  }
+  function bindRequesterUrlForm(container, data) {
+    if (!container) return;
+    var form = container.querySelector('#tmRequesterUrlForm');
+    if (!form || form.dataset.bound === '1') return;
+    form.dataset.bound = '1';
+    var input = form.querySelector('input[name="requester_url"]');
+    var button = form.querySelector('button[type="submit"]');
+    var status = form.querySelector('[data-url-status]');
+    var preview = form.querySelector('[data-url-preview]');
+
+    function setStatus(message, tone) {
+      if (!status) return;
+      status.textContent = message || '';
+      status.classList.remove('is-success', 'is-error');
+      if (tone) status.classList.add(tone);
+    }
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var value = input ? String(input.value || '').trim() : '';
+      if (value !== '' && !/^https?:\/\//i.test(value)) value = 'https://' + value;
+      if (value !== '') {
+        try {
+          var parsed = new URL(value);
+          if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('Invalid protocol');
+        } catch (urlError) {
+          setStatus('Enter a valid HTTP or HTTPS URL.', 'is-error');
+          if (input) input.focus();
+          return;
+        }
+      }
+      if (input) input.value = value;
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Saving...';
+      }
+      setStatus('', '');
+      var formData = new FormData();
+      formData.append('ticket_id', String((data && data.id) || ''));
+      formData.append('requester_url', value);
+      var token = getCsrfToken();
+      if (token) formData.append('csrf_token', token);
+
+      postJson('save_ticket_url.php', formData)
+        .then(function (response) {
+          if (!response || response.ok !== true) {
+            throw new Error(String((response && response.error) || 'Unable to save the URL.'));
+          }
+          var savedUrl = String(response.url || '');
+          if (input) input.value = savedUrl;
+          if (preview) {
+            preview.hidden = savedUrl === '';
+            preview.href = savedUrl || '#';
+          }
+          setStatus(String(response.message || 'URL saved successfully.'), 'is-success');
+        })
+        .catch(function (error) {
+          setStatus(error && error.message ? error.message : 'Unable to save the URL.', 'is-error');
+        })
+        .finally(function () {
+          if (button) {
+            button.disabled = false;
+            button.textContent = 'Save Link';
+          }
+        });
+    });
   }
   function bindNoChangeGuard(container, data) {
     if (!container) return;
@@ -2546,6 +2658,7 @@ var TMTicketModal = (function () {
     var companyEl = form.querySelector('select[name="assigned_company"]');
     var userEl = form.querySelector('select[name="assigned_user_id"]');
     var noteEl = form.querySelector('textarea[name="admin_note"]');
+    var submitButton = container.querySelector('button[form="ticketUpdateForm"]') || form.querySelector('button[type="submit"]');
     var noticeEl = form.querySelector('#tmNoChangeNotice');
     var deptMirrorEl = form.querySelector('input[type="hidden"][data-dept-mirror="1"]');
 
@@ -2567,7 +2680,8 @@ var TMTicketModal = (function () {
       return deptEl ? String(deptEl.value || '') : '';
     }
 
-    var initialStatus = statusEl ? String(statusEl.value || '') : String((data && data.status) || '');
+    var initialOnHold = !!(data && data.is_on_hold === true);
+    var initialStatus = initialOnHold ? 'Hold' : (statusEl ? String(statusEl.value || '') : String((data && data.status) || ''));
     var initialCompany = normalizeCompanyValueForCompare(companyEl ? String(companyEl.value || '') : '');
     var initialDeptRaw = getDeptRawValue();
     var initialDept = normalizeDepartmentValueForCompare(initialDeptRaw, initialCompany);
@@ -2585,6 +2699,7 @@ var TMTicketModal = (function () {
       noticeEl.classList.remove('show');
       noticeEl.textContent = '';
       if (deptEl) deptEl.classList.remove('tm-invalid');
+      if (noteEl) noteEl.classList.remove('tm-invalid');
     }
 
     [statusEl, deptEl, companyEl, userEl, noteEl].forEach(function (el) {
@@ -2593,6 +2708,14 @@ var TMTicketModal = (function () {
       el.addEventListener('input', hideNotice);
     });
 
+    if (noteEl) {
+      noteEl.addEventListener('invalid', function (e) {
+        if (!noteEl.hasAttribute('required')) return;
+        e.preventDefault();
+        showActionNoteRequiredPopup(noteEl);
+      });
+    }
+
     form.addEventListener('submit', function (e) {
       var currentStatus = statusEl ? String(statusEl.value || '') : initialStatus;
       var currentCompany = normalizeCompanyValueForCompare(companyEl ? String(companyEl.value || '') : initialCompany);
@@ -2600,6 +2723,29 @@ var TMTicketModal = (function () {
       var currentDept = normalizeDepartmentValueForCompare(currentDeptRaw, currentCompany);
       var currentUser = userEl && !userEl.disabled ? String(userEl.value || '') : '';
       var currentNote = noteEl ? String(noteEl.value || '').trim() : initialNote;
+      if (noteEl && noteEl.hasAttribute('required') && currentNote === '') {
+        e.preventDefault();
+        showActionNoteRequiredPopup(noteEl);
+        return;
+      }
+      if (currentStatus === 'Hold') {
+        e.preventDefault();
+        if (initialOnHold) {
+          showNotice('This ticket is already on hold. Select In Progress to resume it.');
+          return;
+        }
+        submitHoldChange((data && data.id) || '', 'hold', currentNote, submitButton, null);
+        return;
+      }
+      if (initialOnHold) {
+        e.preventDefault();
+        if (currentStatus !== 'In Progress') {
+          showNotice('Resume the ticket to In Progress before selecting another status.');
+          return;
+        }
+        submitHoldChange((data && data.id) || '', 'resume', currentNote, submitButton, null);
+        return;
+      }
       if (currentCompany === '@leadsagri.com' && currentDept === '') {
         e.preventDefault();
         if (deptEl) {
@@ -3189,7 +3335,7 @@ var TMTicketModal = (function () {
       renderOptions();
     });
   }
-  function bindCustomStatusDropdown(container) {
+  function bindCustomStatusDropdown(container, data) {
     if (!container) return;
     var form = container.querySelector('#ticketUpdateForm');
     if (!form || form.dataset.customStatusBound === '1') return;
@@ -3197,7 +3343,27 @@ var TMTicketModal = (function () {
     var wrapper = form.querySelector('[data-status-segmented]');
     var selectEl = form.querySelector('select[name="status"]');
     var buttons = wrapper ? Array.prototype.slice.call(wrapper.querySelectorAll('[data-status-option]')) : [];
+    var noteLabel = form.querySelector('.tm-note-label');
+    var noteEl = form.querySelector('#tmAdminNote');
+    var quickTags = form.querySelector('.tm-quick-tags');
     if (!wrapper || !selectEl || buttons.length === 0) return;
+
+    function syncReasonField() {
+      var isHoldSelection = String(selectEl.value || '') === 'Hold';
+      if (noteLabel) {
+        noteLabel.innerHTML = isHoldSelection
+          ? 'Reason for Placing Ticket on Hold <span class="tm-required-star" aria-hidden="true">*</span>'
+          : 'Action Taken/Comments <span class="tm-required-star" aria-hidden="true">*</span>';
+      }
+      if (noteEl) {
+        noteEl.placeholder = isHoldSelection
+          ? 'Provide the reason why this ticket is being placed on hold.'
+          : 'Provide details of the issue or actions performed to resolve it.';
+        noteEl.setAttribute('required', 'required');
+        noteEl.setAttribute('aria-required', 'true');
+      }
+      if (quickTags) quickTags.style.display = isHoldSelection ? 'none' : '';
+    }
 
     function renderOptions() {
       var currentValue = String(selectEl.value || '');
@@ -3208,12 +3374,17 @@ var TMTicketModal = (function () {
         btn.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
         updateStatusColor(btn, value);
       });
+      syncReasonField();
     }
 
     buttons.forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (selectEl.disabled) return;
+        var previousValue = String(selectEl.value || '');
         var nextValue = String(btn.getAttribute('data-status-option') || '');
+        if (previousValue === 'Hold' && nextValue !== 'Hold' && noteEl) {
+          noteEl.value = '';
+        }
         selectEl.value = nextValue;
         renderOptions();
         var changeEvent;
@@ -3306,14 +3477,19 @@ var TMTicketModal = (function () {
       hideUpdateTab = true;
       hideConversationTab = !canViewChatHistory;
     }
+    var isOnHold = !!(data && data.is_on_hold === true);
     var showClaimButton = !!(data && data.can_claim_ticket === true);
+    var canHoldTicket = !!(data && data.can_hold_ticket === true);
+    var canResumeTicket = !!(data && data.can_resume_ticket === true);
+    var showHoldStatus = canHoldTicket || canResumeTicket;
     var hideAdminConversationButton = hideRequesterAdminChatButton || (isSalesTicket && !isSalesManagerRegionalAccess && !isSalesAssigneeChatAccess);
     var hideQuickTags = typeof window !== 'undefined' && window.TM_HIDE_QUICK_TAGS === true;
     var showDepartmentUserSelect = typeof window !== 'undefined' && window.TM_SHOW_DEPARTMENT_USER_SELECT === true;
     var deptLabelText = (typeof window !== 'undefined' && window.TM_DEPARTMENT_LABEL_TEXT) ? String(window.TM_DEPARTMENT_LABEL_TEXT) : 'Assigned Department';
     var deptRequired = typeof window !== 'undefined' && window.TM_DEPARTMENT_REQUIRED === true;
     var deptLabelHtml = escapeHtml(deptLabelText) + (deptRequired ? ' <span class="tm-required-star">*</span>' : '');
-    var statusSlug = data.status ? data.status.toLowerCase().replace(/\s+/g, '') : 'default';
+    var displayStatus = isOnHold ? 'On Hold' : String((data && data.status) || '');
+    var statusSlug = displayStatus ? displayStatus.toLowerCase().replace(/\s+/g, '') : 'default';
     var urgencyLabel = data && data.priority ? String(data.priority) : (data && data.urgency ? String(data.urgency) : '-');
     var urgencySlugSource = urgencyLabel.toLowerCase();
     var prioritySlug = urgencySlugSource.indexOf('high') === 0 ? 'high' : (urgencySlugSource.indexOf('medium') === 0 ? 'medium' : (urgencySlugSource.indexOf('low') === 0 ? 'low' : 'default'));
@@ -3331,7 +3507,7 @@ var TMTicketModal = (function () {
       ? (formatResolutionStringWithSeconds(resSecondsAll) || backendStr || formatResolutionString(resMinutesAll))
       : backendStr;
     var cls = getDurationClass(displayStr, resMinutesAll);
-    var isRunning = !resolutionEnd && !!(data && data.started_at);
+    var isRunning = !resolutionEnd && !isOnHold && !!(data && data.started_at);
     var resBadge = displayStr ? '<span class="tm-duration-badge ' + cls + (isRunning ? ' running' : '') + '">' + escapeHtml(displayStr) + '</span>' : '<span class="tm-duration-badge neutral">-</span>';
     var current = (typeof window !== 'undefined' && window.TM_CURRENT_USER) ? window.TM_CURRENT_USER : null;
     var isRequesterPOV = false;
@@ -3359,6 +3535,10 @@ var TMTicketModal = (function () {
         (currentEmail !== '' && (currentEmail === assignedToEmail || currentEmail === assigneeEmail))
         || (currentName !== '' && (currentName === assignedToName || currentName === assigneeName));
     }
+    var actionNoteRequired = !isRequesterPOV && !hideUpdateTab;
+    var canManageRequesterUrl = !!(data && data.can_manage_requester_url === true && isAssigneeOrHandlerPOV);
+    var requesterUrl = data && data.requester_url != null ? String(data.requester_url).trim() : '';
+    var safeRequesterUrl = /^https?:\/\//i.test(requesterUrl) ? requesterUrl : '';
     var isMobileTicketView = typeof window !== 'undefined'
       && typeof window.matchMedia === 'function'
       && window.matchMedia('(max-width: 768px)').matches;
@@ -3378,14 +3558,16 @@ var TMTicketModal = (function () {
       statusControlHtml =
         '          <div class="tm-status-picker" data-status-segmented>' +
         '            <select class="tm-select tm-status-select tm-native-select" name="status">' +
-        '                  <option value="Open" ' + (data.status === 'Open' ? 'selected' : '') + '>Open</option>' +
-        '                  <option value="In Progress" ' + (data.status === 'In Progress' ? 'selected' : '') + '>In Progress</option>' +
-        '                  <option value="Resolved" ' + (data.status === 'Resolved' ? 'selected' : '') + '>Resolved</option>' +
+        '                  <option value="Open" ' + (!isOnHold && data.status === 'Open' ? 'selected' : '') + '>Open</option>' +
+        '                  <option value="In Progress" ' + (!isOnHold && data.status === 'In Progress' ? 'selected' : '') + '>In Progress</option>' +
+        (showHoldStatus ? '                  <option value="Hold" ' + (isOnHold ? 'selected' : '') + '>Hold</option>' : '') +
+        '                  <option value="Resolved" ' + (!isOnHold && data.status === 'Resolved' ? 'selected' : '') + '>Resolved</option>' +
         '            </select>' +
         '            <div class="tm-status-trigger-label">Status</div>' +
-        '            <div class="tm-status-button-row">' +
+        '            <div class="tm-status-button-row' + (showHoldStatus ? ' has-hold-option' : '') + '">' +
         '              <button type="button" class="tm-status-trigger" data-status-option="Open" aria-pressed="false">Open</button>' +
         '              <button type="button" class="tm-status-trigger" data-status-option="In Progress" aria-pressed="false">In Progress</button>' +
+        (showHoldStatus ? '              <button type="button" class="tm-status-trigger" data-status-option="Hold" aria-pressed="false">Hold</button>' : '') +
         '              <button type="button" class="tm-status-trigger" data-status-option="Resolved" aria-pressed="false">Resolved</button>' +
         '            </div>' +
         '          </div>';
@@ -3424,12 +3606,15 @@ var TMTicketModal = (function () {
     var emailRequestTypeInfoHtml = emailRequestTypeDisplay
       ? ('        <div class="tm-info-label">Email request type</div><div class="tm-info-value">' + escapeHtml(emailRequestTypeDisplay) + '</div>')
       : '';
+    var requesterUrlInfoHtml = isRequesterPOV && safeRequesterUrl !== ''
+      ? ('        <div class="tm-info-label">URL</div><div class="tm-info-value"><a class="tm-requester-url-link" href="' + escapeHtml(safeRequesterUrl) + '" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt" aria-hidden="true"></i><span>Open Link</span></a></div>')
+      : '';
     var salesTicketInfoHtml = renderSalesTicketInfoHtml(data);
     var deptOptionsHtml = buildDeptOptionsHtml(assignedCompanyValue, assignedDeptValue);
     var assignedUserIdValue = '';
     var selectedDeptKey = normalizeDepartmentKey(assignedDeptValue);
     var canShowDepartmentUserSelect = showDepartmentUserSelect && assignedCompanyUsesDepartment(assignedCompanyValue) && selectedDeptKey !== '';
-    var noteValue = '';
+    var noteValue = isOnHold ? String((data && data.hold_reason) || '') : '';
     var requesterActionItems = getActionHistoryItems(data);
     if (!requesterActionItems.length && data && data.admin_note != null && String(data.admin_note).trim() !== '') {
       requesterActionItems = [{
@@ -3469,13 +3654,25 @@ var TMTicketModal = (function () {
       '        </div>' +
       '      </div></div>';
     var sapHeaderClass = isSapTicket(data, data && data.description ? data.description : '') ? ' tm-sap-header' : '';
-    var showClaimControl = showClaimButton;
-    var claimButtonHtml = showClaimControl
-      ? ('  <div class="tm-tabs-actions"><button type="button" class="tm-claim-ticket-btn" onclick="TMTicketModal.claimTicket(' + String(data.id) + ', this)"><i class="fas fa-user-check"></i><span>Claim Ticket</span></button></div>')
+    var topActionButton = '';
+    if (showClaimButton) {
+      topActionButton = '<button type="button" class="tm-claim-ticket-btn" onclick="TMTicketModal.claimTicket(' + String(data.id) + ', this)"><i class="fas fa-user-check"></i><span>Claim Ticket</span></button>';
+    }
+    var claimButtonHtml = topActionButton ? ('  <div class="tm-tabs-actions">' + topActionButton + '</div>') : '';
+    var mobileClaimButtonHtml = topActionButton
+      ? ('  <div class="tm-mobile-claim">' + topActionButton.replace('tm-hold-ticket-btn', 'tm-hold-ticket-btn tm-mobile-claim-btn').replace('class="tm-claim-ticket-btn"', 'class="tm-claim-ticket-btn tm-mobile-claim-btn"') + '</div>')
       : '';
-    var mobileClaimButtonHtml = showClaimControl
-      ? ('  <div class="tm-mobile-claim"><button type="button" class="tm-claim-ticket-btn tm-mobile-claim-btn" onclick="TMTicketModal.claimTicket(' + String(data.id) + ', this)"><i class="fas fa-user-check"></i><span>Claim Ticket</span></button></div>')
+    var holdInfoBannerHtml = isOnHold
+      ? ('    <div class="tm-hold-banner"><div class="tm-hold-banner-icon"><i class="fas fa-pause"></i></div><div><div class="tm-hold-banner-title">Ticket On Hold</div><div class="tm-hold-banner-text">' + escapeHtml(String((data && data.hold_reason) || 'No reason provided.')) + '</div><div class="tm-hold-banner-meta">The SLA timer is paused.</div></div></div>')
       : '';
+    var holdApprovalBannerHtml = '';
+    if (!isOnHold && data && data.hold_approval_pending === true) {
+      if (data.can_review_hold_request === true) {
+        holdApprovalBannerHtml = '    <div class="tm-hold-approval-banner"><div class="tm-hold-banner-icon"><i class="fas fa-hourglass-half"></i></div><div class="tm-hold-approval-content"><div class="tm-hold-banner-title">Hold Approval Requested</div><div class="tm-hold-banner-text">Requested by ' + escapeHtml(String(data.hold_requested_by_name || 'the ticket assignee')) + '. Reason: ' + escapeHtml(String(data.hold_request_reason || 'No reason provided.')) + '</div><div class="tm-hold-banner-meta">The ticket remains In Progress and its SLA timer is still running.</div><div class="tm-hold-approval-actions"><button type="button" class="tm-hold-review-btn is-approve" onclick="TMTicketModal.reviewHoldRequest(' + String(data.id) + ', \'approve\', this)"><i class="fas fa-check"></i><span>Accept Hold</span></button><button type="button" class="tm-hold-review-btn is-reject" onclick="TMTicketModal.reviewHoldRequest(' + String(data.id) + ', \'reject\', this)"><i class="fas fa-times"></i><span>Reject</span></button></div></div></div>';
+      } else {
+        holdApprovalBannerHtml = '    <div class="tm-hold-approval-banner is-waiting"><div class="tm-hold-banner-icon"><i class="fas fa-hourglass-half"></i></div><div><div class="tm-hold-banner-title">Awaiting Hold Approval</div><div class="tm-hold-banner-text">Reason: ' + escapeHtml(String(data.hold_request_reason || 'A hold request is awaiting department approval.')) + '</div><div class="tm-hold-banner-meta">The ticket remains In Progress and its SLA timer is still running.</div></div></div>';
+      }
+    }
     var reassignedBannerTone = String((data && data.reassigned_banner_tone) || 'reassigned').toLowerCase();
     var reassignedBannerIsAssigned = reassignedBannerTone === 'assigned';
     var reassignedBannerBorder = reassignedBannerIsAssigned ? '#b7dfc2' : '#f3d273';
@@ -3502,7 +3699,7 @@ var TMTicketModal = (function () {
       '  <div class="tm-header-left">' +
       '    <div class="tm-title">' + escapeHtml(getDisplaySubject(data)) + '</div>' +
       '    <div class="tm-chips">' +
-      '      <span class="tm-chip tm-chip-' + statusSlug + '">' + escapeHtml(data.status) + '</span>' +
+      '      <span class="tm-chip tm-chip-' + statusSlug + '">' + escapeHtml(displayStatus) + '</span>' +
       '      <span class="tm-chip tm-chip-' + prioritySlug + '">' + escapeHtml(urgencyLabel) + '</span>' +
       '      <span class="tm-id">#' + String(data.id).padStart(6, '0') + '</span>' +
       '    </div>' +
@@ -3515,11 +3712,14 @@ var TMTicketModal = (function () {
       (hideUpdateTab ? '' : '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Update</div>') +
       (hideConversationTab ? '' : '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Go to Chat</div>') +
       (hideActionHistoryTab ? '' : '  <div class="tm-tab" data-tab="action-history" onclick="TMTicketModal.switchTab(\'action-history\')">Action History</div>') +
+      (canManageRequesterUrl ? '  <div class="tm-tab" data-tab="url" onclick="TMTicketModal.switchTab(\'url\')">URL</div>' : '') +
       claimButtonHtml +
       '</div>' +
       '<div class="tm-body">' +
-      (isReassignedViewOnly ? reassignedBannerHtml : '') +
+      (isReassignedViewOnly && !isOnHold ? reassignedBannerHtml : '') +
       '  <div id="tab-info" class="tm-tab-content active">' +
+      holdInfoBannerHtml +
+      holdApprovalBannerHtml +
       '    <div class="tm-mobile-paged-content">' +
       '    <div class="tm-info-col">' +
       '      <div class="tm-card tm-card-ticket-info"><div class="tm-card-header"><span class="tm-card-title">Ticket Information</span></div><div class="tm-card-body"><div class="tm-info-grid">' +
@@ -3534,6 +3734,7 @@ var TMTicketModal = (function () {
       '        <div class="tm-info-label">Created at</div><div class="tm-info-value">' + (data.created_at ? formatTimelineTime(data.created_at) : '-') + '</div>' +
       '        <div class="tm-info-label">Last updated</div><div class="tm-info-value">' + (data.updated_at ? formatTimelineTime(data.updated_at) : '-') + '</div>' +
       '        <div class="tm-info-label">Assigned to</div><div class="tm-info-value">' + buildAssignedTargetHtml(data) + '</div>' +
+      requesterUrlInfoHtml +
       '      </div></div></div>' +
       '      <div class="tm-card tm-card-ticket-activity"><div class="tm-card-header"><span class="tm-card-title">Ticket Activity</span></div><div class="tm-card-body">' + renderTimeline(data) + '</div></div>' +
       '    </div>' +
@@ -3553,6 +3754,21 @@ var TMTicketModal = (function () {
       renderActionHistoryHtml(data) +
       '    </div></div>' +
       '  </div>') +
+      (canManageRequesterUrl ? '  <div id="tab-url" class="tm-tab-content">' +
+      '    <div class="tm-card tm-card-requester-url"><div class="tm-card-header"><span class="tm-card-title">Requester URL</span></div><div class="tm-card-body">' +
+      '      <form id="tmRequesterUrlForm" class="tm-url-form" novalidate>' +
+      '        <div class="tm-url-icon" aria-hidden="true"><i class="fas fa-link"></i></div>' +
+      '        <div class="tm-url-copy"><h3>Share a link with the requester</h3><p>Add an HTTP or HTTPS link that the requester can open from this ticket.</p></div>' +
+      '        <label class="tm-url-label" for="tmRequesterUrlInput">URL</label>' +
+      '        <input class="tm-url-input" id="tmRequesterUrlInput" name="requester_url" type="text" inputmode="url" maxlength="2048" placeholder="https://example.com" value="' + escapeHtml(requesterUrl) + '">' +
+      '        <div class="tm-url-form-footer">' +
+      '          <div class="tm-url-status" data-url-status role="status" aria-live="polite"></div>' +
+      '          <a class="tm-url-preview" data-url-preview href="' + escapeHtml(safeRequesterUrl || '#') + '" target="_blank" rel="noopener noreferrer"' + (safeRequesterUrl === '' ? ' hidden' : '') + '><i class="fas fa-external-link-alt" aria-hidden="true"></i> Open Link</a>' +
+      '          <button type="submit" class="tm-btn tm-btn-primary">Save Link</button>' +
+      '        </div>' +
+      '      </form>' +
+      '    </div></div>' +
+      '  </div>' : '') +
       (hideUpdateTab ? '' : '  <div id="tab-actions" class="tm-tab-content">' +
       '    <div class="tm-card tm-card-ticket-update"><div class="tm-card-header"><span class="tm-card-title">Ticket Update</span></div><div class="tm-card-body">' +
       '    <form id="ticketUpdateForm" method="POST" action="update_ticket.php" class="tm-actions-form">' +
@@ -3642,9 +3858,8 @@ var TMTicketModal = (function () {
       ) : '') +
       '      </div>' +
       '      <div class="tm-note-group">' +
-      '        <div class="tm-note-label">Action Taken/Comments</div>' +
-      '        <textarea class="tm-textarea" name="admin_note" id="tmAdminNote" placeholder="Provide details of the issue or actions performed to resolve it.">' + escapeHtml(noteValue) + '</textarea>' +
-      '        <div class="tm-note-footer">' +
+      '        <label class="tm-note-label" for="tmAdminNote">Action Taken/Comments' + (actionNoteRequired ? ' <span class="tm-required-star" aria-hidden="true">*</span>' : '') + '</label>' +
+      '        <textarea class="tm-textarea" name="admin_note" id="tmAdminNote" placeholder="Provide details of the issue or actions performed to resolve it."' + (actionNoteRequired ? ' required aria-required="true"' : '') + '>' + escapeHtml(noteValue) + '</textarea>' +
       (hideQuickTags ? '' : (
       '          <div class="tm-quick-tags">' +
       '            <button type="button" class="tm-quick-tag" data-tag="Investigation">Investigation</button>' +
@@ -3652,13 +3867,15 @@ var TMTicketModal = (function () {
       '            <button type="button" class="tm-quick-tag" data-tag="Escalated">Escalated</button>' +
       '          </div>'
       )) +
+      '        <div class="tm-note-footer">' +
       '          <div class="tm-actions-buttons">' +
       '            <button type="submit" class="tm-btn tm-btn-primary">Save Ticket</button>' +
       '          </div>' +
       '        </div>' +
       '      </div>' +
       '    </form>' +
-      '    </div></div>' +
+      '    </div>' +
+      '    </div>' +
       '  </div>') +
       mobileClaimButtonHtml +
       '</div>';
@@ -3828,10 +4045,6 @@ var TMTicketModal = (function () {
     var tab = document.querySelector('.tm-tab[data-tab="' + tabName + '"]');
     if (content) content.classList.add('active');
     if (tab) tab.classList.add('active');
-    if (tabName === 'actions') {
-      var noteEl = qs('tmAdminNote');
-      if (noteEl) noteEl.value = '';
-    }
     if (tabName === 'chat') { /* no-op: chat now opens in separate modal */ }
   }
   function claimTicket(ticketId, buttonEl) {
@@ -3877,6 +4090,68 @@ var TMTicketModal = (function () {
           buttonEl.innerHTML = originalButtonHtml;
         }
         window.alert(err && err.message ? err.message : 'Unable to claim ticket.');
+      });
+  }
+  function submitHoldChange(ticketId, action, reason, buttonEl, dialogEl) {
+    var originalButtonHtml = buttonEl ? buttonEl.innerHTML : '';
+    var showLoadingState = action !== 'hold';
+    if (buttonEl && buttonEl.dataset.holdRequestPending === '1') return;
+    if (buttonEl) buttonEl.dataset.holdRequestPending = '1';
+    if (buttonEl && showLoadingState) {
+      buttonEl.disabled = true;
+      buttonEl.classList.add('is-loading');
+      buttonEl.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Resuming...</span>';
+    }
+    var formData = new FormData();
+    formData.append('ticket_id', String(ticketId));
+    formData.append('action', action);
+    if (reason) formData.append('reason', reason);
+    var token = getCsrfToken();
+    if (token) formData.append('csrf_token', token);
+
+    postJson('hold_ticket.php', formData)
+      .then(function (data) {
+        if (!data || data.ok !== true) throw new Error(String((data && (data.error || data.message)) || 'Unable to update the ticket.'));
+        if (dialogEl && dialogEl.parentNode) dialogEl.parentNode.removeChild(dialogEl);
+        open(ticketId);
+      })
+      .catch(function (err) {
+        if (buttonEl) {
+          delete buttonEl.dataset.holdRequestPending;
+          buttonEl.disabled = false;
+          buttonEl.classList.remove('is-loading');
+          if (showLoadingState) buttonEl.innerHTML = originalButtonHtml;
+        }
+        var errorEl = dialogEl && dialogEl.querySelector ? dialogEl.querySelector('[data-hold-error]') : null;
+        if (errorEl) errorEl.textContent = err && err.message ? err.message : 'Unable to update the ticket.';
+        else window.alert(err && err.message ? err.message : 'Unable to update the ticket.');
+      });
+  }
+  function reviewHoldRequest(ticketId, decision, buttonEl) {
+    decision = String(decision || '').toLowerCase();
+    if (decision !== 'approve' && decision !== 'reject') return;
+    if (decision === 'reject' && !window.confirm('Reject this ticket hold request?')) return;
+    var banner = buttonEl && buttonEl.closest ? buttonEl.closest('.tm-hold-approval-banner') : null;
+    var buttons = banner ? Array.prototype.slice.call(banner.querySelectorAll('.tm-hold-review-btn')) : [];
+    buttons.forEach(function (button) { button.disabled = true; });
+    var originalHtml = buttonEl ? buttonEl.innerHTML : '';
+    if (buttonEl) {
+      buttonEl.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>' + (decision === 'approve' ? 'Accepting...' : 'Rejecting...') + '</span>';
+    }
+    var formData = new FormData();
+    formData.append('ticket_id', String(ticketId));
+    formData.append('decision', decision);
+    var token = getCsrfToken();
+    if (token) formData.append('csrf_token', token);
+    postJson('review_hold_request.php', formData)
+      .then(function (response) {
+        if (!response || response.ok !== true) throw new Error(String((response && (response.error || response.message)) || 'Unable to review the hold request.'));
+        open(ticketId);
+      })
+      .catch(function (error) {
+        buttons.forEach(function (button) { button.disabled = false; });
+        if (buttonEl) buttonEl.innerHTML = originalHtml;
+        window.alert(error && error.message ? error.message : 'Unable to review the hold request.');
       });
   }
   function ensureChatModalExists() {
@@ -6311,6 +6586,11 @@ var TMTicketModal = (function () {
           console.error('Ticket modal no-change guard failed:', noChangeError, data);
         }
         try {
+          bindRequesterUrlForm(modalContent, data);
+        } catch (requesterUrlBindError) {
+          console.error('Ticket modal requester URL binding failed:', requesterUrlBindError, data);
+        }
+        try {
           bindAdminNote(modalContent, data);
         } catch (adminNoteError) {
           console.error('Ticket modal admin note binding failed:', adminNoteError, data);
@@ -6326,7 +6606,7 @@ var TMTicketModal = (function () {
           console.error('Ticket modal department binding failed:', deptBindError, data);
         }
         try {
-          bindCustomStatusDropdown(modalContent);
+          bindCustomStatusDropdown(modalContent, data);
         } catch (customStatusBindError) {
           console.error('Ticket modal status dropdown binding failed:', customStatusBindError, data);
         }
@@ -6548,6 +6828,7 @@ var TMTicketModal = (function () {
     openMessengerChat: openMessengerChat,
     closeMessengerChat: closeMessengerChat,
     updateStatusColor: updateStatusColor,
+    reviewHoldRequest: reviewHoldRequest,
     stepHrAttachmentCategory: stepHrAttachmentCategory,
     stepAttachmentPage: stepAttachmentPage,
     showTicketContentPage: showTicketContentPage,

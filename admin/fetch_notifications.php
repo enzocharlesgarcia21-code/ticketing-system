@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/csrf.php';
 require_once '../includes/notification_service.php';
 require_once '../includes/ticket_assignment.php';
 header('Content-Type: application/json');
@@ -7,14 +8,21 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 header('Expires: 0');
 
-notif_ensure_action_type_column($conn);
-ticket_apply_sla_priority($conn);
-
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     http_response_code(403);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method Not Allowed']);
+    exit;
+}
+csrf_validate();
+
+notif_ensure_action_type_column($conn);
+ticket_apply_sla_priority($conn);
 
 $user_id = $_SESSION['user_id'];
 

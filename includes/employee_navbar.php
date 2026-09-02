@@ -286,17 +286,17 @@ $showSharedMobileSidebar = $currentEmployeePage !== 'dashboard.php';
                     <?php if ($isLapcSalesEmployee): ?>
                         <div class="employee-view-switcher">
                             <div class="employee-view-label">View as</div>
-                            <a href="set_view_mode.php?mode=manager" class="dropdown-item employee-view-option <?= $employeeViewMode === 'manager' ? 'is-active' : ''; ?>">
+                            <form method="post" action="set_view_mode.php" style="display:contents"><?= csrf_field(); ?><input type="hidden" name="mode" value="manager"><button type="submit" class="dropdown-item employee-view-option <?= $employeeViewMode === 'manager' ? 'is-active' : ''; ?>" style="border:0;width:100%;text-align:left">
                                 <span>Manager View</span>
                                 <?php if ($employeeViewMode === 'manager'): ?><i class="fas fa-check"></i><?php endif; ?>
-                            </a>
-                            <a href="set_view_mode.php?mode=employee" class="dropdown-item employee-view-option <?= $employeeViewMode === 'employee' ? 'is-active' : ''; ?>">
+                            </button></form>
+                            <form method="post" action="set_view_mode.php" style="display:contents"><?= csrf_field(); ?><input type="hidden" name="mode" value="employee"><button type="submit" class="dropdown-item employee-view-option <?= $employeeViewMode === 'employee' ? 'is-active' : ''; ?>" style="border:0;width:100%;text-align:left">
                                 <span>Employee View</span>
                                 <?php if ($employeeViewMode === 'employee'): ?><i class="fas fa-check"></i><?php endif; ?>
-                            </a>
+                            </button></form>
                         </div>
                     <?php endif; ?>
-                    <a href="logout.php" class="dropdown-item">Logout</a>
+                    <form method="post" action="logout.php" style="display:contents"><?= csrf_field(); ?><button type="submit" class="dropdown-item" style="border:0;width:100%;text-align:left">Logout</button></form>
                 </div>
             </div>
         </div>
@@ -320,7 +320,7 @@ document.body && document.body.classList.add('employee-shared-mobile-sidebar-pag
             </button>
             <div id="mobileSidebarUserMenu" class="mobile-sidebar-user-menu">
                 <a href="my_profile.php">My Profile</a>
-                <a href="logout.php">Logout</a>
+                <form method="post" action="logout.php" style="display:contents"><?= csrf_field(); ?><button type="submit" style="border:0;width:100%;text-align:left">Logout</button></form>
             </div>
         </div>
     </div>
@@ -674,6 +674,7 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-item.variant-close::before,
 .notif-item.variant-low::before { --notif-accent: #22c55e; }
 .notif-item.variant-note::before { --notif-accent: #f59e0b; }
+.notif-item.variant-hold::before { --notif-accent: #f59e0b; }
 .notif-item.variant-medium::before { --notif-accent: #eab308; }
 .notif-item.variant-high::before { --notif-accent: #ef4444; }
 .notif-item.variant-critical::before { --notif-accent: #E53935; }
@@ -746,6 +747,12 @@ window.TM_MESSENGER_STYLE = 'employee';
 }
 .notif-item.unread.variant-note {
     background: #fff8ef;
+}
+.notif-item.unread.variant-hold {
+    background: #fffaf0;
+}
+.notif-item.unread.variant-hold .notif-unread-dot {
+    background: #f59e0b;
 }
 .notif-item.unread.variant-critical {
     background: #fff4f5;
@@ -870,6 +877,14 @@ window.TM_MESSENGER_STYLE = 'employee';
 .notif-pill.variant-note {
     color: #f59e0b;
     background: #fff8ef;
+}
+.notif-pill.variant-hold {
+    color: #e99000;
+    background: #fff8e6;
+    border-color: #f59e0b;
+}
+.notif-pill.variant-hold .notif-pill-icon {
+    background: linear-gradient(135deg, #ffb52e, #f59e0b);
 }
 .notif-pill.variant-high .notif-pill-icon {
     background: linear-gradient(135deg, #fb7185, #ef4444);
@@ -2318,7 +2333,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Fetch Notifications
     function fetchNotifications() {
-        fetch('fetch_notifications.php?_=' + Date.now(), { cache: 'no-store' })
+        const notificationBody = new URLSearchParams();
+        notificationBody.set('csrf_token', String(window.TM_CSRF_TOKEN || ''));
+        fetch('fetch_notifications.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: notificationBody.toString()
+        })
             .then(response => response.json())
             .then(data => {
                 const list = document.getElementById('notifList');
@@ -2351,8 +2374,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             ? escalationPriorityFromMessage(n.message)
                             : (allowed.includes(rawPriority) ? rawPriority : '');
                         const typeKey = (n.type || '').toString();
+                        const isHoldStatus = typeKey === 'ticket_on_hold' || typeKey === 'hold_approved';
                         const isResolvedStatus = (actionType === 'update' || typeKey === 'status_update') && /\bresolved\b/i.test(String(n.message || ''));
                         let titleText = getNotificationTitle(actionType, typeKey, priorityKey);
+                        if (isHoldStatus) {
+                            titleText = 'Status Update';
+                        }
                         if (isResolvedStatus) {
                             titleText = 'Ticket Resolved';
                         }
@@ -2387,7 +2414,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         let variantClass = 'variant-update';
                         let pillText = 'Updated';
                         let pillIcon = 'fa-rotate';
-                        if (isChatPending) {
+                        if (isHoldStatus) {
+                            variantClass = 'variant-hold';
+                            pillText = 'HOLD';
+                            pillIcon = 'fa-pause';
+                        } else if (isChatPending) {
                             variantClass = 'variant-update';
                             pillText = 'Chat';
                             pillIcon = 'fa-comments';
@@ -2451,7 +2482,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         const unreadDotHtml = Number(n.is_read) === 0 ? '<span class="notif-unread-dot" aria-hidden="true"></span>' : '';
                         const breachPillClass = isPriorityEscalation && priorityKey === 'high' ? 'notif-priority-breach-pill' : '';
                         const pillHtml = `<span class="notif-pill ${variantClass} ${breachPillClass} ${isChatPending ? 'notif-chat-pill' : ''}"><span class="notif-pill-icon"><i class="fas ${pillIcon}"></i></span>${isChatPending ? '' : `<span class="notif-pill-text">${escapeHtml(pillText)}</span>`}</span>`;
-                        const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${highlightNotificationMessage(n.message)}</div>`;
+                        let notificationMessageHtml = highlightNotificationMessage(n.message);
+                        if (isHoldStatus) notificationMessageHtml = notificationMessageHtml.replace(/\s+Reason:/i, '<br>Reason:');
+                        const messageHtml = `<div class="notif-title">${pillHtml}<span class="notif-title-text">${escapeHtml(titleText)}</span></div><div class="notif-msg">${notificationMessageHtml}</div>`;
                         return `
                             ${sectionHtml}
                             <div class="notif-item ${n.is_read == 0 ? 'unread' : ''} ${variantClass} ${isPriorityEscalation ? `priority-escalation ${variantClass}` : ''} ${isChatPending ? 'notif-chat-pending' : ''}" data-notif-id="${n.id}" data-ticket-id="${n.ticket_id}" onclick="markAsRead(${n.id}, ${n.ticket_id}, '${n.type || ''}')">
@@ -2600,7 +2633,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.location.href = `my_task.php?ticket_id=${ticketId}&chat=1`;
                 return;
             }
-            const taskTypes = new Set(['dept_assigned', 'reassigned', 'priority_escalated', 'new_ticket', 'follow_up', 'hr_chat_pending']);
+            const taskTypes = new Set(['dept_assigned', 'reassigned', 'priority_escalated', 'new_ticket', 'follow_up', 'hr_chat_pending', 'hold_approval_requested', 'hold_approved', 'hold_rejected']);
             if (taskTypes.has(notifType)) {
                 window.location.href = `my_task.php?ticket_id=${ticketId}`;
             } else {

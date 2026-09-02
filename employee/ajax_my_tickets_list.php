@@ -15,6 +15,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
     echo json_encode(['ok' => false, 'error' => 'Unauthorized']);
     exit;
 }
+ticket_ensure_assignment_columns($conn);
 
 function h(string $value): string
 {
@@ -168,9 +169,9 @@ function submitted_ticket_target_label(array $row): string
     return '-';
 }
 
-function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    return ticket_sla_badge_html($createdAt, $status, $priority);
+    return ticket_sla_badge_html($createdAt, $status, $priority, '-', $holdStartedAt, $holdSeconds);
 }
 
 function can_follow_up_ticket_status(string $status): bool
@@ -496,10 +497,11 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '<tr class="ticket-row" data-id="' . (int) $row['id'] . '" style="cursor:pointer;">';
         $rowsHtml .= '<td data-label="ID">#' . (int) $row['id'] . '</td>';
         $rowsHtml .= '<td data-label="Category" class="subject-cell"><strong>' . h((string) ($row['category'] ?? '')) . '</strong></td>';
-        $rowsHtml .= '<td data-label="Status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', (string) ($row['status'] ?? ''))) . '">' . h((string) ($row['status'] ?? '')) . '</span></td>';
+        $requesterStatusDisplay = !empty($row['hold_started_at']) ? 'On Hold' : (string) ($row['status'] ?? '');
+        $rowsHtml .= '<td data-label="Status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', $requesterStatusDisplay)) . '">' . h($requesterStatusDisplay) . '</span></td>';
         $rowsHtml .= '<td data-label="Passed To">' . h(submitted_ticket_target_label($row)) . '</td>';
         $rowsHtml .= '<td data-label="Date">' . h(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now')))) . '</td>';
-        $rowsHtml .= '<td data-label="SLA" class="my-tickets-sla-cell">' . my_tickets_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')) . '</td>';
+        $rowsHtml .= '<td data-label="SLA" class="my-tickets-sla-cell">' . my_tickets_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0)) . '</td>';
         $rowsHtml .= '<td data-label="Action" class="follow-up-cell"><div class="ticket-action-buttons">';
         $rowsHtml .= follow_up_button_html($row);
         $rowsHtml .= close_ticket_button_html($row);
