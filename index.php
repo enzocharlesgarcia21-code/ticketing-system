@@ -175,6 +175,29 @@
             margin-bottom: 0;
         }
 
+        .legal-links {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 26px;
+            font-size: 13px;
+            line-height: 1.2;
+        }
+
+        .legal-links a {
+            color: #2563b8;
+            text-decoration: underline;
+        }
+
+        .legal-links a:hover {
+            color: #1d4ed8;
+        }
+
+        .legal-links__separator {
+            color: #64748b;
+        }
+
         .auth-btn {
             height: 72px;
             border-radius: 20px;
@@ -343,6 +366,12 @@
                 margin-top: 18px;
             }
 
+            .legal-links {
+                margin-top: 22px;
+                gap: 10px;
+                font-size: 12px;
+            }
+
             .auth-logo {
                 width: 140px;
                 margin-bottom: 12px;
@@ -410,6 +439,12 @@
                 </a>
 
             </div>
+
+            <nav class="legal-links" aria-label="Legal information">
+                <a href="privacy.php">Privacy Policy</a>
+                <span class="legal-links__separator" aria-hidden="true">|</span>
+                <a href="terms.php">Terms and Conditions</a>
+            </nav>
 
             <div class="auth-extra auth-extra-hidden">
                 <span>Don't have an account? </span>

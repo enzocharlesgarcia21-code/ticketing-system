@@ -2642,7 +2642,7 @@ var TMTicketModal = (function () {
         .finally(function () {
           if (button) {
             button.disabled = false;
-            button.textContent = 'Save Link';
+            button.textContent = 'Attach Link';
           }
         });
     });
@@ -3710,9 +3710,9 @@ var TMTicketModal = (function () {
       '<div class="tm-tabs">' +
       '  <div class="tm-tab active" data-tab="info" onclick="TMTicketModal.switchTab(\'info\')">Information</div>' +
       (hideUpdateTab ? '' : '  <div class="tm-tab" data-tab="actions" onclick="TMTicketModal.switchTab(\'actions\')">Update</div>') +
+      (canManageRequesterUrl ? '  <div class="tm-tab" data-tab="url" onclick="TMTicketModal.switchTab(\'url\')">URL</div>' : '') +
       (hideConversationTab ? '' : '  <div class="tm-tab" data-tab="conversation" onclick="TMTicketModal.openConversation(' + String(data.id) + ')">Go to Chat</div>') +
       (hideActionHistoryTab ? '' : '  <div class="tm-tab" data-tab="action-history" onclick="TMTicketModal.switchTab(\'action-history\')">Action History</div>') +
-      (canManageRequesterUrl ? '  <div class="tm-tab" data-tab="url" onclick="TMTicketModal.switchTab(\'url\')">URL</div>' : '') +
       claimButtonHtml +
       '</div>' +
       '<div class="tm-body">' +
@@ -3755,16 +3755,18 @@ var TMTicketModal = (function () {
       '    </div></div>' +
       '  </div>') +
       (canManageRequesterUrl ? '  <div id="tab-url" class="tm-tab-content">' +
-      '    <div class="tm-card tm-card-requester-url"><div class="tm-card-header"><span class="tm-card-title">Requester URL</span></div><div class="tm-card-body">' +
+      '    <div class="tm-card tm-card-requester-url"><div class="tm-card-header"><span class="tm-card-title">Attach URL</span></div><div class="tm-card-body">' +
       '      <form id="tmRequesterUrlForm" class="tm-url-form" novalidate>' +
-      '        <div class="tm-url-icon" aria-hidden="true"><i class="fas fa-link"></i></div>' +
-      '        <div class="tm-url-copy"><h3>Share a link with the requester</h3><p>Add an HTTP or HTTPS link that the requester can open from this ticket.</p></div>' +
-      '        <label class="tm-url-label" for="tmRequesterUrlInput">URL</label>' +
-      '        <input class="tm-url-input" id="tmRequesterUrlInput" name="requester_url" type="text" inputmode="url" maxlength="2048" placeholder="https://example.com" value="' + escapeHtml(requesterUrl) + '">' +
+      '        <label class="tm-url-label" for="tmRequesterUrlTitle">Link Title</label>' +
+      '        <input class="tm-url-input" id="tmRequesterUrlTitle" type="text" maxlength="255" placeholder="Enter link title">' +
+      '        <label class="tm-url-label" for="tmRequesterUrlInput">URL Link</label>' +
+      '        <input class="tm-url-input" id="tmRequesterUrlInput" name="requester_url" type="text" inputmode="url" maxlength="2048" placeholder="Paste URL here" value="' + escapeHtml(requesterUrl) + '">' +
+      '        <label class="tm-url-label" for="tmRequesterUrlDescription">Short Description</label>' +
+      '        <textarea class="tm-url-textarea" id="tmRequesterUrlDescription" maxlength="1000" placeholder="Add a short description"></textarea>' +
       '        <div class="tm-url-form-footer">' +
       '          <div class="tm-url-status" data-url-status role="status" aria-live="polite"></div>' +
       '          <a class="tm-url-preview" data-url-preview href="' + escapeHtml(safeRequesterUrl || '#') + '" target="_blank" rel="noopener noreferrer"' + (safeRequesterUrl === '' ? ' hidden' : '') + '><i class="fas fa-external-link-alt" aria-hidden="true"></i> Open Link</a>' +
-      '          <button type="submit" class="tm-btn tm-btn-primary">Save Link</button>' +
+      '          <button type="submit" class="tm-btn tm-btn-primary">Attach Link</button>' +
       '        </div>' +
       '      </form>' +
       '    </div></div>' +
@@ -4043,8 +4045,10 @@ var TMTicketModal = (function () {
     document.querySelectorAll('.tm-tab').forEach(function (t) { t.classList.remove('active'); });
     var content = qs('tab-' + tabName);
     var tab = document.querySelector('.tm-tab[data-tab="' + tabName + '"]');
+    var body = document.querySelector('#ticketModal .tm-body');
     if (content) content.classList.add('active');
     if (tab) tab.classList.add('active');
+    if (body) body.classList.toggle('is-url-active', tabName === 'url');
     if (tabName === 'chat') { /* no-op: chat now opens in separate modal */ }
   }
   function claimTicket(ticketId, buttonEl) {
