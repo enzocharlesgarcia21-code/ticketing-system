@@ -1,6 +1,16 @@
 <?php
 
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/../includes/security.php';
+
+$appEnv = strtolower(trim((string) (getenv('APP_ENV') ?: 'production')));
+if ($appEnv !== 'development' && $appEnv !== 'local') {
+    ini_set('display_errors', '0');
+    ini_set('display_startup_errors', '0');
+    error_reporting(E_ALL);
+}
+
+security_send_headers();
 
 $host = getenv('DB_HOST') ?: '127.0.0.1';
 $db   = getenv('DB_NAME') ?: 'ticketing_system';
@@ -27,6 +37,7 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
     ini_set('session.cookie_secure', $isHttps ? '1' : '0');
 
     session_start();
+    security_enforce_session_lifetime();
 }
 
 $conn = mysqli_connect($host, $user, $pass, $db, $port);
@@ -38,6 +49,35 @@ if (!$conn) {
 
 mysqli_set_charset($conn, 'utf8mb4');
 mysqli_query($conn, "SET time_zone = '+08:00'");
+
+// Reconcile authorization-sensitive session state on every request so role
+// changes take effect immediately for already-open sessions.
+if (PHP_SAPI !== 'cli' && isset($_SESSION['user_id'])) {
+    $sessionUserId = (int) $_SESSION['user_id'];
+    $identityStmt = mysqli_prepare($conn, 'SELECT role, is_verified FROM users WHERE id = ? LIMIT 1');
+    if ($identityStmt) {
+        mysqli_stmt_bind_param($identityStmt, 'i', $sessionUserId);
+        mysqli_stmt_execute($identityStmt);
+        $identityResult = mysqli_stmt_get_result($identityStmt);
+        $identity = $identityResult ? mysqli_fetch_assoc($identityResult) : null;
+        mysqli_stmt_close($identityStmt);
+        if (!$identity || !in_array((string) ($identity['role'] ?? ''), ['admin', 'employee'], true)) {
+            security_clear_session();
+            session_start();
+        } else {
+            $databaseRole = (string) $identity['role'];
+            if (isset($_SESSION['role']) && (string) $_SESSION['role'] !== $databaseRole) {
+                security_regenerate_authenticated_session();
+                unset($_SESSION['csrf_token']);
+            }
+            $_SESSION['role'] = $databaseRole;
+            if ($_SESSION['role'] === 'employee' && (int) ($identity['is_verified'] ?? 0) !== 1) {
+                security_clear_session();
+                session_start();
+            }
+        }
+    }
+}
 
 (function (mysqli $conn): void {
     static $ran = false;

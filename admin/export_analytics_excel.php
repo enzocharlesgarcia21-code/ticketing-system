@@ -181,15 +181,22 @@ function analytics_export_rows_excel(mysqli $conn, array $filters): array
             $params[] = '@leadsav.com';
             $types .= 'ss';
         } else {
-            $where[] = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
+            $companyCondition = "COALESCE(NULLIF(t.assigned_company,''), NULLIF(t.company,'')) = ?";
+            $where[] = (string) $filters['company'] === '@leadsagri.com'
+                ? "($companyCondition OR " . ticket_sales_origin_condition_sql('t') . ")"
+                : $companyCondition;
             $params[] = (string) $filters['company'];
             $types .= 's';
         }
     }
     if ($filters['department'] !== '') {
-        $where[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
-        $params[] = $filters['department'];
-        $types .= 's';
+        if (strcasecmp((string) $filters['department'], 'Sales') === 0) {
+            $where[] = ticket_sales_origin_condition_sql('t');
+        } else {
+            $where[] = "COALESCE(NULLIF(t.assigned_department,''), NULLIF(t.assigned_group,'')) = ?";
+            $params[] = $filters['department'];
+            $types .= 's';
+        }
     }
     if ($filters['status'] !== '') {
         $where[] = "t.status = ?";

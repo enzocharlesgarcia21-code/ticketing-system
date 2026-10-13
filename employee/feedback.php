@@ -18,6 +18,8 @@ $feedbackStmt = $conn->prepare("
         et.category,
         et.assigned_department,
         et.assigned_group,
+        et.requester_email,
+        ticket_creator.email AS creator_email,
         COALESCE(
             NULLIF(TRIM(ticket_creator.full_name), ''),
             NULLIF(TRIM(ticket_creator.name), ''),
@@ -83,17 +85,13 @@ function feedback_initials(string $name): string
 
 function feedback_department_label(array $row): string
 {
-    $department = trim((string) ($row['creator_department'] ?? ''));
-    if ($department !== '') {
-        return $department;
-    }
-
-    $companyKey = feedback_company_key($row);
-    if ($companyKey !== '' && function_exists('ticket_company_requires_department') && !ticket_company_requires_department($companyKey)) {
-        return feedback_company_label($row);
-    }
-
-    return 'Department';
+    $organization = ticket_requester_organization_fields([
+        'requester_email' => (string) ($row['requester_email'] ?? ''),
+        'created_by_email' => (string) ($row['creator_email'] ?? ''),
+        'user_company' => (string) ($row['creator_company'] ?? ''),
+        'department' => (string) ($row['creator_department'] ?? ''),
+    ]);
+    return (string) $organization['department'];
 }
 
 function feedback_company_label(array $row): string
@@ -167,7 +165,10 @@ function feedback_department_options_from_map(array $departmentMap, string $comp
 {
     $out = [];
     if ($companyFilter !== '' && function_exists('ticket_company_allowed_groups')) {
-        foreach (ticket_company_allowed_groups($companyFilter) as $departmentValue) {
+        $filterDepartments = ticket_normalize_company($companyFilter) === '@leadsagri.com'
+            ? ticket_lapc_department_filter_options()
+            : ticket_company_allowed_groups($companyFilter);
+        foreach ($filterDepartments as $departmentValue) {
             $departmentValue = trim((string) $departmentValue);
             if ($departmentValue !== '') {
                 $out[$departmentValue] = $departmentValue;
@@ -3512,6 +3513,26 @@ $donutGradient = count($donutSegments) > 0 ? implode(', ', $donutSegments) : '#e
                 grid-area: next !important;
             }
 
+        }
+
+        /* Keep the employee page introduction centered on phones. */
+        @media (max-width: 768px) {
+            body.employee-feedback-page .feedback-hero {
+                justify-content: center !important;
+                text-align: center !important;
+            }
+
+            body.employee-feedback-page .feedback-hero > div {
+                width: 100% !important;
+                text-align: center !important;
+            }
+
+            body.employee-feedback-page .feedback-hero h1,
+            body.employee-feedback-page .feedback-hero p {
+                margin-left: auto !important;
+                margin-right: auto !important;
+                text-align: center !important;
+            }
         }
 
         /* Final desktop alignment: use the same full-width content inset as the ticket pages. */

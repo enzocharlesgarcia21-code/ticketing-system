@@ -113,9 +113,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // --- PERMISSION CHECK ---
     // Employee can only update tickets assigned to their department AND company
     // Try with optional columns first; fall back if they don't exist yet.
-    $check_stmt = $conn->prepare("SELECT user_id, requester_email, status, assigned_department, assigned_group, assigned_company, assigned_user_id, assigned_to, admin_note, company FROM employee_tickets WHERE id = ?");
+    $check_stmt = $conn->prepare("SELECT user_id, requester_email, status, assigned_department, assigned_group, assigned_company, assigned_user_id, assigned_to, admin_note, company, hold_started_at FROM employee_tickets WHERE id = ?");
     if (!$check_stmt) {
-        $check_stmt = $conn->prepare("SELECT user_id, NULL AS requester_email, status, assigned_department, NULL AS assigned_group, NULL AS assigned_company, NULL AS assigned_user_id, NULL AS assigned_to, admin_note, company FROM employee_tickets WHERE id = ?");
+        $check_stmt = $conn->prepare("SELECT user_id, NULL AS requester_email, status, assigned_department, NULL AS assigned_group, NULL AS assigned_company, NULL AS assigned_user_id, NULL AS assigned_to, admin_note, company, NULL AS hold_started_at FROM employee_tickets WHERE id = ?");
         if (!$check_stmt) {
             error_log('employee/update_ticket.php: check_stmt prepare failed: ' . $conn->error);
             header("Location: my_task.php?error=dbfail");
@@ -172,6 +172,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     if (!$assigneeOk && (!$companyOk || ($requiresGroupMatch && !$groupOk))) {
         header("Location: my_task.php?error=unauthorized");
+        exit();
+    }
+
+    if (trim((string) ($old_data['hold_started_at'] ?? '')) !== '') {
+        $_SESSION['error'] = 'Resume this ticket before updating or reassigning it.';
+        header("Location: my_task.php");
+        exit();
+    }
+
+    // Every authorized ticket update must include a fresh action/comment.
+    // Do not rely on the browser's required attribute.
+    if (trim((string) ($admin_note ?? '')) === '') {
+        $_SESSION['error'] = 'Action Taken/Comments is required before saving the ticket.';
+        header("Location: my_task.php");
         exit();
     }
 
@@ -538,17 +552,13 @@ $updateOk = false;
             $assigneeEmails = ticket_assignee_notification_emails($conn, $assigneeIdsForEmail, $currentAssignedCompany, $currentAssignedGroup, (int) ($ticket['user_id'] ?? 0));
             $updateSourceLabel = ticket_activity_actor_label($conn, (int) ($_SESSION['user_id'] ?? 0), $_SESSION);
             $notePreview = trim((string) ($admin_note ?? ''));
-            if (strlen($notePreview) > 400) {
-                $notePreview = substr($notePreview, 0, 400) . '...';
-            }
 
             $sharedUpdateLines = [];
             if ($ticketCategory !== '') {
                 $sharedUpdateLines[] = 'Category: ' . $ticketCategory;
             }
-            if ($ticketDescription !== '') {
-                $sharedUpdateLines[] = "Description:\n" . ticket_email_description_for_notification($ticketDescription);
-            }
+            $sharedUpdateLines[] = "Description:\n" . ($ticketDescription !== '' ? ticket_email_description_for_notification($ticketDescription) : '-');
+            $sharedUpdateLines[] = "Action Taken/Comments:\n" . $notePreview;
             if ($ticketPriority !== '') {
                 $sharedUpdateLines[] = 'Priority: ' . $ticketPriority;
             }
@@ -565,9 +575,6 @@ $updateOk = false;
                 if ($newAssignedTargetLabel !== '') {
                     $sharedUpdateLines[] = 'Reassigned To: ' . $newAssignedTargetLabel;
                 }
-            }
-            if ($noteChanged && $notePreview !== '') {
-                $sharedUpdateLines[] = "Note from $updateSourceLabel:\n$notePreview";
             }
 
             if ($statusChanged) {

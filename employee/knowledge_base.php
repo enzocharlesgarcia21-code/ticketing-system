@@ -1316,25 +1316,27 @@ if ($showCategoryView) {
 
             .kb-header {
                 margin-bottom: 21px;
-                text-align: left;
+                text-align: center;
             }
 
             .kb-title {
                 margin: 0 0 7px;
-                color: #087b2e;
+                color: #075d27;
                 font-family: 'Inter', system-ui, -apple-system, sans-serif;
-                font-size: 21px;
+                font-size: 14px;
                 font-weight: 700;
                 line-height: 1.2;
+                text-align: center;
             }
 
             .kb-subtitle {
                 display: block;
-                margin: 0;
+                margin: 0 auto;
                 color: #3f4a42;
-                font-size: 11px;
+                font-size: 8px;
                 font-weight: 400;
                 line-height: 1.4;
+                text-align: center;
             }
 
             .search-input-group {

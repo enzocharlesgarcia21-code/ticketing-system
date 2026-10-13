@@ -556,6 +556,7 @@ document.querySelectorAll('.ticket-row').forEach(row => {
 });
 
 function openModal(id, mode = 'full') {
+    document.body.classList.add('ticket-modal-mobile-open');
     modal.style.display = 'flex';
     modalBody.innerHTML = '<div style="text-align:center; padding: 20px;">Loading...</div>';
 
@@ -597,11 +598,18 @@ function openModal(id, mode = 'full') {
                 </div>
             `;
 
+            html += `
+                <div class="modal-info-group">
+                    <span class="modal-info-label">Company</span>
+                    <span class="modal-info-value">${escapeHtml(data.requester_company || '-')}</span>
+                </div>
+            `;
+
             // Row 2: Department & Assigned To
             html += `
                 <div class="modal-info-group">
                     <span class="modal-info-label">Department</span>
-                    <span class="modal-info-value">${escapeHtml(dashIfUnknown(data.department))}</span>
+                    <span class="modal-info-value">${escapeHtml(dashIfUnknown(data.requester_department))}</span>
                 </div>
             `;
 
@@ -753,6 +761,7 @@ function openModal(id, mode = 'full') {
 
 function closeModal() {
     modal.style.display = 'none';
+    document.body.classList.remove('ticket-modal-mobile-open');
     closeChatModal();
 }
 

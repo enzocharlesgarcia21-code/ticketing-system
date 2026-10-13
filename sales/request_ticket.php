@@ -1,11 +1,9 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 require_once '../config/database.php';
 
 require_once '../includes/mailer.php';
 require_once '../includes/csrf.php';
+require_once '../includes/auth_security.php';
 require_once '../includes/ticket_assignment.php';
 require_once '../includes/notification_service.php';
 
@@ -538,7 +536,8 @@ function sales_request_is_weekend_date(string $targetDate): bool
 
 function sales_request_upload_dir(): string
 {
-    return __DIR__ . '/../uploads';
+    require_once __DIR__ . '/../includes/private_attachments.php';
+    return private_attachment_storage_dir();
 }
 
 function sales_request_cleanup_uploaded_files(array $files): void
@@ -753,7 +752,9 @@ function finish_ticket_submit_response(bool $isAjax, array $payload = []): void
 
 function sales_email_debug_log(array $context): void
 {
-    $logPath = __DIR__ . '/../uploads/email_debug.log';
+    $logDir = __DIR__ . '/../logs';
+    if (!is_dir($logDir)) @mkdir($logDir, 0700, true);
+    $logPath = $logDir . '/email_debug.log';
     $entry = [
         'timestamp' => date('Y-m-d H:i:s'),
     ] + $context;
@@ -799,6 +800,11 @@ function sales_request_clean_email_description(string $description): string
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     csrf_validate();
     ticket_ensure_assignment_columns($conn);
+
+    $guestRateError = auth_rate_limit_or_error($conn, 'guest_ticket_submit', security_client_ip(), 10, 3600, 3600);
+    if ($guestRateError !== null) {
+        $error_msg = $guestRateError;
+    }
 
     $full_name  = trim((string)($_POST['full_name'] ?? ''));
     $email      = trim((string)($_POST['email'] ?? ''));
@@ -1445,7 +1451,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $guest_company = 'Sales';
         $guest_department = 'SALES';
         $guest_role = 'employee';
-        $guest_otp = '000000';
+        $guest_otp = null;
         $guest_verified = 1;
 
         $insert_stmt = $conn->prepare("
@@ -5814,6 +5820,50 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             font-weight: 900;
         }
 
+        body.sales-request-ticket-page .request-main-column .request-subsection-heading {
+            margin: 0 0 14px;
+        }
+
+        body.sales-request-ticket-page .request-main-column .request-subsection-heading-main {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #166534;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .04em;
+            line-height: 1.35;
+            text-transform: uppercase;
+        }
+
+        body.sales-request-ticket-page .request-main-column .request-subsection-heading-main::after {
+            content: "";
+            height: 1px;
+            flex: 1 1 auto;
+            background: #dfe8e2;
+        }
+
+        body.sales-request-ticket-page .request-main-column .request-subsection-heading p {
+            margin: 4px 0 0;
+            color: #64748b;
+            font-size: 11.5px;
+            line-height: 1.45;
+        }
+
+        body.sales-request-ticket-page .request-main-column .request-subsection-heading--destination {
+            margin: 5px 0 14px;
+            padding-top: 16px;
+            border-top: 1px solid #edf1ee;
+        }
+
+        body.sales-request-ticket-page .request-main-column .request-subsection-heading--destination .request-subsection-heading-main::before {
+            content: "\f3c5";
+            color: #15803d;
+            font-family: "Font Awesome 6 Free";
+            font-size: 13px;
+            font-weight: 900;
+        }
+
         body.sales-request-ticket-page .request-main-column .form-group {
             margin-bottom: 16px;
         }
@@ -6031,22 +6081,39 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             }
             body.sales-request-ticket-page .sales-page-header p { color: #526173; font-size: 15px; }
             body.sales-request-ticket-page .request-guidance-sidebar {
-                display: flex; flex-direction: column; gap: 14px;
+                display: flex; flex-direction: column; gap: 10px;
             }
             body.sales-request-ticket-page .request-routing-help {
-                order: 1; padding: 15px 16px; border-color: #e7c64f; border-radius: 14px;
+                order: 1; padding: 12px 13px; border-color: #e7c64f; border-radius: 12px;
                 background: rgba(255, 253, 244, .96);
             }
-            body.sales-request-ticket-page .request-guidance-card { order: 2; border-radius: 14px; }
+            body.sales-request-ticket-page .request-routing-help h2 {
+                margin-bottom: 3px;
+                font-size: 10px;
+                line-height: 1.3;
+            }
+            body.sales-request-ticket-page .request-routing-help p {
+                font-size: 9px;
+                line-height: 1.4;
+            }
+            body.sales-request-ticket-page .request-guidance-card { order: 2; border-radius: 12px; }
             body.sales-request-ticket-page .request-guidance-heading {
                 width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr) 18px;
-                align-items: center; gap: 12px; padding: 16px 18px; border: 0;
+                align-items: center; gap: 10px; padding: 13px 14px; border: 0;
                 background: #fff; color: inherit; font-family: inherit; text-align: left;
                 cursor: pointer; box-sizing: border-box;
             }
+            body.sales-request-ticket-page .request-guidance-heading h2 {
+                font-size: 10px;
+                line-height: 1.3;
+            }
+            body.sales-request-ticket-page .request-guidance-heading p {
+                font-size: 9px;
+                line-height: 1.4;
+            }
             body.sales-request-ticket-page .request-guidance-heading-icon { align-self: center; }
             body.sales-request-ticket-page .request-guidance-chevron {
-                display: inline-block; color: #147233; font-size: 15px; transition: transform .2s ease;
+                display: inline-block; color: #147233; font-size: 13px; transition: transform .2s ease;
             }
             body.sales-request-ticket-page .request-guidance-card.is-open .request-guidance-chevron { transform: rotate(180deg); }
             body.sales-request-ticket-page .request-guidance-card:not(.is-open) .request-guidance-search,
@@ -6069,6 +6136,12 @@ $initialSalesRoutingComplete = $selectedRecipientCompany !== ''
             body.sales-request-ticket-page .request-tips-card-main .request-tips-list li,
             body.sales-request-ticket-page .request-tips-card-main .request-tips-list li:first-child,
             body.sales-request-ticket-page .request-tips-card-main .request-tips-list li:last-child { padding: 0; }
+            body.sales-request-ticket-page .request-tips-card-main .request-tips-list li span {
+                font-size: 12px;
+                min-width: 0;
+                white-space: normal;
+                overflow-wrap: anywhere;
+            }
             body.sales-request-ticket-page .request-tips-card-main .request-tips-list li + li {
                 padding-top: 12px;
                 border-top: 1px solid #e4e9e6;
@@ -6288,6 +6361,11 @@ document.addEventListener('DOMContentLoaded', function () {
             <h3 class="form-section-title">Request Information</h3>
 
             <div class="form-grid">
+            <div class="request-subsection-heading" aria-labelledby="requesterDetailsHeading">
+                <div class="request-subsection-heading-main" id="requesterDetailsHeading">Your details</div>
+                <p>Tell us about yourself.</p>
+            </div>
+
             <div class="request-grid-row">
                 <div class="form-group">
                     <label>Full Name <span class="required-asterisk">*</span></label>
@@ -6334,6 +6412,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         <i class="fas fa-chevron-down select-icon"></i>
                     </div>
                 </div>
+            </div>
+
+            <div class="request-subsection-heading request-subsection-heading--destination" aria-labelledby="ticketDestinationHeading">
+                <div class="request-subsection-heading-main" id="ticketDestinationHeading">Ticket destination</div>
+                <p>Choose where you want this ticket to be routed.</p>
             </div>
 
             <div class="request-grid-row<?= $initialShowDepartment ? '' : ' is-single' ?>" id="recipientRow">
@@ -7187,9 +7270,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 <h2 class="request-tips-title" id="requestTipsTitle">Tips Before Submitting</h2>
             </div>
             <ul class="request-tips-list">
-                <li><i class="far fa-check-circle" aria-hidden="true"></i><span>Select the correct<br>subsidiary first.</span></li>
-                <li><i class="far fa-check-circle" aria-hidden="true"></i><span>If the Department field appears,<br>choose the best matching department.</span></li>
-                <li><i class="far fa-check-circle" aria-hidden="true"></i><span>Select the most<br>appropriate category.</span></li>
+                <li><i class="far fa-check-circle" aria-hidden="true"></i><span>Select the correct subsidiary first.</span></li>
+                <li><i class="far fa-check-circle" aria-hidden="true"></i><span>If the Department field appears, choose the best matching department.</span></li>
+                <li><i class="far fa-check-circle" aria-hidden="true"></i><span>Select the most appropriate category.</span></li>
             </ul>
         </section>
         </div>

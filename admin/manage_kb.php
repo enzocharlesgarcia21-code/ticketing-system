@@ -1,8 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 require_once '../config/database.php';
 require_once '../includes/csrf.php';
 require_once '../includes/kb_media.php';
@@ -3707,7 +3703,20 @@ document.addEventListener('click', function(e) {
             }
         }).then((result) => {
             if (result.isConfirmed) {
-                window.location.href = 'delete_kb.php?id=' + id;
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'delete_kb.php';
+                const idInput = document.createElement('input');
+                idInput.type = 'hidden';
+                idInput.name = 'id';
+                idInput.value = String(id);
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrf_token';
+                csrfInput.value = <?= json_encode(csrf_token(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+                form.append(idInput, csrfInput);
+                document.body.appendChild(form);
+                form.submit();
             }
         });
     }

@@ -73,6 +73,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if ($update->execute()) {
                 $update->close();
                 activity_log($conn, $userId, 'PASSWORD_CHANGED', 'Password changed', 'Authentication');
+                security_regenerate_authenticated_session();
+                unset($_SESSION['csrf_token']);
                 unset($_SESSION['force_password_change']);
                 if ($postLoginRedirect !== '') {
                     unset($_SESSION['post_login_redirect']);
@@ -106,7 +108,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <section class="auth-split-left" aria-hidden="true"></section>
     <section class="auth-split-right" aria-label="Force password change">
     <div class="login-card">
-        <a href="logout.php" class="back-btn"><i class="fas fa-arrow-left"></i> Logout</a>
+        <form method="post" action="logout.php" style="display:inline"><?php echo csrf_field(); ?><button type="submit" class="back-btn" style="border:0"><i class="fas fa-arrow-left"></i> Logout</button></form>
 
         <h2>Change Password</h2>
         <p class="auth-note">Please change your password before continuing to your account.</p>

@@ -135,7 +135,7 @@ if ($slaLevel !== '') {
     || (company_code((string) $user_company) === 'LAPC')
     || ($userEmailNorm !== '' && str_ends_with($userEmailNorm, '@leadsagri.com'));
 
-$lapc_departments = ticket_lapc_departments();
+$lapc_departments = ticket_lapc_department_filter_options();
 $mhc_departments = ['Marketing Creatives'];
 $allowed_departments = $lapc_departments;
 $allowed_departments_by_company = [
@@ -214,9 +214,9 @@ function task_normalize_sla_filter(string $sla): string
     return ticket_normalize_sla_level($sla);
 }
 
-function task_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+function task_sla_badge_html(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    return ticket_sla_badge_html($createdAt, $status, $priority);
+    return ticket_sla_badge_html($createdAt, $status, $priority, '-', $holdStartedAt, $holdSeconds);
 }
 
 function task_urgency_badge_html(string $priority): string
@@ -350,13 +350,20 @@ $reassignmentFilterNotificationCond = "EXISTS (
     SELECT 1
     FROM notifications n
     WHERE n.ticket_id = t.id
-      AND n.user_id = ?
-      AND n.type = 'dept_assigned'
       AND LOWER(TRIM(COALESCE(n.action_type, ''))) = 'reassign'
+)";
+$reassignmentFilterActivityCond = "EXISTS (
+    SELECT 1
+    FROM ticket_activity ta
+    WHERE ta.ticket_id = t.id
+      AND ta.activity_type IN ('department_change', 'company_change')
+      AND UPPER(TRIM(COALESCE(ta.description, ''))) REGEXP '^REASSIGNED (FROM (COMPANY )?[^[:space:]]|TO [^[:space:]])'
 )";
 $reassignmentFilterCond = $isLapcSalesEmployeeView
     ? "0=1"
-    : "(($reassignedActivityCond) OR $reassignmentFilterNotificationCond)";
+    : "((($reassignmentFilterNotificationCond) OR ($reassignmentFilterActivityCond))
+        AND COALESCE(t.assigned_user_id, 0) <> ?
+        AND COALESCE(t.assigned_to, 0) <> ?)";
 $teamTicketsCond = $isLapcSalesEmployeeView
     ? "((t.assigned_user_id = ? OR t.assigned_to = ?) AND NOT $requesterIsCurrentCond AND NOT ($reassignmentFilterCond))"
     : "(NOT $requesterIsCurrentCond AND ($groupCond OR $linkedItTaskCond) AND NOT ($reassignmentFilterCond))";
@@ -399,14 +406,12 @@ $addReassignedTaskParams = static function () use (&$params, &$types, $user_id, 
     $params[] = (int) $user_id;
     $types .= "i";
 };
-$addReassignmentFilterParams = static function () use (&$params, &$types, $user_id, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
+$addReassignmentFilterParams = static function () use (&$params, &$types, $user_id, $isLapcSalesEmployeeView): void {
     if ($isLapcSalesEmployeeView) {
         return;
     }
-    foreach ($reassignedHistoryAliases as $historyAlias) {
-        $params[] = '%' . strtoupper($historyAlias) . '%';
-        $types .= "s";
-    }
+    $params[] = (int) $user_id;
+    $types .= "i";
     $params[] = (int) $user_id;
     $types .= "i";
 };
@@ -414,7 +419,7 @@ $addHandledByYouFilterParams = static function () use (&$params, &$types, $user_
     $params[] = (int) $user_id;
     $types .= "i";
 };
-$addTeamTicketsFilterParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $reassignedHistoryAliases, $isLapcSalesEmployeeView): void {
+$addTeamTicketsFilterParams = static function () use (&$params, &$types, $user_id, $user_email, $companyAliases, $userDepartmentAliases, $isLapcSalesEmployeeView): void {
     if ($isLapcSalesEmployeeView) {
         $params[] = (int) $user_id;
         $types .= "i";
@@ -434,10 +439,8 @@ $addTeamTicketsFilterParams = static function () use (&$params, &$types, $user_i
         $params[] = $departmentAlias;
         $types .= "s";
     }
-    foreach ($reassignedHistoryAliases as $historyAlias) {
-        $params[] = '%' . strtoupper($historyAlias) . '%';
-        $types .= "s";
-    }
+    $params[] = (int) $user_id;
+    $types .= "i";
     $params[] = (int) $user_id;
     $types .= "i";
 };
@@ -477,6 +480,9 @@ if (!empty($search)) {
 }
 
 if ($department !== '') {
+    if ($company_email === '@leadsagri.com' && strcasecmp((string) $department, 'Sales') === 0) {
+        $where[] = ticket_sales_origin_condition_sql('t');
+    } else {
     $deptKey = ticket_department_key_from_value((string) $department);
     $deptAliases = ticket_department_aliases_for_key($deptKey);
     $deptAliases[] = $deptKey;
@@ -491,6 +497,7 @@ if ($department !== '') {
             $types .= "s";
         }
         $where[] = "(" . implode(" OR ", $deptConds) . ")";
+    }
     }
 }
 
@@ -511,6 +518,9 @@ if ($company_email !== '') {
         $types .= "s";
     }
     if (count($companyFilterParts) > 0) {
+        if ($company_email === '@leadsagri.com') {
+            $companyFilterParts[] = ticket_sales_origin_condition_sql('t');
+        }
         $where[] = "(" . implode(" OR ", $companyFilterParts) . ")";
     }
 }
@@ -2816,7 +2826,6 @@ $showing_to = min($offset + $limit, (int) $total_records);
                         <select name="reassignment" class="my-tickets-filter-select" id="filterReassignment">
                             <option value="" <?= $reassignment === '' ? 'selected' : '' ?> hidden>All Tickets</option>
                             <option value="handled_by_you" <?= $reassignment === 'handled_by_you' ? 'selected' : '' ?>>Handled by you</option>
-                            <option value="not_reassigned" <?= $reassignment === 'not_reassigned' ? 'selected' : '' ?>>Team Tickets</option>
                             <option value="reassigned" <?= $reassignment === 'reassigned' ? 'selected' : '' ?>>Reassigned</option>
                         </select>
                     </div>
@@ -2882,12 +2891,13 @@ $showing_to = min($offset + $limit, (int) $total_records);
                                     <td class="task-ticket-department"><?= htmlspecialchars(task_source_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
 
                                     <td class="task-ticket-status">
-                                        <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                                            <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
+                                        <?php $taskStatusDisplay = !empty($row['hold_started_at']) ? 'On Hold' : (string) $row['status']; ?>
+                                        <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $taskStatusDisplay)); ?>">
+                                            <?= htmlspecialchars($taskStatusDisplay, ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
 
-                                    <td class="task-ticket-sla"><?= task_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
+                                    <td class="task-ticket-sla"><?= task_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0)); ?></td>
                                     <td class="task-ticket-date"><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
                                     <td class="task-ticket-arrow" aria-hidden="true">&rsaquo;</td>
                                 </tr>

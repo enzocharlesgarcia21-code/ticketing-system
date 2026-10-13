@@ -1,4 +1,8 @@
 <?php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit('Not Found');
+}
 require_once 'config/database.php';
 
 $colRes = $conn->query("SHOW COLUMNS FROM employee_tickets LIKE 'assigned_department'");

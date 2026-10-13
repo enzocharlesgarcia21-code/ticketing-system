@@ -516,23 +516,30 @@ body.employee-analytics-page .admin-content {
     body.employee-analytics-page .analytics-heading {
         grid-column: 1 / -1 !important;
         gap: 7px !important;
-        max-width: 430px !important;
+        width: 100% !important;
+        max-width: none !important;
+        text-align: center !important;
     }
 
     body.employee-analytics-page .admin-page .admin-content .admin-page-header .analytics-heading .admin-page-title.analytics-title {
         margin: 0 !important;
-        color: #075d27 !important;
-        font-size: 27px !important;
-        font-weight: 800 !important;
-        line-height: 1.1 !important;
+        color: #145a24 !important;
+        font-size: 21px !important;
+        font-weight: 700 !important;
+        line-height: 1.2 !important;
+        justify-content: center !important;
+        text-align: center !important;
     }
 
     body.employee-analytics-page .analytics-subtitle {
         max-width: 410px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
         color: #334155 !important;
-        font-size: 13px !important;
-        font-weight: 500 !important;
-        line-height: 1.55 !important;
+        font-size: 11px !important;
+        font-weight: 400 !important;
+        line-height: 1.4 !important;
+        text-align: center !important;
     }
 
     body.employee-analytics-page .analytics-header-actions {
@@ -908,11 +915,12 @@ body.employee-analytics-page .admin-content {
 
     body.employee-analytics-page .pagination-row {
         display: grid !important;
-        grid-template-columns: auto 1fr auto !important;
-        gap: 8px !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        gap: 6px !important;
         align-items: center !important;
         justify-items: stretch !important;
         margin-top: 12px !important;
+        min-height: 42px !important;
     }
 
     body.employee-analytics-page .pagination-row > .pagination-info:first-child {
@@ -920,28 +928,50 @@ body.employee-analytics-page .admin-content {
     }
 
     body.employee-analytics-page .entries-row {
-        justify-self: start !important;
-        gap: 5px !important;
-        font-size: 8.5px !important;
+        display: none !important;
     }
 
     body.employee-analytics-page .entries-select {
-        width: 58px !important;
-        min-width: 58px !important;
-        height: 34px !important;
-        padding: 0 8px !important;
-        font-size: 9px !important;
+        display: none !important;
     }
 
     body.employee-analytics-page .pagination-info {
-        justify-self: end !important;
+        grid-column: 1 !important;
+        justify-self: start !important;
         font-size: 8.5px !important;
-        text-align: right !important;
+        text-align: left !important;
+        white-space: normal !important;
     }
 
     body.employee-analytics-page .pagination-controls {
-        grid-column: 1 / -1 !important;
+        grid-column: 2 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
         justify-self: end !important;
+        gap: 4px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    body.employee-analytics-page .pagination-pages {
+        display: none !important;
+    }
+
+    body.employee-analytics-page .pagination-controls .page-btn.prev,
+    body.employee-analytics-page .pagination-controls .page-btn.next {
+        width: auto !important;
+        min-width: 54px !important;
+        height: 30px !important;
+        padding: 0 5px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #17642b !important;
+        box-shadow: none !important;
+        font-size: 9px !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+        transform: none !important;
     }
 }
 
@@ -1002,26 +1032,102 @@ body.employee-analytics-page .admin-content {
     }
 }
 
-/* Keep mobile analytics body copy at one readable size. Page headings and KPI
-   numbers retain their visual hierarchy; all labels, controls, charts and table
-   content use the shared employee-page 14px baseline. This block intentionally comes last so
-   narrower breakpoints cannot shrink individual elements again. */
+/* Keep general mobile analytics controls and chart copy readable while the
+   compact table and page introduction retain their dedicated mobile sizes. */
 @media (max-width: 768px) {
-    body.employee-analytics-page .analytics-subtitle,
     body.employee-analytics-page .btn-export,
     body.employee-analytics-page .analytics-toolbar *,
     body.employee-analytics-page .analytics-label,
     body.employee-analytics-page .analytics-sub,
-    body.employee-analytics-page .chart-card *,
-    body.employee-analytics-page .table-card * {
+    body.employee-analytics-page .chart-card * {
         font-size: 14px !important;
     }
 
     body.employee-analytics-page .table-card::before {
-        font-size: 14px !important;
+        font-size: 10px !important;
+    }
+
+    body.employee-analytics-page .analytics-task-table td,
+    body.employee-analytics-page .analytics-task-table td * {
+        font-size: 10px !important;
+        line-height: 1.25 !important;
+    }
+
+    body.employee-analytics-page .analytics-task-table th,
+    body.employee-analytics-page .analytics-task-table th * {
+        font-size: 8px !important;
+        line-height: 1.2 !important;
+    }
+
+    /* Compact clearance keeps pagination above the fixed chat shortcut. */
+    body.employee-analytics-page .table-card {
+        padding-bottom: 40px !important;
+    }
+
+    /* Add visual clearance without changing the table-card dimensions. */
+    body.employee-analytics-page .table-card .pagination-row {
+        transform: translateY(-10px) !important;
     }
 }
 </style>
+HTML;
+
+$employeeAnalyticsTablePagination = <<<'HTML'
+<script id="employeeAnalyticsTablePagination">
+(function () {
+    var loading = false;
+
+    document.addEventListener('click', function (event) {
+        if (!window.matchMedia('(max-width: 768px)').matches) return;
+        var target = event.target;
+        var link = target && target.closest
+            ? target.closest('body.employee-analytics-page .table-card .pagination-controls a.page-btn')
+            : null;
+        if (!link || link.classList.contains('disabled')) return;
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+        event.preventDefault();
+        if (loading) return;
+        loading = true;
+
+        var currentCard = document.querySelector('body.employee-analytics-page .table-card');
+        var url = new URL(link.getAttribute('href'), window.location.href);
+        var scrollLeft = window.scrollX || window.pageXOffset || 0;
+        var scrollTop = window.scrollY || window.pageYOffset || 0;
+        if (currentCard) currentCard.setAttribute('aria-busy', 'true');
+
+        fetch(url.toString(), {
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (response) {
+                if (!response.ok) throw new Error('Unable to load ticket page.');
+                return response.text();
+            })
+            .then(function (html) {
+                var parsed = new DOMParser().parseFromString(html, 'text/html');
+                var nextCard = parsed.querySelector('body.employee-analytics-page .table-card');
+                currentCard = document.querySelector('body.employee-analytics-page .table-card');
+                if (!nextCard || !currentCard) throw new Error('Ticket table was not found.');
+
+                currentCard.innerHTML = nextCard.innerHTML;
+                currentCard.removeAttribute('aria-busy');
+                window.history.replaceState({}, '', url.toString());
+                window.requestAnimationFrame(function () {
+                    window.scrollTo(scrollLeft, scrollTop);
+                });
+            })
+            .catch(function () {
+                window.location.assign(url.toString());
+            })
+            .finally(function () {
+                loading = false;
+                currentCard = document.querySelector('body.employee-analytics-page .table-card');
+                if (currentCard) currentCard.removeAttribute('aria-busy');
+            });
+    });
+})();
+</script>
 HTML;
 
 $employeeMarketingChartDropdown = <<<'HTML'
@@ -1169,7 +1275,7 @@ if (stripos($analyticsHtml, '</head>') !== false) {
     $analyticsHtml = $employeeAnalyticsAdminParity . "\n" . $analyticsHtml;
 }
 
-$employeeAnalyticsBodyExtras = $employeeMarketingChartDropdown;
+$employeeAnalyticsBodyExtras = $employeeMarketingChartDropdown . "\n" . $employeeAnalyticsTablePagination;
 
 if (stripos($analyticsHtml, '</body>') !== false) {
     $analyticsHtml = preg_replace('/<\/body>/i', $employeeAnalyticsBodyExtras . "\n</body>", $analyticsHtml, 1);

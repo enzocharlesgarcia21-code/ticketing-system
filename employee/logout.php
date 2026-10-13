@@ -1,6 +1,13 @@
 <?php
 require_once '../config/database.php';
 require_once '../includes/activity_logger.php';
+require_once '../includes/csrf.php';
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    exit('Method Not Allowed');
+}
+csrf_validate();
 
 $logoutUserId = (int) ($_SESSION['user_id'] ?? 0);
 if ($logoutUserId > 0) {
@@ -17,7 +24,7 @@ if ($logoutUserId > 0) {
 $_SESSION = [];
 
 /* Destroy session */
-session_destroy();
+security_clear_session();
 
 /* Prevent back button caching */
 header("Cache-Control: no-cache, no-store, must-revalidate");

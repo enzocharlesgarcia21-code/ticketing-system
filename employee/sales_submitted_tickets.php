@@ -7,6 +7,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
     header('Location: employee_login.php');
     exit;
 }
+ticket_ensure_assignment_columns($conn);
 
 $userId = (int) $_SESSION['user_id'];
 $company = trim((string) ($_SESSION['company'] ?? ''));
@@ -379,6 +380,8 @@ $sql = "
         t.requester_name,
         t.requester_email,
         t.created_at,
+        t.hold_started_at,
+        t.sla_hold_seconds,
         t.description,
         t.follow_up_last_sent_at,
         t.follow_up_send_count
@@ -1165,7 +1168,9 @@ function sales_manager_position(array $ticket): string
                             <tr><td colspan="9" class="sales-manager-empty">No submitted tickets found for this region.</td></tr>
                         <?php else: ?>
                             <?php foreach ($tickets as $ticket): ?>
-                                <?php $status = (string) (($ticket['status'] ?? '') !== '' ? $ticket['status'] : 'Open'); ?>
+                                <?php $status = !empty($ticket['hold_started_at'])
+                                    ? 'On Hold'
+                                    : (string) (($ticket['status'] ?? '') !== '' ? $ticket['status'] : 'Open'); ?>
                                 <?php
                                     $ticketId = (int) ($ticket['id'] ?? 0);
                                     $ticketCategory = (string) (($ticket['category'] ?? '') !== '' ? $ticket['category'] : ($ticket['subject'] ?? '-'));
@@ -1197,7 +1202,7 @@ function sales_manager_position(array $ticket): string
                                             <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
-                                    <td class="task-ticket-sla"><?= ticket_sla_badge_html((string) ($ticket['created_at'] ?? ''), $status, (string) ($ticket['priority'] ?? '')); ?></td>
+                                    <td class="task-ticket-sla"><?= ticket_sla_badge_html((string) ($ticket['created_at'] ?? ''), $status, (string) ($ticket['priority'] ?? ''), '-', (string) ($ticket['hold_started_at'] ?? ''), (int) ($ticket['sla_hold_seconds'] ?? 0)); ?></td>
                                     <td class="task-ticket-date"><?= htmlspecialchars(sales_manager_date((string) ($ticket['created_at'] ?? '')), ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td class="sales-manager-action-cell">
                                         <div class="ticket-action-buttons">

@@ -140,12 +140,12 @@ function ticket_pdf_attachment_meta(string $storedName, string $urlPrefix = '../
 {
     $storedName = ticket_pdf_normalize_stored_name($storedName);
     $isPdf = ticket_pdf_safe_stored_name($storedName);
-    $relativePath = $isPdf ? ticket_pdf_thumbnail_relative_path($storedName) : '';
-    $thumbnailPath = $isPdf ? ticket_pdf_thumbnail_path($storedName) : '';
 
     return [
         'is_pdf' => $isPdf,
-        'thumbnail_available' => $isPdf && is_file($thumbnailPath),
-        'thumbnail_url' => ($isPdf && is_file($thumbnailPath)) ? $urlPrefix . $relativePath : '',
+        // Ticket thumbnails can contain sensitive data and are no longer served
+        // directly. The browser renders the authorized PDF response instead.
+        'thumbnail_available' => false,
+        'thumbnail_url' => '',
     ];
 }

@@ -67,6 +67,8 @@ function my_tickets_filter_clauses(mysqli $conn, string $search, string $company
     $department = trim($department);
     $status = trim($status);
     $sla = trim($sla);
+    $isLapcCompanyFilter = ticket_normalize_company($company) === '@leadsagri.com';
+    $isSalesDepartmentFilter = $isLapcCompanyFilter && strcasecmp($department, 'Sales') === 0;
 
     if ($search !== '') {
         $like = '%' . $search . '%';
@@ -89,7 +91,10 @@ function my_tickets_filter_clauses(mysqli $conn, string $search, string $company
             return $value !== '';
         })));
         if (count($aliases) > 0) {
-            $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_company, ''), t.company, ''))) IN (" . implode(',', array_fill(0, count($aliases), '?')) . ")";
+            $companyCondition = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_company, ''), t.company, ''))) IN (" . implode(',', array_fill(0, count($aliases), '?')) . ")";
+            $where[] = $isLapcCompanyFilter
+                ? "($companyCondition OR " . ticket_sales_origin_condition_sql('t') . ")"
+                : $companyCondition;
             $types .= str_repeat('s', count($aliases));
             foreach ($aliases as $alias) {
                 $params[] = $alias;
@@ -97,12 +102,16 @@ function my_tickets_filter_clauses(mysqli $conn, string $search, string $company
         }
     }
 
-    if ($department !== '' && ticket_normalize_company($company) === '@leadsagri.com') {
-        $allowedDepartments = ticket_lapc_departments();
+    if ($department !== '' && $isLapcCompanyFilter) {
+        $allowedDepartments = ticket_lapc_department_filter_options();
         if (in_array($department, $allowedDepartments, true)) {
-            $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department, ''))) = UPPER(?)";
-            $types .= 's';
-            $params[] = $department;
+            if ($isSalesDepartmentFilter) {
+                $where[] = ticket_sales_origin_condition_sql('t');
+            } else {
+                $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department, ''))) = UPPER(?)";
+                $types .= 's';
+                $params[] = $department;
+            }
         }
     }
 
@@ -192,14 +201,14 @@ function feedback_assignee_display(array $ticket): array
     ];
 }
 
-function my_tickets_effective_sla_level(string $createdAt, string $status, string $priority = ''): string
+function my_tickets_effective_sla_level(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    return ticket_effective_sla_level($createdAt, $status, $priority);
+    return ticket_effective_sla_level($createdAt, $status, $priority, $holdStartedAt, $holdSeconds);
 }
 
-function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    $slaLevel = my_tickets_effective_sla_level($createdAt, $status, $priority);
+    $slaLevel = my_tickets_effective_sla_level($createdAt, $status, $priority, $holdStartedAt, $holdSeconds);
     if ($slaLevel === '') return '-';
     return '<span class="badge badge-' . strtolower($slaLevel) . '">' . htmlspecialchars(my_tickets_sla_display_label($slaLevel), ENT_QUOTES, 'UTF-8') . '</span>';
 }
@@ -971,6 +980,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'employee') {
     header("Location: employee_login.php");
     exit();
 }
+ticket_ensure_assignment_columns($conn);
 
 follow_up_ensure_cooldown_columns($conn);
 
@@ -1194,7 +1204,7 @@ $companyOptions = [
     '@lingapleads.org' => 'LINGAP',
     '@primestocks.ph' => 'PCC',
 ];
-$lapcDepartmentOptions = ticket_lapc_departments();
+$lapcDepartmentOptions = ticket_lapc_department_filter_options();
 $slaOptions = ['On Track', 'At Risk', 'Breach'];
 if (ticket_normalize_company($ticketCompanyFilter) !== '@leadsagri.com' || !in_array($ticketDepartmentFilter, $lapcDepartmentOptions, true)) {
     $ticketDepartmentFilter = '';
@@ -3895,11 +3905,13 @@ $successMessage = '';
             }
 
             body.employee-my-tickets-page .page-subtitle {
-                max-width: 280px;
+                width: 100%;
+                max-width: none;
                 margin: 7px auto 0;
                 color: #38526d;
                 font-size: 11px;
                 line-height: 1.4;
+                white-space: nowrap;
             }
 
             body.employee-my-tickets-page .my-tickets-filter-card {
@@ -4529,13 +4541,14 @@ $successMessage = '';
                                         <strong><?= htmlspecialchars($row['category'], ENT_QUOTES, 'UTF-8'); ?></strong>
                                     </td>
                                     <td data-label="Status">
-                                        <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $row['status'])); ?>">
-                                            <?= htmlspecialchars($row['status'], ENT_QUOTES, 'UTF-8'); ?>
+                                        <?php $requesterStatusDisplay = !empty($row['hold_started_at']) ? 'On Hold' : (string) $row['status']; ?>
+                                        <span class="status-pill status-<?= strtolower(str_replace(' ', '-', $requesterStatusDisplay)); ?>">
+                                            <?= htmlspecialchars($requesterStatusDisplay, ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
                                     <td data-label="Passed To"><?= htmlspecialchars(submitted_ticket_target_label($row), ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td data-label="Date"><?= date("M d, Y", strtotime($row['created_at'])); ?></td>
-                                    <td data-label="SLA" class="my-tickets-sla-cell"><?= my_tickets_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')); ?></td>
+                                    <td data-label="SLA" class="my-tickets-sla-cell"><?= my_tickets_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0)); ?></td>
                                     <td data-label="Action" class="follow-up-cell">
                                         <div class="ticket-action-buttons">
                                         <?php if (can_follow_up_ticket_status((string) ($row['status'] ?? ''))): ?>

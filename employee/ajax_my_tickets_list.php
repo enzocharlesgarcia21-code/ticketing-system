@@ -15,6 +15,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'employee') {
     echo json_encode(['ok' => false, 'error' => 'Unauthorized']);
     exit;
 }
+ticket_ensure_assignment_columns($conn);
 
 function h(string $value): string
 {
@@ -67,6 +68,8 @@ function my_tickets_filter_clauses(mysqli $conn, string $search, string $company
     $department = trim($department);
     $status = trim($status);
     $sla = trim($sla);
+    $isLapcCompanyFilter = ticket_normalize_company($company) === '@leadsagri.com';
+    $isSalesDepartmentFilter = $isLapcCompanyFilter && strcasecmp($department, 'Sales') === 0;
 
     if ($search !== '') {
         $like = '%' . $search . '%';
@@ -89,7 +92,10 @@ function my_tickets_filter_clauses(mysqli $conn, string $search, string $company
             return $value !== '';
         })));
         if (count($aliases) > 0) {
-            $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_company, ''), t.company, ''))) IN (" . implode(',', array_fill(0, count($aliases), '?')) . ")";
+            $companyCondition = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_company, ''), t.company, ''))) IN (" . implode(',', array_fill(0, count($aliases), '?')) . ")";
+            $where[] = $isLapcCompanyFilter
+                ? "($companyCondition OR " . ticket_sales_origin_condition_sql('t') . ")"
+                : $companyCondition;
             $types .= str_repeat('s', count($aliases));
             foreach ($aliases as $alias) {
                 $params[] = $alias;
@@ -97,12 +103,16 @@ function my_tickets_filter_clauses(mysqli $conn, string $search, string $company
         }
     }
 
-    if ($department !== '' && ticket_normalize_company($company) === '@leadsagri.com') {
-        $allowedDepartments = ticket_lapc_departments();
+    if ($department !== '' && $isLapcCompanyFilter) {
+        $allowedDepartments = ticket_lapc_department_filter_options();
         if (in_array($department, $allowedDepartments, true)) {
-            $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department, ''))) = UPPER(?)";
-            $types .= 's';
-            $params[] = $department;
+            if ($isSalesDepartmentFilter) {
+                $where[] = ticket_sales_origin_condition_sql('t');
+            } else {
+                $where[] = "UPPER(TRIM(COALESCE(NULLIF(t.assigned_group, ''), t.assigned_department, ''))) = UPPER(?)";
+                $types .= 's';
+                $params[] = $department;
+            }
         }
     }
 
@@ -159,9 +169,9 @@ function submitted_ticket_target_label(array $row): string
     return '-';
 }
 
-function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = ''): string
+function my_tickets_sla_badge_html(string $createdAt, string $status, string $priority = '', string $holdStartedAt = '', int $holdSeconds = 0): string
 {
-    return ticket_sla_badge_html($createdAt, $status, $priority);
+    return ticket_sla_badge_html($createdAt, $status, $priority, '-', $holdStartedAt, $holdSeconds);
 }
 
 function can_follow_up_ticket_status(string $status): bool
@@ -397,7 +407,7 @@ $slaFilter = trim((string) ($_GET['sla'] ?? ''));
 if ($page < 1) $page = 1;
 if ($limit < 1) $limit = 1;
 if ($limit > 100) $limit = 100;
-if (ticket_normalize_company($companyFilter) !== '@leadsagri.com' || !in_array($departmentFilter, ticket_lapc_departments(), true)) {
+if (ticket_normalize_company($companyFilter) !== '@leadsagri.com' || !in_array($departmentFilter, ticket_lapc_department_filter_options(), true)) {
     $departmentFilter = '';
 }
 if (my_tickets_normalize_sla_filter($slaFilter) === '') {
@@ -487,10 +497,11 @@ if ($result && $result->num_rows > 0) {
         $rowsHtml .= '<tr class="ticket-row" data-id="' . (int) $row['id'] . '" style="cursor:pointer;">';
         $rowsHtml .= '<td data-label="ID">#' . (int) $row['id'] . '</td>';
         $rowsHtml .= '<td data-label="Category" class="subject-cell"><strong>' . h((string) ($row['category'] ?? '')) . '</strong></td>';
-        $rowsHtml .= '<td data-label="Status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', (string) ($row['status'] ?? ''))) . '">' . h((string) ($row['status'] ?? '')) . '</span></td>';
+        $requesterStatusDisplay = !empty($row['hold_started_at']) ? 'On Hold' : (string) ($row['status'] ?? '');
+        $rowsHtml .= '<td data-label="Status"><span class="status-pill status-' . strtolower(str_replace(' ', '-', $requesterStatusDisplay)) . '">' . h($requesterStatusDisplay) . '</span></td>';
         $rowsHtml .= '<td data-label="Passed To">' . h(submitted_ticket_target_label($row)) . '</td>';
         $rowsHtml .= '<td data-label="Date">' . h(date("M d, Y", strtotime((string) ($row['created_at'] ?? 'now')))) . '</td>';
-        $rowsHtml .= '<td data-label="SLA" class="my-tickets-sla-cell">' . my_tickets_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? '')) . '</td>';
+        $rowsHtml .= '<td data-label="SLA" class="my-tickets-sla-cell">' . my_tickets_sla_badge_html((string) ($row['created_at'] ?? ''), (string) ($row['status'] ?? ''), (string) ($row['priority'] ?? ''), (string) ($row['hold_started_at'] ?? ''), (int) ($row['sla_hold_seconds'] ?? 0)) . '</td>';
         $rowsHtml .= '<td data-label="Action" class="follow-up-cell"><div class="ticket-action-buttons">';
         $rowsHtml .= follow_up_button_html($row);
         $rowsHtml .= close_ticket_button_html($row);

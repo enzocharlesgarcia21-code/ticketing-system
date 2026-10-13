@@ -39,10 +39,10 @@ ticket_ensure_chat_tables($conn);
 
     // --- FETCH OLD DATA FOR COMPARISON & NOTIFICATIONS ---
     // Try with all optional columns first; fall back to minimal set if columns are missing.
-    $old_stmt = $conn->prepare("SELECT user_id, requester_email, status, assigned_department, assigned_company, assigned_group, assigned_user_id, assigned_to, company, admin_note FROM employee_tickets WHERE id = ?");
+    $old_stmt = $conn->prepare("SELECT user_id, requester_email, status, assigned_department, assigned_company, assigned_group, assigned_user_id, assigned_to, company, admin_note, hold_started_at FROM employee_tickets WHERE id = ?");
     if (!$old_stmt) {
         // Some optional columns may not exist yet — retry with minimal set
-        $old_stmt = $conn->prepare("SELECT user_id, NULL AS requester_email, status, assigned_department, NULL AS assigned_company, NULL AS assigned_group, NULL AS assigned_user_id, NULL AS assigned_to, company, admin_note FROM employee_tickets WHERE id = ?");
+        $old_stmt = $conn->prepare("SELECT user_id, NULL AS requester_email, status, assigned_department, NULL AS assigned_company, NULL AS assigned_group, NULL AS assigned_user_id, NULL AS assigned_to, company, admin_note, NULL AS hold_started_at FROM employee_tickets WHERE id = ?");
         if (!$old_stmt) {
             error_log('admin/update_ticket.php: old_stmt prepare failed: ' . $conn->error);
             header("Location: all_tickets.php");
@@ -55,6 +55,18 @@ ticket_ensure_chat_tables($conn);
     $old_data = $old_res->fetch_assoc();
     $old_stmt->close();
     if (!$old_data) {
+        header("Location: all_tickets.php");
+        exit();
+    }
+
+    if (trim((string) ($old_data['hold_started_at'] ?? '')) !== '') {
+        $_SESSION['error'] = 'The ticket is on hold. Its assignee must resume it before it can be updated or reassigned.';
+        header("Location: all_tickets.php");
+        exit();
+    }
+
+    if (trim((string) ($admin_note ?? '')) === '') {
+        $_SESSION['error'] = 'Action Taken/Comments is required before saving the ticket.';
         header("Location: all_tickets.php");
         exit();
     }
@@ -338,17 +350,13 @@ ticket_ensure_chat_tables($conn);
                 $updateSourceLabel = 'Admin';
             }
             $notePreview = trim((string) ($admin_note ?? ''));
-            if (strlen($notePreview) > 400) {
-                $notePreview = substr($notePreview, 0, 400) . '...';
-            }
 
             $sharedUpdateLines = [];
             if ($ticketCategory !== '') {
                 $sharedUpdateLines[] = 'Category: ' . $ticketCategory;
             }
-            if ($ticketDescription !== '') {
-                $sharedUpdateLines[] = "Description:\n" . ticket_email_description_for_notification($ticketDescription);
-            }
+            $sharedUpdateLines[] = "Description:\n" . ($ticketDescription !== '' ? ticket_email_description_for_notification($ticketDescription) : '-');
+            $sharedUpdateLines[] = "Action Taken/Comments:\n" . $notePreview;
             if ($ticketPriority !== '') {
                 $sharedUpdateLines[] = 'Priority: ' . $ticketPriority;
             }
@@ -365,9 +373,6 @@ ticket_ensure_chat_tables($conn);
                 if ($newAssignedTargetLabel !== '') {
                     $sharedUpdateLines[] = 'Reassigned To: ' . $newAssignedTargetLabel;
                 }
-            }
-            if ($noteChanged && $notePreview !== '') {
-                $sharedUpdateLines[] = "Note from $updateSourceLabel:\n$notePreview";
             }
 
             if ($statusChanged) {

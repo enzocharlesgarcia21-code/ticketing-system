@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/private_attachments.php';
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/mailer.php';
@@ -910,8 +911,8 @@ function notif_ticket_email_attachments(mysqli $conn, int $ticketId, string $leg
             if ($storedName === '') {
                 continue;
             }
-            $path = realpath(__DIR__ . '/../uploads/' . $storedName);
-            if ($path === false || !is_file($path)) {
+            $path = private_attachment_resolve_path($storedName);
+            if ($path === '' || !is_file($path)) {
                 continue;
             }
             $name = trim((string) ($row['original_name'] ?? ''));
@@ -936,8 +937,8 @@ function notif_ticket_email_attachments(mysqli $conn, int $ticketId, string $leg
 
     $legacyAttachment = trim($legacyAttachment);
     if ($legacyAttachment !== '') {
-        $legacyPath = realpath(__DIR__ . '/../uploads/' . $legacyAttachment);
-        if ($legacyPath !== false && is_file($legacyPath)) {
+        $legacyPath = private_attachment_resolve_path($legacyAttachment);
+        if ($legacyPath !== '' && is_file($legacyPath)) {
             $pathKey = strtolower($legacyPath);
             $key = $pathKey . '|' . strtolower(basename($legacyPath));
             if (!isset($seen[$pathKey]) && !isset($seen[$key])) {
@@ -1542,44 +1543,7 @@ function notif_email_lines_with_sales_request_context(array $lines): array
 function notif_email_detail_value_html(string $label, string $value): string
 {
     $escapedValue = nl2br(htmlspecialchars($value, ENT_QUOTES, 'UTF-8'));
-    if (strcasecmp(trim($label), 'Description') !== 0) {
-        return $escapedValue;
-    }
-
-    $normalized = str_replace(["\r\n", "\r"], "\n", trim($value));
-    $visualLines = [];
-    foreach (explode("\n", $normalized) as $line) {
-        $line = rtrim((string) $line);
-        if ($line === '') {
-            $visualLines[] = '';
-            continue;
-        }
-        $wrapped = wordwrap($line, 64, "\n", false);
-        foreach (explode("\n", $wrapped) as $wrappedLine) {
-            $visualLines[] = (string) $wrappedLine;
-        }
-    }
-
-    if (count($visualLines) <= 5) {
-        return $escapedValue;
-    }
-
-    $preview = implode("\n", array_slice($visualLines, 0, 5));
-    $remaining = implode("\n", array_slice($visualLines, 5));
-    $previewHtml = nl2br(htmlspecialchars($preview, ENT_QUOTES, 'UTF-8'));
-    $remainingHtml = nl2br(htmlspecialchars($remaining, ENT_QUOTES, 'UTF-8'));
-
-    if (trim($remaining) === '') {
-        return $escapedValue;
-    }
-
-    $summaryStyle = 'display:inline-block;margin-top:8px;padding:7px 12px;background:#006633;border:1px solid #006633;border-radius:5px;color:#ffffff;font-size:13px;line-height:1.2;font-weight:700;text-decoration:none;cursor:pointer;';
-
-    return '<div style="margin:0;padding:0;">' . $previewHtml . '</div>'
-        . '<details style="margin:0;padding:0;">'
-        . '<summary style="' . $summaryStyle . '">See more</summary>'
-        . '<div style="margin-top:10px;">' . $remainingHtml . '</div>'
-        . '</details>';
+    return $escapedValue;
 }
 
 function notif_email_assignee_assignment(string $title, array $lines, string $ctaLabel, string $ctaUrl): array
@@ -1872,7 +1836,7 @@ function notif_email_requester_ticket_resolved(string $title, array $lines, stri
         $details['Current Status'] = 'Resolved';
     }
     notif_email_extract_sales_request_context($details);
-    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Resolved By', 'Email', 'Position', 'Region', 'Date Submitted', 'Date Resolved', 'Level of Urgency', 'Description'];
+    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Resolved By', 'Email', 'Position', 'Region', 'Date Submitted', 'Date Resolved', 'Level of Urgency', 'Description', 'Action Taken/Comments'];
     $rowsHtml = '';
     foreach ($orderedLabels as $label) {
         if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
@@ -2047,7 +2011,7 @@ function notif_email_requester_ticket_reassigned(string $title, array $lines, st
         : 'Your ticket has been reassigned to another department for further handling.';
 
     notif_email_extract_sales_request_context($details);
-    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Claimed By', 'Email', 'Position', 'Region', 'Date Reassigned', 'Level of Urgency', 'Description', 'Note'];
+    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Claimed By', 'Email', 'Position', 'Region', 'Date Reassigned', 'Level of Urgency', 'Description', 'Action Taken/Comments', 'Note'];
     $rowsHtml = '';
     foreach ($orderedLabels as $label) {
         if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
@@ -2127,7 +2091,7 @@ function notif_email_requester_ticket_status_updated(string $title, array $lines
     }
 
     notif_email_extract_sales_request_context($details);
-    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Assignee', 'Email', 'Position', 'Region', 'Level of Urgency', 'Description'];
+    $orderedLabels = ['Ticket ID', 'Category', 'Current Status', 'Assignee', 'Email', 'Position', 'Region', 'Level of Urgency', 'Description', 'Action Taken/Comments'];
     $rowsHtml = '';
     foreach ($orderedLabels as $label) {
         if (!isset($details[$label]) || trim((string) $details[$label]) === '') {
@@ -2524,7 +2488,7 @@ function notif_email_simple(string $title, array $lines, string $ctaLabel, strin
             continue;
         }
         $safeLine = htmlspecialchars($line, ENT_QUOTES, 'UTF-8');
-        if (preg_match('/^([A-Za-z][A-Za-z\s&]+:)(\s*.*)$/s', $safeLine, $matches)) {
+        if (preg_match('/^([A-Za-z][A-Za-z\s&\/]+:)(\s*.*)$/s', $safeLine, $matches)) {
             $safeLine = '<strong>' . $matches[1] . '</strong>' . $matches[2];
         }
         $lineHtml .= '<div style="margin:0 0 12px 0; font-size:16px; line-height:1.5; color:#0f172a;">' . nl2br($safeLine) . '</div>';
